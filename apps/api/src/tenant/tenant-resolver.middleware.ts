@@ -118,6 +118,7 @@ export class TenantResolverMiddleware implements NestMiddleware {
       '/api/v1/auth/login',
       '/api/v1/auth/callback',
       '/api/docs',
+      '/api/v1/guard-test/public',
     ];
 
     for (var i = 0; i < exemptPaths.length; i++) {

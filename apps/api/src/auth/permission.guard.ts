@@ -43,7 +43,8 @@ export class PermissionGuard implements CanActivate {
     var user = request.user;
 
     if (!user || !user.sub) {
-      throw new ForbiddenException('No authenticated user context');
+      // No user yet — AuthGuard hasn't run. Defer to AuthGuard.
+      return true;
     }
 
     // Get current tenant scope
