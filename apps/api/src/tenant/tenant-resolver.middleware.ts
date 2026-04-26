@@ -22,7 +22,7 @@ import { runWithTenantContext, RequestContext, TenantInfo } from './tenant.conte
 export class TenantResolverMiddleware implements NestMiddleware {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async use(req: Request, res: Response, next: NextFunction) {
+  async use(req: Request, _res: Response, next: NextFunction) {
     // Skip tenant resolution for health checks and auth endpoints
     if (this.isExemptPath(req.path)) {
       next();

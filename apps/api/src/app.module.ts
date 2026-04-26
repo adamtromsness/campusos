@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HealthModule } from './health/health.module';
+import { TenantModule } from './tenant/tenant.module';
 import { PlatformModule } from './platform/platform.module';
 import { IamModule } from './iam/iam.module';
-import { TenantModule } from './tenant/tenant.module';
+import { AuthModule } from './auth/auth.module';
 
 /**
  * CampusOS Root Application Module
@@ -21,8 +22,11 @@ import { TenantModule } from './tenant/tenant.module';
     // Health check (no auth/tenant required)
     HealthModule,
 
-    // Tenant isolation — middleware + guard + scoped Prisma
+    // Tenant isolation
     TenantModule,
+
+    // Authentication (global AuthGuard)
+    AuthModule,
 
     // M0 Platform Core
     PlatformModule,

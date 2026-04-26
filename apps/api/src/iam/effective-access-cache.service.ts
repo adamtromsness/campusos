@@ -55,7 +55,7 @@ export class EffectiveAccessCacheService {
     }
 
     // 3. Collect all role IDs
-    var roleIds = assignments.map(function(a) { return a.roleId; });
+    var roleIds = assignments.map(function(a: any) { return a.roleId; });
     var uniqueRoleIds = Array.from(new Set(roleIds));
 
     // 4. Get all permission codes for these roles
@@ -65,7 +65,7 @@ export class EffectiveAccessCacheService {
     });
 
     var permissionCodes = Array.from(
-      new Set(rolePermissions.map(function(rp) { return rp.permission.code; }))
+      new Set(rolePermissions.map(function(rp: any) { return rp.permission.code; }))
     ).sort();
 
     // 5. Compute version hash for staleness detection
@@ -123,8 +123,8 @@ export class EffectiveAccessCacheService {
 
     // Walk up the tree (max 10 levels to prevent infinite loops)
     for (var depth = 0; depth < 10; depth++) {
-      var scope = await this.prisma.iamScope.findUnique({
-        where: { id: currentId },
+      var scope: any = await this.prisma.iamScope.findUnique({
+        where: { id: currentId as string },
         select: { parentScopeId: true },
       });
 

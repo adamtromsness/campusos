@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaClient, AssignmentSource, AssignmentStatus } from '@prisma/client';
+import { PrismaClient, AssignmentSource } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { EffectiveAccessCacheService } from './effective-access-cache.service';
 
