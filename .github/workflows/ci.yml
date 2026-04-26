@@ -1,0 +1,136 @@
+# ═══════════════════════════════════════════════════════════════
+# CampusOS CI Pipeline
+# Runs on every push and PR to dev/sit branches
+# ═══════════════════════════════════════════════════════════════
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, sit, main]
+
+env:
+  NODE_VERSION: '20'
+  DATABASE_URL: postgresql://campusos:campusos_dev@localhost:5432/campusos_dev?schema=platform
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @campusos/shared build
+      - run: pnpm --filter @campusos/database build
+      - run: pnpm --filter @campusos/api build
+      - run: pnpm format:check
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: campusos
+          POSTGRES_PASSWORD: campusos_dev
+          POSTGRES_DB: campusos_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U campusos"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Create platform schema
+      - run: |
+          PGPASSWORD=campusos_dev psql -h localhost -U campusos -d campusos_dev -c "CREATE SCHEMA IF NOT EXISTS platform;"
+
+      # Build packages
+      - run: pnpm --filter @campusos/shared build
+      - run: pnpm --filter @campusos/database build
+
+      # Run Prisma migrations
+      - run: |
+          cd packages/database
+          npx prisma migrate deploy --schema=prisma/platform/schema.prisma
+
+      # Run tests
+      - run: pnpm test
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret-for-ci-minimum-32-characters-long
+          NODE_ENV: test
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, test]
+    if: github.ref == 'refs/heads/dev'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t campusos-api:${{ github.sha }} .
+          docker tag campusos-api:${{ github.sha }} campusos-api:latest
+
+      # Push to ECR (uncomment when AWS is configured)
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: us-east-1
+      #
+      # - name: Login to ECR
+      #   id: ecr-login
+      #   uses: aws-actions/amazon-ecr-login@v2
+      #
+      # - name: Push to ECR
+      #   run: |
+      #     ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }}
+      #     docker tag campusos-api:${{ github.sha }} $ECR_REGISTRY/campusos-api:${{ github.sha }}
+      #     docker tag campusos-api:${{ github.sha }} $ECR_REGISTRY/campusos-api:latest
+      #     docker push $ECR_REGISTRY/campusos-api:${{ github.sha }}
+      #     docker push $ECR_REGISTRY/campusos-api:latest
+
+      - name: Image built successfully
+        run: docker images campusos-api
