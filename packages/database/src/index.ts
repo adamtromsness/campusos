@@ -2,10 +2,26 @@
  * CampusOS Database Package
  *
  * Exports the Prisma client, tenant provisioning utilities,
- * and migration helpers. Full schema added in Steps 4–6.
+ * UUID generation, and schema management helpers.
  */
 
+// Prisma client
 export { PrismaClient } from '@prisma/client';
 
-// Tenant provisioning and schema management utilities
-// will be added in Step 4 (Database Foundation)
+// Client factory (platform + tenant)
+export {
+  getPlatformClient,
+  createTenantClient,
+  executePlatformSQL,
+  disconnectAll,
+} from './client';
+
+// UUIDv7 generation (ADR-002)
+export { generateId, extractTimestamp } from './uuid';
+
+// Tenant provisioning
+export {
+  provisionTenant,
+  listTenantSchemas,
+  dropTenantSchema,
+} from './provision-tenant';

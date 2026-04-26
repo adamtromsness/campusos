@@ -9,19 +9,23 @@
     "clean": "rm -rf dist",
     "migrate": "prisma migrate dev --schema=prisma/platform/schema.prisma",
     "migrate:deploy": "prisma migrate deploy --schema=prisma/platform/schema.prisma",
+    "migrate:reset": "prisma migrate reset --schema=prisma/platform/schema.prisma --force",
     "generate": "prisma generate --schema=prisma/platform/schema.prisma",
     "seed": "tsx src/seed.ts",
+    "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",
     "test": "echo \"No tests yet\""
   },
   "dependencies": {
     "@prisma/client": "^5.19.0",
+    "dotenv": "^17.4.2",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@campusos/eslint-config": "workspace:*",
     "@campusos/tsconfig": "workspace:*",
+    "@types/node": "^20.19.39",
     "@types/uuid": "^10.0.0",
     "eslint": "^8.57.0",
     "prisma": "^5.19.0",

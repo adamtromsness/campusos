@@ -1,25 +1,135 @@
-// CampusOS Platform Schema
-// This is the shared platform schema — cross-tenant identity,
-// configuration, and infrastructure tables.
+// ═══════════════════════════════════════════════════════════════
+// CampusOS Platform Schema — Prisma Definition
+// Schema: platform (shared across all tenants via search_path)
 //
-// Full table definitions are added in Steps 4–6.
-// See: ERD v11 → M0 Platform Core (81 tables)
+// Step 4: Foundation tables (organisations, schools, tenant routing)
+// Step 5: Identity tables (platform_users, iam_person, families)
+// Step 6: IAM tables (roles, permissions, assignments, cache)
+// ═══════════════════════════════════════════════════════════════
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["platform"]
 }
 
-// ── Placeholder model for initial Prisma generation ──
-// Replaced with full platform schema in Step 5.
-model PrismaInfo {
-  id        String   @id @default(uuid())
-  version   String   @default("0.0.0")
-  createdAt DateTime @default(now()) @map("created_at")
+// ── Organisations ────────────────────────────────────────────
+// Districts, MATs, or independent groups that own multiple schools.
+// ERD v11: M0 Identity & Tenancy
+model Organisation {
+  id          String   @id @db.Uuid
+  name        String
+  countryCode String?  @map("country_code") @db.Char(2)
+  orgType     OrgType  @default(INDEPENDENT_GROUP) @map("org_type")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  @@map("_prisma_info")
+  schools School[]
+
+  @@map("organisations")
+  @@schema("platform")
+}
+
+enum OrgType {
+  DISTRICT
+  MAT
+  INDEPENDENT_GROUP
+
+  @@schema("platform")
+}
+
+// ── Schools ──────────────────────────────────────────────────
+// Primary tenant entity. Each school = one tenant schema.
+// ERD v11: M0 Identity & Tenancy
+model School {
+  id             String   @id @db.Uuid
+  organisationId String?  @map("organisation_id") @db.Uuid
+  name           String
+  subdomain      String   @unique
+  countryCode    String   @map("country_code") @db.Char(2)
+  timezone       String
+  planTier       PlanTier @default(SMALL) @map("plan_tier")
+  schemaName     String   @map("schema_name")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  organisation Organisation? @relation(fields: [organisationId], references: [id])
+  routing      TenantRouting?
+
+  @@index([subdomain])
+  @@map("schools")
+  @@schema("platform")
+}
+
+enum PlanTier {
+  SMALL
+  MEDIUM
+  LARGE
+  ENTERPRISE
+
+  @@schema("platform")
+}
+
+// ── Tenant Routing ───────────────────────────────────────────
+// Maps tenants to their database schema and cluster.
+// ADR-031: is_frozen gates all writes during tenant migration.
+// ADR-042: Cached in Redis (500ms TTL) for hot-path resolution.
+// ADR-044: max_connections_pool limits PgBouncer pool per tenant.
+model TenantRouting {
+  id                 String   @id @db.Uuid
+  tenantId           String   @unique @map("tenant_id") @db.Uuid
+  clusterId          String   @default("primary") @map("cluster_id")
+  schemaName         String   @map("schema_name")
+  isActive           Boolean  @default(true) @map("is_active")
+  isFrozen           Boolean  @default(false) @map("is_frozen")
+  isMigrating        Boolean  @default(false) @map("is_migrating")
+  migratedAt         DateTime? @map("migrated_at") @db.Timestamptz()
+  maxConnectionsPool Int      @default(10) @map("max_connections_pool")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  school School @relation(fields: [tenantId], references: [id])
+
+  @@map("platform_tenant_routing")
+  @@schema("platform")
+}
+
+// ── Audit Log ────────────────────────────────────────────────
+// System-wide audit trail for all significant operations.
+model AuditLog {
+  id          String   @id @db.Uuid
+  actorId     String?  @map("actor_id") @db.Uuid
+  actorType   String   @default("HUMAN") @map("actor_type")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id") @db.Uuid
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  metadata    Json?    @db.JsonB
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("platform_audit_log")
+  @@schema("platform")
+}
+
+// ── Event Consumer Idempotency ───────────────────────────────
+// Prevents duplicate Kafka event processing (ADR-057).
+model EventConsumerIdempotency {
+  id          String   @id @db.Uuid
+  consumerGroup String @map("consumer_group")
+  eventId     String   @map("event_id")
+  topic       String
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz()
+
+  @@unique([consumerGroup, eventId])
+  @@index([processedAt])
+  @@map("platform_event_consumer_idempotency")
+  @@schema("platform")
 }

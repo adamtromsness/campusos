@@ -1,0 +1,175 @@
+{
+  "realm": "campusos",
+  "enabled": true,
+  "displayName": "CampusOS",
+  "displayNameHtml": "<strong>CampusOS</strong>",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "clients": [
+    {
+      "clientId": "campusos-api",
+      "name": "CampusOS API",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "campusos-dev-secret",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:4000/api/v1/auth/callback",
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:4000"
+      ],
+      "defaultClientScopes": [
+        "openid",
+        "email",
+        "profile"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000"
+      }
+    },
+    {
+      "clientId": "campusos-web",
+      "name": "CampusOS Web",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "defaultClientScopes": [
+        "openid",
+        "email",
+        "profile"
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "platform_admin",
+        "description": "Full platform access — CampusOS internal"
+      },
+      {
+        "name": "school_admin",
+        "description": "Building-level administrator"
+      },
+      {
+        "name": "teacher",
+        "description": "Teaching staff"
+      },
+      {
+        "name": "student",
+        "description": "Enrolled student"
+      },
+      {
+        "name": "parent",
+        "description": "Guardian / parent"
+      },
+      {
+        "name": "staff",
+        "description": "Non-teaching staff"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "admin@demo.campusos.dev",
+      "email": "admin@demo.campusos.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Platform",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["platform_admin"]
+    },
+    {
+      "username": "principal@demo.campusos.dev",
+      "email": "principal@demo.campusos.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Sarah",
+      "lastName": "Mitchell",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["school_admin"]
+    },
+    {
+      "username": "teacher@demo.campusos.dev",
+      "email": "teacher@demo.campusos.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "James",
+      "lastName": "Rivera",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "teacher123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["teacher"]
+    },
+    {
+      "username": "student@demo.campusos.dev",
+      "email": "student@demo.campusos.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Maya",
+      "lastName": "Chen",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "student123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["student"]
+    },
+    {
+      "username": "parent@demo.campusos.dev",
+      "email": "parent@demo.campusos.dev",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "David",
+      "lastName": "Chen",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "parent123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["parent"]
+    }
+  ]
+}

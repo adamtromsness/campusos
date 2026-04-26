@@ -1,0 +1,126 @@
+# ═══════════════════════════════════════════════════════════════
+# CampusOS — Local Development Services
+# Usage: docker compose up -d
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  # ── PostgreSQL 16 ────────────────────────────────────────────
+  # Platform + tenant schemas. Persistent volume across restarts.
+  postgres:
+    image: postgres:16-alpine
+    container_name: campusos-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: campusos
+      POSTGRES_PASSWORD: campusos_dev
+      POSTGRES_DB: campusos_dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infrastructure/docker/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campusos -d campusos_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    command:
+      - "postgres"
+      - "-c" 
+      - "max_connections=200"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "log_statement=mod"
+
+  # ── Redis 7 ─────────────────────────────────────────────────
+  # IAM permission cache, tenant routing, rate limiting, feature flags.
+  redis:
+    image: redis:7-alpine
+    container_name: campusos-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Kafka (KRaft mode) ──────────────────────────────────────
+  # Single broker, no ZooKeeper. Topics auto-created.
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: campusos-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft mode (no ZooKeeper)
+      KAFKA_NODE_ID: 0
+      KAFKA_PROCESS_ROLES: controller,broker
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Listeners
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      # Auto-create topics for dev
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # Single broker — replication factor must be 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    volumes:
+      - kafkadata:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # ── Keycloak 24 ─────────────────────────────────────────────
+  # Test IdP for OIDC/SAML auth. Pre-loaded realm with test users.
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: campusos-keycloak
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./infrastructure/keycloak/campusos-realm.json:/opt/keycloak/data/import/campusos-realm.json:ro
+    command: start-dev --import-realm
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # ── Kafka UI (optional) ─────────────────────────────────────
+  # Visual topic/message browser at http://localhost:8081
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: campusos-kafka-ui
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: campusos-dev
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    profiles:
+      - tools
+
+volumes:
+  pgdata:
+    driver: local
+  kafkadata:
+    driver: local
