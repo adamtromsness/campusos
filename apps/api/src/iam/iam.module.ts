@@ -1,31 +1,46 @@
 import { Module } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
+import { PermissionCheckService } from './permission-check.service';
+import { EffectiveAccessCacheService } from './effective-access-cache.service';
+import { RoleService } from './role.service';
+import { AssignmentService } from './assignment.service';
+import { ScopeService } from './scope.service';
 
 /**
  * IAM Module — Identity & Access Management
  *
  * The access control subsystem for the entire platform.
- * Every endpoint in every module depends on this module
- * for permission checks via @RequirePermission.
+ * Every endpoint depends on this module for permission checks.
  *
- * Tables prefixed: iam_ (plus roles, permissions, role_permissions)
- * Schema: platform (shared across all tenants)
- *
- * Services added in Step 6:
- * - IamService — person CRUD, account linking, identity merge
- * - RoleService — roles, permissions, role-permission mappings
- * - AssignmentService — role assignments, Kafka events, cache trigger
+ * Services:
+ * - PermissionCheckService — hot-path permission lookup (@RequirePermission)
+ * - EffectiveAccessCacheService — cache rebuild on assignment changes
+ * - RoleService — role/permission CRUD
+ * - AssignmentService — role assignment lifecycle
  * - ScopeService — scope hierarchy management
- * - EffectiveAccessCacheService — cache rebuild, invalidation
- * - PermissionCheckService — hot-path permission lookup
- *
- * Guards added in Steps 8–9:
- * - AuthGuard — JWT validation
- * - TenantGuard — tenant context verification
- * - PermissionGuard — @RequirePermission enforcement
  */
 @Module({
-  controllers: [],
-  providers: [],
-  exports: [],
+  providers: [
+    {
+      provide: PrismaClient,
+      useFactory: () => {
+        return new PrismaClient({
+          datasourceUrl: process.env.DATABASE_URL,
+        });
+      },
+    },
+    PermissionCheckService,
+    EffectiveAccessCacheService,
+    RoleService,
+    AssignmentService,
+    ScopeService,
+  ],
+  exports: [
+    PermissionCheckService,
+    EffectiveAccessCacheService,
+    RoleService,
+    AssignmentService,
+    ScopeService,
+  ],
 })
 export class IamModule {}

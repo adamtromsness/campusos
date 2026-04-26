@@ -407,3 +407,298 @@ enum SyncStatus {
 
   @@schema("platform")
 }
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STEP 6 — IAM Core (ADR-036)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ── Roles ────────────────────────────────────────────────────
+// Named collections of permissions. System roles seeded at provisioning.
+// Schools create custom roles (e.g. Department Head).
+model Role {
+  id          String  @id @db.Uuid
+  schoolId    String? @map("school_id") @db.Uuid
+  name        String
+  description String?
+  isSystem    Boolean @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  rolePermissions RolePermission[]
+  assignments     IamRoleAssignment[]
+
+  @@unique([schoolId, name])
+  @@map("roles")
+  @@schema("platform")
+}
+
+// ── Permissions ──────────────────────────────────────────────
+// Resource:action pairs. e.g. att-001:read, att-001:write, att-001:admin
+// All @RequirePermission checks use these codes, never role names.
+model Permission {
+  id          String  @id @db.Uuid
+  code        String  @unique
+  resource    String
+  action      String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  rolePermissions RolePermission[]
+
+  @@index([resource, action])
+  @@map("permissions")
+  @@schema("platform")
+}
+
+// ── Role-Permission Mapping ──────────────────────────────────
+model RolePermission {
+  id           String @id @db.Uuid
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+  @@schema("platform")
+}
+
+// ── Scope Types ──────────────────────────────────────────────
+// Fixed vocabulary: PLATFORM, DISTRICT, SCHOOL, DEPARTMENT, CLASS, ACTIVITY
+model IamScopeType {
+  id               String  @id @db.Uuid
+  code             String  @unique
+  label            String
+  allowsChildScopes Boolean @default(true) @map("allows_child_scopes")
+  isSystem         Boolean @default(true) @map("is_system")
+
+  scopes IamScope[]
+
+  @@map("iam_scope_type")
+  @@schema("platform")
+}
+
+// ── Scopes ───────────────────────────────────────────────────
+// A specific instance: e.g. "Lincoln Elementary" (SCHOOL scope),
+// "Math Department" (DEPARTMENT scope), "Period 3 Algebra" (CLASS scope)
+model IamScope {
+  id            String   @id @db.Uuid
+  scopeTypeId   String   @map("scope_type_id") @db.Uuid
+  entityId      String   @map("entity_id") @db.Uuid
+  entityTable   String   @map("entity_table")
+  label         String
+  parentScopeId String?  @map("parent_scope_id") @db.Uuid
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  scopeType    IamScopeType       @relation(fields: [scopeTypeId], references: [id])
+  parentScope  IamScope?          @relation("ScopeHierarchy", fields: [parentScopeId], references: [id])
+  childScopes  IamScope[]         @relation("ScopeHierarchy")
+  assignments  IamRoleAssignment[]
+  accessCache  IamEffectiveAccessCache[]
+
+  @@unique([scopeTypeId, entityId])
+  @@index([parentScopeId])
+  @@index([entityId])
+  @@map("iam_scope")
+  @@schema("platform")
+}
+
+// ── Role Assignments ─────────────────────────────────────────
+// The sole mechanism for granting access. Always scoped + time-bounded.
+model IamRoleAssignment {
+  id               String           @id @db.Uuid
+  accountId        String           @map("account_id") @db.Uuid
+  roleId           String           @map("role_id") @db.Uuid
+  scopeId          String           @map("scope_id") @db.Uuid
+  effectiveFrom    DateTime         @default(now()) @map("effective_from") @db.Timestamptz()
+  effectiveTo      DateTime?        @map("effective_to") @db.Timestamptz()
+  status           AssignmentStatus @default(ACTIVE)
+  source           AssignmentSource
+  sourceRefId      String?          @map("source_ref_id") @db.Uuid
+  assignedBy       String?          @map("assigned_by") @db.Uuid
+  approvalRequestId String?         @map("approval_request_id") @db.Uuid
+  notes            String?
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz()
+
+  role  Role     @relation(fields: [roleId], references: [id])
+  scope IamScope @relation(fields: [scopeId], references: [id])
+
+  @@index([accountId, status])
+  @@index([scopeId, roleId, status])
+  @@index([effectiveTo])
+  @@map("iam_role_assignment")
+  @@schema("platform")
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  REVOKED
+
+  @@schema("platform")
+}
+
+enum AssignmentSource {
+  MANUAL
+  HR_SYNC
+  SIS_DERIVED
+  GUARDIAN_RELATIONSHIP
+  WORKFLOW_APPROVAL
+  EMERGENCY
+
+  @@schema("platform")
+}
+
+// ── Role Assignment History ──────────────────────────────────
+// Immutable audit of every state change on an assignment.
+model IamRoleAssignmentHistory {
+  id                String            @id @db.Uuid
+  assignmentId      String            @map("assignment_id") @db.Uuid
+  changedBy         String?           @map("changed_by") @db.Uuid
+  changeType        AssignmentChangeType @map("change_type")
+  previousStatus    AssignmentStatus? @map("previous_status")
+  newStatus         AssignmentStatus? @map("new_status")
+  previousEffectiveTo DateTime?       @map("previous_effective_to") @db.Timestamptz()
+  newEffectiveTo    DateTime?         @map("new_effective_to") @db.Timestamptz()
+  reason            String?
+  changedAt         DateTime          @map("changed_at") @db.Timestamptz()
+
+  @@index([assignmentId, changedAt])
+  @@map("iam_role_assignment_history")
+  @@schema("platform")
+}
+
+enum AssignmentChangeType {
+  CREATED
+  ACTIVATED
+  SUSPENDED
+  REVOKED
+  EXPIRED
+  EXTENDED
+  SOURCE_UPDATED
+
+  @@schema("platform")
+}
+
+// ── Relationship Access Rules ────────────────────────────────
+// How person-to-person relationships translate into access grants.
+// e.g. "Guardian of student → Parent Portal role at student's school"
+model IamRelationshipAccessRule {
+  id               String   @id @db.Uuid
+  relationshipType String   @map("relationship_type")
+  targetRoleId     String   @map("target_role_id") @db.Uuid
+  scopeDerivation  String   @map("scope_derivation")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("iam_relationship_access_rule")
+  @@schema("platform")
+}
+
+// ── Effective Access Cache ───────────────────────────────────
+// Materialized permission set per account per scope.
+// The SOLE source for hot-path permission checks (ADR-036).
+// Direct JOINs across assignment→role→permission are FORBIDDEN on request path.
+model IamEffectiveAccessCache {
+  id                   String   @id @db.Uuid
+  accountId            String   @map("account_id") @db.Uuid
+  scopeId              String   @map("scope_id") @db.Uuid
+  permissionCodes      String[] @map("permission_codes")
+  computedAt           DateTime @map("computed_at") @db.Timestamptz()
+  assignmentVersionHash String  @map("assignment_version_hash")
+
+  scope IamScope @relation(fields: [scopeId], references: [id])
+
+  @@unique([accountId, scopeId])
+  @@index([accountId])
+  @@map("iam_effective_access_cache")
+  @@schema("platform")
+}
+
+// ── Access Change Events ─────────────────────────────────────
+// IAM-specific immutable audit log. Every grant, revoke, status change.
+model IamAccessChangeEvent {
+  id           String              @id @db.Uuid
+  accountId    String              @map("account_id") @db.Uuid
+  eventType    AccessChangeEventType @map("event_type")
+  actorId      String?             @map("actor_id") @db.Uuid
+  scopeId      String?             @map("scope_id") @db.Uuid
+  roleId       String?             @map("role_id") @db.Uuid
+  assignmentId String?             @map("assignment_id") @db.Uuid
+  metadata     Json?               @db.JsonB
+  eventAt      DateTime            @map("event_at") @db.Timestamptz()
+
+  @@index([accountId, eventAt(sort: Desc)])
+  @@index([eventType, eventAt(sort: Desc)])
+  @@map("iam_access_change_event")
+  @@schema("platform")
+}
+
+enum AccessChangeEventType {
+  ACCOUNT_CREATED
+  ACCOUNT_SUSPENDED
+  ACCOUNT_REACTIVATED
+  ACCOUNT_LOCKED
+  ROLE_GRANTED
+  ROLE_REVOKED
+  ROLE_SUSPENDED
+  ROLE_EXPIRED
+  GUARDIAN_ACCESS_PROVISIONED
+  GUARDIAN_ACCESS_REVOKED
+  MFA_ENROLLED
+  MFA_REMOVED
+  EMERGENCY_ACCESS_GRANTED
+  EMERGENCY_ACCESS_REVOKED
+
+  @@schema("platform")
+}
+
+// ── Auth Events ──────────────────────────────────────────────
+// Authentication-specific events. Separate from access changes.
+model IamAuthEvent {
+  id            String        @id @db.Uuid
+  accountId     String?       @map("account_id") @db.Uuid
+  providerId    String?       @map("provider_id") @db.Uuid
+  eventType     AuthEventType @map("event_type")
+  ipAddressHash String?       @map("ip_address_hash")
+  userAgentHash String?       @map("user_agent_hash")
+  sessionId     String?       @map("session_id") @db.Uuid
+  failureReason String?       @map("failure_reason")
+  eventAt       DateTime      @map("event_at") @db.Timestamptz()
+
+  @@index([accountId, eventAt(sort: Desc)])
+  @@index([eventType, eventAt(sort: Desc)])
+  @@map("iam_auth_event")
+  @@schema("platform")
+}
+
+enum AuthEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  MFA_CHALLENGE_ISSUED
+  MFA_CHALLENGE_PASSED
+  MFA_CHALLENGE_FAILED
+  SESSION_CREATED
+  SESSION_TERMINATED
+  TOKEN_REFRESHED
+  TOKEN_REVOKED
+  ACCOUNT_LOCKED_AUTO
+
+  @@schema("platform")
+}
+
+// ── Service Principals ───────────────────────────────────────
+// Machine identities for service-to-service auth.
+model IamServicePrincipal {
+  id          String   @id @db.Uuid
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("iam_service_principal")
+  @@schema("platform")
+}
