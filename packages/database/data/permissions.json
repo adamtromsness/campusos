@@ -1,155 +1,812 @@
 {
   "functions": [
-    {"code":"ATT-001","name":"Attendance Taking","group":"Attendance & Daily Operations"},
-    {"code":"ATT-002","name":"Late Arrival Processing","group":"Attendance & Daily Operations"},
-    {"code":"ATT-003","name":"Early Dismissal","group":"Attendance & Daily Operations"},
-    {"code":"ATT-004","name":"Absence Follow-Up","group":"Attendance & Daily Operations"},
-    {"code":"ATT-005","name":"Hall Passes","group":"Attendance & Daily Operations"},
-    {"code":"TCH-001","name":"Lesson Planning","group":"Teaching & Learning"},
-    {"code":"TCH-002","name":"Assignments & Submissions","group":"Teaching & Learning"},
-    {"code":"TCH-003","name":"Grade Book","group":"Teaching & Learning"},
-    {"code":"TCH-004","name":"Report Cards","group":"Teaching & Learning"},
-    {"code":"TCH-005","name":"Transcripts","group":"Teaching & Learning"},
-    {"code":"TCH-006","name":"Quizzes & Assessments","group":"Teaching & Learning"},
-    {"code":"TCH-007","name":"AI Study Tool","group":"Teaching & Learning"},
-    {"code":"TCH-008","name":"Curriculum Management","group":"Teaching & Learning"},
-    {"code":"TCH-009","name":"Class Moments","group":"Teaching & Learning"},
-    {"code":"STU-001","name":"Student Profiles","group":"Student Records"},
-    {"code":"STU-002","name":"Student Profile Customisation","group":"Student Records"},
-    {"code":"STU-003","name":"Enrolment & Admissions","group":"Student Records"},
-    {"code":"STU-004","name":"Withdrawal & Transfer","group":"Student Records"},
-    {"code":"STU-005","name":"Graduation Management","group":"Student Records"},
-    {"code":"STU-006","name":"Digital ID Cards","group":"Student Records"},
-    {"code":"STU-007","name":"Locker Management","group":"Student Records"},
-    {"code":"STU-008","name":"Parking Permits","group":"Student Records"},
-    {"code":"SCH-001","name":"Master Schedule","group":"Scheduling & Calendar"},
-    {"code":"SCH-002","name":"Course Selection","group":"Scheduling & Calendar"},
-    {"code":"SCH-003","name":"School Calendar","group":"Scheduling & Calendar"},
-    {"code":"SCH-004","name":"Daily Coverage & Substitutes","group":"Scheduling & Calendar"},
-    {"code":"SCH-005","name":"Room & Facility Booking","group":"Scheduling & Calendar"},
-    {"code":"BEH-001","name":"Behaviour Incidents","group":"Behaviour & Discipline"},
-    {"code":"BEH-002","name":"Behaviour Intervention Plans","group":"Behaviour & Discipline"},
-    {"code":"HLT-001","name":"Health Records","group":"Health & Wellness"},
-    {"code":"HLT-002","name":"Medication Administration","group":"Health & Wellness"},
-    {"code":"HLT-003","name":"Nurse Visits","group":"Health & Wellness"},
-    {"code":"HLT-004","name":"Health Screenings","group":"Health & Wellness"},
-    {"code":"HLT-005","name":"Dietary Profiles & Allergens","group":"Health & Wellness"},
-    {"code":"COU-001","name":"Counselling Caseload","group":"Counselling & Student Support"},
-    {"code":"COU-002","name":"Referrals","group":"Counselling & Student Support"},
-    {"code":"COU-003","name":"MTSS/RTI Interventions","group":"Counselling & Student Support"},
-    {"code":"COU-004","name":"Wellbeing Check-Ins","group":"Counselling & Student Support"},
-    {"code":"COU-005","name":"IEP & 504 Plans","group":"Counselling & Student Support"},
-    {"code":"COU-006","name":"Mandatory Reporting","group":"Counselling & Student Support"},
-    {"code":"COU-007","name":"Coordinated Care","group":"Counselling & Student Support"},
-    {"code":"COM-001","name":"Messaging","group":"Communications"},
-    {"code":"COM-002","name":"Announcements","group":"Communications"},
-    {"code":"COM-003","name":"Content Moderation","group":"Communications"},
-    {"code":"COM-004","name":"Mass Notifications","group":"Communications"},
-    {"code":"MTG-001","name":"Meetings","group":"Meetings & Conferences"},
-    {"code":"MTG-002","name":"Parent-Teacher Conferences","group":"Meetings & Conferences"},
-    {"code":"HR-001","name":"Employee Records","group":"Human Resources"},
-    {"code":"HR-002","name":"Recruitment & Hiring","group":"Human Resources"},
-    {"code":"HR-003","name":"Leave Management","group":"Human Resources"},
-    {"code":"HR-004","name":"Training & Certifications","group":"Human Resources"},
-    {"code":"HR-005","name":"Professional Development","group":"Human Resources"},
-    {"code":"HR-006","name":"Onboarding","group":"Human Resources"},
-    {"code":"FIN-001","name":"Family Billing","group":"Finance & Payments"},
-    {"code":"FIN-002","name":"Financial Aid","group":"Finance & Payments"},
-    {"code":"FIN-003","name":"Fundraising","group":"Finance & Payments"},
-    {"code":"FIN-004","name":"Budget Management","group":"Finance & Payments"},
-    {"code":"TRN-001","name":"Route Management","group":"Transportation"},
-    {"code":"TRN-002","name":"Fleet Management","group":"Transportation"},
-    {"code":"TRN-003","name":"Driver Operations","group":"Transportation"},
-    {"code":"TRN-004","name":"Driver Credentials","group":"Transportation"},
-    {"code":"TRN-005","name":"Field Trips & Special Trips","group":"Transportation"},
-    {"code":"FDS-001","name":"Menu Planning","group":"Food Service"},
-    {"code":"FDS-002","name":"Point of Sale","group":"Food Service"},
-    {"code":"FDS-003","name":"Free & Reduced Meals","group":"Food Service"},
-    {"code":"FDS-004","name":"Food Inventory & Procurement","group":"Food Service"},
-    {"code":"FDS-005","name":"Production Records","group":"Food Service"},
-    {"code":"FAC-001","name":"Maintenance Tickets","group":"Facilities & Maintenance"},
-    {"code":"FAC-002","name":"Preventive Maintenance","group":"Facilities & Maintenance"},
-    {"code":"FAC-003","name":"Custodial Management","group":"Facilities & Maintenance"},
-    {"code":"FAC-004","name":"Building Safety & Compliance","group":"Facilities & Maintenance"},
-    {"code":"FAC-005","name":"Energy & Sustainability","group":"Facilities & Maintenance"},
-    {"code":"IT-001","name":"Helpdesk Tickets","group":"IT & Technology"},
-    {"code":"IT-002","name":"Device Fleet","group":"IT & Technology"},
-    {"code":"IT-003","name":"Device Selection","group":"IT & Technology"},
-    {"code":"IT-004","name":"Software & Licensing","group":"IT & Technology"},
-    {"code":"IT-005","name":"Credential Vault","group":"IT & Technology"},
-    {"code":"IT-006","name":"System Monitoring","group":"IT & Technology"},
-    {"code":"IT-007","name":"Network & Security","group":"IT & Technology"},
-    {"code":"IT-008","name":"Content Filtering","group":"IT & Technology"},
-    {"code":"LIB-001","name":"Catalogue Management","group":"Library"},
-    {"code":"LIB-002","name":"Circulation","group":"Library"},
-    {"code":"LIB-003","name":"Library Events","group":"Library"},
-    {"code":"LIB-004","name":"Digital Resources","group":"Library"},
-    {"code":"ATH-001","name":"Team Management","group":"Athletics"},
-    {"code":"ATH-002","name":"Eligibility Tracking","group":"Athletics"},
-    {"code":"ATH-003","name":"Game & Event Management","group":"Athletics"},
-    {"code":"ATH-004","name":"Equipment & Facilities","group":"Athletics"},
-    {"code":"ATH-005","name":"Athletic Streaming","group":"Athletics"},
-    {"code":"ATH-006","name":"Athletic Finance","group":"Athletics"},
-    {"code":"CLB-001","name":"Club Management","group":"Clubs & Student Life"},
-    {"code":"CLB-002","name":"Student Elections","group":"Clubs & Student Life"},
-    {"code":"CLB-003","name":"Service Learning","group":"Clubs & Student Life"},
-    {"code":"CLB-004","name":"Events & Activities","group":"Clubs & Student Life"},
-    {"code":"PFL-001","name":"Student Portfolio","group":"Achievements & Portfolio"},
-    {"code":"PFL-002","name":"Achievements & Badges","group":"Achievements & Portfolio"},
-    {"code":"PFL-003","name":"Service Hour Tracking","group":"Achievements & Portfolio"},
-    {"code":"PRC-001","name":"Purchase Requisitions","group":"Procurement"},
-    {"code":"PRC-002","name":"Purchase Orders","group":"Procurement"},
-    {"code":"PRC-003","name":"Receiving & Inspection","group":"Procurement"},
-    {"code":"PRC-004","name":"Vendor Management","group":"Procurement"},
-    {"code":"STR-001","name":"Store Management","group":"School Store"},
-    {"code":"STR-002","name":"Store Orders","group":"School Store"},
-    {"code":"SAF-001","name":"Emergency Management","group":"Safety & Compliance"},
-    {"code":"SAF-002","name":"Visitor Management","group":"Safety & Compliance"},
-    {"code":"SAF-003","name":"Incident Reporting","group":"Safety & Compliance"},
-    {"code":"SAF-004","name":"Drill Management","group":"Safety & Compliance"},
-    {"code":"SAF-005","name":"DPO Compliance","group":"Safety & Compliance"},
-    {"code":"PUB-001","name":"Publications","group":"Publications & Community"},
-    {"code":"PUB-002","name":"School Website","group":"Publications & Community"},
-    {"code":"PUB-003","name":"Parent Portal","group":"Publications & Community"},
-    {"code":"FRM-001","name":"Form Builder","group":"Forms & Documents"},
-    {"code":"FRM-002","name":"Document Templates","group":"Forms & Documents"},
-    {"code":"FRM-003","name":"E-Signatures","group":"Forms & Documents"},
-    {"code":"SYS-001","name":"Access Management","group":"System Administration"},
-    {"code":"SYS-002","name":"School Configuration","group":"System Administration"},
-    {"code":"SYS-003","name":"Data Import/Export","group":"System Administration"},
-    {"code":"SYS-004","name":"Integrations","group":"System Administration"},
-    {"code":"SYS-005","name":"Notification Policies","group":"System Administration"},
-    {"code":"SYS-006","name":"Analytics & Reporting","group":"System Administration"},
-    {"code":"SYS-007","name":"Public Website","group":"System Administration"},
-    {"code":"MKT-001","name":"Marketplace Listings","group":"Community Exchange"},
-    {"code":"MKT-002","name":"Marketplace Purchasing","group":"Community Exchange"},
-    {"code":"MKT-003","name":"Surplus Asset Exchange","group":"Community Exchange"},
-    {"code":"MKT-004","name":"Community Forums","group":"Community Exchange"},
-    {"code":"MKT-005","name":"Community Profiles","group":"Community Exchange"},
-    {"code":"MKT-006","name":"Ratings & Reviews","group":"Community Exchange"},
-    {"code":"MKT-007","name":"Watch Lists","group":"Community Exchange"},
-    {"code":"MKT-008","name":"Revenue & Payouts","group":"Community Exchange"},
-    {"code":"MKT-009","name":"Marketplace Moderation","group":"Community Exchange"},
-    {"code":"MKT-010","name":"Marketplace Analytics","group":"Community Exchange"},
-    {"code":"CRM-001","name":"Lead Management","group":"Customer Management"},
-    {"code":"CRM-002","name":"School Onboarding","group":"Customer Management"},
-    {"code":"CRM-003","name":"Subscription Management","group":"Customer Management"},
-    {"code":"CRM-004","name":"Customer Communications","group":"Customer Management"},
-    {"code":"CRM-005","name":"Customer Health Scoring","group":"Customer Management"},
-    {"code":"OPS-001","name":"Internal Task Management","group":"Internal Operations"},
-    {"code":"OPS-002","name":"Knowledge Base","group":"Internal Operations"},
-    {"code":"OPS-003","name":"Incident Management","group":"Internal Operations"},
-    {"code":"OPS-004","name":"Release Management","group":"Internal Operations"},
-    {"code":"OPS-005","name":"Support Tier Management","group":"Internal Operations"},
-    {"code":"OPS-006","name":"Platform Analytics & Reporting","group":"Internal Operations"}
+    {
+      "code": "ACH-001",
+      "name": "Achievements System",
+      "group": "Achievements & Portfolio"
+    },
+    {
+      "code": "ACH-002",
+      "name": "Student Portfolio",
+      "group": "Achievements & Portfolio"
+    },
+    {
+      "code": "ACH-003",
+      "name": "Post-Secondary Readiness",
+      "group": "Achievements & Portfolio"
+    },
+    {
+      "code": "ATH-001",
+      "name": "Team Management",
+      "group": "Athletics"
+    },
+    {
+      "code": "ATH-002",
+      "name": "Eligibility Tracking",
+      "group": "Athletics"
+    },
+    {
+      "code": "ATH-003",
+      "name": "Game & Event Management",
+      "group": "Athletics"
+    },
+    {
+      "code": "ATH-004",
+      "name": "Equipment & Facilities",
+      "group": "Athletics"
+    },
+    {
+      "code": "ATH-005",
+      "name": "Athletic Streaming",
+      "group": "Athletics"
+    },
+    {
+      "code": "ATH-006",
+      "name": "Athletic Finance",
+      "group": "Athletics"
+    },
+    {
+      "code": "ATH-007",
+      "name": "Game Streaming & Video",
+      "group": "Athletics"
+    },
+    {
+      "code": "ATH-008",
+      "name": "Athletic Equipment",
+      "group": "Athletics"
+    },
+    {
+      "code": "ATH-009",
+      "name": "Injury & Concussion Protocol",
+      "group": "Athletics"
+    },
+    {
+      "code": "ATH-010",
+      "name": "Athletic Ticketing",
+      "group": "Athletics"
+    },
+    {
+      "code": "ATT-001",
+      "name": "Attendance Taking",
+      "group": "Attendance & Daily Operations"
+    },
+    {
+      "code": "ATT-002",
+      "name": "Late Arrival Processing",
+      "group": "Attendance & Daily Operations"
+    },
+    {
+      "code": "ATT-003",
+      "name": "Early Dismissal",
+      "group": "Attendance & Daily Operations"
+    },
+    {
+      "code": "ATT-004",
+      "name": "Absence Follow-Up",
+      "group": "Attendance & Daily Operations"
+    },
+    {
+      "code": "ATT-005",
+      "name": "Hall Passes",
+      "group": "Attendance & Daily Operations"
+    },
+    {
+      "code": "BEH-001",
+      "name": "Behaviour Incidents",
+      "group": "Behaviour & Discipline"
+    },
+    {
+      "code": "BEH-002",
+      "name": "Behaviour Intervention Plans",
+      "group": "Behaviour & Discipline"
+    },
+    {
+      "code": "CLB-001",
+      "name": "Club Management",
+      "group": "Clubs & Student Life"
+    },
+    {
+      "code": "CLB-002",
+      "name": "Student Elections",
+      "group": "Clubs & Student Life"
+    },
+    {
+      "code": "CLB-003",
+      "name": "Service Learning",
+      "group": "Clubs & Student Life"
+    },
+    {
+      "code": "CLB-004",
+      "name": "Events & Activities",
+      "group": "Clubs & Student Life"
+    },
+    {
+      "code": "COM-001",
+      "name": "Messaging",
+      "group": "Communications"
+    },
+    {
+      "code": "COM-002",
+      "name": "Announcements",
+      "group": "Communications"
+    },
+    {
+      "code": "COM-003",
+      "name": "Content Moderation",
+      "group": "Communications"
+    },
+    {
+      "code": "COM-004",
+      "name": "Mass Notifications",
+      "group": "Communications"
+    },
+    {
+      "code": "MKT-001",
+      "name": "Marketplace Listings",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-002",
+      "name": "Marketplace Purchasing",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-003",
+      "name": "Surplus Asset Exchange",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-004",
+      "name": "Community Forums",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-005",
+      "name": "Community Profiles",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-006",
+      "name": "Ratings & Reviews",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-007",
+      "name": "Watch Lists",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-008",
+      "name": "Revenue & Payouts",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-009",
+      "name": "Marketplace Moderation",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-010",
+      "name": "Marketplace Analytics",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "COU-001",
+      "name": "Counselling Caseload",
+      "group": "Counselling & Student Support"
+    },
+    {
+      "code": "COU-002",
+      "name": "Referrals",
+      "group": "Counselling & Student Support"
+    },
+    {
+      "code": "COU-003",
+      "name": "MTSS/RTI Interventions",
+      "group": "Counselling & Student Support"
+    },
+    {
+      "code": "COU-004",
+      "name": "Wellbeing Check-Ins",
+      "group": "Counselling & Student Support"
+    },
+    {
+      "code": "COU-005",
+      "name": "IEP & 504 Plans",
+      "group": "Counselling & Student Support"
+    },
+    {
+      "code": "COU-006",
+      "name": "Mandatory Reporting",
+      "group": "Counselling & Student Support"
+    },
+    {
+      "code": "COU-007",
+      "name": "Coordinated Care",
+      "group": "Counselling & Student Support"
+    },
+    {
+      "code": "CRM-001",
+      "name": "Lead Management",
+      "group": "Customer Management"
+    },
+    {
+      "code": "CRM-002",
+      "name": "School Onboarding",
+      "group": "Customer Management"
+    },
+    {
+      "code": "CRM-003",
+      "name": "Subscription Management",
+      "group": "Customer Management"
+    },
+    {
+      "code": "CRM-004",
+      "name": "Customer Communications",
+      "group": "Customer Management"
+    },
+    {
+      "code": "CRM-005",
+      "name": "Customer Health Scoring",
+      "group": "Customer Management"
+    },
+    {
+      "code": "CRM-006",
+      "name": "Customer Interactions",
+      "group": "Customer Management"
+    },
+    {
+      "code": "FAC-001",
+      "name": "Maintenance Tickets",
+      "group": "Facilities & Maintenance"
+    },
+    {
+      "code": "FAC-002",
+      "name": "Preventive Maintenance",
+      "group": "Facilities & Maintenance"
+    },
+    {
+      "code": "FAC-003",
+      "name": "Custodial Management",
+      "group": "Facilities & Maintenance"
+    },
+    {
+      "code": "FAC-004",
+      "name": "Building Safety & Compliance",
+      "group": "Facilities & Maintenance"
+    },
+    {
+      "code": "FAC-005",
+      "name": "Energy & Sustainability",
+      "group": "Facilities & Maintenance"
+    },
+    {
+      "code": "FIN-001",
+      "name": "Family Billing",
+      "group": "Finance & Payments"
+    },
+    {
+      "code": "FIN-002",
+      "name": "Financial Aid",
+      "group": "Finance & Payments"
+    },
+    {
+      "code": "FIN-003",
+      "name": "Fundraising",
+      "group": "Finance & Payments"
+    },
+    {
+      "code": "FIN-004",
+      "name": "Budget Management",
+      "group": "Finance & Payments"
+    },
+    {
+      "code": "FDS-001",
+      "name": "Menu Planning",
+      "group": "Food Service"
+    },
+    {
+      "code": "FDS-002",
+      "name": "Point of Sale",
+      "group": "Food Service"
+    },
+    {
+      "code": "FDS-003",
+      "name": "Free & Reduced Meals",
+      "group": "Food Service"
+    },
+    {
+      "code": "FDS-004",
+      "name": "Food Inventory & Procurement",
+      "group": "Food Service"
+    },
+    {
+      "code": "FDS-005",
+      "name": "Production Records",
+      "group": "Food Service"
+    },
+    {
+      "code": "FRM-001",
+      "name": "Form Builder",
+      "group": "Forms & Documents"
+    },
+    {
+      "code": "FRM-002",
+      "name": "Document Templates",
+      "group": "Forms & Documents"
+    },
+    {
+      "code": "HLT-001",
+      "name": "Health Records",
+      "group": "Health & Wellness"
+    },
+    {
+      "code": "HLT-002",
+      "name": "Medication Administration",
+      "group": "Health & Wellness"
+    },
+    {
+      "code": "HLT-003",
+      "name": "Nurse Visits",
+      "group": "Health & Wellness"
+    },
+    {
+      "code": "HLT-004",
+      "name": "Health Screenings",
+      "group": "Health & Wellness"
+    },
+    {
+      "code": "HLT-005",
+      "name": "Dietary Profiles & Allergens",
+      "group": "Health & Wellness"
+    },
+    {
+      "code": "HR-001",
+      "name": "Employee Records",
+      "group": "Human Resources"
+    },
+    {
+      "code": "HR-002",
+      "name": "Recruitment & Hiring",
+      "group": "Human Resources"
+    },
+    {
+      "code": "HR-003",
+      "name": "Leave Management",
+      "group": "Human Resources"
+    },
+    {
+      "code": "HR-004",
+      "name": "Training & Certifications",
+      "group": "Human Resources"
+    },
+    {
+      "code": "HR-005",
+      "name": "Professional Development",
+      "group": "Human Resources"
+    },
+    {
+      "code": "HR-006",
+      "name": "Onboarding",
+      "group": "Human Resources"
+    },
+    {
+      "code": "OPS-001",
+      "name": "Internal Task Management",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "OPS-002",
+      "name": "Knowledge Base",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "OPS-003",
+      "name": "Incident Management",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "OPS-004",
+      "name": "Release Management",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "OPS-005",
+      "name": "Support Tier Management",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "OPS-006",
+      "name": "Platform Analytics & Reporting",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "IT-001",
+      "name": "Helpdesk Tickets",
+      "group": "IT & Technology"
+    },
+    {
+      "code": "IT-002",
+      "name": "Device Fleet",
+      "group": "IT & Technology"
+    },
+    {
+      "code": "IT-003",
+      "name": "Device Selection",
+      "group": "IT & Technology"
+    },
+    {
+      "code": "IT-004",
+      "name": "Software & Licensing",
+      "group": "IT & Technology"
+    },
+    {
+      "code": "IT-005",
+      "name": "Credential Vault",
+      "group": "IT & Technology"
+    },
+    {
+      "code": "IT-006",
+      "name": "System Monitoring",
+      "group": "IT & Technology"
+    },
+    {
+      "code": "IT-007",
+      "name": "Network & Security",
+      "group": "IT & Technology"
+    },
+    {
+      "code": "IT-008",
+      "name": "Content Filtering",
+      "group": "IT & Technology"
+    },
+    {
+      "code": "IT-009",
+      "name": "Configuration Documentation",
+      "group": "IT & Technology"
+    },
+    {
+      "code": "LIB-001",
+      "name": "Catalogue Management",
+      "group": "Library"
+    },
+    {
+      "code": "LIB-002",
+      "name": "Circulation",
+      "group": "Library"
+    },
+    {
+      "code": "LIB-003",
+      "name": "Library Events",
+      "group": "Library"
+    },
+    {
+      "code": "LIB-004",
+      "name": "Digital Resources",
+      "group": "Library"
+    },
+    {
+      "code": "MTG-001",
+      "name": "Meetings",
+      "group": "Meetings & Conferences"
+    },
+    {
+      "code": "MTG-002",
+      "name": "Parent-Teacher Conferences",
+      "group": "Meetings & Conferences"
+    },
+    {
+      "code": "PRC-001",
+      "name": "Purchase Requisitions",
+      "group": "Procurement"
+    },
+    {
+      "code": "PRC-002",
+      "name": "Purchase Orders",
+      "group": "Procurement"
+    },
+    {
+      "code": "PRC-003",
+      "name": "Receiving & Inspection",
+      "group": "Procurement"
+    },
+    {
+      "code": "PRC-004",
+      "name": "Vendor Management",
+      "group": "Procurement"
+    },
+    {
+      "code": "PRC-005",
+      "name": "Returns & Warranty Claims",
+      "group": "Procurement"
+    },
+    {
+      "code": "PUB-001",
+      "name": "Publications",
+      "group": "Publications & Community"
+    },
+    {
+      "code": "PUB-002",
+      "name": "School Website",
+      "group": "Publications & Community"
+    },
+    {
+      "code": "PUB-003",
+      "name": "Parent Portal",
+      "group": "Publications & Community"
+    },
+    {
+      "code": "PUB-004",
+      "name": "Alumni",
+      "group": "Publications & Community"
+    },
+    {
+      "code": "SAF-001",
+      "name": "Emergency Management",
+      "group": "Safety & Compliance"
+    },
+    {
+      "code": "SAF-002",
+      "name": "Visitor Management",
+      "group": "Safety & Compliance"
+    },
+    {
+      "code": "SAF-003",
+      "name": "Incident Reporting",
+      "group": "Safety & Compliance"
+    },
+    {
+      "code": "SAF-004",
+      "name": "Drill Management",
+      "group": "Safety & Compliance"
+    },
+    {
+      "code": "SCH-001",
+      "name": "Master Schedule",
+      "group": "Scheduling & Calendar"
+    },
+    {
+      "code": "SCH-002",
+      "name": "Course Selection",
+      "group": "Scheduling & Calendar"
+    },
+    {
+      "code": "SCH-003",
+      "name": "School Calendar",
+      "group": "Scheduling & Calendar"
+    },
+    {
+      "code": "SCH-004",
+      "name": "Daily Coverage & Substitutes",
+      "group": "Scheduling & Calendar"
+    },
+    {
+      "code": "SCH-005",
+      "name": "Room & Facility Booking",
+      "group": "Scheduling & Calendar"
+    },
+    {
+      "code": "STR-001",
+      "name": "Store Management",
+      "group": "School Store"
+    },
+    {
+      "code": "STR-002",
+      "name": "Store Orders",
+      "group": "School Store"
+    },
+    {
+      "code": "STU-001",
+      "name": "Student Profiles",
+      "group": "Student Records"
+    },
+    {
+      "code": "STU-002",
+      "name": "Student Profile Customisation",
+      "group": "Student Records"
+    },
+    {
+      "code": "STU-003",
+      "name": "Enrolment & Admissions",
+      "group": "Student Records"
+    },
+    {
+      "code": "STU-004",
+      "name": "Withdrawal & Transfer",
+      "group": "Student Records"
+    },
+    {
+      "code": "STU-005",
+      "name": "Graduation Management",
+      "group": "Student Records"
+    },
+    {
+      "code": "STU-006",
+      "name": "Digital ID Cards",
+      "group": "Student Records"
+    },
+    {
+      "code": "STU-007",
+      "name": "Locker Management",
+      "group": "Student Records"
+    },
+    {
+      "code": "STU-008",
+      "name": "Parking Permits",
+      "group": "Student Records"
+    },
+    {
+      "code": "SYS-001",
+      "name": "Access Management",
+      "group": "System Administration"
+    },
+    {
+      "code": "SYS-002",
+      "name": "School Configuration",
+      "group": "System Administration"
+    },
+    {
+      "code": "SYS-003",
+      "name": "Data Import/Export",
+      "group": "System Administration"
+    },
+    {
+      "code": "SYS-004",
+      "name": "Integrations",
+      "group": "System Administration"
+    },
+    {
+      "code": "SYS-005",
+      "name": "Notification Policies",
+      "group": "System Administration"
+    },
+    {
+      "code": "SYS-006",
+      "name": "Analytics & Reporting",
+      "group": "System Administration"
+    },
+    {
+      "code": "SYS-007",
+      "name": "Public Website",
+      "group": "System Administration"
+    },
+    {
+      "code": "TCH-001",
+      "name": "Lesson Planning",
+      "group": "Teaching & Learning"
+    },
+    {
+      "code": "TCH-002",
+      "name": "Assignments & Submissions",
+      "group": "Teaching & Learning"
+    },
+    {
+      "code": "TCH-003",
+      "name": "Grade Book",
+      "group": "Teaching & Learning"
+    },
+    {
+      "code": "TCH-004",
+      "name": "Report Cards",
+      "group": "Teaching & Learning"
+    },
+    {
+      "code": "TCH-005",
+      "name": "Transcripts",
+      "group": "Teaching & Learning"
+    },
+    {
+      "code": "TCH-006",
+      "name": "Quizzes & Assessments",
+      "group": "Teaching & Learning"
+    },
+    {
+      "code": "TCH-007",
+      "name": "AI Study Tool",
+      "group": "Teaching & Learning"
+    },
+    {
+      "code": "TCH-008",
+      "name": "Curriculum Management",
+      "group": "Teaching & Learning"
+    },
+    {
+      "code": "TCH-009",
+      "name": "Class Moments",
+      "group": "Teaching & Learning"
+    },
+    {
+      "code": "TRN-001",
+      "name": "Route Management",
+      "group": "Transportation"
+    },
+    {
+      "code": "TRN-002",
+      "name": "Fleet Management",
+      "group": "Transportation"
+    },
+    {
+      "code": "TRN-003",
+      "name": "Driver Operations",
+      "group": "Transportation"
+    },
+    {
+      "code": "TRN-004",
+      "name": "Driver Credentials",
+      "group": "Transportation"
+    },
+    {
+      "code": "TRN-005",
+      "name": "Field Trips & Special Trips",
+      "group": "Transportation"
+    }
   ],
-  "tiers": ["read", "write", "admin"],
+  "tiers": [
+    "read",
+    "write",
+    "admin"
+  ],
   "defaultRoles": {
-    "Platform Admin": {"permissions": "all"},
-    "School Admin": {"permissions": "all_school"},
-    "Teacher": {"groups": ["Attendance & Daily Operations","Teaching & Learning","Student Records","Scheduling & Calendar","Communications","Meetings & Conferences","Achievements & Portfolio"], "tier": "write"},
-    "Student": {"functions": ["TCH-002","TCH-006","TCH-007","TCH-009","STU-001","STU-006","PFL-001","PFL-002","PFL-003","COM-001","SCH-003","CLB-001","CLB-004"], "tier": "read"},
-    "Parent": {"functions": ["ATT-001","TCH-003","TCH-004","STU-001","COM-001","SCH-003","FIN-001","HLT-001","HLT-005","PUB-003","FDS-003","TRN-001"], "tier": "read"},
-    "Staff": {"groups": ["Communications","Meetings & Conferences","System Administration"], "tier": "read"}
+    "Platform Admin": {
+      "permissions": "all"
+    },
+    "School Admin": {
+      "permissions": "all_school"
+    },
+    "Teacher": {
+      "groups": [
+        "Attendance & Daily Operations",
+        "Teaching & Learning",
+        "Student Records",
+        "Scheduling & Calendar",
+        "Communications",
+        "Meetings & Conferences",
+        "Achievements & Portfolio"
+      ],
+      "tier": "write"
+    },
+    "Student": {
+      "functions": [
+        "TCH-002",
+        "TCH-006",
+        "TCH-007",
+        "TCH-009",
+        "STU-001",
+        "STU-006",
+        "PFL-001",
+        "PFL-002",
+        "PFL-003",
+        "COM-001",
+        "SCH-003",
+        "CLB-001",
+        "CLB-004"
+      ],
+      "tier": "read"
+    },
+    "Parent": {
+      "functions": [
+        "ATT-001",
+        "TCH-003",
+        "TCH-004",
+        "STU-001",
+        "COM-001",
+        "SCH-003",
+        "FIN-001",
+        "HLT-001",
+        "HLT-005",
+        "PUB-003",
+        "FDS-003",
+        "TRN-001"
+      ],
+      "tier": "read"
+    },
+    "Staff": {
+      "groups": [
+        "Communications",
+        "Meetings & Conferences",
+        "System Administration"
+      ],
+      "tier": "read"
+    }
   }
 }

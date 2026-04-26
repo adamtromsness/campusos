@@ -22,34 +22,62 @@ async function seedIam() {
 
   var client = getPlatformClient();
 
-  // ── 1. Seed permissions ────────────────────────────────────
+  // ── 1. Reconcile permission catalogue against permissions.json ─────
+  // Strategy: insert any missing codes; remove any DB rows whose code is no
+  // longer in the JSON (also cleans up role_permissions and the effective
+  // access cache, since role_permissions has an FK to permissions).
   var dataPath = join(__dirname, '..', 'data', 'permissions.json');
   var permData = JSON.parse(readFileSync(dataPath, 'utf-8'));
   var functions = permData.functions as Array<{code: string; name: string; group: string}>;
   var tiers = permData.tiers as string[];
 
-  var existingPerms = await client.permission.count();
-  if (existingPerms > 0) {
-    console.log('  Permissions already seeded (' + existingPerms + ' records)');
-  } else {
-    var permRecords: Array<{id: string; code: string; resource: string; action: string; description: string}> = [];
-    for (var fi = 0; fi < functions.length; fi++) {
-      var func = functions[fi]!;
-      for (var ti = 0; ti < tiers.length; ti++) {
-        var tier = tiers[ti]!;
-        var code = func.code.toLowerCase() + ':' + tier;
-        permRecords.push({
-          id: generateId(),
-          code: code,
-          resource: func.code.toLowerCase(),
-          action: tier,
-          description: func.name + ' (' + tier + ')',
-        });
-      }
+  var expectedCodes = new Set<string>();
+  var expectedByCode: Record<string, { resource: string; action: string; description: string }> = {};
+  for (var fi = 0; fi < functions.length; fi++) {
+    var func = functions[fi]!;
+    for (var ti = 0; ti < tiers.length; ti++) {
+      var tier = tiers[ti]!;
+      var code = func.code.toLowerCase() + ':' + tier;
+      expectedCodes.add(code);
+      expectedByCode[code] = {
+        resource: func.code.toLowerCase(),
+        action: tier,
+        description: func.name + ' (' + tier + ')',
+      };
     }
+  }
 
-    await client.permission.createMany({ data: permRecords });
-    console.log('  ' + permRecords.length + ' permissions seeded');
+  var existingPerms = await client.permission.findMany({ select: { id: true, code: true } });
+  var existingByCode: Record<string, string> = {};
+  for (var ep = 0; ep < existingPerms.length; ep++) existingByCode[existingPerms[ep]!.code] = existingPerms[ep]!.id;
+
+  // Codes to add (in expected but not in DB)
+  var toAdd: Array<{ id: string; code: string; resource: string; action: string; description: string }> = [];
+  Array.from(expectedCodes).forEach(function(code) {
+    if (!existingByCode[code]) {
+      toAdd.push({ id: generateId(), code: code, ...expectedByCode[code]! });
+    }
+  });
+
+  // Codes to remove (in DB but not in expected)
+  var toRemove: string[] = [];
+  for (var ec = 0; ec < existingPerms.length; ec++) {
+    if (!expectedCodes.has(existingPerms[ec]!.code)) toRemove.push(existingPerms[ec]!.id);
+  }
+
+  if (toRemove.length > 0) {
+    await client.rolePermission.deleteMany({ where: { permissionId: { in: toRemove } } });
+    await client.permission.deleteMany({ where: { id: { in: toRemove } } });
+    console.log('  ' + toRemove.length + ' stale permission codes removed (and role_permissions cleared)');
+  }
+
+  if (toAdd.length > 0) {
+    await client.permission.createMany({ data: toAdd });
+    console.log('  ' + toAdd.length + ' new permission codes added');
+  }
+
+  if (toRemove.length === 0 && toAdd.length === 0) {
+    console.log('  Permissions catalogue already in sync (' + existingPerms.length + ' records)');
   }
 
   // ── 2. Seed scope types ────────────────────────────────────
@@ -95,18 +123,28 @@ async function seedIam() {
     console.log('  ' + roleNames.length + ' default roles seeded');
   }
 
-  // ── 4. Assign ALL permissions to Platform Admin ────────────
+  // ── 4. Assign ALL permissions to Platform Admin (reconciling) ──────
+  // Add any newly-added codes; existing assignments stay. Removed codes
+  // were already cleared in step 1's reconciliation.
   var adminRole = await client.role.findFirst({ where: { name: 'Platform Admin' } });
-  var adminRolePerms = await client.rolePermission.count({ where: { roleId: adminRole!.id } });
-  if (adminRolePerms > 0) {
-    console.log('  Platform Admin permissions already assigned');
+  var allPerms = await client.permission.findMany({ select: { id: true } });
+  var adminExisting = await client.rolePermission.findMany({
+    where: { roleId: adminRole!.id },
+    select: { permissionId: true },
+  });
+  var adminAssigned: Record<string, boolean> = {};
+  for (var aei = 0; aei < adminExisting.length; aei++) adminAssigned[adminExisting[aei]!.permissionId] = true;
+  var adminToAdd: Array<{ id: string; roleId: string; permissionId: string }> = [];
+  for (var ap = 0; ap < allPerms.length; ap++) {
+    if (!adminAssigned[allPerms[ap]!.id]) {
+      adminToAdd.push({ id: generateId(), roleId: adminRole!.id, permissionId: allPerms[ap]!.id });
+    }
+  }
+  if (adminToAdd.length > 0) {
+    await client.rolePermission.createMany({ data: adminToAdd });
+    console.log('  Platform Admin: ' + adminToAdd.length + ' permissions newly assigned (' + (adminExisting.length + adminToAdd.length) + ' total)');
   } else {
-    var allPerms = await client.permission.findMany({ select: { id: true } });
-    var rpData = allPerms.map(function(p) {
-      return { id: generateId(), roleId: adminRole!.id, permissionId: p.id };
-    });
-    await client.rolePermission.createMany({ data: rpData });
-    console.log('  ' + rpData.length + ' permissions assigned to Platform Admin');
+    console.log('  Platform Admin: ' + adminExisting.length + ' permissions already assigned');
   }
 
   // ── 4b. Assign baseline permissions to non-admin roles ─────

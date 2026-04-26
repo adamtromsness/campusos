@@ -143,63 +143,91 @@ async function seedSis() {
   personByName['David Chen'] = davidPerson.id;
   platformUserByName['David Chen'] = davidUser.id;
 
+  // Identity provisioning is lookup-or-create so a tenant rebuild can replay
+  // the seed without colliding on platform-side rows that are still around.
+  var newStudentCreated = 0;
   for (var i = 0; i < NEW_STUDENTS.length; i++) {
     var s = NEW_STUDENTS[i]!;
-    var personId = generateId();
-    await client.iamPerson.create({
-      data: {
-        id: personId,
-        firstName: s.firstName,
-        lastName: s.lastName,
-        personType: 'STUDENT',
-        isActive: true,
-      },
+    var existingPerson = await client.iamPerson.findFirst({
+      where: { firstName: s.firstName, lastName: s.lastName, personType: 'STUDENT' },
     });
-    var platformStudentId = generateId();
-    await client.platformStudent.create({
-      data: {
-        id: platformStudentId,
-        personId: personId,
-        firstName: s.firstName,
-        lastName: s.lastName,
-        isActive: true,
-        dataSubjectIsSelf: false,
-      },
-    });
+    var personId: string;
+    if (existingPerson) {
+      personId = existingPerson.id;
+    } else {
+      personId = generateId();
+      await client.iamPerson.create({
+        data: {
+          id: personId,
+          firstName: s.firstName,
+          lastName: s.lastName,
+          personType: 'STUDENT',
+          isActive: true,
+        },
+      });
+    }
+    var existingPlat = await client.platformStudent.findFirst({ where: { personId: personId } });
+    var platformStudentId: string;
+    if (existingPlat) {
+      platformStudentId = existingPlat.id;
+    } else {
+      platformStudentId = generateId();
+      await client.platformStudent.create({
+        data: {
+          id: platformStudentId,
+          personId: personId,
+          firstName: s.firstName,
+          lastName: s.lastName,
+          isActive: true,
+          dataSubjectIsSelf: false,
+        },
+      });
+      newStudentCreated++;
+    }
     var fullName = s.firstName + ' ' + s.lastName;
     personByName[fullName] = personId;
     platformStudentByName[fullName] = platformStudentId;
   }
-  console.log('  ' + NEW_STUDENTS.length + ' new students created (iam_person + platform_students)');
+  console.log('  ' + NEW_STUDENTS.length + ' student identities resolved (' + newStudentCreated + ' newly created)');
 
+  var newGuardianCreated = 0;
   for (var gi = 0; gi < NEW_GUARDIANS.length; gi++) {
     var g = NEW_GUARDIANS[gi]!;
-    var gPersonId = generateId();
-    await client.iamPerson.create({
-      data: {
-        id: gPersonId,
-        firstName: g.firstName,
-        lastName: g.lastName,
-        personType: 'GUARDIAN',
-        isActive: true,
-      },
-    });
-    var gUserId = generateId();
-    await client.platformUser.create({
-      data: {
-        id: gUserId,
-        personId: gPersonId,
-        email: g.email,
-        displayName: g.firstName + ' ' + g.lastName,
-        accountStatus: 'ACTIVE',
-        accountType: 'HUMAN',
-      },
-    });
+    var existingUser = await client.platformUser.findFirst({ where: { email: g.email } });
+    var gPersonId: string;
+    var gUserId: string;
+    if (existingUser) {
+      gPersonId = existingUser.personId;
+      gUserId = existingUser.id;
+    } else {
+      gPersonId = generateId();
+      await client.iamPerson.create({
+        data: {
+          id: gPersonId,
+          firstName: g.firstName,
+          lastName: g.lastName,
+          personType: 'GUARDIAN',
+          isActive: true,
+        },
+      });
+      gUserId = generateId();
+      await client.platformUser.create({
+        data: {
+          id: gUserId,
+          personId: gPersonId,
+          email: g.email,
+          displayName: g.firstName + ' ' + g.lastName,
+          accountStatus: 'ACTIVE',
+          accountType: 'HUMAN',
+        },
+      });
+      newGuardianCreated++;
+    }
     var gFullName = g.firstName + ' ' + g.lastName;
     personByName[gFullName] = gPersonId;
     platformUserByName[gFullName] = gUserId;
   }
-  console.log('  ' + NEW_GUARDIANS.length + ' new guardians created (iam_person + platform_users)');
+  console.log('  ' + NEW_GUARDIANS.length + ' guardian identities resolved (' + newGuardianCreated + ' newly created)');
 
   // ── Phase 2: Tenant SIS data ──
 

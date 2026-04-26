@@ -1,14 +1,14 @@
 CREATE TABLE IF NOT EXISTS sis_families (
     id UUID PRIMARY KEY,
-    organisation_id UUID REFERENCES platform.organisations(id),
+    organisation_id UUID,
     family_name TEXT NOT NULL,
     primary_address TEXT,
     city TEXT,
     postcode TEXT,
     country_code CHAR(2),
     notes TEXT,
-    platform_family_id UUID REFERENCES platform.platform_families(id),
-    created_by UUID NOT NULL REFERENCES platform.platform_users(id),
+    platform_family_id UUID,
+    created_by UUID NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -16,7 +16,7 @@ CREATE INDEX IF NOT EXISTS sis_families_organisation_idx ON sis_families(organis
 CREATE INDEX IF NOT EXISTS sis_families_platform_family_idx ON sis_families(platform_family_id) WHERE platform_family_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS sis_students (
     id UUID PRIMARY KEY,
-    platform_student_id UUID NOT NULL UNIQUE REFERENCES platform.platform_students(id),
+    platform_student_id UUID NOT NULL UNIQUE,
     school_id UUID NOT NULL,
     student_number TEXT,
     grade_level TEXT,
@@ -35,8 +35,8 @@ CREATE INDEX IF NOT EXISTS sis_students_homeroom_idx ON sis_students(homeroom_cl
 CREATE INDEX IF NOT EXISTS sis_students_grade_level_idx ON sis_students(school_id, grade_level);
 CREATE TABLE IF NOT EXISTS sis_staff (
     id UUID PRIMARY KEY,
-    person_id UUID NOT NULL UNIQUE REFERENCES platform.iam_person(id),
-    account_id UUID NOT NULL UNIQUE REFERENCES platform.platform_users(id),
+    person_id UUID NOT NULL UNIQUE,
+    account_id UUID NOT NULL UNIQUE,
     school_id UUID,
     employee_id UUID,
     staff_type TEXT NOT NULL,
@@ -48,8 +48,8 @@ CREATE INDEX IF NOT EXISTS sis_staff_school_idx ON sis_staff(school_id);
 CREATE INDEX IF NOT EXISTS sis_staff_employee_idx ON sis_staff(employee_id) WHERE employee_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS sis_guardians (
     id UUID PRIMARY KEY,
-    person_id UUID NOT NULL REFERENCES platform.iam_person(id),
-    account_id UUID UNIQUE REFERENCES platform.platform_users(id),
+    person_id UUID NOT NULL,
+    account_id UUID UNIQUE,
     school_id UUID NOT NULL,
     family_id UUID REFERENCES sis_families(id),
     relationship TEXT NOT NULL,
@@ -80,7 +80,7 @@ CREATE INDEX IF NOT EXISTS sis_student_guardians_guardian_idx ON sis_student_gua
 CREATE TABLE IF NOT EXISTS sis_family_members (
     id UUID PRIMARY KEY,
     family_id UUID NOT NULL REFERENCES sis_families(id) ON DELETE CASCADE,
-    person_id UUID NOT NULL REFERENCES platform.iam_person(id),
+    person_id UUID NOT NULL,
     person_type TEXT NOT NULL,
     relationship_to_family TEXT,
     is_primary_contact BOOLEAN NOT NULL DEFAULT false,
