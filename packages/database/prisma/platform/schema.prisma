@@ -1,0 +1,25 @@
+// CampusOS Platform Schema
+// This is the shared platform schema — cross-tenant identity,
+// configuration, and infrastructure tables.
+//
+// Full table definitions are added in Steps 4–6.
+// See: ERD v11 → M0 Platform Core (81 tables)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Placeholder model for initial Prisma generation ──
+// Replaced with full platform schema in Step 5.
+model PrismaInfo {
+  id        String   @id @default(uuid())
+  version   String   @default("0.0.0")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("_prisma_info")
+}

@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+
+:root {
+  --campus-primary: #1a5276;
+  --campus-accent: #3d7ab5;
+}
+
+body {
+  @apply antialiased;
+}

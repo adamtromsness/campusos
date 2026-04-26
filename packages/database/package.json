@@ -1,0 +1,31 @@
+{
+  "name": "@campusos/database",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "clean": "rm -rf dist",
+    "migrate": "prisma migrate dev --schema=prisma/platform/schema.prisma",
+    "migrate:deploy": "prisma migrate deploy --schema=prisma/platform/schema.prisma",
+    "generate": "prisma generate --schema=prisma/platform/schema.prisma",
+    "seed": "tsx src/seed.ts",
+    "studio": "prisma studio --schema=prisma/platform/schema.prisma",
+    "lint": "eslint src/",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@campusos/eslint-config": "workspace:*",
+    "@campusos/tsconfig": "workspace:*",
+    "@types/uuid": "^10.0.0",
+    "eslint": "^8.57.0",
+    "prisma": "^5.19.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}

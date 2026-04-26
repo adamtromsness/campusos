@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.next/
+*.tsbuildinfo
+
+# Turborepo
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+
+# Prisma
+packages/database/prisma/platform/migrations/*.sql.bak
+packages/database/prisma/tenant/migrations/*.sql.bak
+
+# Docker
+docker-compose.override.yml
+
+# Terraform
+infrastructure/**/.terraform/
+infrastructure/**/*.tfstate
+infrastructure/**/*.tfstate.backup
+infrastructure/**/*.tfvars
+!infrastructure/**/*.tfvars.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
