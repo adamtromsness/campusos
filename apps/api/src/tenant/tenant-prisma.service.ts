@@ -73,6 +73,37 @@ export class TenantPrismaService implements OnModuleDestroy {
     );
   }
 
+  /**
+   * Execute a tenant-scoped interactive transaction.
+   *
+   * Opens a Prisma interactive transaction, sets search_path on the
+   * transaction's pinned connection via SET LOCAL (so it doesn't bleed
+   * into other queries), then runs the callback. Any error — including
+   * raw $executeRawUnsafe failures or a thrown HttpException — rolls the
+   * whole transaction back atomically.
+   *
+   * Use this when a single mutation spans multiple inserts/updates that
+   * must commit together (e.g. POST /students, which writes to
+   * platform.iam_person, platform.platform_students, and
+   * tenant_X.sis_students).
+   */
+  async executeInTenantTransaction<T>(
+    fn: (tx: PrismaClient) => Promise<T>,
+    options?: { timeout?: number; maxWait?: number },
+  ): Promise<T> {
+    var tenant = getCurrentTenant();
+    var schemaName = tenant.schemaName;
+    return this.platformClient.$transaction(
+      async function(tx: any): Promise<T> {
+        await tx.$executeRawUnsafe(
+          'SET LOCAL search_path TO "' + schemaName + '", platform, public',
+        );
+        return fn(tx as PrismaClient);
+      },
+      options,
+    );
+  }
+
   async onModuleDestroy() {
     await this.platformClient.$disconnect();
   }

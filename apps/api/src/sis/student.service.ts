@@ -102,26 +102,30 @@ export class StudentService {
     var tenant = getCurrentTenant();
     var schoolId = tenant.schoolId;
 
-    // Cross-schema insert: iam_person → platform_students → sis_students.
-    // Per ADR-055, identity (firstName/lastName) lives in iam_person; sis_students carries only school-scoped fields.
+    // Atomic three-table insert across platform.iam_person, platform.platform_students,
+    // and tenant_X.sis_students. Wrapped in an interactive transaction so a failure on
+    // any step rolls back the whole sequence — no orphan identity rows.
     var personId = generateId();
     var platformStudentId = generateId();
     var sisStudentId = generateId();
 
-    return this.tenantPrisma.executeInTenantContext(async (client) => {
-      // Pre-check student_number uniqueness so we don't leave orphan iam_person /
-      // platform_students rows when the tenant insert collides.
-      var existing = await client.$queryRawUnsafe<Array<{ id: string }>>(
-        'SELECT id FROM sis_students WHERE school_id = $1::uuid AND student_number = $2',
-        schoolId,
-        input.studentNumber,
-      );
-      if (existing.length > 0) {
-        throw new ConflictException('A student with number "' + input.studentNumber + '" already exists at this school');
-      }
+    try {
+      return await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        // Pre-check student_number uniqueness inside the tx so we get a friendly 409
+        // before paying for the platform-side inserts. A race after this point is
+        // still caught by the unique constraint and surfaced as 409 below.
+        var existing = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          'SELECT id FROM sis_students WHERE school_id = $1::uuid AND student_number = $2',
+          schoolId,
+          input.studentNumber,
+        );
+        if (existing.length > 0) {
+          throw new ConflictException(
+            'A student with number "' + input.studentNumber + '" already exists at this school',
+          );
+        }
 
-      try {
-        await client.iamPerson.create({
+        await tx.iamPerson.create({
           data: {
             id: personId,
             firstName: input.firstName,
@@ -130,7 +134,7 @@ export class StudentService {
             isActive: true,
           },
         });
-        await client.platformStudent.create({
+        await tx.platformStudent.create({
           data: {
             id: platformStudentId,
             personId: personId,
@@ -140,7 +144,7 @@ export class StudentService {
             dataSubjectIsSelf: false,
           },
         });
-        await client.$executeRawUnsafe(
+        await tx.$executeRawUnsafe(
           'INSERT INTO sis_students (id, platform_student_id, school_id, student_number, grade_level, homeroom_class_id, enrollment_status) ' +
           'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid, $7)',
           sisStudentId,
@@ -151,27 +155,27 @@ export class StudentService {
           input.homeroomClassId ?? null,
           'ENROLLED',
         );
-      } catch (e: any) {
-        // Belt-and-braces: if a race squeaks past the pre-check, surface it as 409.
-        var msg = e && typeof e.message === 'string' ? e.message : '';
-        if (msg.indexOf('school_id, student_number') >= 0 || msg.indexOf('sis_students_school_number_uq') >= 0) {
-          throw new ConflictException('A student with number "' + input.studentNumber + '" already exists at this school');
-        }
-        throw e;
-      }
 
-      var rows = await client.$queryRawUnsafe<StudentRow[]>(
-        'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
-          's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
-          'ip.id AS person_id, ip.first_name, ip.last_name ' +
-        'FROM sis_students s ' +
-        'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-        'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-        'WHERE s.id = $1::uuid',
-        sisStudentId,
-      );
-      return rowToDto(rows[0]!);
-    });
+        var rows = await tx.$queryRawUnsafe<StudentRow[]>(
+          'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
+            's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
+            'ip.id AS person_id, ip.first_name, ip.last_name ' +
+          'FROM sis_students s ' +
+          'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+          'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
+          'WHERE s.id = $1::uuid',
+          sisStudentId,
+        );
+        return rowToDto(rows[0]!);
+      });
+    } catch (e: any) {
+      // Translate the unique-constraint race (post-precheck) into a clean 409.
+      var msg = e && typeof e.message === 'string' ? e.message : '';
+      if (msg.indexOf('school_id, student_number') >= 0 || msg.indexOf('sis_students_school_number_uq') >= 0) {
+        throw new ConflictException('A student with number "' + input.studentNumber + '" already exists at this school');
+      }
+      throw e;
+    }
   }
 
   async update(id: string, input: UpdateStudentDto): Promise<StudentResponseDto> {

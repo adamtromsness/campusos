@@ -273,7 +273,8 @@ Initial peer review flagged 5 blockers; verification against the actual docs con
 
 ### Other open items
 
-- **Atomicity of `POST /students`.** Currently does `iam_person.create` → `platform_students.create` → raw `INSERT INTO sis_students`. If the SIS insert fails after the platform inserts succeed, we leak orphan rows. Mitigated by a pre-check for duplicate `student_number`; a real race could still bypass. Wrap in a Prisma `$transaction`.
+- **Atomicity of `POST /students`.** ✅ Fixed (commit after `a16fbe6`). All three inserts (`iam_person`, `platform_students`, `sis_students`) run inside a Prisma interactive transaction via the new `TenantPrismaService.executeInTenantTransaction` helper. Verified: a forced FK violation on the SIS insert leaves zero orphan rows in the platform-side tables.
+- **ADR-055 doc clarification.** Reviewer noted the ADR prose is broader than the physical ERD (it describes `sis_students/staff/guardians` as projections of `iam_person`, but `sis_students` actually projects through `platform_students`). Backlog item: tighten ADR-055 wording to make the transitive identity path through `platform_students` explicit. Not a code change.
 - **`PATCH /students` cannot change `firstName`/`lastName`.** Per ADR-055, identity is immutable from sis_students. To rename a student, the API needs a separate mutation that updates `iam_person`. Not currently exposed.
 - **No PII protection on student lookups.** Any user with `stu-001:read` sees all students at the school. Cycle 1 doesn't model "who can see whom" beyond role; future hardening per `iam_relationship_access_rule` derivations.
 - **Bigint serialization.** `client.$queryRawUnsafe` returns Postgres `bigint` columns as JS bigint. We coerce inline with `(SELECT count(*)::int FROM …)`. Watch for this in future raw queries.
