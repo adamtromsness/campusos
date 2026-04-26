@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Design Hub</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.topbar a.active{color:white;font-weight:600}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
+.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:1000px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
+.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'DM Serif Display',serif;font-size:48px;color:var(--accent);line-height:1.1;margin-bottom:12px;font-weight:400}
+.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:680px;margin-bottom:16px}
+.hero .stats{display:flex;gap:24px;flex-wrap:wrap;font-size:13px;color:var(--accent-mid);font-weight:600}
+.hero .stats span{background:var(--accent-light);padding:4px 14px;border-radius:6px}
+
+.status-banner{display:flex;gap:16px;margin-bottom:48px;flex-wrap:wrap}
+.status-card{flex:1;min-width:200px;border-radius:10px;padding:20px 24px;border-left:5px solid}
+.status-card h3{font-size:13px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px}
+.status-card p{font-size:14px;line-height:1.6}
+
+.section-title{font-family:'DM Serif Display',serif;font-size:28px;color:var(--accent);font-weight:400;margin:48px 0 20px;padding-top:24px;border-top:1px solid var(--border)}
+.section-title:first-of-type{border-top:none;margin-top:0}
+
+.doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.doc-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:24px 28px;transition:all 0.2s;text-decoration:none;color:inherit;display:block}
+.doc-card:hover{border-color:var(--accent-mid);box-shadow:0 4px 12px rgba(0,0,0,0.08);transform:translateY(-1px)}
+.doc-card .badge{display:inline-block;font-size:11px;padding:2px 10px;border-radius:5px;font-weight:600;margin-bottom:10px}
+.badge-frozen{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.badge-active{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.badge-new{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.badge-planned{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.doc-card h3{font-size:17px;font-weight:600;color:var(--accent);margin-bottom:6px}
+.doc-card .desc{font-size:14px;color:var(--text-light);line-height:1.6;margin-bottom:10px}
+.doc-card .meta{font-size:12px;color:var(--accent-mid);font-weight:500}
+
+.timeline{position:relative;padding-left:32px;margin:24px 0}
+.timeline::before{content:'';position:absolute;left:11px;top:8px;bottom:8px;width:2px;background:var(--border)}
+.tl-item{position:relative;margin-bottom:20px}
+.tl-item::before{content:'';position:absolute;left:-32px;top:6px;width:24px;height:24px;border-radius:50%;border:2px solid var(--border);background:var(--white)}
+.tl-item.done::before{background:var(--green);border-color:var(--green)}
+.tl-item.active::before{background:var(--blue);border-color:var(--blue);box-shadow:0 0 0 4px rgba(61,122,181,0.2)}
+.tl-item.planned::before{background:var(--white);border-color:var(--border)}
+.tl-item h4{font-size:15px;font-weight:600;color:var(--text);margin-bottom:2px}
+.tl-item p{font-size:13px;color:var(--text-light);line-height:1.6}
+.tl-item .tl-badge{font-size:11px;padding:1px 8px;border-radius:4px;font-weight:600;margin-left:8px}
+
+.next-steps{background:var(--accent-light);border:1px solid var(--accent-mid);border-radius:10px;padding:28px 32px;margin-top:32px}
+.next-steps h3{font-size:18px;font-weight:700;color:var(--accent);margin-bottom:12px}
+.next-steps ol{padding-left:20px;font-size:15px;line-height:2}
+.next-steps li strong{color:var(--accent)}
+
+@media(max-width:768px){
+  .doc-grid{grid-template-columns:1fr}
+  .status-banner{flex-direction:column}
+  .hero h1{font-size:36px}
+  .container{padding:20px 20px 60px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html" class="active">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+  <a href="campusos-architecture-review-v10.html">Architecture</a>
+  <a href="campusos-function-library-v11.html">Functions</a>
+  <a href="campusos-business-strategy.html">Business Strategy</a>
+
+  <a href="campusos-dev-deployment-plan.html">Dev Plan</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS</div>
+    <h1>Design Hub</h1>
+    <div class="sub">The complete design, architecture, and business strategy library for the school operating system.</div>
+    <div class="stats">
+      <span>840 Tables</span>
+      <span>38 Modules</span>
+      <span>76 ADRs</span>
+      <span>5 Waves</span>
+      <span>148 Functions</span>
+      <span>20 Personas</span>
+      <span>15 Business Sections</span>
+    </div>
+  </div>
+
+  <!-- ── STATUS ── -->
+  <div class="status-banner">
+    <div class="status-card" style="background:var(--green-bg);border-color:var(--green);">
+      <h3 style="color:#2d7a2d;">Architecture</h3>
+      <p><strong>v11 BUILD BASELINE</strong> &mdash; 840 tables, 38 modules, 76 ADRs. Unified ERD with platform business schema merged. Implementation-ready.</p>
+    </div>
+    <div class="status-card" style="background:var(--blue-bg);border-color:var(--blue);">
+      <h3 style="color:var(--blue);">Business Strategy</h3>
+      <p><strong>BASELINED v2.1</strong> &mdash; Pricing, team, GTM, onboarding, support, community exchange (6 listing types, parent access), all key decisions locked. References v11 ERD.</p>
+    </div>
+    <div class="status-card" style="background:var(--amber-bg);border-color:var(--amber);">
+      <h3 style="color:#9a7b1a;">Next Step</h3>
+      <p><strong>WAVE 1 BUILD</strong> &mdash; v11 build baseline established. 840 tables, 76 ADRs, 148 functions in clean unified documents. Ready for Cycle 0: Platform Foundation.</p>
+    </div>
+  </div>
+
+  <!-- ── DOCUMENTS ── -->
+  <h2 class="section-title">Design Documents</h2>
+
+  <div class="doc-grid">
+    <a href="campusos-erd-v11.html" class="doc-card">
+      <span class="badge badge-new">v11 BUILD BASELINE</span>
+      <h3>Entity-Relationship Design &mdash; v11</h3>
+      <div class="desc">The complete unified schema: 840 tables in one document. All 803 tenant-schema tables from v10 plus 37 new platform business tables (CRM, internal ops, pricing, community exchange). 76 ADRs. No amendments to cross-reference.</div>
+      <div class="meta">840 tables &middot; 38 modules &middot; 76 ADRs &middot; 5 waves &middot; Single document</div>
+    </a>
+    <a href="campusos-architecture-review-v10.html" class="doc-card">
+      <span class="badge badge-frozen">FROZEN</span>
+      <h3>Architecture Design Review</h3>
+      <div class="desc">30 sections covering system architecture, multi-tenancy, IAM, database design, event model, scheduling, finance, scalability, security, AI, deployment, and observability.</div>
+      <div class="meta">30 sections &middot; Modular monolith + 6 extracted services</div>
+    </a>
+    <a href="campusos-function-library-v11.html" class="doc-card">
+      <span class="badge badge-new">v11 UNIFIED</span>
+      <h3>Function Library</h3>
+      <div class="desc">148 functions across 28 groups. All access control capabilities in one document: 25 original school groups plus Community Exchange (MKT-), Customer Management (CRM-), and Internal Operations (OPS-).</div>
+      <div class="meta">148 functions &middot; 28 groups &middot; 3 permission tiers each</div>
+    </a>
+    <a href="campusos-dev-deployment-plan.html" class="doc-card">
+      <span class="badge badge-frozen">FROZEN</span>
+      <h3>Development &amp; Deployment Plan</h3>
+      <div class="desc">The complete build pipeline: Claude develops, CI/CD executes, ChatGPT reviews, Human accepts. 4 environments, Wave 1 build sequence, 29 sections.</div>
+      <div class="meta">29 sections &middot; 8 build cycles &middot; 4 environments</div>
+    </a>
+  </div>
+
+  <h2 class="section-title">Business &amp; Operations</h2>
+
+  <div class="doc-grid">
+    <a href="campusos-business-strategy.html" class="doc-card">
+      <span class="badge badge-new">v2.1 BASELINED</span>
+      <h3>Business Strategy &amp; GTM Plan</h3>
+      <div class="desc">Pricing (flat-fee bands, all features included), lean team (CIO + CEO, AI-leveraged 4x), go-to-market, 90-day onboarding, support tiers, community exchange (6 listing types, 20/10/70 + 5% splits, parent access, surplus assets, watch lists), and scaling playbook.</div>
+      <div class="meta">15 sections &middot; All key decisions locked &middot; March 2026</div>
+    </a>
+  </div>
+
+  <!-- ── TIMELINE ── -->
+  <h2 class="section-title">Project Timeline</h2>
+
+  <div class="timeline">
+    <div class="tl-item done">
+      <h4>ERD Design &mdash; v1 through v10 <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete</span></h4>
+      <p>Iterative schema design from 354-table baseline to 803 tables. 20 personas, 366 journey sections. Module restructuring, identity model, IAM subsystem, scheduling engine, finance boundary, DPO compliance.</p>
+    </div>
+    <div class="tl-item done">
+      <h4>Architecture Review &mdash; 30 sections <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Frozen</span></h4>
+      <p>System architecture, multi-tenancy, database design, event model, scalability, security, AI, deployment, observability. All pre-build concerns resolved. 70 ADRs accepted.</p>
+    </div>
+    <div class="tl-item done">
+      <h4>Function Library &mdash; 126 functions <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Frozen</span></h4>
+      <p>Every user-facing function with three permission tiers. Mapped to modules and IAM permission codes.</p>
+    </div>
+    <div class="tl-item done">
+      <h4>Development &amp; Deployment Plan <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Frozen</span></h4>
+      <p>Two-AI, one-human pipeline. 4 environments. Wave 1 build sequence (8 cycles). CI/CD, contract testing, tenant isolation, feature flags, disaster recovery. 29 sections.</p>
+    </div>
+    <div class="tl-item done">
+      <h4>Business Strategy &mdash; v2.1 <span class="tl-badge" style="background:var(--blue-bg);color:var(--blue);">Baselined</span></h4>
+      <p>Flat-fee pricing bands. All features included. Community exchange with 6 listing types, 20/10/70 + 5% revenue models, parent access. Lean team (CIO + CEO). GTM calendar. 90-day onboarding. Support tiers. 15 sections, all key decisions locked.</p>
+    </div>
+    <div class="tl-item done">
+      <h4>v11 Build Baseline <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete</span></h4>
+      <p>Clean break from v10. Unified ERD: 840 tables (803 tenant + 37 platform business) in one document. 38 modules. 76 ADRs. Unified function library: 148 functions, 28 groups. All amendments merged. No patches to cross-reference.</p>
+    </div>
+    <div class="tl-item active">
+      <h4>Wave 1 Build &mdash; Cycle 0: Platform Foundation <span class="tl-badge" style="background:var(--amber-bg);color:#9a7b1a;">Next</span></h4>
+      <p>Monorepo scaffold. Platform schema. IAM core. Auth integration. Tenant isolation. API Gateway. CI/CD pipeline.</p>
+    </div>
+    <div class="tl-item planned">
+      <h4>Wave 1 Build &mdash; Cycles 1&ndash;8</h4>
+      <p>SIS + Attendance &rarr; Classroom + Grading &rarr; Communications &rarr; HR &rarr; Enrolment + Payments &rarr; Tasks + Approvals + Calendar &rarr; Service Tickets &rarr; Integration + Hardening.</p>
+    </div>
+    <div class="tl-item planned">
+      <h4>Pilot School Onboarding</h4>
+      <p>2&ndash;3 design partner schools. Data migration. Configuration. Training. Go-live. 90-day stabilisation.</p>
+    </div>
+  </div>
+
+  <!-- ── NEXT STEPS ── -->
+  <div class="next-steps">
+    <h3>Immediate Next Steps</h3>
+    <ol>
+      <li><strong>Review v11 build baseline:</strong> ERD v11 (840 tables, single document), Function Library (148 functions, single document), Architecture Review, Business Strategy v2.1, Dev &amp; Deployment Plan. Five documents, zero amendments. Verify completeness.</li>
+      <li><strong>Begin Wave 1 Cycle 0 &mdash; Platform Foundation:</strong> Monorepo scaffold (pnpm + Turborepo + NestJS + Next.js + Prisma). Platform schema migrations including all crm_, ops_, pricing, community profile, and forum tables. IAM core. Auth integration (OIDC/SAML with test IdP).</li>
+      <li><strong>Pilot school sourcing:</strong> CEO begins outreach to personal network. Identify 2&ndash;3 design partner schools matching the ideal profile (200&ndash;1,000 students, 5+ current systems, tech-forward leadership).</li>
+      <li><strong>Infrastructure provisioning:</strong> AWS region selection based on target market. Terraform for DEV and SIT environments. CI/CD pipeline via GitHub Actions.</li>
+      <li><strong>Hire Implementation Lead:</strong> First non-founder hire. School operations experience. Begins building data migration tooling and training materials during build.</li>
+    </ol>
+  </div>
+</div>
+
+</body>
+</html>

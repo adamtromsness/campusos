@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 1 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.topbar a.active{color:white;font-weight:600}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
+.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
+.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
+.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
+.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
+.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
+.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}
+.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}
+.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
+.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
+.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
+.step-title{font-size:19px;font-weight:700;color:var(--accent)}
+.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
+.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
+.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.step .depends{font-size:12px;color:var(--text-light);margin-top:6px}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
+.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent);font-size:13px}
+.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
+.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-project-overview.html">Overview</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+  <a href="campusos-architecture-review-v10.html">Architecture</a>
+  <a href="campusos-function-library-v11.html">Functions</a>
+  <a href="campusos-business-strategy.html">Business Strategy</a>
+  <a href="campusos-dev-deployment-plan.html">Dev Plan</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 1</div>
+    <h1>Cycle 1: SIS Core + Attendance<br>Implementation Plan</h1>
+    <div class="sub">The first domain module &mdash; from empty tenant schema to a teacher taking attendance and a parent seeing the result. The first vertical slice of CampusOS as a product.</div>
+    <span class="version">April 2026 &middot; 11 Steps &middot; ERD v11 &middot; M20 SIS Core</span>
+  </div>
+
+
+  <!-- ═══════ OVERVIEW ═══════ -->
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 1 is the first domain module. Where Cycle 0 built the platform (identity, IAM, tenancy, auth), Cycle 1 builds the first feature a school actually uses. It establishes the pattern that every subsequent cycle follows: tenant schema migration, NestJS module, API endpoints with permissions, Next.js UI pages, seed data, and an end-to-end vertical slice test.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Teacher logs in &rarr; sees today's classes &rarr; clicks Period 1 Algebra &rarr; sees 25 students (all pre-populated as Present) &rarr; taps Maya Chen &rarr; marks Tardy at 8:15 &rarr; submits &rarr; Kafka event fires &rarr; David Chen (parent) sees the notification in his dashboard.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">Cycle 1 is the Pattern-Setting Cycle</div>
+    <p style="font-size:15px;line-height:1.8;">This cycle takes longer than subsequent ones because it establishes conventions that every future module reuses: how tenant migrations work alongside platform schema, how NestJS domain modules are structured, how API DTOs and validation work, how the UI layout shell and authenticated pages are built, and how Kafka events bridge between modules. Cycles 2&ndash;8 follow the same template.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:34%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Academic Structure Schema</td><td>Schema</td><td>sis_academic_years, sis_terms, sis_departments, sis_courses, sis_classes, sis_class_teachers, sis_enrollments</td></tr>
+    <tr><td><strong>2</strong></td><td>Student &amp; Family Schema</td><td>Schema</td><td>sis_students, sis_staff, sis_guardians, sis_student_guardians, sis_families, sis_family_members, sis_emergency_contacts</td></tr>
+    <tr><td><strong>3</strong></td><td>Attendance Schema</td><td>Schema</td><td>sis_attendance_records, sis_attendance_evidence, sis_absence_requests</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; A Living School</td><td>Seed</td><td>Academic year, 4 departments, 6 classes, 15 students, 10 guardians, families, enrollments</td></tr>
+    <tr><td><strong>5</strong></td><td>SIS NestJS Module</td><td>Code</td><td>StudentService, ClassService, FamilyService, REST controllers, Swagger docs</td></tr>
+    <tr><td><strong>6</strong></td><td>Attendance NestJS Module</td><td>Code</td><td>AttendanceService, batch marking, pre-population, Kafka events</td></tr>
+    <tr><td><strong>7</strong></td><td>UI Shell &amp; Design System</td><td>UI</td><td>Authenticated layout, sidebar, design tokens, auth context, React Query provider</td></tr>
+    <tr><td><strong>8</strong></td><td>Teacher Dashboard</td><td>UI</td><td>Today's classes, period schedule, quick stats, navigation to attendance</td></tr>
+    <tr><td><strong>9</strong></td><td>Attendance Taking UI</td><td>UI</td><td>Class roster, status toggles, batch submit, notes, real-time feedback</td></tr>
+    <tr><td><strong>10</strong></td><td>Parent Dashboard &amp; Attendance View</td><td>UI</td><td>Child summary, attendance history calendar, absence request form</td></tr>
+    <tr><td><strong>11</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>End-to-end: login &rarr; take attendance &rarr; verify DB &rarr; verify parent view</td></tr>
+  </table>
+
+
+  <!-- ═══════ STEPS ═══════ -->
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Academic Structure Schema</span>
+    </div>
+    <div class="step-meta">
+      <span class="step-tag tag-schema">Schema</span>
+    </div>
+    <p>Create the tenant-scoped tables that define a school's academic structure: years, terms, departments, courses, classes, teacher assignments, and student enrollments. These are the building blocks that attendance, grading, scheduling, and everything else reference.</p>
+
+    <div class="detail-heading">Tables (7)</div>
+    <ol class="detail-list">
+      <li><strong>sis_academic_years</strong> &mdash; school_id, name, start_date, end_date, is_current. One row per school year.</li>
+      <li><strong>sis_terms</strong> &mdash; FK(academic_year), name, start_date, end_date, term_type (SEMESTER, QUARTER, TRIMESTER). Subdivisions of a year.</li>
+      <li><strong>sis_departments</strong> &mdash; school_id, name, head_employee_id. Academic departments (Math, English, Science).</li>
+      <li><strong>sis_courses</strong> &mdash; FK(department), code, name, credit_hours, grade_level. The course catalogue.</li>
+      <li><strong>sis_classes</strong> &mdash; FK(course), FK(academic_year), FK(term), section_number, room, capacity, schedule. A specific section of a course in a term.</li>
+      <li><strong>sis_class_teachers</strong> &mdash; FK(class), FK(hr_employees via person), is_primary_teacher. Teacher-to-class assignment.</li>
+      <li><strong>sis_enrollments</strong> &mdash; FK(student), FK(class), status (ACTIVE, DROPPED, TRANSFERRED), enrolled_at. Student-to-class membership.</li>
+    </ol>
+
+    <div class="detail-heading">Implementation</div>
+    <p>These are tenant-schema tables, so they go in the SQL tenant migration pipeline (not Prisma platform schema). Create <code>packages/database/prisma/tenant/migrations/002_sis_academic_structure.sql</code>. All existing tenant schemas (tenant_demo, tenant_test) get this migration applied on next provisioning run.</p>
+
+    <div class="produces">Produces &rarr; 7 new tables in every tenant schema. <code>pnpm --filter @campusos/database provision --subdomain=demo</code> applies cleanly.</div>
+  </div>
+
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Student &amp; Family Schema</span>
+    </div>
+    <div class="step-meta">
+      <span class="step-tag tag-schema">Schema</span>
+    </div>
+    <p>Create the tenant-scoped tables for student records, staff records, guardians, families, and emergency contacts. These tables link back to the platform schema via FK(iam_person) and FK(platform_students) for identity, and FK(platform_users) for auth context.</p>
+
+    <div class="detail-heading">Tables (8)</div>
+    <ol class="detail-list">
+      <li><strong>sis_students</strong> &mdash; FK(platform_students), school_id, student_number, grade_level, homeroom_class_id, enrollment_status. The school-scoped student record.</li>
+      <li><strong>sis_staff</strong> &mdash; FK(iam_person), FK(platform_users), school_id, staff_type (TEACHER, ADMINISTRATOR, SUPPORT, COUNSELLOR).</li>
+      <li><strong>sis_guardians</strong> &mdash; FK(iam_person), FK(platform_users nullable), school_id, relationship type, preferred contact method, FK(sis_families).</li>
+      <li><strong>sis_student_guardians</strong> &mdash; FK(student), FK(guardian), has_custody, is_emergency_contact, receives_reports, portal_access, portal_access_scope. The link that triggers IAM guardian access derivation.</li>
+      <li><strong>sis_families</strong> &mdash; family_name, address, FK(platform_families nullable). The household unit.</li>
+      <li><strong>sis_family_members</strong> &mdash; FK(family), FK(iam_person), person_type, relationship_to_family, is_primary_contact. Everyone in the family.</li>
+      <li><strong>sis_emergency_contacts</strong> &mdash; FK(student), name, relationship, phone, is_authorised_pickup.</li>
+      <li><strong>sis_student_notes</strong> &mdash; FK(student), FK(author hr_employee), note_text, note_type, is_parent_visible. Teacher pastoral observations.</li>
+    </ol>
+
+    <div class="detail-heading">Identity Contract (ADR-055)</div>
+    <p><code>sis_students</code> references <code>platform_students</code> (portable identity) which references <code>iam_person</code> (universal identity). The student's name and date of birth live in <code>iam_person</code> &mdash; never duplicated in <code>sis_students</code>. The school-scoped record carries only school-specific data: student number, grade level, enrollment status.</p>
+
+    <div class="produces">Produces &rarr; 8 new tables in every tenant schema. Student &harr; guardian relationships ready for IAM access derivation.</div>
+    <div class="depends">Depends on &rarr; Step 1 (sis_classes for homeroom FK)</div>
+  </div>
+
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Attendance Schema</span>
+    </div>
+    <div class="step-meta">
+      <span class="step-tag tag-schema">Schema</span>
+    </div>
+    <p>The core attendance tables. Attendance records are pre-populated at school day start with PRESENT status. Teachers then mark exceptions. Each record carries evidence source, confirmation status, and links to parent explanations and absence requests.</p>
+
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>sis_attendance_records</strong> &mdash; FK(student), FK(class), date, period, status (PRESENT, ABSENT, TARDY, EARLY_DEPARTURE, EXCUSED), confirmation_status (PRE_POPULATED, CONFIRMED), evidence_source, marked_by FK(platform_users), parent_explanation, absence_request_id. The main attendance fact table.</li>
+      <li><strong>sis_attendance_evidence</strong> &mdash; FK(attendance_record), evidence_type (BUS_SCAN, DOOR_SCAN, PHOTO, NOTE), source_ref_id. Supporting evidence for automated or manual attendance.</li>
+      <li><strong>sis_absence_requests</strong> &mdash; FK(student), submitted_by FK(platform_users/guardian), date range, reason category, status (PENDING, APPROVED, REJECTED, AUTO_APPROVED), reviewed_by, supporting document. Parent-submitted absence notifications and advance requests.</li>
+    </ol>
+
+    <div class="detail-heading">Pre-Population Pattern</div>
+    <p>At school day start (or on first access), a background job or on-demand service creates one <code>sis_attendance_records</code> row per student per class period with <code>status=PRESENT</code> and <code>confirmation_status=PRE_POPULATED</code>. The teacher's action is to mark exceptions and confirm. Only CONFIRMED records count in official reports. This means the teacher's workflow is exception-based: scan the list, tap the 2&ndash;3 students who are tardy or absent, submit.</p>
+
+    <div class="produces">Produces &rarr; 3 new attendance tables. Total tenant schema now has ~23 tables (5 from Cycle 0 + 18 from Cycle 1).</div>
+    <div class="depends">Depends on &rarr; Steps 1&ndash;2 (students and classes must exist)</div>
+  </div>
+
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Seed Data &mdash; A Living School</span>
+    </div>
+    <div class="step-meta">
+      <span class="step-tag tag-seed">Seed</span>
+    </div>
+    <p>Populate the demo school with enough data to make the UI feel real. This extends the existing seed (5 users, 1 org, 1 school) with academic structure, students, families, and attendance records.</p>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>Academic year:</strong> 2025&ndash;2026 with Fall and Spring semesters.</li>
+      <li><strong>Departments:</strong> Mathematics, English Language Arts, Science, Social Studies.</li>
+      <li><strong>Courses:</strong> 6&ndash;8 courses (Algebra 1, English 9, Biology, World History, etc.).</li>
+      <li><strong>Classes:</strong> 6 class sections, all assigned to James Rivera (our test teacher). Period 1 through Period 6.</li>
+      <li><strong>Students:</strong> 15 students with iam_person + platform_students + sis_students records. Realistic names. Enrolled across the 6 classes (5&ndash;8 students per class).</li>
+      <li><strong>Guardians:</strong> 10 guardians (some shared across siblings). iam_person + platform_users + sis_guardians + sis_student_guardians records. Portal access enabled. Maya Chen linked to David Chen (existing parent user).</li>
+      <li><strong>Families:</strong> 8 families with family members. Some families have two children enrolled.</li>
+      <li><strong>Attendance:</strong> Today's attendance pre-populated for all students in all classes. Status=PRESENT, confirmation_status=PRE_POPULATED. Ready for the teacher to mark exceptions.</li>
+      <li><strong>Role assignments:</strong> Teacher role assigned to James Rivera for the school scope. Permission cache rebuilt so attendance endpoints work.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; A demo school that looks and feels populated. The teacher sees real class rosters. The parent sees real attendance data.</div>
+    <div class="depends">Depends on &rarr; Steps 1&ndash;3 (all SIS tables exist)</div>
+  </div>
+
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">SIS NestJS Module</span>
+    </div>
+    <div class="step-meta">
+      <span class="step-tag tag-code">Code</span>
+    </div>
+    <p>Build the SIS domain module in the NestJS API. This is the first domain module added to the modular monolith &mdash; it establishes the pattern for all subsequent modules.</p>
+
+    <div class="detail-heading">Module Structure</div>
+    <ol class="detail-list">
+      <li><strong>SisModule</strong> &mdash; NestJS module declaration. Imports TenantModule for scoped Prisma. Exports services for other modules to consume.</li>
+      <li><strong>StudentService</strong> &mdash; CRUD for students. Resolves identity from platform schema. Lists students by class, grade level, enrollment status.</li>
+      <li><strong>ClassService</strong> &mdash; CRUD for classes. Includes roster (enrolled students), assigned teachers, schedule. <code>GET /classes/:id/roster</code> is the key endpoint for attendance.</li>
+      <li><strong>FamilyService</strong> &mdash; Family and guardian management. Links guardians to students. Queries for "who are Maya's guardians?" and "what students does David have?"</li>
+      <li><strong>StudentController</strong> &mdash; REST endpoints: <code>GET /students</code>, <code>GET /students/:id</code>, <code>POST /students</code>, <code>PATCH /students/:id</code>. All protected with <code>@RequirePermission('stu-001:read')</code> or <code>'stu-001:write'</code>.</li>
+      <li><strong>ClassController</strong> &mdash; <code>GET /classes</code>, <code>GET /classes/:id</code>, <code>GET /classes/:id/roster</code>, <code>GET /classes/my</code> (teacher's own classes).</li>
+      <li><strong>DTOs</strong> &mdash; Zod schemas in <code>packages/shared</code> for request/response validation. Shared between API and UI for type safety.</li>
+    </ol>
+
+    <div class="detail-heading">Tenant-Scoped Queries</div>
+    <p>Every query in SisModule uses <code>TenantPrismaService.executeInTenantContext()</code> so queries automatically target the correct tenant schema. The teacher at Lincoln Elementary only sees Lincoln Elementary's students.</p>
+
+    <div class="produces">Produces &rarr; SisModule with 3 services, 2 controllers, ~15 REST endpoints. Swagger documentation auto-generated. All endpoints permission-protected.</div>
+    <div class="depends">Depends on &rarr; Step 4 (seed data to test against), Cycle 0 (TenantModule, IamModule, AuthModule)</div>
+  </div>
+
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Attendance NestJS Module</span>
+    </div>
+    <div class="step-meta">
+      <span class="step-tag tag-code">Code</span>
+    </div>
+    <p>The attendance-specific logic. Handles pre-population, individual and batch marking, confirmation, and Kafka event emission. This module consumes SisModule services (student roster) and produces events that downstream modules will consume (notifications in Cycle 3).</p>
+
+    <div class="detail-heading">Module Structure</div>
+    <ol class="detail-list">
+      <li><strong>AttendanceModule</strong> &mdash; NestJS module. Imports SisModule for student/class data.</li>
+      <li><strong>AttendanceService</strong> &mdash; Core logic: pre-populate a class period, mark individual student, batch-mark a class, get attendance for a date/class, get student attendance history.</li>
+      <li><strong>AttendancePrePopulationService</strong> &mdash; Creates PRESENT records for all enrolled students at day start. Called on-demand when a teacher opens a class or via a scheduled job.</li>
+      <li><strong>AttendanceController</strong> &mdash; REST endpoints:
+        <code>GET /classes/:id/attendance/:date</code> (roster with statuses),
+        <code>PATCH /attendance/:id</code> (mark single student),
+        <code>POST /classes/:id/attendance/:date/batch</code> (submit whole class),
+        <code>GET /students/:id/attendance</code> (student history),
+        <code>POST /absence-requests</code> (parent submits absence).</li>
+      <li><strong>Kafka Events</strong> &mdash; <code>att.attendance.marked</code> (individual mark), <code>att.attendance.confirmed</code> (class period submitted), <code>att.student.marked_tardy</code> (triggers parent notification), <code>att.student.marked_absent</code> (triggers absence follow-up). Events emitted but not consumed in Cycle 1 &mdash; Cycle 3 (Communications) adds the notification consumer.</li>
+    </ol>
+
+    <div class="detail-heading">Permission Mapping</div>
+    <p>ATT-001 (Attendance Taking): <code>att-001:read</code> to view, <code>att-001:write</code> to mark and submit. ATT-002 (Late Arrival): <code>att-002:write</code> to process late arrivals. ATT-003 (Early Dismissal): <code>att-003:write</code> to process early departures. All enforced via <code>@RequirePermission</code>.</p>
+
+    <div class="produces">Produces &rarr; AttendanceModule with 2 services, 1 controller, ~8 REST endpoints. Kafka event emission. Swagger docs.</div>
+    <div class="depends">Depends on &rarr; Step 5 (SisModule for class roster), Cycle 0 (Kafka connection for events)</div>
+  </div>
+
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">UI Shell &amp; Design System</span>
+    </div>
+    <div class="step-meta">
+      <span class="step-tag tag-ui">UI</span>
+    </div>
+    <p>Before building any feature pages, we build the application shell that every page lives inside. This is the layout, navigation, authentication context, data fetching layer, and design system components that all subsequent UI work reuses.</p>
+
+    <div class="detail-heading">Components</div>
+    <ol class="detail-list">
+      <li><strong>AuthProvider</strong> &mdash; React context that manages the JWT access token, refresh flow, and current user state. Wraps the entire app. Redirects to login if token is expired/missing.</li>
+      <li><strong>ApiClient</strong> &mdash; Configured fetch wrapper (or Axios) that automatically attaches the Bearer token, X-Tenant-Subdomain header, and handles 401 refresh. Used by all React Query hooks.</li>
+      <li><strong>AppLayout</strong> &mdash; The authenticated layout shell: sidebar navigation, top bar with user avatar and school name, main content area. Responsive &mdash; sidebar collapses to a hamburger on mobile.</li>
+      <li><strong>Sidebar</strong> &mdash; Navigation grouped by persona: teacher sees classes, attendance, gradebook. Parent sees children, attendance, messages. Admin sees everything. Driven by the user's permissions.</li>
+      <li><strong>Design tokens</strong> &mdash; Tailwind config extended with CampusOS brand palette, typography (DM Sans + display font), spacing scale, component-level tokens (card radius, shadow levels, status colours for attendance).</li>
+      <li><strong>Shared components</strong> &mdash; PageHeader, DataTable, StatusBadge, EmptyState, LoadingSpinner, Avatar, Modal, Toast notifications. Built with Tailwind, no external component library.</li>
+      <li><strong>React Query provider</strong> &mdash; TanStack Query configured with default options (stale time, retry, error handling). All API calls go through React Query hooks for caching and loading states.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; A polished, authenticated app shell. Every subsequent page is a new route inside this layout. Login works via the /auth/dev-login endpoint initially.</div>
+    <div class="depends">Depends on &rarr; Cycle 0 (AuthModule, Next.js app exists)</div>
+  </div>
+
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Teacher Dashboard</span>
+    </div>
+    <div class="step-meta">
+      <span class="step-tag tag-ui">UI</span>
+    </div>
+    <p>The first real page a teacher sees after logging in. Shows today's class schedule, quick attendance stats, and navigation to each class's attendance view.</p>
+
+    <div class="detail-heading">Page: <code>/dashboard</code></div>
+    <ol class="detail-list">
+      <li><strong>Today's Classes</strong> &mdash; a list/grid of the teacher's classes for today. Each card shows: period number, course name, section, room, number of students, and attendance status (not started / in progress / submitted).</li>
+      <li><strong>Quick Stats</strong> &mdash; total students across all classes, overall attendance rate today, number of tardies, number of absences.</li>
+      <li><strong>Click a class card</strong> &mdash; navigates to <code>/classes/:id/attendance</code> for that class and today's date.</li>
+      <li><strong>Recent Activity</strong> &mdash; last few attendance submissions, recent absence requests from parents.</li>
+    </ol>
+
+    <div class="detail-heading">API Calls</div>
+    <p><code>GET /api/v1/classes/my</code> &mdash; returns the teacher's assigned classes with today's attendance summary. This is a React Query hook: <code>useMyClasses()</code>.</p>
+
+    <div class="produces">Produces &rarr; The teacher dashboard page. A teacher logs in and immediately sees their classes and attendance status.</div>
+    <div class="depends">Depends on &rarr; Step 7 (UI shell), Steps 5&ndash;6 (API endpoints), Step 4 (seed data)</div>
+  </div>
+
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Attendance Taking UI</span>
+    </div>
+    <div class="step-meta">
+      <span class="step-tag tag-ui">UI</span>
+    </div>
+    <p>The core attendance workflow page. The teacher sees their class roster and marks attendance for the period. This is the most important screen in Cycle 1 &mdash; it needs to be fast, intuitive, and satisfying to use.</p>
+
+    <div class="detail-heading">Page: <code>/classes/:id/attendance</code></div>
+    <ol class="detail-list">
+      <li><strong>Header</strong> &mdash; class name, period, date (with date picker for viewing other days), teacher name, submission status.</li>
+      <li><strong>Student roster</strong> &mdash; list of all enrolled students. Each row shows: student name, avatar/initials, current status (colour-coded: green Present, amber Tardy, red Absent), and a notes icon.</li>
+      <li><strong>Status toggle</strong> &mdash; tapping a student cycles through: Present &rarr; Tardy &rarr; Absent &rarr; Present. Or a dropdown/button group for explicit selection. Tardy shows a time picker. Absent shows a reason dropdown.</li>
+      <li><strong>Notes</strong> &mdash; expandable note field per student for tardy/absent reasons.</li>
+      <li><strong>Batch submit</strong> &mdash; "Submit Attendance" button that confirms all statuses for the period. Changes confirmation_status from PRE_POPULATED to CONFIRMED. Cannot be undone without admin override.</li>
+      <li><strong>Visual feedback</strong> &mdash; submit button shows count of exceptions ("Submit &mdash; 2 Tardy, 1 Absent"). Success toast after submission. Class card on dashboard updates to "Submitted" status.</li>
+    </ol>
+
+    <div class="detail-heading">UX Principles</div>
+    <p>Exception-based workflow: the default state is Present. The teacher only interacts with the 2&ndash;3 students who aren't present. A class of 25 with perfect attendance takes 2 taps: open the class, hit submit. A class with 2 tardies takes 4 taps: open, tap tardy, tap tardy, submit.</p>
+
+    <div class="produces">Produces &rarr; The attendance-taking page. A teacher can take attendance for a class in under 30 seconds.</div>
+    <div class="depends">Depends on &rarr; Step 8 (dashboard navigates here), Step 6 (attendance API)</div>
+  </div>
+
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Parent Dashboard &amp; Attendance View</span>
+    </div>
+    <div class="step-meta">
+      <span class="step-tag tag-ui">UI</span>
+    </div>
+    <p>The parent's view. David Chen logs in and sees Maya's attendance. Initially this is an in-app view &mdash; push notifications and email come in Cycle 3 (Communications).</p>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Parent Dashboard <code>/dashboard</code></strong> &mdash; shows each child with a summary card: name, grade, today's attendance status, overall attendance rate. If Maya was marked tardy, a notification banner appears at the top: "Maya was marked tardy in Period 1 Algebra at 8:15 AM."</li>
+      <li><strong>Child Attendance <code>/children/:id/attendance</code></strong> &mdash; calendar heatmap showing the month. Green days = fully present, amber = tardy, red = absent. Click a day to see per-period detail. Running stats: days present, tardy count, absence count, attendance percentage.</li>
+      <li><strong>Absence Request <code>/children/:id/absence-request</code></strong> &mdash; form for submitting a same-day absence report or advance planned absence. Date picker, reason category dropdown, text explanation, optional document upload. Submits to <code>POST /absence-requests</code>.</li>
+    </ol>
+
+    <div class="detail-heading">Persona-Aware Routing</div>
+    <p>The <code>/dashboard</code> route renders different content based on the user's person_type: teachers see the teacher dashboard (Step 8), parents see the parent dashboard (this step). The AppLayout sidebar also changes. This is driven by the JWT payload's personId, which resolves to iam_person.person_type.</p>
+
+    <div class="produces">Produces &rarr; Parent dashboard with child attendance view and absence request. David Chen sees Maya's tardy immediately.</div>
+    <div class="depends">Depends on &rarr; Step 7 (UI shell), Step 6 (attendance API), Step 4 (seed data with parent-student links)</div>
+  </div>
+
+
+  <!-- ── STEP 11 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">11</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta">
+      <span class="step-tag tag-test">Test</span>
+    </div>
+    <p>The end-to-end proof that Cycle 1 works as a complete vertical slice. This is the first CAT (Customer Acceptance Test) script &mdash; a manual walkthrough that exercises every layer.</p>
+
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Teacher login:</strong> Open browser to CampusOS. Log in as teacher@demo.campusos.dev via dev-login. Verify dashboard loads with 6 classes.</li>
+      <li><strong>View class roster:</strong> Click Period 1 Algebra. Verify 5&ndash;8 students shown. All marked Present (green). Verify student names match seed data.</li>
+      <li><strong>Mark tardy:</strong> Tap Maya Chen. Set status to Tardy. Enter note: "arrived 8:15." Verify Maya's row turns amber.</li>
+      <li><strong>Submit attendance:</strong> Click "Submit Attendance." Verify confirmation dialog shows "1 Tardy." Submit. Verify success toast. Verify class card on dashboard shows "Submitted."</li>
+      <li><strong>Verify database:</strong> Query sis_attendance_records for Maya in Period 1 today. Verify status=TARDY, confirmation_status=CONFIRMED.</li>
+      <li><strong>Parent login:</strong> Log in as parent@demo.campusos.dev. Verify parent dashboard loads. Verify notification shows "Maya was marked tardy."</li>
+      <li><strong>View attendance history:</strong> Click Maya &rarr; Attendance. Verify today shows amber for Period 1. Verify attendance percentage reflects the tardy.</li>
+      <li><strong>Submit absence request:</strong> Click "Report Absence." Select tomorrow. Category: Medical Appointment. Submit. Verify request appears with status PENDING.</li>
+      <li><strong>Admin verification:</strong> Log in as admin. Verify school-wide attendance dashboard shows correct stats. Verify absence request appears in queue.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; A verified vertical slice. The first CampusOS feature is production-ready. Pattern established for Cycles 2&ndash;8.</div>
+    <div class="depends">Depends on &rarr; All previous steps (the complete Cycle 1 must be built)</div>
+  </div>
+
+
+  <!-- ═══════ COMPLETION ═══════ -->
+  <h2 class="section-heading">Cycle 1 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: ~18 new SIS tables migrated across all tenant schemas.</li>
+      <li>Seed data: 15 students, 10 guardians, 8 families, 6 classes, attendance pre-populated.</li>
+      <li>SIS API: ~15 endpoints, all permission-protected, Swagger documented.</li>
+      <li>Attendance API: ~8 endpoints including batch marking. Kafka events emitting.</li>
+      <li>Teacher Dashboard: shows today's classes, click navigates to attendance.</li>
+      <li>Attendance UI: roster view, status toggles, batch submit, under 30 seconds per class.</li>
+      <li>Parent Dashboard: shows child attendance, tardy notification, absence request form.</li>
+      <li>Vertical slice test: teacher marks tardy &rarr; parent sees it. All 9 test steps pass.</li>
+      <li>Tests: unit tests for services, integration tests for API endpoints, coverage &gt;90%.</li>
+      <li>Git: all code committed, CI pipeline green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">Once Cycle 1 is complete, CampusOS is a product. It does one thing &mdash; attendance &mdash; but it does it end-to-end with real multi-tenant isolation, real IAM permissions, and real identity management. <strong>Cycle 2 (Classroom + Assignments + Grading)</strong> adds the next vertical slice on top of the same students and classes.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 1 Implementation Plan &mdash; April 2026. Derived from: ERD v11 (M20 SIS Core, 39 tables), Function Library (ATT-001 through ATT-005, STU-001 through STU-008), Development &amp; Deployment Plan (Section 13, Cycle 1).</p>
+  </div>
+</div>
+
+</body>
+</html>

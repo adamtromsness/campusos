@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CampusOS — Development &amp; Deployment Plan Journey</title>
+  <style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+
+:root {
+  --accent: #1a3a5c;
+  --accent-light: #e8f0f8;
+  --accent-mid: #3d7ab5;
+  --text: #2c2c2c;
+  --text-light: #6b7280;
+  --bg: #fafbfc;
+  --white: #ffffff;
+  --border: #e2e6ea;
+  --note-bg: #fef9ec;
+  --note-border: #e5a919;
+  --privacy-bg: #eef7ee;
+  --privacy-border: #3a9e3a;
+  --how-bg: #e8f0f8;
+  --how-border: #3d7ab5;
+  --ai-bg: #f4ecfb;
+  --ai-border: #8b4fc6;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.7;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page-wrapper {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── Sidebar TOC ── */
+.sidebar {
+  width: 300px;
+  min-width: 300px;
+  background: var(--white);
+  border-right: 1px solid var(--border);
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 0;
+}
+
+.sidebar-header {
+  padding: 24px 20px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent);
+  color: white;
+}
+
+.sidebar-header h2 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 18px;
+  font-weight: 400;
+  margin-bottom: 2px;
+}
+
+.sidebar-header .subtitle {
+  font-size: 12px;
+  opacity: 0.75;
+  font-weight: 400;
+}
+
+.sidebar-header .home-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 3px 10px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.sidebar-header .home-link:hover {
+  color: white;
+  border-color: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.1);
+}
+
+.toc-list {
+  list-style: none;
+  padding: 12px 0;
+}
+
+.toc-list li a {
+  display: block;
+  padding: 6px 20px;
+  font-size: 13px;
+  color: var(--text-light);
+  text-decoration: none;
+  transition: all 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.toc-list li a:hover {
+  color: var(--accent);
+  background: var(--accent-light);
+  border-left-color: var(--accent-mid);
+}
+
+.toc-list li a .toc-num {
+  display: inline-block;
+  width: 24px;
+  font-weight: 600;
+  color: var(--accent-mid);
+  font-size: 12px;
+}
+
+/* ── Main Content ── */
+.main-content {
+  margin-left: 300px;
+  flex: 1;
+  max-width: 800px;
+  padding: 0 48px 120px;
+}
+
+/* ── Title Section ── */
+.title-section {
+  padding: 80px 0 48px;
+  border-bottom: 2px solid var(--accent);
+  margin-bottom: 48px;
+}
+
+.title-section .brand {
+  font-family: 'DM Serif Display', serif;
+  font-size: 14px;
+  color: var(--accent-mid);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.title-section h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 42px;
+  color: var(--accent);
+  line-height: 1.15;
+  margin-bottom: 12px;
+  font-weight: 400;
+}
+
+.title-section .subtitle {
+  font-size: 17px;
+  color: var(--text-light);
+  font-style: italic;
+  margin-bottom: 16px;
+  max-width: 580px;
+}
+
+.title-section .version {
+  font-size: 13px;
+  color: var(--accent-mid);
+  font-weight: 600;
+}
+
+/* ── About Box ── */
+.about-box {
+  background: var(--accent-light);
+  border: 1px solid var(--accent-mid);
+  border-radius: 8px;
+  padding: 28px 32px;
+  margin-bottom: 48px;
+}
+
+.about-box h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--accent);
+}
+
+.about-box p {
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+.about-box p:last-child { margin-bottom: 0; }
+
+/* ── Section Headings ── */
+.section-heading {
+  font-family: 'DM Serif Display', serif;
+  font-size: 28px;
+  color: var(--accent);
+  font-weight: 400;
+  margin: 64px 0 20px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  scroll-margin-top: 24px;
+}
+
+.section-heading:first-of-type {
+  border-top: none;
+  margin-top: 0;
+}
+
+.sub-heading {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 32px 0 12px;
+}
+
+/* ── Body Text ── */
+.body-text {
+  margin-bottom: 16px;
+  line-height: 1.75;
+}
+
+/* ── Bullets ── */
+.bullet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.bullet-list li {
+  padding: 4px 0 4px 20px;
+  position: relative;
+  line-height: 1.7;
+}
+
+.bullet-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 13px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-mid);
+}
+
+.bullet-list li strong {
+  font-weight: 600;
+}
+
+/* ── Callout Boxes ── */
+.callout {
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin: 20px 0;
+  border-left: 4px solid;
+}
+
+.callout-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.callout p { font-size: 15px; margin-bottom: 8px; }
+.callout p:last-child { margin-bottom: 0; }
+
+.callout-note {
+  background: var(--note-bg);
+  border-color: var(--note-border);
+}
+.callout-note .callout-title { color: #9a7b1a; }
+
+.callout-privacy {
+  background: var(--privacy-bg);
+  border-color: var(--privacy-border);
+}
+.callout-privacy .callout-title { color: #2d7a2d; }
+
+.callout-how {
+  background: var(--how-bg);
+  border-color: var(--how-border);
+}
+.callout-how .callout-title { color: var(--accent-mid); }
+
+.callout-ai {
+  background: var(--ai-bg);
+  border-color: var(--ai-border);
+}
+.callout-ai .callout-title { color: #7040a8; }
+
+/* ── Footer ── */
+.doc-footer {
+  margin-top: 64px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-light);
+  font-style: italic;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .sidebar { width: 260px; min-width: 260px; }
+  .main-content { margin-left: 260px; padding: 0 32px 80px; }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    width: 100%;
+    height: auto;
+    max-height: 60px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar.open { max-height: 80vh; overflow-y: auto; }
+  .sidebar-header { padding: 14px 20px; cursor: pointer; }
+  .sidebar-header h2 { font-size: 15px; }
+  .sidebar-header .subtitle, .sidebar-header .home-link { display: none; }
+  .sidebar-header::after {
+    content: '\25BC';
+    float: right;
+    font-size: 12px;
+    opacity: 0.7;
+  }
+  .main-content { margin-left: 0; padding: 80px 20px 60px; max-width: 100%; }
+  .title-section { padding-top: 24px; }
+  .title-section h1 { font-size: 32px; }
+}
+
+/* Print */
+@media print {
+  .sidebar { display: none; }
+  .main-content { margin-left: 0; max-width: 100%; padding: 0; }
+  .callout { break-inside: avoid; }
+  .section-heading { break-after: avoid; }
+}
+</style>
+</head>
+<body>
+<div style="background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <a href="index.html" style="font-weight:600;color:white;font-size:15px;text-decoration:none;">CampusOS</a>
+  <span style="color:rgba(255,255,255,0.3);">|</span>
+  <a href="index.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">Design Hub</a>
+  <a href="campusos-erd-v11.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">ERD v11</a>
+  <a href="campusos-architecture-review-v10.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">Architecture</a>
+  <a href="campusos-function-library-v11.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">Functions</a>
+  <a href="campusos-dev-deployment-plan.html" style="color:white;font-weight:600;text-decoration:none;font-size:13px;">Dev Plan</a>
+</div>
+  <div class="page-wrapper">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-header" onclick="this.parentElement.classList.toggle('open')">
+        <h2>CampusOS</h2>
+        <div class="subtitle">Development &amp; Deployment Plan Journey</div>
+        <a href="index.html" class="home-link">← All Journeys</a>
+      </div>
+      <ul class="toc-list">
+        <li><a href="#section-1"><span class="toc-num">1</span>Development Pipeline Overview</a></li>
+        <li><a href="#section-2"><span class="toc-num">2</span>Technology Stack</a></li>
+        <li><a href="#section-3"><span class="toc-num">3</span>Environment Architecture</a></li>
+        <li><a href="#section-4"><span class="toc-num">4</span>Git Branching Strategy</a></li>
+        <li><a href="#section-5"><span class="toc-num">5</span>Development Workflow — Claude</a></li>
+        <li><a href="#section-6"><span class="toc-num">6</span>Code Review &amp; Integration Testing — ChatGPT</a></li>
+        <li><a href="#section-7"><span class="toc-num">7</span>Customer Acceptance Testing — Human</a></li>
+        <li><a href="#section-8"><span class="toc-num">8</span>Production Deployment</a></li>
+        <li><a href="#section-9"><span class="toc-num">9</span>Database Strategy</a></li>
+        <li><a href="#section-10"><span class="toc-num">10</span>Infrastructure Provisioning</a></li>
+        <li><a href="#section-11"><span class="toc-num">11</span>Handoff Package Format</a></li>
+        <li><a href="#section-12"><span class="toc-num">12</span>Rollback Strategy</a></li>
+        <li><a href="#section-13"><span class="toc-num">13</span>Wave 1 Build Sequence</a></li>
+        <li><a href="#section-14"><span class="toc-num">14</span>Security &amp; Compliance</a></li>
+        <li><a href="#section-15"><span class="toc-num">15</span>Monitoring &amp; Post-Deployment</a></li>
+        <li><a href="#section-16"><span class="toc-num">16</span>SIT Execution Model — CI/CD, Not AI Execution</a></li>
+        <li><a href="#section-17"><span class="toc-num">17</span>Contract Testing Strategy</a></li>
+        <li><a href="#section-18"><span class="toc-num">18</span>Multi-Tenant Isolation Enforcement</a></li>
+        <li><a href="#section-19"><span class="toc-num">19</span>Rate Limiting &amp; Abuse Protection</a></li>
+        <li><a href="#section-20"><span class="toc-num">20</span>Feature Flag System Design</a></li>
+        <li><a href="#section-21"><span class="toc-num">21</span>Disaster Recovery Strategy</a></li>
+        <li><a href="#section-22"><span class="toc-num">22</span>Automated End-to-End Testing Strategy</a></li>
+        <li><a href="#section-23"><span class="toc-num">23</span>Kafka Scaling &amp; Partition Strategy</a></li>
+        <li><a href="#section-24"><span class="toc-num">24</span>Prisma Multi-Schema Scaling Strategy</a></li>
+        <li><a href="#section-25"><span class="toc-num">25</span>IAM Cache Invalidation Strategy</a></li>
+        <li><a href="#section-26"><span class="toc-num">26</span>Observability &amp; Distributed Tracing</a></li>
+        <li><a href="#section-27"><span class="toc-num">27</span>Cost Governance</a></li>
+        <li><a href="#section-28"><span class="toc-num">28</span>Parallel Development &amp; Ownership Model</a></li>
+        <li><a href="#section-29"><span class="toc-num">29</span>API Gateway Layer</a></li>
+      </ul>
+    </nav>
+    <main class="main-content">
+      <div class="title-section">
+        <div class="brand">CampusOS User Journey</div>
+        <h1>Development &amp; Deployment Plan</h1>
+        <div class="subtitle">The complete build pipeline: Claude develops, CI/CD executes, ChatGPT reviews, Human accepts</div>
+        <div class="version">March 2026 · ERD v10 · 4 Environments · 29 Sections · Peer-Reviewed</div>
+      </div>
+
+      <div class="about-box">
+        <h3>About This Document</h3>
+        <p>This document defines the complete development and deployment pipeline for CampusOS. Claude performs all development and unit testing. ChatGPT performs code review and architectural validation. GitHub Actions CI/CD handles execution and testing. A human performs customer acceptance testing. Production deployment follows zero-downtime procedures.</p>
+        <p>Four environments: DEV, SIT, CAT, PROD. Code flows through Git branches: dev → sit → cat → main. CAT always mirrors PROD except during active testing.</p>
+        <p>Technology stack: TypeScript full-stack with NestJS (backend), Next.js (frontend), Prisma (ORM), PostgreSQL, Kafka, Redis, deployed on AWS with infrastructure provisioned via Terraform.</p>
+        <p>29 sections covering: pipeline design, technology stack, environments, Git strategy, development workflow, review process, acceptance testing, deployment, database strategy, infrastructure, handoff format, rollback, Wave 1 build sequence, security, monitoring, CI/CD execution, contract testing, tenant isolation, rate limiting, feature flags, disaster recovery, E2E testing, Kafka scaling, Prisma scaling, IAM cache, observability, cost governance, parallel development, and API gateway.</p>
+      </div>
+
+      
+      <h2 class="section-heading" id="section-1">1. Development Pipeline Overview</h2>
+      <p class="body-text">The CampusOS development pipeline uses a two-AI, one-human quality gate model. Each stage has a specific owner, a specific purpose, and specific exit criteria. Nothing advances without its gate passing.</p>
+      <h3 class="sub-heading">Pipeline Stages</h3>
+      <ul class="bullet-list">
+        <li><strong>DEV — Claude develops and unit tests.</strong> Claude writes all application code, database migrations, unit tests, and API implementations. Code is committed to the dev branch. Unit tests must pass with >90% coverage before promotion. Claude produces a structured handoff package for each development cycle.</li>
+        <li><strong>SIT — CI/CD executes, ChatGPT reviews.</strong> GitHub Actions CI automatically builds, migrates, and runs the full test suite (unit + integration + contract tests) in ephemeral Docker environments. ChatGPT receives the handoff package and CI results, performs static code review against the frozen architecture documents, validates architectural compliance, reviews test design, and analyses security. ChatGPT does NOT execute code — CI/CD does.</li>
+        <li><strong>CAT — Human acceptance tests.</strong> Claude generates step-by-step test scripts tied to the user journey documents. A human follows the scripts in the CAT environment, verifying that every workflow works as described in the journeys. The human signs off or rejects with specific failure notes. CAT always mirrors PROD except during active testing.</li>
+        <li><strong>PROD — Zero-downtime deployment.</strong> After CAT sign-off, code promotes to production via the main branch. Database migrations run first, then the application deploys with rolling updates. Feature flags control visibility of new functionality.</li>
+      </ul>
+      <h3 class="sub-heading">Quality Gate Summary</h3>
+      <ul class="bullet-list">
+        <li><strong>DEV → SIT gate:</strong> All unit tests pass. Coverage >90%. Migrations apply cleanly. Handoff package complete. Claude self-certifies against the ERD.</li>
+        <li><strong>SIT → CAT gate:</strong> CI pipeline green (all unit, integration, and contract tests pass). ChatGPT code review passes. No architectural violations found. No security concerns flagged. ChatGPT produces written approval.</li>
+        <li><strong>CAT → PROD gate:</strong> All manual test scripts pass. Human reviewer signs off. No open defects at P1 or P2 severity. CAT environment verified stable for 24 hours after final test.</li>
+      </ul>
+      <h3 class="sub-heading">Key Principle</h3>
+      <p class="body-text">This is not a sprint-based cadence. Development cycles complete when they are complete — Claude finishes a module or feature set, packages it, and hands it off. The handoff to ChatGPT happens when the work is ready, not on a fixed schedule. The human CAT review happens when SIT passes, not on a calendar.</p>
+
+      <h2 class="section-heading" id="section-2">2. Technology Stack</h2>
+      <p class="body-text">The technology stack is selected for three criteria: development velocity (Claude must be highly productive), architectural fit (the modular monolith with 36 modules must be cleanly expressible), and operational maturity (production-grade tooling for a K-12 SaaS platform).</p>
+      <h3 class="sub-heading">Backend: NestJS (TypeScript)</h3>
+      <p class="body-text">NestJS is the backend framework. It provides native module boundaries that map directly to the 36 ERD modules — each CampusOS module (M20 SIS, M21 Classroom, etc.) becomes a NestJS module with its own controllers, services, and repository layer. The dependency injection system enforces module isolation at the code level.</p>
+      <ul class="bullet-list">
+        <li><strong>Language:</strong> TypeScript 5.x. Strict mode. Full type safety across the stack.</li>
+        <li><strong>Runtime:</strong> Node.js 20 LTS.</li>
+        <li><strong>Framework:</strong> NestJS 10.x. Modular architecture. Decorator-based routing and guards.</li>
+        <li><strong>API:</strong> REST with OpenAPI/Swagger auto-generated documentation. JSON request/response.</li>
+        <li><strong>Auth:</strong> Passport.js with SAML 2.0 and OIDC strategies. JWT access tokens (15-minute expiry). HttpOnly refresh token cookies.</li>
+        <li><strong>Permission checks:</strong> Custom @RequirePermission('att-001:write') decorator that reads from the IAM effective access cache. Checks permission codes, never role names.</li>
+      </ul>
+      <h3 class="sub-heading">Frontend: Next.js (TypeScript)</h3>
+      <ul class="bullet-list">
+        <li><strong>Framework:</strong> Next.js 14.x with App Router.</li>
+        <li><strong>Styling:</strong> Tailwind CSS. Custom components built to the CampusOS design system.</li>
+        <li><strong>State management:</strong> React Query (TanStack Query) for server state. Zustand for client state.</li>
+        <li><strong>Forms:</strong> React Hook Form with Zod validation. Schema shared with backend.</li>
+      </ul>
+      <h3 class="sub-heading">Database: PostgreSQL 16</h3>
+      <ul class="bullet-list">
+        <li><strong>ORM:</strong> Prisma. Schema-first with migration generation. Type-safe query builder. Multi-schema support for tenant isolation.</li>
+        <li><strong>Migrations:</strong> Prisma Migrate for schema changes. Custom scripts for partitions.</li>
+        <li><strong>Connection pooling:</strong> PgBouncer in TRANSACTION mode per ADR-044.</li>
+      </ul>
+      <h3 class="sub-heading">Message Broker: Apache Kafka</h3>
+      <ul class="bullet-list">
+        <li><strong>Managed:</strong> Amazon MSK.</li>
+        <li><strong>Client:</strong> KafkaJS.</li>
+        <li><strong>Schema registry:</strong> Confluent Schema Registry. Avro schemas. BACKWARD_TRANSITIVE compatibility mode.</li>
+        <li><strong>Topic naming:</strong> {env}.{domain}.{entity}.{verb} per ADR-057.</li>
+      </ul>
+      <h3 class="sub-heading">Cache: Redis</h3>
+      <ul class="bullet-list">
+        <li><strong>Managed:</strong> Amazon ElastiCache for Redis.</li>
+        <li><strong>Client:</strong> ioredis.</li>
+        <li><strong>Uses:</strong> IAM permission cache (5-min TTL + event-driven invalidation), tenant routing (500ms TTL), rate limiting (sliding window), feature flags (30s TTL).</li>
+      </ul>
+      <h3 class="sub-heading">Extracted Services</h3>
+      <ul class="bullet-list">
+        <li><strong>Video Processing:</strong> FFmpeg on ECS with GPU. S3 for storage.</li>
+        <li><strong>AI Inference:</strong> AWS Bedrock behind the AI Gateway (ADR-004).</li>
+        <li><strong>Notification / Push:</strong> Amazon SNS + SES. WebSocket via Socket.io.</li>
+        <li><strong>Scheduling Solver:</strong> OR-Tools (Python) as a stateless container.</li>
+        <li><strong>Transport Dispatch:</strong> Dedicated NestJS service with WebSocket.</li>
+        <li><strong>Emergency Alert:</strong> Isolated service with local fallback state.</li>
+      </ul>
+      <h3 class="sub-heading">Development Tooling</h3>
+      <ul class="bullet-list">
+        <li><strong>Monorepo:</strong> pnpm + Turborepo.</li>
+        <li><strong>Testing:</strong> Vitest (unit), Supertest (API integration), Pact (contract), Playwright (E2E).</li>
+        <li><strong>Linting:</strong> ESLint + Prettier.</li>
+        <li><strong>CI/CD:</strong> GitHub Actions. ECR for container images.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-3">3. Environment Architecture</h2>
+      <p class="body-text">Four environments, each with its own AWS account (or VPC isolation), database cluster, Kafka cluster, and Redis instance. Complete isolation — DEV cannot accidentally connect to PROD data.</p>
+      <h3 class="sub-heading">DEV — Development</h3>
+      <ul class="bullet-list">
+        <li><strong>Purpose:</strong> Active development. Claude writes and tests here.</li>
+        <li><strong>Database:</strong> Single PostgreSQL instance. Rebuilt frequently. Synthetic seed data.</li>
+        <li><strong>Kafka:</strong> Single-broker. Topics auto-created.</li>
+        <li><strong>Scale:</strong> Minimal. One tenant schema. No real student data ever.</li>
+        <li><strong>Deploy:</strong> Direct from dev branch on push.</li>
+      </ul>
+      <h3 class="sub-heading">SIT — System Integration Testing</h3>
+      <ul class="bullet-list">
+        <li><strong>Purpose:</strong> CI/CD executes automated tests. ChatGPT performs static review.</li>
+        <li><strong>Database:</strong> Single PostgreSQL instance. 2–3 tenant schemas to test multi-tenancy.</li>
+        <li><strong>Kafka:</strong> Single-broker. Full topic set.</li>
+        <li><strong>Data:</strong> Richer than DEV — includes cross-module scenarios.</li>
+        <li><strong>Deploy:</strong> Automated from sit branch after DEV gate passes. Ephemeral Docker environments for CI test runs.</li>
+      </ul>
+      <h3 class="sub-heading">CAT — Customer Acceptance Testing</h3>
+      <ul class="bullet-list">
+        <li><strong>Purpose:</strong> Human acceptance testing. Manual test scripts executed here.</li>
+        <li><strong>Database:</strong> PostgreSQL cluster matching PROD topology. Multi-tenant.</li>
+        <li><strong>Kafka:</strong> 3-broker cluster matching PROD.</li>
+        <li><strong>Redis:</strong> Clustered matching PROD.</li>
+        <li><strong>Scale:</strong> PROD-like. Same instance sizes. Same configuration.</li>
+        <li><strong>Data:</strong> Initially: rich synthetic data. Post-launch: scheduled PROD copy-down with PII masking.</li>
+        <li><strong>Key rule: CAT always mirrors PROD unless actively testing a new release.</strong></li>
+      </ul>
+      <h3 class="sub-heading">PROD — Production</h3>
+      <ul class="bullet-list">
+        <li><strong>Database:</strong> PostgreSQL cluster. Multi-AZ. Automated backups. Read replicas for analytics.</li>
+        <li><strong>Kafka:</strong> 3-broker MSK cluster. Multi-AZ.</li>
+        <li><strong>Redis:</strong> ElastiCache cluster. Multi-AZ. AOF persistence.</li>
+        <li><strong>Scale:</strong> Production. Auto-scaling groups. AWS API Gateway in front.</li>
+        <li><strong>Data:</strong> Real. Protected. Encrypted at rest and in transit.</li>
+        <li><strong>Deploy:</strong> From main branch after CAT sign-off. Zero-downtime rolling deployment.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-4">4. Git Branching Strategy</h2>
+      <p class="body-text">Four long-lived branches map directly to the four environments. Feature branches are short-lived and merge into dev.</p>
+      <h3 class="sub-heading">Branch Structure</h3>
+      <ul class="bullet-list">
+        <li><strong>main</strong> — production code. Only receives merges from cat. Tagged with semantic versions. Protected.</li>
+        <li><strong>cat</strong> — customer acceptance testing. Only receives merges from sit. Protected.</li>
+        <li><strong>sit</strong> — system integration testing. Only receives merges from dev. Protected.</li>
+        <li><strong>dev</strong> — active development. Receives merges from feature branches.</li>
+        <li><strong>feature/*</strong> — short-lived feature branches off dev. Named feature/{module}-{description}.</li>
+      </ul>
+      <h3 class="sub-heading">Promotion Flow</h3>
+      <p class="body-text">Code flows in one direction only: dev → sit → cat → main. No cherry-picking between environments.</p>
+      <ul class="bullet-list">
+        <li><strong>dev → sit:</strong> Merge request with handoff package. CI auto-triggers. ChatGPT reviews.</li>
+        <li><strong>sit → cat:</strong> ChatGPT approval + CI green. ChatGPT produces written verdict.</li>
+        <li><strong>cat → main:</strong> Human sign-off. All CAT test scripts pass. Release notes generated.</li>
+      </ul>
+      <h3 class="sub-heading">Hotfix Procedure</h3>
+      <ul class="bullet-list">
+        <li>Create hotfix/* branch from main.</li>
+        <li>Claude fixes and writes a targeted test.</li>
+        <li>Hotfix merges to main AND back-merges to cat, sit, dev.</li>
+        <li>ChatGPT reviews as a priority item.</li>
+        <li>Human verifies in PROD.</li>
+        <li>This is the ONLY exception to the one-direction flow.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-5">5. Development Workflow — Claude</h2>
+      <p class="body-text">Claude is the sole developer for Wave 1. Every line of application code, every migration, every unit test, and every API endpoint is written by Claude.</p>
+      <h3 class="sub-heading">Development Cycle</h3>
+      <ul class="bullet-list">
+        <li><strong>Step 1:</strong> Select the next module based on the Wave 1 build sequence (Section 13) and dependency order.</li>
+        <li><strong>Step 2:</strong> Write database migrations. Prisma schema definitions. Verified in DEV.</li>
+        <li><strong>Step 3:</strong> Write the module code. NestJS module: entities, repository, service, controller, events, guards.</li>
+        <li><strong>Step 4:</strong> Write unit tests. Coverage >90%, 100% on critical paths.</li>
+        <li><strong>Step 5:</strong> Run and verify. All tests pass. APIs respond. Events emit and consume.</li>
+        <li><strong>Step 6:</strong> Build the handoff package (Section 11).</li>
+        <li><strong>Step 7:</strong> Commit and push. Merge request to sit.</li>
+      </ul>
+      <h3 class="sub-heading">What Claude Produces Per Cycle</h3>
+      <ul class="bullet-list">
+        <li>Database migration files (Prisma schema + SQL for partitions/constraints)</li>
+        <li>NestJS module with full CRUD + business logic</li>
+        <li>REST API endpoints with OpenAPI documentation</li>
+        <li>Kafka event producers and consumers</li>
+        <li>Permission guard decorators mapped to function codes</li>
+        <li>Unit tests with >90% coverage</li>
+        <li>Seed data scripts</li>
+        <li>Handoff package with compliance checklist</li>
+      </ul>
+      <h3 class="sub-heading">Naming Conventions</h3>
+      <ul class="bullet-list">
+        <li>Modules: src/modules/{prefix}/ (e.g. src/modules/sis/, src/modules/cls/)</li>
+        <li>Files: {entity}.entity.ts, .repository.ts, .service.ts, .controller.ts</li>
+        <li>Tests: {entity}.service.spec.ts, {entity}.controller.spec.ts</li>
+        <li>Migrations: prisma/migrations/{timestamp}_{description}/migration.sql</li>
+        <li>Events: src/modules/{prefix}/events/{event-name}.event.ts</li>
+        <li>Guards: src/modules/{prefix}/guards/{function-code}.guard.ts</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-6">6. Code Review &amp; Integration Testing — ChatGPT</h2>
+      <p class="body-text">ChatGPT receives the handoff package and CI/CD results. ChatGPT’s role is static review and architectural validation — the CI/CD pipeline handles execution.</p>
+      <h3 class="sub-heading">What ChatGPT Receives</h3>
+      <ul class="bullet-list">
+        <li>The complete handoff package (Section 11).</li>
+        <li>CI/CD test results (unit, integration, contract tests — all automated).</li>
+        <li>The frozen architecture documents as reference: ERD v10, Architecture Review, Function Library, Function-ERD Mapping.</li>
+        <li>A specific review prompt telling ChatGPT exactly what to verify.</li>
+      </ul>
+      <h3 class="sub-heading">What ChatGPT Does</h3>
+      <ul class="bullet-list">
+        <li><strong>Code review:</strong> reads every file and verifies: table names match ERD v10, permission codes match Function-ERD Mapping, module boundaries respected, event contracts match Kafka Topic Register, FK patterns follow ADR-055.</li>
+        <li><strong>Architecture compliance:</strong> verifies Cross-Module Interaction Contract (5 rules), Finance Boundary, Procurement Scope.</li>
+        <li><strong>Security analysis:</strong> verifies permission guards on every endpoint, sensitive data access-restricted, no injection vectors.</li>
+        <li><strong>Test design review:</strong> evaluates whether tests cover critical paths and edge cases.</li>
+      </ul>
+      <h3 class="sub-heading">What ChatGPT Produces</h3>
+      <ul class="bullet-list">
+        <li><strong>Verdict:</strong> PASS or FAIL.</li>
+        <li><strong>Findings:</strong> each with severity (P1–P3), file/line reference, ADR/ERD reference, recommended fix.</li>
+        <li><strong>Approval or rejection:</strong> PASS = approve merge to cat. FAIL = Claude fixes and resubmits.</li>
+      </ul>
+      <h3 class="sub-heading">SIT Exit Criteria</h3>
+      <ul class="bullet-list">
+        <li>CI pipeline green: all unit, integration, and contract tests pass.</li>
+        <li>Coverage >90% line coverage, 100% on critical paths.</li>
+        <li>ChatGPT static review: PASS with zero P1 and zero unacknowledged P2.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-7">7. Customer Acceptance Testing — Human</h2>
+      <p class="body-text">The human reviewer is the final quality gate. Claude generates manual test scripts tied to the user journey documents.</p>
+      <h3 class="sub-heading">CAT Script Structure</h3>
+      <ul class="bullet-list">
+        <li><strong>Precondition:</strong> what data/state must exist before the test.</li>
+        <li><strong>Steps:</strong> specific actions with exact UI instructions.</li>
+        <li><strong>Expected result:</strong> what the system should show after each action.</li>
+        <li><strong>Pass/Fail:</strong> the human marks each step.</li>
+      </ul>
+      <h3 class="sub-heading">CAT Exit Criteria</h3>
+      <ul class="bullet-list">
+        <li>All test scripts pass.</li>
+        <li>No open P1 or P2 defects.</li>
+        <li>Human reviewer signs off with date and name.</li>
+        <li>CAT stable for 24 hours after final test.</li>
+      </ul>
+      <h3 class="sub-heading">Defect Handling</h3>
+      <ul class="bullet-list">
+        <li>Document the failure: which step, what happened, what was expected.</li>
+        <li>Roll back CAT to previous stable version (which matches PROD).</li>
+        <li>Claude fixes in DEV. Fix goes through full pipeline: DEV → SIT → CAT.</li>
+        <li>No shortcutting. Same code, same gates.</li>
+      </ul>
+      <h3 class="sub-heading">CAT = PROD Mirror</h3>
+      <p class="body-text">When no testing is active, CAT runs the same application version as PROD. Same schema. Same configuration. Same feature flags. After a release promotes to PROD, CAT is updated to match within 24 hours.</p>
+
+      <h2 class="section-heading" id="section-8">8. Production Deployment</h2>
+      <h3 class="sub-heading">Deployment Procedure</h3>
+      <ul class="bullet-list">
+        <li><strong>Step 1:</strong> Merge cat → main. Tag with semantic version (v1.0.0).</li>
+        <li><strong>Step 2:</strong> Database migrations run against PROD. Backward-compatible — current app continues running.</li>
+        <li><strong>Step 3:</strong> Rolling application deployment. New instances start, old drain, then shut down. Zero downtime.</li>
+        <li><strong>Step 4:</strong> Health checks. Automatic rollback if checks fail.</li>
+        <li><strong>Step 5:</strong> Feature flags control visibility. New features may be deployed but hidden.</li>
+        <li><strong>Step 6:</strong> Post-deployment smoke tests.</li>
+        <li><strong>Step 7:</strong> Update CAT to match PROD within 24 hours.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-9">9. Database Strategy</h2>
+      <h3 class="sub-heading">Initial Seed Data</h3>
+      <ul class="bullet-list">
+        <li><strong>Platform schema:</strong> organisations, schools, grading scales, feature flags, IAM seed (roles, permissions, all 378 permission codes), scope types, identity providers.</li>
+        <li><strong>Tenant schema:</strong> 50–100 students, 20–30 staff, guardians, classes, schedules, attendance, grades, behaviour, health (synthetic), cross-module relationships.</li>
+        <li><strong>Persona accounts:</strong> one user per persona type with appropriate role assignments so every journey can be tested.</li>
+      </ul>
+      <h3 class="sub-heading">PROD Copy-Down</h3>
+      <ul class="bullet-list">
+        <li><strong>Frequency:</strong> weekly or on-demand before a testing cycle.</li>
+        <li><strong>Process:</strong> pg_dump from PROD read replica → restore to CAT/SIT → data masking scripts.</li>
+        <li><strong>Data masking (mandatory):</strong> student names randomised, emails → @example.com, phones zeroed, guardian names randomised, health details replaced with synthetic, financial accounts randomised. Referential integrity preserved (same person_id links to same randomised name).</li>
+        <li><strong>NOT masked:</strong> UUIDs, structural data (school names, role assignments, class structures, schedule configs), aggregate counts.</li>
+        <li><strong>Verification:</strong> validation script confirms no real PII remains.</li>
+      </ul>
+      <h3 class="sub-heading">Migration Management</h3>
+      <ul class="bullet-list">
+        <li>All migrations forward-only. No DROP TABLE, no DROP COLUMN.</li>
+        <li>Column renames: add → backfill → swap pattern.</li>
+        <li>Partitions managed in migration scripts.</li>
+        <li>Each migration tested in DEV, verified in SIT, confirmed in CAT.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-10">10. Infrastructure Provisioning</h2>
+      <p class="body-text">All infrastructure provisioned via Terraform. Claude generates configs; human reviews and applies.</p>
+      <h3 class="sub-heading">AWS Services</h3>
+      <ul class="bullet-list">
+        <li><strong>Compute:</strong> ECS Fargate. Auto-scaling for PROD.</li>
+        <li><strong>Database:</strong> RDS PostgreSQL 16. Multi-AZ for PROD and CAT.</li>
+        <li><strong>Cache:</strong> ElastiCache Redis. Cluster mode for PROD and CAT.</li>
+        <li><strong>Message Broker:</strong> MSK (Kafka). 3-broker for PROD and CAT.</li>
+        <li><strong>Storage:</strong> S3. Separate buckets per environment.</li>
+        <li><strong>CDN:</strong> CloudFront for static assets.</li>
+        <li><strong>DNS:</strong> Route 53 for tenant subdomain routing.</li>
+        <li><strong>API Gateway:</strong> AWS API Gateway (HTTP API) in front of ALB. WAF attached.</li>
+        <li><strong>Secrets:</strong> AWS Secrets Manager.</li>
+        <li><strong>Monitoring:</strong> CloudWatch + X-Ray.</li>
+        <li><strong>CI/CD:</strong> GitHub Actions + ECR.</li>
+      </ul>
+      <h3 class="sub-heading">Terraform Structure</h3>
+      <ul class="bullet-list">
+        <li>infrastructure/modules/ — reusable modules (VPC, RDS, ECS, MSK, etc.)</li>
+        <li>infrastructure/environments/{dev,sit,cat,prod}/ — environment-specific configs</li>
+      </ul>
+      <h3 class="sub-heading">Provisioning Procedure</h3>
+      <ul class="bullet-list">
+        <li>Claude produces Terraform files + README with exact commands.</li>
+        <li>Human reviews: terraform plan -out=tfplan</li>
+        <li>Human applies: terraform apply tfplan</li>
+        <li>Claude verifies connectivity and runs smoke test.</li>
+        <li>DEV first, then SIT, then CAT, then PROD.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-11">11. Handoff Package Format</h2>
+      <p class="body-text">Every development cycle produces a structured handoff package for ChatGPT review and CI execution.</p>
+      <h3 class="sub-heading">Package Contents</h3>
+      <ul class="bullet-list">
+        <li><strong>CHANGELOG.md</strong> — what was built, which modules, which functions.</li>
+        <li><strong>COMPLIANCE.md</strong> — checklist mapping every table to ERD, every endpoint to function code, every event to Kafka register.</li>
+        <li><strong>Source code</strong> — all new/modified files by module.</li>
+        <li><strong>Migration files</strong> — in dependency order.</li>
+        <li><strong>Test files</strong> — with coverage report.</li>
+        <li><strong>TEST_RESULTS.md</strong> — tests run/passed/failed, coverage %.</li>
+        <li><strong>API_DOCS.md</strong> — OpenAPI spec. Request/response examples.</li>
+        <li><strong>EVENTS.md</strong> — Kafka events produced/consumed. Payload schemas.</li>
+        <li><strong>REVIEW_PROMPT.md</strong> — specific instructions for ChatGPT.</li>
+        <li><strong>SEED_DATA.sql</strong> — seed data for new tables.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-12">12. Rollback Strategy</h2>
+      <h3 class="sub-heading">CAT Rollback</h3>
+      <ul class="bullet-list">
+        <li>Stop test cycle. Document failures.</li>
+        <li>Roll back CAT application to previous stable (PROD-mirror) version.</li>
+        <li>No database rollback needed — backward-compatible migrations mean the PROD-version app works on the current schema.</li>
+        <li>Claude fixes in DEV. Fix goes through full pipeline.</li>
+      </ul>
+      <h3 class="sub-heading">PROD Rollback</h3>
+      <ul class="bullet-list">
+        <li>Application rollback: revert to previous ECS container image. One-command operation.</li>
+        <li>Database: previous app version works on current schema (backward-compatible). No DB rollback.</li>
+        <li>If database rollback required (extremely rare): restore from pre-deployment snapshot.</li>
+        <li>Hotfix procedure (Section 4) applies.</li>
+      </ul>
+      <h3 class="sub-heading">Key Principle</h3>
+      <p class="body-text">Backward-compatible migrations are the foundation. If the previous app version runs on the current schema, rollback is a container swap — fast, safe, data-preserving. This is why DROP COLUMN and DROP TABLE are forbidden.</p>
+
+      <h2 class="section-heading" id="section-13">13. Wave 1 Build Sequence</h2>
+      <p class="body-text">Wave 1 covers the essential operational core. Ordered by dependency — each cycle builds on the previous.</p>
+      <h3 class="sub-heading">Cycle 0: Platform Foundation</h3>
+      <ul class="bullet-list">
+        <li>Monorepo scaffold (pnpm + Turborepo + NestJS + Next.js + Prisma)</li>
+        <li>Platform schema: organisations, schools, platform_users, iam_person, tenant routing</li>
+        <li>IAM core: roles, permissions, role_permissions, iam_role_assignment, iam_scope, effective access cache</li>
+        <li>Auth: OIDC/SAML integration with test IdP (Keycloak in Docker)</li>
+        <li>Permission guard framework: @RequirePermission decorator</li>
+        <li>Tenant isolation middleware (AsyncLocalStorage + Prisma search_path)</li>
+        <li>API Gateway + WAF setup</li>
+        <li>CI/CD pipeline: GitHub Actions build + test + deploy to DEV</li>
+      </ul>
+      <h3 class="sub-heading">Cycle 1: SIS Core + Attendance</h3>
+      <ul class="bullet-list">
+        <li>sis_students, sis_classes, sis_attendance_records, sis_families, sis_student_guardians</li>
+        <li>ATT-001, ATT-002, ATT-003 functions</li>
+        <li>First vertical slice: teacher logs in → takes attendance → parent sees tardy notification</li>
+      </ul>
+      <h3 class="sub-heading">Cycle 2: Classroom + Assignments + Grading</h3>
+      <ul class="bullet-list">
+        <li>cls_lessons, cls_assignments, cls_submissions, cls_gradebook_entries</li>
+        <li>TCH-001 through TCH-006</li>
+        <li>Second vertical slice: teacher creates assignment → student submits → teacher grades → parent sees grade</li>
+      </ul>
+      <h3 class="sub-heading">Cycle 3: Communications</h3>
+      <ul class="bullet-list">
+        <li>msg_threads, msg_messages, msg_announcements, msg_notification_queue</li>
+        <li>COM-001 through COM-004</li>
+        <li>Content moderation framework (platform + district + building tiers)</li>
+      </ul>
+      <h3 class="sub-heading">Cycle 4: HR + Workforce</h3>
+      <ul class="bullet-list">
+        <li>hr_employees, hr_positions, hr_leave_requests, hr_training_requirements</li>
+        <li>HR-001 through HR-006</li>
+        <li>Recruitment pipeline (postings, applications, interviews, offers)</li>
+      </ul>
+      <h3 class="sub-heading">Cycle 5: Enrolment + Payments</h3>
+      <ul class="bullet-list">
+        <li>enr_applications, enr_offers, enr_enrollment_periods</li>
+        <li>pay_family_accounts, pay_invoices, pay_payments, pay_ledger_entries</li>
+        <li>STU-003, STU-004, FIN-001</li>
+        <li>Stripe Connect integration (ADR-003)</li>
+      </ul>
+      <h3 class="sub-heading">Cycle 6: Tasks + Approvals + Calendar + Access Management</h3>
+      <ul class="bullet-list">
+        <li>tsk_tasks, wsk_approval_requests, cal_events</li>
+        <li>SCH-003, SYS-001</li>
+        <li>The Request Access page with function catalogue and approval workflow</li>
+      </ul>
+      <h3 class="sub-heading">Cycle 7: Service Tickets</h3>
+      <ul class="bullet-list">
+        <li>tkt_tickets, tkt_categories, tkt_ticket_updates</li>
+        <li>IT-001, FAC-001</li>
+        <li>Shared ticketing for IT and facilities. SLA tracking.</li>
+      </ul>
+      <h3 class="sub-heading">Cycle 8: Wave 1 Integration + Hardening</h3>
+      <ul class="bullet-list">
+        <li>No new modules. Cross-module integration testing, performance testing, security hardening.</li>
+        <li>Full end-to-end scenarios across all Wave 1 modules.</li>
+        <li>Load testing with realistic tenant data volumes.</li>
+        <li>Security audit: permission checks on every endpoint.</li>
+        <li>First full CAT cycle: human walks through all Wave 1 journey sections.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-14">14. Security &amp; Compliance</h2>
+      <ul class="bullet-list">
+        <li><strong>Encryption at rest:</strong> RDS AES-256. S3 SSE. Credential vault: app-level AES-256 with separate key (ADR-065).</li>
+        <li><strong>Encryption in transit:</strong> TLS 1.3 everywhere.</li>
+        <li><strong>Authentication:</strong> delegated to external IdP (ADR-036). CampusOS never stores passwords.</li>
+        <li><strong>Authorisation:</strong> 378 permission codes on every endpoint. iam_effective_access_cache is the sole source.</li>
+        <li><strong>PII access logging:</strong> every access to hlth_, svc_, pay_, fin_ logged with accessor identity.</li>
+        <li><strong>FERPA:</strong> educational records protected. Parent access via iam_relationship_access_rule.</li>
+        <li><strong>COPPA:</strong> restricted data collection for students under 13.</li>
+        <li><strong>GDPR:</strong> DPO Compliance Suite (13 tables). SAR, erasure, consent.</li>
+        <li><strong>Dependency scanning:</strong> automated vulnerability scanning. No deploy with critical CVEs.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-15">15. Monitoring &amp; Post-Deployment</h2>
+      <ul class="bullet-list">
+        <li><strong>Application:</strong> request latency (p50/p95/p99), error rate, throughput. CloudWatch metrics.</li>
+        <li><strong>Database:</strong> connection pool, query latency, replication lag, disk, partition health.</li>
+        <li><strong>Kafka:</strong> consumer lag, producer throughput, DLQ depth.</li>
+        <li><strong>IAM:</strong> cache hit rate, pre-warm latency, permission check latency.</li>
+        <li><strong>Business:</strong> active tenants, DAU, attendance completion rate, message delivery rate.</li>
+        <li><strong>Alerting:</strong> PagerDuty for P1. Slack for P2–P3.</li>
+        <li><strong>Logs:</strong> CloudWatch with structured JSON. Trace ID propagation.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-16">16. SIT Execution Model — CI/CD, Not AI Execution</h2>
+      <p class="body-text"><strong>Peer review finding 2.1 — corrected.</strong> The original plan stated that ChatGPT executes code in its own environment. That was architecturally incorrect. AI cannot reliably serve as an execution environment — there is no deterministic runtime, no system-level validation, and no true integration environment. This section replaces that model.</p>
+      <h3 class="sub-heading">Corrected SIT Architecture</h3>
+      <p class="body-text">SIT execution is performed by automated CI/CD infrastructure, not by ChatGPT. The pipeline is:</p>
+      <ul class="bullet-list">
+        <li><strong>GitHub Actions CI runner</strong> is the execution layer. When code is promoted from dev to sit, a CI workflow automatically: checks out the code, spins up ephemeral Docker containers (PostgreSQL, Kafka, Redis), applies migrations, runs the full unit test suite, runs integration tests, runs contract tests, and produces a test report.</li>
+        <li><strong>Ephemeral preview environments</strong> are created per merge request using Docker Compose (or AWS ECS task definitions for heavier scenarios). The environment lives for the duration of the review, then is torn down. No persistent SIT infrastructure is required for execution — only for ChatGPT’s static review.</li>
+        <li><strong>ChatGPT’s corrected role</strong> in SIT is: (1) static code review — reading the source code and verifying it against the frozen architecture documents; (2) architectural compliance validation — checking that table names match ERD v10, permission codes match Function-ERD Mapping, module boundaries are respected, and event contracts match the Kafka Topic Register; (3) test design review — evaluating whether the test suite covers the critical paths and edge cases; (4) security analysis — identifying permission guard gaps, PII exposure risks, and injection vectors. ChatGPT does NOT execute code.</li>
+      </ul>
+      <h3 class="sub-heading">SIT Workflow (Revised)</h3>
+      <ul class="bullet-list">
+        <li><strong>Step 1:</strong> Claude pushes to dev, creates merge request to sit with the handoff package.</li>
+        <li><strong>Step 2:</strong> GitHub Actions CI automatically triggers: build → migrate → unit tests → integration tests → contract tests → coverage report.</li>
+        <li><strong>Step 3:</strong> CI results are attached to the merge request.</li>
+        <li><strong>Step 4:</strong> ChatGPT receives the merge request + CI results + handoff package. ChatGPT performs static review and architectural compliance checks.</li>
+        <li><strong>Step 5:</strong> ChatGPT produces a written review: PASS (approve merge to sit) or FAIL (specific findings for Claude to fix).</li>
+        <li><strong>Step 6:</strong> On PASS + CI green, code merges to sit and deploys to the persistent SIT environment for exploratory review.</li>
+      </ul>
+      <h3 class="sub-heading">SIT Exit Criteria (Revised)</h3>
+      <ul class="bullet-list">
+        <li>CI pipeline green: all unit, integration, and contract tests pass.</li>
+        <li>Coverage >90% line coverage, 100% on critical paths.</li>
+        <li>ChatGPT static review: PASS with zero P1 and zero unacknowledged P2 findings.</li>
+        <li>No architectural violations detected.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-17">17. Contract Testing Strategy</h2>
+      <p class="body-text"><strong>Peer review finding 2.2 — addressed.</strong> Cross-module interactions via Kafka events and REST APIs must have enforceable contracts. Without contract testing, integration breaks will be frequent and silent.</p>
+      <h3 class="sub-heading">Kafka Contract Testing</h3>
+      <ul class="bullet-list">
+        <li><strong>Schema Registry:</strong> Confluent Schema Registry deployed alongside MSK in all environments. All Kafka event payloads are defined as Avro schemas registered in the schema registry.</li>
+        <li><strong>Compatibility mode:</strong> BACKWARD_TRANSITIVE. A new schema version must be backward-compatible with all previous versions. Consumers using older schema versions must be able to read messages produced with newer schemas. This is enforced at the registry level — a non-compatible schema change is rejected at registration time, before any code deploys.</li>
+        <li><strong>Contract tests per topic:</strong> every Kafka topic has a contract test that verifies: (1) the producer emits a message that validates against the registered schema; (2) every registered consumer can deserialise the message; (3) required fields are present; (4) the payload matches the event contract documented in the Kafka Topic Register.</li>
+        <li><strong>Schema evolution rules:</strong> adding optional fields = minor version (backward-compatible). Removing fields, changing types, or renaming = major version (requires new topic + consumer migration plan). No in-place breaking changes to any published schema.</li>
+        <li><strong>Dead letter queue policy:</strong> every consumer has a DLQ topic ({original-topic}.dlq). Messages that fail deserialization or processing after 3 retries go to the DLQ. DLQ depth is monitored — any non-zero DLQ depth triggers a P2 alert.</li>
+      </ul>
+      <h3 class="sub-heading">API Contract Testing</h3>
+      <ul class="bullet-list">
+        <li><strong>Tooling:</strong> Pact (consumer-driven contract testing). Each frontend or service that consumes an API endpoint publishes a Pact contract defining the expected request and response shapes.</li>
+        <li><strong>Provider verification:</strong> the CI pipeline runs Pact provider verification tests on every backend build. If a code change would break an existing consumer contract, the build fails.</li>
+        <li><strong>API versioning:</strong> URL-path versioning (/api/v1/, /api/v2/). New versions are additive — v1 endpoints continue to work after v2 is released. Deprecation: v1 endpoints log a deprecation warning for 2 release cycles before removal.</li>
+        <li><strong>OpenAPI spec as contract source:</strong> the generated OpenAPI spec is checked into Git. CI verifies that the running API matches the committed spec — any divergence fails the build. This prevents undocumented API changes.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-18">18. Multi-Tenant Isolation Enforcement</h2>
+      <p class="body-text"><strong>Peer review finding 2.3 — addressed.</strong> Schema-per-tenant provides database-level isolation, but a single application bug could route a query to the wrong schema. Runtime enforcement is required at every layer.</p>
+      <h3 class="sub-heading">Layer 1 — Request-Level Tenant Resolution</h3>
+      <ul class="bullet-list">
+        <li>Every HTTP request must resolve to a tenant before any business logic executes.</li>
+        <li>Tenant resolution middleware (NestJS global interceptor) extracts tenant context from: (1) the JWT’s tenant_id claim, (2) the request hostname (subdomain routing via Route 53), or (3) an explicit X-Tenant-ID header (for platform-level service-to-service calls only, validated against the caller’s service principal scope).</li>
+        <li>If tenant resolution fails, the request is rejected with 400 Bad Request. No fallback to a default tenant. No anonymous queries.</li>
+        <li>The resolved tenant_id is stored in a request-scoped AsyncLocalStorage context that is available to every layer of the application without passing it as a parameter.</li>
+      </ul>
+      <h3 class="sub-heading">Layer 2 — ORM-Level Schema Enforcement</h3>
+      <ul class="bullet-list">
+        <li>Prisma middleware intercepts every database query and sets the PostgreSQL search_path to the resolved tenant’s schema before execution.</li>
+        <li>The middleware reads the tenant_id from AsyncLocalStorage. If no tenant context exists (programming error), the query is rejected with an internal error — never executed against a default or public schema.</li>
+        <li>Platform schema queries (platform_, iam_ tables) explicitly set search_path to the platform schema. These are the only queries permitted to read cross-tenant data.</li>
+        <li>Every query log entry includes the resolved tenant_id for audit trail and debugging.</li>
+      </ul>
+      <h3 class="sub-heading">Layer 3 — Cross-Tenant Access Prevention</h3>
+      <ul class="bullet-list">
+        <li>Integration tests explicitly verify that a request authenticated as Tenant A cannot read, write, or receive data belonging to Tenant B.</li>
+        <li>A dedicated cross-tenant isolation test suite runs in CI on every build: it creates two tenant schemas, inserts data in each, and verifies that queries scoped to Tenant A return zero rows from Tenant B.</li>
+        <li>The CI pipeline fails if any cross-tenant data leakage is detected.</li>
+        <li>Production monitoring: a weekly audit job compares query logs against tenant boundaries to detect any anomalous cross-tenant access patterns.</li>
+      </ul>
+      <h3 class="sub-heading">Layer 4 — PostgreSQL Row-Level Security (Wave 2+)</h3>
+      <p class="body-text">As an additional defence-in-depth measure, PostgreSQL Row-Level Security (RLS) policies will be added to high-sensitivity tables (hlth_, svc_, pay_, fin_) in Wave 2. RLS acts as a database-level backstop — even if the application middleware fails, the database itself enforces that a connection authenticated to Tenant A’s schema cannot access Tenant B’s rows. This is defence-in-depth, not the primary enforcement mechanism.</p>
+
+      <h2 class="section-heading" id="section-19">19. Rate Limiting &amp; Abuse Protection</h2>
+      <p class="body-text"><strong>Peer review finding 2.4 — addressed.</strong> Authentication and authorisation are necessary but not sufficient. Without rate limiting, a compromised or malfunctioning client can exhaust resources for all tenants.</p>
+      <h3 class="sub-heading">API Rate Limiting</h3>
+      <ul class="bullet-list">
+        <li><strong>Implementation:</strong> Redis-backed sliding window rate limiter (NestJS @Throttle decorator backed by ioredis).</li>
+        <li><strong>Per-user limits:</strong> 100 requests/minute for standard API endpoints. 10 requests/minute for expensive operations (report generation, bulk exports, AI study tool). 1,000 requests/minute for high-frequency endpoints (real-time attendance check-in, POS transactions).</li>
+        <li><strong>Per-tenant limits:</strong> aggregate rate limit across all users in a tenant. Calculated based on tenant tier (platform_tenant_quotas.api_rate_limit). Default: 5,000 requests/minute for standard tenants. Configurable per tenant.</li>
+        <li><strong>Response on limit:</strong> HTTP 429 Too Many Requests with Retry-After header. Logged in platform_tenant_usage_metrics for noisy-neighbor detection (ADR-045).</li>
+      </ul>
+      <h3 class="sub-heading">WebSocket Protection</h3>
+      <ul class="bullet-list">
+        <li>WebSocket connections require authenticated JWT. No anonymous WebSocket connections.</li>
+        <li>Per-user connection limit: 5 concurrent WebSocket connections. Additional connections are rejected.</li>
+        <li>Per-tenant connection pool: configurable maximum concurrent WebSocket connections per tenant.</li>
+        <li>Message rate limit: 30 messages/second per connection. Exceeding the limit triggers a 60-second cooldown.</li>
+        <li>Transport Dispatch (driver WebSocket) and Emergency Alert have dedicated connection pools that are isolated from the general WebSocket pool.</li>
+      </ul>
+      <h3 class="sub-heading">DDoS Protection</h3>
+      <ul class="bullet-list">
+        <li>AWS WAF (Web Application Firewall) in front of the ALB. Managed rule sets for common attack patterns (SQL injection, XSS, known bad IPs).</li>
+        <li>AWS Shield Standard (included with ALB) for volumetric DDoS protection.</li>
+        <li>CloudFront for static asset serving — absorbs traffic spikes at the edge.</li>
+        <li>Geographic restriction: configurable per-tenant IP allowlisting for admin-level access.</li>
+      </ul>
+      <h3 class="sub-heading">Abuse Detection</h3>
+      <ul class="bullet-list">
+        <li>platform_tenant_usage_metrics (hourly) feeds the noisy-neighbor detection system (ADR-045).</li>
+        <li>Automated escalation: 2× rolling median → throttle. 5× → isolate. 10× → alert + manual review.</li>
+        <li>Credential stuffing detection: 5 failed login attempts within 5 minutes → account lockout (iam_auth_event monitoring).</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-20">20. Feature Flag System Design</h2>
+      <p class="body-text"><strong>Peer review finding 2.5 — addressed.</strong> Feature flags are a critical deployment safety mechanism. They need defined scope, rollout strategy, and kill-switch behaviour.</p>
+      <h3 class="sub-heading">Flag Scope Hierarchy</h3>
+      <ul class="bullet-list">
+        <li><strong>PLATFORM:</strong> applies to all tenants globally. Controlled by platform administrators only. Used for: enabling entirely new modules, platform-wide maintenance mode, emergency feature disablement.</li>
+        <li><strong>DISTRICT:</strong> applies to all schools within an organisation. Controlled by district administrators. Used for: district-level policy features (e.g. content moderation strictness, procurement approval chains).</li>
+        <li><strong>BUILDING:</strong> applies to a single school. Controlled by building administrators. Used for: school-specific features (e.g. achievements system on/off, hall pass limits, school store availability, device selection).</li>
+        <li><strong>ROLE:</strong> applies to users with a specific role. Used for: beta features visible only to administrators before general rollout.</li>
+        <li><strong>USER:</strong> applies to a specific user. Used for: individual beta testers, debugging specific user issues.</li>
+        <li><strong>Resolution order:</strong> most specific wins. A user-level flag overrides a role-level flag, which overrides a building-level flag, and so on. If no flag is set at any level, the platform default applies.</li>
+      </ul>
+      <h3 class="sub-heading">Rollout Strategy</h3>
+      <ul class="bullet-list">
+        <li><strong>Gradual rollout:</strong> percentage-based. A flag can be set to 10% → 25% → 50% → 100% over successive deployments. The percentage is applied consistently per user (hash of user_id % 100) so the same user always sees the same state.</li>
+        <li><strong>Canary releases:</strong> deploy to a single building first, monitor for 24 hours, then expand. The feature flag makes this a configuration change, not a code deployment.</li>
+        <li><strong>A/B testing:</strong> two variants of a feature can be flagged independently. Analytics events include the variant ID for comparison.</li>
+      </ul>
+      <h3 class="sub-heading">Kill-Switch Behaviour</h3>
+      <ul class="bullet-list">
+        <li>Every feature flag has a kill-switch: setting the flag to OFF at PLATFORM level immediately disables the feature for all tenants, regardless of lower-level overrides.</li>
+        <li>Kill-switch latency: <30 seconds. Feature flag state is cached in Redis with a 30-second TTL. The kill-switch writes to Redis directly (bypassing the database) for immediate propagation.</li>
+        <li>Kill-switch does NOT delete data. If a feature is killed, the data created while it was active is preserved. Reactivating the flag restores access to the data.</li>
+      </ul>
+      <h3 class="sub-heading">Implementation</h3>
+      <p class="body-text">school_feature_flags (existing table in ERD v10) is extended with: scope ENUM(PLATFORM, DISTRICT, BUILDING, ROLE, USER), scope_entity_id UUID (the org/school/role/user the flag applies to), rollout_percentage INT (0–100), and variant TEXT. The FeatureFlagService reads the effective flag state from Redis (30s TTL) with database fallback.</p>
+
+      <h2 class="section-heading" id="section-21">21. Disaster Recovery Strategy</h2>
+      <p class="body-text"><strong>Peer review finding 2.6 — addressed.</strong> Backups and rollback are necessary but not sufficient for a K-12 SaaS platform where downtime directly impacts school operations.</p>
+      <h3 class="sub-heading">Recovery Targets</h3>
+      <ul class="bullet-list">
+        <li><strong>RTO (Recovery Time Objective):</strong> 1 hour for full platform restoration. 15 minutes for the Emergency Alert Service (which has its own minimal-dependency execution path per Architecture Review Section 16.6).</li>
+        <li><strong>RPO (Recovery Point Objective):</strong> 5 minutes for database (continuous WAL archiving). 0 for Kafka (replicated across brokers). 30 seconds for Redis (AOF persistence with 1-second fsync).</li>
+      </ul>
+      <h3 class="sub-heading">Database Recovery</h3>
+      <ul class="bullet-list">
+        <li><strong>Automated backups:</strong> RDS automated daily snapshots + continuous WAL archiving to S3. Retention: 35 days.</li>
+        <li><strong>Point-in-time recovery:</strong> restore to any second within the retention window. Tested monthly: restore a snapshot to a temporary instance and verify data integrity.</li>
+        <li><strong>Cross-region backup:</strong> automated snapshot replication to a secondary AWS region (us-west-2 if primary is us-east-1). Supports regional failover.</li>
+        <li><strong>Backup validation:</strong> weekly automated job restores the latest snapshot to a temporary instance, runs a schema validation script, and confirms row counts match expected ranges. Alert if validation fails.</li>
+      </ul>
+      <h3 class="sub-heading">Kafka Recovery</h3>
+      <ul class="bullet-list">
+        <li>MSK replication factor = 3. Data survives the loss of 2 brokers.</li>
+        <li>Topic retention: 7 days for operational topics. 30 days for audit topics. Infinite for DLQ topics.</li>
+        <li>Recovery procedure: if a broker fails, MSK automatically replaces it and replicates data. If the entire cluster fails, consumer offsets are stored in a separate coordination topic that recovers with the cluster.</li>
+        <li>For catastrophic cluster loss: consumers replay from the earliest available offset. Idempotent consumers (platform_event_consumer_idempotency) prevent duplicate processing.</li>
+      </ul>
+      <h3 class="sub-heading">Redis Recovery</h3>
+      <ul class="bullet-list">
+        <li>ElastiCache Redis with AOF persistence (appendfsync everysec). Multi-AZ replica for automatic failover.</li>
+        <li>If Redis is lost entirely: the application falls back to database reads. IAM cache misses are computed from iam_role_assignment → roles → role_permissions. Tenant routing falls back to platform_tenant_routing table. Performance degrades but the system remains operational.</li>
+        <li>Redis is a cache, not a source of truth. Full Redis loss = performance degradation, not data loss.</li>
+      </ul>
+      <h3 class="sub-heading">Regional Failover (Wave 4+)</h3>
+      <p class="body-text">Full multi-region active-passive architecture is planned for Wave 4+ per Architecture Review Section 21. The current single-region deployment uses Multi-AZ for all services, which protects against availability zone failure but not regional failure. For Wave 1–3, the regional failover plan is: restore from cross-region backups in the secondary region. Estimated RTO for regional failover: 4–6 hours (acceptable for Wave 1–3 scale).</p>
+      <h3 class="sub-heading">Disaster Recovery Runbook</h3>
+      <p class="body-text">A DR runbook will be produced alongside the infrastructure provisioning. It will include: step-by-step procedures for each failure scenario (single instance, AZ failure, regional failure), responsible parties, communication templates, and post-incident review requirements. The runbook is tested quarterly via a tabletop exercise.</p>
+
+      <h2 class="section-heading" id="section-22">22. Automated End-to-End Testing Strategy</h2>
+      <p class="body-text"><strong>Peer review finding 2.7 — addressed.</strong> Manual CAT is the initial approach, but without automated E2E testing, CAT becomes a slow manual bottleneck as the system grows.</p>
+      <h3 class="sub-heading">Phased Approach</h3>
+      <ul class="bullet-list">
+        <li><strong>Wave 1:</strong> manual CAT scripts (as defined in Section 7). Claude generates step-by-step test scripts tied to journey documents. Human executes manually.</li>
+        <li><strong>Wave 2:</strong> automated E2E tests using Playwright. Claude converts the highest-value CAT scripts into automated Playwright tests that run against the CAT environment. Manual testing continues for new features; automated tests cover regression.</li>
+        <li><strong>Wave 3+:</strong> full automated regression suite. Every CAT script that has been manually verified at least once is converted to an automated Playwright test. Manual testing is reserved for new features and exploratory testing only.</li>
+      </ul>
+      <h3 class="sub-heading">Playwright Test Architecture</h3>
+      <ul class="bullet-list">
+        <li><strong>Journey-based test suites:</strong> one test file per persona journey section. Example: tests/journeys/teacher/attendance-taking.spec.ts exercises the teacher’s attendance workflow.</li>
+        <li><strong>Synthetic test users:</strong> pre-seeded accounts per persona type with known credentials. The test framework logs in as the appropriate persona before executing the journey steps.</li>
+        <li><strong>Data isolation:</strong> E2E tests run in a dedicated tenant schema. Test data is reset before each suite run.</li>
+        <li><strong>CI integration:</strong> Playwright tests run in the CI pipeline on the cat branch. They are NOT a gate for sit → cat promotion (that remains ChatGPT’s static review + CI unit/integration tests). They ARE a gate for cat → main (production) promotion.</li>
+        <li><strong>Flake management:</strong> tests that fail intermittently are quarantined (marked @flaky) and investigated. Quarantined tests do not block the pipeline but are reported.</li>
+      </ul>
+      <h3 class="sub-heading">Synthetic User Flows</h3>
+      <p class="body-text">The following critical paths are automated first (highest risk, highest frequency):</p>
+      <ul class="bullet-list">
+        <li>Teacher attendance cycle: login → take attendance → mark tardy → verify parent notification</li>
+        <li>Student assignment cycle: login → view assignment → submit → verify submission recorded</li>
+        <li>Parent billing cycle: login → view balance → make payment → verify receipt</li>
+        <li>Admin enrolment cycle: create application → approve → generate offer → accept → verify student created</li>
+        <li>Procurement cycle: submit requisition → approve → create PO → receive → distribute</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-23">23. Kafka Scaling &amp; Partition Strategy</h2>
+      <p class="body-text"><strong>Peer review finding 3.1 — addressed.</strong></p>
+      <h3 class="sub-heading">Partition Strategy</h3>
+      <ul class="bullet-list">
+        <li><strong>Default:</strong> 6 partitions per topic. Sufficient for Wave 1–2 throughput. Expandable without downtime.</li>
+        <li><strong>High-volume topics</strong> (sis.attendance.recorded, cls.grade.posted, msg.notification.queued): 12 partitions from day one.</li>
+        <li><strong>Partition key:</strong> tenant_id for all topics. This ensures all events for a single tenant are ordered within a partition (important for attendance, grading, and financial events). Cross-tenant ordering is not required.</li>
+        <li><strong>Consumer group scaling:</strong> one consumer instance per partition. Auto-scaling consumer groups based on consumer lag metrics. If lag exceeds 1,000 messages for >5 minutes, scale up consumers.</li>
+      </ul>
+      <h3 class="sub-heading">Idempotent Consumers</h3>
+      <p class="body-text">All consumers are idempotent per ADR-057. The platform_event_consumer_idempotency table records (consumer_name, event_id, processed_at). Before processing, the consumer checks for the event_id. If present, the event is skipped. This makes replay safe — consumers can be restarted from any offset without duplicate side effects.</p>
+      <h3 class="sub-heading">Dead Letter Queue Policy</h3>
+      <ul class="bullet-list">
+        <li>Every topic has a corresponding .dlq topic.</li>
+        <li>Messages fail to DLQ after 3 processing attempts with exponential backoff (1s, 5s, 30s).</li>
+        <li>DLQ depth is a monitored metric. Non-zero DLQ depth = P2 alert.</li>
+        <li>DLQ replay: a manual CLI tool allows operators to replay DLQ messages back to the original topic after the root cause is fixed.</li>
+        <li>DLQ retention: infinite (messages are never auto-deleted from DLQ).</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-24">24. Prisma Multi-Schema Scaling Strategy</h2>
+      <p class="body-text"><strong>Peer review finding 3.2 — addressed.</strong> Prisma with schema-per-tenant can degrade at high tenant counts. The mitigation is a tiered approach.</p>
+      <h3 class="sub-heading">Tiered Tenant Hosting</h3>
+      <ul class="bullet-list">
+        <li><strong>Tier 1 (Wave 1–3, <500 tenants):</strong> schema-per-tenant on a single RDS cluster. 80 active schemas per cluster (ADR-001, ADR-008), 20-schema migration buffer. At 80 schemas, add a second cluster.</li>
+        <li><strong>Tier 2 (500–2,000 tenants):</strong> multiple RDS clusters with platform_tenant_routing directing each tenant to its cluster. Prisma client pool per cluster. Migration orchestrator applies migrations to all clusters in parallel.</li>
+        <li><strong>Tier 3 (2,000+ tenants, if needed):</strong> evaluate hybrid model — smaller tenants share a schema with tenant_id column filtering (logical isolation), larger tenants retain dedicated schemas (physical isolation). This is an architectural change that requires validation at Wave 4+ scale.</li>
+      </ul>
+      <h3 class="sub-heading">Migration at Scale</h3>
+      <ul class="bullet-list">
+        <li>Migration orchestrator: a platform-level service that reads all active tenant schemas from platform_tenant_routing and applies migrations in batches of 10 schemas per cluster.</li>
+        <li>Migration health: platform_migration_status table tracks per-tenant migration state (PENDING, RUNNING, COMPLETED, FAILED). Failed migrations are retried automatically. After 3 failures, the tenant is flagged for manual intervention.</li>
+        <li>Zero-downtime: migrations are backward-compatible (Section 12). The application continues running on the pre-migration schema while migrations apply. No maintenance window required.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-25">25. IAM Cache Invalidation Strategy</h2>
+      <p class="body-text"><strong>Peer review finding 3.3 — addressed.</strong> A 5-minute TTL means permission changes take up to 5 minutes to propagate. For security-critical changes (role revocation, account suspension), this is too slow.</p>
+      <h3 class="sub-heading">Dual Invalidation Model</h3>
+      <ul class="bullet-list">
+        <li><strong>TTL-based (background):</strong> Redis TTL of 5 minutes for routine cache refresh. This handles the steady-state case where permissions rarely change.</li>
+        <li><strong>Event-driven (immediate):</strong> iam.role.assigned and iam.role.revoked Kafka events trigger immediate cache invalidation. The IAMCacheInvalidationWorker consumes these events and: (1) deletes the affected user’s entry from Redis; (2) updates iam_effective_access_cache in the database; (3) if the change is a REVOCATION or SUSPENSION, publishes a cache-bust event to all API instances via Redis Pub/Sub, forcing an immediate re-read on the next request for that user.</li>
+        <li><strong>Latency targets:</strong> routine changes (new role grant) = <30 seconds via Kafka consumer. Security-critical changes (role revocation, account suspension, emergency access grant) = <5 seconds via Redis Pub/Sub direct invalidation.</li>
+        <li><strong>Account suspension:</strong> iam.account.suspended event triggers immediate invalidation across ALL caches and ALL API instances. The auth middleware checks a Redis SUSPENDED_ACCOUNTS set on every request (O(1) lookup). Suspension is effective within 1 second.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-26">26. Observability &amp; Distributed Tracing</h2>
+      <p class="body-text"><strong>Peer review finding 4.2 — addressed.</strong> Metrics are necessary but not sufficient for debugging distributed flows. Trace-first observability is required.</p>
+      <h3 class="sub-heading">Trace Propagation</h3>
+      <ul class="bullet-list">
+        <li><strong>Trace ID:</strong> a UUIDv7 trace_id is generated at the API gateway (or the first service to receive a request) and propagated through: (1) all HTTP headers (X-Trace-ID); (2) all Kafka event envelopes (correlation_id field per ADR-057); (3) all database query comments (/* trace_id=... */); (4) all log entries.</li>
+        <li><strong>Span tracking:</strong> AWS X-Ray SDK (or OpenTelemetry) creates spans for: HTTP request handling, database queries, Kafka produce/consume, Redis operations, and external service calls (Stripe, AI Gateway, IdP).</li>
+        <li><strong>Cross-service propagation:</strong> when the monolith calls an extracted service (Video Processing, Scheduling Solver, etc.), the trace_id is passed in the request header. The extracted service creates child spans under the same trace.</li>
+      </ul>
+      <h3 class="sub-heading">Structured Logging</h3>
+      <ul class="bullet-list">
+        <li>All log entries are structured JSON with mandatory fields: timestamp, level, trace_id, tenant_id, user_id (if authenticated), module, message.</li>
+        <li>Sensitive data (PII) is never logged. Log entries reference entity IDs, not entity content.</li>
+        <li>Log levels: ERROR (P1 alert), WARN (monitored), INFO (operational), DEBUG (DEV/SIT only).</li>
+        <li>Log aggregation: CloudWatch Logs Insights for search and analysis. Retention: 90 days in CloudWatch, archived to S3 for 1 year.</li>
+      </ul>
+      <h3 class="sub-heading">Correlation ID End-to-End Example</h3>
+      <p class="body-text">A teacher takes attendance → POST /api/v1/attendance with X-Trace-ID: abc123 → the attendance service inserts a row into sis_attendance_records (query comment includes trace_id) → emits sis.attendance.recorded Kafka event with correlation_id: abc123 → the notification worker consumes the event, sends a parent notification, and logs the delivery with correlation_id: abc123 → the analytics worker consumes the same event and updates rpt_daily_attendance_summary with correlation_id: abc123. Every step of this flow is searchable by trace ID abc123.</p>
+
+      <h2 class="section-heading" id="section-27">27. Cost Governance</h2>
+      <p class="body-text"><strong>Peer review finding 4.3 — addressed.</strong> The AWS stack (MSK, RDS, ECS, ElastiCache, S3, CloudFront) will become expensive at scale. Cost governance must be built in from day one.</p>
+      <h3 class="sub-heading">Environment Cost Control</h3>
+      <ul class="bullet-list">
+        <li><strong>DEV and SIT:</strong> minimal instance sizes. Auto-shutdown outside working hours (ECS desired count = 0 from 8pm to 6am). RDS single instance (no Multi-AZ). Estimated: $200–400/month per environment.</li>
+        <li><strong>CAT:</strong> PROD-like sizing but with Reserved Instances or Savings Plans. Can be scaled down when not actively testing. Estimated: $800–1,200/month.</li>
+        <li><strong>PROD:</strong> right-sized based on actual utilisation data. Auto-scaling with scale-in during off-hours (school SaaS has predictable usage patterns: heavy 7am–4pm, light evenings and weekends). Estimated: $2,000–5,000/month initially, scaling with tenant count.</li>
+      </ul>
+      <h3 class="sub-heading">Tenant-Level Cost Attribution</h3>
+      <ul class="bullet-list">
+        <li>platform_tenant_usage_metrics (hourly) tracks per-tenant: API requests, database query count, Kafka messages produced/consumed, S3 storage, and AI token usage.</li>
+        <li>Monthly cost attribution report: allocates infrastructure cost to tenants based on usage proportions. This supports: (1) pricing model validation (are large tenants subsidised by small ones?); (2) noisy-neighbor identification; (3) capacity planning.</li>
+      </ul>
+      <h3 class="sub-heading">Cost Alerts</h3>
+      <ul class="bullet-list">
+        <li>AWS Budgets alert at 80% and 100% of monthly budget per environment.</li>
+        <li>Per-service cost tracking: if any single service (RDS, MSK, ECS) exceeds 150% of its expected monthly cost, a P3 alert is triggered for investigation.</li>
+        <li>S3 lifecycle policies: move infrequently accessed objects to S3 Infrequent Access after 90 days, to S3 Glacier after 365 days.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-28">28. Parallel Development &amp; Ownership Model</h2>
+      <p class="body-text"><strong>Peer review finding 4.1 — addressed.</strong> Claude is the sole developer for Wave 1. This is a practical constraint (not a design choice) and will not scale. This section defines how the development model evolves.</p>
+      <h3 class="sub-heading">Wave 1 — Single Developer (Claude)</h3>
+      <p class="body-text">Claude develops sequentially, module by module. This works because: (1) the build sequence is dependency-ordered — each cycle depends on the previous; (2) there are no merge conflicts because there is one developer; (3) the architecture is sufficiently specified that a single developer can maintain coherence across all modules. The risk is throughput — Wave 1 will take longer than a parallel team would need.</p>
+      <h3 class="sub-heading">Wave 2+ — Parallel Development Model</h3>
+      <p class="body-text">When additional developers (human or AI) are added, the module-to-service-domain mapping (Architecture Review Section 18) defines ownership boundaries:</p>
+      <ul class="bullet-list">
+        <li>Each service domain is owned by one developer or team.</li>
+        <li>Cross-domain dependencies are managed through the contract testing strategy (Section 17) — Kafka schemas and API Pact contracts prevent one domain’s changes from breaking another.</li>
+        <li>Merge conflicts are limited to shared infrastructure (M0 Platform Core, shared types, CI configuration). These are resolved by the platform owner.</li>
+        <li>The handoff package format (Section 11 of the original plan) works regardless of whether the developer is Claude, another AI, or a human — it’s a structured deliverable, not a conversation.</li>
+      </ul>
+      <h3 class="sub-heading">Ownership Register</h3>
+      <p class="body-text">When parallel development begins, each service domain will have a named owner. The owner is responsible for: code quality within the domain, migration correctness, contract maintenance, and handoff package production. The ownership register will be maintained as a living document alongside the architecture baseline.</p>
+
+      <h2 class="section-heading" id="section-29">29. API Gateway Layer</h2>
+      <p class="body-text">All external traffic routes through AWS API Gateway before reaching any CampusOS service. The gateway is the front-door control plane for auth enforcement, rate limiting, request validation, and traffic shaping.</p>
+      <h3 class="sub-heading">Architecture</h3>
+      <ul class="bullet-list">
+        <li><strong>Service:</strong> AWS API Gateway (HTTP API) in front of the ALB. No direct ALB access from the internet.</li>
+        <li><strong>Upgrade path:</strong> Kong Gateway on ECS if more control needed (Wave 3+).</li>
+        <li><strong>Internal traffic:</strong> service-to-service within VPC bypasses the gateway. Authenticated via service principal JWTs.</li>
+      </ul>
+      <h3 class="sub-heading">Gateway Responsibilities</h3>
+      <ul class="bullet-list">
+        <li><strong>Authentication:</strong> validates JWT signature and expiry. Invalid tokens rejected at the gateway — never reach the application.</li>
+        <li><strong>Rate limiting:</strong> per-user and per-tenant limits (Section 19) via usage plans. 429 returned before reaching ECS.</li>
+        <li><strong>Request validation:</strong> body schemas validated against OpenAPI spec for critical endpoints.</li>
+        <li><strong>Traffic shaping:</strong> burst limits (500 req/s burst, 100 req/s sustained per tenant).</li>
+        <li><strong>CORS:</strong> per-environment. DEV allows localhost; PROD allows tenant subdomain only.</li>
+        <li><strong>Access logging:</strong> every request logged with tenant_id, user_id, endpoint, status, latency.</li>
+      </ul>
+      <h3 class="sub-heading">Routing</h3>
+      <ul class="bullet-list">
+        <li>/api/v1/* → main application (ECS ALB)</li>
+        <li>/api/v1/video/* → Video Processing Service</li>
+        <li>/api/v1/dispatch/* → Transport Dispatch Service (WebSocket upgrade)</li>
+        <li>/api/v1/emergency/* → Emergency Alert Service (isolated, no shared dependencies)</li>
+        <li>/ws/* → WebSocket connections (authenticated on $connect)</li>
+        <li>/health → health check (no auth, Route 53 target)</li>
+      </ul>
+      <h3 class="sub-heading">WAF Integration</h3>
+      <p class="body-text">AWS WAF attached to the API Gateway (not the ALB). All traffic passes through WAF before reaching any service. Managed rule sets: AWSManagedRulesCommonRuleSet (XSS, SQLi), AWSManagedRulesKnownBadInputsRuleSet, and a custom rule blocking tenant_id in query parameters (tenant resolution must come from JWT, never client-supplied).</p>
+
+
+      <div class="doc-footer">CampusOS Development &amp; Deployment Plan · DEV → SIT → CAT → PROD · 29 Sections · March 2026</div>
+    </main>
+  </div>
+  <script>
+    // Close mobile sidebar when a link is clicked
+    document.querySelectorAll('.toc-list a').forEach(a => {
+      a.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'));
+    });
+  </script>
+<div style="text-align:center;padding:24px 40px;border-top:1px solid #e0e7ef;margin-top:40px;font-size:12px;color:#999;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  CampusOS Design &amp; Architecture Hub &middot; Development &amp; Deployment Plan &middot; March 2026
+  <br><a href="index.html" style="color:#2e86c1;">&larr; Back to Design Hub</a>
+</div>
+</body>
+</html>

@@ -1,0 +1,1865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CampusOS — Function Library Journey</title>
+  <style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+
+:root {
+  --accent: #1a3a5c;
+  --accent-light: #e8f0f8;
+  --accent-mid: #3d7ab5;
+  --text: #2c2c2c;
+  --text-light: #6b7280;
+  --bg: #fafbfc;
+  --white: #ffffff;
+  --border: #e2e6ea;
+  --note-bg: #fef9ec;
+  --note-border: #e5a919;
+  --privacy-bg: #eef7ee;
+  --privacy-border: #3a9e3a;
+  --how-bg: #e8f0f8;
+  --how-border: #3d7ab5;
+  --ai-bg: #f4ecfb;
+  --ai-border: #8b4fc6;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.7;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page-wrapper {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── Sidebar TOC ── */
+.sidebar {
+  width: 300px;
+  min-width: 300px;
+  background: var(--white);
+  border-right: 1px solid var(--border);
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 0;
+}
+
+.sidebar-header {
+  padding: 24px 20px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent);
+  color: white;
+}
+
+.sidebar-header h2 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 18px;
+  font-weight: 400;
+  margin-bottom: 2px;
+}
+
+.sidebar-header .subtitle {
+  font-size: 12px;
+  opacity: 0.75;
+  font-weight: 400;
+}
+
+.sidebar-header .home-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 3px 10px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.sidebar-header .home-link:hover {
+  color: white;
+  border-color: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.1);
+}
+
+.toc-list {
+  list-style: none;
+  padding: 12px 0;
+}
+
+.toc-list li a {
+  display: block;
+  padding: 6px 20px;
+  font-size: 13px;
+  color: var(--text-light);
+  text-decoration: none;
+  transition: all 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.toc-list li a:hover {
+  color: var(--accent);
+  background: var(--accent-light);
+  border-left-color: var(--accent-mid);
+}
+
+.toc-list li a .toc-num {
+  display: inline-block;
+  width: 24px;
+  font-weight: 600;
+  color: var(--accent-mid);
+  font-size: 12px;
+}
+
+/* ── Main Content ── */
+.main-content {
+  margin-left: 300px;
+  flex: 1;
+  max-width: 800px;
+  padding: 0 48px 120px;
+}
+
+/* ── Title Section ── */
+.title-section {
+  padding: 80px 0 48px;
+  border-bottom: 2px solid var(--accent);
+  margin-bottom: 48px;
+}
+
+.title-section .brand {
+  font-family: 'DM Serif Display', serif;
+  font-size: 14px;
+  color: var(--accent-mid);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.title-section h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 42px;
+  color: var(--accent);
+  line-height: 1.15;
+  margin-bottom: 12px;
+  font-weight: 400;
+}
+
+.title-section .subtitle {
+  font-size: 17px;
+  color: var(--text-light);
+  font-style: italic;
+  margin-bottom: 16px;
+  max-width: 580px;
+}
+
+.title-section .version {
+  font-size: 13px;
+  color: var(--accent-mid);
+  font-weight: 600;
+}
+
+/* ── About Box ── */
+.about-box {
+  background: var(--accent-light);
+  border: 1px solid var(--accent-mid);
+  border-radius: 8px;
+  padding: 28px 32px;
+  margin-bottom: 48px;
+}
+
+.about-box h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--accent);
+}
+
+.about-box p {
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+.about-box p:last-child { margin-bottom: 0; }
+
+/* ── Section Headings ── */
+.section-heading {
+  font-family: 'DM Serif Display', serif;
+  font-size: 28px;
+  color: var(--accent);
+  font-weight: 400;
+  margin: 64px 0 20px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  scroll-margin-top: 24px;
+}
+
+.section-heading:first-of-type {
+  border-top: none;
+  margin-top: 0;
+}
+
+.sub-heading {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 32px 0 12px;
+}
+
+/* ── Body Text ── */
+.body-text {
+  margin-bottom: 16px;
+  line-height: 1.75;
+}
+
+/* ── Bullets ── */
+.bullet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.bullet-list li {
+  padding: 4px 0 4px 20px;
+  position: relative;
+  line-height: 1.7;
+}
+
+.bullet-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 13px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-mid);
+}
+
+.bullet-list li strong {
+  font-weight: 600;
+}
+
+/* ── Callout Boxes ── */
+.callout {
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin: 20px 0;
+  border-left: 4px solid;
+}
+
+.callout-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.callout p { font-size: 15px; margin-bottom: 8px; }
+.callout p:last-child { margin-bottom: 0; }
+
+.callout-note {
+  background: var(--note-bg);
+  border-color: var(--note-border);
+}
+.callout-note .callout-title { color: #9a7b1a; }
+
+.callout-privacy {
+  background: var(--privacy-bg);
+  border-color: var(--privacy-border);
+}
+.callout-privacy .callout-title { color: #2d7a2d; }
+
+.callout-how {
+  background: var(--how-bg);
+  border-color: var(--how-border);
+}
+.callout-how .callout-title { color: var(--accent-mid); }
+
+.callout-ai {
+  background: var(--ai-bg);
+  border-color: var(--ai-border);
+}
+.callout-ai .callout-title { color: #7040a8; }
+
+/* ── Footer ── */
+.doc-footer {
+  margin-top: 64px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-light);
+  font-style: italic;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .sidebar { width: 260px; min-width: 260px; }
+  .main-content { margin-left: 260px; padding: 0 32px 80px; }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    width: 100%;
+    height: auto;
+    max-height: 60px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar.open { max-height: 80vh; overflow-y: auto; }
+  .sidebar-header { padding: 14px 20px; cursor: pointer; }
+  .sidebar-header h2 { font-size: 15px; }
+  .sidebar-header .subtitle, .sidebar-header .home-link { display: none; }
+  .sidebar-header::after {
+    content: '\25BC';
+    float: right;
+    font-size: 12px;
+    opacity: 0.7;
+  }
+  .main-content { margin-left: 0; padding: 80px 20px 60px; max-width: 100%; }
+  .title-section { padding-top: 24px; }
+  .title-section h1 { font-size: 32px; }
+}
+
+/* Print */
+@media print {
+  .sidebar { display: none; }
+  .main-content { margin-left: 0; max-width: 100%; padding: 0; }
+  .callout { break-inside: avoid; }
+  .section-heading { break-after: avoid; }
+}
+</style>
+</head>
+<body>
+<div style="background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <a href="index.html" style="font-weight:600;color:white;font-size:15px;text-decoration:none;">CampusOS</a>
+  <span style="color:rgba(255,255,255,0.3);">|</span>
+  <a href="index.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">Design Hub</a>
+  <a href="campusos-erd-v11.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">ERD v11</a>
+  <a href="campusos-architecture-review-v10.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">Architecture</a>
+  <a href="campusos-function-library-v11.html" style="color:white;font-weight:600;text-decoration:none;font-size:13px;">Functions</a>
+</div>
+  <div class="page-wrapper">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-header" onclick="this.parentElement.classList.toggle('open')">
+        <h2>CampusOS</h2>
+        <div class="subtitle">Function Library Journey</div>
+        <a href="index.html" class="home-link">← All Journeys</a>
+      </div>
+      <ul class="toc-list">
+        <li><a href="#section-1"><span class="toc-num">1</span>Function Library Overview</a></li>
+        <li><a href="#section-2"><span class="toc-num">2</span>Attendance &amp; Daily Operations</a></li>
+        <li><a href="#section-3"><span class="toc-num">3</span>Teaching &amp; Learning</a></li>
+        <li><a href="#section-4"><span class="toc-num">4</span>Student Records</a></li>
+        <li><a href="#section-5"><span class="toc-num">5</span>Scheduling &amp; Calendar</a></li>
+        <li><a href="#section-6"><span class="toc-num">6</span>Behaviour &amp; Discipline</a></li>
+        <li><a href="#section-7"><span class="toc-num">7</span>Health &amp; Wellness</a></li>
+        <li><a href="#section-8"><span class="toc-num">8</span>Counselling &amp; Student Support</a></li>
+        <li><a href="#section-9"><span class="toc-num">9</span>Communications</a></li>
+        <li><a href="#section-10"><span class="toc-num">10</span>Meetings &amp; Conferences</a></li>
+        <li><a href="#section-11"><span class="toc-num">11</span>Human Resources</a></li>
+        <li><a href="#section-12"><span class="toc-num">12</span>Finance &amp; Payments</a></li>
+        <li><a href="#section-13"><span class="toc-num">13</span>Transportation</a></li>
+        <li><a href="#section-14"><span class="toc-num">14</span>Food Service</a></li>
+        <li><a href="#section-15"><span class="toc-num">15</span>Facilities &amp; Maintenance</a></li>
+        <li><a href="#section-16"><span class="toc-num">16</span>IT &amp; Technology</a></li>
+        <li><a href="#section-17"><span class="toc-num">17</span>Library</a></li>
+        <li><a href="#section-18"><span class="toc-num">18</span>Athletics</a></li>
+        <li><a href="#section-19"><span class="toc-num">19</span>Clubs &amp; Student Life</a></li>
+        <li><a href="#section-20"><span class="toc-num">20</span>Achievements &amp; Portfolio</a></li>
+        <li><a href="#section-21"><span class="toc-num">21</span>Procurement</a></li>
+        <li><a href="#section-22"><span class="toc-num">22</span>School Store</a></li>
+        <li><a href="#section-23"><span class="toc-num">23</span>Safety &amp; Compliance</a></li>
+        <li><a href="#section-24"><span class="toc-num">24</span>Publications &amp; Community</a></li>
+        <li><a href="#section-25"><span class="toc-num">25</span>Forms &amp; Documents</a></li>
+        <li><a href="#section-26"><span class="toc-num">26</span>System Administration</a></li>
+        <li><a href="#section-27"><span class="toc-num">27</span>Community Exchange</a></li>
+        <li><a href="#section-28"><span class="toc-num">28</span>Customer Management</a></li>
+        <li><a href="#section-29"><span class="toc-num">29</span>Internal Operations</a></li>
+        <li><a href="#section-30"><span class="toc-num">30</span>Complete Function Register</a></li>
+      </ul>
+    </nav>
+    <main class="main-content">
+      <div class="title-section">
+        <div class="brand">CampusOS User Journey</div>
+        <h1>CampusOS Function Library</h1>
+        <div class="subtitle">148 functions across 28 groups — the complete access control catalogue</div>
+        <div class="version">March 2026 · ERD v11 Aligned</div>
+      </div>
+
+      <div class="about-box">
+        <h3>About This Document</h3>
+        <p>This document defines the CampusOS Function Library: 148 functions organised into 28 groups. Each function maps directly to an IAM access policy and represents a controllable unit of system access.</p>
+        <p>Purpose: define the complete set of functions that appear on the Request Access page. Users browse functions by group, see their current access, and request additional access. Approvers grant or deny with mandatory comments on denial.</p>
+        <p>Each function supports three access tiers: View Only (read access), Read/Write (operational access), and Admin (configuration access). Admin always includes Read/Write. Access grants are time-bound with optional expiry dates.</p>
+        <p>These functions will be mapped to the ERD v10 module structure and implemented as permission sets in the IAM subsystem. The function code (e.g. ATT-001) becomes the permission prefix in iam_role_assignment.</p>
+      </div>
+
+      
+      <h2 class="section-heading" id="section-1">1. Function Library Overview</h2>
+      <p class="body-text">The CampusOS Function Library defines 148 functions organised into 28 groups. Each function maps directly to an IAM access policy in the system. Functions are the unit of access control — when a user requests access, they request a specific function at a specific tier.</p>
+      <h3 class="sub-heading">Access Tiers</h3>
+      <p class="body-text">Every function supports three access tiers:</p>
+      <ul class="bullet-list">
+        <li><strong>View Only</strong> — Read access. The user can see data but cannot create, modify, or delete anything. This is the minimum tier and is appropriate for oversight, reference, and transparency.</li>
+        <li><strong>Read/Write</strong> — Operational access. The user can perform the function’s core operations: creating records, processing workflows, entering data, and completing tasks. This is the standard tier for someone doing the work.</li>
+        <li><strong>Admin (Configure)</strong> — Configuration access. The user can change the function’s settings, policies, rules, and templates. This is the governance tier — it controls how the function behaves for everyone. Admin access always includes Read/Write capabilities.</li>
+      </ul>
+      <h3 class="sub-heading">How Access Requests Work</h3>
+      <p class="body-text">From the Request Access page, a user can:</p>
+      <ul class="bullet-list">
+        <li>Browse all functions organised by group.</li>
+        <li>See which functions they currently have access to, at what tier, and when the access expires.</li>
+        <li>See which functions they do not currently have access to.</li>
+        <li>Request access to any function at any tier. The request includes a justification.</li>
+        <li>The request routes through the appropriate approval chain (department head, building administrator, or district administrator depending on the function and tier).</li>
+        <li>If access is approved, it is granted with an effective date and optional expiry date.</li>
+        <li>If access is denied or revoked, the approver must provide a comment that is visible to the user.</li>
+      </ul>
+      <h3 class="sub-heading">Summary</h3>
+      <p class="body-text"><strong>148 functions</strong> across <strong>28 groups</strong>. Each function has View Only, Read/Write, and Admin tiers. Every access grant is logged in the audit trail.</p>
+
+      <h2 class="section-heading" id="section-2">2. Attendance &amp; Daily Operations</h2>
+      <p class="body-text">Tracking student presence, managing late arrivals, early dismissals, and daily procedures.</p>
+      <p class="body-text"><strong>5 functions in this group:</strong></p>
+      <h3 class="sub-heading">ATT-001: Attendance Taking</h3>
+      <p class="body-text">Recording student attendance for classes, homeroom, and events.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View attendance records and history for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Mark students present, absent, tardy, or excused. Record attendance for assigned classes.</li>
+        <li><strong>Admin:</strong> Configure attendance policies, define absence categories, set chronic absenteeism thresholds, and manage automated follow-up rules.</li>
+      </ul>
+      <h3 class="sub-heading">ATT-002: Late Arrival Processing</h3>
+      <p class="body-text">Checking in students who arrive after the start of the school day.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View late arrival records and tardy reports.</li>
+        <li><strong>Read/Write:</strong> Check in late students, record reasons, print hall passes to class.</li>
+        <li><strong>Admin:</strong> Configure tardy policies, escalation thresholds, and automated parent notification triggers.</li>
+      </ul>
+      <h3 class="sub-heading">ATT-003: Early Dismissal</h3>
+      <p class="body-text">Processing students leaving before the end of the school day.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View early dismissal records.</li>
+        <li><strong>Read/Write:</strong> Process early pickup requests, verify authorised adults against custody records, and release students.</li>
+        <li><strong>Admin:</strong> Configure early dismissal policies and authorisation requirements.</li>
+      </ul>
+      <h3 class="sub-heading">ATT-004: Absence Follow-Up</h3>
+      <p class="body-text">Contacting families about unexplained absences.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the follow-up queue and contact history.</li>
+        <li><strong>Read/Write:</strong> Make contact attempts, log outcomes, and escalate unresolved absences.</li>
+        <li><strong>Admin:</strong> Configure follow-up timelines, automated outreach rules, and escalation chains.</li>
+      </ul>
+      <h3 class="sub-heading">ATT-005: Hall Passes</h3>
+      <p class="body-text">Managing student movement during class time.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View active passes and pass history.</li>
+        <li><strong>Read/Write:</strong> Approve pass requests, issue passes, and record returns.</li>
+        <li><strong>Admin:</strong> Configure pass limits, duration defaults, and destination options.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-3">3. Teaching &amp; Learning</h2>
+      <p class="body-text">Lesson delivery, assignments, grading, and classroom management.</p>
+      <p class="body-text"><strong>9 functions in this group:</strong></p>
+      <h3 class="sub-heading">TCH-001: Lesson Planning</h3>
+      <p class="body-text">Creating and managing lessons, resources, and learning objectives.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View lesson plans, resources, and curriculum maps for classes in your scope.</li>
+        <li><strong>Read/Write:</strong> Create, edit, and publish lessons. Attach resources. Tag learning objectives. Record lessons.</li>
+        <li><strong>Admin:</strong> Configure lesson templates, manage the lesson bank, and set sharing policies across departments.</li>
+      </ul>
+      <h3 class="sub-heading">TCH-002: Assignments &amp; Submissions</h3>
+      <p class="body-text">Creating assignments and managing student submissions.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View assignments, submission status, and due dates.</li>
+        <li><strong>Read/Write:</strong> Create and publish assignments. Accept and review submissions. Return work with feedback.</li>
+        <li><strong>Admin:</strong> Configure assignment types, submission policies, late work rules, and plagiarism detection settings.</li>
+      </ul>
+      <h3 class="sub-heading">TCH-003: Grade Book</h3>
+      <p class="body-text">Recording and managing student grades.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View grades for students in your scope (teachers see their classes; parents see their children; students see their own).</li>
+        <li><strong>Read/Write:</strong> Enter grades, calculate averages, post marks, and manage grade categories.</li>
+        <li><strong>Admin:</strong> Configure grading scales, grade book structures, weighting rules, and grading period deadlines.</li>
+      </ul>
+      <h3 class="sub-heading">TCH-004: Report Cards</h3>
+      <p class="body-text">Generating and distributing periodic progress reports.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View report cards for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Write narrative comments, submit report cards for approval, generate individual reports.</li>
+        <li><strong>Admin:</strong> Configure report card templates, comment banks, approval workflows, and distribution schedules.</li>
+      </ul>
+      <h3 class="sub-heading">TCH-005: Transcripts</h3>
+      <p class="body-text">Official academic records and credit history.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View transcripts for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Generate transcripts, process transcript requests, and manage transfer credits.</li>
+        <li><strong>Admin:</strong> Configure transcript templates, credit calculation rules, and GPA formulas.</li>
+      </ul>
+      <h3 class="sub-heading">TCH-006: Quizzes &amp; Assessments</h3>
+      <p class="body-text">Creating and administering digital quizzes, tests, and assessments.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View assessment results and analytics.</li>
+        <li><strong>Read/Write:</strong> Create quizzes, manage the question bank, administer assessments, and record results.</li>
+        <li><strong>Admin:</strong> Configure assessment types, proctoring settings, and the common assessment framework.</li>
+      </ul>
+      <h3 class="sub-heading">TCH-007: AI Study Tool</h3>
+      <p class="body-text">Student-facing AI study assistant with learning signals.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View AI study session history and learning signals for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Not applicable — students interact with the tool directly; teachers receive signals.</li>
+        <li><strong>Admin:</strong> Configure subject availability, opt-out policies, and counsellor visibility settings for learning signals.</li>
+      </ul>
+      <h3 class="sub-heading">TCH-008: Curriculum Management</h3>
+      <p class="body-text">Defining and tracking scope and sequence, standards alignment, and curriculum coverage.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View curriculum maps, scope and sequence documents, and coverage reports.</li>
+        <li><strong>Read/Write:</strong> Create and edit scope and sequence. Map standards to units. Track delivery against plan.</li>
+        <li><strong>Admin:</strong> Configure curriculum frameworks, adopt standards, and manage department-level curriculum approval.</li>
+      </ul>
+      <h3 class="sub-heading">TCH-009: Class Moments</h3>
+      <p class="body-text">Uploading and sharing classroom photos with families.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View class moment photos for classes in your scope.</li>
+        <li><strong>Read/Write:</strong> Upload photos, write captions, and manage the class photo feed.</li>
+        <li><strong>Admin:</strong> Configure photo privacy policies, AI face detection settings, and moderation rules.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-4">4. Student Records</h2>
+      <p class="body-text">Core student information, enrolment status, and demographic data.</p>
+      <p class="body-text"><strong>8 functions in this group:</strong></p>
+      <h3 class="sub-heading">STU-001: Student Profiles</h3>
+      <p class="body-text">Viewing and managing student demographic information, contacts, and family relationships.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View student profile information for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Edit student demographic data, manage family relationships, and update contact information.</li>
+        <li><strong>Admin:</strong> Configure required fields, custom field definitions, and profile data validation rules.</li>
+      </ul>
+      <h3 class="sub-heading">STU-002: Student Profile Customisation</h3>
+      <p class="body-text">Student-editable profile fields: bio, interests, avatar, motto.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View student-created profile content.</li>
+        <li><strong>Read/Write:</strong> Students edit their own profile. Teachers approve avatars.</li>
+        <li><strong>Admin:</strong> Configure which profile fields are available and avatar approval requirements.</li>
+      </ul>
+      <h3 class="sub-heading">STU-003: Enrolment &amp; Admissions</h3>
+      <p class="body-text">Processing applications, managing waitlists, and onboarding new students.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View application status and enrolment pipeline data.</li>
+        <li><strong>Read/Write:</strong> Process applications, manage waitlists, generate offers, and complete onboarding checklists.</li>
+        <li><strong>Admin:</strong> Configure application forms, intake capacities, lottery rules, and onboarding checklist templates.</li>
+      </ul>
+      <h3 class="sub-heading">STU-004: Withdrawal &amp; Transfer</h3>
+      <p class="body-text">Processing student withdrawals and record transfers.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View withdrawal status and transfer records.</li>
+        <li><strong>Read/Write:</strong> Initiate withdrawals, manage exit checklists, and process record transfers.</li>
+        <li><strong>Admin:</strong> Configure withdrawal checklist templates, records retention policies, and transfer protocols.</li>
+      </ul>
+      <h3 class="sub-heading">STU-005: Graduation Management</h3>
+      <p class="body-text">Tracking graduation requirements, eligibility audits, and ceremony logistics.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View graduation eligibility status for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Run graduation audits, manage ceremony logistics, generate diplomas.</li>
+        <li><strong>Admin:</strong> Configure graduation requirements, ceremony settings, and diploma templates.</li>
+      </ul>
+      <h3 class="sub-heading">STU-006: Digital ID Cards</h3>
+      <p class="body-text">Generating and managing student and staff identification cards.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View ID card status.</li>
+        <li><strong>Read/Write:</strong> Generate and issue ID cards, manage replacements.</li>
+        <li><strong>Admin:</strong> Configure ID card templates, photo requirements, and access permissions tied to ID.</li>
+      </ul>
+      <h3 class="sub-heading">STU-007: Locker Management</h3>
+      <p class="body-text">Assigning lockers, managing combinations, and handling locker issues.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View locker assignments.</li>
+        <li><strong>Read/Write:</strong> Assign and unassign lockers, reset combinations, and process change requests.</li>
+        <li><strong>Admin:</strong> Configure locker inventory, zones, and assignment policies.</li>
+      </ul>
+      <h3 class="sub-heading">STU-008: Parking Permits</h3>
+      <p class="body-text">Managing student parking applications, permits, and violations.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View parking permit status.</li>
+        <li><strong>Read/Write:</strong> Process applications, issue permits, and record violations.</li>
+        <li><strong>Admin:</strong> Configure permit fees, available spots, violation types, and consequence policies.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-5">5. Scheduling &amp; Calendar</h2>
+      <p class="body-text">Academic schedules, timetables, course selection, and the school calendar.</p>
+      <p class="body-text"><strong>5 functions in this group:</strong></p>
+      <h3 class="sub-heading">SCH-001: Master Schedule</h3>
+      <p class="body-text">Building and maintaining the school’s master course schedule.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the master schedule, section assignments, and room allocations.</li>
+        <li><strong>Read/Write:</strong> Create and modify sections, assign teachers and rooms, run the scheduling solver.</li>
+        <li><strong>Admin:</strong> Configure scheduling constraints, solver parameters, and the scheduling timeline.</li>
+      </ul>
+      <h3 class="sub-heading">SCH-002: Course Selection</h3>
+      <p class="body-text">Managing the course catalogue and student course selection process.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the course catalogue and selection status for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Publish course offerings, process student selections, review counsellor flags, and manage the add/drop period.</li>
+        <li><strong>Admin:</strong> Configure the selection timeline, prerequisite rules, alternate choice requirements, and parent approval settings.</li>
+      </ul>
+      <h3 class="sub-heading">SCH-003: School Calendar</h3>
+      <p class="body-text">Managing the academic calendar, including school days, holidays, and events.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the school calendar and event schedule.</li>
+        <li><strong>Read/Write:</strong> Create and modify calendar events, manage school day designations.</li>
+        <li><strong>Admin:</strong> Configure the district calendar framework, testing windows, and calendar approval workflow.</li>
+      </ul>
+      <h3 class="sub-heading">SCH-004: Daily Coverage &amp; Substitutes</h3>
+      <p class="body-text">Managing teacher absences and substitute coverage for the day.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View daily coverage status and substitute assignments.</li>
+        <li><strong>Read/Write:</strong> Assign substitutes to open classes, manage cover arrangements, and process sub marketplace requests.</li>
+        <li><strong>Admin:</strong> Configure substitute matching preferences, pay rates, and cancellation policies.</li>
+      </ul>
+      <h3 class="sub-heading">SCH-005: Room &amp; Facility Booking</h3>
+      <p class="body-text">Reserving rooms, gyms, fields, and other school spaces.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View room availability and existing bookings.</li>
+        <li><strong>Read/Write:</strong> Create and modify room bookings, manage setup requirements.</li>
+        <li><strong>Admin:</strong> Configure bookable spaces, booking policies, and approval requirements.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-6">6. Behaviour &amp; Discipline</h2>
+      <p class="body-text">Student conduct management, incident documentation, and disciplinary processes.</p>
+      <p class="body-text"><strong>2 functions in this group:</strong></p>
+      <h3 class="sub-heading">BEH-001: Behaviour Incidents</h3>
+      <p class="body-text">Documenting student behaviour events and disciplinary actions.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View behaviour records for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Log incidents, assign consequences, document interventions, and record positive behaviour entries.</li>
+        <li><strong>Admin:</strong> Configure behaviour categories, consequence matrices, escalation rules, and positive behaviour frameworks.</li>
+      </ul>
+      <h3 class="sub-heading">BEH-002: Behaviour Intervention Plans</h3>
+      <p class="body-text">Creating and monitoring behaviour intervention plans (BIPs).</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View active BIPs for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Create BIPs, document progress, schedule reviews, and modify strategies.</li>
+        <li><strong>Admin:</strong> Configure BIP templates, review frequency requirements, and reporting formats.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-7">7. Health &amp; Wellness</h2>
+      <p class="body-text">Student health records, medication administration, screenings, and dietary management.</p>
+      <p class="body-text"><strong>5 functions in this group:</strong></p>
+      <h3 class="sub-heading">HLT-001: Health Records</h3>
+      <p class="body-text">Managing student medical conditions, allergies, immunisations, and physicals.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View health summary and alerts for students in your scope (role-filtered: teachers see accommodation-relevant alerts only).</li>
+        <li><strong>Read/Write:</strong> Create and update health records, document conditions, and manage immunisation compliance.</li>
+        <li><strong>Admin:</strong> Configure health record requirements, screening schedules, and compliance reporting.</li>
+      </ul>
+      <h3 class="sub-heading">HLT-002: Medication Administration</h3>
+      <p class="body-text">Managing prescribed medications, administering doses, and tracking compliance.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the medication schedule and administration history.</li>
+        <li><strong>Read/Write:</strong> Administer medications, log doses, record missed doses, and manage medication inventory.</li>
+        <li><strong>Admin:</strong> Configure medication policies, storage requirements, and parent notification rules.</li>
+      </ul>
+      <h3 class="sub-heading">HLT-003: Nurse Visits</h3>
+      <p class="body-text">Documenting student visits to the nurse’s office.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View visit records and patterns for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Log visits, record assessments, document outcomes, and notify parents.</li>
+        <li><strong>Admin:</strong> Configure visit categories, parent notification thresholds, and visit pattern alerting.</li>
+      </ul>
+      <h3 class="sub-heading">HLT-004: Health Screenings</h3>
+      <p class="body-text">Scheduling and recording vision, hearing, and other health screenings.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View screening results and follow-up status.</li>
+        <li><strong>Read/Write:</strong> Schedule screenings, record results, and manage follow-up referrals.</li>
+        <li><strong>Admin:</strong> Configure screening schedules, required screenings by grade, and compliance reporting.</li>
+      </ul>
+      <h3 class="sub-heading">HLT-005: Dietary Profiles &amp; Allergens</h3>
+      <p class="body-text">Managing student dietary needs, allergies, and POS allergen alerts.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View dietary profiles and allergen information for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Update dietary profiles, manage allergen alerts, and respond to allergen incidents.</li>
+        <li><strong>Admin:</strong> Configure allergen severity levels, POS alert behaviour (dismissible vs. hard stop), and labelling requirements.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-8">8. Counselling &amp; Student Support</h2>
+      <p class="body-text">Counselling services, referrals, intervention planning, and student wellbeing.</p>
+      <p class="body-text"><strong>7 functions in this group:</strong></p>
+      <h3 class="sub-heading">COU-001: Counselling Caseload</h3>
+      <p class="body-text">Managing the counsellor’s assigned students and session records.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View caseload assignments (counsellor and administrator only).</li>
+        <li><strong>Read/Write:</strong> Add and remove students from caseload, document sessions, and manage case notes.</li>
+        <li><strong>Admin:</strong> Configure caseload assignment rules, maximum caseload sizes, and transfer protocols.</li>
+      </ul>
+      <h3 class="sub-heading">COU-002: Referrals</h3>
+      <p class="body-text">Submitting and processing referrals to the counselling team.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View referral status for referrals you submitted.</li>
+        <li><strong>Read/Write:</strong> Submit referrals, triage incoming referrals, and document outcomes.</li>
+        <li><strong>Admin:</strong> Configure referral types, triage priorities, and routing rules.</li>
+      </ul>
+      <h3 class="sub-heading">COU-003: MTSS/RTI Interventions</h3>
+      <p class="body-text">Creating and monitoring multi-tier intervention plans.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View intervention plans and progress for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Create intervention plans, document progress monitoring data, schedule reviews, and adjust tiers.</li>
+        <li><strong>Admin:</strong> Configure MTSS tier definitions, progress monitoring schedules, and review cycle requirements.</li>
+      </ul>
+      <h3 class="sub-heading">COU-004: Wellbeing Check-Ins</h3>
+      <p class="body-text">Administering and reviewing student wellbeing pulse surveys.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View aggregated wellbeing trends (no individual responses unless counsellor).</li>
+        <li><strong>Read/Write:</strong> Create surveys, review individual responses, acknowledge alerts, and document follow-up.</li>
+        <li><strong>Admin:</strong> Configure survey questions, frequency, target audiences, and alert thresholds.</li>
+      </ul>
+      <h3 class="sub-heading">COU-005: IEP &amp; 504 Plans</h3>
+      <p class="body-text">Managing Individualised Education Programmes and Section 504 accommodation plans.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View accommodation summaries for students in your scope (teachers see their students’ accommodations).</li>
+        <li><strong>Read/Write:</strong> Create and edit plans, track service delivery, schedule annual reviews, and manage evaluation referrals.</li>
+        <li><strong>Admin:</strong> Configure plan templates, service tracking categories, and compliance reporting.</li>
+      </ul>
+      <h3 class="sub-heading">COU-006: Mandatory Reporting</h3>
+      <p class="body-text">Documenting mandated reporter filings for suspected abuse or neglect.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Not available — access restricted to reporter, lead counsellor, and administrator only.</li>
+        <li><strong>Read/Write:</strong> File mandatory reports, document authority contacts, and record investigation outcomes.</li>
+        <li><strong>Admin:</strong> Configure reporting chain, documentation requirements, and retention policies. Highest access restriction.</li>
+      </ul>
+      <h3 class="sub-heading">COU-007: Coordinated Care</h3>
+      <p class="body-text">Shared observations between the nurse and counsellor for coordinated student support.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View coordinated care notes (nurse and counsellor for the student only).</li>
+        <li><strong>Read/Write:</strong> Create shared observations visible to both health and counselling teams.</li>
+        <li><strong>Admin:</strong> Configure care coordination protocols and shared access rules.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-9">9. Communications</h2>
+      <p class="body-text">Messaging, announcements, notifications, and content moderation.</p>
+      <p class="body-text"><strong>4 functions in this group:</strong></p>
+      <h3 class="sub-heading">COM-001: Messaging</h3>
+      <p class="body-text">Sending and receiving messages between staff, students, and parents.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own message threads.</li>
+        <li><strong>Read/Write:</strong> Send messages, reply to threads, and manage your message inbox.</li>
+        <li><strong>Admin:</strong> Configure delivery windows, quiet hours, message retention policies, and role-based messaging permissions.</li>
+      </ul>
+      <h3 class="sub-heading">COM-002: Announcements</h3>
+      <p class="body-text">Publishing school-wide, grade-level, or class-level announcements.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View announcements in your scope.</li>
+        <li><strong>Read/Write:</strong> Create and publish announcements, manage acknowledgement tracking.</li>
+        <li><strong>Admin:</strong> Configure announcement categories, approval requirements, and distribution rules.</li>
+      </ul>
+      <h3 class="sub-heading">COM-003: Content Moderation</h3>
+      <p class="body-text">Reviewing and managing flagged messages and content.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View moderation log and flagged content statistics.</li>
+        <li><strong>Read/Write:</strong> Review flagged messages, approve or block content, and escalate to counsellor.</li>
+        <li><strong>Admin:</strong> Configure moderation policies at platform, district, and building levels. Manage keyword lists and AI sensitivity thresholds.</li>
+      </ul>
+      <h3 class="sub-heading">COM-004: Mass Notifications</h3>
+      <p class="body-text">Sending emergency and mass notifications via SMS, email, and push.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View notification history and delivery reports.</li>
+        <li><strong>Read/Write:</strong> Send mass notifications to targeted audiences.</li>
+        <li><strong>Admin:</strong> Configure notification channels, templates, and emergency broadcast protocols.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-10">10. Meetings &amp; Conferences</h2>
+      <p class="body-text">Video meetings, parent-teacher conferences, and collaborative sessions.</p>
+      <p class="body-text"><strong>2 functions in this group:</strong></p>
+      <h3 class="sub-heading">MTG-001: Meetings</h3>
+      <p class="body-text">Scheduling and conducting video meetings with AI notes.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View meeting schedules and shared notes.</li>
+        <li><strong>Read/Write:</strong> Create meetings, manage invitations, conduct meetings, and review AI-generated minutes.</li>
+        <li><strong>Admin:</strong> Configure meeting types, recording policies, and AI transcription settings.</li>
+      </ul>
+      <h3 class="sub-heading">MTG-002: Parent-Teacher Conferences</h3>
+      <p class="body-text">Managing conference scheduling, booking, and follow-up.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View conference schedules and your bookings.</li>
+        <li><strong>Read/Write:</strong> Set availability, manage bookings, and document conference outcomes.</li>
+        <li><strong>Admin:</strong> Configure conference periods, time slot durations, booking windows, and follow-up requirements.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-11">11. Human Resources</h2>
+      <p class="body-text">Employee management, recruitment, leave, training, and professional development.</p>
+      <p class="body-text"><strong>6 functions in this group:</strong></p>
+      <h3 class="sub-heading">HR-001: Employee Records</h3>
+      <p class="body-text">Managing staff demographic data, positions, and employment status.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the staff directory and basic profile information.</li>
+        <li><strong>Read/Write:</strong> Edit employee records, manage position assignments, and update employment status.</li>
+        <li><strong>Admin:</strong> Configure position types, pay grades, and organisational structure.</li>
+      </ul>
+      <h3 class="sub-heading">HR-002: Recruitment &amp; Hiring</h3>
+      <p class="body-text">Posting jobs, managing applications, conducting interviews, and extending offers.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View job postings and application pipeline status.</li>
+        <li><strong>Read/Write:</strong> Create postings, review applications, schedule interviews, record evaluations, and extend offers.</li>
+        <li><strong>Admin:</strong> Configure hiring workflow stages, screening question templates, interview rubrics, and offer templates.</li>
+      </ul>
+      <h3 class="sub-heading">HR-003: Leave Management</h3>
+      <p class="body-text">Submitting, approving, and tracking employee leave requests.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own leave balances and history.</li>
+        <li><strong>Read/Write:</strong> Submit leave requests, approve requests for your reports, and manage delegation during absence.</li>
+        <li><strong>Admin:</strong> Configure leave types, accrual rules, approval chains, and blackout periods.</li>
+      </ul>
+      <h3 class="sub-heading">HR-004: Training &amp; Certifications</h3>
+      <p class="body-text">Assigning, tracking, and verifying required training and professional certifications.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own training completions and upcoming requirements.</li>
+        <li><strong>Read/Write:</strong> Assign training, record completions, upload certifications, and manage renewal tracking.</li>
+        <li><strong>Admin:</strong> Configure required training by role, certification types, renewal schedules, and alert timelines.</li>
+      </ul>
+      <h3 class="sub-heading">HR-005: Professional Development</h3>
+      <p class="body-text">Managing PD pathways, observation cycles, and coaching.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own PD record and growth pathway.</li>
+        <li><strong>Read/Write:</strong> Conduct walkthroughs, record observations, manage coaching cycles, and recommend PD.</li>
+        <li><strong>Admin:</strong> Configure PD frameworks, observation rubrics, and coaching cycle templates.</li>
+      </ul>
+      <h3 class="sub-heading">HR-006: Onboarding</h3>
+      <p class="body-text">Managing new hire checklists and account provisioning.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own onboarding checklist status.</li>
+        <li><strong>Read/Write:</strong> Complete onboarding tasks, upload documents, and confirm readiness.</li>
+        <li><strong>Admin:</strong> Configure onboarding checklist templates, document requirements, and provisioning rules.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-12">12. Finance &amp; Payments</h2>
+      <p class="body-text">Family billing, fee management, financial aid, and fundraising.</p>
+      <p class="body-text"><strong>4 functions in this group:</strong></p>
+      <h3 class="sub-heading">FIN-001: Family Billing</h3>
+      <p class="body-text">Managing invoices, payments, and family account balances.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own family’s balance and payment history.</li>
+        <li><strong>Read/Write:</strong> Process payments, issue invoices, apply credits, and manage payment plans.</li>
+        <li><strong>Admin:</strong> Configure fee schedules, payment gateway settings, late payment policies, and financial aid rules.</li>
+      </ul>
+      <h3 class="sub-heading">FIN-002: Financial Aid</h3>
+      <p class="body-text">Processing financial aid applications and fee waivers.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View financial aid status for families in your scope.</li>
+        <li><strong>Read/Write:</strong> Review applications, award financial aid, and process fee waivers.</li>
+        <li><strong>Admin:</strong> Configure financial aid criteria, award levels, and eligibility rules.</li>
+      </ul>
+      <h3 class="sub-heading">FIN-003: Fundraising</h3>
+      <p class="body-text">Creating and managing fundraising campaigns.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View active campaigns and progress.</li>
+        <li><strong>Read/Write:</strong> Create campaigns, track donations, and generate tax receipts.</li>
+        <li><strong>Admin:</strong> Configure campaign types, donation processing, and reporting.</li>
+      </ul>
+      <h3 class="sub-heading">FIN-004: Budget Management</h3>
+      <p class="body-text">Tracking departmental budgets, expenditures, and allocations.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View budget status for your department or scope.</li>
+        <li><strong>Read/Write:</strong> Submit budget requests and track expenditures.</li>
+        <li><strong>Admin:</strong> Configure budget allocations, approval thresholds, and fiscal year settings.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-13">13. Transportation</h2>
+      <p class="body-text">Routes, vehicles, drivers, ridership, and fleet management.</p>
+      <p class="body-text"><strong>5 functions in this group:</strong></p>
+      <h3 class="sub-heading">TRN-001: Route Management</h3>
+      <p class="body-text">Planning, optimising, and modifying bus routes and stops.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View route maps, stop assignments, and student rosters per route.</li>
+        <li><strong>Read/Write:</strong> Create and modify routes, assign students to stops, and manage route changes.</li>
+        <li><strong>Admin:</strong> Configure routing parameters, optimisation rules, and route approval workflows.</li>
+      </ul>
+      <h3 class="sub-heading">TRN-002: Fleet Management</h3>
+      <p class="body-text">Tracking vehicles, maintenance, repairs, and parts inventory.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View vehicle inventory and maintenance status.</li>
+        <li><strong>Read/Write:</strong> Log repairs, track parts usage, manage vehicle components, and record fuel events.</li>
+        <li><strong>Admin:</strong> Configure maintenance schedules, parts reorder levels, lifecycle thresholds, and fleet replacement planning.</li>
+      </ul>
+      <h3 class="sub-heading">TRN-003: Driver Operations</h3>
+      <p class="body-text">Managing driver assignments, inspections, check-ins, and communication.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your assigned route and daily schedule.</li>
+        <li><strong>Read/Write:</strong> Complete pre/post-trip inspections, check in students, log odometer readings, report delays and incidents.</li>
+        <li><strong>Admin:</strong> Configure inspection checklists, check-in methods, and driver assignment rules.</li>
+      </ul>
+      <h3 class="sub-heading">TRN-004: Driver Credentials</h3>
+      <p class="body-text">Tracking CDL, medical certificates, background checks, and drug testing.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own credential status and expiration dates.</li>
+        <li><strong>Read/Write:</strong> Upload credentials, record testing events, and manage renewal tracking.</li>
+        <li><strong>Admin:</strong> Configure credential requirements, testing schedules, and alert timelines.</li>
+      </ul>
+      <h3 class="sub-heading">TRN-005: Field Trips &amp; Special Trips</h3>
+      <p class="body-text">Coordinating transportation for field trips, athletic events, and special trips.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View trip assignments and schedules.</li>
+        <li><strong>Read/Write:</strong> Create trip requests, assign vehicles and drivers, and manage trip logistics.</li>
+        <li><strong>Admin:</strong> Configure trip request workflows, approval requirements, and cost allocation rules.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-14">14. Food Service</h2>
+      <p class="body-text">Menus, point of sale, dietary management, inventory, and federal reporting.</p>
+      <p class="body-text"><strong>5 functions in this group:</strong></p>
+      <h3 class="sub-heading">FDS-001: Menu Planning</h3>
+      <p class="body-text">Building menu cycles, managing recipes, and checking nutritional compliance.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View current menus and nutritional information.</li>
+        <li><strong>Read/Write:</strong> Create menu cycles, manage recipes, and verify meal pattern compliance.</li>
+        <li><strong>Admin:</strong> Configure nutrition standards, menu approval workflows, and meal pattern rules.</li>
+      </ul>
+      <h3 class="sub-heading">FDS-002: Point of Sale</h3>
+      <p class="body-text">Processing meal transactions, managing student accounts, and tracking meal counts.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View transaction history and meal count reports.</li>
+        <li><strong>Read/Write:</strong> Process meal transactions, manage account balances, and track service counts.</li>
+        <li><strong>Admin:</strong> Configure POS settings, price schedules, and allergen alert behaviour.</li>
+      </ul>
+      <h3 class="sub-heading">FDS-003: Free &amp; Reduced Meals</h3>
+      <p class="body-text">Managing eligibility determinations, direct certification, and verification.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Not available for general staff — eligibility data is restricted.</li>
+        <li><strong>Read/Write:</strong> Process eligibility applications, run direct certification, and manage verification sampling.</li>
+        <li><strong>Admin:</strong> Configure eligibility criteria, verification procedures, and confidentiality controls. Access restricted to food service manager and administrator.</li>
+      </ul>
+      <h3 class="sub-heading">FDS-004: Food Inventory &amp; Procurement</h3>
+      <p class="body-text">Tracking food inventory, managing USDA commodities, and coordinating procurement.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View inventory levels and commodity status.</li>
+        <li><strong>Read/Write:</strong> Update inventory, log waste, process commodity receipts, and submit procurement requisitions.</li>
+        <li><strong>Admin:</strong> Configure inventory categories, waste tracking, reorder points, and commodity management.</li>
+      </ul>
+      <h3 class="sub-heading">FDS-005: Production Records</h3>
+      <p class="body-text">Documenting daily meal production for USDA compliance.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View production records and compliance reports.</li>
+        <li><strong>Read/Write:</strong> Record daily production data, link to meal counts, and document compliance.</li>
+        <li><strong>Admin:</strong> Configure production record templates and reporting schedules.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-15">15. Facilities &amp; Maintenance</h2>
+      <p class="body-text">Building management, maintenance, custodial operations, and safety compliance.</p>
+      <p class="body-text"><strong>5 functions in this group:</strong></p>
+      <h3 class="sub-heading">FAC-001: Maintenance Tickets</h3>
+      <p class="body-text">Submitting and managing facility maintenance requests.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your submitted tickets and their status.</li>
+        <li><strong>Read/Write:</strong> Submit tickets, triage and assign work, update progress, and close completed tickets.</li>
+        <li><strong>Admin:</strong> Configure ticket categories, priority rules, SLA policies, and vendor assignments.</li>
+      </ul>
+      <h3 class="sub-heading">FAC-002: Preventive Maintenance</h3>
+      <p class="body-text">Scheduling and tracking recurring maintenance tasks.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View maintenance schedules and compliance status.</li>
+        <li><strong>Read/Write:</strong> Schedule tasks, record completions, and document inspections.</li>
+        <li><strong>Admin:</strong> Configure maintenance schedules, compliance requirements, and deferred maintenance tracking.</li>
+      </ul>
+      <h3 class="sub-heading">FAC-003: Custodial Management</h3>
+      <p class="body-text">Managing custodial zones, cleaning routes, and supply inventory.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View zone assignments and supply levels.</li>
+        <li><strong>Read/Write:</strong> Manage zone assignments, record cleaning completions, and track supply usage.</li>
+        <li><strong>Admin:</strong> Configure zones, cleaning standards, and supply reorder policies.</li>
+      </ul>
+      <h3 class="sub-heading">FAC-004: Building Safety &amp; Compliance</h3>
+      <p class="body-text">Managing fire safety, building code compliance, and environmental monitoring.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View compliance inspection status and safety reports.</li>
+        <li><strong>Read/Write:</strong> Record inspections, document compliance, and manage corrective actions.</li>
+        <li><strong>Admin:</strong> Configure inspection schedules, compliance requirements, and environmental monitoring thresholds.</li>
+      </ul>
+      <h3 class="sub-heading">FAC-005: Energy &amp; Sustainability</h3>
+      <p class="body-text">Tracking utility consumption and sustainability initiatives.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View energy consumption data and trends.</li>
+        <li><strong>Read/Write:</strong> Record utility readings and document sustainability initiatives.</li>
+        <li><strong>Admin:</strong> Configure utility tracking, baseline targets, and reporting.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-16">16. IT &amp; Technology</h2>
+      <p class="body-text">Device management, helpdesk, software, network, and IT security.</p>
+      <p class="body-text"><strong>9 functions in this group:</strong></p>
+      <h3 class="sub-heading">IT-001: Helpdesk Tickets</h3>
+      <p class="body-text">Submitting and managing IT support requests.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your submitted tickets and their status.</li>
+        <li><strong>Read/Write:</strong> Submit tickets, triage and assign, update progress, assign to vendors, and resolve.</li>
+        <li><strong>Admin:</strong> Configure ticket categories, SLA policies, routing rules, and vendor assignment permissions.</li>
+      </ul>
+      <h3 class="sub-heading">IT-002: Device Fleet</h3>
+      <p class="body-text">Managing the school’s device inventory, assignments, and lifecycle.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your assigned device and its status.</li>
+        <li><strong>Read/Write:</strong> Assign and unassign devices, process returns, manage lifecycle events, and track end-of-life options.</li>
+        <li><strong>Admin:</strong> Configure device categories, assignment policies, refresh cycles, and purchase option settings.</li>
+      </ul>
+      <h3 class="sub-heading">IT-003: Device Selection</h3>
+      <p class="body-text">Configuring and managing device choice options for students and staff.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View available device options and your current selection.</li>
+        <li><strong>Read/Write:</strong> Make a device selection, approve selections (as parent or supervisor).</li>
+        <li><strong>Admin:</strong> Configure available device options, OS choices, and approval requirements.</li>
+      </ul>
+      <h3 class="sub-heading">IT-004: Software &amp; Licensing</h3>
+      <p class="body-text">Managing software licences, deployments, and account provisioning.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the software catalogue and your assigned licences.</li>
+        <li><strong>Read/Write:</strong> Request software, manage licence assignments, and process provisioning.</li>
+        <li><strong>Admin:</strong> Configure the software catalogue, licence pools, and approval workflows.</li>
+      </ul>
+      <h3 class="sub-heading">IT-005: Credential Vault</h3>
+      <p class="body-text">Storing and managing encrypted IT administrative credentials.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Not available to non-IT staff. IT staff: view credential names and metadata (not passwords).</li>
+        <li><strong>Read/Write:</strong> View, copy, and modify credentials for services in your access tier.</li>
+        <li><strong>Admin:</strong> Create credentials, manage access tiers, configure rotation schedules, and review access audit logs.</li>
+      </ul>
+      <h3 class="sub-heading">IT-006: System Monitoring</h3>
+      <p class="body-text">Monitoring infrastructure status, uptime, and incident history.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View current system status and recent incidents.</li>
+        <li><strong>Read/Write:</strong> Update system status, log incidents, and document resolutions.</li>
+        <li><strong>Admin:</strong> Configure monitored systems, alert thresholds, and escalation rules.</li>
+      </ul>
+      <h3 class="sub-heading">IT-007: Network &amp; Security</h3>
+      <p class="body-text">Managing network configuration, content filtering, and security policies.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View network status and security reports.</li>
+        <li><strong>Read/Write:</strong> Manage content filters, guest network access, and respond to security incidents.</li>
+        <li><strong>Admin:</strong> Configure network policies, SSO integration, directory sync, and security settings.</li>
+      </ul>
+      <h3 class="sub-heading">IT-008: Phone System</h3>
+      <p class="body-text">Managing VOIP extensions, auto-attendant, and call routing.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the extension directory.</li>
+        <li><strong>Read/Write:</strong> Assign extensions, configure voicemail, and manage routing.</li>
+        <li><strong>Admin:</strong> Configure the auto-attendant, hunt groups, and system-wide call routing.</li>
+      </ul>
+      <h3 class="sub-heading">IT-009: Configuration Documentation</h3>
+      <p class="body-text">Managing versioned IT infrastructure documentation and diagrams.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View current configuration documents.</li>
+        <li><strong>Read/Write:</strong> Create and update documents, upload diagrams, and manage versions.</li>
+        <li><strong>Admin:</strong> Configure document categories and retention policies.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-17">17. Library</h2>
+      <p class="body-text">Catalogue management, circulation, reading programmes, and library space.</p>
+      <p class="body-text"><strong>4 functions in this group:</strong></p>
+      <h3 class="sub-heading">LIB-001: Catalogue Management</h3>
+      <p class="body-text">Adding, editing, and managing items in the library catalogue.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Search and browse the catalogue.</li>
+        <li><strong>Read/Write:</strong> Add items (ISBN or AI shelf scan), edit records, assign physical locations, and manage weeding.</li>
+        <li><strong>Admin:</strong> Configure catalogue settings, location definitions, and bibliographic database integration.</li>
+      </ul>
+      <h3 class="sub-heading">LIB-002: Circulation</h3>
+      <p class="body-text">Checking items in and out, managing holds, renewals, and overdue tracking.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own checkouts, holds, and due dates.</li>
+        <li><strong>Read/Write:</strong> Process checkouts and check-ins, manage the book drop, place and fulfil holds, and process fines.</li>
+        <li><strong>Admin:</strong> Configure loan periods, renewal limits, fine policies (or fine-free), and overdue thresholds.</li>
+      </ul>
+      <h3 class="sub-heading">LIB-003: Reading Programmes</h3>
+      <p class="body-text">Creating and managing reading challenges, book reviews, and recommendations.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View active programmes and your reading progress.</li>
+        <li><strong>Read/Write:</strong> Create programmes, track student participation, manage reviews, and curate recommendations.</li>
+        <li><strong>Admin:</strong> Configure programme templates, verification rules, and recommendation engine settings.</li>
+      </ul>
+      <h3 class="sub-heading">LIB-004: Library Space</h3>
+      <p class="body-text">Managing library occupancy, study room bookings, and maker space equipment.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View space availability and current occupancy.</li>
+        <li><strong>Read/Write:</strong> Manage sign-ins, process study room bookings, and track maker space equipment.</li>
+        <li><strong>Admin:</strong> Configure capacity limits, booking policies, and maker space safety requirements.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-18">18. Athletics</h2>
+      <p class="body-text">Sports programmes, eligibility, game scheduling, officials, results, and student-athlete safety.</p>
+      <p class="body-text"><strong>10 functions in this group:</strong></p>
+      <h3 class="sub-heading">ATH-001: Sports Programmes</h3>
+      <p class="body-text">Configuring sports, seasons, levels, and coaching assignments.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View available sports and season schedules.</li>
+        <li><strong>Read/Write:</strong> Create and modify programmes, assign coaches, and manage season schedules.</li>
+        <li><strong>Admin:</strong> Configure sport definitions, eligibility requirements, and coaching credential rules.</li>
+      </ul>
+      <h3 class="sub-heading">ATH-002: Athletic Eligibility</h3>
+      <p class="body-text">Verifying student eligibility for athletic participation using live grade data.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View eligibility status for athletes in your scope.</li>
+        <li><strong>Read/Write:</strong> Run eligibility checks, certify rosters for state association reporting, and resolve eligibility flags.</li>
+        <li><strong>Admin:</strong> Configure eligibility rules (GPA thresholds, physical requirements), check frequency, and transfer waiver policies.</li>
+      </ul>
+      <h3 class="sub-heading">ATH-003: Rosters &amp; Team Management</h3>
+      <p class="body-text">Building and maintaining team rosters with jersey numbers, positions, and multi-sport tracking.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View team rosters.</li>
+        <li><strong>Read/Write:</strong> Add and remove roster members, assign jersey numbers and positions, and manage multi-sport conflicts.</li>
+        <li><strong>Admin:</strong> Configure roster size limits and roster certification requirements.</li>
+      </ul>
+      <h3 class="sub-heading">ATH-004: Game Scheduling</h3>
+      <p class="body-text">Scheduling games, managing CampusOS-to-CampusOS proposals, and coordinating facilities and transport.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the game schedule.</li>
+        <li><strong>Read/Write:</strong> Schedule games, send and respond to cross-school proposals, and coordinate facility bookings and bus requests.</li>
+        <li><strong>Admin:</strong> Configure conference memberships, scheduling constraints, and cross-school communication settings.</li>
+      </ul>
+      <h3 class="sub-heading">ATH-005: Officials Marketplace</h3>
+      <p class="body-text">Posting game assignments, booking officials, managing ratings, and processing payments.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View assigned officials for upcoming games.</li>
+        <li><strong>Read/Write:</strong> Post assignments, confirm bookings, rate officials after games, and approve payment processing.</li>
+        <li><strong>Admin:</strong> Configure fee schedules, assignment matching criteria, and rating policies.</li>
+      </ul>
+      <h3 class="sub-heading">ATH-006: Game Results &amp; Statistics</h3>
+      <p class="body-text">Recording scores, player stats, and maintaining the school record book.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View game results, standings, and statistics.</li>
+        <li><strong>Read/Write:</strong> Enter game results, record player statistics, and manage the all-time record book.</li>
+        <li><strong>Admin:</strong> Configure stat categories per sport and record book criteria.</li>
+      </ul>
+      <h3 class="sub-heading">ATH-007: Game Streaming &amp; Video</h3>
+      <p class="body-text">Configuring live streams, managing recordings, and creating highlight clips.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Watch live streams and recordings (based on event access level).</li>
+        <li><strong>Read/Write:</strong> Configure streams, manage recordings, and create highlight clips.</li>
+        <li><strong>Admin:</strong> Configure streaming equipment, default access levels, and portfolio integration policies.</li>
+      </ul>
+      <h3 class="sub-heading">ATH-008: Athletic Equipment</h3>
+      <p class="body-text">Managing equipment inventory, checkouts, returns, and safety compliance.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View equipment inventory and checkout status.</li>
+        <li><strong>Read/Write:</strong> Issue and return equipment, track condition, and manage safety certifications.</li>
+        <li><strong>Admin:</strong> Configure equipment categories, safety standards, and replacement charge policies.</li>
+      </ul>
+      <h3 class="sub-heading">ATH-009: Injury &amp; Concussion Protocol</h3>
+      <p class="body-text">Documenting injuries, managing the return-to-play concussion protocol, and tracking medical clearances.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View injury status and return-to-play clearance status.</li>
+        <li><strong>Read/Write:</strong> Document injuries, advance concussion protocol steps, and process medical clearance documents.</li>
+        <li><strong>Admin:</strong> Configure concussion protocol step definitions, minimum duration rules, and clearance requirements.</li>
+      </ul>
+      <h3 class="sub-heading">ATH-010: Athletic Ticketing</h3>
+      <p class="body-text">Configuring ticketed events, managing gate operations, and tracking revenue.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View ticket sales and event attendance.</li>
+        <li><strong>Read/Write:</strong> Set up ticketed events, process gate scans, manage season passes and comp lists.</li>
+        <li><strong>Admin:</strong> Configure ticket prices, season pass types, comp list rules, and revenue allocation.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-19">19. Clubs &amp; Student Life</h2>
+      <p class="body-text">Clubs, student government, elections, field trips, and co-curricular activities.</p>
+      <p class="body-text"><strong>4 functions in this group:</strong></p>
+      <h3 class="sub-heading">CLB-001: Activity Management</h3>
+      <p class="body-text">Creating and managing clubs, organisations, and co-curricular activities.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View available activities and your memberships.</li>
+        <li><strong>Read/Write:</strong> Create activities, manage rosters, track participation, and coordinate schedules.</li>
+        <li><strong>Admin:</strong> Configure activity types, participation requirements, and approval workflows.</li>
+      </ul>
+      <h3 class="sub-heading">CLB-002: Student Government &amp; Elections</h3>
+      <p class="body-text">Managing student government, club chartering, budgets, and elections.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View election results and government structure.</li>
+        <li><strong>Read/Write:</strong> Register candidates, administer elections, manage club charters, and oversee budgets.</li>
+        <li><strong>Admin:</strong> Configure election rules, chartering requirements, and budget governance policies.</li>
+      </ul>
+      <h3 class="sub-heading">CLB-003: Field Trips</h3>
+      <p class="body-text">Planning and coordinating field trips including consent, transportation, and chaperones.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View upcoming field trips and participation status.</li>
+        <li><strong>Read/Write:</strong> Create field trips, manage consent collection, assign chaperones, and coordinate transportation.</li>
+        <li><strong>Admin:</strong> Configure field trip approval workflows, consent requirements, and chaperone ratios.</li>
+      </ul>
+      <h3 class="sub-heading">CLB-004: Service Learning</h3>
+      <p class="body-text">Logging, approving, and tracking student service learning hours.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own service hours and progress toward requirements.</li>
+        <li><strong>Read/Write:</strong> Log hours, approve submitted hours, and track student progress.</li>
+        <li><strong>Admin:</strong> Configure hour requirements by grade level, approval rules, and reporting.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-20">20. Achievements &amp; Portfolio</h2>
+      <p class="body-text">Gamification, badges, points, rewards, and the student portfolio.</p>
+      <p class="body-text"><strong>3 functions in this group:</strong></p>
+      <h3 class="sub-heading">ACH-001: Achievements System</h3>
+      <p class="body-text">Managing badges, points, streaks, leaderboards, and rewards.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own achievements, points, and streaks.</li>
+        <li><strong>Read/Write:</strong> Award points and commendations to students, manage reward fulfilment.</li>
+        <li><strong>Admin:</strong> Configure achievement definitions, point values, reward catalogue, and enable/disable the system.</li>
+      </ul>
+      <h3 class="sub-heading">ACH-002: Student Portfolio</h3>
+      <p class="body-text">Building and sharing the student work portfolio.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View portfolios for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Add items to portfolio, annotate student work, and manage sharing.</li>
+        <li><strong>Admin:</strong> Configure portfolio categories, sharing policies, and connection to post-secondary readiness.</li>
+      </ul>
+      <h3 class="sub-heading">ACH-003: Post-Secondary Readiness</h3>
+      <p class="body-text">Managing pathways, milestone checklists, resume building, and certifications.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View readiness status for students in your scope.</li>
+        <li><strong>Read/Write:</strong> Update pathway progress, manage milestone checklists, and issue certifications.</li>
+        <li><strong>Admin:</strong> Configure pathways, milestone definitions, and certification types.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-21">21. Procurement</h2>
+      <p class="body-text">Purchase requisitions, vendor management, receiving, and inventory distribution.</p>
+      <p class="body-text"><strong>5 functions in this group:</strong></p>
+      <h3 class="sub-heading">PRC-001: Purchase Requisitions</h3>
+      <p class="body-text">Submitting and approving requests to purchase goods and services.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your submitted requisitions and their status.</li>
+        <li><strong>Read/Write:</strong> Submit requisitions, approve departmental requests, and track through the procurement pipeline.</li>
+        <li><strong>Admin:</strong> Configure approval chains, spending thresholds, and emergency requisition rules.</li>
+      </ul>
+      <h3 class="sub-heading">PRC-002: Purchase Orders</h3>
+      <p class="body-text">Converting approved requisitions into formal purchase orders and tracking delivery.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View PO status for requisitions you submitted.</li>
+        <li><strong>Read/Write:</strong> Create POs, select vendors, confirm pricing, issue to vendors, and track shipment status.</li>
+        <li><strong>Admin:</strong> Configure PO numbering, vendor selection rules, and budget commitment policies.</li>
+      </ul>
+      <h3 class="sub-heading">PRC-003: Receiving &amp; Distribution</h3>
+      <p class="body-text">Inspecting deliveries, logging receipt, and distributing to departments.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View receiving status for items you requested.</li>
+        <li><strong>Read/Write:</strong> Inspect deliveries against POs, log received quantities, document discrepancies, and confirm distribution to departments.</li>
+        <li><strong>Admin:</strong> Configure receiving locations, distribution workflows, and discrepancy handling rules.</li>
+      </ul>
+      <h3 class="sub-heading">PRC-004: Vendor Management</h3>
+      <p class="body-text">Maintaining the vendor directory, tracking performance, and managing contracts.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the vendor directory and available suppliers.</li>
+        <li><strong>Read/Write:</strong> Add and update vendors, record performance data, and manage vendor contacts.</li>
+        <li><strong>Admin:</strong> Configure preferred vendor designations, performance scoring criteria, and contract management.</li>
+      </ul>
+      <h3 class="sub-heading">PRC-005: Returns &amp; Warranty Claims</h3>
+      <p class="body-text">Processing returns for damaged or defective items and managing warranty claims.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View return status for items in your scope.</li>
+        <li><strong>Read/Write:</strong> Initiate returns, contact vendors, and track claim resolution.</li>
+        <li><strong>Admin:</strong> Configure return policies and warranty tracking rules.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-22">22. School Store</h2>
+      <p class="body-text">Student supplies, merchandise, orders, and inventory.</p>
+      <p class="body-text"><strong>2 functions in this group:</strong></p>
+      <h3 class="sub-heading">STR-001: Store Management</h3>
+      <p class="body-text">Managing products, pricing, inventory, and store operations.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Browse the store catalogue and view product availability.</li>
+        <li><strong>Read/Write:</strong> Add products, update prices, manage inventory levels, and process orders.</li>
+        <li><strong>Admin:</strong> Configure store types (student/public), shipping options, backorder policies, and margin targets.</li>
+      </ul>
+      <h3 class="sub-heading">STR-002: Store Orders &amp; Fulfilment</h3>
+      <p class="body-text">Processing orders, managing parent approvals, and handling fulfilment.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own orders and their status.</li>
+        <li><strong>Read/Write:</strong> Process orders, manage pickup readiness, ship items, and handle cancellations.</li>
+        <li><strong>Admin:</strong> Configure order approval workflows, fulfilment processes, and external customer policies.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-23">23. Safety &amp; Compliance</h2>
+      <p class="body-text">Visitors, emergency management, incident reporting, and regulatory compliance.</p>
+      <p class="body-text"><strong>4 functions in this group:</strong></p>
+      <h3 class="sub-heading">SAF-001: Visitor Management</h3>
+      <p class="body-text">Managing visitor sign-in, pre-registration, and background verification.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View visitor log and current building occupancy.</li>
+        <li><strong>Read/Write:</strong> Process visitor sign-ins, verify backgrounds, and manage pre-registrations.</li>
+        <li><strong>Admin:</strong> Configure visitor types, background check requirements, and watch list integration.</li>
+      </ul>
+      <h3 class="sub-heading">SAF-002: Emergency Management</h3>
+      <p class="body-text">Initiating and managing emergency protocols, drills, and reunification.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View drill schedules and emergency procedures.</li>
+        <li><strong>Read/Write:</strong> Initiate emergency protocols, conduct accountability checks, manage reunification, and document after-action reviews.</li>
+        <li><strong>Admin:</strong> Configure emergency procedures, drill schedules, reunification protocols, and notification chains.</li>
+      </ul>
+      <h3 class="sub-heading">SAF-003: Incident Reporting</h3>
+      <p class="body-text">Documenting non-discipline incidents: injuries, medical episodes, property damage, and environmental events.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View incidents you reported.</li>
+        <li><strong>Read/Write:</strong> Report incidents, document details, and link to follow-up tickets.</li>
+        <li><strong>Admin:</strong> Configure incident types, severity levels, and reporting requirements.</li>
+      </ul>
+      <h3 class="sub-heading">SAF-004: Data Protection &amp; Privacy</h3>
+      <p class="body-text">Managing data subject access requests, consent, and compliance reporting.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own data rights and consent preferences.</li>
+        <li><strong>Read/Write:</strong> Process DSARs, manage consent records, and run compliance reports.</li>
+        <li><strong>Admin:</strong> Configure privacy policies, retention schedules, consent types, and GDPR/FERPA compliance settings.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-24">24. Publications &amp; Community</h2>
+      <p class="body-text">School publications, alumni engagement, community groups, and events.</p>
+      <p class="body-text"><strong>4 functions in this group:</strong></p>
+      <h3 class="sub-heading">PUB-001: Publications</h3>
+      <p class="body-text">Managing the school newspaper, newsletters, and other publications.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Browse published content.</li>
+        <li><strong>Read/Write:</strong> Write, submit, and review articles. Manage publication series and editions.</li>
+        <li><strong>Admin:</strong> Configure publication types, editorial workflows, and distribution rules.</li>
+      </ul>
+      <h3 class="sub-heading">PUB-002: Community Groups</h3>
+      <p class="body-text">Creating and managing community groups for students, staff, and parents.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Browse and join available groups.</li>
+        <li><strong>Read/Write:</strong> Create groups, manage membership, and post announcements.</li>
+        <li><strong>Admin:</strong> Configure group creation policies, moderation rules, and membership limits.</li>
+      </ul>
+      <h3 class="sub-heading">PUB-003: Events &amp; Ticketing</h3>
+      <p class="body-text">Creating events, selling tickets, and managing event logistics.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Browse events and purchase tickets.</li>
+        <li><strong>Read/Write:</strong> Create events, manage ticket tiers, process gate scans, and track attendance.</li>
+        <li><strong>Admin:</strong> Configure event types, pricing policies, and revenue allocation.</li>
+      </ul>
+      <h3 class="sub-heading">PUB-004: Alumni</h3>
+      <p class="body-text">Managing alumni profiles, campaigns, and engagement.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View alumni directory (alumni-only).</li>
+        <li><strong>Read/Write:</strong> Update alumni profiles, manage campaigns, and process donations.</li>
+        <li><strong>Admin:</strong> Configure alumni portal features, campaign types, and engagement tracking.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-25">25. Forms &amp; Documents</h2>
+      <p class="body-text">Form templates, document distribution, and completion tracking.</p>
+      <p class="body-text"><strong>2 functions in this group:</strong></p>
+      <h3 class="sub-heading">FRM-001: Form Management</h3>
+      <p class="body-text">Creating, distributing, and tracking school forms.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View forms assigned to you and your completion status.</li>
+        <li><strong>Read/Write:</strong> Create form templates, distribute forms, and track completion rates.</li>
+        <li><strong>Admin:</strong> Configure form categories, approval workflows for new forms, and annual recurrence schedules.</li>
+      </ul>
+      <h3 class="sub-heading">FRM-002: Document Library</h3>
+      <p class="body-text">Managing the school’s shared document repository.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Browse and download available documents.</li>
+        <li><strong>Read/Write:</strong> Upload documents, manage categories, and set access permissions.</li>
+        <li><strong>Admin:</strong> Configure document categories, retention policies, and access rules.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-26">26. System Administration</h2>
+      <p class="body-text">Access management, roles, system configuration, and audit.</p>
+      <p class="body-text"><strong>7 functions in this group:</strong></p>
+      <h3 class="sub-heading">SYS-001: Access Management</h3>
+      <p class="body-text">Viewing, requesting, and managing function access for users.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your own access grants, request new access, and see request history.</li>
+        <li><strong>Read/Write:</strong> Approve or deny access requests for users in your scope, with required comments for denials. Manage delegation during leave.</li>
+        <li><strong>Admin:</strong> Create and modify roles, assign functions to roles, manage the organisational access hierarchy, and configure approval chains.</li>
+      </ul>
+      <h3 class="sub-heading">SYS-002: Vendor Accounts</h3>
+      <p class="body-text">Managing external vendor and contractor system access.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View active vendor accounts and their access scope.</li>
+        <li><strong>Read/Write:</strong> Create vendor accounts, manage member access, and review vendor activity.</li>
+        <li><strong>Admin:</strong> Configure vendor access policies, approval gates for sensitive actions, and auto-revocation rules.</li>
+      </ul>
+      <h3 class="sub-heading">SYS-003: Audit Trail</h3>
+      <p class="body-text">Viewing system audit logs and access records.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View audit logs for your scope.</li>
+        <li><strong>Read/Write:</strong> Generate audit reports and investigate access events.</li>
+        <li><strong>Admin:</strong> Configure audit retention, monitoring alerts, and compliance reporting.</li>
+      </ul>
+      <h3 class="sub-heading">SYS-004: School Configuration</h3>
+      <p class="body-text">Managing school-level settings, feature flags, and notification policies.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View current school configuration.</li>
+        <li><strong>Read/Write:</strong> Not applicable — configuration changes require Admin.</li>
+        <li><strong>Admin:</strong> Configure feature flags, notification policies, grading scales, school branding, and module activation.</li>
+      </ul>
+      <h3 class="sub-heading">SYS-005: District Policies</h3>
+      <p class="body-text">Managing district-level policies that cascade to all buildings.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View district policies and building-level exceptions.</li>
+        <li><strong>Read/Write:</strong> Propose policy exceptions for your building.</li>
+        <li><strong>Admin:</strong> Create and modify district policies, approve building-level exceptions, and manage policy inheritance.</li>
+      </ul>
+      <h3 class="sub-heading">SYS-006: Analytics &amp; Reporting</h3>
+      <p class="body-text">Accessing dashboards, custom reports, and state-mandated reporting.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View pre-built dashboards for your scope.</li>
+        <li><strong>Read/Write:</strong> Generate custom reports, export data, and run state-mandated reports.</li>
+        <li><strong>Admin:</strong> Configure dashboard definitions, report templates, and data refresh schedules.</li>
+      </ul>
+      <h3 class="sub-heading">SYS-007: Public Website</h3>
+      <p class="body-text">Managing the school’s public-facing website generated from CampusOS data.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the public website.</li>
+        <li><strong>Read/Write:</strong> Edit website content, manage pages, and configure published data.</li>
+        <li><strong>Admin:</strong> Configure website templates, published data sources, and domain settings.</li>
+      </ul>
+
+      <!-- ═══════ 27. COMMUNITY EXCHANGE ═══════ -->
+      <h2 class="section-heading" id="section-27">27. Community Exchange</h2>
+      <p class="body-text">Marketplace listings, purchasing, surplus asset trading, forums, profiles, ratings, and watch lists. These functions appear on the Request Access page for school users. Parents receive a fixed permission set and do not use Request Access.</p>
+      <p class="body-text"><strong>10 functions in this group:</strong></p>
+
+      <h3 class="sub-heading">MKT-001: Marketplace Listings</h3>
+      <p class="body-text">Creating, managing, and publishing content to the community exchange. Covers all six listing types.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Browse all published listings. View details, ratings, comments, creator profiles. Search across all content types.</li>
+        <li><strong>Read/Write:</strong> Create listings (subject to can_create_listings &mdash; parents excluded). Submit for approval. Edit own listings. Set pricing. Upload previews and images.</li>
+        <li><strong>Admin:</strong> Configure listing categories, approval workflow routing, featured listings, marketplace visibility defaults, and listing type availability per school.</li>
+      </ul>
+
+      <h3 class="sub-heading">MKT-002: Marketplace Purchasing</h3>
+      <p class="body-text">Buying educational content, student portfolio items, and surplus assets from the community exchange.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View own purchase history and download previously purchased content.</li>
+        <li><strong>Read/Write:</strong> Purchase listings (free and paid). Import purchased content into own classroom. Request refunds within policy window.</li>
+        <li><strong>Admin:</strong> Configure school-level purchasing policies, budget limits, and approved listing types for procurement.</li>
+      </ul>
+
+      <h3 class="sub-heading">MKT-003: Surplus Asset Exchange</h3>
+      <p class="body-text">School-to-school and individual trading of surplus IT equipment, furniture, books, and other physical assets.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Browse surplus asset and book redistribution listings. View condition reports and transaction history.</li>
+        <li><strong>Read/Write:</strong> Create surplus listings (requires dept head + business manager approval). Set condition, quantity, price, visibility. Confirm receipt. Initiate disputes.</li>
+        <li><strong>Admin:</strong> Configure asset listing policies, condition documentation requirements, shipping options, dispute resolution, and school-wide visibility defaults.</li>
+      </ul>
+
+      <h3 class="sub-heading">MKT-004: Watch Lists</h3>
+      <p class="body-text">Schools posting what they need and receiving automatic notifications when matching surplus listings appear.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View your school&rsquo;s active watch lists and match history.</li>
+        <li><strong>Read/Write:</strong> Create and manage watch list items. Set keywords, target types, quantity, and max price. Mark as fulfilled.</li>
+        <li><strong>Admin:</strong> Configure notification preferences, maximum active items, and automatic expiry rules.</li>
+      </ul>
+
+      <h3 class="sub-heading">MKT-005: Community Forums</h3>
+      <p class="body-text">Cross-school discussion forums organised by subject, grade, role, and region. Includes parent-accessible forums.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> Browse forums available to your role. Read threads and comments.</li>
+        <li><strong>Read/Write:</strong> Create threads, post replies, edit own posts, vote comments as helpful, flag inappropriate content.</li>
+        <li><strong>Admin:</strong> Create forum categories. Set role filters and moderation levels. Pin/lock threads. Manage moderators.</li>
+      </ul>
+
+      <h3 class="sub-heading">MKT-006: Community Profiles</h3>
+      <p class="body-text">Managing public-facing community profiles that display school affiliation, role, and engagement history.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View other users&rsquo; profiles including listings, ratings, reputation, and contributions.</li>
+        <li><strong>Read/Write:</strong> Edit own profile: display name, bio, subjects, avatar, privacy controls. Connect Stripe for payouts.</li>
+        <li><strong>Admin:</strong> Configure required fields, profile type mappings, default privacy settings. Manage deactivation for former staff/students.</li>
+      </ul>
+
+      <h3 class="sub-heading">MKT-007: Ratings &amp; Reviews</h3>
+      <p class="body-text">Rating marketplace listings on a 5-star scale and writing reviews.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View ratings and reviews on any published listing. See verified-purchase badges.</li>
+        <li><strong>Read/Write:</strong> Rate listings (1&ndash;5 stars). Write optional review text. Edit own reviews. Vote reviews as helpful.</li>
+        <li><strong>Admin:</strong> Moderate reviews. Configure review policies and minimum purchase requirements for verified ratings.</li>
+      </ul>
+
+      <h3 class="sub-heading">MKT-008: Marketplace Moderation</h3>
+      <p class="body-text">Content moderation across all community exchange content.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the moderation queue and moderation history.</li>
+        <li><strong>Read/Write:</strong> Review flagged content. Approve, hide, or remove listings, comments, forum posts, reviews. Issue warnings. Escalate.</li>
+        <li><strong>Admin:</strong> Configure moderation policies, automated flagging rules, content filtering. Manage moderator assignments and SLAs.</li>
+      </ul>
+
+      <h3 class="sub-heading">MKT-009: Reputation &amp; Leaderboards</h3>
+      <p class="body-text">Reputation scoring, top contributor tracking, and community leaderboards.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View leaderboards by school, subject, region, and listing type. View own reputation score and history.</li>
+        <li><strong>Read/Write:</strong> Not applicable &mdash; reputation is computed automatically from community activity.</li>
+        <li><strong>Admin:</strong> Configure point values for reputation events. Manage leaderboard categories. Reset reputation for abuse cases.</li>
+      </ul>
+
+      <h3 class="sub-heading">MKT-010: Marketplace Revenue &amp; Payouts</h3>
+      <p class="body-text">Tracking earnings, revenue splits, and payout processing for content creators and schools.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View own earnings history, pending payouts, and revenue split details.</li>
+        <li><strong>Read/Write:</strong> Manage payout settings (Stripe Connect). Request payout statements. Dispute split calculations.</li>
+        <li><strong>Admin:</strong> Audit revenue split percentages. Manage payout schedules and settlement. Generate marketplace financial reports.</li>
+      </ul>
+
+      <!-- ═══════ 28. CRM ═══════ -->
+      <h2 class="section-heading" id="section-28">28. Customer Management (Internal Only)</h2>
+      <p class="body-text">CampusOS managing its own customer relationships. These functions are internal to CampusOS employees only &mdash; they never appear on a school user&rsquo;s Request Access page. Granted via ops_employee_permissions using INTERNAL_ADMIN IAM scope (ADR-072).</p>
+      <p class="body-text"><strong>6 functions in this group:</strong></p>
+
+      <h3 class="sub-heading">CRM-001: Account Management</h3>
+      <p class="body-text">Managing school and district customer accounts.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View account details, status, contacts, and interaction history for assigned accounts.</li>
+        <li><strong>Read/Write:</strong> Create accounts. Update status, contacts, billing. Record interactions. Assign champions. Set renewal dates.</li>
+        <li><strong>Admin:</strong> View/manage all accounts. Configure status workflows, required fields, and data retention.</li>
+      </ul>
+
+      <h3 class="sub-heading">CRM-002: Subscription Management</h3>
+      <p class="body-text">Managing pricing bands, billing cycles, discounts, and Stripe integration.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View subscription details, invoices, and payment history for assigned accounts.</li>
+        <li><strong>Read/Write:</strong> Create/modify subscriptions. Apply discounts. Process band changes and cancellations.</li>
+        <li><strong>Admin:</strong> Configure pricing bands. Manage support tier definitions. Override pricing for custom-tier accounts.</li>
+      </ul>
+
+      <h3 class="sub-heading">CRM-003: Onboarding Tracking</h3>
+      <p class="body-text">Tracking each school through the 90-day onboarding journey.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View onboarding progress, current phase, and gate status for assigned accounts.</li>
+        <li><strong>Read/Write:</strong> Update phase completion dates. Record gate outcomes. Log blockers. Assign CSMs. Generate status reports.</li>
+        <li><strong>Admin:</strong> Configure onboarding phases and gate criteria. Set SLA targets. Manage templates and checklists.</li>
+      </ul>
+
+      <h3 class="sub-heading">CRM-004: Customer Health Scoring</h3>
+      <p class="body-text">Monitoring customer health via computed scores.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View health scores, trends, and component breakdowns for assigned accounts.</li>
+        <li><strong>Read/Write:</strong> Annotate anomalies. Trigger manual recalculations. Flag accounts for executive review.</li>
+        <li><strong>Admin:</strong> Configure score weightings, thresholds, and alert triggers. Manage computation schedule.</li>
+      </ul>
+
+      <h3 class="sub-heading">CRM-005: Renewal Pipeline</h3>
+      <p class="body-text">Managing the 90-day renewal process.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View renewal pipeline for assigned accounts.</li>
+        <li><strong>Read/Write:</strong> Record outreach. Send usage reports. Log expansion discussions. Update renewal status. Propose band changes.</li>
+        <li><strong>Admin:</strong> Configure automation. Set escalation rules. Generate pipeline forecasts and churn reports.</li>
+      </ul>
+
+      <h3 class="sub-heading">CRM-006: Customer Interactions</h3>
+      <p class="body-text">Logging all touchpoints with customer schools.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View interaction history for assigned accounts.</li>
+        <li><strong>Read/Write:</strong> Log interactions with type, subject, outcome, next actions. Schedule follow-ups. Link to onboarding/renewal.</li>
+        <li><strong>Admin:</strong> Configure interaction types and required fields. Set logging SLAs. Generate activity reports by CSM.</li>
+      </ul>
+
+      <!-- ═══════ 29. INTERNAL OPS ═══════ -->
+      <h2 class="section-heading" id="section-29">29. Internal Operations (Internal Only)</h2>
+      <p class="body-text">CampusOS employee management, tenant access control, internal ticketing, and platform pricing. Internal-only via INTERNAL_ADMIN IAM scope.</p>
+      <p class="body-text"><strong>6 functions in this group:</strong></p>
+
+      <h3 class="sub-heading">OPS-001: Employee Management</h3>
+      <p class="body-text">Managing CampusOS staff records, departments, and internal permissions.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View the employee directory, department structure, and role assignments.</li>
+        <li><strong>Read/Write:</strong> Create/update employee records. Assign departments and titles. Manage reporting relationships.</li>
+        <li><strong>Admin:</strong> Configure departments, permission code catalogue, and internal access policies.</li>
+      </ul>
+
+      <h3 class="sub-heading">OPS-002: Account Assignments</h3>
+      <p class="body-text">Assigning CampusOS employees to customer accounts.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View account assignment map across all roles.</li>
+        <li><strong>Read/Write:</strong> Assign and reassign employees to accounts. Record history. Balance workload.</li>
+        <li><strong>Admin:</strong> Configure assignment roles, maximum loads, and automatic assignment rules.</li>
+      </ul>
+
+      <h3 class="sub-heading">OPS-003: Tenant Access Management</h3>
+      <p class="body-text">Granting, auditing, and revoking time-limited access for CampusOS employees to view school tenant data. FERPA/GDPR compliance cornerstone.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View access grant history &mdash; who accessed which tenant, when, why, and for how long.</li>
+        <li><strong>Read/Write:</strong> Request tenant access with mandatory justification. Grants auto-expire (max 4 hours). Record actual usage.</li>
+        <li><strong>Admin:</strong> Configure access policies. Review audit logs. Generate compliance reports. Revoke active grants.</li>
+      </ul>
+
+      <h3 class="sub-heading">OPS-004: Internal Ticketing</h3>
+      <p class="body-text">Internal task tracking for escalated customer issues.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View internal tickets for assigned accounts.</li>
+        <li><strong>Read/Write:</strong> Create tickets (manual or escalated). Assign to teams. Update status and resolution notes.</li>
+        <li><strong>Admin:</strong> Configure categories, priority definitions, SLA targets, and escalation rules.</li>
+      </ul>
+
+      <h3 class="sub-heading">OPS-005: Platform Pricing Management</h3>
+      <p class="body-text">Managing pricing bands, support tiers, and price change history.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View current pricing bands, support tiers, and change history.</li>
+        <li><strong>Read/Write:</strong> Not applicable &mdash; pricing changes require Admin access due to financial impact.</li>
+        <li><strong>Admin:</strong> Create/modify pricing bands. Manage support tiers. All changes logged with mandatory reason.</li>
+      </ul>
+
+      <h3 class="sub-heading">OPS-006: Platform Analytics &amp; Reporting</h3>
+      <p class="body-text">Internal business analytics: ARR, churn, NRR, onboarding, marketplace revenue, and dashboards.</p>
+      <ul class="bullet-list">
+        <li><strong>View Only:</strong> View business dashboards: ARR, school count, churn, NRR, health scores, pipeline, marketplace GMV.</li>
+        <li><strong>Read/Write:</strong> Create custom reports and exports. Schedule recurring delivery. Annotate metrics.</li>
+        <li><strong>Admin:</strong> Configure metrics, data sources, refresh schedules. Manage report access. Define KPI targets and alerts.</li>
+      </ul>
+
+      <h2 class="section-heading" id="section-30">30. Complete Function Register</h2>
+      <p class="body-text">All functions listed by code with group assignment:</p>
+      <h3 class="sub-heading">Attendance &amp; Daily Operations</h3>
+      <ul class="bullet-list">
+        <li><strong>ATT-001</strong> — Attendance Taking</li>
+        <li><strong>ATT-002</strong> — Late Arrival Processing</li>
+        <li><strong>ATT-003</strong> — Early Dismissal</li>
+        <li><strong>ATT-004</strong> — Absence Follow-Up</li>
+        <li><strong>ATT-005</strong> — Hall Passes</li>
+      </ul>
+      <h3 class="sub-heading">Teaching &amp; Learning</h3>
+      <ul class="bullet-list">
+        <li><strong>TCH-001</strong> — Lesson Planning</li>
+        <li><strong>TCH-002</strong> — Assignments & Submissions</li>
+        <li><strong>TCH-003</strong> — Grade Book</li>
+        <li><strong>TCH-004</strong> — Report Cards</li>
+        <li><strong>TCH-005</strong> — Transcripts</li>
+        <li><strong>TCH-006</strong> — Quizzes & Assessments</li>
+        <li><strong>TCH-007</strong> — AI Study Tool</li>
+        <li><strong>TCH-008</strong> — Curriculum Management</li>
+        <li><strong>TCH-009</strong> — Class Moments</li>
+      </ul>
+      <h3 class="sub-heading">Student Records</h3>
+      <ul class="bullet-list">
+        <li><strong>STU-001</strong> — Student Profiles</li>
+        <li><strong>STU-002</strong> — Student Profile Customisation</li>
+        <li><strong>STU-003</strong> — Enrolment & Admissions</li>
+        <li><strong>STU-004</strong> — Withdrawal & Transfer</li>
+        <li><strong>STU-005</strong> — Graduation Management</li>
+        <li><strong>STU-006</strong> — Digital ID Cards</li>
+        <li><strong>STU-007</strong> — Locker Management</li>
+        <li><strong>STU-008</strong> — Parking Permits</li>
+      </ul>
+      <h3 class="sub-heading">Scheduling &amp; Calendar</h3>
+      <ul class="bullet-list">
+        <li><strong>SCH-001</strong> — Master Schedule</li>
+        <li><strong>SCH-002</strong> — Course Selection</li>
+        <li><strong>SCH-003</strong> — School Calendar</li>
+        <li><strong>SCH-004</strong> — Daily Coverage & Substitutes</li>
+        <li><strong>SCH-005</strong> — Room & Facility Booking</li>
+      </ul>
+      <h3 class="sub-heading">Behaviour &amp; Discipline</h3>
+      <ul class="bullet-list">
+        <li><strong>BEH-001</strong> — Behaviour Incidents</li>
+        <li><strong>BEH-002</strong> — Behaviour Intervention Plans</li>
+      </ul>
+      <h3 class="sub-heading">Health &amp; Wellness</h3>
+      <ul class="bullet-list">
+        <li><strong>HLT-001</strong> — Health Records</li>
+        <li><strong>HLT-002</strong> — Medication Administration</li>
+        <li><strong>HLT-003</strong> — Nurse Visits</li>
+        <li><strong>HLT-004</strong> — Health Screenings</li>
+        <li><strong>HLT-005</strong> — Dietary Profiles & Allergens</li>
+      </ul>
+      <h3 class="sub-heading">Counselling &amp; Student Support</h3>
+      <ul class="bullet-list">
+        <li><strong>COU-001</strong> — Counselling Caseload</li>
+        <li><strong>COU-002</strong> — Referrals</li>
+        <li><strong>COU-003</strong> — MTSS/RTI Interventions</li>
+        <li><strong>COU-004</strong> — Wellbeing Check-Ins</li>
+        <li><strong>COU-005</strong> — IEP & 504 Plans</li>
+        <li><strong>COU-006</strong> — Mandatory Reporting</li>
+        <li><strong>COU-007</strong> — Coordinated Care</li>
+      </ul>
+      <h3 class="sub-heading">Communications</h3>
+      <ul class="bullet-list">
+        <li><strong>COM-001</strong> — Messaging</li>
+        <li><strong>COM-002</strong> — Announcements</li>
+        <li><strong>COM-003</strong> — Content Moderation</li>
+        <li><strong>COM-004</strong> — Mass Notifications</li>
+      </ul>
+      <h3 class="sub-heading">Meetings &amp; Conferences</h3>
+      <ul class="bullet-list">
+        <li><strong>MTG-001</strong> — Meetings</li>
+        <li><strong>MTG-002</strong> — Parent-Teacher Conferences</li>
+      </ul>
+      <h3 class="sub-heading">Human Resources</h3>
+      <ul class="bullet-list">
+        <li><strong>HR-001</strong> — Employee Records</li>
+        <li><strong>HR-002</strong> — Recruitment & Hiring</li>
+        <li><strong>HR-003</strong> — Leave Management</li>
+        <li><strong>HR-004</strong> — Training & Certifications</li>
+        <li><strong>HR-005</strong> — Professional Development</li>
+        <li><strong>HR-006</strong> — Onboarding</li>
+      </ul>
+      <h3 class="sub-heading">Finance &amp; Payments</h3>
+      <ul class="bullet-list">
+        <li><strong>FIN-001</strong> — Family Billing</li>
+        <li><strong>FIN-002</strong> — Financial Aid</li>
+        <li><strong>FIN-003</strong> — Fundraising</li>
+        <li><strong>FIN-004</strong> — Budget Management</li>
+      </ul>
+      <h3 class="sub-heading">Transportation</h3>
+      <ul class="bullet-list">
+        <li><strong>TRN-001</strong> — Route Management</li>
+        <li><strong>TRN-002</strong> — Fleet Management</li>
+        <li><strong>TRN-003</strong> — Driver Operations</li>
+        <li><strong>TRN-004</strong> — Driver Credentials</li>
+        <li><strong>TRN-005</strong> — Field Trips & Special Trips</li>
+      </ul>
+      <h3 class="sub-heading">Food Service</h3>
+      <ul class="bullet-list">
+        <li><strong>FDS-001</strong> — Menu Planning</li>
+        <li><strong>FDS-002</strong> — Point of Sale</li>
+        <li><strong>FDS-003</strong> — Free & Reduced Meals</li>
+        <li><strong>FDS-004</strong> — Food Inventory & Procurement</li>
+        <li><strong>FDS-005</strong> — Production Records</li>
+      </ul>
+      <h3 class="sub-heading">Facilities &amp; Maintenance</h3>
+      <ul class="bullet-list">
+        <li><strong>FAC-001</strong> — Maintenance Tickets</li>
+        <li><strong>FAC-002</strong> — Preventive Maintenance</li>
+        <li><strong>FAC-003</strong> — Custodial Management</li>
+        <li><strong>FAC-004</strong> — Building Safety & Compliance</li>
+        <li><strong>FAC-005</strong> — Energy & Sustainability</li>
+      </ul>
+      <h3 class="sub-heading">IT &amp; Technology</h3>
+      <ul class="bullet-list">
+        <li><strong>IT-001</strong> — Helpdesk Tickets</li>
+        <li><strong>IT-002</strong> — Device Fleet</li>
+        <li><strong>IT-003</strong> — Device Selection</li>
+        <li><strong>IT-004</strong> — Software & Licensing</li>
+        <li><strong>IT-005</strong> — Credential Vault</li>
+        <li><strong>IT-006</strong> — System Monitoring</li>
+        <li><strong>IT-007</strong> — Network & Security</li>
+        <li><strong>IT-008</strong> — Phone System</li>
+        <li><strong>IT-009</strong> — Configuration Documentation</li>
+      </ul>
+      <h3 class="sub-heading">Library</h3>
+      <ul class="bullet-list">
+        <li><strong>LIB-001</strong> — Catalogue Management</li>
+        <li><strong>LIB-002</strong> — Circulation</li>
+        <li><strong>LIB-003</strong> — Reading Programmes</li>
+        <li><strong>LIB-004</strong> — Library Space</li>
+      </ul>
+      <h3 class="sub-heading">Athletics</h3>
+      <ul class="bullet-list">
+        <li><strong>ATH-001</strong> — Sports Programmes</li>
+        <li><strong>ATH-002</strong> — Athletic Eligibility</li>
+        <li><strong>ATH-003</strong> — Rosters & Team Management</li>
+        <li><strong>ATH-004</strong> — Game Scheduling</li>
+        <li><strong>ATH-005</strong> — Officials Marketplace</li>
+        <li><strong>ATH-006</strong> — Game Results & Statistics</li>
+        <li><strong>ATH-007</strong> — Game Streaming & Video</li>
+        <li><strong>ATH-008</strong> — Athletic Equipment</li>
+        <li><strong>ATH-009</strong> — Injury & Concussion Protocol</li>
+        <li><strong>ATH-010</strong> — Athletic Ticketing</li>
+      </ul>
+      <h3 class="sub-heading">Clubs &amp; Student Life</h3>
+      <ul class="bullet-list">
+        <li><strong>CLB-001</strong> — Activity Management</li>
+        <li><strong>CLB-002</strong> — Student Government & Elections</li>
+        <li><strong>CLB-003</strong> — Field Trips</li>
+        <li><strong>CLB-004</strong> — Service Learning</li>
+      </ul>
+      <h3 class="sub-heading">Achievements &amp; Portfolio</h3>
+      <ul class="bullet-list">
+        <li><strong>ACH-001</strong> — Achievements System</li>
+        <li><strong>ACH-002</strong> — Student Portfolio</li>
+        <li><strong>ACH-003</strong> — Post-Secondary Readiness</li>
+      </ul>
+      <h3 class="sub-heading">Procurement</h3>
+      <ul class="bullet-list">
+        <li><strong>PRC-001</strong> — Purchase Requisitions</li>
+        <li><strong>PRC-002</strong> — Purchase Orders</li>
+        <li><strong>PRC-003</strong> — Receiving & Distribution</li>
+        <li><strong>PRC-004</strong> — Vendor Management</li>
+        <li><strong>PRC-005</strong> — Returns & Warranty Claims</li>
+      </ul>
+      <h3 class="sub-heading">School Store</h3>
+      <ul class="bullet-list">
+        <li><strong>STR-001</strong> — Store Management</li>
+        <li><strong>STR-002</strong> — Store Orders & Fulfilment</li>
+      </ul>
+      <h3 class="sub-heading">Safety &amp; Compliance</h3>
+      <ul class="bullet-list">
+        <li><strong>SAF-001</strong> — Visitor Management</li>
+        <li><strong>SAF-002</strong> — Emergency Management</li>
+        <li><strong>SAF-003</strong> — Incident Reporting</li>
+        <li><strong>SAF-004</strong> — Data Protection & Privacy</li>
+      </ul>
+      <h3 class="sub-heading">Publications &amp; Community</h3>
+      <ul class="bullet-list">
+        <li><strong>PUB-001</strong> — Publications</li>
+        <li><strong>PUB-002</strong> — Community Groups</li>
+        <li><strong>PUB-003</strong> — Events & Ticketing</li>
+        <li><strong>PUB-004</strong> — Alumni</li>
+      </ul>
+      <h3 class="sub-heading">Forms &amp; Documents</h3>
+      <ul class="bullet-list">
+        <li><strong>FRM-001</strong> — Form Management</li>
+        <li><strong>FRM-002</strong> — Document Library</li>
+      </ul>
+      <h3 class="sub-heading">System Administration</h3>
+      <ul class="bullet-list">
+        <li><strong>SYS-001</strong> — Access Management</li>
+        <li><strong>SYS-002</strong> — Vendor Accounts</li>
+        <li><strong>SYS-003</strong> — Audit Trail</li>
+        <li><strong>SYS-004</strong> — School Configuration</li>
+        <li><strong>SYS-005</strong> — District Policies</li>
+        <li><strong>SYS-006</strong> — Analytics & Reporting</li>
+        <li><strong>SYS-007</strong> — Public Website</li>
+      </ul>
+      <p class="body-text"><strong>Total: 148 functions across 28 groups.</strong></p>
+      <h3 class="sub-heading">Community Exchange</h3>
+      <ul class="bullet-list">
+        <li><strong>MKT-001</strong> — Marketplace Listings</li>
+        <li><strong>MKT-002</strong> — Marketplace Purchasing</li>
+        <li><strong>MKT-003</strong> — Surplus Asset Exchange</li>
+        <li><strong>MKT-004</strong> — Watch Lists</li>
+        <li><strong>MKT-005</strong> — Community Forums</li>
+        <li><strong>MKT-006</strong> — Community Profiles</li>
+        <li><strong>MKT-007</strong> — Ratings &amp; Reviews</li>
+        <li><strong>MKT-008</strong> — Marketplace Moderation</li>
+        <li><strong>MKT-009</strong> — Reputation &amp; Leaderboards</li>
+        <li><strong>MKT-010</strong> — Marketplace Revenue &amp; Payouts</li>
+      </ul>
+      <h3 class="sub-heading">Customer Management (Internal Only)</h3>
+      <ul class="bullet-list">
+        <li><strong>CRM-001</strong> — Account Management</li>
+        <li><strong>CRM-002</strong> — Subscription Management</li>
+        <li><strong>CRM-003</strong> — Onboarding Tracking</li>
+        <li><strong>CRM-004</strong> — Customer Health Scoring</li>
+        <li><strong>CRM-005</strong> — Renewal Pipeline</li>
+        <li><strong>CRM-006</strong> — Customer Interactions</li>
+      </ul>
+      <h3 class="sub-heading">Internal Operations (Internal Only)</h3>
+      <ul class="bullet-list">
+        <li><strong>OPS-001</strong> — Employee Management</li>
+        <li><strong>OPS-002</strong> — Account Assignments</li>
+        <li><strong>OPS-003</strong> — Tenant Access Management</li>
+        <li><strong>OPS-004</strong> — Internal Ticketing</li>
+        <li><strong>OPS-005</strong> — Platform Pricing Management</li>
+        <li><strong>OPS-006</strong> — Platform Analytics &amp; Reporting</li>
+      </ul>
+
+      <div class="doc-footer">CampusOS Function Library · 148 Functions · 28 Groups · ERD v11 Aligned · March 2026</div>
+    </main>
+  </div>
+  <script>
+    // Close mobile sidebar when a link is clicked
+    document.querySelectorAll('.toc-list a').forEach(a => {
+      a.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'));
+    });
+  </script>
+<div style="text-align:center;padding:24px 40px;border-top:1px solid #e0e7ef;margin-top:40px;font-size:12px;color:#999;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  CampusOS Design &amp; Architecture Hub · ERD v11 · March 2026
+  <br><a href="index.html" style="color:#2e86c1;">← Back to Design Hub</a>
+</div>
+</body>
+</html>
