@@ -6,7 +6,9 @@ import { TenantModule } from './tenant/tenant.module';
 import { PlatformModule } from './platform/platform.module';
 import { IamModule } from './iam/iam.module';
 import { AuthModule } from './auth/auth.module';
+import { SisModule } from './sis/sis.module';
 import { TenantGuard } from './tenant/tenant.guard';
+import { AuthGuard } from './auth/auth.guard';
 import { PermissionGuard } from './auth/permission.guard';
 import { GuardTestController } from './guard-test.controller';
 
@@ -27,17 +29,20 @@ import { GuardTestController } from './guard-test.controller';
     AuthModule,
     PlatformModule,
     IamModule,
+    SisModule,
   ],
   controllers: [GuardTestController],
   providers: [
-    // Global guards execute in registration order
-    // AuthGuard is registered in AuthModule
-    // TenantGuard runs after AuthGuard
+    // Global guards run in declaration order. Register all three here
+    // so the order is explicit: Auth → Tenant → Permission.
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: TenantGuard,
     },
-    // PermissionGuard runs last — checks @RequirePermission
     {
       provide: APP_GUARD,
       useClass: PermissionGuard,

@@ -12,6 +12,7 @@
     "migrate:reset": "prisma migrate reset --schema=prisma/platform/schema.prisma --force",
     "generate": "prisma generate --schema=prisma/platform/schema.prisma",
     "seed": "tsx src/seed.ts",
+    "seed:sis": "tsx src/seed-sis.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

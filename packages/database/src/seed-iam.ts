@@ -109,6 +109,131 @@ async function seedIam() {
     console.log('  ' + rpData.length + ' permissions assigned to Platform Admin');
   }
 
+  // ── 4b. Assign baseline permissions to non-admin roles ─────
+  // Each role gets a curated subset for Cycle 1 (SIS + Attendance).
+  // Idempotent: only inserts pairs that don't already exist.
+  var rolePermsSpec: Array<{
+    roleName: string;
+    everyFunction?: string[];
+    perms?: Record<string, string[]>;
+  }> = [
+    { roleName: 'School Admin', everyFunction: ['read', 'write', 'admin'] },
+    {
+      roleName: 'Teacher',
+      perms: {
+        'ATT-001': ['read', 'write'],
+        'ATT-002': ['write'],
+        'ATT-003': ['write'],
+        'ATT-004': ['read'],
+        'ATT-005': ['read', 'write'],
+        'STU-001': ['read'],
+        'TCH-001': ['read', 'write'],
+        'TCH-002': ['read', 'write'],
+        'TCH-003': ['read', 'write'],
+        'TCH-006': ['read', 'write'],
+        'COM-001': ['read', 'write'],
+        'COM-002': ['read', 'write'],
+        'SCH-001': ['read'],
+        'SCH-003': ['read'],
+        'BEH-001': ['read', 'write'],
+        'COU-002': ['write'],
+      },
+    },
+    {
+      roleName: 'Parent',
+      perms: {
+        'ATT-001': ['read'],
+        'ATT-004': ['read', 'write'],
+        'STU-001': ['read'],
+        'TCH-003': ['read'],
+        'TCH-004': ['read'],
+        'COM-001': ['read', 'write'],
+        'COM-002': ['read'],
+        'SCH-003': ['read'],
+      },
+    },
+    {
+      roleName: 'Student',
+      perms: {
+        'ATT-001': ['read'],
+        'STU-001': ['read'],
+        'TCH-001': ['read'],
+        'TCH-002': ['read', 'write'],
+        'TCH-003': ['read'],
+        'TCH-006': ['read', 'write'],
+        'TCH-007': ['read', 'write'],
+        'COM-001': ['read', 'write'],
+        'SCH-003': ['read'],
+      },
+    },
+    {
+      roleName: 'Staff',
+      perms: {
+        'STU-001': ['read'],
+        'ATT-001': ['read'],
+        'COM-001': ['read', 'write'],
+        'SCH-003': ['read'],
+      },
+    },
+  ];
+
+  var allPermissions = await client.permission.findMany({ select: { id: true, code: true } });
+  var permIdByCode: Record<string, string> = {};
+  for (var pi = 0; pi < allPermissions.length; pi++) {
+    var pp = allPermissions[pi]!;
+    permIdByCode[pp.code] = pp.id;
+  }
+
+  for (var rpi = 0; rpi < rolePermsSpec.length; rpi++) {
+    var spec = rolePermsSpec[rpi]!;
+    var role = await client.role.findFirst({ where: { name: spec.roleName } });
+    if (!role) continue;
+
+    var targetCodes: string[] = [];
+    if (spec.everyFunction) {
+      for (var ai = 0; ai < allPermissions.length; ai++) {
+        var perm = allPermissions[ai]!;
+        var tier = perm.code.split(':')[1]!;
+        if (spec.everyFunction.indexOf(tier) >= 0) {
+          targetCodes.push(perm.code);
+        }
+      }
+    } else if (spec.perms) {
+      var funcCodes = Object.keys(spec.perms);
+      for (var fci = 0; fci < funcCodes.length; fci++) {
+        var fc = funcCodes[fci]!;
+        var tiers = spec.perms[fc]!;
+        for (var tj = 0; tj < tiers.length; tj++) {
+          targetCodes.push(fc.toLowerCase() + ':' + tiers[tj]!);
+        }
+      }
+    }
+
+    var existingRp = await client.rolePermission.findMany({
+      where: { roleId: role.id },
+      select: { permissionId: true },
+    });
+    var existingPermIds: Record<string, boolean> = {};
+    for (var ei = 0; ei < existingRp.length; ei++) {
+      existingPermIds[existingRp[ei]!.permissionId] = true;
+    }
+
+    var addCount = 0;
+    var newRows: Array<{ id: string; roleId: string; permissionId: string }> = [];
+    for (var ti = 0; ti < targetCodes.length; ti++) {
+      var code = targetCodes[ti]!;
+      var permId = permIdByCode[code];
+      if (!permId) continue;
+      if (existingPermIds[permId]) continue;
+      newRows.push({ id: generateId(), roleId: role.id, permissionId: permId });
+      addCount++;
+    }
+    if (newRows.length > 0) {
+      await client.rolePermission.createMany({ data: newRows });
+    }
+    console.log('  ' + spec.roleName + ': ' + targetCodes.length + ' permissions targeted (' + addCount + ' newly added)');
+  }
+
   // ── 5. Create platform and school scopes ───────────────────
   var platformScopeType = await client.iamScopeType.findUnique({ where: { code: 'PLATFORM' } });
   var schoolScopeType = await client.iamScopeType.findUnique({ where: { code: 'SCHOOL' } });

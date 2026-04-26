@@ -38,13 +38,15 @@ export class PermissionGuard implements CanActivate {
       return true;
     }
 
-    // Get authenticated user from request (set by AuthGuard)
+    // Get authenticated user from request (set by AuthGuard).
+    // AuthGuard must run before this guard — registration order is enforced
+    // explicitly in AppModule. Failing open here was a previous bug that let
+    // any tenant-scoped request through @RequirePermission gates.
     var request = context.switchToHttp().getRequest();
     var user = request.user;
 
     if (!user || !user.sub) {
-      // No user yet — AuthGuard hasn't run. Defer to AuthGuard.
-      return true;
+      throw new ForbiddenException('Authentication context missing');
     }
 
     // Get current tenant scope
@@ -57,20 +59,26 @@ export class PermissionGuard implements CanActivate {
       throw new ForbiddenException('No tenant scope for permission check');
     }
 
-    // Find the scope for this tenant
-    // The scope ID is looked up from iam_scope by school entity
-    var scopeId = await this.resolveScopeId(tenant.schoolId);
+    // Resolve the scope chain for this request. Platform Admins are assigned
+    // at PLATFORM scope, school-scoped roles at SCHOOL scope, and so on. We
+    // check from most-specific (school) to least-specific (platform) so a
+    // Platform Admin acting against a tenant inherits their platform-level
+    // permissions, while school-scoped users are bounded to their school.
+    var scopeIds = await this.resolveScopeChain(tenant.schoolId);
 
-    if (!scopeId) {
-      throw new ForbiddenException('No IAM scope configured for this school');
+    if (scopeIds.length === 0) {
+      throw new ForbiddenException('No IAM scope configured for this request');
     }
 
-    // Check if user has ANY of the required permissions
-    var hasPermission = await this.permissionCheckService.hasAnyPermission(
-      user.sub,
-      scopeId,
-      requiredPermissions,
-    );
+    var hasPermission = false;
+    for (var s = 0; s < scopeIds.length; s++) {
+      var ok = await this.permissionCheckService.hasAnyPermission(
+        user.sub,
+        scopeIds[s]!,
+        requiredPermissions,
+      );
+      if (ok) { hasPermission = true; break; }
+    }
 
     if (!hasPermission) {
       throw new ForbiddenException({
@@ -85,32 +93,27 @@ export class PermissionGuard implements CanActivate {
   }
 
   /**
-   * Resolve the IAM scope ID for a school.
-   * Looks up iam_scope where entity_id = schoolId and scope type = SCHOOL.
+   * Resolve scope ids the request can satisfy, ordered most-specific first.
+   * For a school-tenant request that's [school, platform]; a platform admin
+   * is checked at PLATFORM after their school assignment misses (or as a
+   * fallback when no school scope exists).
    */
-  private async resolveScopeId(schoolId: string): Promise<string | null> {
-    // Use the permission check service's prisma client
-    var scope = await (this.permissionCheckService as any).prisma.iamScope.findFirst({
-      where: {
-        entityId: schoolId,
-        scopeType: { code: 'SCHOOL' },
-        isActive: true,
-      },
+  private async resolveScopeChain(schoolId: string): Promise<string[]> {
+    var prisma = (this.permissionCheckService as any).prisma;
+    var ids: string[] = [];
+
+    var schoolScope = await prisma.iamScope.findFirst({
+      where: { entityId: schoolId, scopeType: { code: 'SCHOOL' }, isActive: true },
       select: { id: true },
     });
+    if (schoolScope) ids.push(schoolScope.id);
 
-    // If no school scope, try platform scope (for platform admins)
-    if (!scope) {
-      var platformScope = await (this.permissionCheckService as any).prisma.iamScope.findFirst({
-        where: {
-          scopeType: { code: 'PLATFORM' },
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      return platformScope ? platformScope.id : null;
-    }
+    var platformScope = await prisma.iamScope.findFirst({
+      where: { scopeType: { code: 'PLATFORM' }, isActive: true },
+      select: { id: true },
+    });
+    if (platformScope) ids.push(platformScope.id);
 
-    return scope.id;
+    return ids;
   }
 }

@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
 import { PrismaClient } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
@@ -11,8 +10,9 @@ import { AuthController } from './auth.controller';
  * Authentication subsystem. Delegates identity verification
  * to external IdP (Keycloak), then issues CampusOS JWT tokens.
  *
- * AuthGuard is registered as a GLOBAL guard — every endpoint
- * requires a valid JWT unless marked with @Public().
+ * AuthGuard is exported so AppModule can register it as the FIRST global
+ * guard. The guard order (Auth → Tenant → Permission) is fixed in
+ * AppModule rather than scattered across modules so it's deterministic.
  */
 @Module({
   providers: [
@@ -26,11 +26,6 @@ import { AuthController } from './auth.controller';
     },
     AuthService,
     AuthGuard,
-    // Register AuthGuard globally — all endpoints require auth by default
-    {
-      provide: APP_GUARD,
-      useClass: AuthGuard,
-    },
   ],
   controllers: [AuthController],
   exports: [AuthService, AuthGuard],
