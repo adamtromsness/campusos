@@ -2,6 +2,11 @@
 
 **The School Operating System** — a cloud-native, multi-tenant platform that unifies every operational domain of a K–12 school into a single system.
 
+## Status
+
+- **Cycle 0 (Platform Foundation):** Complete — auth, tenancy, IAM, guard chain.
+- **Cycle 1 (SIS Core + Attendance):** Steps 1–5 of 11 done — schema, seed, NestJS SIS module. See `HANDOFF-CYCLE1.md` for current state.
+
 ## Architecture
 
 - **840 tables** across **38 modules**, governed by **76 ADRs**
