@@ -2,9 +2,9 @@
 // CampusOS Platform Schema — Prisma Definition
 // Schema: platform (shared across all tenants via search_path)
 //
-// Step 4: Foundation tables (organisations, schools, tenant routing)
-// Step 5: Identity tables (platform_users, iam_person, families)
-// Step 6: IAM tables (roles, permissions, assignments, cache)
+// Step 4: Foundation (organisations, schools, tenant routing, audit)
+// Step 5: Identity (iam_person, platform_users, students, families)
+// Step 6: IAM (roles, permissions, assignments, cache)
 // ═══════════════════════════════════════════════════════════════
 
 generator client {
@@ -18,9 +18,11 @@ datasource db {
   schemas  = ["platform"]
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STEP 4 — Foundation Tables
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 // ── Organisations ────────────────────────────────────────────
-// Districts, MATs, or independent groups that own multiple schools.
-// ERD v11: M0 Identity & Tenancy
 model Organisation {
   id          String   @id @db.Uuid
   name        String
@@ -43,8 +45,6 @@ enum OrgType {
 }
 
 // ── Schools ──────────────────────────────────────────────────
-// Primary tenant entity. Each school = one tenant schema.
-// ERD v11: M0 Identity & Tenancy
 model School {
   id             String   @id @db.Uuid
   organisationId String?  @map("organisation_id") @db.Uuid
@@ -57,8 +57,9 @@ model School {
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  organisation Organisation? @relation(fields: [organisationId], references: [id])
+  organisation Organisation?      @relation(fields: [organisationId], references: [id])
   routing      TenantRouting?
+  idProviders  IdentityProvider[]
 
   @@index([subdomain])
   @@map("schools")
@@ -74,22 +75,18 @@ enum PlanTier {
   @@schema("platform")
 }
 
-// ── Tenant Routing ───────────────────────────────────────────
-// Maps tenants to their database schema and cluster.
-// ADR-031: is_frozen gates all writes during tenant migration.
-// ADR-042: Cached in Redis (500ms TTL) for hot-path resolution.
-// ADR-044: max_connections_pool limits PgBouncer pool per tenant.
+// ── Tenant Routing (ADR-031, ADR-042, ADR-044) ──────────────
 model TenantRouting {
-  id                 String   @id @db.Uuid
-  tenantId           String   @unique @map("tenant_id") @db.Uuid
-  clusterId          String   @default("primary") @map("cluster_id")
-  schemaName         String   @map("schema_name")
-  isActive           Boolean  @default(true) @map("is_active")
-  isFrozen           Boolean  @default(false) @map("is_frozen")
-  isMigrating        Boolean  @default(false) @map("is_migrating")
+  id                 String    @id @db.Uuid
+  tenantId           String    @unique @map("tenant_id") @db.Uuid
+  clusterId          String    @default("primary") @map("cluster_id")
+  schemaName         String    @map("schema_name")
+  isActive           Boolean   @default(true) @map("is_active")
+  isFrozen           Boolean   @default(false) @map("is_frozen")
+  isMigrating        Boolean   @default(false) @map("is_migrating")
   migratedAt         DateTime? @map("migrated_at") @db.Timestamptz()
-  maxConnectionsPool Int      @default(10) @map("max_connections_pool")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  maxConnectionsPool Int       @default(10) @map("max_connections_pool")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   school School @relation(fields: [tenantId], references: [id])
 
@@ -98,19 +95,18 @@ model TenantRouting {
 }
 
 // ── Audit Log ────────────────────────────────────────────────
-// System-wide audit trail for all significant operations.
 model AuditLog {
-  id          String   @id @db.Uuid
-  actorId     String?  @map("actor_id") @db.Uuid
-  actorType   String   @default("HUMAN") @map("actor_type")
-  action      String
-  entityType  String   @map("entity_type")
-  entityId    String?  @map("entity_id") @db.Uuid
-  tenantId    String?  @map("tenant_id") @db.Uuid
-  metadata    Json?    @db.JsonB
-  ipAddress   String?  @map("ip_address")
-  userAgent   String?  @map("user_agent")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id         String   @id @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  actorType  String   @default("HUMAN") @map("actor_type")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id") @db.Uuid
+  tenantId   String?  @map("tenant_id") @db.Uuid
+  metadata   Json?    @db.JsonB
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   @@index([actorId, createdAt(sort: Desc)])
   @@index([entityType, entityId])
@@ -119,17 +115,295 @@ model AuditLog {
   @@schema("platform")
 }
 
-// ── Event Consumer Idempotency ───────────────────────────────
-// Prevents duplicate Kafka event processing (ADR-057).
+// ── Event Consumer Idempotency (ADR-057) ─────────────────────
 model EventConsumerIdempotency {
-  id          String   @id @db.Uuid
-  consumerGroup String @map("consumer_group")
-  eventId     String   @map("event_id")
-  topic       String
-  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz()
+  id            String   @id @db.Uuid
+  consumerGroup String   @map("consumer_group")
+  eventId       String   @map("event_id")
+  topic         String
+  processedAt   DateTime @default(now()) @map("processed_at") @db.Timestamptz()
 
   @@unique([consumerGroup, eventId])
   @@index([processedAt])
   @@map("platform_event_consumer_idempotency")
+  @@schema("platform")
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STEP 5 — Identity Tables (ADR-036, ADR-055)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ── IAM Person — Universal Human Identity ────────────────────
+// The canonical FK target for ALL domain references to a human.
+// ADR-055: if the column identifies WHO a person IS → FK(iam_person)
+// ADR-036: person can exist without a platform_users account
+model IamPerson {
+  id             String     @id @db.Uuid
+  firstName      String     @map("first_name")
+  lastName       String     @map("last_name")
+  preferredName  String?    @map("preferred_name")
+  dateOfBirth    DateTime?  @map("date_of_birth") @db.Date
+  nationalIdHash String?    @map("national_id_hash")
+  personType     PersonType @map("person_type")
+  isActive       Boolean    @default(true) @map("is_active")
+  mergedIntoId   String?    @map("merged_into_id") @db.Uuid
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  mergedInto     IamPerson?  @relation("PersonMerge", fields: [mergedIntoId], references: [id])
+  mergedFrom     IamPerson[] @relation("PersonMerge")
+  account        PlatformUser?
+  studentProfile PlatformStudent?
+  familyMembers  FamilyMember[]
+  volunteerProfile VolunteerProfile?
+  substituteProfile SubstituteProfile?
+
+  @@index([nationalIdHash])
+  @@index([personType, isActive])
+  @@index([mergedIntoId])
+  @@map("iam_person")
+  @@schema("platform")
+}
+
+enum PersonType {
+  STAFF
+  STUDENT
+  GUARDIAN
+  VOLUNTEER
+  SUBSTITUTE
+  ALUMNI
+  EXTERNAL
+
+  @@schema("platform")
+}
+
+// ── Platform Users — Authentication Accounts ─────────────────
+// One row per login credential holder.
+// ADR-036: person_id links every account to its human identity.
+// ADR-055: domain tables use FK(platform_users) ONLY for auth/audit columns.
+model PlatformUser {
+  id            String        @id @db.Uuid
+  personId      String        @unique @map("person_id") @db.Uuid
+  accountStatus AccountStatus @default(ACTIVE) @map("account_status")
+  accountType   AccountType   @default(HUMAN) @map("account_type")
+  email         String        @unique
+  displayName   String?       @map("display_name")
+  avatarUrl     String?       @map("avatar_url")
+  mfaEnabled    Boolean       @default(false) @map("mfa_enabled")
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+  lastSeenAt    DateTime?     @map("last_seen_at") @db.Timestamptz()
+
+  person             IamPerson           @relation(fields: [personId], references: [id])
+  federatedIdentities FederatedIdentity[]
+
+  @@index([personId])
+  @@index([email])
+  @@map("platform_users")
+  @@schema("platform")
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  LOCKED
+  PENDING_VERIFICATION
+  DEACTIVATED
+
+  @@schema("platform")
+}
+
+enum AccountType {
+  HUMAN
+  SERVICE_ACCOUNT
+
+  @@schema("platform")
+}
+
+// ── Platform Students — Student Identity Projection ──────────
+// Portable across school transfers. Denormalised PII for zero-latency lookup.
+// Authoritative identity lives in iam_person; this is a projection.
+// Synced via person.identity.updated Kafka event (ADR-059).
+model PlatformStudent {
+  id               String    @id @db.Uuid
+  personId         String    @unique @map("person_id") @db.Uuid
+  firstName        String    @map("first_name")
+  lastName         String    @map("last_name")
+  dateOfBirth      DateTime? @map("date_of_birth") @db.Date
+  nationalIdHash   String?   @map("national_id_hash")
+  isActive         Boolean   @default(true) @map("is_active")
+  dataSubjectIsSelf Boolean  @default(false) @map("data_subject_is_self")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  person IamPerson @relation(fields: [personId], references: [id])
+
+  @@index([nationalIdHash])
+  @@map("platform_students")
+  @@schema("platform")
+}
+
+// ── Platform Families — Cross-School Family Identity ─────────
+// Enables cross-school sibling detection (tenant schemas cannot JOIN).
+// Synced by FamilyMemberSyncWorker from sis_family_members events.
+model PlatformFamily {
+  id        String   @id @db.Uuid
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  members FamilyMember[]
+
+  @@map("platform_families")
+  @@schema("platform")
+}
+
+// ── Family Members ───────────────────────────────────────────
+model FamilyMember {
+  id              String     @id @db.Uuid
+  familyId        String     @map("family_id") @db.Uuid
+  personId        String     @map("person_id") @db.Uuid
+  memberRole      MemberRole @map("member_role")
+  isPrimaryContact Boolean   @default(false) @map("is_primary_contact")
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+
+  family PlatformFamily @relation(fields: [familyId], references: [id])
+  person IamPerson      @relation(fields: [personId], references: [id])
+
+  @@unique([familyId, personId])
+  @@index([personId])
+  @@map("platform_family_members")
+  @@schema("platform")
+}
+
+enum MemberRole {
+  PARENT
+  GUARDIAN
+  STUDENT
+  SIBLING
+  OTHER
+
+  @@schema("platform")
+}
+
+// ── Volunteer Profiles (ADR-032) ─────────────────────────────
+// Cross-school visibility via direct platform schema read.
+model VolunteerProfile {
+  id                    String              @id @db.Uuid
+  personId              String              @unique @map("person_id") @db.Uuid
+  accountId             String?             @map("account_id") @db.Uuid
+  phone                 String?
+  backgroundCheckStatus BackgroundCheckStatus? @map("background_check_status")
+  backgroundCheckRef    String?             @map("background_check_ref")
+  backgroundCheckDate   DateTime?           @map("background_check_date") @db.Date
+  certifications        Json?               @db.JsonB
+  availabilityNotes     String?             @map("availability_notes")
+  isActive              Boolean             @default(true) @map("is_active")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz()
+
+  person IamPerson @relation(fields: [personId], references: [id])
+
+  @@map("platform_volunteer_profiles")
+  @@schema("platform")
+}
+
+// ── Substitute Profiles (ADR-014) ────────────────────────────
+// Cross-school visibility. Substitute availability and credentials.
+model SubstituteProfile {
+  id                    String              @id @db.Uuid
+  personId              String              @unique @map("person_id") @db.Uuid
+  accountId             String?             @map("account_id") @db.Uuid
+  phone                 String?
+  backgroundCheckStatus BackgroundCheckStatus? @map("background_check_status")
+  backgroundCheckRef    String?             @map("background_check_ref")
+  backgroundCheckDate   DateTime?           @map("background_check_date") @db.Date
+  certifications        Json?               @db.JsonB
+  subjectQualifications Json?               @map("subject_qualifications") @db.JsonB
+  gradeRange            String?             @map("grade_range")
+  maxDistanceMiles      Int?                @map("max_distance_miles")
+  dailyRate             Decimal?            @map("daily_rate") @db.Decimal(8, 2)
+  isActive              Boolean             @default(true) @map("is_active")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz()
+
+  person IamPerson @relation(fields: [personId], references: [id])
+
+  @@map("platform_substitute_profiles")
+  @@schema("platform")
+}
+
+enum BackgroundCheckStatus {
+  PENDING
+  PASSED
+  FLAGGED
+  EXPIRED
+
+  @@schema("platform")
+}
+
+// ── Identity Provider Configuration ──────────────────────────
+// Each school can have its own IdP (Google, Microsoft, SAML, etc.)
+model IdentityProvider {
+  id                    String       @id @db.Uuid
+  schoolId              String?      @map("school_id") @db.Uuid
+  name                  String
+  providerType          ProviderType @map("provider_type")
+  issuerUrl             String?      @map("issuer_url")
+  clientIdEncrypted     String?      @map("client_id_encrypted")
+  metadataUrl           String?      @map("metadata_url")
+  isActive              Boolean      @default(true) @map("is_active")
+  trustLevel            TrustLevel   @default(MEDIUM) @map("trust_level")
+  autoProvisionAccounts Boolean      @default(false) @map("auto_provision_accounts")
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz()
+
+  school              School?             @relation(fields: [schoolId], references: [id])
+  federatedIdentities FederatedIdentity[]
+
+  @@map("iam_identity_provider")
+  @@schema("platform")
+}
+
+enum ProviderType {
+  GOOGLE
+  MICROSOFT
+  SAML
+  OIDC
+  LOCAL
+  LDAP
+
+  @@schema("platform")
+}
+
+enum TrustLevel {
+  HIGH
+  MEDIUM
+  LOW
+
+  @@schema("platform")
+}
+
+// ── Federated Identity — IdP-to-Account Mapping ──────────────
+// Links external IdP identities to platform_users accounts.
+model FederatedIdentity {
+  id           String      @id @db.Uuid
+  userId       String      @map("user_id") @db.Uuid
+  providerId   String      @map("provider_id") @db.Uuid
+  externalId   String      @map("external_id")
+  externalEmail String?    @map("external_email")
+  syncStatus   SyncStatus  @default(SYNCED) @map("sync_status")
+  conflictNote String?     @map("conflict_note")
+  lastSyncAt   DateTime?   @map("last_sync_at") @db.Timestamptz()
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz()
+
+  user     PlatformUser     @relation(fields: [userId], references: [id])
+  provider IdentityProvider @relation(fields: [providerId], references: [id])
+
+  @@unique([providerId, externalId])
+  @@index([userId])
+  @@map("iam_federated_identity")
+  @@schema("platform")
+}
+
+enum SyncStatus {
+  SYNCED
+  CONFLICT
+  PENDING
+
   @@schema("platform")
 }
