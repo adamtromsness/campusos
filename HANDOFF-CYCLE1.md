@@ -18,7 +18,7 @@ This document was updated after the Cycle 1 architecture review. The original co
 | 4 | Seed Data — A Living School | Done |
 | 4b | Role-permission mappings (gap fix) | Done |
 | 5 | SIS NestJS Module | Done |
-| 6 | Attendance NestJS Module | Not started |
+| 6 | Attendance NestJS Module | Done — vertical slice verified |
 | 7 | UI Shell & Design System | Not started |
 | 8 | Teacher Dashboard | Not started |
 | 9 | Attendance Taking UI | Not started |
@@ -154,7 +154,7 @@ These are intentionally **conservative defaults** for Cycle 1. Real schools will
 
 ---
 
-## API endpoints — Step 5
+## API endpoints — Steps 5 & 6
 
 New module: `apps/api/src/sis/`. All routes are tenant-scoped (require `X-Tenant-Subdomain` header in dev) and `@RequirePermission`-protected.
 
@@ -171,19 +171,73 @@ New module: `apps/api/src/sis/`. All routes are tenant-scoped (require `X-Tenant
 | GET | `/api/v1/classes/my` | `stu-001:read` OR `att-001:read` | teacher's classes, resolved via `req.user.personId` |
 | GET | `/api/v1/classes/:id/roster` | `stu-001:read` OR `att-001:read` | active enrollments, the key endpoint for the attendance UI |
 
-**Module structure:**
+### Attendance & absence-request endpoints (Step 6)
+
+| Verb | Path | Permission | Notes |
+|---|---|---|---|
+| GET | `/api/v1/classes/:id/attendance/:date?period=N` | `att-001:read` | Class roster + statuses for the date. When `period` is supplied, lazily pre-populates PRESENT/PRE_POPULATED rows for any active enrollment that's missing one — the natural-key UNIQUE makes this idempotent. |
+| PATCH | `/api/v1/attendance/:id` | `att-001:write` | Mark a single record. Looks up partition keys first (id alone isn't enough on a partitioned table for an efficient UPDATE), then UPDATEs and emits Kafka events. |
+| POST | `/api/v1/classes/:id/attendance/:date/batch` | `att-001:write` | Confirm a class period. Body sends only exceptions; omitted students treated as PRESENT. Single transaction. Emits `att.attendance.confirmed` + per-row `att.student.marked_*` events. |
+| GET | `/api/v1/students/:id/attendance` | `att-001:read` | Student history; optional `fromDate`/`toDate`. |
+| POST | `/api/v1/absence-requests` | `att-004:write` | Submit. SAME_DAY_REPORT auto-approves; ADVANCE_REQUEST queues PENDING. Non-admin callers must be a guardian of the student (sis_student_guardians link check inside the tx). |
+| GET | `/api/v1/absence-requests` | `att-004:read` | List. Non-admins see only their own submissions; admins see all (filterable). |
+| GET | `/api/v1/absence-requests/:id` | `att-004:read` | Get one. Non-admins can only view their own. |
+| PATCH | `/api/v1/absence-requests/:id` | `att-004:admin` | Review (APPROVE/REJECT). Only PENDING requests can be reviewed. |
+
+**Kafka events (best-effort, fire-and-forget):**
+- `att.attendance.marked` — every individual mark
+- `att.attendance.confirmed` — per period batch submit
+- `att.student.marked_tardy` — when status transitions to TARDY
+- `att.student.marked_absent` — when status transitions to ABSENT
+- `att.absence.requested` — on absence-request submission
+- `att.absence.reviewed` — on admin decision
+
+Cycle 1 emits but does not consume; consumers land in Cycle 3 (Communications).
+
+### Vertical-slice verification (Step 6 exit criterion)
+
+End-to-end run on tenant_demo, `2026-04-26`:
+
+| Step | Action | Result |
+|---|---|---|
+| A | Teacher GET `/classes/:p1/attendance/2026-04-26?period=1` | 8 students, all PRESENT/PRE_POPULATED |
+| B | Teacher PATCH `/attendance/<maya>` `{status:'TARDY', parentExplanation:'arrived 8:15'}` | 200; Maya TARDY/PRE_POPULATED, markedBy set |
+| C | Teacher POST `/classes/:p1/attendance/2026-04-26/batch` `{period:'1', records:[{maya,TARDY}]}` | 201; total=8, present=7, tardy=1, confirmedAt set |
+| D | DB inspection | Maya TARDY/CONFIRMED with note; 7 others PRESENT/CONFIRMED |
+| E | Parent GET `/students/<maya>/attendance?fromDate=...&toDate=...` | P1 TARDY (CONFIRMED) note='arrived 8:15' visible |
+| F | Parent POST `/absence-requests` (ADVANCE_REQUEST for 2026-04-28, MEDICAL_APPOINTMENT) | 201; status PENDING |
+| G | Admin PATCH `/absence-requests/<id>` `{decision:'APPROVED'}` | 200; status APPROVED, reviewedBy/reviewedAt set |
+
+Permission denial verified for: parent on att-001:write, student on att-001:write, teacher on att-004:admin.
+
+Kafka emits verified by consuming from each topic — `att.student.marked_tardy` shows 2 messages (one from PATCH, one from batch); `att.absence.reviewed` shows the approval payload.
+
+### Module structure
 ```
 apps/api/src/sis/
-├── sis.module.ts            (registered in AppModule)
-├── student.service.ts       (StudentService)
-├── class.service.ts         (ClassService)
-├── family.service.ts        (FamilyService)
-├── student.controller.ts    (6 endpoints)
-├── class.controller.ts      (4 endpoints)
+├── sis.module.ts                  (registered in AppModule)
+├── student.service.ts
+├── class.service.ts
+├── family.service.ts
+├── student.controller.ts          (6 endpoints)
+├── class.controller.ts            (4 endpoints)
 └── dto/
-    ├── student.dto.ts       (CreateStudentDto, UpdateStudentDto, StudentResponseDto, ListStudentsQueryDto)
-    ├── class.dto.ts         (ClassResponseDto, RosterEntryDto, ListClassesQueryDto)
-    └── guardian.dto.ts      (GuardianResponseDto, StudentGuardianDto)
+    ├── student.dto.ts
+    ├── class.dto.ts
+    └── guardian.dto.ts
+
+apps/api/src/attendance/
+├── attendance.module.ts           (registered in AppModule, imports SisModule + IamModule + KafkaModule)
+├── attendance.service.ts          (getClassAttendance, prePopulateClassPeriod, markIndividual, batchSubmit, getStudentAttendance)
+├── absence-request.service.ts     (create, list, getById, review)
+├── attendance.controller.ts       (8 endpoints)
+└── dto/
+    ├── attendance.dto.ts
+    └── absence-request.dto.ts
+
+apps/api/src/kafka/
+├── kafka.module.ts
+└── kafka-producer.service.ts      (best-effort emit; logs warning if broker unreachable)
 ```
 
 **Tenant query pattern** (all SIS services follow this):
@@ -285,18 +339,31 @@ Initial peer review flagged 5 blockers; verification against the actual docs con
 
 ---
 
-## What Step 6 needs from Cycle 1's foundation
+## What Step 7+ needs from Cycle 1's foundation
 
-The Attendance module (Step 6) will:
+The remaining UI steps (7–11) consume the API surface built in Steps 5 and 6.
 
-- **Consume** `ClassService.getRoster(classId)` to know who to pre-populate.
-- **Consume** `ClassService.listForTeacherPerson(personId)` for the teacher dashboard's "today's classes".
-- **Consume** `StudentService.listForGuardianPerson(personId)` for the parent's child list.
-- **Use** the existing Teacher permissions (`att-001:read/write`, `att-002:write`, `att-003:write`, `att-004:read`) — already in the cache.
-- **Use** the existing Parent permissions (`att-001:read`, `att-004:read/write`) — already in the cache.
-- **Insert into** the partitioned `sis_attendance_records`. Inserts must include `school_year`, `class_id`, and `id` (composite PK); pass `school_year = '2025-08-15'::date` for the current academic year.
-- **Watch out for partition pruning.** Queries by `class_id` + `date` (or implicit `school_year`) will prune correctly. Queries by `id` alone won't and will scan all 32 leaves — pass `school_year` and `class_id` alongside `id` for efficient PATCH.
-- **Emit** Kafka events `att.attendance.marked`, `att.attendance.confirmed`, `att.student.marked_tardy`, `att.student.marked_absent`. Kafka client wired in Cycle 0; consumers come in Cycle 3.
+**Teacher dashboard (Step 8):**
+- `GET /api/v1/classes/my` → today's classes for the logged-in teacher (existing).
+- For each card, `GET /api/v1/classes/:id/attendance/today` → pre-populated roster + confirmation status.
+
+**Attendance taking UI (Step 9):**
+- `GET /api/v1/classes/:id/attendance/:date?period=N` → roster with statuses (lazy pre-populate fires here on first open).
+- `PATCH /api/v1/attendance/:id` → mark a student tardy/absent/etc.
+- `POST /api/v1/classes/:id/attendance/:date/batch` → submit the period.
+
+**Parent dashboard (Step 10):**
+- `GET /api/v1/students/my-children` → children list (existing).
+- `GET /api/v1/students/:id/attendance` → calendar/history view.
+- `POST /api/v1/absence-requests` → submit absence form.
+
+**Vertical slice integration test (Step 11):**
+- All 7 steps of the test script in the plan map to existing endpoints. Step 6 implementation has already verified the API-side flow end-to-end — Step 11 will verify it via the UI in a browser.
+
+**Persistent gotchas to be aware of:**
+- Partition pruning on `sis_attendance_records`: queries by `class_id` + `date` prune correctly; queries by `id` alone scan all 32 leaves but each lookup is O(log n) via PK index. The implementation handles this internally (looks up partition keys before UPDATE).
+- Lazy pre-populate runs on first `GET /classes/:id/attendance/:date?period=N`. The natural-key UNIQUE prevents dupes if multiple teachers race.
+- Kafka emits are best-effort; a Kafka outage doesn't block requests. Consumers (Cycle 3) need to be idempotent.
 
 ---
 

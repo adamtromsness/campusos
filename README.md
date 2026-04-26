@@ -5,7 +5,7 @@
 ## Status
 
 - **Cycle 0 (Platform Foundation):** Complete — auth, tenancy, IAM, guard chain.
-- **Cycle 1 (SIS Core + Attendance):** Steps 1–5 of 11 done — schema, seed, NestJS SIS module. See `HANDOFF-CYCLE1.md` for current state.
+- **Cycle 1 (SIS Core + Attendance):** Steps 1–6 of 11 done — schema, seed, SIS module, Attendance module with Kafka emits, vertical slice verified end-to-end. UI work (Steps 7–11) remains. See `HANDOFF-CYCLE1.md` for current state.
 
 ## Architecture
 

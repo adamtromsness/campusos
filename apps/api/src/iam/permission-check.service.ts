@@ -82,4 +82,30 @@ export class PermissionCheckService {
 
     return cache ? cache.permissionCodes : [];
   }
+
+  /**
+   * Does this account hold any of the given codes in ANY of their cached
+   * scopes? Used by controllers to flip behavior (e.g. "is this user an
+   * admin somewhere?") without re-walking the scope chain themselves.
+   *
+   * Note: scope-bounded checks should still go through hasAnyPermission
+   * with a specific scopeId — that's the policy gate. This method is for
+   * cheap behavior modulation, not for access control.
+   */
+  async hasAnyPermissionAcrossScopes(
+    accountId: string,
+    permissionCodes: string[],
+  ): Promise<boolean> {
+    var caches = await this.prisma.iamEffectiveAccessCache.findMany({
+      where: { accountId },
+      select: { permissionCodes: true },
+    });
+    for (var i = 0; i < caches.length; i++) {
+      var codes = caches[i]!.permissionCodes;
+      for (var j = 0; j < permissionCodes.length; j++) {
+        if (codes.includes(permissionCodes[j]!)) return true;
+      }
+    }
+    return false;
+  }
 }

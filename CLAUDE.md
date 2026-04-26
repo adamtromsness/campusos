@@ -4,7 +4,7 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 
 ## Project Status
 
-Cycle 0 (Platform Foundation) is COMPLETE. Cycle 1 (SIS Core + Attendance) is partially complete: Steps 1–5 of 11 done (schema, seed, NestJS SIS module). Steps 6–11 (Attendance module + UI + integration test) remain.
+Cycle 0 (Platform Foundation) is COMPLETE. Cycle 1 (SIS Core + Attendance) is partially complete: Steps 1–6 of 11 done (schema, seed, SIS module, Attendance module with Kafka emits, vertical slice verified end-to-end). Steps 7–11 (UI shell + Teacher/Parent dashboards + Attendance UI + integration test) remain.
 See `docs/campusos-cycle1-implementation-plan.html` for the detailed step-by-step plan, and `HANDOFF-CYCLE1.md` for current build state and known gaps.
 
 ## Architecture
@@ -28,15 +28,17 @@ See `docs/campusos-cycle1-implementation-plan.html` for the detailed step-by-ste
 ## Project Structure
 
 ```
-apps/api/             → NestJS backend (modular monolith)
-apps/api/src/auth/    → AuthGuard (JWT), PermissionGuard, @Public, @RequirePermission
-apps/api/src/tenant/  → TenantResolverMiddleware, TenantGuard, TenantPrismaService, AsyncLocalStorage
-apps/api/src/iam/     → Roles, permissions, assignments, effective access cache
-apps/api/src/platform/ → M0 Platform Core
-apps/api/src/sis/     → M20 SIS Core (Cycle 1): students, classes, families, guardians
-apps/web/             → Next.js frontend
-packages/database/    → Prisma schema, tenant SQL migrations, provisioning, seed scripts
-packages/shared/      → Shared TypeScript types and constants
+apps/api/                → NestJS backend (modular monolith)
+apps/api/src/auth/       → AuthGuard (JWT), PermissionGuard, @Public, @RequirePermission
+apps/api/src/tenant/     → TenantResolverMiddleware, TenantGuard, TenantPrismaService, AsyncLocalStorage
+apps/api/src/iam/        → Roles, permissions, assignments, effective access cache
+apps/api/src/platform/   → M0 Platform Core
+apps/api/src/sis/        → M20 SIS Core (Cycle 1 Step 5): students, classes, families, guardians
+apps/api/src/attendance/ → ATT-001..005 (Cycle 1 Step 6): attendance + absence requests + Kafka emits
+apps/api/src/kafka/      → KafkaProducerService (best-effort emit)
+apps/web/                → Next.js frontend
+packages/database/       → Prisma schema, tenant SQL migrations, provisioning, seed scripts
+packages/shared/         → Shared TypeScript types and constants
 ```
 
 ## Key Design Contracts

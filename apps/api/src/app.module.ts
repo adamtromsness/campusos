@@ -7,6 +7,8 @@ import { PlatformModule } from './platform/platform.module';
 import { IamModule } from './iam/iam.module';
 import { AuthModule } from './auth/auth.module';
 import { SisModule } from './sis/sis.module';
+import { AttendanceModule } from './attendance/attendance.module';
+import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
 import { PermissionGuard } from './auth/permission.guard';
@@ -29,7 +31,9 @@ import { GuardTestController } from './guard-test.controller';
     AuthModule,
     PlatformModule,
     IamModule,
+    KafkaModule,
     SisModule,
+    AttendanceModule,
   ],
   controllers: [GuardTestController],
   providers: [
