@@ -127,6 +127,7 @@ export class ClassService {
   constructor(private readonly tenantPrisma: TenantPrismaService) {}
 
   async list(filters: ListClassesQueryDto): Promise<ClassResponseDto[]> {
+    var today = new Date().toISOString().slice(0, 10);
     var result = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var rows = await client.$queryRawUnsafe<ClassRow[]>(
         CLASS_SELECT_BASE +
@@ -140,16 +141,22 @@ export class ClassService {
         filters.academicYearId ?? null,
         filters.gradeLevel ?? null,
       );
-      var teachers = await this.loadTeachersForClasses(
-        client,
-        rows.map(function (r) {
-          return r.id;
-        }),
-      );
-      return { rows: rows, teachers: teachers };
+      var classIds = rows.map(function (r) {
+        return r.id;
+      });
+      var teachers = await this.loadTeachersForClasses(client, classIds);
+      var todayRows = await this.loadTodayAttendanceForClasses(client, classIds, today);
+      return { rows: rows, teachers: teachers, todayRows: todayRows };
     });
+    var byClass = new Map<string, TodayAttendanceRow>();
+    for (var i = 0; i < result.todayRows.length; i++) {
+      var row = result.todayRows[i]!;
+      byClass.set(row.class_id, row);
+    }
     return result.rows.map(function (r) {
-      return classRowToDto(r, result.teachers);
+      var dto = classRowToDto(r, result.teachers);
+      dto.todayAttendance = todaySummaryFor(r.id, byClass);
+      return dto;
     });
   }
 

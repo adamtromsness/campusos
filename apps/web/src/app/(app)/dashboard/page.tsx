@@ -2,12 +2,21 @@
 
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
 import { TeacherDashboard } from '@/components/dashboard/TeacherDashboard';
 import { ParentDashboard } from '@/components/dashboard/ParentDashboard';
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   if (!user) return null;
+
+  // Admin precedes Teacher: Platform Admin / School Admin (sch-001:admin) get
+  // the school-wide overview rather than the empty "no classes assigned"
+  // state of TeacherDashboard.
+  const isAdminView = hasAnyPermission(user, ['sch-001:admin']);
+  if (isAdminView) {
+    return <AdminDashboard user={user} />;
+  }
 
   const isTeacherView =
     user.personType === 'STAFF' &&

@@ -1,6 +1,6 @@
 # Cycle 1 Handoff — SIS Core + Attendance
 
-**Status:** Steps 1–10 of 11 complete. Step 11 (vertical-slice integration test) remains.
+**Status:** Cycle 1 COMPLETE — all 11 steps done. Verified end-to-end via `docs/cycle1-cat-script.md`.
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle1-implementation-plan.html`
 
@@ -10,22 +10,22 @@ This document was updated after the Cycle 1 architecture review. The original co
 
 ## Step status
 
-| Step | Title                              | Status                                             |
-| ---: | ---------------------------------- | -------------------------------------------------- |
-|    1 | Academic Structure Schema          | Done                                               |
-|    2 | Student & Family Schema            | Done                                               |
-|    3 | Attendance Schema                  | Done (partitioned per ADR-007)                     |
-|    4 | Seed Data — A Living School        | Done                                               |
-|   4b | Role-permission mappings (gap fix) | Done                                               |
-|    5 | SIS NestJS Module                  | Done                                               |
-|    6 | Attendance NestJS Module           | Done — API vertical slice verified                 |
-|    7 | UI Shell & Design System           | Done — auth, layout, design tokens, components     |
-|    8 | Teacher Dashboard                  | Done — `/classes/my` extended with todayAttendance |
-|    9 | Attendance Taking UI               | Done — full UI vertical slice verified end-to-end  |
-|   10 | Parent Dashboard & Attendance View | Done — children cards, calendar, absence request   |
-|   11 | Vertical Slice Integration Test    | Not started                                        |
+| Step | Title                              | Status                                              |
+| ---: | ---------------------------------- | --------------------------------------------------- |
+|    1 | Academic Structure Schema          | Done                                                |
+|    2 | Student & Family Schema            | Done                                                |
+|    3 | Attendance Schema                  | Done (partitioned per ADR-007)                      |
+|    4 | Seed Data — A Living School        | Done                                                |
+|   4b | Role-permission mappings (gap fix) | Done                                                |
+|    5 | SIS NestJS Module                  | Done                                                |
+|    6 | Attendance NestJS Module           | Done — API vertical slice verified                  |
+|    7 | UI Shell & Design System           | Done — auth, layout, design tokens, components      |
+|    8 | Teacher Dashboard                  | Done — `/classes/my` extended with todayAttendance  |
+|    9 | Attendance Taking UI               | Done — full UI vertical slice verified end-to-end   |
+|   10 | Parent Dashboard & Attendance View | Done — children cards, calendar, absence request    |
+|   11 | Vertical Slice Integration Test    | Done — CAT script + admin dashboard + confirm modal |
 
-The Cycle 1 exit deliverable (teacher marks Maya tardy → submits → dashboard updates → parent sees it) is now wired end-to-end on both the teacher and parent sides; Step 11 walks the full UI script in a browser.
+The Cycle 1 exit deliverable (teacher marks Maya tardy → submits → dashboard updates → parent sees it → admin reviews queue) is verified end-to-end. Reproducible CAT script lives at `docs/cycle1-cat-script.md`.
 
 ---
 
@@ -504,6 +504,70 @@ Run on `tenant_demo`, `2026-04-27`:
 | 4   | Web smoke: `/dashboard` 200, `/children/<maya>/attendance` 200, `/children/<maya>/absence-request` 200              | All routes serve the auth-gated shell; React Query feeds them from #1–3   |
 
 The teacher→parent vertical slice is now end-to-end real: Maya was marked tardy in the Step 9 smoke test on 2026-04-27, and the parent dashboard's tardy banner now shows it.
+
+---
+
+## Step 11 — Vertical Slice Integration Test
+
+The Cycle 1 exit step. Three small additions plus a written CAT walkthrough.
+
+### Confirm modal on attendance submit
+
+`apps/web/src/app/(app)/classes/[id]/attendance/page.tsx`. The submit button no longer fires immediately — it opens `<Modal title="Submit attendance?">` showing the day's tally ("8 students · 7 present · 1 tardy") and a reminder that confirmation is irreversible without admin override. Cancel returns to editing; Confirm submit fires the batch mutation. While the mutation is in flight, the modal can't be dismissed (escape / backdrop are no-ops). Implements the spec line "Confirmation dialog shows '1 Tardy'" and adds a meaningful safety net before locking the period.
+
+### `GET /classes` extension — `todayAttendance` summary
+
+`apps/api/src/sis/class.service.ts` `ClassService.list`. Same single grouped aggregate the `/classes/my` endpoint already runs, just without the teacher filter. Each class in the school-wide list now ships with the `todayAttendance: { status, totalRecorded, present, tardy, absent, excused, earlyDeparture }` shape introduced in Step 8. Powers the admin dashboard.
+
+### `AdminDashboard` (`apps/web/src/components/dashboard/AdminDashboard.tsx`)
+
+- Greeting + today's date + "School-wide overview" subtitle.
+- 4-card stats row: Classes submitted (`N/total`), Attendance rate (across all marked rows), Tardies today, Absences today (with total enrolled count as hint).
+- Today's classes table: period, course (linking to the attendance page), teacher, enrolled, marked, tardy, absent, status pill — all 6 classes of the demo school visible in one view.
+- Pending absence requests panel: filtered by `status=PENDING` via `useAbsenceRequests`. Each row shows student, reason category, date range, free-text explanation, and a `pending` pill.
+
+Hooks: `useClasses()` was added to `use-classes.ts` for the school-wide fetch (`useMyClasses` stays for the teacher-only view).
+
+### Persona switch — admin precedes teacher
+
+`apps/web/src/app/(app)/dashboard/page.tsx`. The order is now:
+
+1. `hasAnyPermission(user, ['sch-001:admin'])` → `<AdminDashboard />` (Platform Admin and School Admin land here).
+2. `STAFF + att-001:read|write|admin` → `<TeacherDashboard />`.
+3. `GUARDIAN` → `<ParentDashboard />`.
+4. Anything else → placeholder.
+
+Without this ordering, the platform admin would route to the teacher branch (they have `att-001:read`) and see "No classes assigned" because they're not a teacher.
+
+### CAT script — `docs/cycle1-cat-script.md`
+
+Manual walkthrough of all 9 steps from the implementation plan, with API curls and expected outputs captured inline from a fresh end-to-end run on `tenant_demo` (today's records reset first via `DELETE FROM tenant_demo.sis_attendance_records WHERE date = CURRENT_DATE`). The script doubles as a reproducible regression check for future cycles.
+
+Each step has both a UI walkthrough (what to click, what to see) and a curl-based verification (capture the API output that the UI consumes). Step 5 is psql-based (verifies the row physically landed with the expected partition keys + status). Step 9 verifies the school-wide stats and pending queue admin sees.
+
+### CAT verified outcome (recorded 2026-04-27)
+
+| #   | Action                                                          | Result                                                                   |
+| --- | --------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 1   | Teacher dashboard                                               | 6 classes, all NOT_STARTED                                               |
+| 2   | Open P1 Algebra                                                 | 8 students pre-populated PRESENT/PRE_POPULATED                           |
+| 3   | Mark Maya TARDY ("arrived 8:15")                                | Local override, row tints amber                                          |
+| 4   | Confirm + submit batch                                          | total=8, present=7, tardy=1, absent=0; `att.attendance.confirmed` emit   |
+| 5   | DB verify                                                       | Maya: TARDY/CONFIRMED, note "arrived 8:15"; dashboard P1 → SUBMITTED     |
+| 6   | Parent dashboard                                                | Tardy banner: "Maya was marked tardy in Period 1 (arrived 8:15)"         |
+| 7   | View Maya's attendance                                          | Today shows P1 TARDY with note in Day Detail panel                       |
+| 8   | Submit absence request (tomorrow, MEDICAL, "Pediatric checkup") | 201 PENDING, ADVANCE_REQUEST                                             |
+| 9   | Admin dashboard                                                 | 1/6 submitted, 88% attendance rate, 1 tardy, 0 absent, 1 pending request |
+
+Permission denial verified previously in the Step 6 security smoke (parent on att-001:write, student on att-001:write, teacher on att-004:admin) — those checks remain valid.
+
+### Out-of-scope decisions for Cycle 1
+
+- No browser-driver e2e harness (Playwright). Adding it costs more than it returns at this product stage; CAT script is the test surface.
+- Admin absence-review is list-only in the UI. The PATCH endpoint exists; a dedicated review modal can land in a later cycle.
+- No S3 upload UI on the absence-request form.
+- Multi-period schedules collapse to a single per-class status. Acceptable for the demo seed (one period per class section).
+- Push / email notification delivery is Cycle 3.
 
 ---
 

@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Avatar } from '@/components/ui/Avatar';
+import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/components/ui/cn';
 import type { AttendanceRecord, AttendanceStatus, BatchAttendanceEntry } from '@/lib/types';
@@ -38,10 +39,12 @@ export default function ClassAttendancePage() {
   const submit = useBatchSubmitAttendance(classId ?? '', date);
 
   const [overrides, setOverrides] = useState<OverrideMap>({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Reset overrides whenever the class+date+period changes (e.g. navigating dates).
   useEffect(() => {
     setOverrides({});
+    setConfirmOpen(false);
   }, [classId, date, period]);
 
   if (classQuery.isLoading || !classQuery.data) {
@@ -119,7 +122,18 @@ export default function ClassAttendancePage() {
           records={records}
           overrides={overrides}
           submitting={submit.isPending}
-          onSubmit={async () => {
+          onSubmit={() => setConfirmOpen(true)}
+        />
+      )}
+
+      {!locked && (
+        <ConfirmSubmitModal
+          open={confirmOpen}
+          records={records}
+          overrides={overrides}
+          submitting={submit.isPending}
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={async () => {
             const entries = buildBatchEntries(records, overrides);
             try {
               const result = await submit.mutateAsync({ period: period!, records: entries });
@@ -128,6 +142,7 @@ export default function ClassAttendancePage() {
                 'success',
               );
               setOverrides({});
+              setConfirmOpen(false);
             } catch (err) {
               const msg = err instanceof Error ? err.message : 'Failed to submit attendance';
               toast(msg, 'error');
@@ -136,6 +151,67 @@ export default function ClassAttendancePage() {
         />
       )}
     </div>
+  );
+}
+
+interface ConfirmSubmitModalProps {
+  open: boolean;
+  records: AttendanceRecord[];
+  overrides: OverrideMap;
+  submitting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function ConfirmSubmitModal({
+  open,
+  records,
+  overrides,
+  submitting,
+  onCancel,
+  onConfirm,
+}: ConfirmSubmitModalProps) {
+  const counts = countByStatus(records, overrides);
+  const exceptions = formatExceptions(counts);
+  return (
+    <Modal
+      open={open}
+      onClose={submitting ? () => {} : onCancel}
+      title="Submit attendance?"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={submitting}
+            className="inline-flex items-center gap-2 rounded-lg bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-card hover:bg-campus-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting && <LoadingSpinner size="sm" className="border-white/40 border-t-white" />}
+            Confirm submit
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-2 text-sm text-gray-700">
+        <p>
+          <span className="font-medium">{records.length}</span> students ·{' '}
+          <span className="font-medium">{counts.PRESENT}</span> present
+          {exceptions ? <> · {exceptions}</> : null}.
+        </p>
+        <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+          Once submitted, attendance is locked. Changes to confirmed records require an
+          administrator override.
+        </p>
+      </div>
+    </Modal>
   );
 }
 

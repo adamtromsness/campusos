@@ -10,3 +10,10 @@ export function useMyClasses() {
     queryFn: () => apiFetch<ClassDto[]>('/api/v1/classes/my'),
   });
 }
+
+export function useClasses() {
+  return useQuery({
+    queryKey: ['classes', 'all'],
+    queryFn: () => apiFetch<ClassDto[]>('/api/v1/classes'),
+  });
+}
