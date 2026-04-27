@@ -1,6 +1,44 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
-import { ListClassesQueryDto, ClassResponseDto, RosterEntryDto } from './dto/class.dto';
+import {
+  ListClassesQueryDto,
+  ClassResponseDto,
+  RosterEntryDto,
+  TodayAttendanceSummaryDto,
+  TodayAttendanceStatus,
+} from './dto/class.dto';
+
+interface TodayAttendanceRow {
+  class_id: string;
+  total: number;
+  present: number;
+  tardy: number;
+  absent: number;
+  excused: number;
+  early_departure: number;
+  all_confirmed: boolean;
+}
+
+function deriveTodayStatus(row: TodayAttendanceRow | undefined): TodayAttendanceStatus {
+  if (!row || Number(row.total) === 0) return 'NOT_STARTED';
+  return row.all_confirmed ? 'SUBMITTED' : 'IN_PROGRESS';
+}
+
+function todaySummaryFor(
+  classId: string,
+  byClass: Map<string, TodayAttendanceRow>,
+): TodayAttendanceSummaryDto {
+  var row = byClass.get(classId);
+  return {
+    status: deriveTodayStatus(row),
+    totalRecorded: row ? Number(row.total) : 0,
+    present: row ? Number(row.present) : 0,
+    tardy: row ? Number(row.tardy) : 0,
+    absent: row ? Number(row.absent) : 0,
+    excused: row ? Number(row.excused) : 0,
+    earlyDeparture: row ? Number(row.early_departure) : 0,
+  };
+}
 
 interface ClassRow {
   id: string;
@@ -133,8 +171,13 @@ export class ClassService {
    * Classes taught by the given teacher, identified by their iam_person.id.
    * (We seeded sis_class_teachers.teacher_employee_id with iam_person.id; an HR module
    *  will later remap this to hr_employees but the lookup pattern remains.)
+   *
+   * Each class is enriched with todayAttendance — used by the teacher dashboard.
+   * Rule: 0 records → NOT_STARTED; >=1 record, all CONFIRMED → SUBMITTED;
+   * otherwise IN_PROGRESS (some pre-populated rows still pending).
    */
   async listForTeacherPerson(teacherPersonId: string): Promise<ClassResponseDto[]> {
+    var today = new Date().toISOString().slice(0, 10);
     var result = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var rows = await client.$queryRawUnsafe<ClassRow[]>(
         CLASS_SELECT_BASE +
@@ -142,17 +185,58 @@ export class ClassService {
           'ORDER BY c.section_code',
         teacherPersonId,
       );
-      var teachers = await this.loadTeachersForClasses(
-        client,
-        rows.map(function (r) {
-          return r.id;
-        }),
-      );
-      return { rows: rows, teachers: teachers };
+      var classIds = rows.map(function (r) {
+        return r.id;
+      });
+      var teachers = await this.loadTeachersForClasses(client, classIds);
+      var todayRows = await this.loadTodayAttendanceForClasses(client, classIds, today);
+      return { rows: rows, teachers: teachers, todayRows: todayRows };
     });
+    var byClass = new Map<string, TodayAttendanceRow>();
+    for (var i = 0; i < result.todayRows.length; i++) {
+      var row = result.todayRows[i]!;
+      byClass.set(row.class_id, row);
+    }
     return result.rows.map(function (r) {
-      return classRowToDto(r, result.teachers);
+      var dto = classRowToDto(r, result.teachers);
+      dto.todayAttendance = todaySummaryFor(r.id, byClass);
+      return dto;
     });
+  }
+
+  /**
+   * Aggregate today's attendance per class. One grouped query joins all rows
+   * for the given class set on the given date and returns per-class status
+   * counts plus an all-confirmed flag (used to derive SUBMITTED vs IN_PROGRESS).
+   */
+  private async loadTodayAttendanceForClasses(
+    client: any,
+    classIds: string[],
+    isoDate: string,
+  ): Promise<TodayAttendanceRow[]> {
+    if (classIds.length === 0) return [];
+    var placeholders = classIds
+      .map(function (_, idx) {
+        return '$' + (idx + 2) + '::uuid';
+      })
+      .join(',');
+    return client.$queryRawUnsafe(
+      'SELECT a.class_id, ' +
+        'COUNT(*)::int AS total, ' +
+        "COUNT(*) FILTER (WHERE a.status = 'PRESENT')::int AS present, " +
+        "COUNT(*) FILTER (WHERE a.status = 'TARDY')::int AS tardy, " +
+        "COUNT(*) FILTER (WHERE a.status = 'ABSENT')::int AS absent, " +
+        "COUNT(*) FILTER (WHERE a.status = 'EXCUSED')::int AS excused, " +
+        "COUNT(*) FILTER (WHERE a.status = 'EARLY_DEPARTURE')::int AS early_departure, " +
+        "BOOL_AND(a.confirmation_status = 'CONFIRMED') AS all_confirmed " +
+        'FROM sis_attendance_records a ' +
+        'WHERE a.date = $1::date AND a.class_id IN (' +
+        placeholders +
+        ') ' +
+        'GROUP BY a.class_id',
+      isoDate,
+      ...classIds,
+    );
   }
 
   async getRoster(classId: string): Promise<RosterEntryDto[]> {

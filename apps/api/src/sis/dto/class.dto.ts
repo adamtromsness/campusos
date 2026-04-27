@@ -36,6 +36,19 @@ export class ClassTeacherDto {
   @ApiProperty() isPrimaryTeacher!: boolean;
 }
 
+export type TodayAttendanceStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'SUBMITTED';
+
+export class TodayAttendanceSummaryDto {
+  @ApiProperty({ enum: ['NOT_STARTED', 'IN_PROGRESS', 'SUBMITTED'] })
+  status!: TodayAttendanceStatus;
+  @ApiProperty() totalRecorded!: number;
+  @ApiProperty() present!: number;
+  @ApiProperty() tardy!: number;
+  @ApiProperty() absent!: number;
+  @ApiProperty() excused!: number;
+  @ApiProperty() earlyDeparture!: number;
+}
+
 export class ClassResponseDto {
   @ApiProperty() id!: string;
   @ApiProperty() schoolId!: string;
@@ -47,6 +60,12 @@ export class ClassResponseDto {
   @ApiProperty({ type: TermSummaryDto, nullable: true }) term!: TermSummaryDto | null;
   @ApiProperty({ type: [ClassTeacherDto] }) teachers!: ClassTeacherDto[];
   @ApiProperty() enrollmentCount!: number;
+  @ApiPropertyOptional({
+    type: TodayAttendanceSummaryDto,
+    description:
+      "Attendance summary for today's date. Populated only on /classes/my (the teacher dashboard endpoint).",
+  })
+  todayAttendance?: TodayAttendanceSummaryDto;
 }
 
 export class RosterEntryDto {
