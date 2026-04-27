@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useAuthActions } from '@/lib/auth-context';
-import { type AuthUser } from '@/lib/auth-store';
+import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
 import { LogoutIcon, MenuIcon } from './icons';
 
 interface TopBarProps {
@@ -28,7 +29,11 @@ export function TopBar({ user, onOpenMenu }: TopBarProps) {
         </button>
       </div>
 
-      <div className="relative">
+      <div className="flex items-center gap-1">
+        {hasAnyPermission(user, ['com-001:read', 'com-002:read']) && (
+          <NotificationBell user={user} />
+        )}
+        <div className="relative">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -63,6 +68,7 @@ export function TopBar({ user, onOpenMenu }: TopBarProps) {
             </button>
           </div>
         )}
+        </div>
       </div>
     </header>
   );

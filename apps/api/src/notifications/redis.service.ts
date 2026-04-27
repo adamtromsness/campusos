@@ -200,4 +200,96 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       return {};
     }
   }
+
+  /**
+   * Read the most-recent N in-app notifications for the recipient. Each
+   * entry comes back with `score` (epoch ms — set by
+   * `pushInAppNotification`) and `value` (the parsed JSON body that the
+   * delivery worker wrote). Returns newest-first.
+   *
+   * Returns empty when Redis is unavailable so the inbox UI degrades to
+   * "no recent notifications" rather than throwing.
+   */
+  async listInAppNotifications(
+    accountId: string,
+    limit: number,
+  ): Promise<Array<{ score: number; value: Record<string, unknown> }>> {
+    if (!this.connected || !this.client) return [];
+    var key = 'notif:inapp:' + accountId;
+    try {
+      var raw = await this.client.zrevrange(key, 0, Math.max(0, limit - 1), 'WITHSCORES');
+      var out: Array<{ score: number; value: Record<string, unknown> }> = [];
+      for (var i = 0; i < raw.length; i += 2) {
+        var member = raw[i]!;
+        var score = Number(raw[i + 1]);
+        try {
+          var parsed = JSON.parse(member);
+          if (parsed && typeof parsed === 'object') {
+            out.push({ score: score, value: parsed as Record<string, unknown> });
+          }
+        } catch {
+          // Skip malformed members rather than failing the whole call.
+        }
+      }
+      return out;
+    } catch (e: any) {
+      this.logger.warn('Redis ZREVRANGE failed (' + key + '): ' + (e?.message || e));
+      return [];
+    }
+  }
+
+  /**
+   * Count entries in the in-app sorted set with score strictly greater
+   * than `sinceMs`. Used by the bell badge to render unread = (delivered
+   * after lastReadAt). Returns 0 when Redis is unavailable.
+   */
+  async countInAppSince(accountId: string, sinceMs: number): Promise<number> {
+    if (!this.connected || !this.client) return 0;
+    var key = 'notif:inapp:' + accountId;
+    try {
+      // ZCOUNT min max — using "(sinceMs" makes the lower bound exclusive
+      // so an item with score === sinceMs is treated as "already read".
+      var n = await this.client.zcount(key, '(' + sinceMs, '+inf');
+      return Number(n) || 0;
+    } catch (e: any) {
+      this.logger.warn('Redis ZCOUNT failed (' + key + '): ' + (e?.message || e));
+      return 0;
+    }
+  }
+
+  /**
+   * Read the user's last-read timestamp (epoch ms as string). Returns 0
+   * when no key exists — meaning every delivered notification is unread.
+   */
+  async getNotificationLastReadAt(accountId: string): Promise<number> {
+    if (!this.connected || !this.client) return 0;
+    var key = 'notif:lastread:' + accountId;
+    try {
+      var raw = await this.client.get(key);
+      if (!raw) return 0;
+      var n = Number(raw);
+      return Number.isFinite(n) ? n : 0;
+    } catch (e: any) {
+      this.logger.warn('Redis GET failed (' + key + '): ' + (e?.message || e));
+      return 0;
+    }
+  }
+
+  /**
+   * Bump the user's last-read timestamp to `ms`. Best-effort. The bell
+   * calls this on "Mark all read"; the badge count goes to zero
+   * immediately on the next poll.
+   *
+   * Stored as plain string with no TTL — the keyspace stays bounded by
+   * the active-user count, which is much smaller than the queue keyspace.
+   */
+  async setNotificationLastReadAt(accountId: string, ms: number): Promise<void> {
+    if (!this.connected || !this.client) return;
+    var key = 'notif:lastread:' + accountId;
+    try {
+      await this.client.set(key, String(ms));
+    } catch (e: any) {
+      this.logger.warn('Redis SET failed (' + key + '): ' + (e?.message || e));
+    }
+  }
 }

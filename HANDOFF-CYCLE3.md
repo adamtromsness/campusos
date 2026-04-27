@@ -1,6 +1,6 @@
 # Cycle 3 Handoff — Communications
 
-**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), 5 (Notification Pipeline — Consumers & Queue), 6 (Messaging NestJS Module), and 7 (Announcements NestJS Module) DONE; Steps 8–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
+**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), 5 (Notification Pipeline — Consumers & Queue), 6 (Messaging NestJS Module), 7 (Announcements NestJS Module), and 8 (Notification Bell & Inbox UI) DONE; Steps 9–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle3-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher marks Maya tardy in Period 1 → Kafka event fires → notification consumer picks it up → in-app notification appears on David Chen's parent dashboard with a badge count → David clicks the notification → he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress → David sees it in his inbox → David replies → the reply goes through content moderation → James sees the reply in his inbox.
@@ -21,7 +21,7 @@ This document tracks the Cycle 3 build — the M40 Communications module — at 
 |    5 | Notification Pipeline — Consumers & Queue                     | Done — `apps/api/src/notifications/` lands 5 Kafka consumers + NotificationQueueService + NotificationDeliveryWorker + RedisService; build verified clean, live boot subscribed all topics + Redis connected |
 |    6 | Messaging NestJS Module                                       | Done — `apps/api/src/messaging/` lands ThreadService + MessageService + UnreadCountService + ContentModerationService + 10 endpoints; live smoke confirmed BLOCK / FLAG / CLEAN paths and parent unread-bump → mark-read → badge=0 |
 |    7 | Announcements NestJS Module                                   | Done — `apps/api/src/announcements/` lands AnnouncementService + AudienceFanOutWorker + 6 endpoints; live smoke against `tenant_demo` confirmed publish flow + ALL_SCHOOL (5) / CLASS (10) / YEAR_GROUP (9) / ROLE=PARENT (1) audience fan-out + idempotent mark-read + author/admin-only stats + invalid-audience guards |
-|    8 | Notification Bell & Inbox UI                                  | Not started                                                                                                                   |
+|    8 | Notification Bell & Inbox UI                                  | Done — `apps/api/src/notifications/notification-inbox.{service,controller}.ts` adds 3 endpoints (GET /notifications/inbox, GET /notifications/history, POST /notifications/mark-all-read); `apps/web/src/components/notifications/NotificationBell.tsx` mounts in TopBar polling every 30s; `/notifications` page renders full paginated history with 6 filter chips; live smoke against `tenant_demo` confirmed parent unread count, mark-all-read, server-side type filter, and cursor pagination |
 |    9 | Messaging UI                                                  | Not started                                                                                                                   |
 |   10 | Announcements UI                                              | Not started                                                                                                                   |
 |   11 | Vertical Slice Integration Test                               | Not started                                                                                                                   |
@@ -993,7 +993,102 @@ Build: `pnpm --filter @campusos/api build` clean. Live boot subscribed `audience
 
 ## Step 8 — Notification Bell & Inbox UI
 
-Not started. Plan: `NotificationBell` (top-bar with badge, polls `/notifications/unread-count` every 30s), `NotificationDropdown` (last 10), `/notifications` page (full history, filter, mark all read), deep-links into source pages (attendance / grades / messages).
+Done. Lands the full-stack read side of the notification pipeline.
+
+### What changed in `apps/api/src/notifications/`
+
+- **`redis.service.ts`** — extended with four bell-specific helpers, all best-effort (return safe defaults when Redis is unreachable, matching the existing pattern):
+  - `listInAppNotifications(accountId, limit)` — `ZREVRANGE notif:inapp:{accountId} 0 limit-1 WITHSCORES`, parses each member back to `{ score, value }`. The sorted set is populated by `NotificationDeliveryWorker.deliver()` and capped at 100 entries via `ZREMRANGEBYRANK 0 -101` on every push.
+  - `countInAppSince(accountId, sinceMs)` — `ZCOUNT notif:inapp:{accountId} (sinceMs +inf` with an exclusive lower bound so an item delivered exactly at the lastread tick counts as read.
+  - `getNotificationLastReadAt(accountId)` / `setNotificationLastReadAt(accountId, ms)` — plain GET/SET on `notif:lastread:{accountId}` storing epoch ms as a string. No TTL; the keyspace is bounded by active-user count (much smaller than the per-event queue keyspace), so the simpler shape stays bounded indefinitely.
+- **`notification-inbox.service.ts`** (new) — three methods:
+  - `getInbox(accountId, limit)` returns `{ unreadCount, items, lastReadAt }`. `unreadCount` and `items` come from the same Redis sorted set so they stay coherent (a count of 3 with 3 unread items shown). Each item gets `isRead = score <= lastReadAt`. Falls back to "0 unread, empty list" when Redis is unreachable.
+  - `getHistory(accountId, { limit, type, before })` — paginated read against `msg_notification_queue`. SQL filters: `recipient_id = $1 AND status IN ('SENT','PENDING')` (skips FAILED — not useful in a user-facing inbox). Optional exact-match `notification_type` filter. Keyset cursor on `COALESCE(sent_at, created_at)` so the cursor is stable across `pending → sent` transitions. Pulls `limit + 1` rows to compute `nextCursor`, slices back to `limit`. The Redis `lastReadAt` is reused so each row carries the same `isRead` semantics as the dropdown.
+  - `markAllRead(accountId)` returns `Date.now()` after writing it through `RedisService.setNotificationLastReadAt`. Idempotent.
+- **`dto/notification-inbox.dto.ts`** (new) — Swagger DTOs: `NotificationItemDto`, `NotificationInboxResponseDto`, `NotificationHistoryResponseDto`, `NotificationHistoryQueryDto` (validated `limit ∈ [1,100]`, optional `type`, optional `before` ISO string), `MarkAllReadResponseDto`.
+- **`notification-inbox.controller.ts`** (new) — three endpoints all gated on `com-001:read OR com-002:read` (matches the existing badge controller pattern; every seeded persona qualifies):
+  - `GET /api/v1/notifications/inbox?limit=10` (default 10, max 50)
+  - `GET /api/v1/notifications/history?limit=25&type=…&before=…` (default 25, max 100)
+  - `POST /api/v1/notifications/mark-all-read` — `@HttpCode(200)`, returns `{ lastReadAt }`.
+- **`notifications.module.ts`** — registers `NotificationInboxService` (provider + export) and `NotificationInboxController` (controllers).
+
+The legacy `GET /api/v1/notifications/unread-count` (Step 6) stays put — it returns the per-thread messaging unread map (`{ total, byThread }`) that the messaging UI uses for inbox-row badges. The bell uses `/inbox` for the unified count instead. Two endpoints, two purposes.
+
+### What changed in `apps/web/`
+
+- **`src/lib/types.ts`** — adds `NotificationItem`, `NotificationInboxResponse`, `NotificationHistoryResponse`, `MarkAllReadResponse`.
+- **`src/hooks/use-notifications.ts`** (new):
+  - `useNotificationInbox(limit = 10)` — React Query with `refetchInterval: 30_000` and `refetchOnWindowFocus: true`. Polls cheaply (Redis-only on the server).
+  - `useNotificationHistory({ limit, type, before })` — one-shot read; query key includes the filter params so different filter selections cache independently.
+  - `useMarkAllNotificationsRead()` — POST mutation; on success invalidates `['notifications']`, which immediately refetches both inbox and history.
+- **`src/components/shell/icons.tsx`** — adds `BellIcon`, `ChatBubbleIcon`, `GradeIcon`, `MegaphoneIcon`, `CheckCircleIcon` (heroicons-style, 24×24, currentColor stroke).
+- **`src/components/notifications/NotificationBell.tsx`** (new) — the top-bar bell:
+  - Click-outside-to-close pattern via `useRef` + `mousedown` listener.
+  - Badge over the bell with `99+` cap, hidden when `unreadCount === 0`.
+  - Dropdown is 22 rem wide (matches the visual weight of the avatar menu) with a max-height scroll area.
+  - Each row: type-specific icon (bg + foreground per type), title + 2-line clamp subtitle, relative timestamp ("just now", "5m ago", "2h ago", "3d ago", then a locale date), blue dot for unread.
+  - Footer "View all notifications" link to `/notifications`.
+  - Header "Mark all read" button — disabled while pending or when `unreadCount === 0`.
+  - Two helpers exported for reuse on the `/notifications` page:
+    - `describeNotification(item) → { title, subtitle }` — switches on `item.type` and reads the consumer-shaped payload (e.g. `message.posted` reads `sender_name` + `thread_subject` + `preview`; `grade.published` reads `assignment_title` + `student_name` + `percentage`; `attendance.tardy` reads `student_name` + `class_name` + `period`; etc.). Falls back to a humanized type label for unknown types.
+    - `resolveDeepLink(item, user)` — persona-aware. For `grade.published`: STUDENT → `payload.deep_link_student`, GUARDIAN → `payload.deep_link_guardian`. Other types: prefer `payload.deep_link`; fall back to `/messages/{thread_id}` for `message.posted` payloads that lack `deep_link` (the seed-shipped row carries `thread_id` but no `deep_link`), `/announcements` for `announcement.published`. Returns `null` when no link can be resolved — the row renders as a non-clickable div in that case.
+  - `formatRelative(iso)` is also exported for the page to reuse.
+- **`src/components/shell/TopBar.tsx`** — mounts `<NotificationBell user={user} />` to the left of the avatar menu when `hasAnyPermission(user, ['com-001:read','com-002:read'])`. The wrapping `<div class="flex items-center gap-1">` keeps the existing avatar-menu layout intact.
+- **`src/app/(app)/notifications/page.tsx`** (new) — the full inbox page:
+  - `PageHeader` with "Mark all read" action button.
+  - Filter chip row: All / Attendance + Absence / Grades / Progress notes / Messages / Announcements. The grouped chips don't map 1:1 to a single `notification_type`, so they're applied client-side over the latest 50 items rather than as the server `?type=…` filter. (Per-chip server filters become useful when we paginate; the current page caps at 50 from the API which is already a generous bell scrollback.)
+  - Each row reuses `describeNotification` + `resolveDeepLink` + `formatRelative` from the bell so the two surfaces stay in sync visually and behaviourally.
+  - Empty state: `EmptyState` component with `BellIcon` and a friendly explainer.
+  - Unread rows: tinted background + blue dot indicator.
+
+### Verified behaviour (live smoke against `tenant_demo`, 2026-04-27)
+
+Parent (`parent@demo.campusos.dev`, account id `019dc92d-088d-7442-abf6-089e5d9460ee`):
+
+```bash
+GET /api/v1/notifications/inbox?limit=5
+  → { "unreadCount": 1,
+      "items": [{ "type": "message.posted", "isRead": false, ... }],
+      "lastReadAt": 0 }
+
+POST /api/v1/notifications/mark-all-read
+  → { "lastReadAt": 1777331319341 }
+
+GET /api/v1/notifications/inbox?limit=5
+  → { "unreadCount": 0,
+      "items": [{ "isRead": true, ... }],
+      "lastReadAt": 1777331319341 }
+
+GET /api/v1/notifications/history?type=message.posted&limit=5
+  → 4 items, all type=message.posted
+
+GET /api/v1/notifications/history?type=announcement.published&limit=10
+  → 4 items, all type=announcement.published
+
+GET /api/v1/notifications/history?limit=2
+  → 2 items, nextCursor="2026-04-27T22:51:24.876Z"
+
+GET /api/v1/notifications/history?limit=2&before=2026-04-27T22:51:24.876Z
+  → 2 items, all occurredAt < the cursor, nextCursor advances forward
+```
+
+Redis state confirmed via `docker exec campusos-redis redis-cli`:
+
+```text
+ZCARD notif:inapp:019dc92d-088d-7442-abf6-089e5d9460ee  → 1
+ZRANGE notif:inapp:019dc92d-088d-7442-abf6-089e5d9460ee 0 0 WITHSCORES
+  → JSON {"queue_id":"019dd0d4-6d33-...","notification_type":"message.posted",
+          "delivered_at":"2026-04-27T22:07:23.047Z","payload":{...}}
+  → score 1777327643047
+```
+
+`pnpm --filter @campusos/api build` → clean. `pnpm --filter @campusos/web build` → clean; `/notifications` route ships as static at 1.98 kB First Load JS. NestJS boot logs show `Mapped {/api/v1/notifications/inbox, GET}`, `Mapped {/api/v1/notifications/history, GET}`, `Mapped {/api/v1/notifications/mark-all-read, POST}` alongside the legacy `Mapped {/api/v1/notifications/unread-count, GET}`.
+
+### Known gaps / Phase 2 follow-ups
+
+- **Per-item dismiss** — the bell currently uses a single lastread timestamp for "mark all". Per-item read tracking would need either a Redis SET of seen `queue_id`s or a `read_at` column on `msg_notification_log`. Not in scope for Phase 1.
+- **Server push / WebSockets** — the bell polls every 30s. A WebSocket / SSE feed is a Phase 2 follow-up; the polling cost is one Redis call (`ZREVRANGE` + `ZCOUNT` + `GET`) per poll per active user, which is fine for the demo footprint.
+- **Notification preferences UI** — write-side endpoints for `msg_notification_preferences` aren't shipped yet; preferences are seeded in Step 4 but not editable from the UI. Plan keeps this as a Phase 2 follow-up.
 
 ---
 

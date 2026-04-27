@@ -4,6 +4,8 @@ import { KafkaModule } from '../kafka/kafka.module';
 import { RedisService } from './redis.service';
 import { NotificationQueueService } from './notification-queue.service';
 import { NotificationDeliveryWorker } from './notification-delivery.worker';
+import { NotificationInboxService } from './notification-inbox.service';
+import { NotificationInboxController } from './notification-inbox.controller';
 import { AttendanceNotificationConsumer } from './consumers/attendance-notification.consumer';
 import { GradeNotificationConsumer } from './consumers/grade-notification.consumer';
 import { ProgressNoteNotificationConsumer } from './consumers/progress-note-notification.consumer';
@@ -42,12 +44,19 @@ import { MessageNotificationConsumer } from './consumers/message-notification.co
     RedisService,
     NotificationQueueService,
     NotificationDeliveryWorker,
+    NotificationInboxService,
     AttendanceNotificationConsumer,
     GradeNotificationConsumer,
     ProgressNoteNotificationConsumer,
     AbsenceRequestNotificationConsumer,
     MessageNotificationConsumer,
   ],
-  exports: [RedisService, NotificationQueueService, NotificationDeliveryWorker],
+  controllers: [NotificationInboxController],
+  exports: [
+    RedisService,
+    NotificationQueueService,
+    NotificationDeliveryWorker,
+    NotificationInboxService,
+  ],
 })
 export class NotificationsModule {}

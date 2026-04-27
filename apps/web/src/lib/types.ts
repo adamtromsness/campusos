@@ -422,6 +422,32 @@ export interface SubmitAssignmentPayload {
   attachments?: Array<Record<string, unknown>>;
 }
 
+// ── Notifications (Cycle 3 Step 8) ───────────────────────────────────────
+
+export interface NotificationItem {
+  id: string | null;
+  type: string;
+  occurredAt: string;
+  payload: Record<string, unknown>;
+  isRead: boolean;
+}
+
+export interface NotificationInboxResponse {
+  unreadCount: number;
+  items: NotificationItem[];
+  lastReadAt: number;
+}
+
+export interface NotificationHistoryResponse {
+  items: NotificationItem[];
+  nextCursor: string | null;
+  lastReadAt: number;
+}
+
+export interface MarkAllReadResponse {
+  lastReadAt: number;
+}
+
 export interface AbsenceRequestDto {
   id: string;
   schoolId: string;
