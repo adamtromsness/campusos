@@ -25,11 +25,13 @@ export class GradebookController {
   ) {}
 
   @Get('classes/:classId/gradebook')
-  @RequirePermission('tch-003:read')
+  @RequirePermission('tch-003:write')
   @ApiOperation({
     summary:
       'Class gradebook (teacher / admin view). One row per actively-enrolled student joined to ' +
-      'the gradebook snapshot for the resolved term. Term defaults to the current term.',
+      'the gradebook snapshot for the resolved term. Term defaults to the current term. ' +
+      'Permission and row-scope are both gated to managers only — students and parents must ' +
+      'use /students/:studentId/gradebook or /students/:studentId/classes/:classId/grades.',
   })
   async getClassGradebook(
     @Param('classId', ParseUUIDPipe) classId: string,

@@ -94,13 +94,20 @@ export class GradebookService {
    * Teacher / admin view of a class gradebook. Returns one row per actively
    * enrolled student, joined to the snapshot for the resolved term (null if
    * the student has no published grades yet).
+   *
+   * Authorisation: manager-only (admin or class teacher). Use
+   * `assertCanWriteClass` rather than `assertCanReadClass` because the response
+   * is a roster-wide grade matrix — `tch-003:read` is held by students and
+   * parents too, and `assertCanReadClass` would let them see other students'
+   * grades. Students/parents are routed to the per-student endpoints.
+   * (REVIEW-CYCLE2 BLOCKING 1.)
    */
   async getClassGradebook(
     classId: string,
     requestedTermId: string | undefined,
     actor: ResolvedActor,
   ): Promise<GradebookClassResponseDto> {
-    await this.assignments.assertCanReadClass(classId, actor);
+    await this.assignments.assertCanWriteClass(classId, actor);
     var termId = await this.resolveTermId(requestedTermId);
 
     var classRows = await this.tenantPrisma.executeInTenantContext(async (client) => {

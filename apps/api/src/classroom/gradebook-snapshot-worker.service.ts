@@ -18,18 +18,30 @@ import { TenantInfo, runWithTenantContextAsync } from '../tenant/tenant.context'
  * deliberate tradeoff: short enough that a parent refreshing the dashboard
  * sees fresh numbers within a minute, long enough to absorb a bulk publish.
  *
- * Idempotency: each event carries an `event-id` header. On arrival the
- * handler claims (consumerGroup, eventId) in
- * platform_event_consumer_idempotency. A redelivered duplicate fails the
- * claim and is dropped before it can reset the debounce timer or fire
- * a redundant recompute. New (unseen) event ids reset the debounce.
+ * Idempotency (REVIEW-CYCLE2 BLOCKING 2 — claim-after-success): each event
+ * carries an `event-id` header. On arrival the handler does a read-only
+ * lookup in platform_event_consumer_idempotency. If already claimed, drop.
+ * Otherwise, register the event-id against the in-flight debounce entry and
+ * reset the 30s timer. The actual `INSERT` into the idempotency table only
+ * happens AFTER a successful recompute, claiming every event-id that
+ * contributed to that flush. This makes the worker at-least-once: a
+ * transient DB failure during recompute leaves the event-ids unclaimed, so
+ * a redelivery (or the next grade event for the same (class, student))
+ * re-runs the recompute. The recompute itself is idempotent (UPSERT on the
+ * snapshot row), so duplicate processing is harmless.
+ *
+ * In-memory dedup: the debounce entry holds a Set of event-ids it has
+ * already seen. A duplicate arriving inside the 30s window does NOT reset
+ * the timer.
  *
  * Failure modes:
  *   - Bad payload → log + drop. Producer-side bug; no retry helps.
- *   - DB transient error during flush → log; the next event for the same
- *     (class, student) will retry the recompute. Snapshots are eventually
- *     consistent, not transactionally consistent — the seed-published
- *     baseline plus the next valid event closes any gap.
+ *   - DB transient error during flush → log; no claim is recorded; the
+ *     next event for the same (class, student) — or a Kafka redelivery —
+ *     re-runs the recompute. Snapshots are eventually consistent.
+ *   - Idempotency claim fails after successful recompute → log; the
+ *     snapshot is already correct. A future redelivery may re-run the
+ *     recompute (also harmless).
  *   - Kafka unreachable on boot → KafkaConsumerService no-ops; the worker
  *     becomes a no-op until next deploy. Existing snapshots stay correct.
  *
@@ -63,6 +75,13 @@ interface DebounceEntry {
   // Snapshot of tenant info for the flush — captured at first event so
   // we don't rely on the AsyncLocalStorage being live at flush time.
   tenant: TenantInfo;
+  // Event-ids that have arrived for this (class, student) since the last
+  // flush. Claimed in bulk after a successful recompute. Set ensures a
+  // rapid duplicate redelivery doesn't double-count.
+  eventIds: Set<string>;
+  // Topic each event-id arrived on (parallel to eventIds insertion order),
+  // so the eventual idempotency claim records the right topic.
+  topicByEventId: Map<string, string>;
 }
 
 var DEBOUNCE_MS = 30_000;
@@ -135,21 +154,22 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
       return;
     }
 
-    // Claim before debouncing so a redelivered duplicate can't reset the
-    // timer. Distinct events for the same (class, student) — produced by
-    // batch grading or publish-all — each get their own row in the
-    // idempotency table; the recompute itself collapses them.
-    var firstTime: boolean;
+    // Read-only check — has this event-id already been processed and claimed?
+    // The actual claim happens AFTER a successful recompute (see flush()) so
+    // a transient DB failure during recompute does not lose the event.
+    var alreadyClaimed: boolean;
     try {
-      firstTime = await this.idempotency.claim(CONSUMER_GROUP, eventId, msg.topic);
+      alreadyClaimed = await this.idempotency.isClaimed(CONSUMER_GROUP, eventId);
     } catch (e: any) {
       this.logger.error(
-        'Idempotency claim failed (eventId=' + eventId + '): ' + (e?.stack || e?.message || e),
+        'Idempotency lookup failed (eventId=' + eventId + '): ' + (e?.stack || e?.message || e),
       );
-      return;
+      // Fail open — if the platform DB is unreachable we'd rather process
+      // and risk a duplicate recompute (idempotent UPSERT) than silently drop.
+      alreadyClaimed = false;
     }
-    if (!firstTime) {
-      this.logger.debug('Skip duplicate eventId=' + eventId);
+    if (alreadyClaimed) {
+      this.logger.debug('Skip already-claimed eventId=' + eventId);
       return;
     }
 
@@ -164,6 +184,14 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
 
     var key = schoolId + '|' + payload.classId + '|' + payload.studentId;
     var existing = this.debounce.get(key);
+
+    // Same eventId already buffered for this (class, student) → no work, no
+    // timer reset. Guards against rapid in-window redeliveries.
+    if (existing && existing.eventIds.has(eventId)) {
+      this.logger.debug('Skip in-window duplicate eventId=' + eventId);
+      return;
+    }
+
     if (existing) {
       clearTimeout(existing.timer);
     }
@@ -178,13 +206,30 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
     }, DEBOUNCE_MS);
     timer.unref?.();
 
-    this.debounce.set(key, { timer: timer, tenant: tenant });
+    var eventIds = existing ? existing.eventIds : new Set<string>();
+    var topicByEventId = existing ? existing.topicByEventId : new Map<string, string>();
+    eventIds.add(eventId);
+    topicByEventId.set(eventId, msg.topic);
+
+    this.debounce.set(key, {
+      timer: timer,
+      tenant: tenant,
+      eventIds: eventIds,
+      topicByEventId: topicByEventId,
+    });
   }
 
   /**
    * The actual flush — runs after the debounce timer fires (or immediately
-   * via flushAllForTest). Idempotency was already claimed at message
-   * arrival, so this is the unconditional recompute path.
+   * via flushAllForTest). Recomputes the snapshot under tenant context and,
+   * only on success, records every contributing event-id in the idempotency
+   * table. If the recompute throws, the event-ids stay unclaimed so a
+   * redelivered duplicate (or the next grade event for the same student)
+   * re-triggers the recompute (REVIEW-CYCLE2 BLOCKING 2).
+   *
+   * Claim failures after a successful recompute are non-fatal: the snapshot
+   * is already correct; the worst case is a redundant recompute on
+   * redelivery, which is harmless because the snapshot UPSERT is idempotent.
    */
   private async flush(key: string, entry: DebounceEntry): Promise<void> {
     var parts = key.split('|');
@@ -193,9 +238,31 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
     var tenant = entry.tenant;
     var self = this;
 
+    // Recompute first — if it throws, the catch in the setTimeout caller
+    // logs and we never reach the claim step.
     await runWithTenantContextAsync({ tenant: tenant }, async function () {
       await self.recomputeSnapshot(classId, studentId);
     });
+
+    // Claim every event-id that contributed to this flush, in parallel.
+    // Each claim is independent — one failing doesn't block the others.
+    var ids = Array.from(entry.eventIds);
+    await Promise.all(
+      ids.map(async (eid) => {
+        var topic = entry.topicByEventId.get(eid) || 'cls.grade.published';
+        try {
+          await this.idempotency.claim(CONSUMER_GROUP, eid, topic);
+        } catch (e: any) {
+          this.logger.warn(
+            'Post-flush idempotency claim failed (eventId=' +
+              eid +
+              '): ' +
+              (e?.stack || e?.message || e) +
+              ' — snapshot is current; redelivery will be a harmless no-op recompute',
+          );
+        }
+      }),
+    );
   }
 
   /**

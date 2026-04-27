@@ -60,4 +60,22 @@ export class IdempotencyService {
       throw e;
     }
   }
+
+  /**
+   * Non-blocking check — has this (group, eventId) pair already been claimed?
+   * Used by consumers that defer the actual `claim()` until after successful
+   * processing (REVIEW-CYCLE2 BLOCKING 2 — at-most-once → at-least-once). Read-
+   * only: a true here just means "already done, skip"; a false means "go ahead
+   * and process, then claim".
+   */
+  async isClaimed(consumerGroup: string, eventId: string): Promise<boolean> {
+    var client = this.tenantPrisma.getPlatformClient();
+    var rows = await client.$queryRawUnsafe<Array<{ ok: number }>>(
+      'SELECT 1 AS ok FROM platform.platform_event_consumer_idempotency ' +
+        'WHERE consumer_group = $1 AND event_id = $2 LIMIT 1',
+      consumerGroup,
+      eventId,
+    );
+    return rows.length > 0;
+  }
 }

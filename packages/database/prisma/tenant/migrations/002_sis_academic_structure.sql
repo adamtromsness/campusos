@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS sis_class_teachers (
     CONSTRAINT sis_class_teachers_class_teacher_uq UNIQUE (class_id, teacher_employee_id)
 );
 CREATE INDEX IF NOT EXISTS sis_class_teachers_teacher_idx ON sis_class_teachers(teacher_employee_id);
+COMMENT ON COLUMN sis_class_teachers.teacher_employee_id IS 'TEMPORARY HR-EMPLOYEE IDENTITY MAPPING (REVIEW-CYCLE2 DEVIATION 4) — until the HR module ships, this column holds iam_person.id directly, NOT hr_employees.id. Services compare it against ActorContextService.resolveActor(...).personId. The original ERD intent (soft FK to hr_employees) is suspended — the rename + bridge happens additively when M16 HR lands.';
 CREATE TABLE IF NOT EXISTS sis_enrollments (
     id UUID PRIMARY KEY,
     student_id UUID NOT NULL,

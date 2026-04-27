@@ -1137,3 +1137,70 @@ pnpm --filter @campusos/database exec tsx src/build-cache.ts
 8. Parent UI: gradebook averages, per-assignment breakdown, progress notes.
 9. Vertical slice test: all 9 steps pass.
 10. HANDOFF-CYCLE2.md and CLAUDE.md updated. CI green.
+
+---
+
+## Post-cycle architecture review (REVIEW-CYCLE2-CHATGPT) — fixes applied
+
+**Reviewer verdict:** Reject pending fixes — 2 BLOCKING, 2 MAJOR DEVIATION, 5 PASS.
+**Full record:** `REVIEW-CYCLE2-CHATGPT.md` (review + fixes-applied log).
+
+| #         | Severity  | Item                                                                            | Status                                |
+| --------- | --------- | ------------------------------------------------------------------------------- | ------------------------------------- |
+| BLOCKING 1 | Critical  | `GET /classes/:classId/gradebook` leaked roster grades to students/parents      | Fixed — switched to `tch-003:write` + `assertCanWriteClass` |
+| BLOCKING 2 | Critical  | Snapshot worker was at-most-once (claim-on-arrival lost work on transient fail) | Fixed — claim-after-success rewrite   |
+| DEVIATION 3 | Major     | ADR-057 envelope still not landed (now matters because a real consumer exists)  | Deferred to Cycle 3                   |
+| DEVIATION 4 | Major     | Teacher identity overloaded (`*_employee_id` cols hold `iam_person.id`)         | Documented + `COMMENT ON COLUMN`      |
+
+### Fix BLOCKING 1 — `/classes/:classId/gradebook` is now manager-only
+
+**Problem.** The route was protected by `tch-003:read`, which Teacher / Parent / Student all hold. The service then called `assertCanReadClass`, which lets parents linked to a child in the class and students enrolled in the class through. The body of the response was a roster-wide row-per-student grade matrix — so a parent or student could see every classmate's average.
+
+**Fix.**
+- `apps/api/src/classroom/gradebook.controller.ts` — `getClassGradebook` permission gate switched from `tch-003:read` to `tch-003:write`. `tch-003:write` is held only by Teacher / School Admin / Platform Admin (per `seed-iam.ts`).
+- `apps/api/src/classroom/gradebook.service.ts::getClassGradebook` — row-scope check switched from `assignments.assertCanReadClass(...)` to `assignments.assertCanWriteClass(...)`. Admin bypasses; teachers must appear in `sis_class_teachers` for the specific class. Same gate the assignment write paths already use.
+
+Two layers (permission + per-class row-scope), because a teacher with `tch-003:write` in another school's class would still pass the permission gate but must be denied by the row-scope check.
+
+Students/parents continue to use the per-student endpoints which were already correctly row-scoped:
+- `GET /students/:studentId/gradebook`
+- `GET /students/:studentId/classes/:classId/grades`
+
+The web app's class gradebook page (`apps/web/src/app/(app)/classes/[id]/gradebook/page.tsx`) is rendered only for the teacher persona via the sidebar and is unaffected.
+
+### Fix BLOCKING 2 — Snapshot worker is now at-least-once
+
+**Problem.** `GradebookSnapshotWorker.handle()` called `idempotency.claim()` on message arrival, then debounced for 30s and recomputed. If the recompute failed transiently (DB hiccup, lock timeout), the idempotency row was already in place, so a redelivered message was silently skipped — at-most-once. Parent/student grade views could remain stale until the next grade event for that student arrived.
+
+**Fix.** Rewrote the worker to claim-after-success (`apps/api/src/classroom/gradebook-snapshot-worker.service.ts`):
+
+1. **On message arrival:** validate transport headers + payload. Call new `IdempotencyService.isClaimed(group, eventId)` — a read-only `SELECT` against `platform_event_consumer_idempotency`. If true, drop. If the lookup itself fails (platform DB unreachable), fail open — process and rely on the idempotent UPSERT to absorb a possible duplicate.
+2. **Debounce entry now tracks every contributing event-id.** A `Set<string> eventIds` and a `Map<string, string> topicByEventId` are stored on the entry alongside the timer + tenant. A duplicate event-id arriving inside the 30s window is detected in-memory and does not reset the timer.
+3. **On flush:** run the recompute under tenant context first. Only if it returns successfully, claim every event-id in `entry.eventIds` via `Promise.all` of `IdempotencyService.claim`. A claim failure after a successful recompute is non-fatal — the snapshot is correct; a future redelivery just produces a redundant idempotent recompute.
+4. **Recompute failure leaves event-ids unclaimed.** The next grade event for the same `(class, student)` — or a Kafka redelivery — re-runs the recompute. The recompute is an UPSERT, so any number of redundant runs converge to the correct snapshot.
+
+`IdempotencyService` gained a new `isClaimed(group, eventId)` method for the read-only path. `claim()` is unchanged.
+
+The worker docstring was updated to reflect the new failure semantics.
+
+### Fix DEVIATION 3 — ADR-057 envelope (deferred to Cycle 3)
+
+The reviewer flagged that Cycle 2 added a real consumer without the canonical event envelope. The grade-emit headers DO already carry the three fields the gradebook worker reads — `event-id`, `tenant-id`, `tenant-subdomain` — and the worker reads them through a header-shaped seam, not the payload, so the envelope migration is additive when it lands.
+
+Cycle 3 (Communications) introduces multiple new producers and consumers in parallel and is the natural place to lift everything to the canonical envelope at once. Until then, the gradebook worker continues to function correctly with the current header set. Tracked under "Open items".
+
+### Fix DEVIATION 4 — Temporary HR-Employee identity mapping
+
+The reviewer flagged that columns described as soft references to `hr_employees.id` (which doesn't exist yet — the HR module is in M16, well after Cycle 2) are populated by services with `actor.personId` (an `iam_person.id`). This pattern started in Cycle 1 (`sis_class_teachers.teacher_employee_id`) and propagated to Cycle 2 (`cls_grades.teacher_id`, `cls_lessons.teacher_id`, `cls_student_progress_notes.author_id`).
+
+**Decision.** Document the temporary mapping rule rather than rename columns. Renaming would touch many services, the seed scripts, and the existing CAT scripts; the soft-FK rebinding is a trivial additive migration when M16 lands (`hr_employees.person_id = iam_person.id` is the intended bridge).
+
+**What landed.**
+
+- `CLAUDE.md` — new "Temporary HR-Employee identity mapping" entry under Key Design Contracts, naming all four columns and the rule.
+- `packages/database/prisma/tenant/migrations/002_sis_academic_structure.sql` — `COMMENT ON COLUMN sis_class_teachers.teacher_employee_id` annotated with the temporary-mapping rule.
+- `packages/database/prisma/tenant/migrations/005_cls_lessons_and_assignments.sql` — `COMMENT ON COLUMN cls_lessons.teacher_id` annotated.
+- `packages/database/prisma/tenant/migrations/006_cls_submissions_and_grading.sql` — `COMMENT ON COLUMN` on both `cls_grades.teacher_id` and `cls_student_progress_notes.author_id`.
+- Demo + test tenants re-provisioned to apply the new comments. Verified by `pg_catalog.col_description` that all 4 comments are live in `tenant_demo`.
+
+The `COMMENT` text is intentionally consistent across columns and references the project-wide rule in CLAUDE.md, so anyone reading the schema with `\d+` or via Prisma Studio sees the constraint.
