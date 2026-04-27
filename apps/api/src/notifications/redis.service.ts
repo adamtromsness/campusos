@@ -136,4 +136,68 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn('Redis HINCRBY failed (' + key + '): ' + (e?.message || e));
     }
   }
+
+  /**
+   * Clear the per-(user, thread) unread counter. Called by the Step 6
+   * UnreadCountService when a user opens a thread (POST /threads/:id/read).
+   * Removes the field from the per-user inbox HASH so getBadgeCount no
+   * longer includes it. Best-effort — failures degrade to "badge stays
+   * stale until the next message arrives".
+   */
+  async clearUnread(accountId: string, threadId: string): Promise<void> {
+    if (!this.connected || !this.client) return;
+    var key = 'inbox:' + accountId;
+    try {
+      await this.client.hdel(key, threadId);
+    } catch (e: any) {
+      this.logger.warn('Redis HDEL failed (' + key + '): ' + (e?.message || e));
+    }
+  }
+
+  /**
+   * Sum every entry in the user's inbox HASH. Used by the badge endpoint
+   * (GET /notifications/unread-count) to render a single number across all
+   * threads. Returns 0 when Redis is unreachable so the bell shows no badge
+   * rather than crashing.
+   */
+  async sumUnread(accountId: string): Promise<number> {
+    if (!this.connected || !this.client) return 0;
+    var key = 'inbox:' + accountId;
+    try {
+      var values = await this.client.hvals(key);
+      var total = 0;
+      for (var i = 0; i < values.length; i++) {
+        var n = Number(values[i]);
+        if (Number.isFinite(n) && n > 0) total += n;
+      }
+      return total;
+    } catch (e: any) {
+      this.logger.warn('Redis HVALS failed (' + key + '): ' + (e?.message || e));
+      return 0;
+    }
+  }
+
+  /**
+   * Return the (threadId → unread count) map for the user. Used by the
+   * inbox UI in Step 9 to render per-thread unread badges in one call.
+   * Filters out zero / negative entries.
+   */
+  async listUnreadByThread(accountId: string): Promise<Record<string, number>> {
+    if (!this.connected || !this.client) return {};
+    var key = 'inbox:' + accountId;
+    try {
+      var raw = await this.client.hgetall(key);
+      var out: Record<string, number> = {};
+      var keys = Object.keys(raw);
+      for (var i = 0; i < keys.length; i++) {
+        var t = keys[i]!;
+        var n = Number(raw[t]);
+        if (Number.isFinite(n) && n > 0) out[t] = n;
+      }
+      return out;
+    } catch (e: any) {
+      this.logger.warn('Redis HGETALL failed (' + key + '): ' + (e?.message || e));
+      return {};
+    }
+  }
 }

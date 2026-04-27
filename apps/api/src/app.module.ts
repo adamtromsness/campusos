@@ -10,6 +10,7 @@ import { SisModule } from './sis/sis.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ClassroomModule } from './classroom/classroom.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MessagingModule } from './messaging/messaging.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -46,6 +47,7 @@ var devOnlyControllers: Type<unknown>[] =
     AttendanceModule,
     ClassroomModule,
     NotificationsModule,
+    MessagingModule,
   ],
   controllers: devOnlyControllers,
   providers: [

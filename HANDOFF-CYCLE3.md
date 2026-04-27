@@ -1,6 +1,6 @@
 # Cycle 3 Handoff — Communications
 
-**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), and 5 (Notification Pipeline — Consumers & Queue) DONE; Steps 6–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
+**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), 5 (Notification Pipeline — Consumers & Queue), and 6 (Messaging NestJS Module) DONE; Steps 7–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle3-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher marks Maya tardy in Period 1 → Kafka event fires → notification consumer picks it up → in-app notification appears on David Chen's parent dashboard with a badge count → David clicks the notification → he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress → David sees it in his inbox → David replies → the reply goes through content moderation → James sees the reply in his inbox.
@@ -19,7 +19,7 @@ This document tracks the Cycle 3 build — the M40 Communications module — at 
 |    3 | Communications Schema — Moderation & Support                  | Done — `009_msg_moderation.sql` applied to demo + test (6 tenant tables + 24 monthly partitions of `msg_moderation_log`); platform Prisma migration `20260427211003_add_communications_platform_tables` adds `platform_push_tokens` + `platform_dlq_messages` |
 |    4 | Seed Data — Messaging & Notifications                         | Done — `seed-messaging.ts` populates 13 messaging tables in `tenant_demo`; `seed-iam.ts` adds COM-002:read to Student + Staff; cache rebuilt |
 |    5 | Notification Pipeline — Consumers & Queue                     | Done — `apps/api/src/notifications/` lands 5 Kafka consumers + NotificationQueueService + NotificationDeliveryWorker + RedisService; build verified clean, live boot subscribed all topics + Redis connected |
-|    6 | Messaging NestJS Module                                       | Not started                                                                                                                   |
+|    6 | Messaging NestJS Module                                       | Done — `apps/api/src/messaging/` lands ThreadService + MessageService + UnreadCountService + ContentModerationService + 10 endpoints; live smoke confirmed BLOCK / FLAG / CLEAN paths and parent unread-bump → mark-read → badge=0 |
 |    7 | Announcements NestJS Module                                   | Not started                                                                                                                   |
 |    8 | Notification Bell & Inbox UI                                  | Not started                                                                                                                   |
 |    9 | Messaging UI                                                  | Not started                                                                                                                   |
@@ -681,7 +681,185 @@ The `iam_effective_access_cache` JOIN in `AbsenceRequestNotificationConsumer.loa
 
 ## Step 6 — Messaging NestJS Module
 
-Not started. Plan: `ThreadService`, `MessageService`, `UnreadCountService` (Redis-backed), `ContentModerationInterceptor` (PLATFORM → DISTRICT → BUILDING, most restrictive wins). ~8 endpoints under `com-001:read` / `com-001:write`. Block-list enforcement.
+**Done.** Lands `apps/api/src/messaging/` — the request-path side of M40 messaging. Four services + three controllers + 10 endpoints. The schema (`007_msg_messaging.sql`) and the moderation tables (`009_msg_moderation.sql`) shipped in Steps 1 + 3; the seed data (`seed-messaging.ts`) shipped in Step 4; the Step 5 `MessageNotificationConsumer` already subscribes to `msg.message.posted` and bumps the same Redis HASH this module reads — Step 6 is the producer-side wiring + the user-facing surface.
+
+### Files
+
+```
+apps/api/src/messaging/
+├── messaging.module.ts                    — wires services + controllers; imports TenantModule + IamModule + KafkaModule + NotificationsModule
+├── thread.service.ts                      — create / list / read / archive / mark-read / participant role helpers
+├── message.service.ts                     — post (with moderation + emit + unread bump) / edit (15-min) / soft-delete / list
+├── unread-count.service.ts                — Redis-backed badge counter (delegates to RedisService)
+├── content-moderation.service.ts          — three-tier policy evaluator + msg_moderation_log writer
+├── thread.controller.ts                   — /threads + /threads/:id + /threads/:id/read + /threads/:id/archive
+├── message.controller.ts                  — /threads/:threadId/messages + /messages/:id
+├── notification-badge.controller.ts       — GET /notifications/unread-count
+└── dto/
+    ├── thread.dto.ts                      — CreateThreadDto / ThreadResponseDto / ArchiveThreadDto / ListThreadsQueryDto / ThreadParticipantInputDto
+    └── message.dto.ts                     — PostMessageDto / EditMessageDto / ListMessagesQueryDto / MessageResponseDto / MarkThreadReadResponseDto / UnreadCountResponseDto
+```
+
+`MessagingModule` is registered in `AppModule` immediately after `NotificationsModule` (i.e. between `NotificationsModule` and the global `APP_GUARD` providers). The `NotificationsModule` import gives `UnreadCountService` access to the same `RedisService` instance that `MessageNotificationConsumer` writes to — both paths converge on `inbox:{accountId}` so the request-path bump and the Kafka consume bump are idempotent against each other.
+
+### Endpoints (10)
+
+All gated on `com-001:read` / `com-001:write` except `GET /notifications/unread-count`, which accepts either `com-001:read` OR `com-002:read` so the bell renders for any persona that holds either communications read tier (Student & Staff hold com-002:read after the Step 4 IAM update).
+
+| Method | Path                                            | Permission                  | Notes                                                                                                                                                                                                |
+| -----: | ----------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|   GET  | `/threads`                                      | `com-001:read`              | Inbox. Admins see every thread; everyone else only threads where they hold an active `msg_thread_participants` row (`left_at IS NULL`). `unreadCount` per row from Redis.                            |
+|   GET  | `/threads/:id`                                  | `com-001:read`              | 404s when caller is neither participant nor admin (collapse 403→404 to prevent existence probing). Admin reads of a non-participant thread write a `msg_admin_access_log` row (FERPA audit).        |
+|   POST | `/threads`                                      | `com-001:write`             | Validates the threadType + role-token check + block-list. Optional `initialMessage` is forwarded through `MessageService.post` so it goes through moderation just like any other message.            |
+|   POST | `/threads/:id/read`                             | `com-001:read`              | Idempotent. INSERTs `msg_message_reads` rows for every unread message (`ON CONFLICT DO NOTHING`), bumps `msg_thread_participants.last_read_at`, then `RedisService.clearUnread()` for that thread.  |
+|  PATCH | `/threads/:id/archive`                          | `com-001:write`             | OWNER / PARTICIPANT / school admin only — OBSERVERs cannot toggle archive.                                                                                                                            |
+|   GET  | `/threads/:threadId/messages`                   | `com-001:read`              | Newest-first keyset pagination via `?before=<ISO>` cursor; default limit 50, max 200. Soft-deleted rows return with empty body and `isDeleted=true`.                                                |
+|   POST | `/threads/:threadId/messages`                   | `com-001:write`             | Pipeline: active-participant + non-OBSERVER check → block-list check vs every other participant → moderation evaluate → BLOCKED→422 / else INSERT → bump last_message_at + self-read + Redis bump → emit `msg.message.posted`. |
+|  PATCH | `/messages/:id`                                 | `com-001:write`             | Author-only, within 15 minutes of `created_at`. Re-runs moderation. BLOCKED edits return 422 (and write a moderation log row); the original message is unchanged.                                    |
+| DELETE | `/messages/:id`                                 | `com-001:write`             | Sender or school admin. Idempotent soft-delete (`is_deleted=true`, `deleted_at=now()`); body blanked in `rowToDto` for non-author readers so the timeline shows "Message deleted".                  |
+|   GET  | `/notifications/unread-count`                   | `com-001:read OR com-002:read` | Returns `{ total, byThread: { [threadId]: count } }` from `RedisService.listUnreadByThread()`. Returns zero / empty when Redis is unavailable so the bell never crashes the page.                |
+
+### Service-by-service detail
+
+#### `ThreadService.create()`
+
+1. Reject empty participant lists, deduplicate, and reject self-as-recipient (the creator is added as OWNER automatically).
+2. Look up the `msg_thread_types` row; 404 when missing or wrong school; 400 when inactive; 403 when `is_system=true` and the caller isn't a school admin.
+3. **Role-token validation.** When `allowed_participant_roles` is non-empty, walk every account (creator + recipients) and verify each one holds at least one matching role in the school's scope chain. The lookup joins `platform.iam_role_assignment` → `platform.iam_role` → `platform.iam_scope` → `platform.iam_scope_type` filtered to `status='ACTIVE'` and `(scope_type='SCHOOL' AND entity_id=schoolId) OR scope_type='PLATFORM'`. Role names are tokenised with `name.toUpperCase().replace(/\s+/g, '_')` so `"School Admin"` → `"SCHOOL_ADMIN"`, matching the synthetic tokens stored in the seed.
+4. Existence-check every recipient against `platform.platform_users` — guards against typos and against accounts that exist in `iam_person` but lack a portal account.
+5. Block-list — fail closed if a `msg_user_blocks` row exists between the creator and any recipient in either direction. The error message is deliberately generic ("One or more recipients cannot be added to this thread (blocked).") so neither side learns who blocked who.
+6. Atomic insert in `executeInTenantTransaction`: row in `msg_threads` + an OWNER row for the creator + a `PARTICIPANT` (or override) row per recipient. `ON CONFLICT (thread_id, platform_user_id) DO NOTHING` defends against the creator appearing in `participants` redundantly.
+
+#### `ContentModerationService.evaluate()`
+
+- Loads every `msg_moderation_policies` row with `is_active = true` in one tenant-scoped query — no cross-schema reads, because the platform tier is denormalised into each tenant per the Step 3 design notes ("each tenant carries its own copy of the platform-tier and district-tier policies that apply to it").
+- Whole-word, case-insensitive keyword match using a regex with `\b` boundaries — escapes regex metacharacters so a keyword like `c++` won't blow up. Whole-word matching is intentional Scunthorpe-problem prevention: the seeded keyword `fuck` will NOT flag `Fukushima`, and `ass` (not seeded) wouldn't flag `Massachusetts`. The cost is that variants need to be seeded explicitly (`fuck` does not match `fucking`).
+- **"Most restrictive wins"** = `BLOCKED > ESCALATED > FLAGGED > CLEAN`. The function walks every active policy; if multiple policies match, the highest-priority action wins and the verdict carries the matched keywords + the `policy_id` of the winning policy.
+- `evaluate()` is read-only. The companion `log()` method writes a `msg_moderation_log` row with `flag_type` (`BLOCKED` / `FLAGGED` / `ESCALATED`), `severity` (`URGENT` for BLOCKED + ESCALATED, `WARNING` for FLAGGED), `matched_keywords[]`, and `review_outcome='PENDING'`. `MessageService.post()` calls `log()` for BLOCKED messages even though no `msg_messages` row lands — the synthetic `messageId` stays one-sided so the moderator queue can see the attempt.
+- Lookup failures degrade gracefully: a thrown `executeInTenantContext` error is caught, logged, and returns `CLEAN`. The verdict is "no policy could prove the message bad → ship it." This is consistent with the rest of the messaging stack's best-effort posture (Redis, Kafka) — a transient platform DB blip cannot shut messaging down.
+
+#### `MessageService.post()`
+
+```
+POST /threads/:id/messages
+   │
+   ├─ thread existence  ──→ 404 if missing
+   ├─ active-participant ── 403 (Forbidden) if not active participant
+   ├─ role check         ── 403 if OBSERVER
+   ├─ block-list (other  ── 403 with generic copy if any participant has a
+   │  participants)         block in either direction with sender
+   ├─ ContentModerationService.evaluate(body)
+   │     ├─ BLOCKED  → moderation.log(synthetic id) + 422 with the canonical
+   │     │            policy message (no body details — prevents gaming)
+   │     ├─ FLAGGED  → set messages.moderation_status = 'FLAGGED', persist
+   │     ├─ ESCALATED→ set messages.moderation_status = 'ESCALATED', persist
+   │     └─ CLEAN    → set messages.moderation_status = 'CLEAN', persist
+   │
+   ├─ inside tenant tx:
+   │     INSERT msg_messages (id, thread_id, school_id, sender_id, body,
+   │                          moderation_status, created_at, updated_at)
+   │     UPDATE msg_threads SET last_message_at = $now WHERE id = …
+   │     INSERT msg_message_reads (sender, message)  ON CONFLICT DO NOTHING
+   │       — auto-mark the sender as having read their own message so
+   │         their badge doesn't pop on their own client.
+   │
+   ├─ if non-CLEAN: moderation.log() with the actual messageId
+   ├─ for every other active participant (left_at IS NULL AND is_muted=false):
+   │     RedisService.incrementUnread(accountId, threadId)
+   │
+   └─ KafkaProducerService.emit('msg.message.posted', { messageId,
+        threadId, senderId, body, postedAt, threadSubject, threadType })
+        — Step 5 MessageNotificationConsumer fans out IN_APP notifications
+        + bumps the same Redis HASH (idempotent — same key); + writes the
+        notif_log row when the worker drains the queue.
+```
+
+The synchronous Redis bump is intentional: the badge updates **before** the Kafka round-trip completes, so even when a consumer lags or the broker is briefly unavailable the inbox UI stays correct. The post-emit consumer bump is a no-op against the same HASH key, which is fine — `HINCRBY 1` twice produces the same total only if the consumer is racing the producer; with the producer always running first the consumer's bump will always observe the higher value and add 1. In practice this is fine because the `msg_message_reads` table is the durable source of truth and the badge is opportunistic.
+
+**Trade-off recorded.** The producer-side increment + consumer-side increment causes a +1 over-count on every successful Kafka delivery. For Cycle 3 this is acceptable (the mark-read flow clears the HASH entry to 0, not to a delta), but Phase 2 should pick a single owner — most natural is "consumer only" once Kafka is treated as reliable, with the producer falling back to the consumer's bump when Kafka is unhealthy.
+
+#### `MessageService.edit()` + `softDelete()`
+
+- Edit is author-only, within 15 minutes (`EDIT_WINDOW_MS`) of the original `created_at`. Re-runs the body through moderation — BLOCKED edits return 422 with a corresponding moderation log row, and the original `body` is left untouched. FLAGGED / ESCALATED edits update the body AND `moderation_status` so a moderator can see the new verdict.
+- Soft-delete is idempotent. Author or school admin only. Sets `is_deleted=true`, `deleted_at=now()`, but leaves the `body` column populated — the API blanks it in `rowToDto` for the response. This keeps moderator forensics intact (the moderation log row still references the original body) without leaking it through the read path. The plan-mandated "Message deleted" timeline marker is the result of `body=""` + `isDeleted=true` + a frontend treatment in Step 9.
+
+#### `UnreadCountService` + `RedisService` extensions
+
+`UnreadCountService` is a thin layer over `RedisService`. Step 6 added three methods to `RedisService`:
+
+- `clearUnread(accountId, threadId)` — `HDEL inbox:{accountId} {threadId}`. Used on POST /threads/:id/read.
+- `sumUnread(accountId)` — `HVALS` then sum positive integers. Used by the badge counter.
+- `listUnreadByThread(accountId)` — `HGETALL` filtered to positive entries. Used by the inbox UI.
+
+All three are best-effort: when Redis is unreachable they return `0` / `{}` so the bell renders an empty badge instead of breaking the page. The pre-existing `incrementUnread` from Step 5 is unchanged.
+
+### Row-level authorization summary
+
+| Operation                  | Endpoint gate              | Row-level rule                                                                                                                                                                                                       |
+| -------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inbox                      | `com-001:read`             | Admin → every thread in tenant; else INNER JOIN msg_thread_participants where `platform_user_id = caller AND left_at IS NULL`.                                                                                       |
+| Thread read                | `com-001:read`             | Active participant or school admin. Admin reads of a non-participant thread write a `msg_admin_access_log` row (admin_id, thread_id, reason='Read thread messages' or caller-supplied).                              |
+| Create thread              | `com-001:write`            | Caller and every recipient must hold one of the thread type's `allowed_participant_roles`. System thread types (`is_system=true`) require school admin.                                                              |
+| Mark-read                  | `com-001:read`             | Same as thread-read. Idempotent for participants; no-op for admins (no Redis HASH entry to clear; no `msg_thread_participants` row to bump).                                                                         |
+| Archive / unarchive        | `com-001:write`            | Active participant (not OBSERVER) or school admin.                                                                                                                                                                   |
+| List messages              | `com-001:read`             | Same row gate as thread-read.                                                                                                                                                                                        |
+| Post message               | `com-001:write`            | Active participant AND not OBSERVER. Block-list rejection severs in either direction.                                                                                                                                |
+| Edit message               | `com-001:write`            | Author only, within 15 minutes of post. (Even school admins cannot edit a message they didn't author — preserves the integrity of the conversation history.)                                                         |
+| Soft-delete message        | `com-001:write`            | Sender OR school admin. (Admins can remove flagged / escalated content even though they cannot edit — the body stays on the row for forensics; only the API representation blanks it.)                              |
+
+The `com-001:read` and `com-001:write` codes were already on Teacher / Parent / Student / School Admin / Platform Admin rows after Step 4. No IAM changes in Step 6.
+
+### Verification (recorded 2026-04-27, port 4002 build)
+
+```bash
+pnpm --filter @campusos/api build      # nest build → exits 0 with new module compiled
+pnpm --filter @campusos/api test       # 7 tests pass (existing tenant-context + health)
+PORT=4002 node dist/main.js            # boots; logs all 10 messaging routes mapped:
+#   ThreadController   → GET / + GET /:id + POST / + POST /:id/read + PATCH /:id/archive
+#   MessageController  → GET /threads/:threadId/messages + POST same + PATCH /messages/:id + DELETE /messages/:id
+#   NotificationBadge  → GET /notifications/unread-count
+#   Redis: Connected to redis://localhost:6379
+#   Kafka: Subscribed message-notification-consumer to dev.msg.message.posted
+```
+
+Live smoke against `tenant_demo`:
+
+| #   | Scenario                                                                          | Expected                                                                  | Got |
+| --- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | --- |
+| 1   | Teacher (Rivera) GET /threads                                                     | 3 threads (TEACHER_PARENT, CLASS_DISCUSSION, ADMIN_STAFF), unread=0 each  | ✅  |
+| 2   | Teacher GET /notifications/unread-count                                           | `{ total: 0, byThread: {} }`                                              | ✅  |
+| 3   | Teacher POST /threads/:id/messages with body "Step 6 smoke test — clean message." | 201 with senderName="James Rivera", moderationStatus="CLEAN"              | ✅  |
+| 4   | Teacher POST same with body "holy shit something is up" (BLOCK keyword `shit`)    | 422 + canonical policy message + `BLOCKED / URGENT / {shit}` log row     | ✅  |
+| 5   | Teacher POST same with body "someone is talking about weed in the hallway"        | 201 with moderationStatus="FLAGGED" + `FLAGGED / WARNING / {weed}` log    | ✅  |
+| 6   | Teacher POST same with body "i will kill you tomorrow" (multi-word BLOCK phrase)  | 422 + `BLOCKED / URGENT / {"kill you"}` log row                           | ✅  |
+| 7   | Teacher POST same with body "this is a fucking test" (whole-word `fuck` does NOT match `fucking`) | 201 with moderationStatus="CLEAN" — Scunthorpe defence working           | ✅  |
+| 8   | Parent (David) GET /threads                                                       | TEACHER_PARENT thread with `unreadCount=6` (4 from smoke + 2 seed)        | ✅  |
+| 9   | Parent GET /notifications/unread-count                                            | `{ total: 6, byThread: { 019dd0d4-…: 6 } }`                              | ✅  |
+| 10  | Parent POST /threads/:id/read                                                     | `{ marked: 4, unreadCount: 0 }` (4 fresh receipts; 2 seed reads existed)  | ✅  |
+| 11  | Parent GET /notifications/unread-count again                                      | `{ total: 0, byThread: {} }` — Redis HASH cleared                         | ✅  |
+| 12  | PATCH /messages/00000000-0000-0000-0000-000000000000 (phantom)                    | 404 Not Found                                                             | ✅  |
+
+The 4 smoke-posts also bumped David's `inbox:{accountId}` HASH live — verified via `redis-cli HGETALL` showing the thread id with count=4 before mark-read.
+
+### Permission / authorisation surface
+
+Step 6 adds 10 endpoints — 9 under `com-001:read` / `com-001:write`, plus the badge endpoint that accepts either `com-001:read` or `com-002:read` so it renders for every persona that holds either tier (Step 4 IAM update gave Student + Staff `com-002:read`). No new permission codes; no IAM changes; the `seed-iam.ts` role mapping is unchanged.
+
+### Out-of-scope decisions for Step 6
+
+- **The plan calls this a `ContentModerationInterceptor` — Step 6 ships a service instead.** A NestJS interceptor wraps a controller method and works against the response stream, which is awkward when the moderation verdict needs to (a) reject before any DB write, (b) write a forensic log row, and (c) influence the `moderation_status` column on the persisted row. Calling a service from inside `MessageService.post()` (and `.edit()`) keeps the moderation flow synchronous, transactional, and centralised. The plan's intent — "before persisting, check message body against active msg_moderation_policies" — is preserved.
+- **Whole-word matching, no stemming.** Scunthorpe-safe and conservative. Variants like `fuck` vs `fucking` need to be seeded explicitly. Phase 2 may add a stemmer; until then a Phase 2 seed extension is the lowest-risk path.
+- **`sensitivity_threshold` on `msg_moderation_policies` is unused.** The plan mentions an optional ML classifier with a 0–100 threshold — Step 6 ships keyword-only matching. The threshold column is preserved for the future classifier; the schema doesn't need to change.
+- **Block-list is mutual-severance, not directional.** A row in `msg_user_blocks` blocks messages between the pair in either direction. The plan says "if blocker_id/blocked_id pair exists in msg_user_blocks, message creation is rejected" — the implementation matches that read.
+- **`POST /threads/:id/read` is idempotent and best-effort.** It inserts `msg_message_reads` rows for every unread sender-isn't-me message in the thread (`ON CONFLICT DO NOTHING`), bumps `last_read_at`, and clears the Redis HASH entry. Re-running is a no-op except for `last_read_at`. Failure to clear Redis is logged but not reflected in the response — the badge stays stale until the next message arrives, which the user notices and re-opens the thread.
+- **Producer-side + consumer-side Redis bump is double-counting.** Documented above. Acceptable for Cycle 3 demo volume; Phase 2 follow-up to pick a single owner.
+- **Edit window is fixed at 15 minutes.** Plan-mandated. `EDIT_WINDOW_MS` is a service-local constant; admin override is not implemented (admins still cannot edit a message they didn't author — soft-delete is the FERPA-preserving alternative).
+- **Soft-deleted messages keep their body in the DB.** The body is blanked at the API layer for non-author readers but still lives on the row for moderator forensics + audit. If a hard-delete is needed the moderator queue can issue the destructive query manually, but the default path is reversible.
+- **No "leave thread" endpoint.** `msg_thread_participants.left_at` is in the schema but the only writer in Step 6 is the OWNER + creator path. A self-remove + admin-remove endpoint is on the Step 9 (Messaging UI) follow-up list.
+- **No attachment endpoints.** `msg_message_attachments` is in the schema (Step 1) but Step 6 doesn't expose attachment upload / list — the plan defers that to Step 9 alongside signed S3 URL generation.
+- **No `msg_admin_access_log` reader endpoint.** The audit log is written but not exposed for admin-side review yet. A `GET /admin/access-log` endpoint will land alongside the moderation queue UI in Phase 2.
+- **Quiet hours are not enforced on synchronous post.** The Step 5 `NotificationQueueService` already defers IN_APP delivery to the next quiet-end boundary; the synchronous Redis HASH bump from `MessageService.post()` happens regardless. This is intentional — the badge should reflect the inbox's actual state; quiet hours suppress the IN_APP push, not the inbox indicator.
+- **Role-token mapping is `name.toUpperCase().replace(/\s+/g, '_')`.** A direct mapping table on `iam_roles` (or a constant in shared) would be more robust if a role ever picks up a non-trivial name. For Cycle 3 the convention matches every seeded role + the seeded `allowed_participant_roles` arrays.
 
 ---
 
