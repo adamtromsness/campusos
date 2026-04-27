@@ -1,6 +1,6 @@
 # Cycle 3 Handoff — Communications
 
-**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), and 3 (Moderation & Support) DONE; Steps 4–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
+**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), and 4 (Seed Data) DONE; Steps 5–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle3-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher marks Maya tardy in Period 1 → Kafka event fires → notification consumer picks it up → in-app notification appears on David Chen's parent dashboard with a badge count → David clicks the notification → he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress → David sees it in his inbox → David replies → the reply goes through content moderation → James sees the reply in his inbox.
@@ -17,7 +17,7 @@ This document tracks the Cycle 3 build — the M40 Communications module — at 
 |    1 | Communications Schema — Messaging                             | Done — `007_msg_messaging.sql` applied to demo + test (6 base tables + 64 hash partitions of `msg_threads` + 24 monthly partitions of `msg_messages`) |
 |    2 | Communications Schema — Notifications & Announcements         | Done — `008_msg_notifications_and_announcements.sql` applied to demo + test (7 base tables + 24 monthly partitions of `msg_notification_log`)        |
 |    3 | Communications Schema — Moderation & Support                  | Done — `009_msg_moderation.sql` applied to demo + test (6 tenant tables + 24 monthly partitions of `msg_moderation_log`); platform Prisma migration `20260427211003_add_communications_platform_tables` adds `platform_push_tokens` + `platform_dlq_messages` |
-|    4 | Seed Data — Messaging & Notifications                         | Not started                                                                                                                   |
+|    4 | Seed Data — Messaging & Notifications                         | Done — `seed-messaging.ts` populates 13 messaging tables in `tenant_demo`; `seed-iam.ts` adds COM-002:read to Student + Staff; cache rebuilt |
 |    5 | Notification Pipeline — Consumers & Queue                     | Not started                                                                                                                   |
 |    6 | Messaging NestJS Module                                       | Not started                                                                                                                   |
 |    7 | Announcements NestJS Module                                   | Not started                                                                                                                   |
@@ -476,7 +476,57 @@ The new moderation tables are empty after Step 3. `seed:sis` and `seed:classroom
 
 ## Step 4 — Seed Data — Messaging & Notifications
 
-Not started. Plan: thread types, sample threads (Rivera ↔ Chen, P1 class discussion, admin), notification preferences, moderation policies (PLATFORM + BUILDING), sample announcements, three pre-seeded notification queue rows. Plus permission updates: COM-001 read/write to Teacher/Parent/Student; COM-002 read to all + write to Teacher/Admin; COM-003 read/write to Admin. Rebuild effective access cache.
+**Done.** Lands `packages/database/src/seed-messaging.ts` (and a `seed:messaging` script in `packages/database/package.json`) plus a small extension to `seed-iam.ts` for the COM-002 role grants. The seed targets `tenant_demo` only — same convention as `seed-sis` / `seed-classroom`; `tenant_test` is provisioned but stays empty so integration-style tests can write their own fixtures. Idempotent: gates on `msg_thread_types` row count and skips entirely if any rows exist (matches the `seed-classroom` "skip if `cls_assignments` already populated" pattern).
+
+### What lands in `tenant_demo`
+
+| Table                          | Rows | Notes                                                                                                                                                                                                       |
+| ------------------------------ | ---: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `msg_thread_types`             |    4 | TEACHER_PARENT, CLASS_DISCUSSION, ADMIN_STAFF, SYSTEM_NOTIFICATION (last is `is_system=true`, empty allowed-roles array). `allowed_participant_roles` lists the IAM role names the StorageThreadService will validate against in Step 6. |
+| `msg_threads`                  |    3 | One per non-system type. Subjects: "Maya — Spring 2026 progress check-in", "P1 Algebra — Quadratics homework Q&A", "PD day — April calendar". `created_by` references the appropriate platform_user.       |
+| `msg_thread_participants`      |    6 | Two per thread. Roles: OWNER for the creator (Rivera, Rivera, Mitchell respectively), PARTICIPANT for the other side. The class-discussion thread uses Rivera + Maya as the two account-holders (the other 7 students in the P1 roster don't have `platform_users` rows yet — only Maya does — so the seed cannot wire them in as participants). |
+| `msg_messages`                 |   10 | 3 in thread A (Rivera ↔ David Chen), 5 in thread B (Rivera ↔ Maya), 2 in thread C (Mitchell ↔ Rivera). All `created_at` values land in 2026-04, so they all sit in the `msg_messages_2026_04` partition. |
+| `msg_message_reads`            |    4 | Sets up an unread-count story: David has read the first message in thread A only (so 2 unread); Maya has read 3 of the 5 messages in thread B (the teacher's replies) — leaves 2 unread on the teacher's side. |
+| `msg_alert_types`              |    3 | GENERAL_ANNOUNCEMENT (INFO, IN_APP), PARENT_INFORMATIONAL (INFO, IN_APP+EMAIL), WEATHER_CLOSURE (URGENT, IN_APP+EMAIL+SMS). Used by the announcement rows for `alert_type_id`.                                |
+| `msg_notification_preferences` |   40 | One row per (test user × notification_type). 8 notification types: `attendance.tardy`, `attendance.absent`, `grade.published`, `progress_note.published`, `absence.requested`, `absence.reviewed`, `message.posted`, `announcement.published`. EMAIL channel is added for `grade.published` + `attendance.tardy`; everything else is IN_APP only. David Chen carries 22:00–07:00 quiet hours on every type (per plan); the other 4 users have NULL quiet hours. |
+| `msg_moderation_policies`      |    2 | (1) PLATFORM-scope `Platform Default Profanity Filter` with `keyword_action='BLOCK'`, `sensitivity_threshold=80`, keywords for basic profanity + threat phrases. (2) BUILDING-scope `Lincoln Elementary — School-Specific` with `keyword_action='FLAG_FOR_REVIEW'`, threshold 60, keywords for substance use + bullying. The BUILDING policy's `scope_id` holds the demo school's UUID. |
+| `msg_announcements`            |    2 | (1) "Welcome Back to School" — `audience_type='ALL_SCHOOL'`, `audience_ref=NULL`, alert_type=GENERAL_ANNOUNCEMENT, `is_published=true`, publish 2026-01-15, expires 2026-02-15. (2) "Parent-Teacher Conference Dates" — `audience_type='ROLE'`, `audience_ref='PARENT'`, alert_type=PARENT_INFORMATIONAL, published 2026-04-25, expires 2026-05-10. Both authored by Mitchell. |
+| `msg_announcement_audiences`   |   15 | 5 for the welcome (each test user), 10 for the conference (David Chen + the 9 seeded guardian accounts under `*@parents.demo.campusos.dev`). Last conference row stays `delivery_status='PENDING'` to demonstrate the partial-fan-out state; everything else is `DELIVERED`. |
+| `msg_announcement_reads`       |    4 | David read both, Maya read welcome, James read welcome.                                                                                                                                                     |
+| `msg_notification_queue`       |    3 | (1) `attendance.tardy` SENT to David for Maya's 2026-04-22 P1 tardy. (2) `grade.published` SENT to Maya for the Linear Equations Quiz (92/A). (3) `message.posted` PENDING for David, pointing at thread A's third message. Each row carries an `idempotency_key` (string) and a `correlation_id` (UUID) so the Step 5 worker has realistic redelivery shapes to test against. The queue table has no UNIQUE on `idempotency_key` (per Step 2 design — Redis SET NX is the authoritative dedup) so re-running the seed via DELETE + reseed will not collide. |
+| `msg_notification_log`         |    2 | One IN_APP DELIVERED row per SENT queue entry, with `queue_id` set so the join works. PENDING queue row has no log entry by definition. |
+
+`msg_message_attachments`, `msg_tags`, `msg_user_tags`, `msg_user_blocks`, and `msg_admin_access_log` are deliberately not seeded — none of them are needed to demonstrate the Step 5 pipeline, and the moderation log table only fills in once the Step 6 ContentModerationInterceptor flags a message.
+
+### Permission grants (`seed-iam.ts`)
+
+The plan specifies "COM-001 read/write to Teacher/Parent/Student; COM-002 read to all + write to Teacher/Admin; COM-003 read/write to Admin". Matching the live state at the start of Step 4:
+
+| Role           | Already had                                                | Added in Step 4         |
+| -------------- | ---------------------------------------------------------- | ----------------------- |
+| Platform Admin | COM-001/2/3/4 read+write+admin via `everyFunction`         | —                       |
+| School Admin   | COM-001/2/3/4 read+write+admin via `everyFunction`         | —                       |
+| Teacher        | COM-001 [read,write], COM-002 [read,write]                 | —                       |
+| Parent         | COM-001 [read,write], COM-002 [read]                       | —                       |
+| Student        | COM-001 [read,write]                                       | **COM-002 [read]**      |
+| Staff          | COM-001 [read,write]                                       | **COM-002 [read]**      |
+
+Net: 2 newly-added rows in `platform.role_permissions`. Effective access cache rebuilt — Student went from 14 → 15 permissions, Staff from 5 → 6; the other roles are unchanged. COM-003 (Content Moderation) is held by Platform/School Admin only, which the plan intends.
+
+### Rerun / reset
+
+```
+pnpm --filter @campusos/database seed:messaging        # idempotent: skips if msg_thread_types is non-empty
+pnpm --filter @campusos/database exec tsx src/seed-iam.ts   # idempotent: only adds missing role_permissions
+pnpm --filter @campusos/database exec tsx src/build-cache.ts
+```
+
+To force a re-seed: `TRUNCATE msg_thread_types CASCADE` is **not** safe because there are no DB-enforced FKs from the participant / message / read tables back to thread types — the cascade won't propagate. Either drop the schema and re-provision (the supported reset path in CLAUDE.md "Rebuild from corrupted state") or `DELETE FROM tenant_demo.msg_thread_types` after manually clearing the dependent tables. For the demo scenario, dropping + re-provisioning is simpler.
+
+### Known limitations
+
+- **Class discussion thread has 2 participants, not 5+.** Only Maya (S-1001) has a `platform_users` account in the demo seed; the other 14 SIS students are platform_students-only. Adding 4 more student accounts just for the class thread would have cascaded into IAM scoping + Keycloak fixture work that is out of scope for Step 4. The thread still demonstrates the schema correctly — multi-message, multi-sender, with read marks. When the wider STUDENT-account fixture lands (Phase 2 polish), the class thread can be fanned out without changing the seed-data shape.
+- **Notification queue uses placeholder `correlation_id` UUIDs.** In production the correlation_id will be propagated from the Kafka envelope's `correlation_id` field on the source event (e.g. the `att.student.marked_tardy` envelope). The seed mints fresh UUIDs because no actual event triggered these rows — this matches the "this is what the queue would have looked like after the worker ran" semantic.
 
 ---
 
@@ -530,8 +580,6 @@ Not started. Plan: `docs/cycle3-cat-script.md` — 7 scenarios covering tardy �
 
 ## Quick reference — running the stack from a fresh clone
 
-(unchanged from Cycle 2; copy of the Cycle 2 quick-reference is still authoritative)
-
 ```bash
 pnpm install
 docker compose up -d
@@ -540,11 +588,12 @@ pnpm --filter @campusos/database seed
 pnpm --filter @campusos/database exec tsx src/seed-iam.ts
 pnpm --filter @campusos/database seed:sis
 pnpm --filter @campusos/database seed:classroom
+pnpm --filter @campusos/database seed:messaging
 pnpm --filter @campusos/database exec tsx src/build-cache.ts
 pnpm --filter @campusos/api dev
 ```
 
-After Step 4 lands a dedicated `seed:messaging` script, this list grows by one entry. Until then the Cycle 2 seed pipeline is unchanged.
+`seed:messaging` is the Step 4 addition; everything else is unchanged from Cycle 2. The seeds are idempotent and safe to re-run.
 
 ---
 
