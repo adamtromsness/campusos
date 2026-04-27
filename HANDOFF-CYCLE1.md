@@ -320,14 +320,11 @@ New subtree: `apps/web/src/`. Next.js 14 App Router, Tailwind only (no component
 
 **Persona-driven sidebar** (`Sidebar.tsx`):
 
-| Item        | Visible when                                                                     |
-| ----------- | -------------------------------------------------------------------------------- | ----- | ------ |
-| Dashboard   | always                                                                           |
-| Classes     | `personType === STAFF` and any of `att-001:read`, `sch-005:read`, `clr-001:read` |
-| Attendance  | any of `att-001:read                                                             | write | admin` |
-| My Children | `personType === GUARDIAN`                                                        |
-| Students    | any of `stu-001:read                                                             | write | admin` |
-| Settings    | `sch-001:admin`                                                                  |
+| Item      | Visible when |
+| --------- | ------------ |
+| Dashboard | always       |
+
+The sidebar was originally drafted with Classes / Attendance / Children / Students / Settings entries (gated by `personType` and various permission codes), but Cycle 1 only ships `/dashboard` plus the detail routes (`/classes/[id]/attendance`, `/children/[id]/attendance`, `/children/[id]/absence-request`). Section-level landing pages produced 404s on click, so the sidebar was trimmed to the only nav target that actually has a route. The dashboard itself is the navigation hub — class cards (teacher) and children cards (parent) link directly into the detail views. Future cycles will re-introduce section landings and grow the sidebar back as those pages land.
 
 **Design tokens (Tailwind):**
 

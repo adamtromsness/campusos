@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { type ReactNode } from 'react';
 import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
 import { cn } from '@/components/ui/cn';
-import { AttendanceIcon, ClassesIcon, HomeIcon, PeopleIcon, SettingsIcon } from './icons';
+import { HomeIcon } from './icons';
 
 interface NavItem {
   href: string;
@@ -14,38 +14,18 @@ interface NavItem {
   visibleFor: (user: AuthUser) => boolean;
 }
 
+// Only routes that actually exist in apps/web/src/app are listed here.
+// Cycle 1 ships with /dashboard as the navigation hub — class cards and
+// children cards are the in-page entry points to detail views. Section-level
+// landing pages (Classes, Attendance, Students, Settings) come in later cycles
+// when their full feature surface lands; adding them here without backing
+// pages just produces 404s.
 const NAV_ITEMS: NavItem[] = [
   {
     href: '/dashboard',
     label: 'Dashboard',
     icon: HomeIcon,
     visibleFor: () => true,
-  },
-  {
-    href: '/classes',
-    label: 'Classes',
-    icon: ClassesIcon,
-    visibleFor: (u) =>
-      u.personType === 'STAFF' &&
-      hasAnyPermission(u, ['att-001:read', 'sch-005:read', 'clr-001:read']),
-  },
-  {
-    href: '/attendance',
-    label: 'Attendance',
-    icon: AttendanceIcon,
-    visibleFor: (u) => hasAnyPermission(u, ['att-001:read', 'att-001:write', 'att-001:admin']),
-  },
-  {
-    href: '/students',
-    label: 'Students',
-    icon: PeopleIcon,
-    visibleFor: (u) => hasAnyPermission(u, ['stu-001:read', 'stu-001:write', 'stu-001:admin']),
-  },
-  {
-    href: '/settings',
-    label: 'Settings',
-    icon: SettingsIcon,
-    visibleFor: (u) => hasAnyPermission(u, ['sch-001:admin']),
   },
 ];
 
