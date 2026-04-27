@@ -1,5 +1,5 @@
-import { config } from "dotenv";
-config({ path: ["../../.env.local", "../../.env", ".env"] });
+import { config } from 'dotenv';
+config({ path: ['../../.env.local', '../../.env', '.env'] });
 
 import { getPlatformClient, executePlatformSQL } from './client';
 import { readFileSync, readdirSync } from 'fs';
@@ -33,7 +33,9 @@ async function applyTenantMigrations(schemaName: string): Promise<void> {
 
   try {
     migrationFiles = readdirSync(TENANT_MIGRATIONS_DIR)
-      .filter(function(f: string) { return f.endsWith('.sql'); })
+      .filter(function (f: string) {
+        return f.endsWith('.sql');
+      })
       .sort();
   } catch (e) {
     console.log('   No tenant migrations found');
@@ -53,8 +55,12 @@ async function applyTenantMigrations(schemaName: string): Promise<void> {
     console.log('   Applying: ' + file);
     var statements = sql
       .split(';')
-      .map(function(s: string) { return s.trim(); })
-      .filter(function(s: string) { return s.length > 0 && !s.startsWith('--'); });
+      .map(function (s: string) {
+        return s.trim();
+      })
+      .filter(function (s: string) {
+        return s.length > 0 && !s.startsWith('--');
+      });
     for (var j = 0; j < statements.length; j++) {
       await executePlatformSQL(statements[j]);
     }
@@ -67,9 +73,11 @@ async function applyTenantMigrations(schemaName: string): Promise<void> {
 export async function listTenantSchemas(): Promise<string[]> {
   var client = getPlatformClient();
   var result = await client.$queryRawUnsafe<Array<{ schema_name: string }>>(
-    "SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tenant_%' ORDER BY schema_name"
+    "SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tenant_%' ORDER BY schema_name",
   );
-  return result.map(function(r) { return r.schema_name; });
+  return result.map(function (r) {
+    return r.schema_name;
+  });
 }
 
 export async function dropTenantSchema(schemaName: string): Promise<void> {
@@ -85,7 +93,9 @@ export async function dropTenantSchema(schemaName: string): Promise<void> {
 
 if (require.main === module) {
   var args = process.argv.slice(2);
-  var subdomainArg = args.find(function(a: string) { return a.startsWith('--subdomain='); });
+  var subdomainArg = args.find(function (a: string) {
+    return a.startsWith('--subdomain=');
+  });
 
   if (!subdomainArg) {
     console.log('Usage: tsx provision-tenant.ts --subdomain=<name>');
@@ -99,8 +109,10 @@ if (require.main === module) {
   }
 
   provisionTenant(subdomain)
-    .then(function() { process.exit(0); })
-    .catch(function(e) {
+    .then(function () {
+      process.exit(0);
+    })
+    .catch(function (e) {
       console.error('Provisioning failed:', e);
       process.exit(1);
     });

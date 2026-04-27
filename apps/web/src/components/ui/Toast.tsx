@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { cn } from './cn';
 
 type ToastVariant = 'info' | 'success' | 'warning' | 'error';
@@ -30,11 +24,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((current) => current.filter((t) => t.id !== id));
   }, []);
 
-  const toast = useCallback((message: string, variant: ToastVariant = 'info') => {
-    const id = Date.now() + Math.random();
-    setToasts((current) => [...current, { id, message, variant }]);
-    setTimeout(() => dismiss(id), 4000);
-  }, [dismiss]);
+  const toast = useCallback(
+    (message: string, variant: ToastVariant = 'info') => {
+      const id = Date.now() + Math.random();
+      setToasts((current) => [...current, { id, message, variant }]);
+      setTimeout(() => dismiss(id), 4000);
+    },
+    [dismiss],
+  );
 
   return (
     <ToastContext.Provider value={{ toast }}>

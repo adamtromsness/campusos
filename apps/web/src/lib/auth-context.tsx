@@ -2,12 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  apiFetch,
-  attemptSilentLogin,
-  setAccessToken,
-  setOnUnauthenticated,
-} from './api-client';
+import { apiFetch, attemptSilentLogin, setAccessToken, setOnUnauthenticated } from './api-client';
 import { useAuthStore, type AuthUser } from './auth-store';
 
 interface AuthContextValue {
@@ -56,13 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [setAuth, setUnauthenticated]);
 
   const login = async (email: string) => {
-    const res = await apiFetch<{ accessToken: string }>(
-      '/api/v1/auth/dev-login',
-      {
-        method: 'POST',
-        body: JSON.stringify({ email }),
-      },
-    );
+    const res = await apiFetch<{ accessToken: string }>('/api/v1/auth/dev-login', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
     setAccessToken(res.accessToken);
     const me = await apiFetch<AuthUser>('/api/v1/auth/me');
     setAuth(res.accessToken, me);
@@ -86,9 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ login, logout, refreshUser }}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={{ login, logout, refreshUser }}>{children}</AuthContext.Provider>
   );
 }
 

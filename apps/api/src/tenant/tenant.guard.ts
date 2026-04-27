@@ -1,4 +1,10 @@
-import { Injectable, CanActivate, ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { getCurrentTenant } from './tenant.context';
 
 /**
@@ -33,7 +39,8 @@ export class TenantGuard implements CanActivate {
         {
           statusCode: 503,
           error: 'WRITE_FROZEN',
-          message: 'This school is currently in maintenance mode. Read operations are available. Write operations will resume shortly.',
+          message:
+            'This school is currently in maintenance mode. Read operations are available. Write operations will resume shortly.',
         },
         HttpStatus.SERVICE_UNAVAILABLE,
       );

@@ -34,10 +34,7 @@ export class EffectiveAccessCacheService {
         scopeId: { in: scopeIds },
         status: 'ACTIVE',
         effectiveFrom: { lte: new Date() },
-        OR: [
-          { effectiveTo: null },
-          { effectiveTo: { gt: new Date() } },
-        ],
+        OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }],
       },
       select: {
         id: true,
@@ -55,7 +52,9 @@ export class EffectiveAccessCacheService {
     }
 
     // 3. Collect all role IDs
-    var roleIds = assignments.map(function(a: any) { return a.roleId; });
+    var roleIds = assignments.map(function (a: any) {
+      return a.roleId;
+    });
     var uniqueRoleIds = Array.from(new Set(roleIds));
 
     // 4. Get all permission codes for these roles
@@ -65,11 +64,19 @@ export class EffectiveAccessCacheService {
     });
 
     var permissionCodes = Array.from(
-      new Set(rolePermissions.map(function(rp: any) { return rp.permission.code; }))
+      new Set(
+        rolePermissions.map(function (rp: any) {
+          return rp.permission.code;
+        }),
+      ),
     ).sort();
 
     // 5. Compute version hash for staleness detection
-    var assignmentIds = assignments.map(function(a) { return a.id + ':' + a.status; }).sort();
+    var assignmentIds = assignments
+      .map(function (a) {
+        return a.id + ':' + a.status;
+      })
+      .sort();
     var versionHash = createHash('sha256').update(assignmentIds.join(',')).digest('hex');
 
     // 6. Upsert the cache entry

@@ -7,10 +7,8 @@
  * - On terminal 401, invokes the registered onUnauthenticated handler.
  */
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';
-const TENANT_SUBDOMAIN =
-  process.env.NEXT_PUBLIC_TENANT_SUBDOMAIN || 'demo';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';
+const TENANT_SUBDOMAIN = process.env.NEXT_PUBLIC_TENANT_SUBDOMAIN || 'demo';
 
 let _accessToken: string | null = null;
 let _onUnauthenticated: (() => void) | null = null;
@@ -43,21 +41,13 @@ function buildHeaders(init: RequestInit, token: string | null): Headers {
   const headers = new Headers(init.headers || {});
   headers.set('X-Tenant-Subdomain', TENANT_SUBDOMAIN);
   if (token) headers.set('Authorization', `Bearer ${token}`);
-  if (
-    init.body &&
-    !(init.body instanceof FormData) &&
-    !headers.has('Content-Type')
-  ) {
+  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
   return headers;
 }
 
-async function rawFetch(
-  path: string,
-  init: RequestInit,
-  token: string | null,
-): Promise<Response> {
+async function rawFetch(path: string, init: RequestInit, token: string | null): Promise<Response> {
   return fetch(`${API_BASE}${path}`, {
     ...init,
     headers: buildHeaders(init, token),
@@ -69,11 +59,7 @@ async function refreshOnce(): Promise<string | null> {
   if (!_refreshPromise) {
     _refreshPromise = (async () => {
       try {
-        const res = await rawFetch(
-          '/api/v1/auth/refresh',
-          { method: 'POST' },
-          null,
-        );
+        const res = await rawFetch('/api/v1/auth/refresh', { method: 'POST' }, null);
         if (!res.ok) return null;
         const data = (await res.json()) as { accessToken: string };
         return data.accessToken;
@@ -91,10 +77,7 @@ export async function attemptSilentLogin(): Promise<string | null> {
   return refreshOnce();
 }
 
-export async function apiFetch<T = unknown>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
   let res = await rawFetch(path, init, _accessToken);
 
   if (res.status === 401 && !path.startsWith('/api/v1/auth/refresh')) {
@@ -118,8 +101,7 @@ export async function apiFetch<T = unknown>(
     } catch {
       // not JSON
     }
-    const message =
-      (body as { message?: string })?.message || text || res.statusText;
+    const message = (body as { message?: string })?.message || text || res.statusText;
     throw new ApiError(res.status, message, body);
   }
 

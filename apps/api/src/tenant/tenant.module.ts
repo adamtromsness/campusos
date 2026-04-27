@@ -17,7 +17,7 @@ import { TenantPrismaService } from './tenant-prisma.service';
   providers: [
     {
       provide: PrismaClient,
-      useFactory: function() {
+      useFactory: function () {
         return new PrismaClient({
           datasourceUrl: process.env.DATABASE_URL,
         });
@@ -27,16 +27,10 @@ import { TenantPrismaService } from './tenant-prisma.service';
     TenantGuard,
     TenantPrismaService,
   ],
-  exports: [
-    TenantGuard,
-    TenantPrismaService,
-    PrismaClient,
-  ],
+  exports: [TenantGuard, TenantPrismaService, PrismaClient],
 })
 export class TenantModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(TenantResolverMiddleware)
-      .forRoutes('*');
+    consumer.apply(TenantResolverMiddleware).forRoutes('*');
   }
 }

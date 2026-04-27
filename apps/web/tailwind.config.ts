@@ -25,8 +25,8 @@ const config: Config = {
         // Attendance status — used by StatusBadge and the marking UI
         status: {
           present: { DEFAULT: '#16a34a', soft: '#dcfce7', text: '#166534' },
-          tardy:   { DEFAULT: '#d97706', soft: '#fef3c7', text: '#92400e' },
-          absent:  { DEFAULT: '#dc2626', soft: '#fee2e2', text: '#991b1b' },
+          tardy: { DEFAULT: '#d97706', soft: '#fef3c7', text: '#92400e' },
+          absent: { DEFAULT: '#dc2626', soft: '#fee2e2', text: '#991b1b' },
           excused: { DEFAULT: '#6366f1', soft: '#e0e7ff', text: '#3730a3' },
         },
       },

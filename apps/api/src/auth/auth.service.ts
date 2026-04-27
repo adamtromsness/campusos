@@ -16,8 +16,8 @@ import { generateId } from '@campusos/database';
  */
 
 export interface JwtPayload {
-  sub: string;        // platform_users.id
-  personId: string;   // iam_person.id
+  sub: string; // platform_users.id
+  personId: string; // iam_person.id
   email: string;
   displayName: string;
   sessionId: string;
@@ -54,11 +54,9 @@ export class AuthService {
    * Generate a refresh token (longer-lived, stored in HttpOnly cookie).
    */
   generateRefreshToken(userId: string, sessionId: string): string {
-    return sign(
-      { sub: userId, sessionId: sessionId, type: 'refresh' },
-      this.jwtSecret,
-      { expiresIn: '7d' },
-    );
+    return sign({ sub: userId, sessionId: sessionId, type: 'refresh' }, this.jwtSecret, {
+      expiresIn: '7d',
+    });
   }
 
   /**

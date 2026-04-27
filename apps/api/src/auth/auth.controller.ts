@@ -36,12 +36,15 @@ export class AuthController {
       (process.env.API_BASE_URL || 'http://localhost:4000') + '/api/v1/auth/callback',
     );
 
-    var authUrl = issuer +
+    var authUrl =
+      issuer +
       '/protocol/openid-connect/auth' +
-      '?client_id=' + clientId +
+      '?client_id=' +
+      clientId +
       '&response_type=code' +
       '&scope=openid%20email%20profile' +
-      '&redirect_uri=' + redirectUri;
+      '&redirect_uri=' +
+      redirectUri;
 
     res.redirect(authUrl);
   }
@@ -72,7 +75,8 @@ export class AuthController {
         code: code,
         client_id: process.env.OIDC_CLIENT_ID || 'campusos-api',
         client_secret: process.env.OIDC_CLIENT_SECRET || 'campusos-dev-secret',
-        redirect_uri: (process.env.API_BASE_URL || 'http://localhost:4000') + '/api/v1/auth/callback',
+        redirect_uri:
+          (process.env.API_BASE_URL || 'http://localhost:4000') + '/api/v1/auth/callback',
       }).toString(),
     });
 
@@ -80,7 +84,7 @@ export class AuthController {
       throw new HttpException('Failed to exchange authorization code', HttpStatus.UNAUTHORIZED);
     }
 
-    var tokenData = await tokenResponse.json() as any;
+    var tokenData = (await tokenResponse.json()) as any;
 
     // Get user info from Keycloak
     var userInfoResponse = await fetch(issuer + '/protocol/openid-connect/userinfo', {
@@ -91,7 +95,7 @@ export class AuthController {
       throw new HttpException('Failed to get user info from IdP', HttpStatus.UNAUTHORIZED);
     }
 
-    var userInfo = await userInfoResponse.json() as any;
+    var userInfo = (await userInfoResponse.json()) as any;
     var email = userInfo.email as string;
 
     if (!email) {
@@ -102,10 +106,7 @@ export class AuthController {
     var result = await this.authService.authenticateByEmail(email);
 
     if (!result) {
-      throw new HttpException(
-        'User not found or account inactive: ' + email,
-        HttpStatus.FORBIDDEN,
-      );
+      throw new HttpException('User not found or account inactive: ' + email, HttpStatus.FORBIDDEN);
     }
 
     // Set refresh token as HttpOnly cookie

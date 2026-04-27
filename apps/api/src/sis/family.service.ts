@@ -33,16 +33,16 @@ export class FamilyService {
         'SELECT g.id, g.person_id, g.account_id, g.relationship, g.preferred_contact_method, g.family_id, ' +
           'sg.has_custody, sg.is_emergency_contact, sg.receives_reports, sg.portal_access, sg.portal_access_scope, ' +
           'ip.first_name, ip.last_name, u.email ' +
-        'FROM sis_student_guardians sg ' +
-        'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-        'JOIN platform.iam_person ip ON ip.id = g.person_id ' +
-        'LEFT JOIN platform.platform_users u ON u.id = g.account_id ' +
-        'WHERE sg.student_id = $1::uuid ' +
-        'ORDER BY ip.last_name, ip.first_name',
+          'FROM sis_student_guardians sg ' +
+          'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+          'JOIN platform.iam_person ip ON ip.id = g.person_id ' +
+          'LEFT JOIN platform.platform_users u ON u.id = g.account_id ' +
+          'WHERE sg.student_id = $1::uuid ' +
+          'ORDER BY ip.last_name, ip.first_name',
         studentId,
       );
     });
-    return rows.map(function(r) {
+    return rows.map(function (r) {
       return {
         id: r.id,
         personId: r.person_id,
@@ -68,12 +68,12 @@ export class FamilyService {
       return client.$queryRawUnsafe<StudentGuardianRow[]>(
         'SELECT g.id, g.person_id, g.account_id, g.relationship, g.preferred_contact_method, g.family_id, ' +
           'false AS has_custody, false AS is_emergency_contact, false AS receives_reports, ' +
-          'false AS portal_access, \'FULL\' AS portal_access_scope, ' +
+          "false AS portal_access, 'FULL' AS portal_access_scope, " +
           'ip.first_name, ip.last_name, u.email ' +
-        'FROM sis_guardians g ' +
-        'JOIN platform.iam_person ip ON ip.id = g.person_id ' +
-        'LEFT JOIN platform.platform_users u ON u.id = g.account_id ' +
-        'WHERE g.id = $1::uuid',
+          'FROM sis_guardians g ' +
+          'JOIN platform.iam_person ip ON ip.id = g.person_id ' +
+          'LEFT JOIN platform.platform_users u ON u.id = g.account_id ' +
+          'WHERE g.id = $1::uuid',
         guardianId,
       );
     });

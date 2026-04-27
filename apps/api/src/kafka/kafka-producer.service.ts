@@ -21,7 +21,12 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     var brokerList = process.env.KAFKA_BROKERS || 'localhost:9092';
-    var brokers = brokerList.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    var brokers = brokerList
+      .split(',')
+      .map(function (s) {
+        return s.trim();
+      })
+      .filter(Boolean);
     var kafka = new Kafka({
       clientId: 'campusos-api',
       brokers: brokers,

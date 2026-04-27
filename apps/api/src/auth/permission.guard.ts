@@ -28,10 +28,10 @@ export class PermissionGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Get required permissions from decorator metadata
-    var requiredPermissions = this.reflector.getAllAndOverride<string[]>(
-      PERMISSIONS_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    var requiredPermissions = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     // No @RequirePermission → endpoint only needs auth (which already passed)
     if (!requiredPermissions || requiredPermissions.length === 0) {
@@ -77,7 +77,10 @@ export class PermissionGuard implements CanActivate {
         scopeIds[s]!,
         requiredPermissions,
       );
-      if (ok) { hasPermission = true; break; }
+      if (ok) {
+        hasPermission = true;
+        break;
+      }
     }
 
     if (!hasPermission) {

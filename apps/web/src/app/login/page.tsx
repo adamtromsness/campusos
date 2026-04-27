@@ -38,7 +38,7 @@ const DEV_ACCOUNTS: DevAccount[] = [
   {
     email: 'parent@demo.campusos.dev',
     label: 'Parent (David Chen)',
-    description: 'Maya Chen\'s father',
+    description: "Maya Chen's father",
   },
 ];
 
@@ -76,8 +76,7 @@ export default function LoginPage() {
     try {
       await login(email);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Login failed. Please try again.';
+      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
       toast(message, 'error');
       setBusy(null);
     }
@@ -115,13 +114,9 @@ export default function LoginPage() {
                     className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left transition-colors hover:bg-campus-50/40 disabled:opacity-60"
                   >
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {acc.label}
-                      </p>
+                      <p className="text-sm font-medium text-gray-900">{acc.label}</p>
                       <p className="text-xs text-gray-500">{acc.description}</p>
-                      <p className="mt-0.5 font-mono text-[11px] text-gray-400">
-                        {acc.email}
-                      </p>
+                      <p className="mt-0.5 font-mono text-[11px] text-gray-400">{acc.email}</p>
                     </div>
                     {loading && <LoadingSpinner size="sm" />}
                   </button>

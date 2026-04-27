@@ -32,10 +32,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
-          <div
-            className="absolute inset-0 bg-campus-900/40"
-            onClick={() => setDrawerOpen(false)}
-          />
+          <div className="absolute inset-0 bg-campus-900/40" onClick={() => setDrawerOpen(false)} />
           <div className="relative flex">
             <Sidebar user={user} onNavigate={() => setDrawerOpen(false)} />
             <button

@@ -10,6 +10,6 @@ import { IS_PUBLIC_KEY } from './auth.guard';
  *   @Get('status')
  *   getStatus() { ... }
  */
-export var Public = function() {
+export var Public = function () {
   return SetMetadata(IS_PUBLIC_KEY, true);
 };

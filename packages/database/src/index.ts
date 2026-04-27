@@ -9,19 +9,10 @@
 export { PrismaClient } from '@prisma/client';
 
 // Client factory (platform + tenant)
-export {
-  getPlatformClient,
-  createTenantClient,
-  executePlatformSQL,
-  disconnectAll,
-} from './client';
+export { getPlatformClient, createTenantClient, executePlatformSQL, disconnectAll } from './client';
 
 // UUIDv7 generation (ADR-002)
 export { generateId, extractTimestamp } from './uuid';
 
 // Tenant provisioning
-export {
-  provisionTenant,
-  listTenantSchemas,
-  dropTenantSchema,
-} from './provision-tenant';
+export { provisionTenant, listTenantSchemas, dropTenantSchema } from './provision-tenant';

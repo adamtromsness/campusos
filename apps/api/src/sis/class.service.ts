@@ -57,12 +57,12 @@ function classRowToDto(row: ClassRow, teachers: ClassTeacherRow[]): ClassRespons
       name: row.year_name,
       isCurrent: row.year_is_current,
     },
-    term: row.term_id
-      ? { id: row.term_id, name: row.term_name!, termType: row.term_type! }
-      : null,
+    term: row.term_id ? { id: row.term_id, name: row.term_name!, termType: row.term_type! } : null,
     teachers: teachers
-      .filter(function(t) { return t.class_id === row.id; })
-      .map(function(t) {
+      .filter(function (t) {
+        return t.class_id === row.id;
+      })
+      .map(function (t) {
         return {
           personId: t.person_id,
           fullName: t.first_name + ' ' + t.last_name,
@@ -75,10 +75,10 @@ function classRowToDto(row: ClassRow, teachers: ClassTeacherRow[]): ClassRespons
 
 var CLASS_SELECT_BASE =
   'SELECT c.id, c.school_id, c.section_code, c.room, c.max_enrollment, ' +
-    'co.id AS course_id, co.code AS course_code, co.name AS course_name, co.grade_level AS course_grade_level, ' +
-    'ay.id AS year_id, ay.name AS year_name, ay.is_current AS year_is_current, ' +
-    't.id AS term_id, t.name AS term_name, t.term_type, ' +
-    '(SELECT count(*)::int FROM sis_enrollments e WHERE e.class_id = c.id AND e.status = \'ACTIVE\') AS enrollment_count ' +
+  'co.id AS course_id, co.code AS course_code, co.name AS course_name, co.grade_level AS course_grade_level, ' +
+  'ay.id AS year_id, ay.name AS year_name, ay.is_current AS year_is_current, ' +
+  't.id AS term_id, t.name AS term_name, t.term_type, ' +
+  "(SELECT count(*)::int FROM sis_enrollments e WHERE e.class_id = c.id AND e.status = 'ACTIVE') AS enrollment_count " +
   'FROM sis_classes c ' +
   'JOIN sis_courses co ON co.id = c.course_id ' +
   'JOIN sis_academic_years ay ON ay.id = c.academic_year_id ' +
@@ -92,20 +92,27 @@ export class ClassService {
     var result = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var rows = await client.$queryRawUnsafe<ClassRow[]>(
         CLASS_SELECT_BASE +
-        'WHERE ($1::uuid IS NULL OR c.term_id = $1::uuid) ' +
+          'WHERE ($1::uuid IS NULL OR c.term_id = $1::uuid) ' +
           'AND ($2::uuid IS NULL OR c.course_id = $2::uuid) ' +
           'AND ($3::uuid IS NULL OR c.academic_year_id = $3::uuid) ' +
           'AND ($4::text IS NULL OR co.grade_level = $4::text) ' +
-        'ORDER BY c.section_code',
+          'ORDER BY c.section_code',
         filters.termId ?? null,
         filters.courseId ?? null,
         filters.academicYearId ?? null,
         filters.gradeLevel ?? null,
       );
-      var teachers = await this.loadTeachersForClasses(client, rows.map(function(r) { return r.id; }));
+      var teachers = await this.loadTeachersForClasses(
+        client,
+        rows.map(function (r) {
+          return r.id;
+        }),
+      );
       return { rows: rows, teachers: teachers };
     });
-    return result.rows.map(function(r) { return classRowToDto(r, result.teachers); });
+    return result.rows.map(function (r) {
+      return classRowToDto(r, result.teachers);
+    });
   }
 
   async getById(id: string): Promise<ClassResponseDto> {
@@ -131,14 +138,21 @@ export class ClassService {
     var result = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var rows = await client.$queryRawUnsafe<ClassRow[]>(
         CLASS_SELECT_BASE +
-        'WHERE c.id IN (SELECT class_id FROM sis_class_teachers WHERE teacher_employee_id = $1::uuid) ' +
-        'ORDER BY c.section_code',
+          'WHERE c.id IN (SELECT class_id FROM sis_class_teachers WHERE teacher_employee_id = $1::uuid) ' +
+          'ORDER BY c.section_code',
         teacherPersonId,
       );
-      var teachers = await this.loadTeachersForClasses(client, rows.map(function(r) { return r.id; }));
+      var teachers = await this.loadTeachersForClasses(
+        client,
+        rows.map(function (r) {
+          return r.id;
+        }),
+      );
       return { rows: rows, teachers: teachers };
     });
-    return result.rows.map(function(r) { return classRowToDto(r, result.teachers); });
+    return result.rows.map(function (r) {
+      return classRowToDto(r, result.teachers);
+    });
   }
 
   async getRoster(classId: string): Promise<RosterEntryDto[]> {
@@ -154,16 +168,16 @@ export class ClassService {
         'SELECT e.id AS enrollment_id, e.status, ' +
           's.id AS student_id, s.student_number, s.grade_level, ' +
           'ip.first_name, ip.last_name ' +
-        'FROM sis_enrollments e ' +
-        'JOIN sis_students s ON s.id = e.student_id ' +
-        'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-        'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-        'WHERE e.class_id = $1::uuid AND e.status = \'ACTIVE\' ' +
-        'ORDER BY ip.last_name, ip.first_name',
+          'FROM sis_enrollments e ' +
+          'JOIN sis_students s ON s.id = e.student_id ' +
+          'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+          'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
+          "WHERE e.class_id = $1::uuid AND e.status = 'ACTIVE' " +
+          'ORDER BY ip.last_name, ip.first_name',
         classId,
       );
     });
-    return rows.map(function(r) {
+    return rows.map(function (r) {
       return {
         enrollmentId: r.enrollment_id,
         studentId: r.student_id,
@@ -177,16 +191,25 @@ export class ClassService {
     });
   }
 
-  private async loadTeachersForClasses(client: any, classIds: string[]): Promise<ClassTeacherRow[]> {
+  private async loadTeachersForClasses(
+    client: any,
+    classIds: string[],
+  ): Promise<ClassTeacherRow[]> {
     if (classIds.length === 0) return [];
     // Cast each id explicitly via VALUES list to avoid string→uuid array binding gotchas.
-    var placeholders = classIds.map(function(_, idx) { return '$' + (idx + 1) + '::uuid'; }).join(',');
+    var placeholders = classIds
+      .map(function (_, idx) {
+        return '$' + (idx + 1) + '::uuid';
+      })
+      .join(',');
     return client.$queryRawUnsafe(
       'SELECT ct.class_id, ct.is_primary_teacher, ' +
         'ip.id AS person_id, ip.first_name, ip.last_name ' +
-      'FROM sis_class_teachers ct ' +
-      'JOIN platform.iam_person ip ON ip.id = ct.teacher_employee_id ' +
-      'WHERE ct.class_id IN (' + placeholders + ')',
+        'FROM sis_class_teachers ct ' +
+        'JOIN platform.iam_person ip ON ip.id = ct.teacher_employee_id ' +
+        'WHERE ct.class_id IN (' +
+        placeholders +
+        ')',
       ...classIds,
     );
   }

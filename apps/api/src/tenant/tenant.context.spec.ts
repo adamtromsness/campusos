@@ -7,7 +7,7 @@ import {
   RequestContext,
 } from './tenant.context';
 
-describe('TenantContext', function() {
+describe('TenantContext', function () {
   var testTenant: TenantInfo = {
     schoolId: 'school-123',
     schemaName: 'tenant_demo',
@@ -17,19 +17,21 @@ describe('TenantContext', function() {
     planTier: 'MEDIUM',
   };
 
-  it('should return undefined outside a context', function() {
+  it('should return undefined outside a context', function () {
     var ctx = getRequestContext();
     expect(ctx).toBeUndefined();
   });
 
-  it('should throw when getCurrentTenant called outside context', function() {
-    expect(function() { getCurrentTenant(); }).toThrow('No tenant context');
+  it('should throw when getCurrentTenant called outside context', function () {
+    expect(function () {
+      getCurrentTenant();
+    }).toThrow('No tenant context');
   });
 
-  it('should provide tenant within context', function() {
+  it('should provide tenant within context', function () {
     var context: RequestContext = { tenant: testTenant };
 
-    runWithTenantContext(context, function() {
+    runWithTenantContext(context, function () {
       var tenant = getCurrentTenant();
       expect(tenant.schoolId).toBe('school-123');
       expect(tenant.schemaName).toBe('tenant_demo');
@@ -38,7 +40,7 @@ describe('TenantContext', function() {
     });
   });
 
-  it('should isolate contexts between calls', function() {
+  it('should isolate contexts between calls', function () {
     var context1: RequestContext = {
       tenant: { ...testTenant, subdomain: 'school-a' },
     };
@@ -46,21 +48,21 @@ describe('TenantContext', function() {
       tenant: { ...testTenant, subdomain: 'school-b' },
     };
 
-    runWithTenantContext(context1, function() {
+    runWithTenantContext(context1, function () {
       expect(getCurrentTenant().subdomain).toBe('school-a');
     });
 
-    runWithTenantContext(context2, function() {
+    runWithTenantContext(context2, function () {
       expect(getCurrentTenant().subdomain).toBe('school-b');
     });
   });
 
-  it('should detect frozen tenant', function() {
+  it('should detect frozen tenant', function () {
     var frozenContext: RequestContext = {
       tenant: { ...testTenant, isFrozen: true },
     };
 
-    runWithTenantContext(frozenContext, function() {
+    runWithTenantContext(frozenContext, function () {
       expect(getCurrentTenant().isFrozen).toBe(true);
     });
   });

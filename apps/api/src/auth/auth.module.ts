@@ -18,7 +18,7 @@ import { AuthController } from './auth.controller';
   providers: [
     {
       provide: PrismaClient,
-      useFactory: function() {
+      useFactory: function () {
         return new PrismaClient({
           datasourceUrl: process.env.DATABASE_URL,
         });

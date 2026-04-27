@@ -70,10 +70,7 @@ export class PermissionCheckService {
   /**
    * Get all permissions for an account in a scope.
    */
-  async getPermissions(
-    accountId: string,
-    scopeId: string,
-  ): Promise<string[]> {
+  async getPermissions(accountId: string, scopeId: string): Promise<string[]> {
     var cache = await this.prisma.iamEffectiveAccessCache.findUnique({
       where: {
         accountId_scopeId: { accountId, scopeId },

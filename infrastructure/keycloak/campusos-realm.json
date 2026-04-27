@@ -24,19 +24,9 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
-      "redirectUris": [
-        "http://localhost:4000/api/v1/auth/callback",
-        "http://localhost:3000/*"
-      ],
-      "webOrigins": [
-        "http://localhost:3000",
-        "http://localhost:4000"
-      ],
-      "defaultClientScopes": [
-        "openid",
-        "email",
-        "profile"
-      ],
+      "redirectUris": ["http://localhost:4000/api/v1/auth/callback", "http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000", "http://localhost:4000"],
+      "defaultClientScopes": ["openid", "email", "profile"],
       "attributes": {
         "post.logout.redirect.uris": "http://localhost:3000"
       }
@@ -49,17 +39,9 @@
       "protocol": "openid-connect",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": [
-        "http://localhost:3000/*"
-      ],
-      "webOrigins": [
-        "http://localhost:3000"
-      ],
-      "defaultClientScopes": [
-        "openid",
-        "email",
-        "profile"
-      ]
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "defaultClientScopes": ["openid", "email", "profile"]
     }
   ],
   "roles": {

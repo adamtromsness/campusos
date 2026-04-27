@@ -17,17 +17,17 @@
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Backend | NestJS 10 (TypeScript, strict mode) |
-| Frontend | Next.js 14 (App Router, Tailwind CSS) |
-| Database | PostgreSQL 16 (Prisma ORM) |
-| Cache | Redis 7 (ioredis) |
-| Events | Apache Kafka (KafkaJS) |
-| Auth | External IdP via OIDC/SAML (Keycloak for dev) |
-| Monorepo | pnpm + Turborepo |
-| Testing | Vitest, Supertest, Pact, Playwright |
-| CI/CD | GitHub Actions |
+| Layer          | Technology                                     |
+| -------------- | ---------------------------------------------- |
+| Backend        | NestJS 10 (TypeScript, strict mode)            |
+| Frontend       | Next.js 14 (App Router, Tailwind CSS)          |
+| Database       | PostgreSQL 16 (Prisma ORM)                     |
+| Cache          | Redis 7 (ioredis)                              |
+| Events         | Apache Kafka (KafkaJS)                         |
+| Auth           | External IdP via OIDC/SAML (Keycloak for dev)  |
+| Monorepo       | pnpm + Turborepo                               |
+| Testing        | Vitest, Supertest, Pact, Playwright            |
+| CI/CD          | GitHub Actions                                 |
 | Infrastructure | AWS (ECS, RDS, MSK, ElastiCache) via Terraform |
 
 ## Project Structure

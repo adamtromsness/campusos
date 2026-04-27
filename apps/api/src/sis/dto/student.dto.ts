@@ -5,7 +5,9 @@ export var ENROLLMENT_STATUSES = ['ENROLLED', 'TRANSFERRED', 'GRADUATED', 'WITHD
 export type EnrollmentStatus = (typeof ENROLLMENT_STATUSES)[number];
 
 export class ListStudentsQueryDto {
-  @ApiPropertyOptional({ description: 'Filter to students enrolled in this class (active enrollments only)' })
+  @ApiPropertyOptional({
+    description: 'Filter to students enrolled in this class (active enrollments only)',
+  })
   @IsOptional()
   @IsUUID()
   classId?: string;

@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
@@ -38,7 +48,10 @@ export class AttendanceController {
 
   @Get('classes/:id/attendance/:date')
   @RequirePermission('att-001:read')
-  @ApiOperation({ summary: "Class roster + attendance for a date. Lazily pre-populates PRESENT/PRE_POPULATED rows when 'period' is supplied." })
+  @ApiOperation({
+    summary:
+      "Class roster + attendance for a date. Lazily pre-populates PRESENT/PRE_POPULATED rows when 'period' is supplied.",
+  })
   async classAttendance(
     @Param('id', ParseUUIDPipe) classId: string,
     @Param('date') date: string,
@@ -49,7 +62,10 @@ export class AttendanceController {
 
   @Patch('attendance/:id')
   @RequirePermission('att-001:write')
-  @ApiOperation({ summary: 'Mark a single attendance record (status + optional note). Emits att.attendance.marked and, on TARDY/ABSENT, the corresponding student-marked event.' })
+  @ApiOperation({
+    summary:
+      'Mark a single attendance record (status + optional note). Emits att.attendance.marked and, on TARDY/ABSENT, the corresponding student-marked event.',
+  })
   async markOne(
     @Param('id', ParseUUIDPipe) recordId: string,
     @Body() body: MarkAttendanceDto,
@@ -60,7 +76,10 @@ export class AttendanceController {
 
   @Post('classes/:id/attendance/:date/batch')
   @RequirePermission('att-001:write')
-  @ApiOperation({ summary: 'Confirm a class period in one shot. Sends exception list (omitted students treated as PRESENT). Emits att.attendance.confirmed.' })
+  @ApiOperation({
+    summary:
+      'Confirm a class period in one shot. Sends exception list (omitted students treated as PRESENT). Emits att.attendance.confirmed.',
+  })
   async batchSubmit(
     @Param('id', ParseUUIDPipe) classId: string,
     @Param('date') date: string,
@@ -74,7 +93,10 @@ export class AttendanceController {
 
   @Get('students/:id/attendance')
   @RequirePermission('att-001:read')
-  @ApiOperation({ summary: 'Attendance history for a student (defaults to all dates; filterable by fromDate/toDate).' })
+  @ApiOperation({
+    summary:
+      'Attendance history for a student (defaults to all dates; filterable by fromDate/toDate).',
+  })
   async studentAttendance(
     @Param('id', ParseUUIDPipe) studentId: string,
     @Query() query: GetStudentAttendanceQueryDto,
@@ -86,7 +108,10 @@ export class AttendanceController {
 
   @Post('absence-requests')
   @RequirePermission('att-004:write')
-  @ApiOperation({ summary: 'Submit an absence request. SAME_DAY_REPORT auto-approves; ADVANCE_REQUEST queues for admin review.' })
+  @ApiOperation({
+    summary:
+      'Submit an absence request. SAME_DAY_REPORT auto-approves; ADVANCE_REQUEST queues for admin review.',
+  })
   async submitAbsence(
     @Body() body: CreateAbsenceRequestDto,
     @Req() req: AuthedRequest,
@@ -97,7 +122,10 @@ export class AttendanceController {
 
   @Get('absence-requests')
   @RequirePermission('att-004:read')
-  @ApiOperation({ summary: 'List absence requests. Non-admin callers see only their own submissions; admins see all (filterable).' })
+  @ApiOperation({
+    summary:
+      'List absence requests. Non-admin callers see only their own submissions; admins see all (filterable).',
+  })
   async listAbsences(
     @Query() query: ListAbsenceRequestsQueryDto,
     @Req() req: AuthedRequest,
@@ -108,7 +136,9 @@ export class AttendanceController {
 
   @Get('absence-requests/:id')
   @RequirePermission('att-004:read')
-  @ApiOperation({ summary: 'Get a single absence request. Non-admin callers can only view their own submissions.' })
+  @ApiOperation({
+    summary: 'Get a single absence request. Non-admin callers can only view their own submissions.',
+  })
   async getAbsence(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthedRequest,

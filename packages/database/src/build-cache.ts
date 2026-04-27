@@ -1,5 +1,5 @@
-import { config } from "dotenv";
-config({ path: ["../../.env.local", "../../.env", ".env"] });
+import { config } from 'dotenv';
+config({ path: ['../../.env.local', '../../.env', '.env'] });
 
 import { getPlatformClient, disconnectAll } from './client';
 import { generateId } from './uuid';
@@ -31,12 +31,15 @@ async function buildCache() {
   });
 
   // Group by account+scope
-  var cacheMap: Record<string, {
-    accountId: string;
-    scopeId: string;
-    permissions: Set<string>;
-    assignmentIds: string[];
-  }> = {};
+  var cacheMap: Record<
+    string,
+    {
+      accountId: string;
+      scopeId: string;
+      permissions: Set<string>;
+      assignmentIds: string[];
+    }
+  > = {};
 
   for (var i = 0; i < assignments.length; i++) {
     var assignment = assignments[i] as any;
@@ -113,9 +116,15 @@ async function buildCache() {
 }
 
 buildCache()
-  .then(function() { return disconnectAll(); })
-  .then(function() { process.exit(0); })
-  .catch(function(e) {
+  .then(function () {
+    return disconnectAll();
+  })
+  .then(function () {
+    process.exit(0);
+  })
+  .catch(function (e) {
     console.error('Cache build failed:', e);
-    disconnectAll().then(function() { process.exit(1); });
+    disconnectAll().then(function () {
+      process.exit(1);
+    });
   });

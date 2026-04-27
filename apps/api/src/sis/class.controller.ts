@@ -17,7 +17,7 @@ export class ClassController {
 
   @Get('my')
   @RequirePermission('stu-001:read', 'att-001:read')
-  @ApiOperation({ summary: "List classes taught by the authenticated user" })
+  @ApiOperation({ summary: 'List classes taught by the authenticated user' })
   async my(@Req() req: AuthedRequest): Promise<ClassResponseDto[]> {
     return this.classes.listForTeacherPerson(req.user!.personId);
   }

@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
@@ -56,14 +66,19 @@ export class StudentController {
 
   @Post()
   @RequirePermission('stu-001:write')
-  @ApiOperation({ summary: 'Create a new student (provisions iam_person + platform_students + sis_students)' })
+  @ApiOperation({
+    summary: 'Create a new student (provisions iam_person + platform_students + sis_students)',
+  })
   async create(@Body() body: CreateStudentDto): Promise<StudentResponseDto> {
     return this.students.create(body);
   }
 
   @Patch(':id')
   @RequirePermission('stu-001:write')
-  @ApiOperation({ summary: 'Update school-scoped fields on a student record (identity fields are immutable here per ADR-055)' })
+  @ApiOperation({
+    summary:
+      'Update school-scoped fields on a student record (identity fields are immutable here per ADR-055)',
+  })
   async patch(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdateStudentDto,

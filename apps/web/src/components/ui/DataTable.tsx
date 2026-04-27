@@ -17,13 +17,7 @@ interface DataTableProps<T> {
   emptyState?: ReactNode;
 }
 
-export function DataTable<T>({
-  rows,
-  columns,
-  rowKey,
-  onRowClick,
-  emptyState,
-}: DataTableProps<T>) {
+export function DataTable<T>({ rows, columns, rowKey, onRowClick, emptyState }: DataTableProps<T>) {
   if (rows.length === 0 && emptyState) {
     return <>{emptyState}</>;
   }
@@ -56,10 +50,7 @@ export function DataTable<T>({
           {rows.map((row) => (
             <tr
               key={rowKey(row)}
-              className={cn(
-                'bg-white',
-                onRowClick && 'cursor-pointer hover:bg-campus-50/50',
-              )}
+              className={cn('bg-white', onRowClick && 'cursor-pointer hover:bg-campus-50/50')}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
             >
               {columns.map((col) => (

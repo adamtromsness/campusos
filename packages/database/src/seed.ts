@@ -1,5 +1,5 @@
-import { config } from "dotenv";
-config({ path: ["../../.env.local", "../../.env", ".env"] });
+import { config } from 'dotenv';
+config({ path: ['../../.env.local', '../../.env', '.env'] });
 
 import { getPlatformClient, disconnectAll } from './client';
 import { generateId } from './uuid';
@@ -259,9 +259,15 @@ async function main() {
 }
 
 main()
-  .then(function() { return disconnectAll(); })
-  .then(function() { process.exit(0); })
-  .catch(function(e) {
+  .then(function () {
+    return disconnectAll();
+  })
+  .then(function () {
+    process.exit(0);
+  })
+  .catch(function (e) {
     console.error('Seed failed:', e);
-    disconnectAll().then(function() { process.exit(1); });
+    disconnectAll().then(function () {
+      process.exit(1);
+    });
   });

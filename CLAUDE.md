@@ -109,13 +109,13 @@ pnpm --filter @campusos/database studio
 
 ## Test Users (seeded, Keycloak)
 
-| Email | Role | Password |
-|-------|------|----------|
-| admin@demo.campusos.dev | Platform Admin (all 444 permissions) | admin123 |
-| principal@demo.campusos.dev | School Admin | admin123 |
-| teacher@demo.campusos.dev | Teacher (James Rivera) | teacher123 |
-| student@demo.campusos.dev | Student (Maya Chen) | student123 |
-| parent@demo.campusos.dev | Parent (David Chen, Maya's father) | parent123 |
+| Email                       | Role                                 | Password   |
+| --------------------------- | ------------------------------------ | ---------- |
+| admin@demo.campusos.dev     | Platform Admin (all 444 permissions) | admin123   |
+| principal@demo.campusos.dev | School Admin                         | admin123   |
+| teacher@demo.campusos.dev   | Teacher (James Rivera)               | teacher123 |
+| student@demo.campusos.dev   | Student (Maya Chen)                  | student123 |
+| parent@demo.campusos.dev    | Parent (David Chen, Maya's father)   | parent123  |
 
 Dev login: `POST /api/v1/auth/dev-login` with `{"email":"..."}` and `X-Tenant-Subdomain: demo` header.
 

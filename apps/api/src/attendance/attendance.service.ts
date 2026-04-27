@@ -46,15 +46,19 @@ function rowToDto(r: AttendanceRow): AttendanceRecordDto {
     confirmationStatus: r.confirmation_status,
     parentExplanation: r.parent_explanation,
     markedBy: r.marked_by,
-    markedAt: r.marked_at ? (typeof r.marked_at === 'string' ? r.marked_at : r.marked_at.toISOString()) : null,
+    markedAt: r.marked_at
+      ? typeof r.marked_at === 'string'
+        ? r.marked_at
+        : r.marked_at.toISOString()
+      : null,
     absenceRequestId: r.absence_request_id,
   };
 }
 
 var SELECT_ATTENDANCE_BASE =
   'SELECT a.id, a.student_id, a.class_id, a.date::text AS date, a.period, a.status, a.confirmation_status, ' +
-    'a.parent_explanation, a.marked_by, a.marked_at, a.absence_request_id, ' +
-    's.student_number, ip.first_name, ip.last_name ' +
+  'a.parent_explanation, a.marked_by, a.marked_at, a.absence_request_id, ' +
+  's.student_number, ip.first_name, ip.last_name ' +
   'FROM sis_attendance_records a ' +
   'JOIN sis_students s ON s.id = a.student_id ' +
   'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
@@ -78,9 +82,9 @@ export class AttendanceService {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ school_id: string; school_year: string }>>(
         'SELECT c.school_id, ay.start_date::text AS school_year ' +
-        'FROM sis_classes c ' +
-        'JOIN sis_academic_years ay ON ay.id = c.academic_year_id ' +
-        'WHERE c.id = $1::uuid',
+          'FROM sis_classes c ' +
+          'JOIN sis_academic_years ay ON ay.id = c.academic_year_id ' +
+          'WHERE c.id = $1::uuid',
         classId,
       );
     });
@@ -107,9 +111,9 @@ export class AttendanceService {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<AttendanceRow[]>(
         SELECT_ATTENDANCE_BASE +
-        'WHERE a.class_id = $1::uuid AND a.date = $2::date ' +
+          'WHERE a.class_id = $1::uuid AND a.date = $2::date ' +
           'AND ($3::text IS NULL OR a.period = $3::text) ' +
-        'ORDER BY a.period, ip.last_name, ip.first_name',
+          'ORDER BY a.period, ip.last_name, ip.first_name',
         classId,
         date,
         period ?? null,
@@ -136,11 +140,11 @@ export class AttendanceService {
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       var missing = await tx.$queryRawUnsafe<Array<{ student_id: string }>>(
         'SELECT e.student_id ' +
-        'FROM sis_enrollments e ' +
-        'WHERE e.class_id = $1::uuid AND e.status = \'ACTIVE\' ' +
+          'FROM sis_enrollments e ' +
+          "WHERE e.class_id = $1::uuid AND e.status = 'ACTIVE' " +
           'AND NOT EXISTS (' +
-            'SELECT 1 FROM sis_attendance_records r ' +
-            'WHERE r.class_id = $1::uuid AND r.date = $2::date AND r.period = $3 AND r.student_id = e.student_id' +
+          'SELECT 1 FROM sis_attendance_records r ' +
+          'WHERE r.class_id = $1::uuid AND r.date = $2::date AND r.period = $3 AND r.student_id = e.student_id' +
           ')',
         classId,
         date,
@@ -155,8 +159,8 @@ export class AttendanceService {
         await tx.$executeRawUnsafe(
           'INSERT INTO sis_attendance_records ' +
             '(id, school_id, school_year, student_id, class_id, date, period, status, confirmation_status) ' +
-          'VALUES ($1::uuid, $2::uuid, $3::date, $4::uuid, $5::uuid, $6::date, $7, \'PRESENT\', \'PRE_POPULATED\') ' +
-          'ON CONFLICT ON CONSTRAINT sis_attendance_records_natural_uq DO NOTHING',
+            "VALUES ($1::uuid, $2::uuid, $3::date, $4::uuid, $5::uuid, $6::date, $7, 'PRESENT', 'PRE_POPULATED') " +
+            'ON CONFLICT ON CONSTRAINT sis_attendance_records_natural_uq DO NOTHING',
           newId,
           keys.schoolId,
           keys.schoolYear,
@@ -187,7 +191,8 @@ export class AttendanceService {
         recordId,
       );
     });
-    if (existing.length === 0) throw new NotFoundException('Attendance record ' + recordId + ' not found');
+    if (existing.length === 0)
+      throw new NotFoundException('Attendance record ' + recordId + ' not found');
     var prior = existing[0]!;
 
     var updated = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
@@ -198,7 +203,7 @@ export class AttendanceService {
           'marked_by = $3::uuid, ' +
           'marked_at = now(), ' +
           'updated_at = now() ' +
-        'WHERE id = $4::uuid AND class_id = $5::uuid',
+          'WHERE id = $4::uuid AND class_id = $5::uuid',
         patch.status,
         patch.parentExplanation ?? null,
         actorAccountId,
@@ -239,17 +244,23 @@ export class AttendanceService {
     }
 
     var summary = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      var rosterRows = await tx.$queryRawUnsafe<Array<{ id: string; student_id: string; status: string }>>(
+      var rosterRows = await tx.$queryRawUnsafe<
+        Array<{ id: string; student_id: string; status: string }>
+      >(
         'SELECT id, student_id, status FROM sis_attendance_records ' +
-        'WHERE class_id = $1::uuid AND date = $2::date AND period = $3 ' +
-        'FOR UPDATE',
+          'WHERE class_id = $1::uuid AND date = $2::date AND period = $3 ' +
+          'FOR UPDATE',
         classId,
         date,
         period,
       );
 
       var counts: Record<string, number> = {
-        PRESENT: 0, ABSENT: 0, TARDY: 0, EARLY_DEPARTURE: 0, EXCUSED: 0,
+        PRESENT: 0,
+        ABSENT: 0,
+        TARDY: 0,
+        EARLY_DEPARTURE: 0,
+        EXCUSED: 0,
       };
 
       for (var j = 0; j < rosterRows.length; j++) {
@@ -262,11 +273,11 @@ export class AttendanceService {
           'UPDATE sis_attendance_records SET ' +
             'status = $1, ' +
             'parent_explanation = $2, ' +
-            'confirmation_status = \'CONFIRMED\', ' +
+            "confirmation_status = 'CONFIRMED', " +
             'marked_by = $3::uuid, ' +
             'marked_at = now(), ' +
             'updated_at = now() ' +
-          'WHERE id = $4::uuid AND class_id = $5::uuid',
+            'WHERE id = $4::uuid AND class_id = $5::uuid',
           nextStatus,
           nextNote,
           actorAccountId,
@@ -285,26 +296,44 @@ export class AttendanceService {
     var nowIso = new Date().toISOString();
 
     void this.kafka.emit('att.attendance.confirmed', classId, {
-      classId, date, period, schoolId: keys.schoolId, schoolYear: keys.schoolYear,
-      totalStudents: summary.totalStudents, counts: summary.counts,
-      confirmedAt: nowIso, confirmedBy: actorAccountId,
+      classId,
+      date,
+      period,
+      schoolId: keys.schoolId,
+      schoolYear: keys.schoolYear,
+      totalStudents: summary.totalStudents,
+      counts: summary.counts,
+      confirmedAt: nowIso,
+      confirmedBy: actorAccountId,
     });
     for (var k = 0; k < summary.rosterRows.length; k++) {
       var rr = summary.rosterRows[k]!;
       var newStatus = exceptionByStudent[rr.student_id]?.status || 'PRESENT';
       if (newStatus === 'TARDY') {
         void this.kafka.emit('att.student.marked_tardy', rr.student_id, {
-          recordId: rr.id, studentId: rr.student_id, classId, date, period, markedAt: nowIso,
+          recordId: rr.id,
+          studentId: rr.student_id,
+          classId,
+          date,
+          period,
+          markedAt: nowIso,
         });
       } else if (newStatus === 'ABSENT') {
         void this.kafka.emit('att.student.marked_absent', rr.student_id, {
-          recordId: rr.id, studentId: rr.student_id, classId, date, period, markedAt: nowIso,
+          recordId: rr.id,
+          studentId: rr.student_id,
+          classId,
+          date,
+          period,
+          markedAt: nowIso,
         });
       }
     }
 
     return {
-      classId, date, period,
+      classId,
+      date,
+      period,
       totalStudents: summary.totalStudents,
       presentCount: summary.counts.PRESENT || 0,
       tardyCount: summary.counts.TARDY || 0,
@@ -327,10 +356,10 @@ export class AttendanceService {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<AttendanceRow[]>(
         SELECT_ATTENDANCE_BASE +
-        'WHERE a.student_id = $1::uuid ' +
+          'WHERE a.student_id = $1::uuid ' +
           'AND ($2::date IS NULL OR a.date >= $2::date) ' +
           'AND ($3::date IS NULL OR a.date <= $3::date) ' +
-        'ORDER BY a.date DESC, a.period',
+          'ORDER BY a.date DESC, a.period',
         studentId,
         fromDate ?? null,
         toDate ?? null,
@@ -353,15 +382,21 @@ export class AttendanceService {
     });
     if (row.status === 'TARDY' && priorStatus !== 'TARDY') {
       void this.kafka.emit('att.student.marked_tardy', row.student_id, {
-        recordId: row.id, studentId: row.student_id, classId: row.class_id,
+        recordId: row.id,
+        studentId: row.student_id,
+        classId: row.class_id,
         date: typeof row.date === 'string' ? row.date : row.date.toISOString().slice(0, 10),
-        period: row.period, markedAt: row.marked_at,
+        period: row.period,
+        markedAt: row.marked_at,
       });
     } else if (row.status === 'ABSENT' && priorStatus !== 'ABSENT') {
       void this.kafka.emit('att.student.marked_absent', row.student_id, {
-        recordId: row.id, studentId: row.student_id, classId: row.class_id,
+        recordId: row.id,
+        studentId: row.student_id,
+        classId: row.class_id,
         date: typeof row.date === 'string' ? row.date : row.date.toISOString().slice(0, 10),
-        period: row.period, markedAt: row.marked_at,
+        period: row.period,
+        markedAt: row.marked_at,
       });
     }
   }

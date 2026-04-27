@@ -34,7 +34,6 @@ import { Public } from './auth/public.decorator';
 @ApiTags('Guard Test')
 @Controller('guard-test')
 export class GuardTestController {
-
   @Public()
   @Get('public')
   @ApiOperation({ summary: 'Public endpoint — no auth required' })
@@ -54,7 +53,12 @@ export class GuardTestController {
   @RequirePermission('att-001:read')
   @ApiOperation({ summary: 'Requires att-001:read permission' })
   attendanceRead() {
-    return { status: 'ok', guard: 'PermissionGuard', permission: 'att-001:read', message: 'You can view attendance' };
+    return {
+      status: 'ok',
+      guard: 'PermissionGuard',
+      permission: 'att-001:read',
+      message: 'You can view attendance',
+    };
   }
 
   @Get('grades')
@@ -62,7 +66,12 @@ export class GuardTestController {
   @RequirePermission('tch-003:write')
   @ApiOperation({ summary: 'Requires tch-003:write permission' })
   gradesWrite() {
-    return { status: 'ok', guard: 'PermissionGuard', permission: 'tch-003:write', message: 'You can write grades' };
+    return {
+      status: 'ok',
+      guard: 'PermissionGuard',
+      permission: 'tch-003:write',
+      message: 'You can write grades',
+    };
   }
 
   @Get('admin-only')
@@ -70,6 +79,11 @@ export class GuardTestController {
   @RequirePermission('sys-001:admin')
   @ApiOperation({ summary: 'Requires sys-001:admin — admin only' })
   adminOnly() {
-    return { status: 'ok', guard: 'PermissionGuard', permission: 'sys-001:admin', message: 'You have admin access' };
+    return {
+      status: 'ok',
+      guard: 'PermissionGuard',
+      permission: 'sys-001:admin',
+      message: 'You have admin access',
+    };
   }
 }

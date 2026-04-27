@@ -39,7 +39,12 @@ export class RoleService {
     });
   }
 
-  async create(data: { name: string; description?: string; schoolId?: string; isSystem?: boolean }) {
+  async create(data: {
+    name: string;
+    description?: string;
+    schoolId?: string;
+    isSystem?: boolean;
+  }) {
     return this.prisma.role.create({
       data: {
         id: generateId(),
@@ -52,7 +57,7 @@ export class RoleService {
   }
 
   async assignPermissions(roleId: string, permissionIds: string[]) {
-    var createData = permissionIds.map(function(pid) {
+    var createData = permissionIds.map(function (pid) {
       return {
         id: generateId(),
         roleId: roleId,

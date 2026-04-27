@@ -40,8 +40,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/attendance',
     label: 'Attendance',
     icon: AttendanceIcon,
-    visibleFor: (u) =>
-      hasAnyPermission(u, ['att-001:read', 'att-001:write', 'att-001:admin']),
+    visibleFor: (u) => hasAnyPermission(u, ['att-001:read', 'att-001:write', 'att-001:admin']),
   },
   {
     href: '/children',
@@ -53,8 +52,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/students',
     label: 'Students',
     icon: PeopleIcon,
-    visibleFor: (u) =>
-      hasAnyPermission(u, ['stu-001:read', 'stu-001:write', 'stu-001:admin']),
+    visibleFor: (u) => hasAnyPermission(u, ['stu-001:read', 'stu-001:write', 'stu-001:admin']),
   },
   {
     href: '/settings',
@@ -84,8 +82,7 @@ export function Sidebar({ user, schoolName = 'CampusOS', onNavigate }: SidebarPr
       </div>
       <nav className="flex-1 space-y-1 px-3 py-4">
         {items.map((item) => {
-          const active =
-            pathname === item.href || pathname?.startsWith(item.href + '/');
+          const active = pathname === item.href || pathname?.startsWith(item.href + '/');
           const Icon = item.icon;
           return (
             <Link

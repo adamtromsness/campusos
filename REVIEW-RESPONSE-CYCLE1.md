@@ -10,13 +10,13 @@ Three of five blockers were fixed. Two were pushed back as incorrect after sourc
 
 ## TL;DR
 
-| # | Blocker | Verdict | Outcome |
-|---:|---|---|---|
-| 1 | Cross-schema FKs violate ADR-001/020 | ✅ **Valid** | Fixed — all 12 cross-schema FK constraints removed |
-| 2 | `sis_students.person_id` per ADR-055 | ❌ **Incorrect** | Pushback — ERD does not declare it; identity satisfied via projection |
-| 3 | `sis_attendance_records` not partitioned per ADR-007 | ✅ **Valid** | Fixed — composite-partitioned `RANGE × HASH` per spec |
-| 4 | `sis_absence_requests` ERD parity | ❌ **Incorrect** | Pushback — migration already had every cited field |
-| 5 | Function catalogue 142 vs library v11's 148 | ✅ **Valid** | Fixed — catalogue reconciled to 148 / 444 codes |
+|   # | Blocker                                              | Verdict          | Outcome                                                               |
+| --: | ---------------------------------------------------- | ---------------- | --------------------------------------------------------------------- |
+|   1 | Cross-schema FKs violate ADR-001/020                 | ✅ **Valid**     | Fixed — all 12 cross-schema FK constraints removed                    |
+|   2 | `sis_students.person_id` per ADR-055                 | ❌ **Incorrect** | Pushback — ERD does not declare it; identity satisfied via projection |
+|   3 | `sis_attendance_records` not partitioned per ADR-007 | ✅ **Valid**     | Fixed — composite-partitioned `RANGE × HASH` per spec                 |
+|   4 | `sis_absence_requests` ERD parity                    | ❌ **Incorrect** | Pushback — migration already had every cited field                    |
+|   5 | Function catalogue 142 vs library v11's 148          | ✅ **Valid**     | Fixed — catalogue reconciled to 148 / 444 codes                       |
 
 ---
 
@@ -26,25 +26,26 @@ Three of five blockers were fixed. Two were pushed back as incorrect after sourc
 
 **Verified valid.** Architecture doc verbatim:
 
-> "Cross-schema FK additions from tenant schema to hlth/fin/dpo schemas — these must go through the ADR-028 SOFT INTEGRITY pattern." (listed under *Never permitted (requires ADR to override)*)
+> "Cross-schema FK additions from tenant schema to hlth/fin/dpo schemas — these must go through the ADR-028 SOFT INTEGRITY pattern." (listed under _Never permitted (requires ADR to override)_)
 
 > "For multi-school organisations (districts/MATs), cross-school entities like sis_families use SOFT INTEGRITY organisation_id references, not cross-schema JOINs (ADR-020)."
 
 **Resolution.** Removed all 12 DB-enforced FK constraints from tenant tables to `platform.*`. Columns retained as plain UUIDs; app-layer Prisma lookups validate.
 
-| Table | FK columns dropped |
-|---|---|
-| `sis_families` | `created_by`, `platform_family_id`, `organisation_id` |
-| `sis_students` | `platform_student_id` (FK dropped, UNIQUE NOT NULL retained) |
-| `sis_staff` | `person_id`, `account_id` (UNIQUE NOT NULL retained on both) |
-| `sis_guardians` | `person_id`, `account_id` |
-| `sis_family_members` | `person_id` |
-| `sis_attendance_records` | `marked_by` |
-| `sis_absence_requests` | `submitted_by`, `reviewed_by` |
+| Table                    | FK columns dropped                                           |
+| ------------------------ | ------------------------------------------------------------ |
+| `sis_families`           | `created_by`, `platform_family_id`, `organisation_id`        |
+| `sis_students`           | `platform_student_id` (FK dropped, UNIQUE NOT NULL retained) |
+| `sis_staff`              | `person_id`, `account_id` (UNIQUE NOT NULL retained on both) |
+| `sis_guardians`          | `person_id`, `account_id`                                    |
+| `sis_family_members`     | `person_id`                                                  |
+| `sis_attendance_records` | `marked_by`                                                  |
+| `sis_absence_requests`   | `submitted_by`, `reviewed_by`                                |
 
 Files: `packages/database/prisma/tenant/migrations/003_sis_students_and_families.sql`, `004_sis_attendance.sql`.
 
 **Verification:**
+
 ```sql
 SELECT count(*) FROM pg_constraint c
 JOIN pg_class t ON t.oid = c.conrelid
@@ -55,7 +56,7 @@ WHERE c.contype='f' AND tn.nspname='tenant_demo' AND rn.nspname <> 'tenant_demo'
 -- result: 0
 ```
 
-**Note on cross-schema reads.** App-layer joins from tenant tables to `platform.iam_person`, `platform.platform_students`, etc. are unchanged. ADR-001 prohibits DB-enforced FK constraints, not joins. The search_path `tenant_<id>, platform, public` makes joins ergonomic.
+**Note on cross-schema reads.** App-layer joins from tenant tables to `platform.iam_person`, `platform.platform_students`, etc. are unchanged. ADR-001 prohibits DB-enforced FK constraints, not joins. The search*path `tenant*<id>, platform, public` makes joins ergonomic.
 
 ---
 
@@ -76,8 +77,9 @@ ADR-055 verbatim:
 > "**DOMAIN PROJECTIONS:** hr_employees, sis_students, sis_guardians, sis_staff — these are role-scoped projections of iam_person within a school context. They use person_id FK(iam_person) for identity and account_id FK(platform_users) for auth access."
 
 The contract distinguishes:
+
 - **`sis_staff` and `sis_guardians`** — direct projections, carry `person_id` (and they do, in our migration as soft refs).
-- **`sis_students`** — has a *student-portability sub-projection* (`platform_students`) sitting between it and `iam_person`. The ERD codifies this by giving `sis_students` `platform_student_id` rather than `person_id`. The identity path is `sis_students → platform_students.person_id → iam_person.id`.
+- **`sis_students`** — has a _student-portability sub-projection_ (`platform_students`) sitting between it and `iam_person`. The ERD codifies this by giving `sis_students` `platform_student_id` rather than `person_id`. The identity path is `sis_students → platform_students.person_id → iam_person.id`.
 
 **Resolution:** No change. ADR-055 is satisfied via the documented projection chain.
 
@@ -124,6 +126,7 @@ sis_attendance_records  PARTITION BY RANGE (school_year)
 ```sql
 SELECT tableoid::regclass AS partition, count(*) FROM tenant_demo.sis_attendance_records GROUP BY tableoid;
 ```
+
 ```
                    partition                   | rows
 -----------------------------------------------+------
@@ -135,6 +138,7 @@ SELECT tableoid::regclass AS partition, count(*) FROM tenant_demo.sis_attendance
 ```
 
 Total leaf partitions:
+
 ```sql
 SELECT count(*) FROM pg_tables
 WHERE schemaname='tenant_demo' AND tablename ~ '^sis_attendance_records_[0-9]+_[0-9]+_h[0-9]$';
@@ -151,13 +155,13 @@ WHERE schemaname='tenant_demo' AND tablename ~ '^sis_attendance_records_[0-9]+_[
 
 **Source check.** Every cited field is present in `004_sis_attendance.sql`:
 
-| Required | Migration line | Present |
-|---|---:|---|
-| `school_id NOT NULL` | line 3 | ✅ |
-| `reason_text NOT NULL` | line 12 | ✅ |
-| `supporting_document_s3_key` | line 13 | ✅ (nullable per ERD) |
-| `reviewer_notes` | line 17 | ✅ |
-| pending index on (school_id, status) | line 26 | ✅ (see below) |
+| Required                             | Migration line | Present               |
+| ------------------------------------ | -------------: | --------------------- |
+| `school_id NOT NULL`                 |         line 3 | ✅                    |
+| `reason_text NOT NULL`               |        line 12 | ✅                    |
+| `supporting_document_s3_key`         |        line 13 | ✅ (nullable per ERD) |
+| `reviewer_notes`                     |        line 17 | ✅                    |
+| pending index on (school_id, status) |        line 26 | ✅ (see below)        |
 
 The pending-queue index is implemented as a **partial single-column WHERE-clause** index rather than a composite `(school_id, status)`:
 
@@ -192,17 +196,17 @@ The ERD's intent is clearly the partial-PENDING index for the review queue. Our 
 
 `packages/database/data/permissions.json` had 142 functions (426 codes). The 6-function delta = 11 new codes minus 5 stale codes:
 
-| Action | Codes | Reason |
-|---|---|---|
-| Remove (3) | `PFL-001/002/003` | Achievements & Portfolio renamed prefix to ACH |
-| Remove (1) | `SAF-005` | Cut from Safety & Compliance |
-| Remove (1) | `FRM-003` | Cut from Forms & Documents |
-| Add (3) | `ACH-001/002/003` | New prefix replacing PFL |
-| Add (4) | `ATH-007/008/009/010` | Athletics expanded |
-| Add (1) | `CRM-006` | Customer Interactions |
-| Add (1) | `PRC-005` | Returns & Warranty Claims |
-| Add (1) | `PUB-004` | Alumni |
-| Add (1) | `IT-009` | Configuration Documentation |
+| Action     | Codes                 | Reason                                         |
+| ---------- | --------------------- | ---------------------------------------------- |
+| Remove (3) | `PFL-001/002/003`     | Achievements & Portfolio renamed prefix to ACH |
+| Remove (1) | `SAF-005`             | Cut from Safety & Compliance                   |
+| Remove (1) | `FRM-003`             | Cut from Forms & Documents                     |
+| Add (3)    | `ACH-001/002/003`     | New prefix replacing PFL                       |
+| Add (4)    | `ATH-007/008/009/010` | Athletics expanded                             |
+| Add (1)    | `CRM-006`             | Customer Interactions                          |
+| Add (1)    | `PRC-005`             | Returns & Warranty Claims                      |
+| Add (1)    | `PUB-004`             | Alumni                                         |
+| Add (1)    | `IT-009`              | Configuration Documentation                    |
 
 Net: 142 + 11 − 5 = **148 functions / 444 codes**.
 
@@ -218,6 +222,7 @@ Net: 142 + 11 − 5 = **148 functions / 444 codes**.
 This means future catalogue updates apply cleanly via re-run. Verified codebase reference scan: zero references to any of the 5 removed codes.
 
 **Verification.** First run output:
+
 ```
 15 stale permission codes removed (and role_permissions cleared)
 33 new permission codes added
@@ -226,6 +231,7 @@ School Admin: 444 permissions targeted (33 newly added)
 ```
 
 Second run (idempotency):
+
 ```
 Permissions catalogue already in sync (444 records)
 Platform Admin: 444 permissions already assigned
@@ -233,6 +239,7 @@ School Admin: 444 permissions targeted (0 newly added)
 ```
 
 Effective access cache after rebuild:
+
 ```
 admin@demo.campusos.dev      → 444 permissions
 principal@demo.campusos.dev  → 444 permissions
@@ -251,22 +258,22 @@ parent@demo.campusos.dev     → 10
 
 ## Final smoke matrix (after rebuild)
 
-| Caller | Endpoint | Required permission | Expected | Actual |
-|---|---|---|---:|---:|
-| no token | `/guard-test/admin-only` | `sys-001:admin` | 401 | 401 ✅ |
-| parent | `/guard-test/admin-only` | `sys-001:admin` | 403 | 403 ✅ |
-| parent | `/guard-test/grades` | `tch-003:write` | 403 | 403 ✅ |
-| parent | `/guard-test/attendance` | `att-001:read` | 200 | 200 ✅ |
-| teacher | `/guard-test/grades` | `tch-003:write` | 200 | 200 ✅ |
-| admin | `/guard-test/admin-only` | `sys-001:admin` | 200 | 200 ✅ |
-| admin | `/classes/my` | school-scoped | 200 | 200 ✅ |
-| parent | `POST /students` | `stu-001:write` | 403 | 403 ✅ |
-| admin | `POST /students` | `stu-001:write` | 201 | 201 ✅ |
-| admin | `POST /students` (dup `studentNumber`) | — | 409 | 409 ✅ |
-| teacher | `GET /classes/my` | — | 6 classes | 6 ✅ |
-| teacher | `GET /students` | — | 15 students | 15 ✅ |
-| teacher | `GET /classes/:p1/roster` | — | 8 students, Maya present | 8, true ✅ |
-| parent | `GET /students/my-children` | — | 1 (Maya) | 1, "Maya Chen" ✅ |
+| Caller   | Endpoint                               | Required permission |                 Expected |            Actual |
+| -------- | -------------------------------------- | ------------------- | -----------------------: | ----------------: |
+| no token | `/guard-test/admin-only`               | `sys-001:admin`     |                      401 |            401 ✅ |
+| parent   | `/guard-test/admin-only`               | `sys-001:admin`     |                      403 |            403 ✅ |
+| parent   | `/guard-test/grades`                   | `tch-003:write`     |                      403 |            403 ✅ |
+| parent   | `/guard-test/attendance`               | `att-001:read`      |                      200 |            200 ✅ |
+| teacher  | `/guard-test/grades`                   | `tch-003:write`     |                      200 |            200 ✅ |
+| admin    | `/guard-test/admin-only`               | `sys-001:admin`     |                      200 |            200 ✅ |
+| admin    | `/classes/my`                          | school-scoped       |                      200 |            200 ✅ |
+| parent   | `POST /students`                       | `stu-001:write`     |                      403 |            403 ✅ |
+| admin    | `POST /students`                       | `stu-001:write`     |                      201 |            201 ✅ |
+| admin    | `POST /students` (dup `studentNumber`) | —                   |                      409 |            409 ✅ |
+| teacher  | `GET /classes/my`                      | —                   |                6 classes |              6 ✅ |
+| teacher  | `GET /students`                        | —                   |              15 students |             15 ✅ |
+| teacher  | `GET /classes/:p1/roster`              | —                   | 8 students, Maya present |        8, true ✅ |
+| parent   | `GET /students/my-children`            | —                   |                 1 (Maya) | 1, "Maya Chen" ✅ |
 
 ---
 
@@ -291,13 +298,13 @@ Files: `apps/api/src/tenant/tenant-prisma.service.ts` (new method), `apps/api/sr
 
 Pre-test baseline: `iam_person STUDENT=15, platform_students=15, sis_students=15`.
 
-| Test | Action | Expected | Actual |
-|---|---|---|---|
-| 1 | `POST /students` with valid body | 201; counts → 16/16/16 | 201 ✅; 16/16/16 ✅ |
-| 2 | `POST /students` with non-existent `homeroomClassId` (forces FK violation on `sis_students` insert AFTER the `iam_person` and `platform_students` inserts succeeded inside the tx) | 4xx; counts unchanged at 16/16/16; **zero orphan `TxFail` rows** | 500 ✅; 16/16/16 ✅; `TxFail person? 0`, `TxFail platform_student? 0` ✅ |
-| 3 | `POST /students` with duplicate `student_number` (pre-check path) | 409; counts unchanged | 409 ✅; counts unchanged ✅ |
+| Test | Action                                                                                                                                                                             | Expected                                                         | Actual                                                                   |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 1    | `POST /students` with valid body                                                                                                                                                   | 201; counts → 16/16/16                                           | 201 ✅; 16/16/16 ✅                                                      |
+| 2    | `POST /students` with non-existent `homeroomClassId` (forces FK violation on `sis_students` insert AFTER the `iam_person` and `platform_students` inserts succeeded inside the tx) | 4xx; counts unchanged at 16/16/16; **zero orphan `TxFail` rows** | 500 ✅; 16/16/16 ✅; `TxFail person? 0`, `TxFail platform_student? 0` ✅ |
+| 3    | `POST /students` with duplicate `student_number` (pre-check path)                                                                                                                  | 409; counts unchanged                                            | 409 ✅; counts unchanged ✅                                              |
 
-Test 2 is the load-bearing one: the SIS insert fails, but the platform-side rows that were committed *earlier in the same tx* are rolled back. No orphan identity rows. Pre-fix, the same test would have left a stale `iam_person` and `platform_students` pair behind.
+Test 2 is the load-bearing one: the SIS insert fails, but the platform-side rows that were committed _earlier in the same tx_ are rolled back. No orphan identity rows. Pre-fix, the same test would have left a stale `iam_person` and `platform_students` pair behind.
 
 (Followup polish: the FK-violation path returns 500. Mapping to a 400 `BadRequestException` would be friendlier UX, but the reviewer's concern was correctness, not error class — that's tracked as a small cleanup, not a blocker.)
 

@@ -1,8 +1,23 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsIn, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 
-export var ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'TARDY', 'EARLY_DEPARTURE', 'EXCUSED'] as const;
+export var ATTENDANCE_STATUSES = [
+  'PRESENT',
+  'ABSENT',
+  'TARDY',
+  'EARLY_DEPARTURE',
+  'EXCUSED',
+] as const;
 export var CONFIRMATION_STATUSES = ['PRE_POPULATED', 'CONFIRMED'] as const;
 
 export class AttendanceRecordDto {
@@ -24,8 +39,13 @@ export class AttendanceRecordDto {
 }
 
 export class GetClassAttendanceQueryDto {
-  @ApiPropertyOptional({ description: 'Filter to a single period; omit for all periods on the date' })
-  @IsOptional() @IsString() @MaxLength(10) period?: string;
+  @ApiPropertyOptional({
+    description: 'Filter to a single period; omit for all periods on the date',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  period?: string;
 }
 
 export class MarkAttendanceDto {
@@ -34,7 +54,9 @@ export class MarkAttendanceDto {
   status!: string;
 
   @ApiPropertyOptional({ description: 'Free-text note (e.g. "arrived 8:15"); shown to parent' })
-  @IsOptional() @IsString() @MaxLength(500)
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   parentExplanation?: string;
 }
 
@@ -48,16 +70,23 @@ export class BatchAttendanceEntryDto {
   status!: string;
 
   @ApiPropertyOptional()
-  @IsOptional() @IsString() @MaxLength(500)
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   parentExplanation?: string;
 }
 
 export class BatchSubmitAttendanceDto {
   @ApiProperty({ description: 'Class period this batch covers' })
-  @IsString() @MaxLength(10)
+  @IsString()
+  @MaxLength(10)
   period!: string;
 
-  @ApiProperty({ type: [BatchAttendanceEntryDto], description: 'One entry per student exception (Present students may be omitted; service treats omitted as PRESENT)' })
+  @ApiProperty({
+    type: [BatchAttendanceEntryDto],
+    description:
+      'One entry per student exception (Present students may be omitted; service treats omitted as PRESENT)',
+  })
   @IsArray()
   @ArrayMinSize(0)
   @ValidateNested({ each: true })
@@ -80,7 +109,11 @@ export class BatchSubmitResultDto {
 
 export class GetStudentAttendanceQueryDto {
   @ApiPropertyOptional({ description: 'Inclusive start date (YYYY-MM-DD)' })
-  @IsOptional() @IsString() fromDate?: string;
+  @IsOptional()
+  @IsString()
+  fromDate?: string;
   @ApiPropertyOptional({ description: 'Inclusive end date (YYYY-MM-DD)' })
-  @IsOptional() @IsString() toDate?: string;
+  @IsOptional()
+  @IsString()
+  toDate?: string;
 }

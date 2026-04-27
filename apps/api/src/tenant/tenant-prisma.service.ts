@@ -42,9 +42,7 @@ export class TenantPrismaService implements OnModuleDestroy {
    *     return client.schoolConfig.findMany();
    *   });
    */
-  async executeInTenantContext<T>(
-    fn: (client: PrismaClient) => Promise<T>,
-  ): Promise<T> {
+  async executeInTenantContext<T>(fn: (client: PrismaClient) => Promise<T>): Promise<T> {
     var tenant = getCurrentTenant();
     var schemaName = tenant.schemaName;
 
@@ -57,9 +55,7 @@ export class TenantPrismaService implements OnModuleDestroy {
       return await fn(this.platformClient);
     } finally {
       // Reset search_path after query
-      await this.platformClient.$executeRawUnsafe(
-        'SET search_path TO platform, public',
-      );
+      await this.platformClient.$executeRawUnsafe('SET search_path TO platform, public');
     }
   }
 
@@ -93,15 +89,10 @@ export class TenantPrismaService implements OnModuleDestroy {
   ): Promise<T> {
     var tenant = getCurrentTenant();
     var schemaName = tenant.schemaName;
-    return this.platformClient.$transaction(
-      async function(tx: any): Promise<T> {
-        await tx.$executeRawUnsafe(
-          'SET LOCAL search_path TO "' + schemaName + '", platform, public',
-        );
-        return fn(tx as PrismaClient);
-      },
-      options,
-    );
+    return this.platformClient.$transaction(async function (tx: any): Promise<T> {
+      await tx.$executeRawUnsafe('SET LOCAL search_path TO "' + schemaName + '", platform, public');
+      return fn(tx as PrismaClient);
+    }, options);
   }
 
   async onModuleDestroy() {

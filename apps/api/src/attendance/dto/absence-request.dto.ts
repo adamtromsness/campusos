@@ -1,7 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
-export var REASON_CATEGORIES = ['ILLNESS', 'MEDICAL_APPOINTMENT', 'FAMILY_EMERGENCY', 'HOLIDAY', 'RELIGIOUS_OBSERVANCE', 'OTHER'] as const;
+export var REASON_CATEGORIES = [
+  'ILLNESS',
+  'MEDICAL_APPOINTMENT',
+  'FAMILY_EMERGENCY',
+  'HOLIDAY',
+  'RELIGIOUS_OBSERVANCE',
+  'OTHER',
+] as const;
 export var REQUEST_TYPES = ['SAME_DAY_REPORT', 'ADVANCE_REQUEST'] as const;
 export var REQUEST_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'AUTO_APPROVED'] as const;
 
@@ -27,11 +34,14 @@ export class CreateAbsenceRequestDto {
   reasonCategory!: string;
 
   @ApiProperty({ minLength: 1, maxLength: 1000 })
-  @IsString() @MaxLength(1000)
+  @IsString()
+  @MaxLength(1000)
   reasonText!: string;
 
   @ApiPropertyOptional({ description: 'Pre-uploaded S3 key (e.g. doctor note)' })
-  @IsOptional() @IsString() @MaxLength(500)
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   supportingDocumentS3Key?: string;
 }
 
@@ -41,15 +51,23 @@ export class ReviewAbsenceRequestDto {
   decision!: string;
 
   @ApiPropertyOptional()
-  @IsOptional() @IsString() @MaxLength(1000)
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
   reviewerNotes?: string;
 }
 
 export class ListAbsenceRequestsQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsUUID() studentId?: string;
-  @ApiPropertyOptional({ enum: REQUEST_STATUSES }) @IsOptional() @IsIn(REQUEST_STATUSES as unknown as string[]) status?: string;
-  @ApiPropertyOptional({ description: 'If true, restrict to requests submitted by the calling user' })
-  @IsOptional() mySubmissions?: boolean;
+  @ApiPropertyOptional({ enum: REQUEST_STATUSES })
+  @IsOptional()
+  @IsIn(REQUEST_STATUSES as unknown as string[])
+  status?: string;
+  @ApiPropertyOptional({
+    description: 'If true, restrict to requests submitted by the calling user',
+  })
+  @IsOptional()
+  mySubmissions?: boolean;
 }
 
 export class AbsenceRequestResponseDto {

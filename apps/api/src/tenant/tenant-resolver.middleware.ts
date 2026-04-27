@@ -46,10 +46,7 @@ export class TenantResolverMiddleware implements NestMiddleware {
     });
 
     if (!school || !school.isActive) {
-      throw new HttpException(
-        'Unknown or inactive tenant: ' + subdomain,
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException('Unknown or inactive tenant: ' + subdomain, HttpStatus.BAD_REQUEST);
     }
 
     if (!school.routing) {
@@ -73,7 +70,7 @@ export class TenantResolverMiddleware implements NestMiddleware {
     };
 
     // Wrap the rest of the request in the tenant context
-    runWithTenantContext(context, function() {
+    runWithTenantContext(context, function () {
       next();
     });
   }

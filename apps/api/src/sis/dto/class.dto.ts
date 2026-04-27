@@ -6,7 +6,9 @@ export class ListClassesQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsUUID() courseId?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() academicYearId?: string;
   @ApiPropertyOptional({ description: 'Filter to grade level (matches course.grade_level)' })
-  @IsOptional() @IsString() gradeLevel?: string;
+  @IsOptional()
+  @IsString()
+  gradeLevel?: string;
 }
 
 export class CourseSummaryDto {

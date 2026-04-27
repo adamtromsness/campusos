@@ -1,5 +1,5 @@
-import { config } from "dotenv";
-config({ path: ["../../.env.local", "../../.env", ".env"] });
+import { config } from 'dotenv';
+config({ path: ['../../.env.local', '../../.env', '.env'] });
 
 import { getPlatformClient, disconnectAll } from './client';
 import { generateId } from './uuid';
@@ -28,11 +28,12 @@ async function seedIam() {
   // access cache, since role_permissions has an FK to permissions).
   var dataPath = join(__dirname, '..', 'data', 'permissions.json');
   var permData = JSON.parse(readFileSync(dataPath, 'utf-8'));
-  var functions = permData.functions as Array<{code: string; name: string; group: string}>;
+  var functions = permData.functions as Array<{ code: string; name: string; group: string }>;
   var tiers = permData.tiers as string[];
 
   var expectedCodes = new Set<string>();
-  var expectedByCode: Record<string, { resource: string; action: string; description: string }> = {};
+  var expectedByCode: Record<string, { resource: string; action: string; description: string }> =
+    {};
   for (var fi = 0; fi < functions.length; fi++) {
     var func = functions[fi]!;
     for (var ti = 0; ti < tiers.length; ti++) {
@@ -49,11 +50,18 @@ async function seedIam() {
 
   var existingPerms = await client.permission.findMany({ select: { id: true, code: true } });
   var existingByCode: Record<string, string> = {};
-  for (var ep = 0; ep < existingPerms.length; ep++) existingByCode[existingPerms[ep]!.code] = existingPerms[ep]!.id;
+  for (var ep = 0; ep < existingPerms.length; ep++)
+    existingByCode[existingPerms[ep]!.code] = existingPerms[ep]!.id;
 
   // Codes to add (in expected but not in DB)
-  var toAdd: Array<{ id: string; code: string; resource: string; action: string; description: string }> = [];
-  Array.from(expectedCodes).forEach(function(code) {
+  var toAdd: Array<{
+    id: string;
+    code: string;
+    resource: string;
+    action: string;
+    description: string;
+  }> = [];
+  Array.from(expectedCodes).forEach(function (code) {
     if (!existingByCode[code]) {
       toAdd.push({ id: generateId(), code: code, ...expectedByCode[code]! });
     }
@@ -68,7 +76,9 @@ async function seedIam() {
   if (toRemove.length > 0) {
     await client.rolePermission.deleteMany({ where: { permissionId: { in: toRemove } } });
     await client.permission.deleteMany({ where: { id: { in: toRemove } } });
-    console.log('  ' + toRemove.length + ' stale permission codes removed (and role_permissions cleared)');
+    console.log(
+      '  ' + toRemove.length + ' stale permission codes removed (and role_permissions cleared)',
+    );
   }
 
   if (toAdd.length > 0) {
@@ -133,7 +143,8 @@ async function seedIam() {
     select: { permissionId: true },
   });
   var adminAssigned: Record<string, boolean> = {};
-  for (var aei = 0; aei < adminExisting.length; aei++) adminAssigned[adminExisting[aei]!.permissionId] = true;
+  for (var aei = 0; aei < adminExisting.length; aei++)
+    adminAssigned[adminExisting[aei]!.permissionId] = true;
   var adminToAdd: Array<{ id: string; roleId: string; permissionId: string }> = [];
   for (var ap = 0; ap < allPerms.length; ap++) {
     if (!adminAssigned[allPerms[ap]!.id]) {
@@ -142,7 +153,13 @@ async function seedIam() {
   }
   if (adminToAdd.length > 0) {
     await client.rolePermission.createMany({ data: adminToAdd });
-    console.log('  Platform Admin: ' + adminToAdd.length + ' permissions newly assigned (' + (adminExisting.length + adminToAdd.length) + ' total)');
+    console.log(
+      '  Platform Admin: ' +
+        adminToAdd.length +
+        ' permissions newly assigned (' +
+        (adminExisting.length + adminToAdd.length) +
+        ' total)',
+    );
   } else {
     console.log('  Platform Admin: ' + adminExisting.length + ' permissions already assigned');
   }
@@ -269,7 +286,15 @@ async function seedIam() {
     if (newRows.length > 0) {
       await client.rolePermission.createMany({ data: newRows });
     }
-    console.log('  ' + spec.roleName + ': ' + targetCodes.length + ' permissions targeted (' + addCount + ' newly added)');
+    console.log(
+      '  ' +
+        spec.roleName +
+        ': ' +
+        targetCodes.length +
+        ' permissions targeted (' +
+        addCount +
+        ' newly added)',
+    );
   }
 
   // ── 5. Create platform and school scopes ───────────────────
@@ -355,7 +380,7 @@ async function seedIam() {
 
   console.log('');
   console.log('  IAM seed complete!');
-  console.log('  ' + (functions.length * tiers.length) + ' permissions, 6 roles, 5 assignments');
+  console.log('  ' + functions.length * tiers.length + ' permissions, 6 roles, 5 assignments');
 }
 
 // ── Export for use in main seed, or run standalone ──
@@ -363,10 +388,16 @@ export { seedIam };
 
 if (require.main === module) {
   seedIam()
-    .then(function() { return disconnectAll(); })
-    .then(function() { process.exit(0); })
-    .catch(function(e) {
+    .then(function () {
+      return disconnectAll();
+    })
+    .then(function () {
+      process.exit(0);
+    })
+    .catch(function (e) {
       console.error('IAM seed failed:', e);
-      disconnectAll().then(function() { process.exit(1); });
+      disconnectAll().then(function () {
+        process.exit(1);
+      });
     });
 }

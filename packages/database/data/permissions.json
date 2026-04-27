@@ -741,11 +741,7 @@
       "group": "Transportation"
     }
   ],
-  "tiers": [
-    "read",
-    "write",
-    "admin"
-  ],
+  "tiers": ["read", "write", "admin"],
   "defaultRoles": {
     "Platform Admin": {
       "permissions": "all"
@@ -801,11 +797,7 @@
       "tier": "read"
     },
     "Staff": {
-      "groups": [
-        "Communications",
-        "Meetings & Conferences",
-        "System Administration"
-      ],
+      "groups": ["Communications", "Meetings & Conferences", "System Administration"],
       "tier": "read"
     }
   }

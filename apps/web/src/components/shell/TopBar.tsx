@@ -36,9 +36,7 @@ export function TopBar({ user, onOpenMenu }: TopBarProps) {
         >
           <Avatar name={user.displayName} size="sm" />
           <div className="hidden sm:block">
-            <p className="text-sm font-medium text-gray-900">
-              {user.displayName}
-            </p>
+            <p className="text-sm font-medium text-gray-900">{user.displayName}</p>
             <p className="text-xs text-gray-500">{user.email}</p>
           </div>
         </button>
@@ -49,9 +47,7 @@ export function TopBar({ user, onOpenMenu }: TopBarProps) {
             onMouseLeave={() => setOpen(false)}
           >
             <div className="border-b border-gray-100 px-4 py-3">
-              <p className="text-sm font-medium text-gray-900">
-                {user.displayName}
-              </p>
+              <p className="text-sm font-medium text-gray-900">{user.displayName}</p>
               <p className="mt-0.5 text-xs text-gray-500">{user.email}</p>
             </div>
             <button

@@ -12,14 +12,7 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-export function Modal({
-  open,
-  onClose,
-  title,
-  children,
-  footer,
-  size = 'md',
-}: ModalProps) {
+export function Modal({ open, onClose, title, children, footer, size = 'md' }: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -45,10 +38,7 @@ export function Modal({
       aria-modal="true"
     >
       <div
-        className={cn(
-          'w-full overflow-hidden rounded-card bg-white shadow-elevated',
-          sizeClass,
-        )}
+        className={cn('w-full overflow-hidden rounded-card bg-white shadow-elevated', sizeClass)}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (

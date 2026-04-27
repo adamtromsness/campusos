@@ -1,8 +1,18 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { CreateStudentDto, UpdateStudentDto, StudentResponseDto, ListStudentsQueryDto } from './dto/student.dto';
+import {
+  CreateStudentDto,
+  UpdateStudentDto,
+  StudentResponseDto,
+  ListStudentsQueryDto,
+} from './dto/student.dto';
 
 interface StudentRow {
   id: string;
@@ -43,13 +53,13 @@ export class StudentService {
         'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
           's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
           'ip.id AS person_id, ip.first_name, ip.last_name ' +
-        'FROM sis_students s ' +
-        'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-        'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-        'WHERE ($1::uuid IS NULL OR s.id IN (SELECT student_id FROM sis_enrollments WHERE class_id = $1::uuid AND status = \'ACTIVE\')) ' +
+          'FROM sis_students s ' +
+          'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+          'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
+          "WHERE ($1::uuid IS NULL OR s.id IN (SELECT student_id FROM sis_enrollments WHERE class_id = $1::uuid AND status = 'ACTIVE')) " +
           'AND ($2::text IS NULL OR s.grade_level = $2::text) ' +
           'AND ($3::text IS NULL OR s.enrollment_status = $3::text) ' +
-        'ORDER BY ip.last_name, ip.first_name',
+          'ORDER BY ip.last_name, ip.first_name',
         filters.classId ?? null,
         filters.gradeLevel ?? null,
         filters.enrollmentStatus ?? null,
@@ -64,10 +74,10 @@ export class StudentService {
         'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
           's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
           'ip.id AS person_id, ip.first_name, ip.last_name ' +
-        'FROM sis_students s ' +
-        'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-        'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-        'WHERE s.id = $1::uuid',
+          'FROM sis_students s ' +
+          'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+          'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
+          'WHERE s.id = $1::uuid',
         id,
       );
     });
@@ -85,13 +95,13 @@ export class StudentService {
         'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
           's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
           'ip.id AS person_id, ip.first_name, ip.last_name ' +
-        'FROM sis_students s ' +
-        'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-        'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-        'JOIN sis_student_guardians sg ON sg.student_id = s.id ' +
-        'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-        'WHERE g.person_id = $1::uuid ' +
-        'ORDER BY ip.last_name, ip.first_name',
+          'FROM sis_students s ' +
+          'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+          'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
+          'JOIN sis_student_guardians sg ON sg.student_id = s.id ' +
+          'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+          'WHERE g.person_id = $1::uuid ' +
+          'ORDER BY ip.last_name, ip.first_name',
         guardianPersonId,
       );
     });
@@ -146,7 +156,7 @@ export class StudentService {
         });
         await tx.$executeRawUnsafe(
           'INSERT INTO sis_students (id, platform_student_id, school_id, student_number, grade_level, homeroom_class_id, enrollment_status) ' +
-          'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid, $7)',
+            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid, $7)',
           sisStudentId,
           platformStudentId,
           schoolId,
@@ -160,10 +170,10 @@ export class StudentService {
           'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
             's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
             'ip.id AS person_id, ip.first_name, ip.last_name ' +
-          'FROM sis_students s ' +
-          'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-          'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-          'WHERE s.id = $1::uuid',
+            'FROM sis_students s ' +
+            'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
+            'WHERE s.id = $1::uuid',
           sisStudentId,
         );
         return rowToDto(rows[0]!);
@@ -171,8 +181,13 @@ export class StudentService {
     } catch (e: any) {
       // Translate the unique-constraint race (post-precheck) into a clean 409.
       var msg = e && typeof e.message === 'string' ? e.message : '';
-      if (msg.indexOf('school_id, student_number') >= 0 || msg.indexOf('sis_students_school_number_uq') >= 0) {
-        throw new ConflictException('A student with number "' + input.studentNumber + '" already exists at this school');
+      if (
+        msg.indexOf('school_id, student_number') >= 0 ||
+        msg.indexOf('sis_students_school_number_uq') >= 0
+      ) {
+        throw new ConflictException(
+          'A student with number "' + input.studentNumber + '" already exists at this school',
+        );
       }
       throw e;
     }

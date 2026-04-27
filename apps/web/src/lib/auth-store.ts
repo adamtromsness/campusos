@@ -36,21 +36,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   status: 'loading',
   accessToken: null,
   user: null,
-  setAuth: (token, user) =>
-    set({ status: 'authenticated', accessToken: token, user }),
+  setAuth: (token, user) => set({ status: 'authenticated', accessToken: token, user }),
   setUser: (user) => set({ user }),
-  setUnauthenticated: () =>
-    set({ status: 'unauthenticated', accessToken: null, user: null }),
+  setUnauthenticated: () => set({ status: 'unauthenticated', accessToken: null, user: null }),
 }));
 
 export function hasPermission(user: AuthUser | null, code: string): boolean {
   return !!user && user.permissions.includes(code);
 }
 
-export function hasAnyPermission(
-  user: AuthUser | null,
-  codes: string[],
-): boolean {
+export function hasAnyPermission(user: AuthUser | null, codes: string[]): boolean {
   if (!user) return false;
   for (const c of codes) if (user.permissions.includes(c)) return true;
   return false;

@@ -1,5 +1,5 @@
-import { config } from "dotenv";
-config({ path: ["../../.env.local", "../../.env", ".env"] });
+import { config } from 'dotenv';
+config({ path: ['../../.env.local', '../../.env', '.env'] });
 
 import { PrismaClient } from '@prisma/client';
 
@@ -25,10 +25,8 @@ export function createTenantClient(schemaName: string): PrismaClient {
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['warn', 'error'],
   });
 
-  client.$use(async function(params, next) {
-    await client.$executeRawUnsafe(
-      'SET search_path TO "' + schemaName + '", platform, public'
-    );
+  client.$use(async function (params, next) {
+    await client.$executeRawUnsafe('SET search_path TO "' + schemaName + '", platform, public');
     return next(params);
   });
 
