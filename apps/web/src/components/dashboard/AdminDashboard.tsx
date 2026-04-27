@@ -28,7 +28,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
       <SchoolStats classes={classes.data ?? []} loading={classes.isLoading} />
 
       <section className="mt-8">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">Today's classes</h2>
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">Today&rsquo;s classes</h2>
         {classes.isLoading ? (
           <Loading label="Loading classes…" />
         ) : (classes.data ?? []).length === 0 ? (

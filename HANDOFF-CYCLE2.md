@@ -1,6 +1,6 @@
 # Cycle 2 Handoff — Classroom, Assignments & Grading
 
-**Status:** Cycle 2 IN PROGRESS — Steps 1–6 done (full classroom schema, demo data, TCH role-permission map, the Assignments + Categories module, the Submissions + Grading + Gradebook + Progress Notes module, and the first Kafka consumer in the system — GradebookSnapshotWorker — that recomputes gradebook snapshots asynchronously per ADR-010). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
+**Status:** Cycle 2 IN PROGRESS — Steps 1–7 done (full classroom schema, demo data, TCH role-permission map, the Assignments + Categories module, the Submissions + Grading + Gradebook + Progress Notes module, the first Kafka consumer in the system — GradebookSnapshotWorker — that recomputes gradebook snapshots asynchronously per ADR-010, and the teacher Assignments UI: list / create / edit / delete + category-weight modal under a new ClassTabs shell at `/classes/:id/{attendance,assignments}`). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle2-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher creates an assignment for Period 1 Algebra → student Maya submits work → teacher grades and publishes → gradebook snapshot recomputes asynchronously → parent David sees Maya's updated average.
@@ -19,7 +19,7 @@ This document tracks the Cycle 2 build — the M21 Classroom module — at the s
 |    4 | Classroom NestJS Module — Assignments           | Done — `apps/api/src/classroom/` ships AssignmentService, CategoryService, controllers; 7 endpoints under `tch-002:read/write` with row-level auth |
 |    5 | Classroom NestJS Module — Submissions & Grading | Done — SubmissionService + GradeService + GradebookService + ProgressNoteService; 12 endpoints; per-class write gate; draft-grade visibility hidden from students/parents; Kafka emits for `cls.submission.submitted`, `cls.grade.published`, `cls.grade.unpublished`, `cls.progress_note.published` |
 |    6 | Kafka Events & Gradebook Snapshot Worker        | Done — `KafkaConsumerService`, `IdempotencyService`, `GradebookSnapshotWorker`; subscribes to `cls.grade.{published,unpublished}` (group `gradebook-snapshot-worker`); 30s debounce per `(schoolId, classId, studentId)`; idempotent via `platform_event_consumer_idempotency`; reuses the seed's weighted-average algorithm verbatim |
-|    7 | Teacher Assignments UI                          | Pending                                                             |
+|    7 | Teacher Assignments UI                          | Done — `ClassTabs` shell + `/classes/:id/assignments` list (filter, delete) + `/new` + `/[assignmentId]/edit` + `CategoryWeightModal`; new `GET /assignment-types` endpoint exposes the school's type catalogue to the create form |
 |    8 | Teacher Grading UI                              | Pending                                                             |
 |    9 | Student & Parent Grade Views                    | Pending                                                             |
 |   10 | Vertical Slice Integration Test                 | Pending                                                             |
@@ -756,9 +756,95 @@ The verification ran against the live demo tenant with Kafka up. Idempotency row
 
 ---
 
-## Step 7 — Teacher Assignments UI (planned)
+## Step 7 — Teacher Assignments UI
 
-Extends the existing class detail page with tabs: **Attendance | Assignments | Gradebook**. Assignments tab lists `cls_assignments` with sort/filter; create/edit form posts to the Step 4 API. Category weight management modal validates weights sum to 100.
+Lands the teacher-facing assignment management UI on top of the Step 4 API. Same Cycle 1 visual language (PageHeader, Modal, Toast, LoadingSpinner). The class detail page now has a tab bar — **Attendance | Assignments** — that the Step 8 grading UI will extend with **Gradebook**.
+
+### Files
+
+**API (one small expansion)**
+
+- `apps/api/src/classroom/assignment.service.ts` — adds `listAssignmentTypes()` (school-scoped read of `cls_assignment_types`, ordered by name, only `is_active=true`).
+- `apps/api/src/classroom/assignment.controller.ts` — adds `GET /assignment-types` (`tch-002:read`). Used by the create-assignment form to populate the type dropdown.
+
+**Web (new components, hooks, routes)**
+
+- `apps/web/src/lib/types.ts` — adds `AssignmentTypeCategory`, `AssignmentTypeDto`, `AssignmentCategoryDto`, `AssignmentDto`, `CreateAssignmentPayload`, `UpdateAssignmentPayload`, `UpsertCategoryEntry`.
+- `apps/web/src/hooks/use-classroom.ts` (new) — React Query hooks: `useAssignmentTypes`, `useAssignments` (per class, with `includeUnpublished`), `useAssignment`, `useCreateAssignment`, `useUpdateAssignment`, `useDeleteAssignment`, `useCategories`, `useUpsertCategories`. Same single-flight + auto-invalidate pattern as `use-attendance.ts`.
+- `apps/web/src/components/classroom/ClassTabs.tsx` (new) — tab bar shared by every `/classes/:id/*` route. Currently renders Attendance + Assignments; Gradebook tab exists in the type but is hidden via `hideGradebook` until Step 8 lands the gradebook UI.
+- `apps/web/src/components/classroom/AssignmentForm.tsx` (new) — shared create + edit form. Title, instructions, type, category, due date, max points, extra-credit toggle, publish toggle. Local validation (title required; max points > 0); server-side errors surface inline.
+- `apps/web/src/components/classroom/CategoryWeightModal.tsx` (new) — editable rows of `(name, weight)`. Live total with green/amber styling; Save disabled until total = 100, names non-empty, names unique. PUT semantics match the server: removed names are deleted (409 if still referenced).
+- `apps/web/src/app/(app)/classes/[id]/assignments/page.tsx` (new) — list page. Manager view (teachers/admins) shows drafts; type filter pills; "Manage categories" button opens the modal; per-row Edit (links to `/edit`) + Delete (confirm modal, soft delete).
+- `apps/web/src/app/(app)/classes/[id]/assignments/new/page.tsx` (new) — wraps `AssignmentForm` for create, navigates back to the list on success.
+- `apps/web/src/app/(app)/classes/[id]/assignments/[assignmentId]/edit/page.tsx` (new) — wraps `AssignmentForm` for edit; loads via `useAssignment` then re-seeds the form on data arrival.
+- `apps/web/src/app/(app)/classes/[id]/attendance/page.tsx` — adds `<ClassTabs active="attendance" hideGradebook />` between PageHeader and the existing roster.
+
+**Side fixes (build hygiene)**
+
+- `apps/web/src/components/dashboard/{Admin,Parent,Teacher}Dashboard.tsx` — escape `'` → `&rsquo;` so `next build` no longer fails on `react/no-unescaped-entities`. Pre-existing lint debt that surfaced once Step 7 needed a clean prod build.
+- `apps/web/src/app/login/page.tsx` — wrap the inner page in `<Suspense fallback={null}>` so `useSearchParams()` no longer trips the prerender bail. Pre-existing issue, surfaced for the same reason.
+
+### Routes added
+
+```
+/classes/:id/assignments                        (list — teachers/admins, manager view; students/parents see published-only via the shared API)
+/classes/:id/assignments/new                    (create form)
+/classes/:id/assignments/:assignmentId/edit     (edit form)
+```
+
+The existing `/classes/:id/attendance` route gains the same `ClassTabs` header so teachers can pivot between attendance and assignments without backing out to the dashboard.
+
+### UX rules baked in
+
+- **Manager-only list view.** The list page calls `useAssignments(classId, { includeUnpublished: true })`. The API hides drafts from non-managers automatically — so even a student who navigates to this URL by hand sees only published rows. The "Draft" badge on the list page is therefore a teacher/admin-only signal.
+- **Type filter is client-side.** The 5 categories (Homework / Quiz / Test / Project / Classwork) are static; filtering in the browser saves a round-trip and keeps the row count tile responsive.
+- **Edit links re-use the assignment row title.** Clicking the title takes the teacher straight to `/edit` — saves a wasted detail page that this cycle doesn't need (read-only view of an assignment is part of the Step 8 grading detail).
+- **Category modal mirrors PUT semantics.** Local state holds the *full new set*. Removing a row marks it for deletion via the API — and the API returns 409 if the category is still referenced. The error message surfaces inline; the modal stays open so the teacher can fix the conflict (re-add the row, or first reassign the affected assignments via the edit page).
+- **Date input is `datetime-local`.** Browser-native picker; the form serialises to ISO at submit time using the user's local clock. Fine for a single-tenant demo; a global rollout will need to re-anchor to the school's timezone.
+- **Default extra-credit = false; default published = true.** Most teachers create a published, non-extra-credit assignment. Drafts and extra-credit are deliberate opt-ins.
+- **All toasts on success and error paths.** Re-uses the existing `useToast()`; the form's `serverError` state surfaces 400/409 messages inline as well so the teacher doesn't have to scroll up.
+
+### Authorisation behaviour (recap)
+
+The list page is gated by `tch-002:read` (held by every persona) but the Step 4 API row-scopes results to the caller (admins all; teacher-of-class their classes; student/parent the published view). The create/edit/delete pages call the same API; non-managers hit 403 even though their token holds `tch-002:write` (student-write is for `POST /assignments/:id/submit`, not for managing assignments — handled by `assertCanWriteClass` server-side). The frontend doesn't try to hide write actions for non-teachers in this step — admins land on the same dashboard layout the principal already uses, and a teacher who is *not* assigned to the class never sees a card linking to it. A defensive role-aware UI hide is a Phase 2 polish item.
+
+### Verification (recorded 2026-04-27)
+
+```bash
+pnpm --filter @campusos/api build      # nest build → exits 0
+pnpm --filter @campusos/web build      # next build → all routes compile, /login + /classes/[id]/assignments ƒ (dynamic)
+pnpm --filter @campusos/api start:prod # GET /assignment-types returns 5 rows for tenant_demo
+pnpm --filter @campusos/web dev        # /login HTTP 200; /classes/<id>/assignments HTTP 200
+```
+
+API smoke matrix (full curl trace stored in this commit's working notes — boiled down here):
+
+| #  | Scenario                                                                          | Expected                                                                 | Got |
+| -- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | --- |
+| 1  | Teacher GET `/api/v1/assignment-types` for demo tenant                            | 5 rows (Homework, Quiz, Test, Project, Classwork) ordered by name        | ✅  |
+| 2  | Teacher POST draft assignment ("Step 7 smoke draft") in P1 with category=Homework | 201, `isPublished=false`, category nested under `category` field         | ✅  |
+| 3  | Teacher GET `/classes/:id/assignments?includeUnpublished=true`                    | 3 rows; the draft surfaces alongside the seed's 2 published rows         | ✅  |
+| 4  | Teacher PATCH `{title:"…updated", isPublished:true}`                              | 200 with new title + `isPublished=true`                                  | ✅  |
+| 5  | Teacher DELETE the assignment                                                      | 204                                                                      | ✅  |
+| 6  | Teacher PUT categories with weights 50/40/20 (sum=110)                            | 400 "Category weights must sum to 100; got 110.00"                       | ✅  |
+| 7  | Web: `/login` route                                                                | 200 with rendered HTML (Suspense boundary fix)                           | ✅  |
+| 8  | Web: `/classes/<P1>/assignments` route                                            | 200 (route compiles + serves)                                            | ✅  |
+| 9  | Web: `/classes/<P1>/assignments/new` route                                        | 200                                                                      | ✅  |
+
+The browser-side interactivity (button clicks, modal state, navigations) was validated structurally via Next.js's static analysis (build succeeds, all components type-check, hooks import correctly) and via the API smoke tests above. A full click-through with an actual browser is a Step 10 (vertical slice CAT) deliverable; if Phase 2 polish surfaces UI bugs they get fixed there.
+
+### Out-of-scope decisions for Step 7
+
+- **No question-builder UI.** `cls_assignment_questions` and `cls_answer_key_entries` exist but no form writes to them. Per the original Step 4 plan: question / MC / file-upload UX waits until a later cycle that has actual assessment workflows to design against.
+- **No grading-scale picker.** The form omits `gradingScaleId`; the API defaults the value. The seed sets a single "Standard A-F" scale per tenant — until Phase 2 teaches teachers to author scales, surfacing the picker would just be visual noise.
+- **No assignment list for students/parents.** Step 9 will land the student/parent grade views; the list page in this step is teacher-facing only. The API itself already row-scopes the list, so a future student page can reuse the exact same `useAssignments(classId)` hook with no API change.
+- **Drag-to-reorder on categories deferred.** Sort order is preserved by the array index on submit, but the modal has no drag handles — manual `sortOrder` ordering is good enough for the Cycle 2 demo.
+- **No assignment-type CRUD UI.** The 5 standard types are seeded; there's no admin form to create new ones. A school-admin "manage types" page is post-Cycle 2.
+- **Soft-delete is one-way.** No restore button. Matches the API's deliberate Step 4 decision.
+- **No empty-state CTA inside `CategoryWeightModal`.** The modal opens against the existing 18 seeded categories (3 per class). For brand-new classes with zero categories the seed dataflow won't apply; that path lands when an "add new class" admin flow ships.
+- **`hideGradebook` is a UI-side toggle, not a permission check.** Once Step 8 lands the gradebook UI we'll flip the prop off across all class routes; until then the tab is simply hidden so a teacher can't navigate to a 404. No permission code change needed (gradebook reads use `tch-003:read` and the API gates that).
+- **Pre-existing lint / Suspense fixes ride along.** The dashboard `'` escapes and the `/login` Suspense wrapping are not Step 7 features per se; they were necessary to make `pnpm build` pass for the web app, and they fix bugs that would have surfaced the first time anyone deployed Cycle 1's web. Treating them as part of Step 7 is honest — without them the Step 7 routes can't ship.
+- **No frontend-side test coverage in this step.** Cycle 1 also didn't ship Jest/Playwright suites; that's a deliberate Phase 2 deliverable. Smoke tests are API-side curl + Next build/route probes only.
 
 ---
 

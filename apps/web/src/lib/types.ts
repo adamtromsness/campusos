@@ -122,6 +122,82 @@ export interface BatchSubmitResult {
   confirmedAt: string;
 }
 
+// ── Classroom (Cycle 2) ──────────────────────────────────────────────────
+
+export type AssignmentTypeCategory = 'HOMEWORK' | 'QUIZ' | 'TEST' | 'PROJECT' | 'CLASSWORK';
+
+export interface AssignmentTypeDto {
+  id: string;
+  name: string;
+  category: AssignmentTypeCategory;
+  weightInCategory: number;
+}
+
+export interface AssignmentCategoryDto {
+  id: string;
+  classId: string;
+  name: string;
+  weight: number;
+  sortOrder: number;
+}
+
+export interface AssignmentTypeSummary {
+  id: string;
+  name: string;
+  category: AssignmentTypeCategory;
+}
+
+export interface AssignmentCategorySummary {
+  id: string;
+  name: string;
+  weight: number;
+}
+
+export interface AssignmentDto {
+  id: string;
+  classId: string;
+  title: string;
+  instructions: string | null;
+  assignmentType: AssignmentTypeSummary;
+  category: AssignmentCategorySummary | null;
+  gradingScaleId: string | null;
+  dueDate: string | null;
+  maxPoints: number;
+  isAiGradingEnabled: boolean;
+  isExtraCredit: boolean;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAssignmentPayload {
+  title: string;
+  instructions?: string;
+  assignmentTypeId: string;
+  categoryId?: string;
+  dueDate?: string;
+  maxPoints?: number;
+  isExtraCredit?: boolean;
+  isPublished?: boolean;
+}
+
+export interface UpdateAssignmentPayload {
+  title?: string;
+  instructions?: string;
+  assignmentTypeId?: string;
+  categoryId?: string;
+  dueDate?: string | null;
+  maxPoints?: number;
+  isExtraCredit?: boolean;
+  isPublished?: boolean;
+}
+
+export interface UpsertCategoryEntry {
+  name: string;
+  weight: number;
+  sortOrder?: number;
+}
+
 export interface AbsenceRequestDto {
   id: string;
   schoolId: string;

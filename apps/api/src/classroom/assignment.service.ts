@@ -201,6 +201,34 @@ export class AssignmentService {
     return rows.length > 0;
   }
 
+  /**
+   * List the school-scoped assignment types (Homework, Quiz, Test, …). Used
+   * by the create-assignment UI to populate the type dropdown. Tenant
+   * search_path scopes rows to the current school; no per-class auth needed
+   * because types are non-sensitive school-wide config and every persona
+   * holding `tch-002:read` already sees the assignments that reference them.
+   */
+  async listAssignmentTypes(): Promise<
+    Array<{ id: string; name: string; category: string; weightInCategory: number }>
+  > {
+    var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<
+        Array<{ id: string; name: string; category: string; weight_in_category: string }>
+      >(
+        'SELECT id, name, category, weight_in_category::text AS weight_in_category ' +
+          'FROM cls_assignment_types WHERE is_active = true ORDER BY name',
+      );
+    });
+    return rows.map(function (r) {
+      return {
+        id: r.id,
+        name: r.name,
+        category: r.category,
+        weightInCategory: Number(r.weight_in_category),
+      };
+    });
+  }
+
   async list(
     classId: string,
     filters: ListAssignmentsQueryDto,

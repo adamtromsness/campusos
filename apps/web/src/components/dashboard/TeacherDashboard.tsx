@@ -28,7 +28,7 @@ export function TeacherDashboard({ user }: TeacherDashboardProps) {
       <QuickStats classes={classes.data ?? []} loading={classes.isLoading} />
 
       <section className="mt-8">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">Today's classes</h2>
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">Today&rsquo;s classes</h2>
         {classes.isLoading ? (
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <LoadingSpinner size="sm" />
@@ -239,7 +239,7 @@ function RecentActivity({
   if (error) {
     return (
       <div className="rounded-card border border-gray-200 bg-white p-5 text-sm text-gray-500 shadow-card">
-        Couldn't load recent activity.
+        Couldn&rsquo;t load recent activity.
       </div>
     );
   }

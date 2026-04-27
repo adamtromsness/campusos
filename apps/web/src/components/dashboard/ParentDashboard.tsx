@@ -96,7 +96,7 @@ function ChildTodayBanner({ child, today }: { child: StudentDto; today: string }
         <p className="mt-0.5 text-xs text-gray-600">
           Open{' '}
           <Link href={`/children/${child.id}/attendance`} className="text-campus-700 underline">
-            today's attendance
+            today&rsquo;s attendance
           </Link>{' '}
           for the full period detail.
         </p>

@@ -36,6 +36,19 @@ export class AssignmentController {
     private readonly actors: ActorContextService,
   ) {}
 
+  @Get('assignment-types')
+  @RequirePermission('tch-002:read')
+  @ApiOperation({
+    summary:
+      'List the school-wide assignment types (Homework, Quiz, Test, Project, Classwork). Used by ' +
+      'the create-assignment form to populate the type dropdown.',
+  })
+  async listTypes(): Promise<
+    Array<{ id: string; name: string; category: string; weightInCategory: number }>
+  > {
+    return this.assignments.listAssignmentTypes();
+  }
+
   @Get('classes/:classId/assignments')
   @RequirePermission('tch-002:read')
   @ApiOperation({

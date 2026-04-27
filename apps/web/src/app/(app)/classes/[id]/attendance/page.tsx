@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useBatchSubmitAttendance, useClass, useClassAttendance } from '@/hooks/use-attendance';
+import { ClassTabs } from '@/components/classroom/ClassTabs';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingSpinner, PageLoader } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -83,6 +84,8 @@ export default function ClassAttendancePage() {
           />
         }
       />
+
+      <ClassTabs classId={classId!} active="attendance" hideGradebook />
 
       {locked && <SubmittedBanner records={records} />}
 
