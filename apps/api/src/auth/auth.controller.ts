@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Res, Req, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Response, Request } from 'express';
+import { PrismaClient } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { Public } from './public.decorator';
 
@@ -17,7 +18,10 @@ import { Public } from './public.decorator';
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly prisma: PrismaClient,
+  ) {}
 
   /**
    * Redirect to Keycloak for OIDC authentication.
@@ -195,17 +199,46 @@ export class AuthController {
   }
 
   /**
-   * Get current auth status (requires valid token).
+   * Get current authenticated user — identity, persona, and permission codes.
+   *
+   * personType drives persona-aware UI (teacher dashboard vs parent dashboard).
+   * permissions is the union of permission codes across the user's scope cache
+   * rows; the web client uses it for menu gating only — the backend guards
+   * remain the authoritative access check on every protected request.
    */
   @Get('me')
   @ApiOperation({ summary: 'Get current authenticated user' })
   async me(@Req() req: Request) {
     var user = (req as any).user;
+
+    var person = await this.prisma.iamPerson.findUnique({
+      where: { id: user.personId },
+      select: { personType: true, firstName: true, lastName: true, preferredName: true },
+    });
+
+    var caches = await this.prisma.iamEffectiveAccessCache.findMany({
+      where: { accountId: user.sub },
+      select: { permissionCodes: true },
+    });
+
+    var permSet = new Set<string>();
+    for (var i = 0; i < caches.length; i++) {
+      var codes = caches[i]!.permissionCodes;
+      for (var j = 0; j < codes.length; j++) {
+        permSet.add(codes[j] as string);
+      }
+    }
+
     return {
       id: user.sub,
       personId: user.personId,
       email: user.email,
       displayName: user.displayName,
+      personType: person?.personType ?? null,
+      firstName: person?.firstName ?? null,
+      lastName: person?.lastName ?? null,
+      preferredName: person?.preferredName ?? null,
+      permissions: Array.from(permSet).sort(),
     };
   }
 }
