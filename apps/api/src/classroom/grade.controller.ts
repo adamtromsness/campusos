@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Param,
-  ParseUUIDPipe,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
@@ -43,7 +36,7 @@ export class GradeController {
   @ApiOperation({
     summary:
       'Grade a submission (teacher-of-class or admin). Upserts cls_grades by (assignment, ' +
-      "student); flips the linked submission to GRADED. Set publish=true to emit cls.grade.published.",
+      'student); flips the linked submission to GRADED. Set publish=true to emit cls.grade.published.',
   })
   async gradeSubmission(
     @Param('id', ParseUUIDPipe) submissionId: string,
@@ -116,5 +109,4 @@ export class GradeController {
     var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     return this.grades.publishAllForAssignment(classId, body.assignmentId, actor);
   }
-
 }

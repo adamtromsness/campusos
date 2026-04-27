@@ -54,7 +54,9 @@ export default function NewAssignmentPage() {
           try {
             const created = await create.mutateAsync(payload);
             toast(
-              created.isPublished ? 'Assignment created and published' : 'Assignment saved as draft',
+              created.isPublished
+                ? 'Assignment created and published'
+                : 'Assignment saved as draft',
               'success',
             );
             router.push(`/classes/${classId}/assignments`);

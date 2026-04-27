@@ -432,26 +432,26 @@ curl -s -X POST "http://localhost:4000/api/v1/grades/$GRADE_ID/publish" \
 
 **All 9 steps pass.** The Cycle 2 vertical slice is verified end-to-end:
 
-| Step | What it proves                                           | Status |
-| ---: | -------------------------------------------------------- | :----: |
-|    1 | Teacher can create a published assignment                | ✅     |
-|    2 | Student can read it and bootstrap their own studentId    | ✅     |
-|    3 | Student-only submission upsert with idempotent resubmit  | ✅     |
-|    4 | Draft grade is hidden from the student                   | ✅     |
-|    5 | publish-all returns the right count + emits Kafka        | ✅     |
-|    6 | Snapshot recomputes asynchronously after the 30s debounce | ✅    |
-|    7 | Student sees the published grade + new average           | ✅     |
-|    8 | Parent sees the same data through the guardian link      | ✅     |
-|    9 | Three independent permission cuts are enforced           | ✅     |
+| Step | What it proves                                            | Status |
+| ---: | --------------------------------------------------------- | :----: |
+|    1 | Teacher can create a published assignment                 |   ✅   |
+|    2 | Student can read it and bootstrap their own studentId     |   ✅   |
+|    3 | Student-only submission upsert with idempotent resubmit   |   ✅   |
+|    4 | Draft grade is hidden from the student                    |   ✅   |
+|    5 | publish-all returns the right count + emits Kafka         |   ✅   |
+|    6 | Snapshot recomputes asynchronously after the 30s debounce |   ✅   |
+|    7 | Student sees the published grade + new average            |   ✅   |
+|    8 | Parent sees the same data through the guardian link       |   ✅   |
+|    9 | Three independent permission cuts are enforced            |   ✅   |
 
 Permission matrix (Cycle 2 additions on top of Cycle 1):
 
-| Caller   | Endpoint                                                          | Required        | Result |
-| -------- | ----------------------------------------------------------------- | --------------- | -----: |
-| student  | `POST /submissions/:id/grade`                                     | `tch-003:write` |   403  |
-| parent   | `POST /assignments/:id/submit`                                    | `tch-002:write` |   403  |
-| teacher  | `POST /classes/:id/assignments` for a class they don't teach      | `tch-002:write` (held) + class membership | 403 |
-| student  | `GET /assignments/:id` for an unpublished or non-enrolled-class assignment | row scope | 404 |
+| Caller  | Endpoint                                                                   | Required                                  | Result |
+| ------- | -------------------------------------------------------------------------- | ----------------------------------------- | -----: |
+| student | `POST /submissions/:id/grade`                                              | `tch-003:write`                           |    403 |
+| parent  | `POST /assignments/:id/submit`                                             | `tch-002:write`                           |    403 |
+| teacher | `POST /classes/:id/assignments` for a class they don't teach               | `tch-002:write` (held) + class membership |    403 |
+| student | `GET /assignments/:id` for an unpublished or non-enrolled-class assignment | row scope                                 |    404 |
 
 ## Known scope decisions
 

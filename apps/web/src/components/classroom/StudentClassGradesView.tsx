@@ -39,10 +39,7 @@ export function StudentClassGradesView({
 
   return (
     <div className="mx-auto max-w-4xl">
-      <Link
-        href={backHref}
-        className="mb-3 inline-block text-sm text-campus-700 underline"
-      >
+      <Link href={backHref} className="mb-3 inline-block text-sm text-campus-700 underline">
         ← {backLabel}
       </Link>
       <PageHeader
@@ -89,13 +86,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function AssignmentRow({
-  row,
-  divider,
-}: {
-  row: StudentClassAssignmentRowDto;
-  divider: boolean;
-}) {
+function AssignmentRow({ row, divider }: { row: StudentClassAssignmentRowDto; divider: boolean }) {
   const a = row.assignment;
   const grade = row.grade;
   const submission = row.submission;
@@ -146,8 +137,7 @@ function GradeCell({
         <span className="ml-1 text-sm font-normal text-gray-500">/ {maxPoints}</span>
       </p>
       <p className="text-xs text-gray-500">
-        {grade.percentage}%
-        {grade.letterGrade ? ` · ${grade.letterGrade}` : ''}
+        {grade.percentage}%{grade.letterGrade ? ` · ${grade.letterGrade}` : ''}
       </p>
     </div>
   );

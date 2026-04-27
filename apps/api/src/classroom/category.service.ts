@@ -8,10 +8,7 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { AssignmentService } from './assignment.service';
-import {
-  AssignmentCategoryDto,
-  UpsertCategoriesDto,
-} from './dto/category.dto';
+import { AssignmentCategoryDto, UpsertCategoriesDto } from './dto/category.dto';
 
 interface CategoryRow {
   id: string;

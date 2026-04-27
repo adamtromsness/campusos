@@ -1,21 +1,10 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
 import { ProgressNoteService } from './progress-note.service';
-import {
-  ProgressNoteResponseDto,
-  UpsertProgressNoteDto,
-} from './dto/progress-note.dto';
+import { ProgressNoteResponseDto, UpsertProgressNoteDto } from './dto/progress-note.dto';
 
 interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };

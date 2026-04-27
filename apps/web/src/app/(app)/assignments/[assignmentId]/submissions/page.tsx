@@ -32,7 +32,7 @@ const STATUS_TONE: Record<SubmissionStatus, string> = {
 };
 
 const STATUS_RANK: Record<SubmissionStatus, number> = {
-  SUBMITTED: 0,    // grading priority
+  SUBMITTED: 0, // grading priority
   IN_PROGRESS: 1,
   NOT_STARTED: 2,
   GRADED: 3,
@@ -93,7 +93,9 @@ export default function AssignmentSubmissionsPage() {
               disabled={publishAll.isPending}
               className="inline-flex items-center gap-2 rounded-lg bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-card hover:bg-campus-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {publishAll.isPending && <LoadingSpinner size="sm" className="border-white/40 border-t-white" />}
+              {publishAll.isPending && (
+                <LoadingSpinner size="sm" className="border-white/40 border-t-white" />
+              )}
               Publish all drafts ({stats.gradedCount - stats.publishedCount})
             </button>
           ) : null
@@ -119,14 +121,8 @@ export default function AssignmentSubmissionsPage() {
       ) : (
         <ul className="overflow-hidden rounded-card border border-gray-200 bg-white shadow-card">
           {sorted.map((sub) => (
-            <li
-              key={sub.id || sub.student.id}
-              className="border-b border-gray-100 last:border-b-0"
-            >
-              <SubmissionRow
-                sub={sub}
-                maxPoints={assignment.maxPoints}
-              />
+            <li key={sub.id || sub.student.id} className="border-b border-gray-100 last:border-b-0">
+              <SubmissionRow sub={sub} maxPoints={assignment.maxPoints} />
             </li>
           ))}
         </ul>

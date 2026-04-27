@@ -4,10 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/Toast';
-import {
-  useStudentProgressNotes,
-  useUpsertProgressNote,
-} from '@/hooks/use-classroom';
+import { useStudentProgressNotes, useUpsertProgressNote } from '@/hooks/use-classroom';
 import type { EffortRating } from '@/lib/types';
 
 interface ProgressNoteModalProps {
@@ -38,19 +35,17 @@ export function ProgressNoteModal({
   const open = !!studentId;
 
   const studentName = useMemo(
-    () => (studentId ? students.find((s) => s.id === studentId)?.fullName ?? '' : ''),
+    () => (studentId ? (students.find((s) => s.id === studentId)?.fullName ?? '') : ''),
     [studentId, students],
   );
 
-  const notesQuery = useStudentProgressNotes(open ? studentId ?? undefined : undefined);
+  const notesQuery = useStudentProgressNotes(open ? (studentId ?? undefined) : undefined);
   const upsert = useUpsertProgressNote(classId);
 
   // Find an existing note for this (class, term) pair if any.
   const existing = useMemo(() => {
     if (!notesQuery.data || !termId) return null;
-    return (
-      notesQuery.data.find((n) => n.classId === classId && n.termId === termId) ?? null
-    );
+    return notesQuery.data.find((n) => n.classId === classId && n.termId === termId) ?? null;
   }, [notesQuery.data, classId, termId]);
 
   const [noteText, setNoteText] = useState('');
@@ -74,7 +69,9 @@ export function ProgressNoteModal({
     <Modal
       open={open}
       onClose={upsert.isPending ? () => {} : onClose}
-      title={existing ? `Update progress note — ${studentName}` : `Add progress note — ${studentName}`}
+      title={
+        existing ? `Update progress note — ${studentName}` : `Add progress note — ${studentName}`
+      }
       footer={
         <>
           <button
@@ -107,7 +104,9 @@ export function ProgressNoteModal({
             disabled={!canSubmit}
             className="inline-flex items-center gap-2 rounded-lg bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-card hover:bg-campus-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {upsert.isPending && <LoadingSpinner size="sm" className="border-white/40 border-t-white" />}
+            {upsert.isPending && (
+              <LoadingSpinner size="sm" className="border-white/40 border-t-white" />
+            )}
             {existing ? 'Update note' : 'Publish note'}
           </button>
         </>

@@ -1,14 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class SubmitAssignmentDto {
   @ApiPropertyOptional({
-    description: 'Student-authored text response (markdown / plain). Empty body is allowed for ' +
+    description:
+      'Student-authored text response (markdown / plain). Empty body is allowed for ' +
       'attachment-only submissions.',
   })
   @IsOptional()

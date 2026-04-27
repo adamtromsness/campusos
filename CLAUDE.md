@@ -13,12 +13,14 @@ See `docs/campusos-cycle1-implementation-plan.html` and `docs/campusos-cycle2-im
 ## Delivery Plan (Revised)
 
 **Phase 1: Build the Core (current)**
+
 - Cycle 0: Platform Foundation — COMPLETE
 - Cycle 1: SIS Core + Attendance — COMPLETE (reviewed, fixes applied)
 - Cycle 2: Classroom + Assignments + Grading — COMPLETE
 - Cycle 3: Communications — next (messaging, notifications, Kafka consumers)
 
 **Phase 2: Test and Refine (after Cycle 3)**
+
 - Walk through every workflow as each persona (teacher, parent, student, admin)
 - Refine UI design, navigation, and interaction patterns
 - Create UI design guide (`docs/ui-design-guide.md`) for future cycles
@@ -26,6 +28,7 @@ See `docs/campusos-cycle1-implementation-plan.html` and `docs/campusos-cycle2-im
 - Fix issues and polish before expanding
 
 **Phase 3: Expand (after Phase 2 sign-off)**
+
 - Cycles 4–8: HR, Enrollment, Tasks, Calendar, Helpdesk
 - Each cycle follows validated patterns from Phase 1
 - UI matches the design guide established in Phase 2

@@ -4,10 +4,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { AssignmentService } from './assignment.service';
-import {
-  ProgressNoteResponseDto,
-  UpsertProgressNoteDto,
-} from './dto/progress-note.dto';
+import { ProgressNoteResponseDto, UpsertProgressNoteDto } from './dto/progress-note.dto';
 
 interface ProgressNoteRow {
   id: string;

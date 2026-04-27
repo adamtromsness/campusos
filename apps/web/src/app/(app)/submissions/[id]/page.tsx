@@ -48,11 +48,11 @@ export default function SubmissionDetailPage() {
   const maxPoints = assignment?.maxPoints ?? null;
   const numeric = Number(gradeValueStr);
   const isNumber = gradeValueStr !== '' && Number.isFinite(numeric);
-  const overMax = isNumber && maxPoints !== null && numeric > maxPoints && !(assignment?.isExtraCredit);
+  const overMax =
+    isNumber && maxPoints !== null && numeric > maxPoints && !assignment?.isExtraCredit;
   const negative = isNumber && numeric < 0;
   const canSave = isNumber && !overMax && !negative && !grade.isPending;
-  const pct =
-    isNumber && maxPoints !== null && maxPoints > 0 ? (numeric / maxPoints) * 100 : null;
+  const pct = isNumber && maxPoints !== null && maxPoints > 0 ? (numeric / maxPoints) * 100 : null;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -75,7 +75,8 @@ export default function SubmissionDetailPage() {
             Status: <span className="font-medium">{sub.status}</span>
             {sub.submittedAt && (
               <>
-                {' '}· submitted{' '}
+                {' '}
+                · submitted{' '}
                 {new Date(sub.submittedAt).toLocaleString(undefined, {
                   month: 'short',
                   day: 'numeric',
@@ -102,7 +103,8 @@ export default function SubmissionDetailPage() {
           <div className="mt-3 space-y-3">
             <label className="block">
               <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
-                Awarded points {maxPoints !== null && <span className="text-gray-400">/ {maxPoints}</span>}
+                Awarded points{' '}
+                {maxPoints !== null && <span className="text-gray-400">/ {maxPoints}</span>}
               </span>
               <input
                 type="number"
@@ -229,7 +231,9 @@ export default function SubmissionDetailPage() {
                 }}
                 className="inline-flex items-center gap-2 rounded-lg bg-campus-700 px-4 py-2 text-sm font-semibold text-white shadow-card hover:bg-campus-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {grade.isPending && <LoadingSpinner size="sm" className="border-white/40 border-t-white" />}
+                {grade.isPending && (
+                  <LoadingSpinner size="sm" className="border-white/40 border-t-white" />
+                )}
                 {sub.grade ? 'Update grade' : 'Save grade'}
               </button>
             </div>

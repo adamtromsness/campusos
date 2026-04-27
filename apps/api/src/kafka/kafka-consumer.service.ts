@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  OnApplicationShutdown,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { Consumer, Kafka } from 'kafkajs';
 
 /**
@@ -142,9 +137,7 @@ export class KafkaConsumerService implements OnModuleInit, OnApplicationShutdown
             try {
               payload = JSON.parse(params.message.value.toString('utf8'));
             } catch (e: any) {
-              logger.warn(
-                'Failed to parse payload on ' + params.topic + ': ' + (e?.message || e),
-              );
+              logger.warn('Failed to parse payload on ' + params.topic + ': ' + (e?.message || e));
               return;
             }
           }
@@ -160,21 +153,25 @@ export class KafkaConsumerService implements OnModuleInit, OnApplicationShutdown
             await handler(msg);
           } catch (e: any) {
             logger.error(
-              'Handler error on ' + msg.topic + ' (key=' + (msg.key || '-') + '): ' +
+              'Handler error on ' +
+                msg.topic +
+                ' (key=' +
+                (msg.key || '-') +
+                '): ' +
                 (e?.stack || e?.message || e),
             );
           }
         },
       });
       this.consumers.push(consumer);
-      this.logger.log(
-        'Subscribed: groupId=' + opts.groupId + ' topics=' + opts.topics.join(','),
-      );
+      this.logger.log('Subscribed: groupId=' + opts.groupId + ' topics=' + opts.topics.join(','));
     } catch (e: any) {
       this.connected = false;
       this.logger.warn(
-        'Kafka unavailable for consumer groupId=' + opts.groupId +
-          ' — events will be skipped. ' + (e?.message || e),
+        'Kafka unavailable for consumer groupId=' +
+          opts.groupId +
+          ' — events will be skipped. ' +
+          (e?.message || e),
       );
       try {
         await consumer.disconnect();

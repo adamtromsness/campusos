@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
@@ -53,7 +45,7 @@ export class SubmissionController {
   @ApiOperation({
     summary:
       'Teacher / admin view: roster + submissions for the assignment. Students who have not ' +
-      "submitted appear as NOT_STARTED rows (no row id). Forbidden for students / parents.",
+      'submitted appear as NOT_STARTED rows (no row id). Forbidden for students / parents.',
   })
   async listForAssignment(
     @Param('assignmentId', ParseUUIDPipe) assignmentId: string,

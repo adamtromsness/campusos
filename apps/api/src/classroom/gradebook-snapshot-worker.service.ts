@@ -1,20 +1,9 @@
-import {
-  Injectable,
-  Logger,
-  OnApplicationShutdown,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import {
-  KafkaConsumerService,
-  ConsumedMessage,
-} from '../kafka/kafka-consumer.service';
+import { KafkaConsumerService, ConsumedMessage } from '../kafka/kafka-consumer.service';
 import { IdempotencyService } from '../kafka/idempotency.service';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
-import {
-  TenantInfo,
-  runWithTenantContextAsync,
-} from '../tenant/tenant.context';
+import { TenantInfo, runWithTenantContextAsync } from '../tenant/tenant.context';
 
 /**
  * GradebookSnapshotWorker — first Kafka consumer in CampusOS.
@@ -133,7 +122,9 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
     var schoolId = msg.headers['tenant-id'];
     if (!eventId || !subdomain || !schoolId) {
       this.logger.warn(
-        'Dropping ' + msg.topic + ' — missing transport headers (event-id/tenant-id/tenant-subdomain)',
+        'Dropping ' +
+          msg.topic +
+          ' — missing transport headers (event-id/tenant-id/tenant-subdomain)',
       );
       return;
     }
@@ -182,9 +173,7 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
       if (!entry) return;
       self.debounce.delete(key);
       self.flush(key, entry).catch(function (e) {
-        self.logger.error(
-          'Flush failed for ' + key + ': ' + (e?.stack || e?.message || e),
-        );
+        self.logger.error('Flush failed for ' + key + ': ' + (e?.stack || e?.message || e));
       });
     }, DEBOUNCE_MS);
     timer.unref?.();
@@ -268,7 +257,11 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
     }
     if (!termId) {
       this.logger.warn(
-        'Skipping snapshot for class=' + classId + ' student=' + studentId + ' — no terms in tenant',
+        'Skipping snapshot for class=' +
+          classId +
+          ' student=' +
+          studentId +
+          ' — no terms in tenant',
       );
       return;
     }
@@ -320,9 +313,10 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
     var catNames = Object.keys(perCat);
     for (var ci = 0; ci < catNames.length; ci++) {
       var cb = perCat[catNames[ci]!]!;
-      var catAvg = cb.pcts.reduce(function (s, x) {
-        return s + x;
-      }, 0) / cb.pcts.length;
+      var catAvg =
+        cb.pcts.reduce(function (s, x) {
+          return s + x;
+        }, 0) / cb.pcts.length;
       weightedSum += catAvg * cb.weight;
       weightTotal += cb.weight;
       assignmentsGraded += cb.pcts.length;
@@ -357,9 +351,18 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
     });
 
     this.logger.log(
-      'Snapshot recomputed: class=' + classId + ' student=' + studentId +
-        ' avg=' + currentAvg.toFixed(2) + ' letter=' + letter +
-        ' graded=' + assignmentsGraded + '/' + totalCount,
+      'Snapshot recomputed: class=' +
+        classId +
+        ' student=' +
+        studentId +
+        ' avg=' +
+        currentAvg.toFixed(2) +
+        ' letter=' +
+        letter +
+        ' graded=' +
+        assignmentsGraded +
+        '/' +
+        totalCount,
     );
   }
 }

@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
@@ -164,7 +160,8 @@ export class GradeService {
     }
     var sub = subRows[0]!;
     var meta = await this.loadAssignmentForGrading(sub.assignment_id);
-    if (meta.isDeleted) throw new NotFoundException('Assignment ' + sub.assignment_id + ' not found');
+    if (meta.isDeleted)
+      throw new NotFoundException('Assignment ' + sub.assignment_id + ' not found');
     await this.assignments.assertCanWriteClass(meta.classId, actor);
     if (body.gradeValue > meta.maxPoints && !meta.isExtraCredit) {
       throw new BadRequestException(
@@ -214,8 +211,12 @@ export class GradeService {
       var e = body.entries[ei]!;
       if (e.gradeValue > meta.maxPoints && !meta.isExtraCredit) {
         throw new BadRequestException(
-          'Entry for student ' + e.studentId + ': gradeValue ' + e.gradeValue +
-            ' exceeds max_points ' + meta.maxPoints,
+          'Entry for student ' +
+            e.studentId +
+            ': gradeValue ' +
+            e.gradeValue +
+            ' exceeds max_points ' +
+            meta.maxPoints,
         );
       }
     }
@@ -229,14 +230,20 @@ export class GradeService {
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // Validate every studentId is enrolled in the class — single round-trip.
-      var studentIds = body.entries.map(function (en) { return en.studentId; });
+      var studentIds = body.entries.map(function (en) {
+        return en.studentId;
+      });
       var enrolled = await tx.$queryRawUnsafe<Array<{ student_id: string }>>(
         'SELECT student_id::text AS student_id FROM sis_enrollments ' +
           "WHERE class_id = $1::uuid AND status = 'ACTIVE' AND student_id = ANY($2::uuid[])",
         classId,
         studentIds,
       );
-      var enrolledSet = new Set(enrolled.map(function (r) { return r.student_id; }));
+      var enrolledSet = new Set(
+        enrolled.map(function (r) {
+          return r.student_id;
+        }),
+      );
       for (var k = 0; k < studentIds.length; k++) {
         if (!enrolledSet.has(studentIds[k]!)) {
           throw new BadRequestException(
@@ -255,9 +262,7 @@ export class GradeService {
         );
         var submissionIdLink: string | null = subRows.length > 0 ? subRows[0]!.id : null;
 
-        var existingGrade = await tx.$queryRawUnsafe<
-          Array<{ id: string; is_published: boolean }>
-        >(
+        var existingGrade = await tx.$queryRawUnsafe<Array<{ id: string; is_published: boolean }>>(
           'SELECT id, is_published FROM cls_grades WHERE assignment_id = $1::uuid AND student_id = $2::uuid',
           meta.id,
           entry.studentId,
@@ -424,7 +429,9 @@ export class GradeService {
         'SELECT id FROM cls_grades WHERE assignment_id = $1::uuid AND is_published = false',
         assignmentId,
       );
-      var ids = rows.map(function (r) { return r.id; });
+      var ids = rows.map(function (r) {
+        return r.id;
+      });
       if (ids.length > 0) {
         await tx.$executeRawUnsafe(
           'UPDATE cls_grades SET is_published = true, ' +

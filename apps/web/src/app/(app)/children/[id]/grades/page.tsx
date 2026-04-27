@@ -31,10 +31,7 @@ export default function ChildGradesPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <Link
-        href="/dashboard"
-        className="mb-3 inline-block text-sm text-campus-700 underline"
-      >
+      <Link href="/dashboard" className="mb-3 inline-block text-sm text-campus-700 underline">
         ← Back to dashboard
       </Link>
       <PageHeader
@@ -91,13 +88,7 @@ export default function ChildGradesPage() {
   );
 }
 
-function ProgressNotesSection({
-  notes,
-  loading,
-}: {
-  notes: ProgressNoteDto[];
-  loading: boolean;
-}) {
+function ProgressNotesSection({ notes, loading }: { notes: ProgressNoteDto[]; loading: boolean }) {
   if (loading) return null;
   const visible = notes.filter((n) => n.isParentVisible && n.publishedAt !== null);
   if (visible.length === 0) return null;
@@ -106,17 +97,12 @@ function ProgressNotesSection({
       <h2 className="mb-3 text-base font-semibold text-gray-900">Teacher progress notes</h2>
       <ul className="space-y-3">
         {visible.map((n) => (
-          <li
-            key={n.id}
-            className="rounded-card border border-gray-200 bg-white p-4 shadow-card"
-          >
+          <li key={n.id} className="rounded-card border border-gray-200 bg-white p-4 shadow-card">
             <div className="flex items-center justify-between text-xs text-gray-500">
               <span>
                 {n.overallEffortRating ? n.overallEffortRating.replace('_', ' ') : 'Note'}
               </span>
-              {n.publishedAt && (
-                <span>{new Date(n.publishedAt).toLocaleDateString()}</span>
-              )}
+              {n.publishedAt && <span>{new Date(n.publishedAt).toLocaleDateString()}</span>}
             </div>
             <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{n.noteText}</p>
           </li>

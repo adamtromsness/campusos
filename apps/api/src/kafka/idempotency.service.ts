@@ -47,7 +47,11 @@ export class IdempotencyService {
     } catch (e: any) {
       var code = e?.meta?.code || e?.code;
       // Prisma raw errors surface PG SQLSTATE on `e.code`; 23505 = unique_violation.
-      if (code === '23505' || (typeof e?.message === 'string' && e.message.includes('platform_event_consumer_idempotency_consumer_group_event_id_key'))) {
+      if (
+        code === '23505' ||
+        (typeof e?.message === 'string' &&
+          e.message.includes('platform_event_consumer_idempotency_consumer_group_event_id_key'))
+      ) {
         this.logger.debug(
           'Idempotency hit — skip (group=' + consumerGroup + ', eventId=' + eventId + ')',
         );

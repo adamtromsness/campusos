@@ -27,7 +27,11 @@ var ASSIGNMENT_TYPES: Array<{ name: string; category: string; weightInCategory: 
 ];
 
 // Per-class category weights — must sum to 100.
-var CATEGORY_WEIGHTS: Array<{ name: 'Homework' | 'Assessments' | 'Participation'; weight: number; sortOrder: number }> = [
+var CATEGORY_WEIGHTS: Array<{
+  name: 'Homework' | 'Assessments' | 'Participation';
+  weight: number;
+  sortOrder: number;
+}> = [
   { name: 'Homework', weight: 30, sortOrder: 1 },
   { name: 'Assessments', weight: 50, sortOrder: 2 },
   { name: 'Participation', weight: 20, sortOrder: 3 },
@@ -35,23 +39,119 @@ var CATEGORY_WEIGHTS: Array<{ name: 'Homework' | 'Assessments' | 'Participation'
 
 var ASSIGNMENTS: AssignmentSpec[] = [
   // P1 — Algebra 1 (MATH-101)
-  { period: '1', title: 'Linear Equations Quiz', typeName: 'Quiz', categoryName: 'Assessments', maxPoints: 100, dueDate: '2026-02-15T15:00:00Z', fullyGraded: true },
-  { period: '1', title: 'Quadratics Homework Set', typeName: 'Homework', categoryName: 'Homework', maxPoints: 50, dueDate: '2026-04-15T15:00:00Z', fullyGraded: false },
+  {
+    period: '1',
+    title: 'Linear Equations Quiz',
+    typeName: 'Quiz',
+    categoryName: 'Assessments',
+    maxPoints: 100,
+    dueDate: '2026-02-15T15:00:00Z',
+    fullyGraded: true,
+  },
+  {
+    period: '1',
+    title: 'Quadratics Homework Set',
+    typeName: 'Homework',
+    categoryName: 'Homework',
+    maxPoints: 50,
+    dueDate: '2026-04-15T15:00:00Z',
+    fullyGraded: false,
+  },
   // P2 — English 9 (ELA-101)
-  { period: '2', title: 'To Kill a Mockingbird Essay', typeName: 'Test', categoryName: 'Assessments', maxPoints: 100, dueDate: '2026-02-20T15:00:00Z', fullyGraded: true },
-  { period: '2', title: 'Vocabulary Quiz #5', typeName: 'Quiz', categoryName: 'Assessments', maxPoints: 25, dueDate: '2026-04-20T15:00:00Z', fullyGraded: false },
+  {
+    period: '2',
+    title: 'To Kill a Mockingbird Essay',
+    typeName: 'Test',
+    categoryName: 'Assessments',
+    maxPoints: 100,
+    dueDate: '2026-02-20T15:00:00Z',
+    fullyGraded: true,
+  },
+  {
+    period: '2',
+    title: 'Vocabulary Quiz #5',
+    typeName: 'Quiz',
+    categoryName: 'Assessments',
+    maxPoints: 25,
+    dueDate: '2026-04-20T15:00:00Z',
+    fullyGraded: false,
+  },
   // P3 — Biology (SCI-101)
-  { period: '3', title: 'Cell Structure Test', typeName: 'Test', categoryName: 'Assessments', maxPoints: 100, dueDate: '2026-02-25T15:00:00Z', fullyGraded: true },
-  { period: '3', title: 'Photosynthesis Lab Report', typeName: 'Project', categoryName: 'Homework', maxPoints: 75, dueDate: '2026-04-25T15:00:00Z', fullyGraded: false },
+  {
+    period: '3',
+    title: 'Cell Structure Test',
+    typeName: 'Test',
+    categoryName: 'Assessments',
+    maxPoints: 100,
+    dueDate: '2026-02-25T15:00:00Z',
+    fullyGraded: true,
+  },
+  {
+    period: '3',
+    title: 'Photosynthesis Lab Report',
+    typeName: 'Project',
+    categoryName: 'Homework',
+    maxPoints: 75,
+    dueDate: '2026-04-25T15:00:00Z',
+    fullyGraded: false,
+  },
   // P4 — World History (SS-101)
-  { period: '4', title: 'Industrial Revolution Essay', typeName: 'Test', categoryName: 'Assessments', maxPoints: 100, dueDate: '2026-03-01T15:00:00Z', fullyGraded: true },
-  { period: '4', title: 'Map Quiz: Europe', typeName: 'Quiz', categoryName: 'Assessments', maxPoints: 50, dueDate: '2026-04-22T15:00:00Z', fullyGraded: false },
+  {
+    period: '4',
+    title: 'Industrial Revolution Essay',
+    typeName: 'Test',
+    categoryName: 'Assessments',
+    maxPoints: 100,
+    dueDate: '2026-03-01T15:00:00Z',
+    fullyGraded: true,
+  },
+  {
+    period: '4',
+    title: 'Map Quiz: Europe',
+    typeName: 'Quiz',
+    categoryName: 'Assessments',
+    maxPoints: 50,
+    dueDate: '2026-04-22T15:00:00Z',
+    fullyGraded: false,
+  },
   // P5 — Geometry (MATH-201)
-  { period: '5', title: 'Theorems & Proofs Test', typeName: 'Test', categoryName: 'Assessments', maxPoints: 100, dueDate: '2026-03-05T15:00:00Z', fullyGraded: true },
-  { period: '5', title: 'Triangles Homework', typeName: 'Homework', categoryName: 'Homework', maxPoints: 30, dueDate: '2026-04-26T15:00:00Z', fullyGraded: false },
+  {
+    period: '5',
+    title: 'Theorems & Proofs Test',
+    typeName: 'Test',
+    categoryName: 'Assessments',
+    maxPoints: 100,
+    dueDate: '2026-03-05T15:00:00Z',
+    fullyGraded: true,
+  },
+  {
+    period: '5',
+    title: 'Triangles Homework',
+    typeName: 'Homework',
+    categoryName: 'Homework',
+    maxPoints: 30,
+    dueDate: '2026-04-26T15:00:00Z',
+    fullyGraded: false,
+  },
   // P6 — Chemistry (SCI-201)
-  { period: '6', title: 'Periodic Table Quiz', typeName: 'Quiz', categoryName: 'Assessments', maxPoints: 50, dueDate: '2026-03-10T15:00:00Z', fullyGraded: true },
-  { period: '6', title: 'Stoichiometry Lab', typeName: 'Project', categoryName: 'Homework', maxPoints: 75, dueDate: '2026-04-28T15:00:00Z', fullyGraded: false },
+  {
+    period: '6',
+    title: 'Periodic Table Quiz',
+    typeName: 'Quiz',
+    categoryName: 'Assessments',
+    maxPoints: 50,
+    dueDate: '2026-03-10T15:00:00Z',
+    fullyGraded: true,
+  },
+  {
+    period: '6',
+    title: 'Stoichiometry Lab',
+    typeName: 'Project',
+    categoryName: 'Homework',
+    maxPoints: 75,
+    dueDate: '2026-04-28T15:00:00Z',
+    fullyGraded: false,
+  },
 ];
 
 // Deterministic per-(student, assignment) percentage generator. Output range 70..98
@@ -158,7 +258,10 @@ async function seedClassroom() {
   for (var ei = 0; ei < enrollments.length; ei++) {
     var en = enrollments[ei]!;
     if (!rosterByClassId[en.class_id]) rosterByClassId[en.class_id] = [];
-    rosterByClassId[en.class_id]!.push({ studentId: en.student_id, studentNumber: en.student_number });
+    rosterByClassId[en.class_id]!.push({
+      studentId: en.student_id,
+      studentNumber: en.student_number,
+    });
   }
 
   // ── 1. Default grading scale ──
@@ -220,7 +323,9 @@ async function seedClassroom() {
       totalCategories++;
     }
   }
-  console.log('  ' + totalCategories + ' cls_assignment_categories (3 per class, weights 30/50/20)');
+  console.log(
+    '  ' + totalCategories + ' cls_assignment_categories (3 per class, weights 30/50/20)',
+  );
 
   // ── 4. Assignments (12) ──
   // Track the assignment context for the submission/grade/snapshot phases.
@@ -269,7 +374,9 @@ async function seedClassroom() {
       indexInClass: idxInClass,
     });
   }
-  console.log('  ' + assignmentRows.length + ' cls_assignments (12, 2 per class, all is_published=true)');
+  console.log(
+    '  ' + assignmentRows.length + ' cls_assignments (12, 2 per class, all is_published=true)',
+  );
 
   // ── 5. Submissions + 6. Grades ──
   // Rule:
@@ -288,7 +395,11 @@ async function seedClassroom() {
     var row = assignmentRows[ari]!;
     var roster = rosterByClassId[row.classId] || [];
     var partialDropStudent: string | null = null;
-    if (!row.spec.fullyGraded && (row.period === '1' || row.period === '5') && row.indexInClass === 1) {
+    if (
+      !row.spec.fullyGraded &&
+      (row.period === '1' || row.period === '5') &&
+      row.indexInClass === 1
+    ) {
       // Skip the last student in the roster to leave a "no submission" state.
       partialDropStudent = roster[roster.length - 1]!.studentNumber;
     }
@@ -362,7 +473,13 @@ async function seedClassroom() {
   }
   console.log('  ' + submissionCount + ' cls_submissions');
   console.log(
-    '  ' + gradeCount + ' cls_grades (' + publishedGradeCount + ' published, ' + (gradeCount - publishedGradeCount) + ' draft)',
+    '  ' +
+      gradeCount +
+      ' cls_grades (' +
+      publishedGradeCount +
+      ' published, ' +
+      (gradeCount - publishedGradeCount) +
+      ' draft)',
   );
 
   // ── 7. Gradebook snapshots — weighted by category, only categories with at least one published grade contribute ──
@@ -399,7 +516,10 @@ async function seedClassroom() {
     );
 
     // Group by student → category → list of pct
-    var pctByStudentCategory: Record<string, Record<string, { pcts: number[]; weight: number }>> = {};
+    var pctByStudentCategory: Record<
+      string,
+      Record<string, { pcts: number[]; weight: number }>
+    > = {};
     for (var gi = 0; gi < classGrades.length; gi++) {
       var gr = classGrades[gi]!;
       var pct2 = (Number(gr.grade_value) / Number(gr.max_points)) * 100;
@@ -431,7 +551,10 @@ async function seedClassroom() {
       var assignmentsGraded = 0;
       for (var cni = 0; cni < catNames.length; cni++) {
         var catBucket = perCat[catNames[cni]!]!;
-        var catAvg = catBucket.pcts.reduce(function (s, x) { return s + x; }, 0) / catBucket.pcts.length;
+        var catAvg =
+          catBucket.pcts.reduce(function (s, x) {
+            return s + x;
+          }, 0) / catBucket.pcts.length;
         weightedSum += catAvg * catBucket.weight;
         weightTotal += catBucket.weight;
         assignmentsGraded += catBucket.pcts.length;

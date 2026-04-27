@@ -9,9 +9,9 @@ export interface AssignmentFormValues {
   title: string;
   instructions: string;
   assignmentTypeId: string;
-  categoryId: string;       // '' = no category
-  dueDate: string;          // datetime-local string ('' = no deadline)
-  maxPoints: string;        // string for the input — coerced on submit
+  categoryId: string; // '' = no category
+  dueDate: string; // datetime-local string ('' = no deadline)
+  maxPoints: string; // string for the input — coerced on submit
   isExtraCredit: boolean;
   isPublished: boolean;
 }
@@ -92,7 +92,10 @@ export function AssignmentForm({
   const categories = categoriesQuery.data ?? [];
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 rounded-card border border-gray-200 bg-white p-5 shadow-card">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-5 rounded-card border border-gray-200 bg-white p-5 shadow-card"
+    >
       <Field label="Title" required>
         <input
           type="text"

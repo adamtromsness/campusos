@@ -155,10 +155,7 @@ export function useStudentGradebook(studentId: string | undefined, termId?: stri
 
 // ── Per-class student grade breakdown (Step 9) ──────────────────────────
 
-export function useStudentClassGrades(
-  studentId: string | undefined,
-  classId: string | undefined,
-) {
+export function useStudentClassGrades(studentId: string | undefined, classId: string | undefined) {
   return useQuery({
     queryKey: ['classroom', 'student-class-grades', studentId, classId],
     queryFn: () =>
@@ -334,8 +331,7 @@ export function usePublishAllGrades(classId: string) {
 export function useStudentProgressNotes(studentId: string | undefined) {
   return useQuery({
     queryKey: ['classroom', 'progress-notes', 'student', studentId],
-    queryFn: () =>
-      apiFetch<ProgressNoteDto[]>(`/api/v1/students/${studentId}/progress-notes`),
+    queryFn: () => apiFetch<ProgressNoteDto[]>(`/api/v1/students/${studentId}/progress-notes`),
     enabled: !!studentId,
   });
 }

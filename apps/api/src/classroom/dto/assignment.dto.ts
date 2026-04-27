@@ -15,7 +15,7 @@ import {
 export class ListAssignmentsQueryDto {
   @ApiPropertyOptional({
     description:
-      "Include unpublished assignments (drafts) and the teacher view of due dates. " +
+      'Include unpublished assignments (drafts) and the teacher view of due dates. ' +
       'Ignored for student/parent callers — they only ever see published, non-deleted rows.',
   })
   @IsOptional()

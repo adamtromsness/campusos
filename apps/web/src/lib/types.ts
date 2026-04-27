@@ -200,12 +200,7 @@ export interface UpsertCategoryEntry {
 
 // ── Submissions, grades, gradebook (Cycle 2 Step 8) ──────────────────────
 
-export type SubmissionStatus =
-  | 'NOT_STARTED'
-  | 'IN_PROGRESS'
-  | 'SUBMITTED'
-  | 'GRADED'
-  | 'RETURNED';
+export type SubmissionStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'SUBMITTED' | 'GRADED' | 'RETURNED';
 
 export interface SubmissionStudentSummary {
   id: string;

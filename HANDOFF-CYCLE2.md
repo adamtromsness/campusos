@@ -11,18 +11,18 @@ This document tracks the Cycle 2 build — the M21 Classroom module — at the s
 
 ## Step status
 
-| Step | Title                                           | Status                                                              |
-| ---: | ----------------------------------------------- | ------------------------------------------------------------------- |
-|    1 | Classroom Schema — Lessons & Assignments        | Done — `005_cls_lessons_and_assignments.sql` applied to demo + test |
-|    2 | Classroom Schema — Submissions & Grading        | Done — `006_cls_submissions_and_grading.sql` applied to demo + test |
-|    3 | Seed Data — Assignments & Grades                | Done — `seed-classroom.ts` lands 12 assignments + 80 submissions + 62 grades + 41 snapshots; TCH role-permission map updated |
-|    4 | Classroom NestJS Module — Assignments           | Done — `apps/api/src/classroom/` ships AssignmentService, CategoryService, controllers; 7 endpoints under `tch-002:read/write` with row-level auth |
-|    5 | Classroom NestJS Module — Submissions & Grading | Done — SubmissionService + GradeService + GradebookService + ProgressNoteService; 12 endpoints; per-class write gate; draft-grade visibility hidden from students/parents; Kafka emits for `cls.submission.submitted`, `cls.grade.published`, `cls.grade.unpublished`, `cls.progress_note.published` |
-|    6 | Kafka Events & Gradebook Snapshot Worker        | Done — `KafkaConsumerService`, `IdempotencyService`, `GradebookSnapshotWorker`; subscribes to `cls.grade.{published,unpublished}` (group `gradebook-snapshot-worker`); 30s debounce per `(schoolId, classId, studentId)`; idempotent via `platform_event_consumer_idempotency`; reuses the seed's weighted-average algorithm verbatim |
-|    7 | Teacher Assignments UI                          | Done — `ClassTabs` shell + `/classes/:id/assignments` list (filter, delete) + `/new` + `/[assignmentId]/edit` + `CategoryWeightModal`; new `GET /assignment-types` endpoint exposes the school's type catalogue to the create form |
-|    8 | Teacher Grading UI                              | Done — `/classes/:id/gradebook` grid (color-coded cells × inline editor × per-assignment "Publish all"), `/assignments/:id/submissions` queue, `/submissions/:id` detail with grade entry; `ProgressNoteModal` per student; **fix to grade.service.ts** so updates to already-published grades emit `cls.grade.published` (Step 5 emit bug — only transitions were emitting before) |
+| Step | Title                                           | Status                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---: | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|    1 | Classroom Schema — Lessons & Assignments        | Done — `005_cls_lessons_and_assignments.sql` applied to demo + test                                                                                                                                                                                                                                                                                                                      |
+|    2 | Classroom Schema — Submissions & Grading        | Done — `006_cls_submissions_and_grading.sql` applied to demo + test                                                                                                                                                                                                                                                                                                                      |
+|    3 | Seed Data — Assignments & Grades                | Done — `seed-classroom.ts` lands 12 assignments + 80 submissions + 62 grades + 41 snapshots; TCH role-permission map updated                                                                                                                                                                                                                                                             |
+|    4 | Classroom NestJS Module — Assignments           | Done — `apps/api/src/classroom/` ships AssignmentService, CategoryService, controllers; 7 endpoints under `tch-002:read/write` with row-level auth                                                                                                                                                                                                                                       |
+|    5 | Classroom NestJS Module — Submissions & Grading | Done — SubmissionService + GradeService + GradebookService + ProgressNoteService; 12 endpoints; per-class write gate; draft-grade visibility hidden from students/parents; Kafka emits for `cls.submission.submitted`, `cls.grade.published`, `cls.grade.unpublished`, `cls.progress_note.published`                                                                                     |
+|    6 | Kafka Events & Gradebook Snapshot Worker        | Done — `KafkaConsumerService`, `IdempotencyService`, `GradebookSnapshotWorker`; subscribes to `cls.grade.{published,unpublished}` (group `gradebook-snapshot-worker`); 30s debounce per `(schoolId, classId, studentId)`; idempotent via `platform_event_consumer_idempotency`; reuses the seed's weighted-average algorithm verbatim                                                    |
+|    7 | Teacher Assignments UI                          | Done — `ClassTabs` shell + `/classes/:id/assignments` list (filter, delete) + `/new` + `/[assignmentId]/edit` + `CategoryWeightModal`; new `GET /assignment-types` endpoint exposes the school's type catalogue to the create form                                                                                                                                                       |
+|    8 | Teacher Grading UI                              | Done — `/classes/:id/gradebook` grid (color-coded cells × inline editor × per-assignment "Publish all"), `/assignments/:id/submissions` queue, `/submissions/:id` detail with grade entry; `ProgressNoteModal` per student; **fix to grade.service.ts** so updates to already-published grades emit `cls.grade.published` (Step 5 emit bug — only transitions were emitting before)      |
 |    9 | Student & Parent Grade Views                    | Done — `StudentDashboard` + `/assignments` inbox + `/assignments/:id` student detail/submit + `/grades` + `/grades/:classId` per-class breakdown; parent: per-child Grades section on `ParentDashboard` + `/children/:id/grades` + `/children/:id/grades/:classId` w/ visible progress notes. Two new endpoints: `GET /students/me`, `GET /students/:studentId/classes/:classId/grades`. |
-|   10 | Vertical Slice Integration Test                 | Done — `docs/cycle2-cat-script.md` captures a live 9-step API walkthrough plus 3 permission denials, all green. Demo state restored at end of run. |
+|   10 | Vertical Slice Integration Test                 | Done — `docs/cycle2-cat-script.md` captures a live 9-step API walkthrough plus 3 permission denials, all green. Demo state restored at end of run.                                                                                                                                                                                                                                       |
 
 The Cycle 2 exit deliverable is the end-to-end vertical slice: assignment creation → submission → grading → publish → snapshot debounced recomputation → parent sees updated average. The reproducible CAT script will land at `docs/cycle2-cat-script.md` as the Step 10 deliverable.
 
@@ -129,11 +129,11 @@ All Cycle 2 migrations live in `packages/database/prisma/tenant/migrations/`. Th
 
 Cycle 2 surfaces the TCH function group from the Function Library v11. Codes already exist in `packages/database/data/permissions.json` (the Cycle 1 reconciliation pulled the full 148/444 catalogue, including TCH). Step 3 (seed) wired them into roles via `seed-iam.ts`:
 
-| Code        | Function     | Roles (after Step 3)                                                                                  |
-| ----------- | ------------ | ----------------------------------------------------------------------------------------------------- |
-| `tch-002:*` | Assignments  | Teacher: read/write. Student: read/write (so the submit endpoint can pass). Parent: read.            |
-| `tch-003:*` | Grade Book   | Teacher: read/write. Student/Parent: read (row-scoped to own/linked rows by `ActorContextService`).   |
-| `tch-004:*` | Report Cards | Teacher: read/write. Student/Parent: read.                                                            |
+| Code        | Function     | Roles (after Step 3)                                                                                |
+| ----------- | ------------ | --------------------------------------------------------------------------------------------------- |
+| `tch-002:*` | Assignments  | Teacher: read/write. Student: read/write (so the submit endpoint can pass). Parent: read.           |
+| `tch-003:*` | Grade Book   | Teacher: read/write. Student/Parent: read (row-scoped to own/linked rows by `ActorContextService`). |
+| `tch-004:*` | Report Cards | Teacher: read/write. Student/Parent: read.                                                          |
 
 Student keeps `tch-002:write` rather than just `read` because submitting an assignment is a write under the same function code (no separate "submit-own-work" code exists). Row-level scoping in the Step 5 service will enforce that students can only insert/update submissions where `student_id = self`.
 
@@ -370,9 +370,9 @@ WHERE c.contype='f' AND tn.nspname='tenant_demo' AND rn.nspname <> 'tenant_demo'
 | `cls_assignments`            |   12 | 2 per class. All `is_published=true`. Mix of Quiz / Test / Project / Homework. Due dates spread Feb–Apr 2026.                            |
 | `cls_submissions`            |   80 | One per (assignment, enrolled student) for fully-graded assignments (41); partial assignments drop one submission per period 1 / 5 (39). |
 | `cls_grades`                 |   62 | All 41 fully-graded submissions get a published grade; 21 of the 39 partial submissions get graded, of which 12 are published.           |
-|   ↳ `is_published=true`      |   53 | Used by snapshot computation.                                                                                                            |
-|   ↳ `is_published=false`     |    9 | Draft grades on partial-graded assignments — exercises the publish/unpublish path that Step 5 will build.                                |
-| `cls_gradebook_snapshots`    |   41 | One per (class, student, term=Spring 2026) where the student has at least one published grade. Weighted by category.                    |
+| ↳ `is_published=true`        |   53 | Used by snapshot computation.                                                                                                            |
+| ↳ `is_published=false`       |    9 | Draft grades on partial-graded assignments — exercises the publish/unpublish path that Step 5 will build.                                |
+| `cls_gradebook_snapshots`    |   41 | One per (class, student, term=Spring 2026) where the student has at least one published grade. Weighted by category.                     |
 | `cls_student_progress_notes` |    1 | Maya in P1 Algebra 1, term=Spring 2026, `overall_effort_rating='GOOD'`, `is_parent_visible=true`, `is_student_visible=true`.             |
 
 ### Weighted-average math (snapshot computation)
@@ -408,12 +408,12 @@ pnpm --filter @campusos/database seed:classroom   # idempotent re-run
 
 Maya's snapshots (verified end-to-end against the raw grade table):
 
-| Period | Class            | Snapshot avg | Letter | Graded / Total |
-| -----: | ---------------- | -----------: | :----: | -------------: |
-|      1 | Algebra 1        |        90.50 | A      |          2 / 2 |
-|      2 | English 9        |        92.00 | A      |          2 / 2 |
-|      3 | Biology          |        89.75 | B      |          2 / 2 |
-|      4 | World History    |        90.00 | A      |          2 / 2 |
+| Period | Class         | Snapshot avg | Letter | Graded / Total |
+| -----: | ------------- | -----------: | :----: | -------------: |
+|      1 | Algebra 1     |        90.50 |   A    |          2 / 2 |
+|      2 | English 9     |        92.00 |   A    |          2 / 2 |
+|      3 | Biology       |        89.75 |   B    |          2 / 2 |
+|      4 | World History |        90.00 |   A    |          2 / 2 |
 
 Manual recomputation of P1 Algebra 1 from the raw grades:
 
@@ -460,15 +460,15 @@ parent@demo.campusos.dev    →  11 permissions   (was 10 — added tch-002:read
 
 ### Endpoints landed (7)
 
-| Method | Path                                    | Permission         | Notes                                                                            |
-| ------ | --------------------------------------- | ------------------ | -------------------------------------------------------------------------------- |
-| GET    | `/classes/:classId/assignments`         | `tch-002:read`     | Row-scoped. `?includeUnpublished=true` honoured only for managers (teacher/admin). |
-| GET    | `/assignments/:id`                      | `tch-002:read`     | Row-scoped. Students/parents only see published, non-deleted rows.               |
-| POST   | `/classes/:classId/assignments`         | `tch-002:write`    | Teacher-of-class or admin only. Validates `assignmentTypeId`, `categoryId`.       |
-| PATCH  | `/assignments/:id`                      | `tch-002:write`    | Partial update. Teacher-of-class or admin.                                       |
-| DELETE | `/assignments/:id`                      | `tch-002:write`    | Soft delete (`deleted_at = now()`). Returns 204.                                 |
-| GET    | `/classes/:classId/categories`          | `tch-002:read`     | Row-scoped read of `cls_assignment_categories`.                                  |
-| PUT    | `/classes/:classId/categories`          | `tch-002:write`    | Atomic replace by name. Weights MUST sum to 100. 409 if removed-but-still-referenced. |
+| Method | Path                            | Permission      | Notes                                                                                 |
+| ------ | ------------------------------- | --------------- | ------------------------------------------------------------------------------------- |
+| GET    | `/classes/:classId/assignments` | `tch-002:read`  | Row-scoped. `?includeUnpublished=true` honoured only for managers (teacher/admin).    |
+| GET    | `/assignments/:id`              | `tch-002:read`  | Row-scoped. Students/parents only see published, non-deleted rows.                    |
+| POST   | `/classes/:classId/assignments` | `tch-002:write` | Teacher-of-class or admin only. Validates `assignmentTypeId`, `categoryId`.           |
+| PATCH  | `/assignments/:id`              | `tch-002:write` | Partial update. Teacher-of-class or admin.                                            |
+| DELETE | `/assignments/:id`              | `tch-002:write` | Soft delete (`deleted_at = now()`). Returns 204.                                      |
+| GET    | `/classes/:classId/categories`  | `tch-002:read`  | Row-scoped read of `cls_assignment_categories`.                                       |
+| PUT    | `/classes/:classId/categories`  | `tch-002:write` | Atomic replace by name. Weights MUST sum to 100. 409 if removed-but-still-referenced. |
 
 ### Authorisation semantics (Step 4)
 
@@ -490,24 +490,24 @@ pnpm --filter @campusos/api start       # API boots, all 7 routes mapped
 
 Smoke matrix (full curl trace in this commit's working notes — boiled down here):
 
-| # | Scenario                                                                        | Expected | Got |
-| - | ------------------------------------------------------------------------------- | -------- | --- |
-| 1 | Teacher GET `/classes/:id/assignments` for assigned class                       | 2 rows   | ✅  |
-| 2 | Teacher GET `/classes/:id/categories`                                           | 3 rows (30/50/20) | ✅ |
-| 3 | Teacher POST draft assignment                                                   | 201, `isPublished=false`  | ✅ |
-| 4 | Student GET draft by id                                                         | 404      | ✅  |
-| 5 | Student GET `/classes/:id/assignments` (draft hidden)                           | 2 rows, no draft | ✅ |
-| 6 | Teacher PATCH `{isPublished:true}`                                              | 200      | ✅  |
-| 7 | Student GET after publish                                                       | 200      | ✅  |
-| 8 | Parent GET after publish                                                        | 200      | ✅  |
-| 9 | Teacher DELETE                                                                  | 204      | ✅  |
-| 10 | Student GET deleted assignment                                                 | 404      | ✅  |
-| 11 | Teacher list `?includeUnpublished=true` after delete                            | soft-deleted hidden | ✅ |
-| 12 | Student POST assignment (has `tch-002:write` but no class membership)           | 403      | ✅  |
-| 13 | Admin (principal) POST assignment in any class                                  | 201      | ✅  |
-| 14 | Categories PUT with weights summing to 110                                      | 400      | ✅  |
-| 15 | Categories PUT removing a category still referenced by an assignment            | 409      | ✅  |
-| 16 | Categories PUT valid rebalance (25/55/20)                                       | 200, returns 3 rows | ✅ |
+| #   | Scenario                                                              | Expected                 | Got |
+| --- | --------------------------------------------------------------------- | ------------------------ | --- |
+| 1   | Teacher GET `/classes/:id/assignments` for assigned class             | 2 rows                   | ✅  |
+| 2   | Teacher GET `/classes/:id/categories`                                 | 3 rows (30/50/20)        | ✅  |
+| 3   | Teacher POST draft assignment                                         | 201, `isPublished=false` | ✅  |
+| 4   | Student GET draft by id                                               | 404                      | ✅  |
+| 5   | Student GET `/classes/:id/assignments` (draft hidden)                 | 2 rows, no draft         | ✅  |
+| 6   | Teacher PATCH `{isPublished:true}`                                    | 200                      | ✅  |
+| 7   | Student GET after publish                                             | 200                      | ✅  |
+| 8   | Parent GET after publish                                              | 200                      | ✅  |
+| 9   | Teacher DELETE                                                        | 204                      | ✅  |
+| 10  | Student GET deleted assignment                                        | 404                      | ✅  |
+| 11  | Teacher list `?includeUnpublished=true` after delete                  | soft-deleted hidden      | ✅  |
+| 12  | Student POST assignment (has `tch-002:write` but no class membership) | 403                      | ✅  |
+| 13  | Admin (principal) POST assignment in any class                        | 201                      | ✅  |
+| 14  | Categories PUT with weights summing to 110                            | 400                      | ✅  |
+| 15  | Categories PUT removing a category still referenced by an assignment  | 409                      | ✅  |
+| 16  | Categories PUT valid rebalance (25/55/20)                             | 200, returns 3 rows      | ✅  |
 
 Test data was cleaned up afterwards; P1 weights restored to 30/50/20 to keep the seed snapshot math intact.
 
@@ -536,21 +536,21 @@ Test data was cleaned up afterwards; P1 weights restored to 30/50/20 to keep the
 
 ### Endpoints landed (12)
 
-| Method | Path                                          | Permission        | Notes                                                                                                                                                  |
-| ------ | --------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| POST   | `/assignments/:id/submit`                     | `tch-002:write`   | Student-only (403 for non-students). Idempotent upsert; resubmit overwrites text + flips status back to `SUBMITTED`. Emits `cls.submission.submitted`. |
-| GET    | `/assignments/:id/submissions`                | `tch-002:read`    | Teacher / admin only — combines roster + submissions so `NOT_STARTED` rows surface as empty placeholders. Includes counters.                            |
-| GET    | `/assignments/:id/submissions/mine`           | `tch-002:read`    | Student-only. Returns the calling student's submission for the assignment, or `null` if not submitted yet. Hides draft grades.                          |
-| GET    | `/submissions/:id`                            | `tch-002:read`    | Single-row read. Visible to admins, teacher-of-class, owning student, linked guardian. Hides draft grade fields for non-managers.                       |
-| POST   | `/submissions/:id/grade`                      | `tch-003:write`   | Teacher-of-class / admin only. Upserts `cls_grades` by `(assignment, student)`, flips submission to `GRADED`. `publish=true` → emits `cls.grade.published`. |
-| POST   | `/classes/:id/grades/batch`                   | `tch-003:write`   | Single transaction across many entries. Validates each `studentId` is actively enrolled. Emits one event per published row (after commit).             |
-| POST   | `/grades/:id/publish`                         | `tch-003:write`   | Idempotent. Emits `cls.grade.published` only on the draft → published transition.                                                                       |
-| POST   | `/grades/:id/unpublish`                       | `tch-003:write`   | Sets `is_published=false`; keeps `published_at` for audit. Emits `cls.grade.unpublished`.                                                              |
-| POST   | `/classes/:id/grades/publish-all`             | `tch-003:write`   | Body `{assignmentId}`. Bulk-publishes every draft on that assignment in a single tx. Emits one event per row that transitioned.                         |
-| GET    | `/classes/:id/gradebook`                      | `tch-003:read`    | Teacher / admin view. Roster joined to `cls_gradebook_snapshots` for the resolved term (defaults to current term, then most-recent fallback).            |
-| GET    | `/students/:id/gradebook`                     | `tch-003:read`    | Per-student view. Row-scope: admins; self-student; linked guardian; teacher-of-any-enrolled-class. Returns enrolled classes × snapshots.                |
-| POST   | `/classes/:id/progress-notes`                 | `tch-003:write`   | Teacher-of-class / admin. Idempotent upsert by `(class_id, student_id, term_id)`. Always sets `published_at=now()`. Emits `cls.progress_note.published`. |
-| GET    | `/students/:id/progress-notes`                | `tch-003:read`    | Persona-scoped: admins all rows, teachers their classes' rows, students/parents only published rows where the matching visibility flag is `true`.       |
+| Method | Path                                | Permission      | Notes                                                                                                                                                       |
+| ------ | ----------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/assignments/:id/submit`           | `tch-002:write` | Student-only (403 for non-students). Idempotent upsert; resubmit overwrites text + flips status back to `SUBMITTED`. Emits `cls.submission.submitted`.      |
+| GET    | `/assignments/:id/submissions`      | `tch-002:read`  | Teacher / admin only — combines roster + submissions so `NOT_STARTED` rows surface as empty placeholders. Includes counters.                                |
+| GET    | `/assignments/:id/submissions/mine` | `tch-002:read`  | Student-only. Returns the calling student's submission for the assignment, or `null` if not submitted yet. Hides draft grades.                              |
+| GET    | `/submissions/:id`                  | `tch-002:read`  | Single-row read. Visible to admins, teacher-of-class, owning student, linked guardian. Hides draft grade fields for non-managers.                           |
+| POST   | `/submissions/:id/grade`            | `tch-003:write` | Teacher-of-class / admin only. Upserts `cls_grades` by `(assignment, student)`, flips submission to `GRADED`. `publish=true` → emits `cls.grade.published`. |
+| POST   | `/classes/:id/grades/batch`         | `tch-003:write` | Single transaction across many entries. Validates each `studentId` is actively enrolled. Emits one event per published row (after commit).                  |
+| POST   | `/grades/:id/publish`               | `tch-003:write` | Idempotent. Emits `cls.grade.published` only on the draft → published transition.                                                                           |
+| POST   | `/grades/:id/unpublish`             | `tch-003:write` | Sets `is_published=false`; keeps `published_at` for audit. Emits `cls.grade.unpublished`.                                                                   |
+| POST   | `/classes/:id/grades/publish-all`   | `tch-003:write` | Body `{assignmentId}`. Bulk-publishes every draft on that assignment in a single tx. Emits one event per row that transitioned.                             |
+| GET    | `/classes/:id/gradebook`            | `tch-003:read`  | Teacher / admin view. Roster joined to `cls_gradebook_snapshots` for the resolved term (defaults to current term, then most-recent fallback).               |
+| GET    | `/students/:id/gradebook`           | `tch-003:read`  | Per-student view. Row-scope: admins; self-student; linked guardian; teacher-of-any-enrolled-class. Returns enrolled classes × snapshots.                    |
+| POST   | `/classes/:id/progress-notes`       | `tch-003:write` | Teacher-of-class / admin. Idempotent upsert by `(class_id, student_id, term_id)`. Always sets `published_at=now()`. Emits `cls.progress_note.published`.    |
+| GET    | `/students/:id/progress-notes`      | `tch-003:read`  | Persona-scoped: admins all rows, teachers their classes' rows, students/parents only published rows where the matching visibility flag is `true`.           |
 
 (13 routes; `GET /submissions/:id` is the only one not on the original plan list — added because it's the natural sibling for the post-grade response payload and enforces the same row-scope as the assignment-level reads.)
 
@@ -569,12 +569,12 @@ Test data was cleaned up afterwards; P1 weights restored to 30/50/20 to keep the
 
 ### Kafka events emitted (Step 5)
 
-| Topic                          | Key            | Payload (raw — ADR-057 envelope is Cycle 3)                                                                                                              |
-| ------------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cls.submission.submitted`     | `studentId`    | `{ submissionId, assignmentId, classId, studentId, submittedAt }`                                                                                        |
-| `cls.grade.published`          | `studentId`    | `{ gradeId, assignmentId, classId, studentId, gradeValue, maxPoints, letterGrade, isExtraCredit, termId, publishedAt }`                                  |
-| `cls.grade.unpublished`        | `studentId`    | `{ gradeId, assignmentId, classId, studentId, gradeValue, maxPoints, letterGrade, isExtraCredit, termId, unpublishedAt }`                                |
-| `cls.progress_note.published`  | `studentId`    | `{ noteId, classId, studentId, termId, isParentVisible, isStudentVisible, authorId, publishedAt }`                                                       |
+| Topic                         | Key         | Payload (raw — ADR-057 envelope is Cycle 3)                                                                               |
+| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `cls.submission.submitted`    | `studentId` | `{ submissionId, assignmentId, classId, studentId, submittedAt }`                                                         |
+| `cls.grade.published`         | `studentId` | `{ gradeId, assignmentId, classId, studentId, gradeValue, maxPoints, letterGrade, isExtraCredit, termId, publishedAt }`   |
+| `cls.grade.unpublished`       | `studentId` | `{ gradeId, assignmentId, classId, studentId, gradeValue, maxPoints, letterGrade, isExtraCredit, termId, unpublishedAt }` |
+| `cls.progress_note.published` | `studentId` | `{ noteId, classId, studentId, termId, isParentVisible, isStudentVisible, authorId, publishedAt }`                        |
 
 All emits are best-effort (`KafkaProducerService.emit` swallows broker errors). Step 6 wires the `cls.grade.{published,unpublished}` consumer (gradebook snapshot worker).
 
@@ -591,34 +591,34 @@ pnpm --filter @campusos/api start:prod  # all 19 classroom routes mapped, Kafka 
 
 Smoke matrix (full curl trace stored in this commit's working notes — boiled down here):
 
-| #  | Scenario                                                                                                  | Expected                            | Got |
-| -- | --------------------------------------------------------------------------------------------------------- | ----------------------------------- | --- |
-| 1  | Teacher GET `/assignments/:id/submissions` for a fully-graded assignment                                  | rosterSize=8 / submitted=8 / graded=8 / published=8 | ✅ |
-| 2  | Student (Maya) GET `/assignments/:id/submissions/mine` for the same assignment                            | status=GRADED, gradeValue=92        | ✅  |
-| 3  | Student GETs the teacher list (held `tch-002:read`)                                                       | 403                                 | ✅  |
-| 4  | Teacher POSTs a new published assignment in P1                                                            | 201                                 | ✅  |
-| 5  | Student submits to the new assignment                                                                     | 201, status=SUBMITTED               | ✅  |
-| 6  | Student resubmits — same submission id, fresh `submittedAt`                                               | id matches                          | ✅  |
-| 7  | Teacher posts a draft grade (`publish=false`)                                                             | percentage=90, isPublished=false    | ✅  |
-| 8  | Student fetches own submission                                                                            | grade hidden (draft)                | ✅  |
-| 8b | Teacher fetches teacher view                                                                              | grade visible (draft)               | ✅  |
-| 9  | Teacher publishes the draft grade                                                                         | isPublished=true, emits `cls.grade.published` | ✅ |
-| 10 | Student fetches own submission again                                                                      | grade visible (published)           | ✅  |
-| 11 | Teacher batch-grades 8 P1 students with `publish=true`                                                    | inserted=4, updated=4, published=8  | ✅  |
-| 12 | Teacher class gradebook                                                                                   | 8 rows joined to seed snapshots     | ✅  |
-| 13 | Maya student gradebook                                                                                    | 4 enrolled classes, all snapshots populated | ✅ |
-| 14 | Parent David Chen gets Maya's gradebook                                                                   | 200, 4 rows                         | ✅  |
-| 15 | Stranger student / parent gradebook attempt                                                               | 404 (both)                          | ✅  |
-| 16 | Teacher writes a progress note for Maya                                                                   | upsert ok, publishedAt set          | ✅  |
-| 17 | Maya reads her own notes                                                                                  | count=1, visibility flags both true | ✅  |
-| 18 | Parent David reads Maya's notes                                                                           | count=1                             | ✅  |
-| 19 | Stranger student `GET /students/:id/progress-notes`                                                       | 404                                 | ✅  |
-| 20 | Student → `POST /submissions/:id/grade`                                                                   | 403 (no `tch-003:write`)            | ✅  |
-| 21 | Teacher grades > max_points on a non-extra-credit assignment                                              | 400                                 | ✅  |
-| 22 | Batch-grade with assignment that doesn't belong to URL class                                              | 400                                 | ✅  |
-| 23 | Student submits to an unpublished assignment                                                              | 404                                 | ✅  |
-| 24 | Re-publish an already-published grade                                                                     | 200 idempotent (publishedAt unchanged) | ✅ |
-| 25 | Unpublish a published grade                                                                               | 200, isPublished=false              | ✅  |
+| #   | Scenario                                                                       | Expected                                            | Got |
+| --- | ------------------------------------------------------------------------------ | --------------------------------------------------- | --- |
+| 1   | Teacher GET `/assignments/:id/submissions` for a fully-graded assignment       | rosterSize=8 / submitted=8 / graded=8 / published=8 | ✅  |
+| 2   | Student (Maya) GET `/assignments/:id/submissions/mine` for the same assignment | status=GRADED, gradeValue=92                        | ✅  |
+| 3   | Student GETs the teacher list (held `tch-002:read`)                            | 403                                                 | ✅  |
+| 4   | Teacher POSTs a new published assignment in P1                                 | 201                                                 | ✅  |
+| 5   | Student submits to the new assignment                                          | 201, status=SUBMITTED                               | ✅  |
+| 6   | Student resubmits — same submission id, fresh `submittedAt`                    | id matches                                          | ✅  |
+| 7   | Teacher posts a draft grade (`publish=false`)                                  | percentage=90, isPublished=false                    | ✅  |
+| 8   | Student fetches own submission                                                 | grade hidden (draft)                                | ✅  |
+| 8b  | Teacher fetches teacher view                                                   | grade visible (draft)                               | ✅  |
+| 9   | Teacher publishes the draft grade                                              | isPublished=true, emits `cls.grade.published`       | ✅  |
+| 10  | Student fetches own submission again                                           | grade visible (published)                           | ✅  |
+| 11  | Teacher batch-grades 8 P1 students with `publish=true`                         | inserted=4, updated=4, published=8                  | ✅  |
+| 12  | Teacher class gradebook                                                        | 8 rows joined to seed snapshots                     | ✅  |
+| 13  | Maya student gradebook                                                         | 4 enrolled classes, all snapshots populated         | ✅  |
+| 14  | Parent David Chen gets Maya's gradebook                                        | 200, 4 rows                                         | ✅  |
+| 15  | Stranger student / parent gradebook attempt                                    | 404 (both)                                          | ✅  |
+| 16  | Teacher writes a progress note for Maya                                        | upsert ok, publishedAt set                          | ✅  |
+| 17  | Maya reads her own notes                                                       | count=1, visibility flags both true                 | ✅  |
+| 18  | Parent David reads Maya's notes                                                | count=1                                             | ✅  |
+| 19  | Stranger student `GET /students/:id/progress-notes`                            | 404                                                 | ✅  |
+| 20  | Student → `POST /submissions/:id/grade`                                        | 403 (no `tch-003:write`)                            | ✅  |
+| 21  | Teacher grades > max_points on a non-extra-credit assignment                   | 400                                                 | ✅  |
+| 22  | Batch-grade with assignment that doesn't belong to URL class                   | 400                                                 | ✅  |
+| 23  | Student submits to an unpublished assignment                                   | 404                                                 | ✅  |
+| 24  | Re-publish an already-published grade                                          | 200 idempotent (publishedAt unchanged)              | ✅  |
+| 25  | Unpublish a published grade                                                    | 200, isPublished=false                              | ✅  |
 
 All 25 cases passed. Smoke artefacts were rolled back by re-provisioning + re-running `seed:sis` + `seed:classroom` so the seed snapshot count (41) and grade count (62 / 53 published) match the Step 3 baseline.
 
@@ -686,7 +686,7 @@ First Kafka consumer in CampusOS. Establishes the consumer pattern (subscribe + 
 Key = `${schoolId}|${classId}|${studentId}`. On every event:
 
 1. **Idempotency claim first.** `IdempotencyService.claim(group, eventId, topic)` runs synchronously before the debounce reset. A redelivered duplicate fails the claim and is dropped — it can never reset the timer or trigger another recompute.
-2. **Reset (or create) the 30s timer.** Distinct events for the same key (e.g. publish-all flipping 8 students at once, or rapid unpublish/republish on the same row) collapse into a single recompute that fires 30 seconds after the *last* event in the burst.
+2. **Reset (or create) the 30s timer.** Distinct events for the same key (e.g. publish-all flipping 8 students at once, or rapid unpublish/republish on the same row) collapse into a single recompute that fires 30 seconds after the _last_ event in the burst.
 3. **Flush at timer expiry.** The flush calls `runWithTenantContextAsync` with a `TenantInfo` reconstructed from headers (schemaName = `tenant_<subdomain>`, organisationId = null, isFrozen = false). The recompute then calls `tenantPrisma.executeInTenantContext` exactly like a request-scoped service.
 
 The 30s window is deliberate: long enough that a teacher's batch publish doesn't fan out into 8 redundant recomputes, short enough that a parent refreshing the dashboard sees the new average within ~minute-scale latency. The `unref()` on the timer means a graceful shutdown won't be blocked by a pending flush.
@@ -703,11 +703,11 @@ The 30s window is deliberate: long enough that a teacher's batch publish doesn't
 
 The worker runs outside any HTTP request, so AsyncLocalStorage is empty when an event arrives. The grade emit path attaches the necessary tenant info to the message header:
 
-| Header              | Source                          | Used by worker as           |
-| ------------------- | ------------------------------- | --------------------------- |
-| `event-id`          | `generateId()` (UUIDv7)         | idempotency `event_id`      |
-| `tenant-id`         | `getCurrentTenant().schoolId`   | `TenantInfo.schoolId`       |
-| `tenant-subdomain`  | `getCurrentTenant().subdomain`  | `TenantInfo.subdomain` → schemaName=`tenant_<sd>` |
+| Header             | Source                         | Used by worker as                                 |
+| ------------------ | ------------------------------ | ------------------------------------------------- |
+| `event-id`         | `generateId()` (UUIDv7)        | idempotency `event_id`                            |
+| `tenant-id`        | `getCurrentTenant().schoolId`  | `TenantInfo.schoolId`                             |
+| `tenant-subdomain` | `getCurrentTenant().subdomain` | `TenantInfo.subdomain` → schemaName=`tenant_<sd>` |
 
 At flush time the worker calls `runWithTenantContextAsync({ tenant: synthesizedTenantInfo }, ...)` — `executeInTenantContext` then runs `SET LOCAL search_path TO "tenant_<subdomain>", platform, public` on the same pinned connection it uses for request-path queries. No new tenant-isolation surface area; the existing REVIEW-CYCLE1 `SET LOCAL`-inside-tx discipline carries over verbatim.
 
@@ -735,17 +735,17 @@ pnpm --filter @campusos/api start:prod # api boots; KafkaConsumerService ready; 
 
 Smoke matrix (full curl trace stored in this commit's working notes — boiled down here):
 
-| #  | Scenario                                                                     | Expected                                | Got |
-| -- | ---------------------------------------------------------------------------- | --------------------------------------- | --- |
-| 1  | Baseline: 41 seed snapshots, 0 idempotency rows                              | 41 / 0                                  | ✅  |
-| 2  | Teacher unpublishes Maya's P1 homework grade (44/50, was contributing 88%)   | event emitted, snapshot stays 90.50 for ~30s, then drops to 92.00 (only Assessments left), graded=1/2 | ✅ |
-| 3  | API log: one `Snapshot recomputed` line at +30s with `avg=92.00 letter=A graded=1/2` | one log line, debounce respected | ✅ |
-| 4  | Idempotency: one row in `platform_event_consumer_idempotency`                | group=gradebook-snapshot-worker, topic=cls.grade.unpublished | ✅ |
-| 5  | Other students' snapshots untouched (verified by `last_updated_at`)          | 40 rows still at seed-time `2026-04-27 14:44`           | ✅ |
-| 6  | Teacher re-publishes the homework grade                                       | snapshot recomputes back to 90.50 graded=2/2 ~30s later | ✅ |
-| 7  | Debounce coalescing: 4 events fired in <1s on same (Maya, P1) — 2 unpub + 2 pub | exactly **one** recompute logged at +30s; final snapshot 90.50 | ✅ |
-| 8  | Idempotency table after Test 7: 3 published + 3 unpublished rows total       | 6 distinct event ids                    | ✅  |
-| 9  | Total snapshot count after all tests                                          | still 41 — no spurious inserts          | ✅  |
+| #   | Scenario                                                                             | Expected                                                                                              | Got |
+| --- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | --- |
+| 1   | Baseline: 41 seed snapshots, 0 idempotency rows                                      | 41 / 0                                                                                                | ✅  |
+| 2   | Teacher unpublishes Maya's P1 homework grade (44/50, was contributing 88%)           | event emitted, snapshot stays 90.50 for ~30s, then drops to 92.00 (only Assessments left), graded=1/2 | ✅  |
+| 3   | API log: one `Snapshot recomputed` line at +30s with `avg=92.00 letter=A graded=1/2` | one log line, debounce respected                                                                      | ✅  |
+| 4   | Idempotency: one row in `platform_event_consumer_idempotency`                        | group=gradebook-snapshot-worker, topic=cls.grade.unpublished                                          | ✅  |
+| 5   | Other students' snapshots untouched (verified by `last_updated_at`)                  | 40 rows still at seed-time `2026-04-27 14:44`                                                         | ✅  |
+| 6   | Teacher re-publishes the homework grade                                              | snapshot recomputes back to 90.50 graded=2/2 ~30s later                                               | ✅  |
+| 7   | Debounce coalescing: 4 events fired in <1s on same (Maya, P1) — 2 unpub + 2 pub      | exactly **one** recompute logged at +30s; final snapshot 90.50                                        | ✅  |
+| 8   | Idempotency table after Test 7: 3 published + 3 unpublished rows total               | 6 distinct event ids                                                                                  | ✅  |
+| 9   | Total snapshot count after all tests                                                 | still 41 — no spurious inserts                                                                        | ✅  |
 
 The verification ran against the live demo tenant with Kafka up. Idempotency rows were cleared after the smoke run so the next reviewer starts clean (`DELETE FROM platform.platform_event_consumer_idempotency WHERE consumer_group='gradebook-snapshot-worker'` — 6 rows removed).
 
@@ -806,14 +806,14 @@ The existing `/classes/:id/attendance` route gains the same `ClassTabs` header s
 - **Manager-only list view.** The list page calls `useAssignments(classId, { includeUnpublished: true })`. The API hides drafts from non-managers automatically — so even a student who navigates to this URL by hand sees only published rows. The "Draft" badge on the list page is therefore a teacher/admin-only signal.
 - **Type filter is client-side.** The 5 categories (Homework / Quiz / Test / Project / Classwork) are static; filtering in the browser saves a round-trip and keeps the row count tile responsive.
 - **Edit links re-use the assignment row title.** Clicking the title takes the teacher straight to `/edit` — saves a wasted detail page that this cycle doesn't need (read-only view of an assignment is part of the Step 8 grading detail).
-- **Category modal mirrors PUT semantics.** Local state holds the *full new set*. Removing a row marks it for deletion via the API — and the API returns 409 if the category is still referenced. The error message surfaces inline; the modal stays open so the teacher can fix the conflict (re-add the row, or first reassign the affected assignments via the edit page).
+- **Category modal mirrors PUT semantics.** Local state holds the _full new set_. Removing a row marks it for deletion via the API — and the API returns 409 if the category is still referenced. The error message surfaces inline; the modal stays open so the teacher can fix the conflict (re-add the row, or first reassign the affected assignments via the edit page).
 - **Date input is `datetime-local`.** Browser-native picker; the form serialises to ISO at submit time using the user's local clock. Fine for a single-tenant demo; a global rollout will need to re-anchor to the school's timezone.
 - **Default extra-credit = false; default published = true.** Most teachers create a published, non-extra-credit assignment. Drafts and extra-credit are deliberate opt-ins.
 - **All toasts on success and error paths.** Re-uses the existing `useToast()`; the form's `serverError` state surfaces 400/409 messages inline as well so the teacher doesn't have to scroll up.
 
 ### Authorisation behaviour (recap)
 
-The list page is gated by `tch-002:read` (held by every persona) but the Step 4 API row-scopes results to the caller (admins all; teacher-of-class their classes; student/parent the published view). The create/edit/delete pages call the same API; non-managers hit 403 even though their token holds `tch-002:write` (student-write is for `POST /assignments/:id/submit`, not for managing assignments — handled by `assertCanWriteClass` server-side). The frontend doesn't try to hide write actions for non-teachers in this step — admins land on the same dashboard layout the principal already uses, and a teacher who is *not* assigned to the class never sees a card linking to it. A defensive role-aware UI hide is a Phase 2 polish item.
+The list page is gated by `tch-002:read` (held by every persona) but the Step 4 API row-scopes results to the caller (admins all; teacher-of-class their classes; student/parent the published view). The create/edit/delete pages call the same API; non-managers hit 403 even though their token holds `tch-002:write` (student-write is for `POST /assignments/:id/submit`, not for managing assignments — handled by `assertCanWriteClass` server-side). The frontend doesn't try to hide write actions for non-teachers in this step — admins land on the same dashboard layout the principal already uses, and a teacher who is _not_ assigned to the class never sees a card linking to it. A defensive role-aware UI hide is a Phase 2 polish item.
 
 ### Verification (recorded 2026-04-27)
 
@@ -826,17 +826,17 @@ pnpm --filter @campusos/web dev        # /login HTTP 200; /classes/<id>/assignme
 
 API smoke matrix (full curl trace stored in this commit's working notes — boiled down here):
 
-| #  | Scenario                                                                          | Expected                                                                 | Got |
-| -- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | --- |
-| 1  | Teacher GET `/api/v1/assignment-types` for demo tenant                            | 5 rows (Homework, Quiz, Test, Project, Classwork) ordered by name        | ✅  |
-| 2  | Teacher POST draft assignment ("Step 7 smoke draft") in P1 with category=Homework | 201, `isPublished=false`, category nested under `category` field         | ✅  |
-| 3  | Teacher GET `/classes/:id/assignments?includeUnpublished=true`                    | 3 rows; the draft surfaces alongside the seed's 2 published rows         | ✅  |
-| 4  | Teacher PATCH `{title:"…updated", isPublished:true}`                              | 200 with new title + `isPublished=true`                                  | ✅  |
-| 5  | Teacher DELETE the assignment                                                      | 204                                                                      | ✅  |
-| 6  | Teacher PUT categories with weights 50/40/20 (sum=110)                            | 400 "Category weights must sum to 100; got 110.00"                       | ✅  |
-| 7  | Web: `/login` route                                                                | 200 with rendered HTML (Suspense boundary fix)                           | ✅  |
-| 8  | Web: `/classes/<P1>/assignments` route                                            | 200 (route compiles + serves)                                            | ✅  |
-| 9  | Web: `/classes/<P1>/assignments/new` route                                        | 200                                                                      | ✅  |
+| #   | Scenario                                                                          | Expected                                                          | Got |
+| --- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------- | --- |
+| 1   | Teacher GET `/api/v1/assignment-types` for demo tenant                            | 5 rows (Homework, Quiz, Test, Project, Classwork) ordered by name | ✅  |
+| 2   | Teacher POST draft assignment ("Step 7 smoke draft") in P1 with category=Homework | 201, `isPublished=false`, category nested under `category` field  | ✅  |
+| 3   | Teacher GET `/classes/:id/assignments?includeUnpublished=true`                    | 3 rows; the draft surfaces alongside the seed's 2 published rows  | ✅  |
+| 4   | Teacher PATCH `{title:"…updated", isPublished:true}`                              | 200 with new title + `isPublished=true`                           | ✅  |
+| 5   | Teacher DELETE the assignment                                                     | 204                                                               | ✅  |
+| 6   | Teacher PUT categories with weights 50/40/20 (sum=110)                            | 400 "Category weights must sum to 100; got 110.00"                | ✅  |
+| 7   | Web: `/login` route                                                               | 200 with rendered HTML (Suspense boundary fix)                    | ✅  |
+| 8   | Web: `/classes/<P1>/assignments` route                                            | 200 (route compiles + serves)                                     | ✅  |
+| 9   | Web: `/classes/<P1>/assignments/new` route                                        | 200                                                               | ✅  |
 
 The browser-side interactivity (button clicks, modal state, navigations) was validated structurally via Next.js's static analysis (build succeeds, all components type-check, hooks import correctly) and via the API smoke tests above. A full click-through with an actual browser is a Step 10 (vertical slice CAT) deliverable; if Phase 2 polish surfaces UI bugs they get fixed there.
 
@@ -919,18 +919,18 @@ pnpm --filter @campusos/web start --port 3001
 
 API + worker smoke matrix (full curl trace stored in this commit's working notes — boiled down here):
 
-| #  | Scenario                                                                                                  | Expected                                                          | Got |
-| -- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | --- |
-| 1  | Teacher GET `/classes/:id/gradebook` for P1 Algebra 1                                                     | 8 rows; each with `currentAverage` from snapshot                  | ✅  |
-| 2  | Teacher GET `/assignments/:id/submissions` for the first quiz                                             | rosterSize=8, submittedCount=8, gradedCount=8, publishedCount=8   | ✅  |
-| 3  | Teacher POST `/submissions/:id/grade {gradeValue:85, publish:true}` on Aaliyah's already-published grade  | 200 with new grade; `cls.grade.published` emitted **(post-fix)**  | ✅  |
-| 4  | Snapshot worker recompute fires ~30s later — Aaliyah's snapshot drops 98 → 78 graded=1/2                  | one log line `avg=78.00 letter=C graded=1/2`; DB row matches      | ✅  |
-| 5  | Without the Step 5 emit fix, the same regrade left the snapshot stale at 98 (0 events emitted)            | confirmed by Kafka offset stuck at 13 + 0 idempotency rows        | ✅  |
-| 6  | Restore Aaliyah back to 98 — snapshot recomputes back to 98 graded=1/2 within 30s                         | log line `avg=98.00 letter=A`; idempotency table picks up 2 rows  | ✅  |
-| 7  | Web: GET `/classes/<P1>/gradebook` (prod build, port 3001)                                                | HTTP 200                                                          | ✅  |
-| 8  | Web: GET `/assignments/<id>/submissions`                                                                  | HTTP 200                                                          | ✅  |
-| 9  | Web: GET `/submissions/<id>`                                                                              | HTTP 200                                                          | ✅  |
-| 10 | Web: existing `/classes/<P1>/attendance` route still serves with the new tab bar (Gradebook tab visible)  | HTTP 200                                                          | ✅  |
+| #   | Scenario                                                                                                 | Expected                                                         | Got |
+| --- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | --- |
+| 1   | Teacher GET `/classes/:id/gradebook` for P1 Algebra 1                                                    | 8 rows; each with `currentAverage` from snapshot                 | ✅  |
+| 2   | Teacher GET `/assignments/:id/submissions` for the first quiz                                            | rosterSize=8, submittedCount=8, gradedCount=8, publishedCount=8  | ✅  |
+| 3   | Teacher POST `/submissions/:id/grade {gradeValue:85, publish:true}` on Aaliyah's already-published grade | 200 with new grade; `cls.grade.published` emitted **(post-fix)** | ✅  |
+| 4   | Snapshot worker recompute fires ~30s later — Aaliyah's snapshot drops 98 → 78 graded=1/2                 | one log line `avg=78.00 letter=C graded=1/2`; DB row matches     | ✅  |
+| 5   | Without the Step 5 emit fix, the same regrade left the snapshot stale at 98 (0 events emitted)           | confirmed by Kafka offset stuck at 13 + 0 idempotency rows       | ✅  |
+| 6   | Restore Aaliyah back to 98 — snapshot recomputes back to 98 graded=1/2 within 30s                        | log line `avg=98.00 letter=A`; idempotency table picks up 2 rows | ✅  |
+| 7   | Web: GET `/classes/<P1>/gradebook` (prod build, port 3001)                                               | HTTP 200                                                         | ✅  |
+| 8   | Web: GET `/assignments/<id>/submissions`                                                                 | HTTP 200                                                         | ✅  |
+| 9   | Web: GET `/submissions/<id>`                                                                             | HTTP 200                                                         | ✅  |
+| 10  | Web: existing `/classes/<P1>/attendance` route still serves with the new tab bar (Gradebook tab visible) | HTTP 200                                                         | ✅  |
 
 Idempotency rows were cleared and Aaliyah's grade was restored to 98 after the smoke run so the next reviewer starts from the seed baseline.
 
@@ -959,9 +959,9 @@ Cycle 2 Step 9 closes the loop opened by Steps 4–8: the data is in the system 
 
 Both endpoints are declared with permission `tch-002:read` / `tch-003:read` (already held by Student and Parent after Step 3). Row-level scope is enforced inside the service the same way Steps 4–5 did it — admin → all; teacher → assigned classes / linked students; student → self; parent → linked children.
 
-| Method & path | Permission | Notes |
-| --- | --- | --- |
-| `GET /students/me` | `stu-001:read` | Returns the calling student's `sis_students` row. Used by the web app to bootstrap the student's own `studentId` without scanning `/students`. Throws 404 (not 403) if the caller isn't a STUDENT or has no `sis_students` row in this tenant — same probe-resistance pattern as the rest of `student.service.ts`. |
+| Method & path                                      | Permission     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /students/me`                                 | `stu-001:read` | Returns the calling student's `sis_students` row. Used by the web app to bootstrap the student's own `studentId` without scanning `/students`. Throws 404 (not 403) if the caller isn't a STUDENT or has no `sis_students` row in this tenant — same probe-resistance pattern as the rest of `student.service.ts`.                                                                                                                                                                                                                                                                                                                                                                                        |
 | `GET /students/:studentId/classes/:classId/grades` | `tch-003:read` | Per-(student, class) assignment breakdown. Response shape: `{ class, student, termId, snapshot \| null, assignments: [{ assignment, submission \| null, grade \| null }] }`. Reuses `GradebookService.assertCanViewStudent` (Step 5) for the student-row scope and `AssignmentService.assertCanReadClass` for the class-row scope, then existence-checks the (student, class) enrollment. Non-managers (anyone except teacher-of-class / admin) only see published assignments and published grades — drafts collapse to `null` for the grade and unpublished assignments are excluded from the list. Single SQL query (LEFT JOIN to `cls_submissions` + `cls_grades` keyed on the `studentId`) — no N+1. |
 
 `GradebookService.getStudentClassGrades` lives next to `getClassGradebook` / `getStudentGradebook` and reuses their `resolveTermId` and `snapToDto` helpers. The per-class snapshot is looked up using the class's term (`sis_classes.term_id`) when set, falling back to the resolved current term — so a parent / student opening one class sees the snapshot the gradebook worker actually wrote for that term, not whatever happens to be current today.
@@ -970,13 +970,13 @@ The new DTO file `apps/api/src/classroom/dto/student-grades.dto.ts` defines `Stu
 
 ### Web — student persona
 
-| Route | Purpose |
-| --- | --- |
-| `/dashboard` (STUDENT branch in `dashboard/page.tsx`) | Persona-aware router now also routes STUDENT → `<StudentDashboard />`. |
-| `/assignments` | Student inbox across all enrolled classes. `useStudentGradebook(myStudentId).rows[].class` enumerates the classes; `useQueries` fetches `/api/v1/classes/:id/assignments` per class and the page flattens + sorts by due date. Filter dropdowns: `class` (or All) and `status` (`UPCOMING` next 14 days / `OVERDUE` / `ALL`). Overdue rows show a red Due badge. |
-| `/assignments/:id` | Single-assignment detail + submit form. Uses `useAssignment` (already row-scoped server-side — students only see published assignments in their enrolled classes), `useMySubmission` (`/api/v1/assignments/:id/submissions/mine`), and `useSubmitAssignment` (`POST /api/v1/assignments/:id/submit`). Renders instructions, current submission status pill, textarea for `submissionText`, Submit / Resubmit / Cancel-edit buttons, and a Grade card when a published grade exists. Non-students hitting this route get a "submissions are student-only" notice with a link back to the teacher submissions queue. |
-| `/grades` | Per-class summary list — one row per enrolled class with `currentAverage` + `letterGrade` + `assignmentsGraded / assignmentsTotal` from `cls_gradebook_snapshots`. Click a row → per-class breakdown. |
-| `/grades/:classId` | Per-class breakdown — `<StudentClassGradesView studentId={me.id} classId={...} />`. Shows summary stats (current average, letter, graded count) and the per-assignment list with grade / max points / percentage / letter / feedback for each published row. |
+| Route                                                 | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/dashboard` (STUDENT branch in `dashboard/page.tsx`) | Persona-aware router now also routes STUDENT → `<StudentDashboard />`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `/assignments`                                        | Student inbox across all enrolled classes. `useStudentGradebook(myStudentId).rows[].class` enumerates the classes; `useQueries` fetches `/api/v1/classes/:id/assignments` per class and the page flattens + sorts by due date. Filter dropdowns: `class` (or All) and `status` (`UPCOMING` next 14 days / `OVERDUE` / `ALL`). Overdue rows show a red Due badge.                                                                                                                                                                                                                                                   |
+| `/assignments/:id`                                    | Single-assignment detail + submit form. Uses `useAssignment` (already row-scoped server-side — students only see published assignments in their enrolled classes), `useMySubmission` (`/api/v1/assignments/:id/submissions/mine`), and `useSubmitAssignment` (`POST /api/v1/assignments/:id/submit`). Renders instructions, current submission status pill, textarea for `submissionText`, Submit / Resubmit / Cancel-edit buttons, and a Grade card when a published grade exists. Non-students hitting this route get a "submissions are student-only" notice with a link back to the teacher submissions queue. |
+| `/grades`                                             | Per-class summary list — one row per enrolled class with `currentAverage` + `letterGrade` + `assignmentsGraded / assignmentsTotal` from `cls_gradebook_snapshots`. Click a row → per-class breakdown.                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `/grades/:classId`                                    | Per-class breakdown — `<StudentClassGradesView studentId={me.id} classId={...} />`. Shows summary stats (current average, letter, graded count) and the per-assignment list with grade / max points / percentage / letter / feedback for each published row.                                                                                                                                                                                                                                                                                                                                                       |
 
 `StudentDashboard.tsx` shows a "Upcoming assignments" card (next 5 by due date across all classes) and a "Your classes" grid (one card per class with the snapshot's average + letter + graded count). Both link into the routes above.
 
@@ -984,10 +984,10 @@ The new DTO file `apps/api/src/classroom/dto/student-grades.dto.ts` defines `Stu
 
 The existing ParentDashboard child cards now expose a per-child Grades section — top 4 classes with `currentAverage` and `letterGrade` from `cls_gradebook_snapshots`, plus a "View grades" button alongside the existing "View attendance" / "Report absence" buttons. Routes:
 
-| Route | Purpose |
-| --- | --- |
-| `/children/:id/grades` | Per-child gradebook list (mirrors student `/grades` but for one of the parent's linked children). Includes a "Teacher progress notes" section at the bottom — only renders progress-note rows where `isParentVisible=true` AND `publishedAt IS NOT NULL` (the API enforces this anyway; the UI re-asserts as a guard). |
-| `/children/:id/grades/:classId` | Per-class breakdown — same shared `StudentClassGradesView` component the student uses, parameterised with the child's `studentId` instead of `me`. |
+| Route                           | Purpose                                                                                                                                                                                                                                                                                                                |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/children/:id/grades`          | Per-child gradebook list (mirrors student `/grades` but for one of the parent's linked children). Includes a "Teacher progress notes" section at the bottom — only renders progress-note rows where `isParentVisible=true` AND `publishedAt IS NOT NULL` (the API enforces this anyway; the UI re-asserts as a guard). |
+| `/children/:id/grades/:classId` | Per-class breakdown — same shared `StudentClassGradesView` component the student uses, parameterised with the child's `studentId` instead of `me`.                                                                                                                                                                     |
 
 The ParentDashboard's existing per-child query (`useStudentGradebook(child.id)`) is the only new round-trip per child card, fired in parallel via React Query. The parent's `tch-003:read` permission (granted in Step 3) is the gate; row scope is enforced server-side via `sis_student_guardians`.
 
@@ -1051,6 +1051,7 @@ The 9-step happy path threads every layer of the cycle in order:
    ```
 
    `assignments_graded` advances `2 → 3`. The recompute is keyed on `(consumer_group, event_id)` against `platform.platform_event_consumer_idempotency`; redelivery is rejected at the unique index.
+
 7. Maya's `GET /students/:studentId/classes/:classId/grades` (the new Step-9 endpoint) returns all three published grades including Chapter 4 Homework at `22/25 · 88%`.
 8. Parent David walks the same data through `sis_student_guardians`. The Algebra 1 average reads 90% A on the dashboard's Grades section; the per-class breakdown matches the student view.
 9. Three explicit permission denials, all 403:

@@ -89,8 +89,7 @@ export default function ClassGradebookPage() {
       <ClassTabs classId={classId} active="gradebook" />
 
       <p className="mb-3 text-xs text-gray-500">
-        Click a cell to enter or edit a grade. Snapshots refresh asynchronously after each
-        publish.
+        Click a cell to enter or edit a grade. Snapshots refresh asynchronously after each publish.
       </p>
 
       {assignmentsQuery.isLoading || gradebookQuery.isLoading ? (
@@ -153,8 +152,7 @@ function GradebookGrid({
   const submissionResults = useQueries({
     queries: assignments.map((a) => ({
       queryKey: ['classroom', 'submissions', 'assignment', a.id] as const,
-      queryFn: () =>
-        apiFetch<TeacherSubmissionListDto>(`/api/v1/assignments/${a.id}/submissions`),
+      queryFn: () => apiFetch<TeacherSubmissionListDto>(`/api/v1/assignments/${a.id}/submissions`),
       enabled: !!a.id,
     })),
   });
@@ -376,7 +374,9 @@ function GradeCell({
           <>
             <span className="text-sm font-semibold tabular-nums">
               {grad.gradeValue}
-              <span className="ml-0.5 text-[11px] font-normal opacity-75">/{assignment.maxPoints}</span>
+              <span className="ml-0.5 text-[11px] font-normal opacity-75">
+                /{assignment.maxPoints}
+              </span>
             </span>
             <span className="flex items-center gap-1 text-[11px] font-normal opacity-75">
               {pct !== null ? pct.toFixed(0) + '%' : ''}

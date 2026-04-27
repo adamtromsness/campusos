@@ -13,6 +13,11 @@ on:
 env:
   NODE_VERSION: '22'
   DATABASE_URL: postgresql://campusos:campusos_dev@localhost:5432/campusos_dev?schema=platform
+  # Opt the GitHub-Actions JavaScript action runtime into Node 24 ahead of the
+  # 2026-06-02 default-flip. Silences the v4 deprecation warning emitted on
+  # actions/checkout, actions/setup-node, and pnpm/action-setup.
+  # https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   lint-and-typecheck:

@@ -111,10 +111,7 @@ export class AssignmentController {
       'Soft-delete an assignment (sets deleted_at). Existing grades and submissions retain ' +
       'their FK target; list endpoints hide the row.',
   })
-  async remove(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: AuthedRequest,
-  ): Promise<void> {
+  async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthedRequest): Promise<void> {
     var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     await this.assignments.softDelete(id, actor);
   }

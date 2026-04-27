@@ -53,11 +53,7 @@ export default function StudentAssignmentsPage() {
             onClassChange={setClassFilter}
             onStatusChange={setStatusFilter}
           />
-          <AssignmentList
-            classes={classes}
-            classFilter={classFilter}
-            statusFilter={statusFilter}
-          />
+          <AssignmentList classes={classes} classFilter={classFilter} statusFilter={statusFilter} />
         </>
       )}
     </div>
@@ -224,9 +220,7 @@ function DueLabel({ dueDate }: { dueDate: string | null }) {
     <span
       className={
         'whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ' +
-        (overdue
-          ? 'bg-status-absent-soft text-status-absent-text'
-          : 'bg-gray-100 text-gray-700')
+        (overdue ? 'bg-status-absent-soft text-status-absent-text' : 'bg-gray-100 text-gray-700')
       }
     >
       {overdue ? 'Overdue · ' : 'Due '}

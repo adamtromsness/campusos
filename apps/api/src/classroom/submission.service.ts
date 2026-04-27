@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
@@ -434,8 +430,7 @@ export class SubmissionService {
 
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<SubmissionRow[]>(
-        SELECT_SUBMISSION_BASE +
-          'WHERE s.assignment_id = $1::uuid AND s.student_id = $2::uuid',
+        SELECT_SUBMISSION_BASE + 'WHERE s.assignment_id = $1::uuid AND s.student_id = $2::uuid',
         assignmentId,
         studentSisId,
       );

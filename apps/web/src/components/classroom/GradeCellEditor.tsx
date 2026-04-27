@@ -10,7 +10,7 @@ export interface GradeCellState {
   letterGrade: string | null;
   feedback: string | null;
   isPublished: boolean;
-  isSubmitted: boolean;       // student has at least submitted
+  isSubmitted: boolean; // student has at least submitted
   maxPoints: number;
   isExtraCredit: boolean;
 }
@@ -95,9 +95,7 @@ export function GradeCellEditor({
         <div className="text-xs text-gray-500 tabular-nums">
           {pct !== null ? pct.toFixed(1) + '%' : '—'}
           {pct !== null && (
-            <span className="ml-1 font-semibold text-gray-700">
-              {deriveLetter(pct)}
-            </span>
+            <span className="ml-1 font-semibold text-gray-700">{deriveLetter(pct)}</span>
           )}
         </div>
       </div>

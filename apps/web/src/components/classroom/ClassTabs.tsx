@@ -27,10 +27,7 @@ export function ClassTabs({ classId, active, hideGradebook }: ClassTabsProps) {
     ? ['attendance', 'assignments']
     : ['attendance', 'assignments', 'gradebook'];
   return (
-    <nav
-      aria-label="Class sections"
-      className="mb-5 flex gap-1 border-b border-gray-200"
-    >
+    <nav aria-label="Class sections" className="mb-5 flex gap-1 border-b border-gray-200">
       {order.map((key) => {
         const isActive = key === active;
         return (

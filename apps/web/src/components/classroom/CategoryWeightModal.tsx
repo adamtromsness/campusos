@@ -17,9 +17,9 @@ interface CategoryWeightModalProps {
 }
 
 interface DraftRow {
-  key: string;          // stable key for React (existing id, or "new-N")
+  key: string; // stable key for React (existing id, or "new-N")
   name: string;
-  weight: string;       // string for the input — coerced on submit
+  weight: string; // string for the input — coerced on submit
   sortOrder: number;
 }
 
@@ -66,8 +66,7 @@ export function CategoryWeightModal({
   const totalRounded = Math.round(total * 100) / 100;
   const sumIsHundred = totalRounded === 100;
   const namesValid = rows.every((r) => r.name.trim().length > 0);
-  const uniqueNames =
-    new Set(rows.map((r) => r.name.trim().toLowerCase())).size === rows.length;
+  const uniqueNames = new Set(rows.map((r) => r.name.trim().toLowerCase())).size === rows.length;
   const canSubmit = !submitting && rows.length > 0 && sumIsHundred && namesValid && uniqueNames;
 
   function addRow() {

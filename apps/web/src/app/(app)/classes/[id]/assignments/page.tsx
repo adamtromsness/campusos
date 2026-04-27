@@ -91,9 +91,7 @@ export default function ClassAssignmentsPage() {
                 onClick={() => setTypeFilter(opt.value)}
                 className={cn(
                   'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                  active
-                    ? 'bg-campus-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-50',
+                  active ? 'bg-campus-600 text-white' : 'text-gray-600 hover:bg-gray-50',
                 )}
               >
                 {opt.label}
@@ -125,11 +123,7 @@ export default function ClassAssignmentsPage() {
           }
         />
       ) : (
-        <AssignmentTable
-          rows={filtered}
-          classId={classId}
-          onRequestDelete={setPendingDelete}
-        />
+        <AssignmentTable rows={filtered} classId={classId} onRequestDelete={setPendingDelete} />
       )}
 
       <CategoryWeightModal
@@ -282,7 +276,9 @@ function DeleteAssignmentModal({ assignment, classId, onClose }: DeleteAssignmen
             }}
             className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-card hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {remove.isPending && <LoadingSpinner size="sm" className="border-white/40 border-t-white" />}
+            {remove.isPending && (
+              <LoadingSpinner size="sm" className="border-white/40 border-t-white" />
+            )}
             Delete assignment
           </button>
         </>

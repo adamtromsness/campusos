@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Query,
-  Req,
-} from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';

@@ -44,9 +44,7 @@ function snapToDto(s: SnapshotRow): GradebookSnapshotDto {
           ? s.last_grade_event_at
           : s.last_grade_event_at.toISOString(),
     lastUpdatedAt:
-      typeof s.last_updated_at === 'string'
-        ? s.last_updated_at
-        : s.last_updated_at.toISOString(),
+      typeof s.last_updated_at === 'string' ? s.last_updated_at : s.last_updated_at.toISOString(),
   };
 }
 
@@ -158,7 +156,8 @@ export class GradebookService {
         })
       : [];
     var snapByStudent = new Map<string, SnapshotRow>();
-    for (var i = 0; i < snapshots.length; i++) snapByStudent.set(snapshots[i]!.student_id, snapshots[i]!);
+    for (var i = 0; i < snapshots.length; i++)
+      snapByStudent.set(snapshots[i]!.student_id, snapshots[i]!);
 
     var rows: GradebookClassRowDto[] = roster.map(function (r) {
       var snap = snapByStudent.get(r.student_id);
@@ -258,7 +257,8 @@ export class GradebookService {
         })
       : [];
     var snapByClass = new Map<string, SnapshotRow>();
-    for (var i = 0; i < snapshots.length; i++) snapByClass.set(snapshots[i]!.class_id, snapshots[i]!);
+    for (var i = 0; i < snapshots.length; i++)
+      snapByClass.set(snapshots[i]!.class_id, snapshots[i]!);
 
     var rows: GradebookStudentRowDto[] = classes.map(function (c) {
       var snap = snapByClass.get(c.class_id);
@@ -545,9 +545,7 @@ export class GradebookService {
             gradeValue: Number(r.grade_value),
             maxPoints: maxPoints,
             percentage:
-              maxPoints > 0
-                ? Math.round(((Number(r.grade_value) / maxPoints) * 100) * 100) / 100
-                : 0,
+              maxPoints > 0 ? Math.round((Number(r.grade_value) / maxPoints) * 100 * 100) / 100 : 0,
             letterGrade: r.grade_letter,
             feedback: r.grade_feedback,
             isPublished: gradePublished,

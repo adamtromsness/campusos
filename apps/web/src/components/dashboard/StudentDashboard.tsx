@@ -128,7 +128,9 @@ function ClassesGrid({ classes }: { classes: GradebookStudentRowDto[] }) {
               href={`/grades/${row.class.id}`}
               className="block rounded-card border border-gray-200 bg-white p-5 shadow-card transition-shadow hover:shadow-card-hover"
             >
-              <p className="text-xs uppercase tracking-wide text-gray-500">{row.class.courseCode}</p>
+              <p className="text-xs uppercase tracking-wide text-gray-500">
+                {row.class.courseCode}
+              </p>
               <h3 className="mt-1 truncate text-base font-semibold text-gray-900">
                 {row.class.courseName}
               </h3>
@@ -137,9 +139,7 @@ function ClassesGrid({ classes }: { classes: GradebookStudentRowDto[] }) {
                 <span className="text-3xl font-semibold text-campus-700">
                   {avg != null ? `${Math.round(avg)}%` : '—'}
                 </span>
-                {letter && (
-                  <span className="text-base font-medium text-gray-700">{letter}</span>
-                )}
+                {letter && <span className="text-base font-medium text-gray-700">{letter}</span>}
               </div>
               <p className="mt-1 text-xs text-gray-500">
                 {row.snapshot
