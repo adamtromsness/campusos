@@ -1,4 +1,4 @@
-FROM node:20-slim AS deps
+FROM node:22-slim AS deps
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
@@ -17,7 +17,7 @@ RUN pnpm --filter @campusos/shared build
 RUN pnpm --filter @campusos/database build
 RUN pnpm --filter @campusos/api build
 
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 RUN addgroup --system campusos && adduser --system --ingroup campusos campusos
 WORKDIR /app
