@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 2 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.topbar a.active{color:white;font-weight:600}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
+.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
+.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
+.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
+.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
+.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
+.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}
+.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}
+.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
+.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
+.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
+.step-title{font-size:19px;font-weight:700;color:var(--accent)}
+.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
+.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
+.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.step .depends{font-size:12px;color:var(--text-light);margin-top:6px}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
+.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
+.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
+.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-project-overview.html">Overview</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 1</div>
+    <h1>Cycle 2: Classroom, Assignments &amp; Grading<br>Implementation Plan</h1>
+    <div class="sub">The second vertical slice &mdash; teacher creates an assignment, student submits work, teacher grades it, parent sees the grade. The core teaching and learning workflow.</div>
+    <span class="version">April 2026 &middot; 10 Steps &middot; ERD v11 &middot; M21 Classroom</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 2 adds the M21 Classroom module &mdash; the teaching and learning domain. Where Cycle 1 gave teachers attendance, Cycle 2 gives them the tools they spend most of their day in: lesson planning, assignments, submissions, grading, and gradebook management. It builds directly on the SIS classes, students, and enrollments from Cycle 1.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Teacher creates a homework assignment for Period 1 Algebra &rarr; student Maya Chen opens the assignment and submits her work &rarr; teacher reviews the submission and enters a grade &rarr; grade is published &rarr; gradebook snapshot updates asynchronously &rarr; parent David Chen sees Maya's current average on the parent dashboard.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope:</strong> Assignment types, assignments, submissions, grades, gradebook snapshots, report cards, assignment categories with weighted grading, student progress notes. Functions TCH-001 through TCH-004.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to later cycles:</strong> Lesson planning (TCH-001 full &mdash; create the table but minimal API), quizzes &amp; assessments (TCH-006 &mdash; question bank, auto-scoring), AI grading (cls_ai_grading_jobs &mdash; table created, service stubbed), lesson bank sharing (cls_lesson_bank_shares), video processing, AI lesson summaries, class set checkouts. These tables are created in the migration for schema completeness but their services and UI are future work.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:34%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Classroom Schema &mdash; Lessons &amp; Assignments</td><td>Schema</td><td>cls_lesson_types, cls_lessons, cls_assignment_types, cls_assignment_categories, cls_assignments, cls_assignment_questions, cls_answer_key_entries</td></tr>
+    <tr><td><strong>2</strong></td><td>Classroom Schema &mdash; Submissions &amp; Grading</td><td>Schema</td><td>cls_submissions, cls_grades, cls_gradebook_snapshots, cls_report_cards, cls_report_card_entries, cls_student_progress_notes, cls_ai_grading_jobs, cls_submission_question_grades</td></tr>
+    <tr><td><strong>3</strong></td><td>Seed Data &mdash; Assignments &amp; Grades</td><td>Seed</td><td>6 assignment types, 3 category weights per class, 12 assignments across 6 classes, submissions for all students, sample grades</td></tr>
+    <tr><td><strong>4</strong></td><td>Classroom NestJS Module &mdash; Assignments</td><td>Code</td><td>AssignmentService, AssignmentController: CRUD assignments, list by class, manage categories</td></tr>
+    <tr><td><strong>5</strong></td><td>Classroom NestJS Module &mdash; Submissions &amp; Grading</td><td>Code</td><td>SubmissionService, GradeService, GradebookService: submit work, enter grades, compute averages, publish</td></tr>
+    <tr><td><strong>6</strong></td><td>Kafka Events &amp; Gradebook Snapshot Worker</td><td>Code</td><td>cls.grade.published event, gradebook snapshot async consumer with 30s debounce per ADR-010</td></tr>
+    <tr><td><strong>7</strong></td><td>Teacher Assignments UI</td><td>UI</td><td>Assignment list per class, create/edit assignment form, category weight management</td></tr>
+    <tr><td><strong>8</strong></td><td>Teacher Grading UI</td><td>UI</td><td>Submission review queue, grade entry, batch grading, publish grades</td></tr>
+    <tr><td><strong>9</strong></td><td>Student &amp; Parent Grade Views</td><td>UI</td><td>Student assignment list, submission form, grade history. Parent gradebook view, progress notes</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>End-to-end: create assignment &rarr; submit &rarr; grade &rarr; publish &rarr; parent sees average</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Classroom Schema &mdash; Lessons &amp; Assignments</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Create the first batch of M21 Classroom tables in a new tenant migration. These define the assignment structure: what kinds of assignments exist, the assignments themselves, and their questions/answer keys.</p>
+
+    <div class="detail-heading">Tables (7)</div>
+    <ol class="detail-list">
+      <li><strong>cls_lesson_types</strong> &mdash; school_id, name, icon, is_active. UNIQUE(school_id, name). Configurable lesson types.</li>
+      <li><strong>cls_lessons</strong> &mdash; class_id FK nullable (NULL for templates), teacher_id (soft FK to hr_employees), lesson_type_id FK, title, date nullable, duration_minutes, learning_objectives TEXT[], status ENUM(DRAFT,PUBLISHED,ARCHIVED,TEMPLATE), is_template BOOLEAN, bank_lesson_id FK nullable (provenance link). Table created for completeness; minimal API in this cycle.</li>
+      <li><strong>cls_assignment_types</strong> &mdash; school_id, name, weight_in_category NUMERIC(5,2), category ENUM(HOMEWORK,QUIZ,TEST,PROJECT,CLASSWORK). UNIQUE(school_id, name).</li>
+      <li><strong>cls_assignment_categories</strong> &mdash; class_id FK, name, weight NUMERIC(5,2). Weights must sum to 100 per class (app-layer validation). Enables weighted grade calculation.</li>
+      <li><strong>cls_assignments</strong> &mdash; class_id FK, lesson_id FK nullable, assignment_type_id FK, title, instructions, due_date TIMESTAMPTZ, max_points NUMERIC(6,2), grading_scale_id FK, is_ai_grading_enabled, is_extra_credit. INDEX(class_id, due_date).</li>
+      <li><strong>cls_assignment_questions</strong> &mdash; assignment_id FK, question_text, question_type ENUM(MULTIPLE_CHOICE,SHORT_ANSWER,ESSAY,TRUE_FALSE,FILE_UPLOAD), points NUMERIC(5,2), sort_order. INDEX(assignment_id, sort_order).</li>
+      <li><strong>cls_answer_key_entries</strong> &mdash; UNIQUE(question_id, option_index). correct_answer, explanation, is_correct.</li>
+    </ol>
+
+    <div class="detail-heading">Migration File</div>
+    <p><code>packages/database/prisma/tenant/migrations/005_cls_lessons_and_assignments.sql</code>. Follows the same idempotent pattern as Cycle 1 migrations: CREATE TABLE IF NOT EXISTS, TEXT+CHECK for enums, soft FKs to platform schema.</p>
+
+    <div class="produces">Produces &rarr; 7 new tables in every tenant schema.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Classroom Schema &mdash; Submissions &amp; Grading</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The grading pipeline: student submissions, teacher grades, gradebook snapshots, report cards, progress notes, and the AI grading stub.</p>
+
+    <div class="detail-heading">Tables (8)</div>
+    <ol class="detail-list">
+      <li><strong>cls_submissions</strong> &mdash; UNIQUE(student_id, assignment_id). status ENUM(NOT_STARTED,IN_PROGRESS,SUBMITTED,GRADED,RETURNED), submitted_at TIMESTAMPTZ. Partial index on (assignment_id, submitted_at DESC) WHERE status='SUBMITTED'.</li>
+      <li><strong>cls_submission_question_grades</strong> &mdash; UNIQUE(submission_id, question_id). ai_suggested_points, ai_confidence, teacher_awarded_points, feedback. AI suggestions are read-only inputs to the teacher review UI.</li>
+      <li><strong>cls_ai_grading_jobs</strong> &mdash; submission_id FK, status ENUM(PENDING,RUNNING,COMPLETE,FAILED), ai_suggested_grade, ai_confidence, ai_reasoning, model_version, completed_at. AI must never write to cls_grades &mdash; teacher action only.</li>
+      <li><strong>cls_grades</strong> &mdash; UNIQUE(student_id, assignment_id). teacher_id FK, grade_value NUMERIC(6,2), letter_grade, feedback, graded_at, is_published BOOLEAN. <em>Only teacher action creates or updates a confirmed grade.</em></li>
+      <li><strong>cls_gradebook_snapshots</strong> &mdash; UNIQUE(class_id, student_id, term_id). current_average NUMERIC(5,2), last_updated_at. Updated by async Kafka consumer with 30s debounce (ADR-010). Never updated synchronously inside a grade write transaction.</li>
+      <li><strong>cls_report_cards</strong> &mdash; student_id FK, class_id FK, term_id FK, status ENUM(DRAFT,PUBLISHED), published_at. UNIQUE(student_id, class_id, term_id).</li>
+      <li><strong>cls_report_card_entries</strong> &mdash; UNIQUE(report_card_id, subject). final_grade, grade_value, teacher_comments, effort_grade. Subject is intentional free-text, not a FK to sis_courses (report cards need labels that don't map 1:1 to courses).</li>
+      <li><strong>cls_student_progress_notes</strong> &mdash; UNIQUE(class_id, student_id, term_id). author_id FK (soft to hr_employees), note_text, overall_effort_rating, is_parent_visible, is_student_visible, published_at. One note per student per class per term.</li>
+    </ol>
+
+    <div class="detail-heading">Key Design Contracts</div>
+    <p><strong>ADR-010 (gradebook snapshots):</strong> cls_gradebook_snapshots is never updated in the same transaction that writes a grade. A Kafka event (<code>cls.grade.published</code>) triggers an async consumer that debounces 30 seconds per (class_id, student_id) before recomputing current_average. This prevents gradebook recalculation from blocking grade entry.</p>
+    <p><strong>AI boundary:</strong> cls_ai_grading_jobs and cls_submission_question_grades store AI suggestions. cls_grades stores only teacher-confirmed grades. AI must never write to cls_grades. The UI shows AI suggestions alongside teacher input but only teacher action persists a grade.</p>
+
+    <div class="produces">Produces &rarr; 8 new tables. Total Classroom tables: 15. Total tenant tables: ~38 (23 from Cycle 1 + 15 new).</div>
+    <div class="depends">Depends on &rarr; Step 1 (assignments must exist for submissions to reference)</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Seed Data &mdash; Assignments &amp; Grades</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <p>Extend the Cycle 1 seed with classroom data so the UI has realistic content to display.</p>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>Assignment types:</strong> 5 types &mdash; Homework, Quiz, Test, Project, Classwork.</li>
+      <li><strong>Assignment categories per class:</strong> 3 categories per class &mdash; Homework (30%), Assessments (50%), Participation (20%). Weights sum to 100.</li>
+      <li><strong>Assignments:</strong> 2 per class &times; 6 classes = 12 assignments. Mix of homework and quizzes. Due dates staggered across the current term. Maya's Period 1 Algebra gets "Chapter 3 Homework" (due yesterday, 20 points) and "Unit 1 Quiz" (due next week, 50 points).</li>
+      <li><strong>Submissions:</strong> All 15 students get submissions for the past-due assignments. Status = SUBMITTED for most, GRADED for some. Maya has submitted the Chapter 3 Homework.</li>
+      <li><strong>Grades:</strong> Teacher has graded 60% of submitted work. Maya got 18/20 on Chapter 3 Homework (is_published=true). Some grades unpublished (teacher entered but not yet released).</li>
+      <li><strong>Gradebook snapshots:</strong> Pre-computed for all students with published grades. Maya's current average: 90% in Period 1 Algebra.</li>
+      <li><strong>Progress notes:</strong> One progress note from James Rivera for Maya in Period 1 Algebra: "Excellent problem-solving skills. Consistently participates." is_parent_visible=true.</li>
+    </ol>
+
+    <div class="detail-heading">Teacher Role Permission Update</div>
+    <p>Add TCH-002 (Assignments), TCH-003 (Grade Book), and TCH-004 (Report Cards) permissions to the Teacher role. Add TCH-002:read and TCH-003:read to Student and Parent roles. Rebuild the effective access cache.</p>
+
+    <div class="produces">Produces &rarr; Populated classroom with 12 assignments, ~80 submissions, ~50 grades, gradebook snapshots, and a progress note.</div>
+    <div class="depends">Depends on &rarr; Steps 1&ndash;2 (classroom tables), Cycle 1 (students, classes, enrollments)</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Classroom NestJS Module &mdash; Assignments</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>Build the assignment management API. This is the teacher's primary workflow for creating and managing coursework.</p>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>AssignmentService</strong> &mdash; CRUD assignments. List by class with pagination. Filter by type, due date range, status. Create with questions and answer key in one transaction. Validate category weights sum to 100.</li>
+      <li><strong>AssignmentController</strong> &mdash; <code>GET /classes/:id/assignments</code> (list), <code>GET /assignments/:id</code> (detail with questions), <code>POST /classes/:id/assignments</code> (create), <code>PATCH /assignments/:id</code> (update), <code>DELETE /assignments/:id</code> (soft delete). All <code>@RequirePermission('tch-002:read')</code> or <code>'tch-002:write'</code>.</li>
+      <li><strong>CategoryController</strong> &mdash; <code>GET /classes/:id/categories</code>, <code>PUT /classes/:id/categories</code> (bulk upsert with weight validation). <code>@RequirePermission('tch-003:write')</code>.</li>
+    </ol>
+
+    <div class="detail-heading">Row-Level Authorization</div>
+    <p>Follow the pattern established in Cycle 1 review fixes: teachers can only manage assignments for their assigned classes (verified via sis_class_teachers). Students can view assignments for their enrolled classes only. Parents can view assignments for their linked children's classes.</p>
+
+    <div class="produces">Produces &rarr; ClassroomModule with AssignmentService, ~8 endpoints, all permission-protected with row-level auth.</div>
+    <div class="depends">Depends on &rarr; Step 3 (seed data), Cycle 1 (SisModule for class/student lookups)</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Classroom NestJS Module &mdash; Submissions &amp; Grading</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>The grading pipeline: students submit work, teachers review and grade, grades are published, gradebook is updated.</p>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>SubmissionService</strong> &mdash; Create/update submission. Only the student themselves can submit (row-level: submission.student_id must match caller via sis_students). Track status transitions: NOT_STARTED &rarr; IN_PROGRESS &rarr; SUBMITTED &rarr; GRADED &rarr; RETURNED.</li>
+      <li><strong>GradeService</strong> &mdash; Enter grade for a submission. Only teachers assigned to the class can grade. Validate grade_value &le; max_points. Publish grades (set is_published=true, emit Kafka event). Batch grade endpoint for grading a whole class at once.</li>
+      <li><strong>GradebookService</strong> &mdash; Get gradebook view for a class (all students &times; all assignments, with grades and current averages). Get student gradebook across all classes (for student/parent view). Compute weighted average from category weights.</li>
+      <li><strong>ProgressNoteService</strong> &mdash; Create/update progress notes. Publish to parent (set is_parent_visible=true, emit cls.progress_note.published event).</li>
+      <li><strong>Endpoints:</strong>
+        <code>POST /assignments/:id/submit</code> (student submits),
+        <code>GET /assignments/:id/submissions</code> (teacher sees all),
+        <code>GET /assignments/:id/submissions/mine</code> (student sees own),
+        <code>POST /submissions/:id/grade</code> (teacher grades),
+        <code>POST /classes/:id/grades/batch</code> (batch grade),
+        <code>POST /grades/:id/publish</code> (publish single),
+        <code>POST /classes/:id/grades/publish-all</code> (publish all for class),
+        <code>GET /classes/:id/gradebook</code> (teacher gradebook view),
+        <code>GET /students/:id/gradebook</code> (student/parent view),
+        <code>POST /classes/:id/progress-notes</code>,
+        <code>GET /students/:id/progress-notes</code>.</li>
+    </ol>
+
+    <div class="detail-heading">Grading Rules</div>
+    <p>Grade value must be &le; max_points (unless is_extra_credit on the assignment). Weighted average computed from cls_assignment_categories weights. Extra credit assignments excluded from the denominator. Only published grades count in the gradebook snapshot. Teachers can unpublish a grade (sets is_published=false, triggers snapshot recalculation).</p>
+
+    <div class="produces">Produces &rarr; SubmissionService, GradeService, GradebookService, ProgressNoteService, ~12 endpoints.</div>
+    <div class="depends">Depends on &rarr; Step 4 (assignments), Cycle 1 (students, enrollments)</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Kafka Events &amp; Gradebook Snapshot Worker</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>The first Kafka consumer in the system. When a grade is published, an event triggers an async worker that recomputes the student's current average. This is the ADR-010 pattern: never update gradebook snapshots synchronously inside a grade transaction.</p>
+
+    <div class="detail-heading">Events Emitted</div>
+    <ol class="detail-list">
+      <li><strong>cls.grade.published</strong> &mdash; { studentId, classId, assignmentId, gradeValue, maxPoints, isExtraCredit, termId }. Emitted when a teacher publishes a grade or batch-publishes.</li>
+      <li><strong>cls.grade.unpublished</strong> &mdash; Same payload. Triggers snapshot recalculation.</li>
+      <li><strong>cls.submission.submitted</strong> &mdash; { studentId, assignmentId, submittedAt }. Future use: notify teacher.</li>
+      <li><strong>cls.progress_note.published</strong> &mdash; { studentId, classId, termId }. Future use: notify parent.</li>
+    </ol>
+
+    <div class="detail-heading">Gradebook Snapshot Consumer</div>
+    <p>Consumes <code>cls.grade.published</code> and <code>cls.grade.unpublished</code>. Uses a 30-second debounce per (class_id, student_id) &mdash; if multiple grades are published in rapid succession for the same student in the same class, only one recalculation runs. The consumer queries all published grades for the student in that class, applies category weights, computes current_average, and upserts the cls_gradebook_snapshots record.</p>
+    <p>This is the first Kafka consumer &mdash; it establishes the pattern (KafkaConsumerService, topic subscription, idempotency via platform_event_consumer_idempotency) that Cycle 3 (Communications) will follow for notification delivery.</p>
+
+    <div class="produces">Produces &rarr; 4 Kafka events, 1 consumer (gradebook snapshot worker), debounce logic, idempotency.</div>
+    <div class="depends">Depends on &rarr; Step 5 (grade publishing), Cycle 0 (Kafka infrastructure, event consumer idempotency table)</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Teacher Assignments UI</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>The teacher's assignment management interface. Extends the existing class view from Cycle 1 with a new "Assignments" tab alongside "Attendance."</p>
+
+    <div class="detail-heading">Pages &amp; Components</div>
+    <ol class="detail-list">
+      <li><strong>Assignment list</strong> <code>/classes/:id/assignments</code> &mdash; table of all assignments for the class. Columns: title, type, due date, max points, submissions count, average grade. Sort by due date. Filter by type. "Create Assignment" button.</li>
+      <li><strong>Create/edit assignment</strong> <code>/classes/:id/assignments/new</code> &mdash; form with: title, type (dropdown from cls_assignment_types), category (dropdown from cls_assignment_categories), instructions (rich text or plain), due date/time picker, max points, extra credit toggle. Optional: add questions (for quizzes &mdash; question text, type, points, answer options).</li>
+      <li><strong>Category weight management</strong> &mdash; modal or inline editor showing categories with weight sliders/inputs. Validation: must sum to 100%. Affects grade calculation for all students in the class.</li>
+      <li><strong>Class view tabs</strong> &mdash; the class detail page now has tabs: Attendance | Assignments | Gradebook. Attendance is Cycle 1. Assignments is this step. Gradebook is Step 8.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Assignment list, create/edit form, category management. Teacher can create and manage assignments in the browser.</div>
+    <div class="depends">Depends on &rarr; Step 4 (assignment API), Cycle 1 UI (class view shell)</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Teacher Grading UI</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>The teacher's grading workflow. Review submissions, enter grades, and publish to students/parents.</p>
+
+    <div class="detail-heading">Pages &amp; Components</div>
+    <ol class="detail-list">
+      <li><strong>Gradebook view</strong> <code>/classes/:id/gradebook</code> &mdash; spreadsheet-style grid. Rows = students, columns = assignments (grouped by category). Cells show grade/max (colour-coded: green &ge;80%, amber 60&ndash;79%, red &lt;60%). Right column shows current weighted average. Click a cell to enter/edit a grade inline.</li>
+      <li><strong>Submission review</strong> <code>/assignments/:id/submissions</code> &mdash; list of all student submissions. Status badges (Not Started / In Progress / Submitted / Graded / Returned). Click a submission to see student's work and enter grade + feedback.</li>
+      <li><strong>Grade entry</strong> &mdash; inline in the gradebook grid or in the submission detail. Grade value input, letter grade auto-calculated from grading scale, feedback textarea. Save immediately (optimistic UI).</li>
+      <li><strong>Publish controls</strong> &mdash; "Publish All Grades" button per assignment (batch). Individual publish toggle per grade. Published grades are visible to students and parents. Unpublish option available.</li>
+      <li><strong>Progress notes</strong> &mdash; accessible from the gradebook, per student. Write mid-term narrative, set effort rating, toggle parent visibility. Publish emits notification event.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Gradebook grid, submission review, grade entry, publish workflow. The core grading experience.</div>
+    <div class="depends">Depends on &rarr; Steps 5&ndash;6 (grading API + snapshot worker), Step 7 (assignments UI)</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Student &amp; Parent Grade Views</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>The student and parent views of assignments, submissions, and grades. Extends the existing persona-aware dashboard from Cycle 1.</p>
+
+    <div class="detail-heading">Student Pages</div>
+    <ol class="detail-list">
+      <li><strong>My assignments</strong> <code>/assignments</code> &mdash; list of all assignments across all enrolled classes. Filter by class, due date, status. Upcoming due dates highlighted. Overdue assignments flagged red.</li>
+      <li><strong>Assignment detail &amp; submit</strong> <code>/assignments/:id</code> &mdash; view instructions, questions (if any). Text area or file upload for submission. Submit button. Shows grade and feedback after grading.</li>
+      <li><strong>My grades</strong> <code>/grades</code> &mdash; gradebook summary across all classes. Per-class: current average, per-assignment grades. Matches the data in cls_gradebook_snapshots.</li>
+    </ol>
+
+    <div class="detail-heading">Parent Pages</div>
+    <ol class="detail-list">
+      <li><strong>Child gradebook</strong> &mdash; integrated into the existing parent dashboard from Cycle 1. Below the attendance section, a "Grades" card showing per-class current averages. Click a class to see per-assignment breakdown.</li>
+      <li><strong>Progress notes</strong> &mdash; visible on the child detail page when is_parent_visible=true. Shows teacher name, effort rating, narrative text, date.</li>
+    </ol>
+
+    <div class="detail-heading">Row-Level Auth</div>
+    <p>Students see only their own submissions and grades. Parents see only their linked children's data. Teachers see only their assigned classes. Same patterns as Cycle 1.</p>
+
+    <div class="produces">Produces &rarr; Student assignment list, submission form, grade view. Parent gradebook integration. The vertical slice is now visible end-to-end.</div>
+    <div class="depends">Depends on &rarr; Steps 5 &amp; 8 (grading API + UI), Cycle 1 UI (student/parent dashboards)</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <p>The end-to-end proof that the teaching and learning workflow works.</p>
+
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Teacher creates assignment:</strong> Log in as teacher. Navigate to Period 1 Algebra &rarr; Assignments tab. Create "Chapter 4 Homework" (Homework type, 25 points, due tomorrow). Verify it appears in the list.</li>
+      <li><strong>Student sees assignment:</strong> Log in as student (Maya). Navigate to Assignments. Verify "Chapter 4 Homework" appears with due date.</li>
+      <li><strong>Student submits:</strong> Open the assignment. Type response. Click Submit. Verify status changes to SUBMITTED.</li>
+      <li><strong>Teacher grades:</strong> Log in as teacher. Open Period 1 Algebra &rarr; Gradebook. Click Maya's "Chapter 4 Homework" cell. Enter grade: 22/25. Add feedback: "Good work, watch step 3." Save.</li>
+      <li><strong>Teacher publishes:</strong> Click "Publish All Grades" for Chapter 4 Homework. Verify Kafka event <code>cls.grade.published</code> emitted.</li>
+      <li><strong>Gradebook updates:</strong> Wait 30+ seconds for debounce. Verify cls_gradebook_snapshots for Maya in Period 1 Algebra has updated current_average reflecting the new grade.</li>
+      <li><strong>Student sees grade:</strong> Log in as Maya. Navigate to Grades. Verify Chapter 4 Homework shows 22/25 with feedback. Verify current average updated.</li>
+      <li><strong>Parent sees grade:</strong> Log in as David Chen. Verify parent dashboard shows updated average for Maya in Algebra. Click through to see per-assignment breakdown including the new grade.</li>
+      <li><strong>Permission denial:</strong> Verify student cannot grade, parent cannot submit, teacher cannot grade another teacher's class.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Verified vertical slice: create &rarr; submit &rarr; grade &rarr; publish &rarr; snapshot updates &rarr; parent sees. Pattern established for all future classroom features.</div>
+  </div>
+
+  <!-- ═══════ COMPLETION ═══════ -->
+  <h2 class="section-heading">Cycle 2 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 15 new Classroom tables migrated. Total tenant tables: ~38.</li>
+      <li>Seed data: 12 assignments, ~80 submissions, ~50 grades, gradebook snapshots, progress notes.</li>
+      <li>Assignment API: ~8 endpoints, all permission-protected with row-level auth.</li>
+      <li>Submission &amp; Grading API: ~12 endpoints. Grade entry, batch grading, publish workflow.</li>
+      <li>Kafka: first consumer (gradebook snapshot worker). 30s debounce. Idempotent. 4 event types.</li>
+      <li>Teacher UI: assignment CRUD, gradebook grid, submission review, grade entry, publish.</li>
+      <li>Student UI: assignment list, submission form, grade view.</li>
+      <li>Parent UI: gradebook averages, per-assignment breakdown, progress notes.</li>
+      <li>Vertical slice test: all 9 steps pass.</li>
+      <li>HANDOFF-CYCLE2.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">After Cycle 2, CampusOS handles two complete school workflows: attendance and grading. <strong>Cycle 3 (Communications)</strong> adds messaging, announcements, and notification delivery &mdash; connecting the Kafka events from Cycles 1 and 2 to actual parent/teacher notifications via email, push, and in-app messages.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 2 Implementation Plan &mdash; April 2026. Derived from: ERD v11 (M21 Classroom, 33 tables), Function Library (TCH-001 through TCH-006), Architecture Review (ADR-010 gradebook snapshots, Section 10 AI Architecture), Development &amp; Deployment Plan (Section 13, Cycle 2).</p>
+  </div>
+</div>
+
+</body>
+</html>
