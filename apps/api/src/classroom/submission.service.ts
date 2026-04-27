@@ -257,12 +257,18 @@ export class SubmissionService {
       return newId;
     });
 
-    void this.kafka.emit('cls.submission.submitted', studentSisId, {
-      submissionId: submissionId,
-      assignmentId: assignmentId,
-      classId: meta.classId,
-      studentId: studentSisId,
-      submittedAt: nowIso,
+    void this.kafka.emit({
+      topic: 'cls.submission.submitted',
+      key: studentSisId,
+      sourceModule: 'classroom',
+      occurredAt: nowIso,
+      payload: {
+        submissionId: submissionId,
+        assignmentId: assignmentId,
+        classId: meta.classId,
+        studentId: studentSisId,
+        submittedAt: nowIso,
+      },
     });
 
     return this.getById(submissionId, actor);

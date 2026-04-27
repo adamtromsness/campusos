@@ -153,14 +153,19 @@ export class AbsenceRequestService {
         return rows[0]!;
       })
       .then((row) => {
-        void this.kafka.emit('att.absence.requested', row.id, {
-          requestId: row.id,
-          studentId: row.student_id,
-          submittedBy: row.submitted_by,
-          requestType: row.request_type,
-          absenceDateFrom: dateToString(row.absence_date_from),
-          absenceDateTo: dateToString(row.absence_date_to),
-          status: row.status,
+        void this.kafka.emit({
+          topic: 'att.absence.requested',
+          key: row.id,
+          sourceModule: 'attendance',
+          payload: {
+            requestId: row.id,
+            studentId: row.student_id,
+            submittedBy: row.submitted_by,
+            requestType: row.request_type,
+            absenceDateFrom: dateToString(row.absence_date_from),
+            absenceDateTo: dateToString(row.absence_date_to),
+            status: row.status,
+          },
         });
         return rowToDto(row);
       });
@@ -258,12 +263,18 @@ export class AbsenceRequestService {
         return rows[0]!;
       })
       .then((row) => {
-        void this.kafka.emit('att.absence.reviewed', row.id, {
-          requestId: row.id,
-          studentId: row.student_id,
-          decision: row.status,
-          reviewedBy: row.reviewed_by,
-          reviewedAt: tsToString(row.reviewed_at),
+        void this.kafka.emit({
+          topic: 'att.absence.reviewed',
+          key: row.id,
+          sourceModule: 'attendance',
+          occurredAt: tsToString(row.reviewed_at) ?? undefined,
+          payload: {
+            requestId: row.id,
+            studentId: row.student_id,
+            decision: row.status,
+            reviewedBy: row.reviewed_by,
+            reviewedAt: tsToString(row.reviewed_at),
+          },
         });
         return rowToDto(row);
       });

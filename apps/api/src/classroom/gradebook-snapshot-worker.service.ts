@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs
 import { generateId } from '@campusos/database';
 import { KafkaConsumerService, ConsumedMessage } from '../kafka/kafka-consumer.service';
 import { IdempotencyService } from '../kafka/idempotency.service';
+import { prefixedTopic } from '../kafka/event-envelope';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { TenantInfo, runWithTenantContextAsync } from '../tenant/tenant.context';
 
@@ -19,7 +20,9 @@ import { TenantInfo, runWithTenantContextAsync } from '../tenant/tenant.context'
  * sees fresh numbers within a minute, long enough to absorb a bulk publish.
  *
  * Idempotency (REVIEW-CYCLE2 BLOCKING 2 — claim-after-success): each event
- * carries an `event-id` header. On arrival the handler does a read-only
+ * carries an `event_id` (read from the ADR-057 envelope first, falling back
+ * to the legacy `event-id` transport header for any in-flight messages
+ * produced before Cycle 3 Step 0). On arrival the handler does a read-only
  * lookup in platform_event_consumer_idempotency. If already claimed, drop.
  * Otherwise, register the event-id against the in-flight debounce entry and
  * reset the 30s timer. The actual `INSERT` into the idempotency table only
@@ -101,7 +104,7 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
   async onModuleInit(): Promise<void> {
     var self = this;
     await this.consumer.subscribe({
-      topics: ['cls.grade.published', 'cls.grade.unpublished'],
+      topics: [prefixedTopic('cls.grade.published'), prefixedTopic('cls.grade.unpublished')],
       groupId: CONSUMER_GROUP,
       handler: function (msg: ConsumedMessage): Promise<void> {
         return self.handle(msg);
@@ -136,19 +139,39 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
   }
 
   private async handle(msg: ConsumedMessage): Promise<void> {
-    var eventId = msg.headers['event-id'];
+    // Step 0 (Cycle 3): prefer the ADR-057 envelope, fall back to legacy
+    // transport headers for any in-flight messages produced before the
+    // migration. The producer sets both today, so envelope and headers
+    // should agree; envelope wins by precedence.
+    var rawEnvelope = msg.payload as
+      | (Record<string, unknown> & { payload?: unknown; tenant_id?: unknown; event_id?: unknown })
+      | null;
+    var hasEnvelope =
+      !!rawEnvelope &&
+      typeof rawEnvelope === 'object' &&
+      'payload' in rawEnvelope &&
+      typeof rawEnvelope.payload === 'object' &&
+      rawEnvelope.payload !== null;
+
+    var eventId =
+      (hasEnvelope ? (rawEnvelope!.event_id as string | undefined) : undefined) ||
+      msg.headers['event-id'];
+    var schoolId =
+      (hasEnvelope ? (rawEnvelope!.tenant_id as string | undefined) : undefined) ||
+      msg.headers['tenant-id'];
+    // Tenant subdomain isn't an envelope field — it's still carried as a
+    // transport header so the worker can build `tenant_<subdomain>`.
     var subdomain = msg.headers['tenant-subdomain'];
-    var schoolId = msg.headers['tenant-id'];
     if (!eventId || !subdomain || !schoolId) {
       this.logger.warn(
         'Dropping ' +
           msg.topic +
-          ' — missing transport headers (event-id/tenant-id/tenant-subdomain)',
+          ' — missing routing fields (event_id/tenant_id from envelope or headers; tenant-subdomain header)',
       );
       return;
     }
 
-    var payload = msg.payload as GradePayload | null;
+    var payload = (hasEnvelope ? rawEnvelope!.payload : rawEnvelope) as GradePayload | null;
     if (!payload || !payload.classId || !payload.studentId) {
       this.logger.warn('Dropping ' + msg.topic + ' (eventId=' + eventId + ') — invalid payload');
       return;

@@ -332,37 +332,55 @@ export class AttendanceService {
 
     var nowIso = new Date().toISOString();
 
-    void this.kafka.emit('att.attendance.confirmed', classId, {
-      classId,
-      date,
-      period,
-      schoolId: keys.schoolId,
-      schoolYear: keys.schoolYear,
-      totalStudents: summary.totalStudents,
-      counts: summary.counts,
-      confirmedAt: nowIso,
-      confirmedBy: actorAccountId,
+    void this.kafka.emit({
+      topic: 'att.attendance.confirmed',
+      key: classId,
+      sourceModule: 'attendance',
+      occurredAt: nowIso,
+      payload: {
+        classId,
+        date,
+        period,
+        schoolId: keys.schoolId,
+        schoolYear: keys.schoolYear,
+        totalStudents: summary.totalStudents,
+        counts: summary.counts,
+        confirmedAt: nowIso,
+        confirmedBy: actorAccountId,
+      },
     });
     for (var k = 0; k < summary.rosterRows.length; k++) {
       var rr = summary.rosterRows[k]!;
       var newStatus = exceptionByStudent[rr.student_id]?.status || 'PRESENT';
       if (newStatus === 'TARDY') {
-        void this.kafka.emit('att.student.marked_tardy', rr.student_id, {
-          recordId: rr.id,
-          studentId: rr.student_id,
-          classId,
-          date,
-          period,
-          markedAt: nowIso,
+        void this.kafka.emit({
+          topic: 'att.student.marked_tardy',
+          key: rr.student_id,
+          sourceModule: 'attendance',
+          occurredAt: nowIso,
+          payload: {
+            recordId: rr.id,
+            studentId: rr.student_id,
+            classId,
+            date,
+            period,
+            markedAt: nowIso,
+          },
         });
       } else if (newStatus === 'ABSENT') {
-        void this.kafka.emit('att.student.marked_absent', rr.student_id, {
-          recordId: rr.id,
-          studentId: rr.student_id,
-          classId,
-          date,
-          period,
-          markedAt: nowIso,
+        void this.kafka.emit({
+          topic: 'att.student.marked_absent',
+          key: rr.student_id,
+          sourceModule: 'attendance',
+          occurredAt: nowIso,
+          payload: {
+            recordId: rr.id,
+            studentId: rr.student_id,
+            classId,
+            date,
+            period,
+            markedAt: nowIso,
+          },
         });
       }
     }
@@ -406,34 +424,58 @@ export class AttendanceService {
   }
 
   private emitMarkEvents(row: AttendanceRow, priorStatus: string, actorAccountId: string): void {
-    void this.kafka.emit('att.attendance.marked', row.id, {
-      recordId: row.id,
-      studentId: row.student_id,
-      classId: row.class_id,
-      date: typeof row.date === 'string' ? row.date : row.date.toISOString().slice(0, 10),
-      period: row.period,
-      priorStatus,
-      newStatus: row.status,
-      markedBy: actorAccountId,
-      markedAt: row.marked_at,
+    var dateStr = typeof row.date === 'string' ? row.date : row.date.toISOString().slice(0, 10);
+    var markedAt = row.marked_at;
+    var occurredAt: string | undefined;
+    if (markedAt) {
+      occurredAt = typeof markedAt === 'string' ? markedAt : markedAt.toISOString();
+    }
+    void this.kafka.emit({
+      topic: 'att.attendance.marked',
+      key: row.id,
+      sourceModule: 'attendance',
+      occurredAt: occurredAt,
+      payload: {
+        recordId: row.id,
+        studentId: row.student_id,
+        classId: row.class_id,
+        date: dateStr,
+        period: row.period,
+        priorStatus,
+        newStatus: row.status,
+        markedBy: actorAccountId,
+        markedAt: row.marked_at,
+      },
     });
     if (row.status === 'TARDY' && priorStatus !== 'TARDY') {
-      void this.kafka.emit('att.student.marked_tardy', row.student_id, {
-        recordId: row.id,
-        studentId: row.student_id,
-        classId: row.class_id,
-        date: typeof row.date === 'string' ? row.date : row.date.toISOString().slice(0, 10),
-        period: row.period,
-        markedAt: row.marked_at,
+      void this.kafka.emit({
+        topic: 'att.student.marked_tardy',
+        key: row.student_id,
+        sourceModule: 'attendance',
+        occurredAt: occurredAt,
+        payload: {
+          recordId: row.id,
+          studentId: row.student_id,
+          classId: row.class_id,
+          date: dateStr,
+          period: row.period,
+          markedAt: row.marked_at,
+        },
       });
     } else if (row.status === 'ABSENT' && priorStatus !== 'ABSENT') {
-      void this.kafka.emit('att.student.marked_absent', row.student_id, {
-        recordId: row.id,
-        studentId: row.student_id,
-        classId: row.class_id,
-        date: typeof row.date === 'string' ? row.date : row.date.toISOString().slice(0, 10),
-        period: row.period,
-        markedAt: row.marked_at,
+      void this.kafka.emit({
+        topic: 'att.student.marked_absent',
+        key: row.student_id,
+        sourceModule: 'attendance',
+        occurredAt: occurredAt,
+        payload: {
+          recordId: row.id,
+          studentId: row.student_id,
+          classId: row.class_id,
+          date: dateStr,
+          period: row.period,
+          markedAt: row.marked_at,
+        },
       });
     }
   }

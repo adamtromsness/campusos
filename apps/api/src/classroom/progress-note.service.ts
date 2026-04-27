@@ -143,15 +143,22 @@ export class ProgressNoteService {
       return newId;
     });
 
-    void this.kafka.emit('cls.progress_note.published', body.studentId, {
-      noteId: noteId,
-      classId: classId,
-      studentId: body.studentId,
-      termId: body.termId,
-      isParentVisible: isParentVisible,
-      isStudentVisible: isStudentVisible,
-      authorId: actor.personId,
-      publishedAt: new Date().toISOString(),
+    var publishedAt = new Date().toISOString();
+    void this.kafka.emit({
+      topic: 'cls.progress_note.published',
+      key: body.studentId,
+      sourceModule: 'classroom',
+      occurredAt: publishedAt,
+      payload: {
+        noteId: noteId,
+        classId: classId,
+        studentId: body.studentId,
+        termId: body.termId,
+        isParentVisible: isParentVisible,
+        isStudentVisible: isStudentVisible,
+        authorId: actor.personId,
+        publishedAt: publishedAt,
+      },
     });
 
     return this.getById(noteId);
