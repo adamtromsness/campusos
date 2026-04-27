@@ -5,7 +5,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "build": "pnpm run generate && tsc --project tsconfig.json",
     "clean": "rm -rf dist",
     "migrate": "prisma migrate dev --schema=prisma/platform/schema.prisma",
     "migrate:deploy": "prisma migrate deploy --schema=prisma/platform/schema.prisma",
