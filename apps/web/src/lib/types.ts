@@ -51,6 +51,43 @@ export interface ClassDto {
   todayAttendance?: TodayAttendanceSummary;
 }
 
+export interface AttendanceRecord {
+  id: string;
+  studentId: string;
+  studentNumber: string | null;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  classId: string;
+  date: string;
+  period: string;
+  status: AttendanceStatus;
+  confirmationStatus: ConfirmationStatus;
+  parentExplanation: string | null;
+  markedBy: string | null;
+  markedAt: string | null;
+  absenceRequestId: string | null;
+}
+
+export interface BatchAttendanceEntry {
+  studentId: string;
+  status: AttendanceStatus;
+  parentExplanation?: string;
+}
+
+export interface BatchSubmitResult {
+  classId: string;
+  date: string;
+  period: string;
+  totalStudents: number;
+  presentCount: number;
+  tardyCount: number;
+  absentCount: number;
+  earlyDepartureCount: number;
+  excusedCount: number;
+  confirmedAt: string;
+}
+
 export interface AbsenceRequestDto {
   id: string;
   schoolId: string;
