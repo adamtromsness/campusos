@@ -702,3 +702,71 @@ model IamServicePrincipal {
   @@map("iam_service_principal")
   @@schema("platform")
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CYCLE 3 STEP 3 — Communications Platform Support
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ── Push Tokens ──────────────────────────────────────────────
+// One row per (user, device). Cross-tenant by design — a single
+// platform_user can hold roles in multiple schools and we want
+// one push registration to reach them everywhere they have access.
+// Soft FK to platform_users (no DB FK per ADR-001/020 — kept loose
+// so a deleted account doesn't cascade through device records).
+model PlatformPushToken {
+  id             String       @id @db.Uuid
+  platformUserId String       @map("platform_user_id") @db.Uuid
+  deviceId       String       @map("device_id")
+  platform       PushPlatform
+  token          String
+  isActive       Boolean      @default(true) @map("is_active")
+  lastSeenAt     DateTime?    @map("last_seen_at") @db.Timestamptz()
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@unique([platformUserId, deviceId])
+  @@index([platformUserId, isActive])
+  @@index([token])
+  @@map("platform_push_tokens")
+  @@schema("platform")
+}
+
+enum PushPlatform {
+  IOS
+  ANDROID
+  WEB
+
+  @@schema("platform")
+}
+
+// ── Dead Letter Queue ────────────────────────────────────────
+// Kafka messages that failed every consumer retry. Holds the raw
+// payload + headers so an operator can replay or triage. Cross-tenant
+// because a DLQ row may originate from any tenant, the operator is
+// platform-scoped, and the failure handler runs above the request path.
+model PlatformDlqMessage {
+  id            String    @id @db.Uuid
+  topic         String
+  partition     Int
+  kafkaOffset   BigInt    @map("kafka_offset")
+  consumerGroup String    @map("consumer_group")
+  eventId       String?   @map("event_id")
+  tenantId      String?   @map("tenant_id") @db.Uuid
+  payload       Json      @db.JsonB
+  headers       Json?     @db.JsonB
+  errorMessage  String    @map("error_message")
+  errorClass    String?   @map("error_class")
+  retryCount    Int       @default(0) @map("retry_count")
+  firstFailedAt DateTime  @default(now()) @map("first_failed_at") @db.Timestamptz()
+  lastFailedAt  DateTime  @default(now()) @map("last_failed_at") @db.Timestamptz()
+  resolvedAt    DateTime? @map("resolved_at") @db.Timestamptz()
+  resolvedBy    String?   @map("resolved_by") @db.Uuid
+  resolution    String?
+
+  @@index([topic, lastFailedAt(sort: Desc)])
+  @@index([consumerGroup, lastFailedAt(sort: Desc)])
+  @@index([tenantId, lastFailedAt(sort: Desc)])
+  @@index([resolvedAt])
+  @@map("platform_dlq_messages")
+  @@schema("platform")
+}

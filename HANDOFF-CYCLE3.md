@@ -1,6 +1,6 @@
 # Cycle 3 Handoff — Communications
 
-**Status:** Cycle 3 IN PROGRESS — Step 0 (ADR-057 envelope), Step 1 (Communications schema — Messaging), and Step 2 (Communications schema — Notifications & Announcements) DONE; Steps 3–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
+**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), and 3 (Moderation & Support) DONE; Steps 4–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle3-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher marks Maya tardy in Period 1 → Kafka event fires → notification consumer picks it up → in-app notification appears on David Chen's parent dashboard with a badge count → David clicks the notification → he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress → David sees it in his inbox → David replies → the reply goes through content moderation → James sees the reply in his inbox.
@@ -16,7 +16,7 @@ This document tracks the Cycle 3 build — the M40 Communications module — at 
 |    0 | ADR-057 Event Envelope (carry-over from Cycle 2)              | Done — canonical envelope in `KafkaProducerService`; env-prefixed topics; all Cycle 1+2 producers migrated; gradebook worker reads envelope with header fallback |
 |    1 | Communications Schema — Messaging                             | Done — `007_msg_messaging.sql` applied to demo + test (6 base tables + 64 hash partitions of `msg_threads` + 24 monthly partitions of `msg_messages`) |
 |    2 | Communications Schema — Notifications & Announcements         | Done — `008_msg_notifications_and_announcements.sql` applied to demo + test (7 base tables + 24 monthly partitions of `msg_notification_log`)        |
-|    3 | Communications Schema — Moderation & Support                  | Not started                                                                                                                   |
+|    3 | Communications Schema — Moderation & Support                  | Done — `009_msg_moderation.sql` applied to demo + test (6 tenant tables + 24 monthly partitions of `msg_moderation_log`); platform Prisma migration `20260427211003_add_communications_platform_tables` adds `platform_push_tokens` + `platform_dlq_messages` |
 |    4 | Seed Data — Messaging & Notifications                         | Not started                                                                                                                   |
 |    5 | Notification Pipeline — Consumers & Queue                     | Not started                                                                                                                   |
 |    6 | Messaging NestJS Module                                       | Not started                                                                                                                   |
@@ -365,7 +365,112 @@ The new notification + announcement tables are empty after Step 2. `seed:sis` an
 
 ## Step 3 — Communications Schema — Moderation & Support
 
-Not started. Plan: `msg_moderation_policies`, `msg_moderation_log` (RANGE monthly), `msg_tags`, `msg_user_tags`, `msg_user_blocks`, `msg_admin_access_log`, plus two **platform-schema** additions via Prisma migration: `platform_push_tokens`, `platform_dlq_messages`. Migration targets: `009_msg_moderation.sql` (tenant) + a new Prisma migration for platform additions.
+`packages/database/prisma/tenant/migrations/009_msg_moderation.sql` lands 6 base tenant tables + 24 monthly RANGE partitions of `msg_moderation_log` (2025-08 → 2027-08, matching the messages and notification-log windows from Steps 1 and 2). The Prisma migration `20260427211003_add_communications_platform_tables` adds two platform-schema tables (`platform_push_tokens`, `platform_dlq_messages`) — the first platform-schema additions since Cycle 0. Same idempotent CREATE-IF-NOT-EXISTS pattern in the tenant SQL, no semicolons in string literals, soft UUID refs to `platform.platform_users` per ADR-001/020.
+
+### Tenant tables (6 base + 24 partitions of `msg_moderation_log`)
+
+| Table                       | Purpose                                                                                                                            | Key columns                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `msg_moderation_policies`   | Three-tier moderation policy. PLATFORM, DISTRICT, BUILDING — most restrictive action wins.                                         | `id`, `school_id`, `scope` ∈ {PLATFORM, DISTRICT, BUILDING}, `scope_id UUID` (NULL for PLATFORM, organisations.id for DISTRICT, schools.id for BUILDING), `name`, `description`, `keywords TEXT[]`, `keyword_action` ∈ {BLOCK, FLAG_FOR_REVIEW, ESCALATE_TO_COUNSELLOR}, `sensitivity_threshold INTEGER` (0–100, default 50), `escalation_rules JSONB` (default `'{}'`), `is_active`, `created_at`, `updated_at`. Partial INDEX(school_id, scope) WHERE `is_active = true`. |
+| `msg_moderation_log`        | Per-flag/block/escalation event. **RANGE(created_at) monthly** for retention.                                                      | `id`, `school_id`, `message_id UUID`, `message_created_at TIMESTAMPTZ` (denormalised partition key matching `msg_messages.created_at`), `thread_id UUID`, `sender_id UUID` (denormalised from the message at write time), `policy_id UUID NOT NULL REFERENCES msg_moderation_policies(id)`, `flag_type` ∈ {BLOCKED, FLAGGED, ESCALATED}, `matched_keywords TEXT[]`, `severity` ∈ {INFO, WARNING, URGENT, EMERGENCY} (default INFO), `review_outcome` ∈ {PENDING, RESOLVED, ESCALATED, DISMISSED} (nullable), `reviewed_by UUID`, `reviewed_at`, `notes`, `created_at`. Composite PK `(id, created_at)`. Partial INDEX(school_id, created_at DESC) WHERE `review_outcome = 'PENDING'` for the moderator queue. |
+| `msg_tags`                  | School-scoped thread/user tag dictionary                                                                                           | `id`, `school_id`, `name`, `color`, `description`, `is_system`, `is_active`. UNIQUE(school_id, name).                                                                                                                                                                                                                                                                                                                                          |
+| `msg_user_tags`             | User × tag join. UNIQUE per (user, tag).                                                                                           | `id`, `school_id`, `platform_user_id` (soft), `tag_id` (DB FK to `msg_tags(id) ON DELETE CASCADE`), `assigned_by` (soft). UNIQUE(platform_user_id, tag_id).                                                                                                                                                                                                                                                                                  |
+| `msg_user_blocks`           | Personal block list — enforced by the Step 6 messaging service                                                                     | `id`, `school_id`, `blocker_id` (soft), `blocked_id` (soft), `reason`. UNIQUE(blocker_id, blocked_id) and CHECK `blocker_id <> blocked_id` (no self-block).                                                                                                                                                                                                                                                                                  |
+| `msg_admin_access_log`      | FERPA audit trail for admin reading private threads they are not a participant in                                                  | `id`, `school_id`, `admin_id` (soft), `thread_id` (soft), `reason TEXT NOT NULL`, `accessed_at`. INDEX(admin_id, accessed_at DESC) and (thread_id, accessed_at DESC). `reason` is NOT NULL — every admin read of a non-participant thread must be justified.                                                                                                                                                                                |
+
+### Platform tables (Prisma)
+
+Migration: `prisma/platform/migrations/20260427211003_add_communications_platform_tables/migration.sql`. Both tables are platform-scoped (shared across tenants).
+
+| Table                    | Purpose                                                                                                                            | Key columns                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `platform_push_tokens`   | One row per (user, device) push registration. Cross-tenant — a single account may hold roles in multiple schools.                  | `id`, `platform_user_id UUID` (soft per ADR-001/020), `device_id`, `platform` enum {IOS, ANDROID, WEB}, `token`, `is_active`, `last_seen_at`, `created_at`, `updated_at` (Prisma `@updatedAt`). UNIQUE(platform_user_id, device_id). INDEX(platform_user_id, is_active) and (token).                                                                                                  |
+| `platform_dlq_messages`  | Kafka dead letter queue for messages that failed every consumer retry                                                              | `id`, `topic`, `partition`, `kafka_offset BIGINT`, `consumer_group`, `event_id`, `tenant_id` (nullable — DLQ row may originate from any tenant), `payload JSONB`, `headers JSONB`, `error_message`, `error_class`, `retry_count`, `first_failed_at`, `last_failed_at`, `resolved_at`, `resolved_by`, `resolution`. INDEX(topic, last_failed_at DESC), (consumer_group, last_failed_at DESC), (tenant_id, last_failed_at DESC), (resolved_at). |
+
+The Prisma model field is named `kafkaOffset` (mapped to column `kafka_offset`) because `offset` is a reserved word in PostgreSQL. The Prisma client API uses `kafkaOffset` directly.
+
+### FKs (intra-tenant) and soft references
+
+| Constraint                                                          | Type                  | Notes                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `msg_moderation_log.policy_id → msg_moderation_policies(id)`        | DB-enforced           | Parent unpartitioned, child RANGE-partitioned monthly. PostgreSQL replicates the FK to every partition — `pg_constraint` shows 25 rows for this constraint (1 parent + 24 monthly partitions). Expected behavior; the cost is negligible since the catalogue size is bounded.                                                                                |
+| `msg_user_tags.tag_id → msg_tags(id)`                               | DB-enforced (CASCADE) | Both unpartitioned. CASCADE on tag delete because user-tag rows are meaningless without their parent tag — cascade verified live.                                                                                                                                                                                                                            |
+| `msg_moderation_log.{message_id, message_created_at} → msg_messages`| **Not enforced**      | Soft. Matches the `msg_message_attachments` and `msg_message_reads` precedent from Step 1 — when the parent is partitioned, denormalise the partition key onto the child + add an index, no DB-enforced FK.                                                                                                                                              |
+| `msg_admin_access_log.thread_id → msg_threads`                      | **Not enforced**      | Soft. Same precedent — `msg_threads` is HASH-partitioned by school_id. The audit log already carries `school_id` directly so partition-pruning predicates work without a denormalised thread-partition column here.                                                                                                                                       |
+| `msg_*.school_id`                                                   | Soft (cross-schema)   | Soft UUID ref to `platform.schools(id)` per ADR-001/020.                                                                                                                                                                                                                                                                                                          |
+| `msg_moderation_log.sender_id`, `msg_moderation_log.reviewed_by`, `msg_user_tags.platform_user_id`, `msg_user_tags.assigned_by`, `msg_user_blocks.blocker_id`, `msg_user_blocks.blocked_id`, `msg_admin_access_log.admin_id` | Soft (cross-schema) | Soft UUID ref to `platform.platform_users(id)` per ADR-055. `COMMENT ON COLUMN` annotations land in the migration so the rule is discoverable from the live schema. |
+| `platform_push_tokens.platform_user_id`                              | Soft                  | Kept loose so a deleted user account doesn't cascade into device records — operations on push tokens (revoke, mark inactive) flow through the lifecycle worker, not the database.                                                                                                                                                                          |
+
+### CHECK constraints
+
+| Constraint                                       | Predicate                                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `msg_moderation_policies_scope_chk`              | `scope IN ('PLATFORM','DISTRICT','BUILDING')`                                   |
+| `msg_moderation_policies_action_chk`             | `keyword_action IN ('BLOCK','FLAG_FOR_REVIEW','ESCALATE_TO_COUNSELLOR')`        |
+| `msg_moderation_policies_threshold_chk`          | `sensitivity_threshold BETWEEN 0 AND 100`                                       |
+| `msg_moderation_log_flag_chk`                    | `flag_type IN ('BLOCKED','FLAGGED','ESCALATED')`                                |
+| `msg_moderation_log_severity_chk`                | `severity IN ('INFO','WARNING','URGENT','EMERGENCY')`                           |
+| `msg_moderation_log_review_chk`                  | `review_outcome IS NULL OR review_outcome IN ('PENDING','RESOLVED','ESCALATED','DISMISSED')` |
+| `msg_user_blocks_self_chk`                       | `blocker_id <> blocked_id`                                                       |
+
+### Verification (recorded 2026-04-27)
+
+```bash
+pnpm prisma migrate dev --name add_communications_platform_tables --schema=prisma/platform/schema.prisma
+# applies the platform migration via prisma migrate
+pnpm --filter @campusos/database provision --subdomain=demo   # 9 migrations applied
+pnpm --filter @campusos/database provision --subdomain=demo   # idempotent re-run, 9 migrations applied (no-op)
+pnpm --filter @campusos/database provision --subdomain=test   # same
+```
+
+Counts in `tenant_demo` after Step 3:
+
+| What                                                      | Count |
+| --------------------------------------------------------- | ----: |
+| Logical base tables (top-level, was 51)                   |    57 |
+| `msg_moderation_log` RANGE partitions (2025-08 → 2027-08) |    24 |
+| Cross-schema FKs from `tenant_demo`                       |     0 |
+| `msg_moderation_log` → `msg_moderation_policies` FK rows  |    25 |
+
+The 25 FK rows in `pg_constraint` for the `policy_id` foreign key is expected — PostgreSQL replicates a DB-enforced FK from a partitioned table to its target onto every partition (1 parent + 24 monthly partitions). Same behavior pattern would land if Step 2 used a DB FK from `msg_notification_log` to `msg_notification_queue`, which is intentionally avoided there because the queue and log have different retention cadences.
+
+Platform tables verified live:
+
+```sql
+SELECT table_name FROM information_schema.tables
+WHERE table_schema='platform' AND table_name IN ('platform_push_tokens','platform_dlq_messages');
+-- Returns both rows
+```
+
+CHECK + FK + cascade smoke (live):
+
+| Constraint                              | Test                                                                                | Outcome  |
+| --------------------------------------- | ----------------------------------------------------------------------------------- | -------- |
+| `msg_moderation_policies_scope_chk`     | INSERT scope='BOGUS'                                                                | ERROR ✅ |
+| `msg_moderation_policies_action_chk`    | INSERT keyword_action='BOGUS'                                                       | ERROR ✅ |
+| `msg_moderation_policies_threshold_chk` | INSERT sensitivity_threshold=150                                                    | ERROR ✅ |
+| `msg_user_blocks_self_chk`              | INSERT blocker_id = blocked_id                                                      | ERROR ✅ |
+| `msg_user_tags_tag_id_fkey`             | INSERT tag_id=<random uuid>                                                         | ERROR ✅ |
+| Happy-path multi-table insert           | 1 policy + 1 mod_log entry (lands in `msg_moderation_log_2026_04`) + 1 tag + 1 user_tag + 1 block + 1 admin-access row | ✅ |
+| ON DELETE CASCADE on `msg_user_tags`    | DELETE FROM msg_tags → child user_tags row count drops 1 → 0                        | ✅       |
+
+### Cycle 1 + Cycle 2 + Cycle 3 Steps 1–2 seeds re-run cleanly
+
+The new moderation tables are empty after Step 3. `seed:sis` and `seed:classroom` remain untouched and idempotent. Step 4 (`seed:messaging`) will populate moderation policies (one PLATFORM-tier with basic keyword list, one BUILDING-tier for Lincoln Elementary) alongside thread types, sample threads, notification preferences, sample announcements, and the COM-001/002/003 permission updates.
+
+### Out-of-scope decisions for Step 3
+
+- **`msg_moderation_log.policy_id` is a DB-enforced FK; the message ref is soft.** Policies are stable, unpartitioned, and integrity matters (an orphan moderation row would be untriageable). The message ref is soft because `msg_messages` is partitioned and the codebase precedent is to denormalise the partition key onto the child + add an index — same as `msg_message_attachments` from Step 1.
+- **`sender_id` is denormalised onto `msg_moderation_log` from `msg_messages.sender_id`.** The Step 6 `ContentModerationInterceptor` writes the moderation row at the same time as the message (or before, if BLOCK), so it has the sender id in hand. Letting the moderation queue filter by sender without joining the partitioned messages table is worth the small denormalisation cost.
+- **`scope_id` on `msg_moderation_policies` is a soft UUID with no DB FK and no CHECK.** Interpretation depends on `scope`: PLATFORM=NULL, DISTRICT=organisations.id, BUILDING=schools.id. App-layer validation enforces the rule. A polymorphic ref column is usually a smell, but here the cross-tenant nature of higher-tier policies means the column may legitimately reference platform tables — and a hard FK on a tenant-scoped table to platform tables is forbidden by ADR-001/020.
+- **Each tenant carries its own copy of every applicable policy tier.** PLATFORM-tier policies are seeded into every tenant's `msg_moderation_policies` table; DISTRICT-tier policies are seeded into every tenant in that district; BUILDING-tier policies are local to that one school. The moderation interceptor consults a single tenant table without cross-schema reads. The trade-off is occasional duplication of platform-tier policies across tenants, which is acceptable for ~3 policies per tenant max.
+- **`platform_push_tokens.platform_user_id` is a soft FK, not a Prisma `@relation`.** Per ADR-001/020 even within the platform schema we keep auth/audit refs loose so a hard delete on `platform_users` doesn't cascade into device tokens — the device-revocation lifecycle should run through the worker, not the database.
+- **`platform_dlq_messages` does not partition.** DLQ volume is bounded by failure rate (which should approach zero in steady state). If volume becomes a concern post-Phase 2, switch to RANGE(last_failed_at) monthly with the same window pattern used elsewhere.
+- **`platform_dlq_messages.kafka_offset` is named that way because `offset` is a reserved keyword in PostgreSQL.** The Prisma model maps the field name `kafkaOffset` to the column `kafka_offset` — both client and SQL surfaces are unambiguous.
+- **No `tag` membership rules at the schema level.** `msg_tags.is_system` lets the seeder mark system-defined tags; further constraints (e.g. only admins can assign certain tags) live in the Step 6/7 services. Schema stays simple.
+- **No `msg_admin_access_log` partitioning.** Admin reads of non-participant threads should be rare (FERPA-justified only). Volume is bounded; partitioning is unnecessary at this stage.
+- **No `parent_policy_id` on `msg_moderation_policies` for tier inheritance.** The "most restrictive wins" rule resolves at the moderation interceptor in Step 6 by querying all three scope rows and applying max-restrictiveness. Storing a parent reference would couple persistence to the resolution algorithm; instead the resolution is pure application logic.
+- **CHECK strings still can't contain `;`.** Carries forward from Steps 1–2. Spot-checked all 10 `COMMENT ON COLUMN` strings in `009_msg_moderation.sql` before applying — all use commas / "and" instead of semicolons.
 
 ---
 
@@ -446,8 +551,8 @@ After Step 4 lands a dedicated `seed:messaging` script, this list grows by one e
 ## Open items / known gaps (will be filled in as steps land)
 
 - **ADR-057 envelope on every emit.** Done in Step 0. The transport headers (`event-id`, `tenant-id`, `tenant-subdomain`) are still set on every message for backward compatibility with any consumer that hasn't migrated; once Cycle 3 ships, a Phase 2 follow-up can retire them.
-- **Communications tenant migrations (Steps 1–3).** ~21 of M40's 29 tables. 8 deferred: emergency alerts (requires dedicated always-on service), digest batching, translation, retention/archival jobs.
-- **Platform schema additions.** `platform_push_tokens` + `platform_dlq_messages` will land via a Prisma migration in Step 3. First platform additions since Cycle 0; the Prisma schema gets a small bump.
+- **Communications tenant migrations (Steps 1–3).** Done — 19 of M40's 29 tables landed across migrations 007–009 (6 messaging + 7 notifications/announcements + 6 moderation/support). 10 deferred: emergency alerts (requires dedicated always-on service per Architecture Review), digest batching, translation request pipeline, retention/archival jobs, and a few smaller utility tables that the plan explicitly defers.
+- **Platform schema additions.** Done — `platform_push_tokens` + `platform_dlq_messages` landed via Prisma migration `20260427211003_add_communications_platform_tables`. First platform additions since Cycle 0.
 - **Email / push provider integration is stubbed.** The queue + log + delivery worker are built; Sendgrid / Twilio / FCM wire-up is Phase 3 (post Test & Refine).
 - **Emergency alerts service.** Per the Architecture Review, requires a dedicated always-on service. Out of scope for Cycle 3; only `msg_alert_types` ships for schema completeness.
 - **Communication groups with dynamic membership.** Deferred — out of scope this cycle.
