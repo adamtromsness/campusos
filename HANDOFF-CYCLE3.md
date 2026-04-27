@@ -1,6 +1,6 @@
 # Cycle 3 Handoff — Communications
 
-**Status:** Cycle 3 IN PROGRESS — Step 0 (ADR-057 envelope) DONE; Steps 1–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
+**Status:** Cycle 3 IN PROGRESS — Step 0 (ADR-057 envelope) DONE; Step 1 (Communications schema — Messaging) DONE; Steps 2–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle3-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher marks Maya tardy in Period 1 → Kafka event fires → notification consumer picks it up → in-app notification appears on David Chen's parent dashboard with a badge count → David clicks the notification → he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress → David sees it in his inbox → David replies → the reply goes through content moderation → James sees the reply in his inbox.
@@ -14,7 +14,7 @@ This document tracks the Cycle 3 build — the M40 Communications module — at 
 | Step | Title                                                         | Status                                                                                                                        |
 | ---: | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 |    0 | ADR-057 Event Envelope (carry-over from Cycle 2)              | Done — canonical envelope in `KafkaProducerService`; env-prefixed topics; all Cycle 1+2 producers migrated; gradebook worker reads envelope with header fallback |
-|    1 | Communications Schema — Messaging                             | Not started                                                                                                                   |
+|    1 | Communications Schema — Messaging                             | Done — `007_msg_messaging.sql` applied to demo + test (6 base tables + 64 hash partitions of `msg_threads` + 24 monthly partitions of `msg_messages`) |
 |    2 | Communications Schema — Notifications & Announcements         | Not started                                                                                                                   |
 |    3 | Communications Schema — Moderation & Support                  | Not started                                                                                                                   |
 |    4 | Seed Data — Messaging & Notifications                         | Not started                                                                                                                   |
@@ -167,7 +167,94 @@ Idempotency rows were cleared after the smoke run so the next reviewer starts fr
 
 ## Step 1 — Communications Schema — Messaging
 
-Not started. The plan calls for `msg_thread_types`, `msg_threads` (HASH-partitioned 64 buckets per ADR-047), `msg_thread_participants`, `msg_messages` (RANGE monthly via pg_partman, 24-month retention), `msg_message_attachments`, `msg_message_reads`. Migration target: `007_msg_messaging.sql`.
+`packages/database/prisma/tenant/migrations/007_msg_messaging.sql` lands the M40 messaging core: 6 base tables, 64 HASH partitions on `msg_threads` (per ADR-047), 24 monthly RANGE partitions on `msg_messages` covering 2025-08 → 2027-08. Idempotent CREATE-IF-NOT-EXISTS pattern matching the Cycle 1 / Cycle 2 migrations. Snake_case columns, `TEXT + CHECK` for enum-like fields. Soft UUID refs to `platform.platform_users` (no DB FK constraints — ADR-001/020).
+
+### Tables (6 base + 88 partition objects)
+
+| Table                     | Purpose                                                                                                                            | Key columns                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `msg_thread_types`        | Configurable thread types per school                                                                                               | `school_id`, `name`, `description`, `allowed_participant_roles TEXT[]`, `is_system`, `is_active`. UNIQUE(school_id, name). Step 4 will seed `TEACHER_PARENT`, `CLASS_DISCUSSION`, `ADMIN_STAFF`, `SYSTEM_NOTIFICATION`.                                                                                                                                                                                                  |
+| `msg_threads`             | Conversation thread, **HASH(school_id) 64 buckets** per ADR-047 — partition pruning eliminates 63/64 partitions on inbox queries   | `id`, `school_id`, `thread_type_id` FK, `subject`, `created_by` (soft → `platform_users`), `last_message_at`, `is_archived`, `created_at`, `updated_at`. Composite PK `(id, school_id)` so the partition column appears in the unique constraint.                                                                                                                                                                       |
+| `msg_thread_participants` | Who can read / post in a thread                                                                                                    | `thread_id`, `school_id` (denormalised for partition pruning when joining back to `msg_threads`), `platform_user_id` (soft), `role` ∈ {OWNER, PARTICIPANT, OBSERVER}, `joined_at`, `left_at`, `is_muted`, `last_read_at`. UNIQUE(thread_id, platform_user_id). No DB FK to `msg_threads` (matches `sis_attendance_evidence` precedent for cross-partition references).                                                  |
+| `msg_messages`            | One row per message. **RANGE(created_at) monthly** for retention management. School_id denormalised for partition-pruned queries.  | `id`, `thread_id`, `school_id`, `sender_id` (soft), `body TEXT`, `is_edited`, `edited_at`, `is_deleted` (soft delete), `deleted_at`, `moderation_status` ∈ {CLEAN, FLAGGED, BLOCKED, ESCALATED}, `created_at`, `updated_at`. Composite PK `(id, created_at)`. INDEX(thread_id, created_at DESC) for thread reads; INDEX(school_id, created_at DESC) for school-wide queries; INDEX(sender_id, created_at DESC).         |
+| `msg_message_attachments` | One row per attached file on a message                                                                                             | `message_id`, `message_created_at` (denormalised partition key), `school_id`, `file_name`, `s3_key`, `content_type`, `file_size_bytes BIGINT`, `uploaded_by` (soft). INDEX(message_id, message_created_at). Step 9 (Messaging UI) wires signed S3 URLs with 15–60min expiry — schema only here.                                                                                                                          |
+| `msg_message_reads`       | Per-(message, reader) read receipt; powers the inbox unread count                                                                  | `message_id`, `message_created_at` (denormalised partition key), `thread_id`, `reader_id` (soft), `read_at`. UNIQUE(message_id, reader_id). The Step 6 `UnreadCountService` keeps a Redis-backed counter as the hot path; this table is the durable record + audit trail. INDEX(thread_id, reader_id) for "mark thread read" sweeps; INDEX(message_id, message_created_at) for partition-pruned joins back to messages. |
+
+### Partitioning detail
+
+- **`msg_threads`** — `PARTITION BY HASH (school_id)` with 64 leaves (`msg_threads_h00` … `msg_threads_h63`, MODULUS 64). ADR-047 sets 64 buckets as the inbox-scale target. Inbox queries always include `school_id` (every request has resolved tenant), so PostgreSQL's planner prunes 63/64 partitions before the scan.
+- **`msg_messages`** — `PARTITION BY RANGE (created_at)` with monthly leaves covering **2025-08 through 2027-08** (24 months). The plan calls for pg_partman managing a rolling 24-month window; for Cycle 3 the partitions are pre-created statically. Adding a partition rotation job is post-Cycle 3 ops work — same posture as the year-partition rotation deferred in Cycle 1's `sis_attendance_records`.
+
+### FKs (intra-tenant) and soft references
+
+| Constraint                                                                | Type             | Notes                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `msg_threads.thread_type_id → msg_thread_types(id)`                       | DB-enforced      | The only intra-tenant FK in the migration. `msg_thread_types` is unpartitioned, so PG happily replicates the constraint to every `msg_threads_h*` partition.                                                                                                                                                                |
+| `msg_thread_participants.{thread_id, school_id} → msg_threads`            | **Not enforced** | Matches the `sis_attendance_evidence` precedent (Cycle 1) — when the parent table is partitioned, the codebase pattern is to denormalise the partition key onto the child table + add an index, rather than declare a DB-level FK. App-layer lookup validates membership.                                                  |
+| `msg_messages.{thread_id, school_id} → msg_threads`                       | **Not enforced** | Same pattern.                                                                                                                                                                                                                                                                                                              |
+| `msg_message_attachments.{message_id, message_created_at} → msg_messages` | **Not enforced** | Same pattern. `message_created_at` is the denormalised partition key.                                                                                                                                                                                                                                                      |
+| `msg_message_reads.{message_id, message_created_at} → msg_messages`       | **Not enforced** | Same pattern.                                                                                                                                                                                                                                                                                                              |
+| `msg_*.school_id`                                                         | Soft (cross-schema) | Soft UUID ref to `platform.schools(id)` — never a DB FK constraint per ADR-001/020.                                                                                                                                                                                                                                  |
+| `msg_threads.created_by`, `msg_thread_participants.platform_user_id`, `msg_messages.sender_id`, `msg_message_attachments.uploaded_by`, `msg_message_reads.reader_id` | Soft (cross-schema) | Soft UUID ref to `platform.platform_users(id)` per ADR-055 (auth/audit identity column). `COMMENT ON COLUMN` annotations land in the migration so the rule is discoverable from the live schema.                                                                                                  |
+
+### CHECK constraints
+
+| Constraint                              | Predicate                                                |
+| --------------------------------------- | -------------------------------------------------------- |
+| `msg_thread_participants_role_chk`      | `role IN ('OWNER','PARTICIPANT','OBSERVER')`             |
+| `msg_messages_moderation_chk`           | `moderation_status IN ('CLEAN','FLAGGED','BLOCKED','ESCALATED')` |
+
+### Verification (recorded 2026-04-27)
+
+```bash
+pnpm --filter @campusos/database provision --subdomain=demo   # 7 migrations applied
+pnpm --filter @campusos/database provision --subdomain=demo   # idempotent re-run, 7 migrations applied (no-op)
+pnpm --filter @campusos/database provision --subdomain=test   # same
+```
+
+Counts in `tenant_demo` after Step 1:
+
+| What                                                | Count |
+| --------------------------------------------------- | ----: |
+| Base tables (38 prior + 6 new)                      |    44 |
+| `msg_threads` HASH partitions (h00–h63)             |    64 |
+| `msg_messages` RANGE partitions (2025-08 → 2027-08) |    24 |
+
+Intra-tenant FKs from `msg_*` parent tables:
+
+```
+msg_threads.thread_type_id → msg_thread_types(id)
+```
+
+(One FK; replicated automatically to all 64 hash partitions of `msg_threads`.)
+
+Cross-schema FKs from `tenant_demo`: **0** (verified via `pg_constraint` join — same query used in REVIEW-CYCLE1).
+
+CHECK smoke (live):
+
+| Constraint                          | Test                                                          | Outcome  |
+| ----------------------------------- | ------------------------------------------------------------- | -------- |
+| `msg_thread_participants_role_chk`  | INSERT role='BOGUS'                                           | ERROR ✅ |
+| `msg_messages_moderation_chk`       | INSERT moderation_status='BOGUS' (lands in 2026-04 partition) | ERROR ✅ |
+
+The moderation-check insert also confirmed partition routing — the row was rejected from `msg_messages_2026_04` automatically.
+
+### Cycle 1 + Cycle 2 seeds re-run cleanly
+
+The new messaging tables are empty after Step 1. Cycle 1 (`seed:sis`) and Cycle 2 (`seed:classroom`) seeds remain untouched and idempotent. Step 4 will land `seed:messaging` for the demo data.
+
+### Out-of-scope decisions for Step 1
+
+- **No pg_partman.** Monthly partitions are pre-created statically for 2025-08 → 2027-08 (24 months). pg_partman is the right long-term answer for monthly rotation; setting it up + writing the rotation policy is post-Cycle 3 ops work, parallel to the year-partition rotation deferred in Cycle 1.
+- **No DB-enforced FKs into `msg_threads` / `msg_messages`.** PG ≥ 11 supports FKs into partitioned tables but the codebase precedent (`sis_attendance_evidence`) is to denormalise the partition key + add an index instead. Composite-FK syntax is awkward across services, and partition-pruning is more reliable when the child table holds the same key. Service-layer queries always join via the denormalised partition key columns.
+- **`msg_message_attachments` / `msg_message_reads` are unpartitioned.** Both reference `msg_messages` via `(message_id, message_created_at)`. Volume is bounded per message — far below the partitioning threshold. If a school's attachment count grows past O(10⁷) post-Phase 2, partition then.
+- **`is_deleted` is the only soft-delete signal on messages.** `deleted_at` is set in tandem. The plan calls for "soft delete" without specifying an audit trail; the `msg_admin_access_log` table from Step 3 + the `msg_moderation_log` partition will cover the audit + FERPA story for sensitive deletions. Plain soft-delete is the right starting point.
+- **`moderation_status` on `msg_messages` is a forward-compat field.** The Step 6 `ContentModerationInterceptor` will populate it (`CLEAN` / `FLAGGED` / `BLOCKED` / `ESCALATED`). Until then it stays at the default `CLEAN` — schema-only landing here.
+- **No `subject` index on `msg_threads`.** The plan doesn't call for full-text thread search this cycle. The school + last_message DESC index covers the inbox; `subject` filtering comes back via app-layer ILIKE if needed for now.
+- **Composite PK choice.** `msg_threads` uses `(id, school_id)`; `msg_messages` uses `(id, created_at)`. Both keep `id` first because it's the natural lookup key in service code (URL params, response payloads). The partition column comes second because it's only relevant inside the planner.
+- **`updated_at` columns have no triggers.** Service code sets `updated_at = now()` explicitly on every mutation, matching the Cycle 1 / Cycle 2 pattern. Triggers are intentionally avoided here — visible writes from the service layer make the data path auditable.
+- **No `msg_admin_access_log` here.** Lands in Step 3 (Moderation & Support Tables) per the plan.
+- **CHECK strings can't contain `;`.** The provision SQL splitter splits on `;` and filters trimmed lines starting with `--`. A semicolon inside a string literal therefore corrupts the statement. Found this the hard way on the first run — the `COMMENT ON COLUMN` strings now use commas / "and" in place of any semicolon. Tracked under the existing migration convention in `CLAUDE.md`.
 
 ---
 
