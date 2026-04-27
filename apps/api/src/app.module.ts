@@ -8,6 +8,7 @@ import { IamModule } from './iam/iam.module';
 import { AuthModule } from './auth/auth.module';
 import { SisModule } from './sis/sis.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { ClassroomModule } from './classroom/classroom.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -42,6 +43,7 @@ var devOnlyControllers: Type<unknown>[] =
     KafkaModule,
     SisModule,
     AttendanceModule,
+    ClassroomModule,
   ],
   controllers: devOnlyControllers,
   providers: [

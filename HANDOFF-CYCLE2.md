@@ -1,6 +1,6 @@
 # Cycle 2 Handoff — Classroom, Assignments & Grading
 
-**Status:** Cycle 2 IN PROGRESS — Steps 1–3 done (full classroom schema landed, 15 tenant tables; demo data seeded; TCH role-permission map updated). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
+**Status:** Cycle 2 IN PROGRESS — Steps 1–4 done (full classroom schema, demo data, TCH role-permission map, and the NestJS Assignments + Categories module wired into the API). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle2-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher creates an assignment for Period 1 Algebra → student Maya submits work → teacher grades and publishes → gradebook snapshot recomputes asynchronously → parent David sees Maya's updated average.
@@ -16,7 +16,7 @@ This document tracks the Cycle 2 build — the M21 Classroom module — at the s
 |    1 | Classroom Schema — Lessons & Assignments        | Done — `005_cls_lessons_and_assignments.sql` applied to demo + test |
 |    2 | Classroom Schema — Submissions & Grading        | Done — `006_cls_submissions_and_grading.sql` applied to demo + test |
 |    3 | Seed Data — Assignments & Grades                | Done — `seed-classroom.ts` lands 12 assignments + 80 submissions + 62 grades + 41 snapshots; TCH role-permission map updated |
-|    4 | Classroom NestJS Module — Assignments           | Pending                                                             |
+|    4 | Classroom NestJS Module — Assignments           | Done — `apps/api/src/classroom/` ships AssignmentService, CategoryService, controllers; 7 endpoints under `tch-002:read/write` with row-level auth |
 |    5 | Classroom NestJS Module — Submissions & Grading | Pending                                                             |
 |    6 | Kafka Events & Gradebook Snapshot Worker        | Pending                                                             |
 |    7 | Teacher Assignments UI                          | Pending                                                             |
@@ -439,9 +439,79 @@ parent@demo.campusos.dev    →  11 permissions   (was 10 — added tch-002:read
 
 ---
 
-## Step 4 — Classroom NestJS module — assignments (planned)
+## Step 4 — Classroom NestJS module — assignments
 
-`apps/api/src/classroom/` with `AssignmentService`, `AssignmentController`, `CategoryController`, DTOs. Reuses `ActorContextService` for row-level auth (teachers see only their assigned classes; students see only their enrolled classes; parents see only their linked children's classes; admins see all). Multi-table transactional creates (assignment + questions + answer key) use `executeInTenantTransaction`.
+### Files
+
+- `apps/api/src/classroom/classroom.module.ts` — wires `AssignmentService`, `CategoryService`, `AssignmentController`, `CategoryController`. Imports `TenantModule` and `IamModule`.
+- `apps/api/src/classroom/assignment.service.ts` — list / getById / create / update / softDelete; per-class read+write authorisation helpers (`assertCanReadClass`, `assertCanWriteClass`, `isClassManager`).
+- `apps/api/src/classroom/category.service.ts` — list / atomic upsert (validate sum=100, replace by name, FK-restrict surfaces as 409).
+- `apps/api/src/classroom/assignment.controller.ts` — 5 endpoints (`/classes/:id/assignments` GET+POST, `/assignments/:id` GET+PATCH+DELETE).
+- `apps/api/src/classroom/category.controller.ts` — 2 endpoints (`/classes/:id/categories` GET+PUT).
+- `apps/api/src/classroom/dto/assignment.dto.ts`, `dto/category.dto.ts` — DTOs (class-validator).
+- `apps/api/src/app.module.ts` — `ClassroomModule` added to imports (in module order: SIS → Attendance → Classroom).
+
+### Endpoints landed (7)
+
+| Method | Path                                    | Permission         | Notes                                                                            |
+| ------ | --------------------------------------- | ------------------ | -------------------------------------------------------------------------------- |
+| GET    | `/classes/:classId/assignments`         | `tch-002:read`     | Row-scoped. `?includeUnpublished=true` honoured only for managers (teacher/admin). |
+| GET    | `/assignments/:id`                      | `tch-002:read`     | Row-scoped. Students/parents only see published, non-deleted rows.               |
+| POST   | `/classes/:classId/assignments`         | `tch-002:write`    | Teacher-of-class or admin only. Validates `assignmentTypeId`, `categoryId`.       |
+| PATCH  | `/assignments/:id`                      | `tch-002:write`    | Partial update. Teacher-of-class or admin.                                       |
+| DELETE | `/assignments/:id`                      | `tch-002:write`    | Soft delete (`deleted_at = now()`). Returns 204.                                 |
+| GET    | `/classes/:classId/categories`          | `tch-002:read`     | Row-scoped read of `cls_assignment_categories`.                                  |
+| PUT    | `/classes/:classId/categories`          | `tch-002:write`    | Atomic replace by name. Weights MUST sum to 100. 409 if removed-but-still-referenced. |
+
+### Authorisation semantics (Step 4)
+
+- **Read row scope** (`assertCanReadClass` + `canReadClass`):
+  - Admin → any class in school.
+  - Teacher (STAFF) → must appear in `sis_class_teachers` for the class.
+  - Student → must have an active `sis_enrollments` row for the class (joined through `platform_students.person_id`).
+  - Guardian → at least one linked child must have an active enrollment in the class.
+  - Other → 404.
+- **Manager view** (`isClassManager`) — admins + teachers-of-class. Drives whether `?includeUnpublished=true` is honoured and whether draft (non-`is_published`) rows surface in list/get.
+- **Write row scope** (`assertCanWriteClass`) — admin OR teacher-of-class only. The student `tch-002:write` permission (held so the Step 5 submit endpoint can pass) hits 403 here, exactly mirroring the Cycle 1 attendance pattern: endpoint permission is the floor, link-table membership is the actual gate.
+
+### Verification (recorded 2026-04-27)
+
+```bash
+pnpm --filter @campusos/api build       # nest build → exits 0
+pnpm --filter @campusos/api start       # API boots, all 7 routes mapped
+```
+
+Smoke matrix (full curl trace in this commit's working notes — boiled down here):
+
+| # | Scenario                                                                        | Expected | Got |
+| - | ------------------------------------------------------------------------------- | -------- | --- |
+| 1 | Teacher GET `/classes/:id/assignments` for assigned class                       | 2 rows   | ✅  |
+| 2 | Teacher GET `/classes/:id/categories`                                           | 3 rows (30/50/20) | ✅ |
+| 3 | Teacher POST draft assignment                                                   | 201, `isPublished=false`  | ✅ |
+| 4 | Student GET draft by id                                                         | 404      | ✅  |
+| 5 | Student GET `/classes/:id/assignments` (draft hidden)                           | 2 rows, no draft | ✅ |
+| 6 | Teacher PATCH `{isPublished:true}`                                              | 200      | ✅  |
+| 7 | Student GET after publish                                                       | 200      | ✅  |
+| 8 | Parent GET after publish                                                        | 200      | ✅  |
+| 9 | Teacher DELETE                                                                  | 204      | ✅  |
+| 10 | Student GET deleted assignment                                                 | 404      | ✅  |
+| 11 | Teacher list `?includeUnpublished=true` after delete                            | soft-deleted hidden | ✅ |
+| 12 | Student POST assignment (has `tch-002:write` but no class membership)           | 403      | ✅  |
+| 13 | Admin (principal) POST assignment in any class                                  | 201      | ✅  |
+| 14 | Categories PUT with weights summing to 110                                      | 400      | ✅  |
+| 15 | Categories PUT removing a category still referenced by an assignment            | 409      | ✅  |
+| 16 | Categories PUT valid rebalance (25/55/20)                                       | 200, returns 3 rows | ✅ |
+
+Test data was cleaned up afterwards; P1 weights restored to 30/50/20 to keep the seed snapshot math intact.
+
+### Out-of-scope decisions for Step 4
+
+- **No questions / answer-key endpoints in this step.** `cls_assignment_questions` and `cls_answer_key_entries` exist in the schema (Step 1) but aren't user-facing yet — Step 5 (Submissions & Grading) will need read access to questions, but write CRUD for them ships when the assignment-builder UI lands in Step 7.
+- **No bulk assignment-type CRUD.** `cls_assignment_types` is school-wide config seeded once. The Cycle 2 plan doesn't require an admin endpoint for editing types; revisit if Phase 2 polish surfaces a need.
+- **Soft delete is intentionally simple — no `restore` endpoint.** Once `deleted_at` is set, the only way to bring a row back is by hand (DB or a future admin tool). Listing already-deleted rows isn't supported either; if the teacher needs to "undelete" they should re-create. Keep this surface minimal until product asks for more.
+- **`@Controller()` (no path) on `AssignmentController`.** Some endpoints sit under `/classes/:classId/assignments` and others under `/assignments/:id` — keeping both in one controller mirrors the attendance controller's mixed routing, but with a bare base path so the per-method `@Get/@Post/...` strings are explicit. CategoryController stays under `/classes` since both its routes share that prefix.
+- **PUT-by-name semantics for categories.** The PUT body is the new full set; rows whose name disappears are deleted via FK RESTRICT (409 if still referenced). Alternative `PATCH` semantics (partial update) and bulk reassignment of orphaned assignments are left to a future admin tool.
+- **`isClassManager` runs an extra DB query per call.** Could be folded into `ResolvedActor` if the Step 5 services repeat the pattern; keeping it local to AssignmentService for now to avoid premature abstraction.
 
 ---
 
