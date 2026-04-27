@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMyChildren, useStudentAttendance } from '@/hooks/use-children';
+import { useStudentGradebook } from '@/hooks/use-classroom';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -143,12 +144,20 @@ function ChildCard({ child, today }: { child: StudentDto; today: string }) {
         </div>
       </dl>
 
-      <div className="flex gap-2 border-t border-gray-100 bg-gray-50 px-5 py-3 text-sm">
+      <GradesSection child={child} />
+
+      <div className="flex flex-wrap gap-2 border-t border-gray-100 bg-gray-50 px-5 py-3 text-sm">
         <Link
           href={`/children/${child.id}/attendance`}
           className="flex-1 rounded-lg bg-campus-700 px-3 py-2 text-center font-medium text-white shadow-card hover:bg-campus-600"
         >
           View attendance
+        </Link>
+        <Link
+          href={`/children/${child.id}/grades`}
+          className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-center font-medium text-gray-700 hover:bg-gray-50"
+        >
+          View grades
         </Link>
         <Link
           href={`/children/${child.id}/absence-request`}
@@ -157,6 +166,42 @@ function ChildCard({ child, today }: { child: StudentDto; today: string }) {
           Report absence
         </Link>
       </div>
+    </div>
+  );
+}
+
+function GradesSection({ child }: { child: StudentDto }) {
+  const gradebook = useStudentGradebook(child.id);
+  const rows = gradebook.data?.rows ?? [];
+  const withSnap = rows.filter((r) => r.snapshot && r.snapshot.currentAverage != null);
+
+  return (
+    <div className="border-t border-gray-100 px-5 py-3">
+      <p className="text-xs uppercase tracking-wide text-gray-500">Grades</p>
+      {gradebook.isLoading ? (
+        <p className="mt-1 text-sm text-gray-400">Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="mt-1 text-sm text-gray-400">No classes yet.</p>
+      ) : withSnap.length === 0 ? (
+        <p className="mt-1 text-sm text-gray-500">No published grades yet.</p>
+      ) : (
+        <ul className="mt-1 space-y-1 text-sm">
+          {withSnap.slice(0, 4).map((row) => (
+            <li key={row.class.id} className="flex items-center justify-between">
+              <Link
+                href={`/children/${child.id}/grades/${row.class.id}`}
+                className="truncate text-gray-700 hover:text-campus-700"
+              >
+                {row.class.courseCode ?? row.class.courseName}
+              </Link>
+              <span className="ml-2 font-semibold text-campus-700">
+                {Math.round(row.snapshot!.currentAverage as number)}%
+                {row.snapshot!.letterGrade ? ` · ${row.snapshot!.letterGrade}` : ''}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # Cycle 2 Handoff — Classroom, Assignments & Grading
 
-**Status:** Cycle 2 IN PROGRESS — Steps 1–8 done (full classroom schema, demo data, TCH role-permission map, the Assignments + Categories module, the Submissions + Grading + Gradebook + Progress Notes module, the first Kafka consumer in the system — GradebookSnapshotWorker — that recomputes gradebook snapshots asynchronously per ADR-010, the teacher Assignments UI under the ClassTabs shell, and the teacher Grading UI: gradebook grid with inline cell editor + per-assignment "Publish all" + per-cell publish toggle, submissions queue, single-submission detail with grade entry, and per-student progress-note modal). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
+**Status:** Cycle 2 IN PROGRESS — Steps 1–9 done (full classroom schema, demo data, TCH role-permission map, the Assignments + Categories module, the Submissions + Grading + Gradebook + Progress Notes module, the first Kafka consumer in the system — GradebookSnapshotWorker — that recomputes gradebook snapshots asynchronously per ADR-010, the teacher Assignments UI under the ClassTabs shell, the teacher Grading UI: gradebook grid with inline cell editor + per-assignment "Publish all" + per-cell publish toggle, submissions queue, single-submission detail with grade entry, and per-student progress-note modal, and now the student & parent grade views: StudentDashboard, /assignments inbox + detail/submit, /grades summary + per-class breakdown, parent dashboard Grades section + per-child gradebook + per-class breakdown w/ visible progress notes; backed by two new endpoints — GET /students/me and GET /students/:studentId/classes/:classId/grades). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle2-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher creates an assignment for Period 1 Algebra → student Maya submits work → teacher grades and publishes → gradebook snapshot recomputes asynchronously → parent David sees Maya's updated average.
@@ -21,7 +21,7 @@ This document tracks the Cycle 2 build — the M21 Classroom module — at the s
 |    6 | Kafka Events & Gradebook Snapshot Worker        | Done — `KafkaConsumerService`, `IdempotencyService`, `GradebookSnapshotWorker`; subscribes to `cls.grade.{published,unpublished}` (group `gradebook-snapshot-worker`); 30s debounce per `(schoolId, classId, studentId)`; idempotent via `platform_event_consumer_idempotency`; reuses the seed's weighted-average algorithm verbatim |
 |    7 | Teacher Assignments UI                          | Done — `ClassTabs` shell + `/classes/:id/assignments` list (filter, delete) + `/new` + `/[assignmentId]/edit` + `CategoryWeightModal`; new `GET /assignment-types` endpoint exposes the school's type catalogue to the create form |
 |    8 | Teacher Grading UI                              | Done — `/classes/:id/gradebook` grid (color-coded cells × inline editor × per-assignment "Publish all"), `/assignments/:id/submissions` queue, `/submissions/:id` detail with grade entry; `ProgressNoteModal` per student; **fix to grade.service.ts** so updates to already-published grades emit `cls.grade.published` (Step 5 emit bug — only transitions were emitting before) |
-|    9 | Student & Parent Grade Views                    | Pending                                                             |
+|    9 | Student & Parent Grade Views                    | Done — `StudentDashboard` + `/assignments` inbox + `/assignments/:id` student detail/submit + `/grades` + `/grades/:classId` per-class breakdown; parent: per-child Grades section on `ParentDashboard` + `/children/:id/grades` + `/children/:id/grades/:classId` w/ visible progress notes. Two new endpoints: `GET /students/me`, `GET /students/:studentId/classes/:classId/grades`. |
 |   10 | Vertical Slice Integration Test                 | Pending                                                             |
 
 The Cycle 2 exit deliverable is the end-to-end vertical slice: assignment creation → submission → grading → publish → snapshot debounced recomputation → parent sees updated average. The reproducible CAT script will land at `docs/cycle2-cat-script.md` as the Step 10 deliverable.
@@ -141,32 +141,39 @@ Step 3 also rebuilt the effective access cache (`pnpm --filter @campusos/databas
 
 ---
 
-## API endpoints (planned)
+## API endpoints (delivered)
 
-Step 4 (Assignments) and Step 5 (Submissions & Grading) deliver ~20 endpoints under the new `/classroom` domain. All `@RequirePermission` and row-scoped via `ActorContextService`:
+Steps 4–9 deliver ~22 endpoints under the new `/classroom` domain plus 1 new `/students/*` endpoint. All `@RequirePermission` and row-scoped via `ActorContextService`:
 
 ```
 # Assignments (Step 4)
+GET   /assignment-types                     # Step 7 — school-wide type catalogue
 GET   /classes/:id/assignments
 GET   /assignments/:id
 POST  /classes/:id/assignments
 PATCH /assignments/:id
-DELETE /assignments/:id            # soft delete
+DELETE /assignments/:id                     # soft delete
 GET   /classes/:id/categories
-PUT   /classes/:id/categories      # bulk upsert, weights must sum to 100
+PUT   /classes/:id/categories               # bulk upsert, weights must sum to 100
 
 # Submissions & Grading (Step 5)
 POST  /assignments/:id/submit
 GET   /assignments/:id/submissions          # teacher view
 GET   /assignments/:id/submissions/mine     # student view
+GET   /submissions/:id                      # row-scoped read
 POST  /submissions/:id/grade
 POST  /classes/:id/grades/batch
 POST  /grades/:id/publish
+POST  /grades/:id/unpublish
 POST  /classes/:id/grades/publish-all
 GET   /classes/:id/gradebook                # teacher view
 GET   /students/:id/gradebook               # student/parent view
 POST  /classes/:id/progress-notes
 GET   /students/:id/progress-notes
+
+# Student & Parent grade views (Step 9)
+GET   /students/me                                      # bootstrap own studentId (STUDENT only)
+GET   /students/:studentId/classes/:classId/grades      # per-(student, class) breakdown
 ```
 
 ---
@@ -944,9 +951,83 @@ Idempotency rows were cleared and Aaliyah's grade was restored to 98 after the s
 
 ---
 
-## Step 9 — Student & Parent Grade Views (planned)
+## Step 9 — Student & Parent Grade Views
 
-Student: `/assignments` (across all enrolled classes), `/assignments/:id` (instructions + submit form), `/grades` (per-class average + per-assignment list). Parent: gradebook card on the existing parent dashboard with per-class current averages from `cls_gradebook_snapshots`; click-through to per-assignment breakdown.
+Cycle 2 Step 9 closes the loop opened by Steps 4–8: the data is in the system and the teacher can manage it; now the student and parent can see what's been published. The persona-aware dashboard from Cycle 1 gets a STUDENT branch, and the existing ParentDashboard gets a Grades section per child. The student also gets a sidebar with `Assignments` and `Grades` so they can navigate beyond the dashboard.
+
+### Backend additions — two endpoints
+
+Both endpoints are declared with permission `tch-002:read` / `tch-003:read` (already held by Student and Parent after Step 3). Row-level scope is enforced inside the service the same way Steps 4–5 did it — admin → all; teacher → assigned classes / linked students; student → self; parent → linked children.
+
+| Method & path | Permission | Notes |
+| --- | --- | --- |
+| `GET /students/me` | `stu-001:read` | Returns the calling student's `sis_students` row. Used by the web app to bootstrap the student's own `studentId` without scanning `/students`. Throws 404 (not 403) if the caller isn't a STUDENT or has no `sis_students` row in this tenant — same probe-resistance pattern as the rest of `student.service.ts`. |
+| `GET /students/:studentId/classes/:classId/grades` | `tch-003:read` | Per-(student, class) assignment breakdown. Response shape: `{ class, student, termId, snapshot \| null, assignments: [{ assignment, submission \| null, grade \| null }] }`. Reuses `GradebookService.assertCanViewStudent` (Step 5) for the student-row scope and `AssignmentService.assertCanReadClass` for the class-row scope, then existence-checks the (student, class) enrollment. Non-managers (anyone except teacher-of-class / admin) only see published assignments and published grades — drafts collapse to `null` for the grade and unpublished assignments are excluded from the list. Single SQL query (LEFT JOIN to `cls_submissions` + `cls_grades` keyed on the `studentId`) — no N+1. |
+
+`GradebookService.getStudentClassGrades` lives next to `getClassGradebook` / `getStudentGradebook` and reuses their `resolveTermId` and `snapToDto` helpers. The per-class snapshot is looked up using the class's term (`sis_classes.term_id`) when set, falling back to the resolved current term — so a parent / student opening one class sees the snapshot the gradebook worker actually wrote for that term, not whatever happens to be current today.
+
+The new DTO file `apps/api/src/classroom/dto/student-grades.dto.ts` defines `StudentClassGradesResponseDto` + the per-row `StudentClassAssignmentRowDto`. A small `isClassManager` helper was added to `GradebookService` (private) so the same draft-vs-published gate the gradebook controller uses applies here.
+
+### Web — student persona
+
+| Route | Purpose |
+| --- | --- |
+| `/dashboard` (STUDENT branch in `dashboard/page.tsx`) | Persona-aware router now also routes STUDENT → `<StudentDashboard />`. |
+| `/assignments` | Student inbox across all enrolled classes. `useStudentGradebook(myStudentId).rows[].class` enumerates the classes; `useQueries` fetches `/api/v1/classes/:id/assignments` per class and the page flattens + sorts by due date. Filter dropdowns: `class` (or All) and `status` (`UPCOMING` next 14 days / `OVERDUE` / `ALL`). Overdue rows show a red Due badge. |
+| `/assignments/:id` | Single-assignment detail + submit form. Uses `useAssignment` (already row-scoped server-side — students only see published assignments in their enrolled classes), `useMySubmission` (`/api/v1/assignments/:id/submissions/mine`), and `useSubmitAssignment` (`POST /api/v1/assignments/:id/submit`). Renders instructions, current submission status pill, textarea for `submissionText`, Submit / Resubmit / Cancel-edit buttons, and a Grade card when a published grade exists. Non-students hitting this route get a "submissions are student-only" notice with a link back to the teacher submissions queue. |
+| `/grades` | Per-class summary list — one row per enrolled class with `currentAverage` + `letterGrade` + `assignmentsGraded / assignmentsTotal` from `cls_gradebook_snapshots`. Click a row → per-class breakdown. |
+| `/grades/:classId` | Per-class breakdown — `<StudentClassGradesView studentId={me.id} classId={...} />`. Shows summary stats (current average, letter, graded count) and the per-assignment list with grade / max points / percentage / letter / feedback for each published row. |
+
+`StudentDashboard.tsx` shows a "Upcoming assignments" card (next 5 by due date across all classes) and a "Your classes" grid (one card per class with the snapshot's average + letter + graded count). Both link into the routes above.
+
+### Web — parent persona
+
+The existing ParentDashboard child cards now expose a per-child Grades section — top 4 classes with `currentAverage` and `letterGrade` from `cls_gradebook_snapshots`, plus a "View grades" button alongside the existing "View attendance" / "Report absence" buttons. Routes:
+
+| Route | Purpose |
+| --- | --- |
+| `/children/:id/grades` | Per-child gradebook list (mirrors student `/grades` but for one of the parent's linked children). Includes a "Teacher progress notes" section at the bottom — only renders progress-note rows where `isParentVisible=true` AND `publishedAt IS NOT NULL` (the API enforces this anyway; the UI re-asserts as a guard). |
+| `/children/:id/grades/:classId` | Per-class breakdown — same shared `StudentClassGradesView` component the student uses, parameterised with the child's `studentId` instead of `me`. |
+
+The ParentDashboard's existing per-child query (`useStudentGradebook(child.id)`) is the only new round-trip per child card, fired in parallel via React Query. The parent's `tch-003:read` permission (granted in Step 3) is the gate; row scope is enforced server-side via `sis_student_guardians`.
+
+### Components / hooks added
+
+- `apps/web/src/components/dashboard/StudentDashboard.tsx` — student persona dashboard.
+- `apps/web/src/components/classroom/StudentClassGradesView.tsx` — shared per-class breakdown UI used by both `/grades/:classId` (student-self) and `/children/:id/grades/:classId` (parent-child). Takes `studentId` + `classId` + `backHref` / `backLabel`.
+- New routes: `/(app)/assignments/page.tsx`, `/(app)/assignments/[assignmentId]/page.tsx`, `/(app)/grades/page.tsx`, `/(app)/grades/[classId]/page.tsx`, `/(app)/children/[id]/grades/page.tsx`, `/(app)/children/[id]/grades/[classId]/page.tsx`.
+- New hooks in `use-classroom.ts`:
+  - `useMyStudent()` → `GET /students/me` (bootstrap own studentId for STUDENT persona).
+  - `useStudentClassGrades(studentId, classId)` → the new per-class breakdown endpoint.
+  - `useMySubmission(assignmentId)` → `GET /assignments/:id/submissions/mine`.
+  - `useSubmitAssignment(assignmentId)` → `POST /assignments/:id/submit`. Cache invalidates the per-class breakdown queries on success so the page reflects the new SUBMITTED state.
+
+### Sidebar update
+
+`shell/Sidebar.tsx` adds two STUDENT-only entries — `Assignments` (`/assignments`) and `Grades` (`/grades`). Other personas keep the Dashboard-only sidebar (their detail views are reached from in-page cards on the dashboard, the same pattern Cycle 1 uses).
+
+### Row-level auth — what's actually enforced where
+
+The endpoint-level `@RequirePermission` is the floor; the actual access boundary is the row filter. For Step 9 specifically:
+
+- **`GET /students/me`** — caller `personType` must be `STUDENT` and there must be a `sis_students` row for the caller's `iam_person.id`. Anything else returns 404.
+- **`GET /students/:studentId/classes/:classId/grades`** — three checks in sequence:
+  1. `assertCanViewStudent(studentId, actor)` (admin / self / linked guardian / teacher of an enrolled class).
+  2. `assertCanReadClass(classId, actor)` (admin / teacher of class / enrolled student / parent of enrolled student).
+  3. `(class_id, student_id, status='ACTIVE')` enrollment row exists.
+- **`useAssignments(classId)` for the student inbox** — already row-scoped in `AssignmentService.list` (Step 4): students only see classes they're enrolled in, and within those only published assignments.
+- **`POST /assignments/:id/submit`** — already gated in Step 5: caller must be `STUDENT`, must have a `sis_students` row, must be enrolled in the assignment's class, and the assignment must be published & not soft-deleted.
+
+### Build status
+
+`pnpm --filter @campusos/api build` and `pnpm --filter @campusos/web build` both pass clean (the pre-existing exhaustive-deps warnings in earlier files are unchanged; no new warnings). Step 9's surface is wired into the routing tree alongside the Step 7/8 routes — the production bundle now lists `/assignments`, `/assignments/[assignmentId]`, `/grades`, `/grades/[classId]`, `/children/[id]/grades`, `/children/[id]/grades/[classId]`.
+
+### Notes & deviations
+
+- **No standalone "/students/me/assignments" endpoint.** The plan suggested a flat per-student list across all classes; we built the inbox client-side with `useQueries` over each enrolled class's `/assignments` endpoint instead. With the demo's 6 enrolled classes that's 6 cached queries — well within React Query's batching. The savings of a dedicated server endpoint don't justify the extra surface area, and the `useQueries` approach scales linearly with no rules-of-hooks issues.
+- **Grading-scale buckets.** The per-assignment view uses the percentage already returned by the new endpoint (`Math.round((value/max) * 10000) / 100`). Letter grade comes from whatever the grader stored in `cls_grades.letter_grade` (defaulted to A≥90 / B≥80 / C≥70 / D≥60 / F by `grade.service.ts`). Multi-scale support remains a Phase 2 concern.
+- **Progress notes on the parent breakdown only.** The student-self `/grades/:classId` view doesn't surface progress notes — by API rule a student only sees notes where `is_student_visible=true` AND `published_at IS NOT NULL`. For Step 9 we kept the student view focused on assignments + grades. The parent route renders parent-visible notes since the demo data only seeds parent-visible notes. Adding a student-visible notes section is a one-line follow-up if needed.
+- **Web smoke verified via prod build, not dev mode.** As with Steps 7–8, `next build` was the verification gate. Real browser interaction (student logs in, submits, parent sees average update) is reserved for the Step 10 vertical-slice CAT.
 
 ---
 

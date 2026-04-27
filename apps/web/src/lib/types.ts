@@ -388,6 +388,45 @@ export interface UpsertProgressNotePayload {
   isStudentVisible?: boolean;
 }
 
+// ── Student grade views (Cycle 2 Step 9) ─────────────────────────────────
+
+export interface StudentGradeSubmissionSummaryDto {
+  id: string;
+  status: SubmissionStatus;
+  submittedAt: string | null;
+}
+
+export interface StudentGradeEntryDto {
+  id: string;
+  gradeValue: number;
+  maxPoints: number;
+  percentage: number;
+  letterGrade: string | null;
+  feedback: string | null;
+  isPublished: boolean;
+  publishedAt: string | null;
+  gradedAt: string;
+}
+
+export interface StudentClassAssignmentRowDto {
+  assignment: AssignmentDto;
+  submission: StudentGradeSubmissionSummaryDto | null;
+  grade: StudentGradeEntryDto | null;
+}
+
+export interface StudentClassGradesResponseDto {
+  class: GradebookClassSummary;
+  student: GradebookStudentSummary;
+  termId: string | null;
+  snapshot: GradebookSnapshotDto | null;
+  assignments: StudentClassAssignmentRowDto[];
+}
+
+export interface SubmitAssignmentPayload {
+  submissionText?: string;
+  attachments?: Array<Record<string, unknown>>;
+}
+
 export interface AbsenceRequestDto {
   id: string;
   schoolId: string;

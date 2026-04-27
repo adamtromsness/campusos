@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
 import { TeacherDashboard } from '@/components/dashboard/TeacherDashboard';
 import { ParentDashboard } from '@/components/dashboard/ParentDashboard';
+import { StudentDashboard } from '@/components/dashboard/StudentDashboard';
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -30,29 +31,16 @@ export default function DashboardPage() {
     return <ParentDashboard user={user} />;
   }
 
+  if (user.personType === 'STUDENT') {
+    return <StudentDashboard user={user} />;
+  }
+
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title={`Welcome, ${user.preferredName || user.firstName || user.displayName}`}
         description={`${personaTitle(user.personType)} dashboard for this persona is coming up next.`}
       />
-      <div className="rounded-card border border-gray-200 bg-white p-5 shadow-card">
-        <h3 className="text-sm font-semibold text-gray-900">Coming up</h3>
-        <ul className="mt-3 space-y-2 text-sm text-gray-600">
-          <li>
-            <span className="font-mono text-xs text-campus-600">Step 9</span> — Attendance taking UI
-            for teachers
-          </li>
-          <li>
-            <span className="font-mono text-xs text-campus-600">Step 10</span> — Parent dashboard +
-            absence requests
-          </li>
-          <li>
-            <span className="font-mono text-xs text-campus-600">Step 11</span> — End-to-end vertical
-            slice test
-          </li>
-        </ul>
-      </div>
     </div>
   );
 }

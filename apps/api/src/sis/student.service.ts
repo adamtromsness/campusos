@@ -191,6 +191,35 @@ export class StudentService {
   }
 
   /**
+   * Return the calling student's own sis_students row. Used by `/students/me`
+   * to bootstrap the studentId in the web app without scanning the full
+   * student list. Throws 404 if the caller is not a STUDENT or has no
+   * sis_students row in this tenant — both indistinguishable from the outside
+   * to avoid probing.
+   */
+  async getSelfForStudent(actor: ResolvedActor): Promise<StudentResponseDto> {
+    if (actor.personType !== 'STUDENT') {
+      throw new NotFoundException('No student record for this caller');
+    }
+    var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<StudentRow[]>(
+        'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
+          's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
+          'ip.id AS person_id, ip.first_name, ip.last_name ' +
+          'FROM sis_students s ' +
+          'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+          'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
+          'WHERE ps.person_id = $1::uuid',
+        actor.personId,
+      );
+    });
+    if (rows.length === 0) {
+      throw new NotFoundException('No student record for this caller');
+    }
+    return rowToDto(rows[0]!);
+  }
+
+  /**
    * Resolve sis_students records for an authenticated guardian (req.user.personId).
    * Returns the children for whom this guardian has a sis_student_guardians link.
    *

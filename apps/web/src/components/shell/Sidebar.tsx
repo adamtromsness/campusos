@@ -16,16 +16,26 @@ interface NavItem {
 
 // Only routes that actually exist in apps/web/src/app are listed here.
 // Cycle 1 ships with /dashboard as the navigation hub — class cards and
-// children cards are the in-page entry points to detail views. Section-level
-// landing pages (Classes, Attendance, Students, Settings) come in later cycles
-// when their full feature surface lands; adding them here without backing
-// pages just produces 404s.
+// children cards are the in-page entry points to detail views. Step 9 adds
+// student-only Assignments and Grades section landing pages.
 const NAV_ITEMS: NavItem[] = [
   {
     href: '/dashboard',
     label: 'Dashboard',
     icon: HomeIcon,
     visibleFor: () => true,
+  },
+  {
+    href: '/assignments',
+    label: 'Assignments',
+    icon: HomeIcon,
+    visibleFor: (u) => u.personType === 'STUDENT',
+  },
+  {
+    href: '/grades',
+    label: 'Grades',
+    icon: HomeIcon,
+    visibleFor: (u) => u.personType === 'STUDENT',
   },
 ];
 

@@ -16,6 +16,7 @@ import {
   GradebookQueryDto,
   GradebookStudentResponseDto,
 } from './dto/gradebook.dto';
+import { StudentClassGradesResponseDto } from './dto/student-grades.dto';
 
 interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };
@@ -60,5 +61,22 @@ export class GradebookController {
   ): Promise<GradebookStudentResponseDto> {
     var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     return this.gradebook.getStudentGradebook(studentId, query.termId, actor);
+  }
+
+  @Get('students/:studentId/classes/:classId/grades')
+  @RequirePermission('tch-003:read')
+  @ApiOperation({
+    summary:
+      'Per-class assignment-by-assignment breakdown for one student. Drives the student /grades ' +
+      "view and the parent's per-child class breakdown. Non-managers (students / parents) only " +
+      'see published assignments and published grades.',
+  })
+  async getStudentClassGrades(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Param('classId', ParseUUIDPipe) classId: string,
+    @Req() req: AuthedRequest,
+  ): Promise<StudentClassGradesResponseDto> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.gradebook.getStudentClassGrades(studentId, classId, actor);
   }
 }

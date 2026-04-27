@@ -45,6 +45,19 @@ export class StudentController {
     return this.students.listForGuardianPerson(personId);
   }
 
+  @Get('me')
+  @RequirePermission('stu-001:read')
+  @ApiOperation({
+    summary:
+      'Resolve the calling student persona to their sis_students record. Used by the web app ' +
+      "to bootstrap a STUDENT persona's own studentId without scanning the full student list. " +
+      'Throws 404 if the caller is not a student in this tenant.',
+  })
+  async me(@Req() req: AuthedRequest): Promise<StudentResponseDto> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.students.getSelfForStudent(actor);
+  }
+
   @Get()
   @RequirePermission('stu-001:read')
   @ApiOperation({ summary: 'List students in the current school (filterable, row-scoped)' })

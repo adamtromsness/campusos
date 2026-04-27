@@ -15,7 +15,10 @@ import type {
   GradebookStudentResponseDto,
   ProgressNoteDto,
   PublishAllResultDto,
+  StudentClassGradesResponseDto,
+  StudentDto,
   SubmissionDto,
+  SubmitAssignmentPayload,
   TeacherSubmissionListDto,
   UpdateAssignmentPayload,
   UpsertCategoryEntry,
@@ -150,6 +153,22 @@ export function useStudentGradebook(studentId: string | undefined, termId?: stri
   });
 }
 
+// ── Per-class student grade breakdown (Step 9) ──────────────────────────
+
+export function useStudentClassGrades(
+  studentId: string | undefined,
+  classId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['classroom', 'student-class-grades', studentId, classId],
+    queryFn: () =>
+      apiFetch<StudentClassGradesResponseDto>(
+        `/api/v1/students/${studentId}/classes/${classId}/grades`,
+      ),
+    enabled: !!studentId && !!classId,
+  });
+}
+
 // ── Submissions ──────────────────────────────────────────────────────────
 
 export function useSubmissionsForAssignment(assignmentId: string | undefined) {
@@ -166,6 +185,43 @@ export function useSubmission(submissionId: string | undefined) {
     queryKey: ['classroom', 'submission', submissionId],
     queryFn: () => apiFetch<SubmissionDto>(`/api/v1/submissions/${submissionId}`),
     enabled: !!submissionId,
+  });
+}
+
+// ── Student-side submission flow (Step 9) ───────────────────────────────
+
+export function useMyStudent() {
+  return useQuery({
+    queryKey: ['student', 'me'],
+    queryFn: () => apiFetch<StudentDto>('/api/v1/students/me'),
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+export function useMySubmission(assignmentId: string | undefined) {
+  return useQuery({
+    queryKey: ['classroom', 'submission', 'mine', assignmentId],
+    queryFn: () =>
+      apiFetch<SubmissionDto | null>(`/api/v1/assignments/${assignmentId}/submissions/mine`),
+    enabled: !!assignmentId,
+  });
+}
+
+export function useSubmitAssignment(assignmentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SubmitAssignmentPayload) =>
+      apiFetch<SubmissionDto>(`/api/v1/assignments/${assignmentId}/submit`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(['classroom', 'submission', 'mine', assignmentId], data);
+      // Per-class breakdown also surfaces submission status — invalidate everything
+      // student-scoped so the page reflects the new SUBMITTED state.
+      void qc.invalidateQueries({ queryKey: ['classroom', 'student-class-grades'] });
+    },
   });
 }
 
