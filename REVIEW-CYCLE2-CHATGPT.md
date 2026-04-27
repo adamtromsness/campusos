@@ -3,7 +3,8 @@
 **Reviewer:** ChatGPT
 **Date:** April 27, 2026
 **Scope:** Full Cycle 2 (Classroom + Assignments + Grading)
-**Verdict:** Reject pending fixes
+**Initial verdict:** Reject pending fixes
+**Final verdict:** **APPROVED** at commit `d876e86` (re-review on April 27, 2026 after fixes landed)
 
 ## Summary: 5 PASS · 2 BLOCKING · 2 MAJOR DEVIATION
 
@@ -212,3 +213,72 @@ When the HR module lands, the migration is: insert `hr_employees` rows keyed by
 person_id, then re-point the columns. The change is additive — no service code
 needs to flip on day one because `hr_employees.person_id = iam_person.id` is the
 intended bridge.
+
+---
+
+# Re-review verdict — APPROVED at commit `d876e86`
+
+**Date:** April 27, 2026 (same day, after fixes landed and were pushed)
+**Reviewer:** ChatGPT
+
+## Sequence
+
+1. Initial review on the pre-fix tree → **Reject pending fixes** (2 blocking, 2 major).
+2. Fixes pushed in commit `d876e86` on `main`.
+3. First re-review hit a stale GitHub raw view of `main` that still showed the
+   pre-fix worker. Reviewer flagged BLOCKING 2 as "not actually fixed" and quoted
+   `firstTime = await this.idempotency.claim(...)`. That string did not exist in
+   the new commit — it was the variable name in the deleted code path.
+4. The author pointed the reviewer at commit `d876e86` directly with line
+   citations. Re-review against the commit confirmed the fix.
+
+## Final reviewer statement (verbatim)
+
+> Yes — Claude is right **for commit `d876e86`**.
+>
+> I checked both:
+>
+> 1. `main` file view — which still appears stale in the raw/browser result I first hit.
+> 2. The specific commit `d876e86` — which shows the corrected implementation.
+>
+> At commit `d876e86`, `firstTime` is gone, `isClaimed()` is used on arrival, and
+> the claim is performed only after `recomputeSnapshot()` succeeds. The relevant
+> commit page also describes the exact fix: idempotency claim moved from arrival
+> to after successful recompute.
+>
+> The corrected worker at `d876e86` shows:
+>
+> - no `firstTime` match
+> - `isClaimed(CONSUMER_GROUP, eventId)` on message arrival
+> - `recomputeSnapshot(...)` runs first inside `flush`
+> - `idempotency.claim(...)` happens after recompute, for each contributing event id
+>
+> ## Updated gate decision
+>
+> **Approve Cycle 2.**
+>
+> The two blocking findings are resolved:
+>
+> 1. Class gradebook leak — fixed.
+> 2. Snapshot worker at-most-once behavior — fixed in `d876e86`.
+>
+> Remaining items are non-blocking:
+>
+> - ADR-057 full envelope deferred to Cycle 3.
+> - Temporary HR-employee identity mapping documented.
+>
+> You are good to proceed.
+
+## Outstanding (non-blocking) carry-overs into Cycle 3
+
+- **ADR-057 envelope.** The canonical event envelope and `{env}.{domain}.{entity}.{verb}`
+  topic prefixing land at the start of Cycle 3 (Communications), where multiple
+  new producers and consumers arrive together. The grade-emit headers already
+  carry `event-id`, `tenant-id`, `tenant-subdomain` — the three fields the
+  gradebook worker reads — so the migration is additive; the worker will not
+  need to be rewritten.
+- **Temporary HR-employee identity mapping.** Documented as a project-wide rule
+  in CLAUDE.md, annotated on the live schema via `COMMENT ON COLUMN`. The
+  rebinding migration ships with M16 (HR module) and is a soft-FK rename only.
+
+Cycle 2 is closed. Cycle 3 may begin.

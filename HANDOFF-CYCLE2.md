@@ -1140,10 +1140,11 @@ pnpm --filter @campusos/database exec tsx src/build-cache.ts
 
 ---
 
-## Post-cycle architecture review (REVIEW-CYCLE2-CHATGPT) — fixes applied
+## Post-cycle architecture review (REVIEW-CYCLE2-CHATGPT) — APPROVED at commit `d876e86`
 
-**Reviewer verdict:** Reject pending fixes — 2 BLOCKING, 2 MAJOR DEVIATION, 5 PASS.
-**Full record:** `REVIEW-CYCLE2-CHATGPT.md` (review + fixes-applied log).
+**Initial verdict:** Reject pending fixes — 2 BLOCKING, 2 MAJOR DEVIATION, 5 PASS.
+**Final verdict:** **APPROVED** after fixes pushed in commit `d876e86`. Re-review confirmed both blockers resolved; ADR-057 envelope and temporary HR-employee identity mapping accepted as documented non-blocking carry-overs (envelope lands in Cycle 3; HR mapping lands with M16).
+**Full record:** `REVIEW-CYCLE2-CHATGPT.md` (review + fixes-applied log + reviewer's approval verbatim).
 
 | #         | Severity  | Item                                                                            | Status                                |
 | --------- | --------- | ------------------------------------------------------------------------------- | ------------------------------------- |
