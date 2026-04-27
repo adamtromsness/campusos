@@ -1,6 +1,6 @@
 # Cycle 2 Handoff — Classroom, Assignments & Grading
 
-**Status:** Cycle 2 IN PROGRESS — Steps 1–4 done (full classroom schema, demo data, TCH role-permission map, and the NestJS Assignments + Categories module wired into the API). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
+**Status:** Cycle 2 IN PROGRESS — Steps 1–5 done (full classroom schema, demo data, TCH role-permission map, the Assignments + Categories module, and the Submissions + Grading + Gradebook + Progress Notes module — 12 new endpoints under `/classroom` with row-level auth, debounced-snapshot pattern preserved per ADR-010). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle2-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher creates an assignment for Period 1 Algebra → student Maya submits work → teacher grades and publishes → gradebook snapshot recomputes asynchronously → parent David sees Maya's updated average.
@@ -17,7 +17,7 @@ This document tracks the Cycle 2 build — the M21 Classroom module — at the s
 |    2 | Classroom Schema — Submissions & Grading        | Done — `006_cls_submissions_and_grading.sql` applied to demo + test |
 |    3 | Seed Data — Assignments & Grades                | Done — `seed-classroom.ts` lands 12 assignments + 80 submissions + 62 grades + 41 snapshots; TCH role-permission map updated |
 |    4 | Classroom NestJS Module — Assignments           | Done — `apps/api/src/classroom/` ships AssignmentService, CategoryService, controllers; 7 endpoints under `tch-002:read/write` with row-level auth |
-|    5 | Classroom NestJS Module — Submissions & Grading | Pending                                                             |
+|    5 | Classroom NestJS Module — Submissions & Grading | Done — SubmissionService + GradeService + GradebookService + ProgressNoteService; 12 endpoints; per-class write gate; draft-grade visibility hidden from students/parents; Kafka emits for `cls.submission.submitted`, `cls.grade.published`, `cls.grade.unpublished`, `cls.progress_note.published` |
 |    6 | Kafka Events & Gradebook Snapshot Worker        | Pending                                                             |
 |    7 | Teacher Assignments UI                          | Pending                                                             |
 |    8 | Teacher Grading UI                              | Pending                                                             |
@@ -515,9 +515,119 @@ Test data was cleaned up afterwards; P1 weights restored to 30/50/20 to keep the
 
 ---
 
-## Step 5 — Classroom NestJS module — submissions & grading (planned)
+## Step 5 — Classroom NestJS module — submissions & grading
 
-`SubmissionService`, `GradeService`, `GradebookService`, `ProgressNoteService`. Grade write path emits `cls.grade.published` via `KafkaProducerService` — never updates the snapshot inline (ADR-010). Batch grading endpoint is a single transaction across many `cls_grades` rows; one event emission per published grade.
+### Files
+
+- `apps/api/src/classroom/submission.service.ts` — submit / list-roster / list-mine / getById; resolves the calling student's `sis_students.id` via `platform_students.person_id`; idempotent upsert by `(assignment_id, student_id)`; per-class write gate.
+- `apps/api/src/classroom/grade.service.ts` — single grade, batch grade, publish, unpublish, publish-all-for-assignment; ADR-010 enforced (no snapshot writes); emits `cls.grade.published` / `cls.grade.unpublished`; auto-bumps the linked submission to `GRADED`.
+- `apps/api/src/classroom/gradebook.service.ts` — per-class teacher view + per-student row-scoped view; resolves a default term when none supplied.
+- `apps/api/src/classroom/progress-note.service.ts` — upsert by `(class_id, student_id, term_id)`; persona-scoped read (students see only `is_student_visible=true` AND `published_at IS NOT NULL`; parents `is_parent_visible`; teachers see notes for their classes; admins see all).
+- `apps/api/src/classroom/submission.controller.ts`, `grade.controller.ts`, `gradebook.controller.ts`, `progress-note.controller.ts` — 12 new endpoints; all `@RequirePermission`-gated; row-level auth in services.
+- `apps/api/src/classroom/dto/submission.dto.ts`, `grade.dto.ts`, `gradebook.dto.ts`, `progress-note.dto.ts` — class-validator DTOs + response shapes.
+- `apps/api/src/classroom/classroom.module.ts` — wires the four new services + four new controllers; imports `KafkaModule` so services can emit events.
+
+### Endpoints landed (12)
+
+| Method | Path                                          | Permission        | Notes                                                                                                                                                  |
+| ------ | --------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| POST   | `/assignments/:id/submit`                     | `tch-002:write`   | Student-only (403 for non-students). Idempotent upsert; resubmit overwrites text + flips status back to `SUBMITTED`. Emits `cls.submission.submitted`. |
+| GET    | `/assignments/:id/submissions`                | `tch-002:read`    | Teacher / admin only — combines roster + submissions so `NOT_STARTED` rows surface as empty placeholders. Includes counters.                            |
+| GET    | `/assignments/:id/submissions/mine`           | `tch-002:read`    | Student-only. Returns the calling student's submission for the assignment, or `null` if not submitted yet. Hides draft grades.                          |
+| GET    | `/submissions/:id`                            | `tch-002:read`    | Single-row read. Visible to admins, teacher-of-class, owning student, linked guardian. Hides draft grade fields for non-managers.                       |
+| POST   | `/submissions/:id/grade`                      | `tch-003:write`   | Teacher-of-class / admin only. Upserts `cls_grades` by `(assignment, student)`, flips submission to `GRADED`. `publish=true` → emits `cls.grade.published`. |
+| POST   | `/classes/:id/grades/batch`                   | `tch-003:write`   | Single transaction across many entries. Validates each `studentId` is actively enrolled. Emits one event per published row (after commit).             |
+| POST   | `/grades/:id/publish`                         | `tch-003:write`   | Idempotent. Emits `cls.grade.published` only on the draft → published transition.                                                                       |
+| POST   | `/grades/:id/unpublish`                       | `tch-003:write`   | Sets `is_published=false`; keeps `published_at` for audit. Emits `cls.grade.unpublished`.                                                              |
+| POST   | `/classes/:id/grades/publish-all`             | `tch-003:write`   | Body `{assignmentId}`. Bulk-publishes every draft on that assignment in a single tx. Emits one event per row that transitioned.                         |
+| GET    | `/classes/:id/gradebook`                      | `tch-003:read`    | Teacher / admin view. Roster joined to `cls_gradebook_snapshots` for the resolved term (defaults to current term, then most-recent fallback).            |
+| GET    | `/students/:id/gradebook`                     | `tch-003:read`    | Per-student view. Row-scope: admins; self-student; linked guardian; teacher-of-any-enrolled-class. Returns enrolled classes × snapshots.                |
+| POST   | `/classes/:id/progress-notes`                 | `tch-003:write`   | Teacher-of-class / admin. Idempotent upsert by `(class_id, student_id, term_id)`. Always sets `published_at=now()`. Emits `cls.progress_note.published`. |
+| GET    | `/students/:id/progress-notes`                | `tch-003:read`    | Persona-scoped: admins all rows, teachers their classes' rows, students/parents only published rows where the matching visibility flag is `true`.       |
+
+(13 routes; `GET /submissions/:id` is the only one not on the original plan list — added because it's the natural sibling for the post-grade response payload and enforces the same row-scope as the assignment-level reads.)
+
+### Authorisation semantics (Step 5)
+
+- **Submit (`POST /assignments/:id/submit`)** — caller must be a `STUDENT` with a `sis_students` row in this tenant AND an `ACTIVE` `sis_enrollments` row in the assignment's class. Anything else throws 403. The `tch-002:write` permission is held by all four personas (teacher / parent / student / admin) but only students reach the upsert; non-student callers fail the personType check.
+- **List-mine (`/submissions/mine`)** — same student check as submit. Returns `null` (200) when the student is enrolled but hasn't submitted.
+- **Teacher list (`/assignments/:id/submissions`)** — uses `assignmentService.assertCanWriteClass(classId, actor)` so the matrix is admin OR teacher-of-class. Students/parents → 403 even though they hold `tch-002:read`.
+- **Single-submission read (`/submissions/:id`)** — admins; teacher of the class; owning student (matched via `platform_students.person_id`); linked guardian via `sis_student_guardians`. Anything else returns 404 (deliberately collapsed with not-found so the API can't probe submission ids).
+- **Draft-grade leak fix.** `cls_grades` rows with `is_published=false` are **never** rendered in the response when the actor is not a teacher-of-class / admin. The `rowToDto(row, includeDraftGrade)` flag is the single point of truth for this — student `mine` view always passes `false`, manager teacher view always passes `true`, single-row `getById` resolves the manager flag at request time.
+- **Grade writes (`/submissions/:id/grade`, `/classes/:id/grades/batch`, `/grades/:id/publish`, etc.)** — gated on teacher-of-class / admin (same `assertCanWriteClass` pattern as the assignment writes from Step 4). The `cls_grades.teacher_id` column is filled with `actor.personId` (the calling teacher's `iam_person.id`); HR is a future module so this is a soft ref by design.
+- **Gradebook (class)** — `assignmentService.assertCanReadClass(classId, actor)` — admin / teacher-of-class / enrolled student / linked guardian. Students and parents see the full class roster + averages; this is intentional and matches the parent-portal expectation that class context is visible.
+- **Gradebook (student)** — admin / self-student / linked guardian / teacher-of-any-enrolled-class. Anything else returns 404 (mirrors `student.service.ts::assertCanViewStudent`).
+- **Progress notes write** — teacher-of-class / admin. `body.studentId` must have an `ACTIVE` enrollment in the class.
+- **Progress notes read** — persona-scoped at the SQL layer, not just the row layer: students/parents only get rows where the matching `is_*_visible=true` AND `published_at IS NOT NULL`.
+
+### Kafka events emitted (Step 5)
+
+| Topic                          | Key            | Payload (raw — ADR-057 envelope is Cycle 3)                                                                                                              |
+| ------------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cls.submission.submitted`     | `studentId`    | `{ submissionId, assignmentId, classId, studentId, submittedAt }`                                                                                        |
+| `cls.grade.published`          | `studentId`    | `{ gradeId, assignmentId, classId, studentId, gradeValue, maxPoints, letterGrade, isExtraCredit, termId, publishedAt }`                                  |
+| `cls.grade.unpublished`        | `studentId`    | `{ gradeId, assignmentId, classId, studentId, gradeValue, maxPoints, letterGrade, isExtraCredit, termId, unpublishedAt }`                                |
+| `cls.progress_note.published`  | `studentId`    | `{ noteId, classId, studentId, termId, isParentVisible, isStudentVisible, authorId, publishedAt }`                                                       |
+
+All emits are best-effort (`KafkaProducerService.emit` swallows broker errors). Step 6 wires the `cls.grade.{published,unpublished}` consumer (gradebook snapshot worker).
+
+### ADR-010 enforcement
+
+The grade write path (single + batch + publish + unpublish + publish-all) **never** reads or writes `cls_gradebook_snapshots`. This was verified end-to-end in the smoke matrix: after Test 11 (batch-graded all 8 P1 students with new values, all published), the snapshot table count was 41 and 0 rows had `last_updated_at` within the last 15 minutes. Snapshots stay in seed state until the Step 6 consumer recomputes them off the Kafka topic.
+
+### Verification (recorded 2026-04-27)
+
+```bash
+pnpm --filter @campusos/api build       # nest build → exits 0
+pnpm --filter @campusos/api start:prod  # all 19 classroom routes mapped, Kafka connected
+```
+
+Smoke matrix (full curl trace stored in this commit's working notes — boiled down here):
+
+| #  | Scenario                                                                                                  | Expected                            | Got |
+| -- | --------------------------------------------------------------------------------------------------------- | ----------------------------------- | --- |
+| 1  | Teacher GET `/assignments/:id/submissions` for a fully-graded assignment                                  | rosterSize=8 / submitted=8 / graded=8 / published=8 | ✅ |
+| 2  | Student (Maya) GET `/assignments/:id/submissions/mine` for the same assignment                            | status=GRADED, gradeValue=92        | ✅  |
+| 3  | Student GETs the teacher list (held `tch-002:read`)                                                       | 403                                 | ✅  |
+| 4  | Teacher POSTs a new published assignment in P1                                                            | 201                                 | ✅  |
+| 5  | Student submits to the new assignment                                                                     | 201, status=SUBMITTED               | ✅  |
+| 6  | Student resubmits — same submission id, fresh `submittedAt`                                               | id matches                          | ✅  |
+| 7  | Teacher posts a draft grade (`publish=false`)                                                             | percentage=90, isPublished=false    | ✅  |
+| 8  | Student fetches own submission                                                                            | grade hidden (draft)                | ✅  |
+| 8b | Teacher fetches teacher view                                                                              | grade visible (draft)               | ✅  |
+| 9  | Teacher publishes the draft grade                                                                         | isPublished=true, emits `cls.grade.published` | ✅ |
+| 10 | Student fetches own submission again                                                                      | grade visible (published)           | ✅  |
+| 11 | Teacher batch-grades 8 P1 students with `publish=true`                                                    | inserted=4, updated=4, published=8  | ✅  |
+| 12 | Teacher class gradebook                                                                                   | 8 rows joined to seed snapshots     | ✅  |
+| 13 | Maya student gradebook                                                                                    | 4 enrolled classes, all snapshots populated | ✅ |
+| 14 | Parent David Chen gets Maya's gradebook                                                                   | 200, 4 rows                         | ✅  |
+| 15 | Stranger student / parent gradebook attempt                                                               | 404 (both)                          | ✅  |
+| 16 | Teacher writes a progress note for Maya                                                                   | upsert ok, publishedAt set          | ✅  |
+| 17 | Maya reads her own notes                                                                                  | count=1, visibility flags both true | ✅  |
+| 18 | Parent David reads Maya's notes                                                                           | count=1                             | ✅  |
+| 19 | Stranger student `GET /students/:id/progress-notes`                                                       | 404                                 | ✅  |
+| 20 | Student → `POST /submissions/:id/grade`                                                                   | 403 (no `tch-003:write`)            | ✅  |
+| 21 | Teacher grades > max_points on a non-extra-credit assignment                                              | 400                                 | ✅  |
+| 22 | Batch-grade with assignment that doesn't belong to URL class                                              | 400                                 | ✅  |
+| 23 | Student submits to an unpublished assignment                                                              | 404                                 | ✅  |
+| 24 | Re-publish an already-published grade                                                                     | 200 idempotent (publishedAt unchanged) | ✅ |
+| 25 | Unpublish a published grade                                                                               | 200, isPublished=false              | ✅  |
+
+All 25 cases passed. Smoke artefacts were rolled back by re-provisioning + re-running `seed:sis` + `seed:classroom` so the seed snapshot count (41) and grade count (62 / 53 published) match the Step 3 baseline.
+
+### Out-of-scope decisions for Step 5
+
+- **No `IN_PROGRESS` save-as-draft for submissions.** Students go straight from `NOT_STARTED` → `SUBMITTED`. Auto-save is a Phase 2 polish item; the column exists in the schema but no endpoint writes it.
+- **No `RETURNED` workflow.** Teachers can't formally return a submission for revision in this cycle. The status enum allows it for forward compatibility but no endpoint sets it. Add `POST /submissions/:id/return` when the UI step asks for it.
+- **No question-level grading endpoints.** `cls_submission_question_grades` and `cls_ai_grading_jobs` exist (Step 2) but no endpoint reads or writes them. Per-question grading + AI suggestions land when the assignment-builder UI does (later cycle).
+- **`cls_grades.teacher_id` is filled with `actor.personId`, not an HR employee id.** HR module isn't in this cycle; the column is a soft UUID per ADR-001/020 so this is fine. When HR lands, the assignment will become an `iam_person → hr_employees` lookup.
+- **Snapshots not recomputed inline.** ADR-010. The seed's snapshot rows reflect the seed-time state. Until the Step 6 consumer is wired, batch-grading new rows leaves the snapshot stale (intentional). Tests 11–14 confirm this — Maya's snapshot stays at 90.5 even after the P1 batch grade.
+- **No row-scope on `GET /grades/:id`.** That endpoint is **not** exposed — single-grade reads happen via the response payload of grade writes / publishes. Avoiding it sidesteps the question of how to gate a single-grade read across personas.
+- **`canSeeSubmission` includes guardians via the seed-tested path.** Linked guardians can read their child's `/submissions/:id` even though the original plan only mentioned student/teacher views. This is consistent with how parents see attendance records (Cycle 1) and matches portal expectations.
+- **Default-letter derivation lives in `grade.service.ts::deriveLetter`, not in `grading_scales`.** Reading the scale JSON would couple write-time grading to a tenant config row; for now we hard-code the same A/B/C/D/F bucketing the seed uses. When the scale becomes editable (Phase 2), replace this with a lookup against the assignment's `grading_scale_id`.
+- **`PublishAllBodyDto` (in `grade.controller.ts`) is defined inline.** It only carries an `assignmentId` so it doesn't justify a dedicated DTO file. Promote to `dto/grade.dto.ts` if it grows fields.
+- **Term resolution defaults to "current today, then most recent."** No tenant config flag for "use the academic year's last term." Phase 2 polish if the demo tenant ever has overlapping terms.
+- **Snapshots, report cards, and AI grading remain forward-compat tables only.** Step 6 will start reading from the snapshot side; report cards + AI grading are post-Cycle-2.
 
 ---
 
