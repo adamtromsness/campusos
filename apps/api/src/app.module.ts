@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Type } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { HealthModule } from './health/health.module';
@@ -19,7 +19,15 @@ import { GuardTestController } from './guard-test.controller';
  *
  * Guard chain on every protected request:
  * TenantResolverMiddleware -> AuthGuard (global) -> TenantGuard (global) -> PermissionGuard (global)
+ *
+ * GuardTestController is mounted only outside production. It exposes
+ * /guard-test/* endpoints used to verify the guard chain end-to-end. In
+ * production (NODE_ENV === 'production') the controller is excluded from
+ * the route table entirely so there's no surface area to probe.
  */
+var devOnlyControllers: Type<unknown>[] =
+  process.env.NODE_ENV === 'production' ? [] : [GuardTestController];
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -35,7 +43,7 @@ import { GuardTestController } from './guard-test.controller';
     SisModule,
     AttendanceModule,
   ],
-  controllers: [GuardTestController],
+  controllers: devOnlyControllers,
   providers: [
     // Global guards run in declaration order. Register all three here
     // so the order is explicit: Auth → Tenant → Permission.

@@ -12,7 +12,8 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
-import { PermissionCheckService } from '../iam/permission-check.service';
+import { ActorContextService } from '../iam/actor-context.service';
+import { StudentService } from '../sis/student.service';
 import { AttendanceService } from './attendance.service';
 import { AbsenceRequestService } from './absence-request.service';
 import {
@@ -41,7 +42,8 @@ export class AttendanceController {
   constructor(
     private readonly attendance: AttendanceService,
     private readonly absences: AbsenceRequestService,
-    private readonly permCheck: PermissionCheckService,
+    private readonly students: StudentService,
+    private readonly actors: ActorContextService,
   ) {}
 
   // ── Class attendance (read + mark + submit) ──────────────────────
@@ -64,21 +66,22 @@ export class AttendanceController {
   @RequirePermission('att-001:write')
   @ApiOperation({
     summary:
-      'Mark a single attendance record (status + optional note). Emits att.attendance.marked and, on TARDY/ABSENT, the corresponding student-marked event.',
+      'Mark a single attendance record (status + optional note). Requires the caller to be assigned to the class via sis_class_teachers (school admins bypass). Emits att.attendance.marked and, on TARDY/ABSENT, the corresponding student-marked event.',
   })
   async markOne(
     @Param('id', ParseUUIDPipe) recordId: string,
     @Body() body: MarkAttendanceDto,
     @Req() req: AuthedRequest,
   ): Promise<AttendanceRecordDto> {
-    return this.attendance.markIndividual(recordId, body, req.user!.sub);
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.attendance.markIndividual(recordId, body, actor);
   }
 
   @Post('classes/:id/attendance/:date/batch')
   @RequirePermission('att-001:write')
   @ApiOperation({
     summary:
-      'Confirm a class period in one shot. Sends exception list (omitted students treated as PRESENT). Emits att.attendance.confirmed.',
+      'Confirm a class period in one shot. Requires the caller to be assigned to the class via sis_class_teachers (school admins bypass). Sends exception list (omitted students treated as PRESENT). Emits att.attendance.confirmed.',
   })
   async batchSubmit(
     @Param('id', ParseUUIDPipe) classId: string,
@@ -86,7 +89,8 @@ export class AttendanceController {
     @Body() body: BatchSubmitAttendanceDto,
     @Req() req: AuthedRequest,
   ): Promise<BatchSubmitResultDto> {
-    return this.attendance.batchSubmit(classId, date, body.period, body.records, req.user!.sub);
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.attendance.batchSubmit(classId, date, body.period, body.records, actor);
   }
 
   // ── Student attendance history ──────────────────────────────────
@@ -95,12 +99,15 @@ export class AttendanceController {
   @RequirePermission('att-001:read')
   @ApiOperation({
     summary:
-      'Attendance history for a student (defaults to all dates; filterable by fromDate/toDate).',
+      'Attendance history for a student (row-scoped to the caller; defaults to all dates; filterable by fromDate/toDate).',
   })
   async studentAttendance(
     @Param('id', ParseUUIDPipe) studentId: string,
     @Query() query: GetStudentAttendanceQueryDto,
+    @Req() req: AuthedRequest,
   ): Promise<AttendanceRecordDto[]> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    await this.students.assertCanViewStudent(studentId, actor);
     return this.attendance.getStudentAttendance(studentId, query.fromDate, query.toDate);
   }
 
@@ -116,8 +123,8 @@ export class AttendanceController {
     @Body() body: CreateAbsenceRequestDto,
     @Req() req: AuthedRequest,
   ): Promise<AbsenceRequestResponseDto> {
-    var isAdmin = await this.callerIsAdmin(req);
-    return this.absences.create(req.user!.sub, req.user!.personId, body, isAdmin);
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.absences.create(req.user!.sub, req.user!.personId, body, actor.isSchoolAdmin);
   }
 
   @Get('absence-requests')
@@ -130,8 +137,8 @@ export class AttendanceController {
     @Query() query: ListAbsenceRequestsQueryDto,
     @Req() req: AuthedRequest,
   ): Promise<AbsenceRequestResponseDto[]> {
-    var isAdmin = await this.callerIsAdmin(req);
-    return this.absences.list(req.user!.sub, query, isAdmin);
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.absences.list(req.user!.sub, query, actor.isSchoolAdmin);
   }
 
   @Get('absence-requests/:id')
@@ -143,8 +150,8 @@ export class AttendanceController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthedRequest,
   ): Promise<AbsenceRequestResponseDto> {
-    var isAdmin = await this.callerIsAdmin(req);
-    return this.absences.getById(id, req.user!.sub, isAdmin);
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.absences.getById(id, req.user!.sub, actor.isSchoolAdmin);
   }
 
   @Patch('absence-requests/:id')
@@ -156,16 +163,5 @@ export class AttendanceController {
     @Req() req: AuthedRequest,
   ): Promise<AbsenceRequestResponseDto> {
     return this.absences.review(id, req.user!.sub, body);
-  }
-
-  /**
-   * "Admin" for absence-request scoping = any user with att-004:admin in the
-   * current scope chain. We piggy-back on PermissionCheckService rather than
-   * re-walking the cache here. School Admin and Platform Admin both pass.
-   */
-  private async callerIsAdmin(req: AuthedRequest): Promise<boolean> {
-    var account = req.user?.sub;
-    if (!account) return false;
-    return this.permCheck.hasAnyPermissionAcrossScopes(account, ['att-004:admin']);
   }
 }

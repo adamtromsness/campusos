@@ -12,6 +12,19 @@ import { Kafka, Producer } from 'kafkajs';
  * (Communications). Best-effort delivery is acceptable for this cycle's
  * scope. When the consumer side is real, harden this with retries and
  * a dead-letter table.
+ *
+ * TODO(Cycle 3 / ADR-057): wrap every payload in the standard event
+ * envelope before producing — required as soon as the first consumer
+ * lands. Envelope fields per ADR-057:
+ *   - event_id        UUIDv7 (idempotency / dedupe key for consumers)
+ *   - event_version   schema version of the inner payload (e.g. "1.0")
+ *   - event_type      duplicate of `topic` for in-payload routing
+ *   - tenant_id       schoolId from the current tenant context
+ *   - correlation_id  request id propagated from the API request
+ *   - occurred_at     ISO-8601 timestamp the domain event happened at
+ *   - producer        "campusos-api" (hardcoded; matches clientId)
+ *   - data            the existing payload, untouched
+ * Until then, payloads are raw — consumers in Cycle 3 must accept this.
  */
 @Injectable()
 export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {

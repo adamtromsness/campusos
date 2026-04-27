@@ -1,10 +1,11 @@
 # Cycle 1 Handoff — SIS Core + Attendance
 
-**Status:** Cycle 1 COMPLETE — all 11 steps done. Verified end-to-end via `docs/cycle1-cat-script.md`.
+**Status:** Cycle 1 COMPLETE — all 11 steps done. Verified end-to-end via `docs/cycle1-cat-script.md`. **Post-cycle review fixes landed (see "Review fixes (REVIEW-CYCLE1)" section below).**
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle1-implementation-plan.html`
+**Review inputs:** `REVIEW-CYCLE1-CHATGPT.md`, `REVIEW-CYCLE1-CLAUDE.md`, `REVIEW-CYCLE1-FIXES.md`
 
-This document was updated after the Cycle 1 architecture review. The original commits (`5cccc43`, `57ec312`) introduced 5 architecture deviations; review found 3 valid blockers, all now fixed in-place. Steps 7–9 added the web app (UI shell, Teacher Dashboard, Attendance Taking UI) and a small API extension (`/classes/my` `todayAttendance` summary). The "deviations" section below tracks only the items that remain.
+This document was updated after the Cycle 1 architecture review. The original commits (`5cccc43`, `57ec312`) introduced 5 architecture deviations; the first peer review found 3 valid blockers, all fixed in-place at that point. After Cycle 1 closure, two adversarial reviews (Claude + ChatGPT) ran against the full cycle and found 6 additional violations — all now fixed; see the "Review fixes (REVIEW-CYCLE1)" section below for the diff. Steps 7–9 added the web app (UI shell, Teacher Dashboard, Attendance Taking UI) and a small API extension (`/classes/my` `todayAttendance` summary). The "deviations" section below tracks only the items that remain.
 
 ---
 
@@ -599,6 +600,85 @@ Initial peer review flagged 5 blockers; verification against the actual docs con
 
 ---
 
+## Review fixes (REVIEW-CYCLE1)
+
+After Cycle 1 closure, two adversarial reviews flagged 6 violations spanning tenant isolation, row-level authorization, scope-leakage, and dev artifacts in production. All six are fixed in this commit. Reviews 7 and 8 from the Claude review (Redis caching of scope chain; wiring `build-cache.ts` into the seed pipeline) are deferred — neither is correctness-load-bearing for the cycle exit.
+
+|   # | Source          | Risk                          | Fix                                                                                                  | Files touched                                                                                        |
+| --: | --------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+|   1 | ChatGPT — V1 P1 | Cross-tenant data leakage     | `executeInTenantContext` now wraps the callback in a `$transaction` with `SET LOCAL search_path`     | `apps/api/src/tenant/tenant-prisma.service.ts`                                                       |
+|   2 | ChatGPT — V2 P2 | PII exposure                  | Row-level auth in `StudentService` (visibility predicate per personType + `assertCanViewStudent`)    | `apps/api/src/iam/actor-context.service.ts` (new), `apps/api/src/sis/student.service.ts`, controller |
+|   3 | ChatGPT — V3 P2 | Unauthorized attendance write | `sis_class_teachers` membership check in `markIndividual` and `batchSubmit` (admins bypass)          | `apps/api/src/attendance/attendance.{service,controller}.ts`                                         |
+|   4 | ChatGPT — V4 P3 | Cross-school admin leakage    | Replaced `hasAnyPermissionAcrossScopes` with `hasAnyPermissionInTenant`; admin gate uses scope chain | `apps/api/src/iam/permission-check.service.ts`, `apps/api/src/auth/permission.guard.ts`              |
+|   5 | ChatGPT — V6    | Dev artifact in prod          | `GuardTestController` only registered when `NODE_ENV !== 'production'`                               | `apps/api/src/app.module.ts`                                                                         |
+|   6 | ChatGPT — V5 P4 | ADR-057 envelope missing      | TODO documenting the envelope fields and topic-naming requirement on `KafkaProducerService.emit`     | `apps/api/src/kafka/kafka-producer.service.ts`                                                       |
+
+### Fix 1 — Tenant search_path connection safety
+
+The previous `executeInTenantContext` ran `SET search_path` on a shared `PrismaClient` and then issued the query outside any transaction. Under Prisma's connection pool, the SET and the query are not guaranteed to bind to the same physical connection — concurrent requests could observe the wrong schema. Real cross-tenant leakage was possible.
+
+The new implementation runs the entire callback inside `platformClient.$transaction(...)`, which pins one connection for the duration of the tx, and issues `SET LOCAL search_path` so the schema scope is automatically reverted on COMMIT/ROLLBACK and cannot escape into the pool. This matches `executeInTenantTransaction`, which was already correct. `executeTenantSQL` was upgraded the same way.
+
+The function signature `(client) => Promise<T>` is unchanged — every existing caller works without modification.
+
+### Fix 2 — Row-level authorization for student data
+
+`stu-001:read` was the only gate on `GET /students`, `GET /students/:id`, and `GET /students/:id/guardians`. Parents, students, and teachers all hold that code, so any of them could enumerate the entire school roster.
+
+Added `ActorContextService.resolveActor(accountId, personId)` which returns `{ accountId, personId, personType, isSchoolAdmin }`. `isSchoolAdmin` is computed against the **current tenant's scope chain** (school → platform), so a Platform Admin inherits admin status via PLATFORM, but a teacher at a different school does not.
+
+`StudentService` builds a `visibilityClause(actor, paramIndex)` that returns a SQL fragment ANDed onto each query:
+
+| personType        | Visible rows                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| `isSchoolAdmin`   | All (no filter)                                                                                              |
+| `GUARDIAN`        | `s.id IN (sis_student_guardians ⋈ sis_guardians WHERE g.person_id = ?)`                                      |
+| `STUDENT`         | `s.platform_student_id IN (platform_students WHERE person_id = ?)`                                           |
+| `STAFF` (teacher) | `s.id IN (sis_enrollments e ⋈ sis_class_teachers ct WHERE ct.teacher_employee_id = ? AND e.status='ACTIVE')` |
+| anything else     | `FALSE` (no rows)                                                                                            |
+
+`getById` collapses the unauthorized case to `404 Not Found` (rather than 403) so the API can't be used to probe student id existence.
+
+`assertCanViewStudent` is exposed for sub-resource reads — `GET /students/:id/guardians` and `GET /students/:id/attendance` both call it before delegating.
+
+Write paths (`POST` / `PATCH /students`) require `isSchoolAdmin`; the previous code only relied on the `stu-001:write` gate.
+
+### Fix 3 — Attendance writes must verify class assignment
+
+`AttendanceService.assertCanWriteClassAttendance(classId, actor)` was added. It bypasses for `actor.isSchoolAdmin`, otherwise requires a row in `sis_class_teachers` matching `(class_id, teacher_employee_id = actor.personId)`. The check runs in:
+
+- `markIndividual` — after looking up the record (so we know which class), before the UPDATE.
+- `batchSubmit` — at the top, before any pre-population.
+
+Returns `403 Forbidden` with a clear message; reads (`GET /classes/:id/attendance/:date`) are unchanged because the review specifically scoped the check to writes.
+
+### Fix 4 — Replace `hasAnyPermissionAcrossScopes` with scope-chain check
+
+The old method returned true if any cached scope held the permission code, including scopes belonging to other schools (theoretically possible for multi-school staff once we have them). Replaced with `hasAnyPermissionInTenant(accountId, schoolId, codes)` which walks the same `[school, platform]` chain that `PermissionGuard` uses. The chain resolver itself was lifted out of `PermissionGuard` into `PermissionCheckService.resolveScopeChain` so both call sites share one implementation.
+
+`AttendanceController.callerIsAdmin` was deleted; admin status now comes from `ActorContextService.resolveActor(...)`.
+
+### Fix 5 — `GuardTestController` removed from production
+
+`AppModule` now mounts `GuardTestController` only when `process.env.NODE_ENV !== 'production'`. The controller still works in dev/test for the existing smoke matrix; production builds expose nothing under `/guard-test/*`.
+
+### Fix 6 — ADR-057 envelope TODO
+
+Added a structured TODO at the top of `KafkaProducerService` listing every envelope field (`event_id`, `event_version`, `event_type`, `tenant_id`, `correlation_id`, `occurred_at`, `producer`, `data`) and noting that the wrapper must land before any Cycle 3 consumer reads from these topics. Behavior unchanged for now.
+
+### Verification
+
+- `pnpm --filter @campusos/api build` — clean.
+- `pnpm tsc --noEmit` (api) — clean.
+- Existing CAT script (`docs/cycle1-cat-script.md`) still valid; admin/teacher paths unaffected because `isSchoolAdmin` returns true for `admin@demo.campusos.dev` (Platform Admin via PLATFORM scope) and the seeded teacher is in `sis_class_teachers` for the classes they teach.
+
+### Deferred (non-blocking)
+
+- **Redis cache for `resolveScopeChain`** (Claude review V1). Latency optimization, not correctness. Defer until first hot-path complaint.
+- **`build-cache.ts` wired into seed pipeline** (Claude review V2). Documentation-fixable; the README already prescribes the manual run order.
+
+---
+
 ## Remaining deviations / known gaps
 
 |   # | Area                                   | ERD / plan says                                                                       | What we built                                   | Why                                                                                                                                                                                                                                                                       |
@@ -615,10 +695,10 @@ Initial peer review flagged 5 blockers; verification against the actual docs con
 - **Atomicity of `POST /students`.** ✅ Fixed (commit after `a16fbe6`). All three inserts (`iam_person`, `platform_students`, `sis_students`) run inside a Prisma interactive transaction via the new `TenantPrismaService.executeInTenantTransaction` helper. Verified: a forced FK violation on the SIS insert leaves zero orphan rows in the platform-side tables.
 - **ADR-055 doc clarification.** Reviewer noted the ADR prose is broader than the physical ERD (it describes `sis_students/staff/guardians` as projections of `iam_person`, but `sis_students` actually projects through `platform_students`). Backlog item: tighten ADR-055 wording to make the transitive identity path through `platform_students` explicit. Not a code change.
 - **`PATCH /students` cannot change `firstName`/`lastName`.** Per ADR-055, identity is immutable from sis_students. To rename a student, the API needs a separate mutation that updates `iam_person`. Not currently exposed.
-- **No PII protection on student lookups.** Any user with `stu-001:read` sees all students at the school. Cycle 1 doesn't model "who can see whom" beyond role; future hardening per `iam_relationship_access_rule` derivations.
+- **PII protection on student lookups.** ✅ Fixed in REVIEW-CYCLE1. Row-level visibility now applies per personType (parents see only linked children, students see only self, teachers see only students in their classes, admins see all). Future hardening (full `iam_relationship_access_rule` derivations) remains backlog.
 - **Bigint serialization.** `client.$queryRawUnsafe` returns Postgres `bigint` columns as JS bigint. We coerce inline with `(SELECT count(*)::int FROM …)`. Watch for this in future raw queries.
 - **`build-cache.ts` is a manual step.** Not invoked by `pnpm seed`. Anyone editing role-permission mappings has to remember to rebuild. Worth wiring into `seed-iam.ts` as a final step.
-- **`PermissionGuard.resolveScopeChain` queries Postgres on every request.** No caching on the scope lookup itself. Acceptable for now; reach for Redis when latency matters.
+- **`PermissionCheckService.resolveScopeChain` queries Postgres on every request.** (Lifted from `PermissionGuard` in REVIEW-CYCLE1 so the same resolver backs admin checks too.) No caching on the scope lookup itself. Acceptable for now; reach for Redis when latency matters (Claude review V1).
 - **Partition rotation for `sis_attendance_records`.** Year partitions cover 2024-08 through 2028-08. After 2028-08-01, inserts will fail. A scheduled job or annual migration is needed (M0 Platform concern).
 - **Soft-reference health monitoring.** ADR-020/028 prescribes a `platform_reference_health` background monitor for soft FKs. Not yet implemented; soft refs currently rely solely on app-layer validation.
 

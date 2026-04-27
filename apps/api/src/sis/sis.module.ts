@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TenantModule } from '../tenant/tenant.module';
+import { IamModule } from '../iam/iam.module';
 import { StudentService } from './student.service';
 import { ClassService } from './class.service';
 import { FamilyService } from './family.service';
@@ -19,7 +20,7 @@ import { ClassController } from './class.controller';
  * read time — never duplicated in sis_* tables.
  */
 @Module({
-  imports: [TenantModule],
+  imports: [TenantModule, IamModule],
   providers: [StudentService, ClassService, FamilyService],
   controllers: [StudentController, ClassController],
   exports: [StudentService, ClassService, FamilyService],

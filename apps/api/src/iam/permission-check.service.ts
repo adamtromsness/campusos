@@ -81,28 +81,53 @@ export class PermissionCheckService {
   }
 
   /**
-   * Does this account hold any of the given codes in ANY of their cached
-   * scopes? Used by controllers to flip behavior (e.g. "is this user an
-   * admin somewhere?") without re-walking the scope chain themselves.
+   * Does this account hold any of the given codes within the SCHOOL scope
+   * chain (school → platform) for the given school?
    *
-   * Note: scope-bounded checks should still go through hasAnyPermission
-   * with a specific scopeId — that's the policy gate. This method is for
-   * cheap behavior modulation, not for access control.
+   * Used by controllers to gate behavior on the requested tenant only —
+   * never on permissions held at some other tenant. (The previous
+   * `hasAnyPermissionAcrossScopes` helper was unsafe: a Platform Admin or
+   * a teacher at school A could activate "admin behavior" while serving
+   * a request scoped to school B simply by holding the code in any cache
+   * row. We now restrict the check to the tenant of the active request.)
    */
-  async hasAnyPermissionAcrossScopes(
+  async hasAnyPermissionInTenant(
     accountId: string,
+    schoolId: string,
     permissionCodes: string[],
   ): Promise<boolean> {
-    var caches = await this.prisma.iamEffectiveAccessCache.findMany({
-      where: { accountId },
-      select: { permissionCodes: true },
-    });
-    for (var i = 0; i < caches.length; i++) {
-      var codes = caches[i]!.permissionCodes;
-      for (var j = 0; j < permissionCodes.length; j++) {
-        if (codes.includes(permissionCodes[j]!)) return true;
-      }
+    var scopeIds = await this.resolveScopeChain(schoolId);
+    for (var s = 0; s < scopeIds.length; s++) {
+      var ok = await this.hasAnyPermission(accountId, scopeIds[s]!, permissionCodes);
+      if (ok) return true;
     }
     return false;
+  }
+
+  /**
+   * Resolve scope ids the request can satisfy, ordered most-specific first.
+   * For a school-tenant request that's [school, platform]; a platform admin
+   * is checked at PLATFORM after their school assignment misses (or as a
+   * fallback when no school scope exists).
+   *
+   * Shared by PermissionGuard and hasAnyPermissionInTenant so the same
+   * scope traversal is enforced everywhere.
+   */
+  async resolveScopeChain(schoolId: string): Promise<string[]> {
+    var ids: string[] = [];
+
+    var schoolScope = await this.prisma.iamScope.findFirst({
+      where: { entityId: schoolId, scopeType: { code: 'SCHOOL' }, isActive: true },
+      select: { id: true },
+    });
+    if (schoolScope) ids.push(schoolScope.id);
+
+    var platformScope = await this.prisma.iamScope.findFirst({
+      where: { scopeType: { code: 'PLATFORM' }, isActive: true },
+      select: { id: true },
+    });
+    if (platformScope) ids.push(platformScope.id);
+
+    return ids;
   }
 }

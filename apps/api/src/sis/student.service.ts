@@ -3,10 +3,12 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
+import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   CreateStudentDto,
   UpdateStudentDto,
@@ -43,51 +45,158 @@ function rowToDto(row: StudentRow): StudentResponseDto {
   };
 }
 
+/**
+ * Row-level visibility predicate for the calling actor.
+ *
+ * Returns a SQL fragment ANDed into student-list queries plus the parameter
+ * value bound to it (UUID, cast in the SQL via `$N::uuid`). The fragment is
+ * pinned so that it applies wherever an `s.id` (sis_students.id) is in scope.
+ *
+ * - Admins (school admin or platform admin) → no filter (school-wide).
+ * - Guardians → only students linked via sis_student_guardians/sis_guardians.
+ * - Students → only their own sis_students row (resolved via platform_students.person_id).
+ * - Teachers (STAFF) → only students enrolled in classes where they are
+ *   listed in sis_class_teachers.teacher_employee_id.
+ * - Anything else (volunteers, external, etc.) → no rows.
+ *
+ * The placeholder index is the caller's `$start`; the function returns the
+ * index it consumed (0 or 1) so callers can keep their parameter list dense.
+ */
+interface VisibilityClause {
+  fragment: string;
+  param: string | null;
+  consumed: 0 | 1;
+}
+
+function visibilityClause(actor: ResolvedActor, start: number): VisibilityClause {
+  if (actor.isSchoolAdmin) {
+    return { fragment: '', param: null, consumed: 0 };
+  }
+  switch (actor.personType) {
+    case 'GUARDIAN':
+      return {
+        fragment:
+          'AND s.id IN (' +
+          'SELECT sg.student_id FROM sis_student_guardians sg ' +
+          'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+          'WHERE g.person_id = $' +
+          start +
+          '::uuid' +
+          ') ',
+        param: actor.personId,
+        consumed: 1,
+      };
+    case 'STUDENT':
+      return {
+        fragment:
+          'AND s.platform_student_id IN (' +
+          'SELECT ps.id FROM platform.platform_students ps WHERE ps.person_id = $' +
+          start +
+          '::uuid' +
+          ') ',
+        param: actor.personId,
+        consumed: 1,
+      };
+    case 'STAFF':
+      return {
+        fragment:
+          'AND s.id IN (' +
+          'SELECT e.student_id FROM sis_enrollments e ' +
+          'JOIN sis_class_teachers ct ON ct.class_id = e.class_id ' +
+          "WHERE e.status = 'ACTIVE' AND ct.teacher_employee_id = $" +
+          start +
+          '::uuid' +
+          ') ',
+        param: actor.personId,
+        consumed: 1,
+      };
+    default:
+      // Volunteers, external roles, no person record, etc. → no rows.
+      return { fragment: 'AND FALSE ', param: null, consumed: 0 };
+  }
+}
+
 @Injectable()
 export class StudentService {
   constructor(private readonly tenantPrisma: TenantPrismaService) {}
 
-  async list(filters: ListStudentsQueryDto): Promise<StudentResponseDto[]> {
+  async list(filters: ListStudentsQueryDto, actor: ResolvedActor): Promise<StudentResponseDto[]> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<StudentRow[]>(
+      var vis = visibilityClause(actor, 4);
+      var sql =
         'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
-          's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
-          'ip.id AS person_id, ip.first_name, ip.last_name ' +
-          'FROM sis_students s ' +
-          'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-          'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-          "WHERE ($1::uuid IS NULL OR s.id IN (SELECT student_id FROM sis_enrollments WHERE class_id = $1::uuid AND status = 'ACTIVE')) " +
-          'AND ($2::text IS NULL OR s.grade_level = $2::text) ' +
-          'AND ($3::text IS NULL OR s.enrollment_status = $3::text) ' +
-          'ORDER BY ip.last_name, ip.first_name',
+        's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
+        'ip.id AS person_id, ip.first_name, ip.last_name ' +
+        'FROM sis_students s ' +
+        'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+        'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
+        "WHERE ($1::uuid IS NULL OR s.id IN (SELECT student_id FROM sis_enrollments WHERE class_id = $1::uuid AND status = 'ACTIVE')) " +
+        'AND ($2::text IS NULL OR s.grade_level = $2::text) ' +
+        'AND ($3::text IS NULL OR s.enrollment_status = $3::text) ' +
+        vis.fragment +
+        'ORDER BY ip.last_name, ip.first_name';
+      var params: any[] = [
         filters.classId ?? null,
         filters.gradeLevel ?? null,
         filters.enrollmentStatus ?? null,
-      );
+      ];
+      if (vis.param !== null) params.push(vis.param);
+      return client.$queryRawUnsafe<StudentRow[]>(sql, ...params);
     });
     return rows.map(rowToDto);
   }
 
-  async getById(id: string): Promise<StudentResponseDto> {
+  /**
+   * Look up a single student. Throws 404 if missing OR if the actor isn't
+   * authorised to see this row — collapsing 403 into 404 deliberately so
+   * the API can't be used to probe for the existence of student ids the
+   * caller has no access to.
+   */
+  async getById(id: string, actor: ResolvedActor): Promise<StudentResponseDto> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<StudentRow[]>(
+      var vis = visibilityClause(actor, 2);
+      var sql =
         'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
-          's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
-          'ip.id AS person_id, ip.first_name, ip.last_name ' +
-          'FROM sis_students s ' +
-          'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-          'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-          'WHERE s.id = $1::uuid',
-        id,
-      );
+        's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
+        'ip.id AS person_id, ip.first_name, ip.last_name ' +
+        'FROM sis_students s ' +
+        'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+        'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
+        'WHERE s.id = $1::uuid ' +
+        vis.fragment;
+      var params: any[] = [id];
+      if (vis.param !== null) params.push(vis.param);
+      return client.$queryRawUnsafe<StudentRow[]>(sql, ...params);
     });
     if (rows.length === 0) throw new NotFoundException('Student ' + id + ' not found');
     return rowToDto(rows[0]!);
   }
 
   /**
+   * Authorisation check for collateral reads against a student id (e.g.
+   * GET /students/:id/guardians, GET /students/:id/attendance). Throws if
+   * the actor cannot see the row.
+   */
+  async assertCanViewStudent(id: string, actor: ResolvedActor): Promise<void> {
+    var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      var vis = visibilityClause(actor, 2);
+      var sql = 'SELECT 1 AS ok FROM sis_students s WHERE s.id = $1::uuid ' + vis.fragment;
+      var params: any[] = [id];
+      if (vis.param !== null) params.push(vis.param);
+      return client.$queryRawUnsafe<Array<{ ok: number }>>(sql, ...params);
+    });
+    if (rows.length === 0) {
+      throw new NotFoundException('Student ' + id + ' not found');
+    }
+  }
+
+  /**
    * Resolve sis_students records for an authenticated guardian (req.user.personId).
    * Returns the children for whom this guardian has a sis_student_guardians link.
+   *
+   * This is the GUARDIAN-scoped view of `list()` and is left as a dedicated
+   * method because it doesn't take filters and short-circuits the visibility
+   * predicate — the personId-bound query is already the row scope.
    */
   async listForGuardianPerson(guardianPersonId: string): Promise<StudentResponseDto[]> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -108,7 +217,14 @@ export class StudentService {
     return rows.map(rowToDto);
   }
 
-  async create(input: CreateStudentDto): Promise<StudentResponseDto> {
+  async create(input: CreateStudentDto, actor: ResolvedActor): Promise<StudentResponseDto> {
+    if (!actor.isSchoolAdmin) {
+      // Only school/platform admins can provision new students. The
+      // PermissionGuard already enforces stu-001:write at the endpoint, but
+      // we double-gate here to make the row-scope rule explicit: there is
+      // no sub-admin caller persona for student creation.
+      throw new ForbiddenException('Only school administrators can create students');
+    }
     var tenant = getCurrentTenant();
     var schoolId = tenant.schoolId;
 
@@ -193,7 +309,14 @@ export class StudentService {
     }
   }
 
-  async update(id: string, input: UpdateStudentDto): Promise<StudentResponseDto> {
+  async update(
+    id: string,
+    input: UpdateStudentDto,
+    actor: ResolvedActor,
+  ): Promise<StudentResponseDto> {
+    if (!actor.isSchoolAdmin) {
+      throw new ForbiddenException('Only school administrators can update student records');
+    }
     var sets: string[] = [];
     var params: any[] = [];
     var i = 1;
@@ -228,6 +351,6 @@ export class StudentService {
     });
     if (affected === 0) throw new NotFoundException('Student ' + id + ' not found');
 
-    return this.getById(id);
+    return this.getById(id, actor);
   }
 }

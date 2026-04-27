@@ -64,7 +64,7 @@ export class PermissionGuard implements CanActivate {
     // check from most-specific (school) to least-specific (platform) so a
     // Platform Admin acting against a tenant inherits their platform-level
     // permissions, while school-scoped users are bounded to their school.
-    var scopeIds = await this.resolveScopeChain(tenant.schoolId);
+    var scopeIds = await this.permissionCheckService.resolveScopeChain(tenant.schoolId);
 
     if (scopeIds.length === 0) {
       throw new ForbiddenException('No IAM scope configured for this request');
@@ -93,30 +93,5 @@ export class PermissionGuard implements CanActivate {
     }
 
     return true;
-  }
-
-  /**
-   * Resolve scope ids the request can satisfy, ordered most-specific first.
-   * For a school-tenant request that's [school, platform]; a platform admin
-   * is checked at PLATFORM after their school assignment misses (or as a
-   * fallback when no school scope exists).
-   */
-  private async resolveScopeChain(schoolId: string): Promise<string[]> {
-    var prisma = (this.permissionCheckService as any).prisma;
-    var ids: string[] = [];
-
-    var schoolScope = await prisma.iamScope.findFirst({
-      where: { entityId: schoolId, scopeType: { code: 'SCHOOL' }, isActive: true },
-      select: { id: true },
-    });
-    if (schoolScope) ids.push(schoolScope.id);
-
-    var platformScope = await prisma.iamScope.findFirst({
-      where: { scopeType: { code: 'PLATFORM' }, isActive: true },
-      select: { id: true },
-    });
-    if (platformScope) ids.push(platformScope.id);
-
-    return ids;
   }
 }

@@ -5,6 +5,7 @@ import { EffectiveAccessCacheService } from './effective-access-cache.service';
 import { RoleService } from './role.service';
 import { AssignmentService } from './assignment.service';
 import { ScopeService } from './scope.service';
+import { ActorContextService } from './actor-context.service';
 
 /**
  * IAM Module — Identity & Access Management
@@ -34,6 +35,7 @@ import { ScopeService } from './scope.service';
     RoleService,
     AssignmentService,
     ScopeService,
+    ActorContextService,
   ],
   exports: [
     PermissionCheckService,
@@ -41,6 +43,7 @@ import { ScopeService } from './scope.service';
     RoleService,
     AssignmentService,
     ScopeService,
+    ActorContextService,
   ],
 })
 export class IamModule {}

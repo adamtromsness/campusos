@@ -35,7 +35,13 @@ export class TenantPrismaService implements OnModuleDestroy {
 
   /**
    * Execute a query within the current tenant's schema.
-   * Sets search_path based on the AsyncLocalStorage tenant context.
+   *
+   * Wraps the callback in a Prisma interactive transaction and pins the
+   * search_path on the transaction's connection via SET LOCAL. This is
+   * critical under connection pooling: a session-level SET on a shared
+   * client can leak between concurrent requests and serve another tenant's
+   * data. The transactional SET LOCAL is scoped to a single pinned
+   * connection and is automatically reset on COMMIT/ROLLBACK.
    *
    * Usage:
    *   var result = await tenantPrisma.executeInTenantContext(async (client) => {
@@ -45,28 +51,25 @@ export class TenantPrismaService implements OnModuleDestroy {
   async executeInTenantContext<T>(fn: (client: PrismaClient) => Promise<T>): Promise<T> {
     var tenant = getCurrentTenant();
     var schemaName = tenant.schemaName;
-
-    // Set search_path for this query
-    await this.platformClient.$executeRawUnsafe(
-      'SET search_path TO "' + schemaName + '", platform, public',
-    );
-
-    try {
-      return await fn(this.platformClient);
-    } finally {
-      // Reset search_path after query
-      await this.platformClient.$executeRawUnsafe('SET search_path TO platform, public');
-    }
+    return this.platformClient.$transaction(async function (tx: any): Promise<T> {
+      await tx.$executeRawUnsafe('SET LOCAL search_path TO "' + schemaName + '", platform, public');
+      return fn(tx as PrismaClient);
+    });
   }
 
   /**
    * Execute raw SQL within the current tenant's schema.
+   *
+   * Same SET LOCAL discipline as executeInTenantContext — runs inside a tx
+   * so the search_path can never leak across concurrent requests.
    */
   async executeTenantSQL(sql: string): Promise<void> {
     var tenant = getCurrentTenant();
-    await this.platformClient.$executeRawUnsafe(
-      'SET search_path TO "' + tenant.schemaName + '", platform, public; ' + sql,
-    );
+    var schemaName = tenant.schemaName;
+    await this.platformClient.$transaction(async function (tx: any): Promise<void> {
+      await tx.$executeRawUnsafe('SET LOCAL search_path TO "' + schemaName + '", platform, public');
+      await tx.$executeRawUnsafe(sql);
+    });
   }
 
   /**

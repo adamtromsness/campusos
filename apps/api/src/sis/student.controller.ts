@@ -12,6 +12,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { ActorContextService } from '../iam/actor-context.service';
 import { StudentService } from './student.service';
 import { FamilyService } from './family.service';
 import {
@@ -33,6 +34,7 @@ export class StudentController {
   constructor(
     private readonly students: StudentService,
     private readonly families: FamilyService,
+    private readonly actors: ActorContextService,
   ) {}
 
   @Get('my-children')
@@ -45,22 +47,35 @@ export class StudentController {
 
   @Get()
   @RequirePermission('stu-001:read')
-  @ApiOperation({ summary: 'List students in the current school (filterable)' })
-  async list(@Query() query: ListStudentsQueryDto): Promise<StudentResponseDto[]> {
-    return this.students.list(query);
+  @ApiOperation({ summary: 'List students in the current school (filterable, row-scoped)' })
+  async list(
+    @Query() query: ListStudentsQueryDto,
+    @Req() req: AuthedRequest,
+  ): Promise<StudentResponseDto[]> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.students.list(query, actor);
   }
 
   @Get(':id')
   @RequirePermission('stu-001:read')
-  @ApiOperation({ summary: 'Get a single student by id' })
-  async getOne(@Param('id', ParseUUIDPipe) id: string): Promise<StudentResponseDto> {
-    return this.students.getById(id);
+  @ApiOperation({ summary: 'Get a single student by id (row-scoped to the caller)' })
+  async getOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<StudentResponseDto> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.students.getById(id, actor);
   }
 
   @Get(':id/guardians')
   @RequirePermission('stu-001:read')
-  @ApiOperation({ summary: 'Guardians attached to this student via sis_student_guardians' })
-  async getGuardians(@Param('id', ParseUUIDPipe) id: string): Promise<StudentGuardianDto[]> {
+  @ApiOperation({ summary: 'Guardians attached to this student (row-scoped to the caller)' })
+  async getGuardians(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<StudentGuardianDto[]> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    await this.students.assertCanViewStudent(id, actor);
     return this.families.getStudentGuardians(id);
   }
 
@@ -69,8 +84,12 @@ export class StudentController {
   @ApiOperation({
     summary: 'Create a new student (provisions iam_person + platform_students + sis_students)',
   })
-  async create(@Body() body: CreateStudentDto): Promise<StudentResponseDto> {
-    return this.students.create(body);
+  async create(
+    @Body() body: CreateStudentDto,
+    @Req() req: AuthedRequest,
+  ): Promise<StudentResponseDto> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.students.create(body, actor);
   }
 
   @Patch(':id')
@@ -82,7 +101,9 @@ export class StudentController {
   async patch(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdateStudentDto,
+    @Req() req: AuthedRequest,
   ): Promise<StudentResponseDto> {
-    return this.students.update(id, body);
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.students.update(id, body, actor);
   }
 }

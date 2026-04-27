@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   AttendanceRecordDto,
   BatchAttendanceEntryDto,
@@ -70,6 +71,34 @@ export class AttendanceService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
   ) {}
+
+  /**
+   * Verify that the caller is allowed to write attendance for this class.
+   * School/Platform admins bypass; otherwise the caller's iam_person.id must
+   * appear in sis_class_teachers.teacher_employee_id for the class.
+   *
+   * 403 deliberately over 404: the caller already has att-001:write on the
+   * tenant via PermissionGuard; what's missing is the per-class assignment.
+   */
+  private async assertCanWriteClassAttendance(
+    classId: string,
+    actor: ResolvedActor,
+  ): Promise<void> {
+    if (actor.isSchoolAdmin) return;
+    var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM sis_class_teachers ' +
+          'WHERE class_id = $1::uuid AND teacher_employee_id = $2::uuid',
+        classId,
+        actor.personId,
+      );
+    });
+    if (rows.length === 0) {
+      throw new ForbiddenException(
+        'You are not assigned to class ' + classId + ' and cannot record attendance',
+      );
+    }
+  }
 
   /**
    * Resolve the partition keys for a class:
@@ -183,8 +212,9 @@ export class AttendanceService {
   async markIndividual(
     recordId: string,
     patch: MarkAttendanceDto,
-    actorAccountId: string,
+    actor: ResolvedActor,
   ): Promise<AttendanceRecordDto> {
+    var actorAccountId = actor.accountId;
     var existing = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<AttendanceRow[]>(
         SELECT_ATTENDANCE_BASE + 'WHERE a.id = $1::uuid',
@@ -194,6 +224,11 @@ export class AttendanceService {
     if (existing.length === 0)
       throw new NotFoundException('Attendance record ' + recordId + ' not found');
     var prior = existing[0]!;
+
+    // Per-class assignment check. We only learn the class_id after looking
+    // up the record, so the assertion runs after the existence check (still
+    // pre-write).
+    await this.assertCanWriteClassAttendance(prior.class_id, actor);
 
     var updated = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
@@ -232,8 +267,10 @@ export class AttendanceService {
     date: string,
     period: string,
     records: BatchAttendanceEntryDto[],
-    actorAccountId: string,
+    actor: ResolvedActor,
   ): Promise<BatchSubmitResultDto> {
+    await this.assertCanWriteClassAttendance(classId, actor);
+    var actorAccountId = actor.accountId;
     var keys = await this.resolveClassPartitionKeys(classId);
     await this.prePopulateClassPeriod(classId, date, period, keys);
 

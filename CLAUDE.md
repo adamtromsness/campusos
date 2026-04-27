@@ -4,8 +4,8 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 
 ## Project Status
 
-Cycle 0 (Platform Foundation) is COMPLETE. **Cycle 1 (SIS Core + Attendance) is COMPLETE — all 11 steps done.** Schema, seed, SIS API, Attendance API + Kafka emits, web UI shell, Teacher Dashboard, Attendance Taking UI with confirm modal + batch submit, Parent Dashboard + child attendance calendar + absence-request form, AdminDashboard (school-wide overview + pending-absence queue), and a verified end-to-end vertical slice (`docs/cycle1-cat-script.md`). Cycle 2 (Classroom + Assignments + Grading) is the next cycle.
-See `docs/campusos-cycle1-implementation-plan.html` for the detailed step-by-step plan, and `HANDOFF-CYCLE1.md` for current build state and known gaps.
+Cycle 0 (Platform Foundation) is COMPLETE. **Cycle 1 (SIS Core + Attendance) is COMPLETE — all 11 steps done. Post-cycle architecture review fixes (REVIEW-CYCLE1) are landed.** Schema, seed, SIS API, Attendance API + Kafka emits, web UI shell, Teacher Dashboard, Attendance Taking UI with confirm modal + batch submit, Parent Dashboard + child attendance calendar + absence-request form, AdminDashboard (school-wide overview + pending-absence queue), and a verified end-to-end vertical slice (`docs/cycle1-cat-script.md`). The post-cycle review tightened tenant isolation (`SET LOCAL search_path` inside an interactive tx), added row-level authorization to student reads, gated attendance writes by `sis_class_teachers` membership, and replaced cross-scope admin checks with a tenant-scope-chain check. Cycle 2 (Classroom + Assignments + Grading) is the next cycle.
+See `docs/campusos-cycle1-implementation-plan.html` for the detailed step-by-step plan, `HANDOFF-CYCLE1.md` for current build state and known gaps, and `REVIEW-CYCLE1-CHATGPT.md` / `REVIEW-CYCLE1-CLAUDE.md` / `REVIEW-CYCLE1-FIXES.md` for the architecture review record.
 
 ## Architecture
 
@@ -31,7 +31,7 @@ See `docs/campusos-cycle1-implementation-plan.html` for the detailed step-by-ste
 apps/api/                → NestJS backend (modular monolith)
 apps/api/src/auth/       → AuthGuard (JWT), PermissionGuard, @Public, @RequirePermission
 apps/api/src/tenant/     → TenantResolverMiddleware, TenantGuard, TenantPrismaService, AsyncLocalStorage
-apps/api/src/iam/        → Roles, permissions, assignments, effective access cache
+apps/api/src/iam/        → Roles, permissions, assignments, effective access cache, ActorContextService (resolves caller persona + isSchoolAdmin per tenant)
 apps/api/src/platform/   → M0 Platform Core
 apps/api/src/sis/        → M20 SIS Core (Cycle 1 Step 5): students, classes, families, guardians; /classes/my includes todayAttendance summary (Step 8)
 apps/api/src/attendance/ → ATT-001..005 (Cycle 1 Step 6): attendance + absence requests + Kafka emits
@@ -57,7 +57,10 @@ packages/shared/         → Shared TypeScript types and constants
 - **Attendance partitioning (ADR-007):** `sis_attendance_records` is composite-partitioned `RANGE(school_year) → HASH(class_id) MODULUS 8`. Composite PK `(id, school_year, class_id)`. Queries should include `class_id` and `date` (or `school_year`) in the predicate to enable partition pruning. Year partitions cover 2024-08 through 2028-08; rotation is a future M0 job.
 - **Frozen state (ADR-031):** `is_frozen=true` blocks all writes. Reads still work.
 - **Guard order (Auth → Tenant → Permission):** All three guards are registered as `APP_GUARD` in `AppModule` to make order deterministic. `PermissionGuard` fails closed if `request.user` is missing.
-- **Scope inheritance (ADR-036, partial):** `PermissionGuard.resolveScopeChain` checks SCHOOL scope first, then PLATFORM scope. Lets Platform Admins act against any tenant without per-school role assignments. Full district/department/class traversal is future work.
+- **Scope inheritance (ADR-036, partial):** `PermissionCheckService.resolveScopeChain` checks SCHOOL scope first, then PLATFORM scope. Used by both `PermissionGuard` (endpoint gates) and `hasAnyPermissionInTenant` (admin-status checks). Lets Platform Admins act against any tenant without per-school role assignments. Full district/department/class traversal is future work.
+- **Tenant isolation under pooling:** `executeInTenantContext` and `executeInTenantTransaction` both wrap their callback in a Prisma `$transaction` that runs `SET LOCAL search_path TO "tenant_X", platform, public`. SET LOCAL is mandatory — a session-level SET on a pooled client can leak between concurrent requests and serve another tenant's data.
+- **Row-level authorization:** Endpoint permission gates (`@RequirePermission`) are necessary but not sufficient. Multi-persona reads (e.g. `stu-001:read` is held by parents, students, teachers, and admins) MUST also apply a row filter via `ActorContextService.resolveActor(...)` + a per-personType visibility predicate. Pattern lives in `apps/api/src/sis/student.service.ts::visibilityClause`. Writes that are bound to a class (e.g. attendance) MUST verify caller membership in the relevant link table (`sis_class_teachers`) before mutating; admins bypass.
+- **Admin checks are tenant-scoped, not cross-scope.** Use `permissionCheckService.hasAnyPermissionInTenant(accountId, schoolId, codes)` or read `actor.isSchoolAdmin` from `ActorContextService.resolveActor(...)`. NEVER scan `iam_effective_access_cache` across all scopes — that leaks admin status from school A into a request scoped to school B.
 - **No implicit access:** Guardian access derived from `iam_relationship_access_rule`, never assumed.
 
 ## Guard Chain (every request)
@@ -143,8 +146,11 @@ Read these when you need table definitions, column details, ADR specifics, or pe
 - Platform tables use Prisma schema in `packages/database/prisma/platform/schema.prisma`
 - NestJS modules follow the pattern: module.ts, service.ts, controller.ts, dto/ in `apps/api/src/<domain>/`
 - Every API endpoint needs `@RequirePermission()` unless marked `@Public()`. New global guards must be registered in `AppModule` (not in submodules) so guard ordering stays deterministic
-- Use `TenantPrismaService.executeInTenantContext(fn)` for **single-statement** tenant queries (read or single-table write)
+- Use `TenantPrismaService.executeInTenantContext(fn)` for **single-statement** tenant queries (read or single-table write). Internally runs inside a `$transaction` with `SET LOCAL search_path` to keep tenant scope pinned to one connection — never use a session-level SET on a pooled client.
 - Use `TenantPrismaService.executeInTenantTransaction(fn)` for **multi-statement** writes that must be atomic (e.g. cross-schema inserts that span platform + tenant tables, like `POST /students`)
+- Multi-persona reads (any endpoint where multiple personType values hold the gating permission) MUST resolve the caller via `ActorContextService.resolveActor(...)` and apply a row-level filter. Don't trust `@RequirePermission` alone for row scope. Pattern: see `apps/api/src/sis/student.service.ts::visibilityClause` (parent → linked children, student → self, teacher → assigned-class enrollments, admin → no filter).
+- Class-bound writes (attendance, grading) MUST gate on the link table (e.g. `sis_class_teachers`) before mutating; school admins bypass. The `att-001:write` code is held school-wide by every teacher, so the link-table check is the actual access gate.
+- Admin status comes from the **current tenant's scope chain**, never across all cached scopes. Use `permissionCheckService.hasAnyPermissionInTenant(accountId, tenant.schoolId, codes)` or read `actor.isSchoolAdmin`. The previous `hasAnyPermissionAcrossScopes` helper has been removed for this reason.
 - Tenant tables aren't in the Prisma schema — query via `client.$queryRawUnsafe<RowType[]>(sql, ...args)` / `client.$executeRawUnsafe(sql, ...args)`. Always cast UUID args explicitly: `$1::uuid`. Same for `$1::date`. Prisma sends raw query parameters as TEXT and Postgres won't auto-coerce
 - Schema-qualify cross-schema reads (`platform.iam_person`) to be explicit
 - DTOs use `class-validator` + `class-transformer` (global ValidationPipe in `main.ts`). The `packages/shared` Zod option is unused so far
