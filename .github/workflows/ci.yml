@@ -11,7 +11,7 @@ on:
     branches: [dev, sit, main]
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   DATABASE_URL: postgresql://campusos:campusos_dev@localhost:5432/campusos_dev?schema=platform
 
 jobs:
@@ -21,9 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Reads pnpm version from package.json `packageManager` field
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
@@ -67,9 +66,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Reads pnpm version from package.json `packageManager` field
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
