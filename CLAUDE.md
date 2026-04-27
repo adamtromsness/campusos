@@ -4,7 +4,7 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 
 ## Project Status
 
-Cycle 0 (Platform Foundation) is COMPLETE. Cycle 1 (SIS Core + Attendance) is in progress: **Steps 1–9 of 11 done** (schema, seed, SIS API, Attendance API with Kafka emits + vertical slice verified, web UI shell, Teacher Dashboard with /classes/my todayAttendance summary, Attendance Taking UI with batch submit). **Steps 10 (Parent Dashboard + absence-request UI) and 11 (end-to-end vertical slice integration test) remain.**
+Cycle 0 (Platform Foundation) is COMPLETE. Cycle 1 (SIS Core + Attendance) is in progress: **Steps 1–10 of 11 done** (schema, seed, SIS API, Attendance API with Kafka emits + vertical slice verified, web UI shell, Teacher Dashboard with /classes/my todayAttendance summary, Attendance Taking UI with batch submit, Parent Dashboard + child attendance calendar + absence-request submission). **Step 11 (end-to-end vertical slice integration test) remains.**
 See `docs/campusos-cycle1-implementation-plan.html` for the detailed step-by-step plan, and `HANDOFF-CYCLE1.md` for current build state and known gaps.
 
 ## Architecture
@@ -40,9 +40,9 @@ apps/web/                → Next.js 14 frontend (App Router, Tailwind, React Qu
 apps/web/src/lib/        → api-client (Bearer + X-Tenant-Subdomain, single-flight 401→refresh), auth-store (Zustand), auth-context, query-client, shared TS types
 apps/web/src/components/ui/        → Avatar, StatusBadge, LoadingSpinner, EmptyState, PageHeader, Modal, Toast (provider+useToast), DataTable, cn helper
 apps/web/src/components/shell/     → AppLayout (responsive drawer), Sidebar (persona + permission-driven), TopBar (avatar menu, sign-out), inline SVG icons
-apps/web/src/components/dashboard/ → TeacherDashboard (Step 8). ParentDashboard lands in Step 10.
-apps/web/src/hooks/      → React Query hooks: useMyClasses, useClass, useClassAttendance, useBatchSubmitAttendance, useAbsenceRequests
-apps/web/src/app/        → Next.js routes: /login, /(app)/dashboard (persona-aware), /(app)/classes/[id]/attendance
+apps/web/src/components/dashboard/ → TeacherDashboard (Step 8), ParentDashboard (Step 10)
+apps/web/src/hooks/      → React Query hooks: useMyClasses, useClass, useClassAttendance, useBatchSubmitAttendance, useAbsenceRequests, useMyChildren, useStudent, useStudentAttendance, useSubmitAbsenceRequest
+apps/web/src/app/        → Next.js routes: /login, /(app)/dashboard (persona-aware: STAFF→Teacher, GUARDIAN→Parent), /(app)/classes/[id]/attendance, /(app)/children/[id]/attendance, /(app)/children/[id]/absence-request
 packages/database/       → Prisma schema, tenant SQL migrations, provisioning, seed scripts. `build` script chains `prisma generate` before tsc so CI/Docker builds are self-sufficient.
 packages/shared/         → Shared TypeScript types and constants
 ```

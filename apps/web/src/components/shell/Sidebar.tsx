@@ -5,14 +5,7 @@ import { usePathname } from 'next/navigation';
 import { type ReactNode } from 'react';
 import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
 import { cn } from '@/components/ui/cn';
-import {
-  AttendanceIcon,
-  ChildrenIcon,
-  ClassesIcon,
-  HomeIcon,
-  PeopleIcon,
-  SettingsIcon,
-} from './icons';
+import { AttendanceIcon, ClassesIcon, HomeIcon, PeopleIcon, SettingsIcon } from './icons';
 
 interface NavItem {
   href: string;
@@ -41,12 +34,6 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Attendance',
     icon: AttendanceIcon,
     visibleFor: (u) => hasAnyPermission(u, ['att-001:read', 'att-001:write', 'att-001:admin']),
-  },
-  {
-    href: '/children',
-    label: 'My Children',
-    icon: ChildrenIcon,
-    visibleFor: (u) => u.personType === 'GUARDIAN',
   },
   {
     href: '/students',

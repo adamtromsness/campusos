@@ -3,6 +3,7 @@
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { TeacherDashboard } from '@/components/dashboard/TeacherDashboard';
+import { ParentDashboard } from '@/components/dashboard/ParentDashboard';
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -14,6 +15,10 @@ export default function DashboardPage() {
 
   if (isTeacherView) {
     return <TeacherDashboard user={user} />;
+  }
+
+  if (user.personType === 'GUARDIAN') {
+    return <ParentDashboard user={user} />;
   }
 
   return (

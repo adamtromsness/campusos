@@ -1,6 +1,6 @@
 # Cycle 1 Handoff — SIS Core + Attendance
 
-**Status:** Steps 1–9 of 11 complete. Steps 10–11 remain.
+**Status:** Steps 1–10 of 11 complete. Step 11 (vertical-slice integration test) remains.
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle1-implementation-plan.html`
 
@@ -22,10 +22,10 @@ This document was updated after the Cycle 1 architecture review. The original co
 |    7 | UI Shell & Design System           | Done — auth, layout, design tokens, components     |
 |    8 | Teacher Dashboard                  | Done — `/classes/my` extended with todayAttendance |
 |    9 | Attendance Taking UI               | Done — full UI vertical slice verified end-to-end  |
-|   10 | Parent Dashboard & Attendance View | Not started                                        |
+|   10 | Parent Dashboard & Attendance View | Done — children cards, calendar, absence request   |
 |   11 | Vertical Slice Integration Test    | Not started                                        |
 
-The Cycle 1 exit deliverable (teacher marks Maya tardy → submits → dashboard updates → parent sees it) is API + teacher-side complete. Step 10 wires the parent-side; Step 11 walks the full UI script.
+The Cycle 1 exit deliverable (teacher marks Maya tardy → submits → dashboard updates → parent sees it) is now wired end-to-end on both the teacher and parent sides; Step 11 walks the full UI script in a browser.
 
 ---
 
@@ -453,6 +453,59 @@ End-to-end run on `tenant_demo` after Step 9 landed:
 | 4   | Web smoke (curl): `/login` 200, `/dashboard` 200, `/classes/<id>/attendance` 200 | route serves the auth-gated shell; React Query feeds it from #1–3 |
 
 The browser-side walk-through (login → dashboard → click class → see roster → tap Maya → submit → toast → dashboard SUBMITTED) is the Step 11 deliverable.
+
+---
+
+## Step 10 — Parent Dashboard, attendance calendar, absence-request form
+
+Web-only step. Backend endpoints (`/students/my-children`, `/students/:id/attendance`, `/absence-requests` POST) all already existed from Step 6.
+
+### Hooks (`apps/web/src/hooks/use-children.ts`)
+
+- `useMyChildren()` → `GET /students/my-children`. Resolves via `req.user.personId` → `sis_guardians.person_id` server-side.
+- `useStudent(id)` → `GET /students/:id`.
+- `useStudentAttendance(id, fromDate?, toDate?)` → `GET /students/:id/attendance` with optional date range.
+- `useSubmitAbsenceRequest()` → `POST /absence-requests` mutation; on success invalidates `['absence-requests']`.
+
+### `ParentDashboard` (`apps/web/src/components/dashboard/ParentDashboard.tsx`)
+
+- Greeting + today's date.
+- **Tardy banner:** for each child, fetches `useStudentAttendance(id, today, today)`. If any row is TARDY or ABSENT, renders a banner per affected child: "{Child} was marked {tardy|absent} in Period {N}{ ({note})}" with a deep link to the child's attendance.
+- **Children cards** (1 col / 2 col responsive): avatar, name, grade, `#studentNumber`, today's status pill (`Not marked | Present | Tardy | Absent | Excused | Mixed`), year-to-date attendance rate, periods-recorded count. Two CTAs: "View attendance" → `/children/:id/attendance`; "Report absence" → `/children/:id/absence-request`.
+- Each `ChildCard` runs its own `useStudentAttendance(id)` (no date range — full history) and computes today/total client-side. Acceptable because seed has small history; if scale becomes an issue, summary-on-server is the next step (mirroring the Step 8 pattern on `/classes/my`).
+
+### `/children/[id]/attendance` (calendar + history)
+
+- Month-grid calendar component built inline (no library): 7-col grid, leading blanks for the first weekday, day cells coloured by worst-status across periods that day (`bg-status-{present|tardy|absent|excused}-soft` + matching text). Today's day number is underlined. Empty days are gray. Each cell shows `{N}p` for the period count.
+- Prev / next month navigation buttons in the header. Date range queries refetch on month change (one query per visible month).
+- Click a day → expands a "Day detail" panel below the calendar showing each period with its status pill and the parent explanation note when present.
+- Stats row above the calendar: attendance rate, periods present (PRESENT + TARDY + EXCUSED), tardies, absences — computed for the visible month.
+
+### `/children/[id]/absence-request` (submission form)
+
+- Form fields: from-date (`min=today`), to-date (`min=fromDate`), reason category dropdown (ILLNESS, MEDICAL_APPOINTMENT, FAMILY_EMERGENCY, HOLIDAY, RELIGIOUS_OBSERVANCE, OTHER), free-text explanation (1–1000 chars, with live counter).
+- `requestType` is **derived**, not asked: `SAME_DAY_REPORT` if all dates are today, otherwise `ADVANCE_REQUEST`. The form shows an info banner explaining which path the request will follow ("auto-approved" vs "queued for school admin review").
+- Past-date guard: if `fromDate < today` the form blocks submission and shows an error.
+- On success: toast (`Absence request submitted` or `auto-approved`), redirect to `/dashboard`. Errors surface inline above the submit button.
+- **Document upload deliberately omitted** — the API takes a `supportingDocumentS3Key` but no S3 infra is wired in Cycle 1. The field is left out rather than stubbed.
+
+### Persona switch + sidebar adjustments
+
+- `app/(app)/dashboard/page.tsx` adds `personType === 'GUARDIAN'` → `<ParentDashboard />`. Existing STAFF teacher branch unchanged.
+- `Sidebar` drops the previous "My Children" item (`/children` route never existed and is redundant — Dashboard IS the children landing for parents). The corresponding `ChildrenIcon` import was removed; the icon component is kept in `icons.tsx` for future use.
+
+### Smoke test — full parent vertical slice
+
+Run on `tenant_demo`, `2026-04-27`:
+
+| #   | Action                                                                                                              | Result                                                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 1   | Parent dev-login → `GET /students/my-children`                                                                      | 1 child: Maya Chen, grade 9, S-1001                                       |
+| 2   | `GET /students/<maya>/attendance`                                                                                   | 5 records — incl. today's P1 TARDY/CONFIRMED ("arrived 8:15") from Step 9 |
+| 3   | `POST /absence-requests` `{maya, 2026-04-28→2026-04-28, ADVANCE_REQUEST, MEDICAL_APPOINTMENT, "Pediatric checkup"}` | 201; status `PENDING`                                                     |
+| 4   | Web smoke: `/dashboard` 200, `/children/<maya>/attendance` 200, `/children/<maya>/absence-request` 200              | All routes serve the auth-gated shell; React Query feeds them from #1–3   |
+
+The teacher→parent vertical slice is now end-to-end real: Maya was marked tardy in the Step 9 smoke test on 2026-04-27, and the parent dashboard's tardy banner now shows it.
 
 ---
 

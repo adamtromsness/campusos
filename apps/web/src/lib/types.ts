@@ -51,6 +51,40 @@ export interface ClassDto {
   todayAttendance?: TodayAttendanceSummary;
 }
 
+export interface StudentDto {
+  id: string;
+  studentNumber: string | null;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  gradeLevel: string | null;
+  enrollmentStatus: string;
+  homeroomClassId: string | null;
+  schoolId: string;
+  personId: string;
+  platformStudentId: string;
+}
+
+export type AbsenceReasonCategory =
+  | 'ILLNESS'
+  | 'MEDICAL_APPOINTMENT'
+  | 'FAMILY_EMERGENCY'
+  | 'HOLIDAY'
+  | 'RELIGIOUS_OBSERVANCE'
+  | 'OTHER';
+
+export type AbsenceRequestType = 'SAME_DAY_REPORT' | 'ADVANCE_REQUEST';
+
+export interface CreateAbsenceRequestPayload {
+  studentId: string;
+  absenceDateFrom: string;
+  absenceDateTo: string;
+  requestType: AbsenceRequestType;
+  reasonCategory: AbsenceReasonCategory;
+  reasonText: string;
+  supportingDocumentS3Key?: string;
+}
+
 export interface AttendanceRecord {
   id: string;
   studentId: string;
