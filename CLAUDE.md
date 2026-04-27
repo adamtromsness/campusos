@@ -4,7 +4,7 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 
 ## Project Status
 
-Cycle 0 (Platform Foundation) is COMPLETE. Cycle 1 (SIS Core + Attendance) is partially complete: Steps 1–6 of 11 done (schema, seed, SIS module, Attendance module with Kafka emits, vertical slice verified end-to-end). Steps 7–11 (UI shell + Teacher/Parent dashboards + Attendance UI + integration test) remain.
+Cycle 0 (Platform Foundation) is COMPLETE. Cycle 1 (SIS Core + Attendance) is in progress: **Steps 1–9 of 11 done** (schema, seed, SIS API, Attendance API with Kafka emits + vertical slice verified, web UI shell, Teacher Dashboard with /classes/my todayAttendance summary, Attendance Taking UI with batch submit). **Steps 10 (Parent Dashboard + absence-request UI) and 11 (end-to-end vertical slice integration test) remain.**
 See `docs/campusos-cycle1-implementation-plan.html` for the detailed step-by-step plan, and `HANDOFF-CYCLE1.md` for current build state and known gaps.
 
 ## Architecture
@@ -17,7 +17,7 @@ See `docs/campusos-cycle1-implementation-plan.html` for the detailed step-by-ste
 
 ## Tech Stack
 
-- **Backend:** NestJS 10 (TypeScript strict), Node.js 20
+- **Backend:** NestJS 10 (TypeScript strict), Node.js 22 (CI + production image)
 - **Frontend:** Next.js 14 (App Router, Tailwind CSS, React Query, Zustand)
 - **Database:** PostgreSQL 16 (Prisma ORM, schema-per-tenant)
 - **Cache:** Redis 7 (ioredis)
@@ -33,11 +33,17 @@ apps/api/src/auth/       → AuthGuard (JWT), PermissionGuard, @Public, @Require
 apps/api/src/tenant/     → TenantResolverMiddleware, TenantGuard, TenantPrismaService, AsyncLocalStorage
 apps/api/src/iam/        → Roles, permissions, assignments, effective access cache
 apps/api/src/platform/   → M0 Platform Core
-apps/api/src/sis/        → M20 SIS Core (Cycle 1 Step 5): students, classes, families, guardians
+apps/api/src/sis/        → M20 SIS Core (Cycle 1 Step 5): students, classes, families, guardians; /classes/my includes todayAttendance summary (Step 8)
 apps/api/src/attendance/ → ATT-001..005 (Cycle 1 Step 6): attendance + absence requests + Kafka emits
 apps/api/src/kafka/      → KafkaProducerService (best-effort emit)
-apps/web/                → Next.js frontend
-packages/database/       → Prisma schema, tenant SQL migrations, provisioning, seed scripts
+apps/web/                → Next.js 14 frontend (App Router, Tailwind, React Query, Zustand)
+apps/web/src/lib/        → api-client (Bearer + X-Tenant-Subdomain, single-flight 401→refresh), auth-store (Zustand), auth-context, query-client, shared TS types
+apps/web/src/components/ui/        → Avatar, StatusBadge, LoadingSpinner, EmptyState, PageHeader, Modal, Toast (provider+useToast), DataTable, cn helper
+apps/web/src/components/shell/     → AppLayout (responsive drawer), Sidebar (persona + permission-driven), TopBar (avatar menu, sign-out), inline SVG icons
+apps/web/src/components/dashboard/ → TeacherDashboard (Step 8). ParentDashboard lands in Step 10.
+apps/web/src/hooks/      → React Query hooks: useMyClasses, useClass, useClassAttendance, useBatchSubmitAttendance, useAbsenceRequests
+apps/web/src/app/        → Next.js routes: /login, /(app)/dashboard (persona-aware), /(app)/classes/[id]/attendance
+packages/database/       → Prisma schema, tenant SQL migrations, provisioning, seed scripts. `build` script chains `prisma generate` before tsc so CI/Docker builds are self-sufficient.
 packages/shared/         → Shared TypeScript types and constants
 ```
 
@@ -144,3 +150,17 @@ Read these when you need table definitions, column details, ADR specifics, or pe
 - Kafka events follow `{domain}.{entity}.{verb}` naming (e.g. `att.student.marked_tardy`)
 - No DROP TABLE, no DROP COLUMN in migrations. Additive only. (Pre-deployment edits to fix architectural errors are categorically different — re-provision the tenant.)
 - Snake_case in SQL, camelCase in TypeScript. Map at the service layer with a `rowToDto` helper
+- **Web auth gating uses `personType` + permission codes from `/auth/me`** for menu visibility and persona routing only. Backend `PermissionGuard` is the authoritative access check on every request.
+- **Web fetch wrapper (`apps/web/src/lib/api-client.ts`)** sends `X-Tenant-Subdomain: demo` (override via `NEXT_PUBLIC_TENANT_SUBDOMAIN`) and Bearer token. On 401 it single-flights `/auth/refresh` and retries once; on terminal 401 it calls the registered `onUnauthenticated` handler which clears state and routes to `/login`.
+
+## Claude Code Operating Rules
+
+After completing each step and before each commit:
+
+1. Update this CLAUDE.md to reflect current status, new conventions, new commands, and any schema changes. The "Project Status" section must always state exactly which steps are done and which remain.
+2. Update the active HANDOFF document (currently HANDOFF-CYCLE1.md) with any new tables, endpoints, seed data changes, deviations from the ERD, bug fixes, or architecture decisions. Update the step status table. Document what was built in the same level of detail as the existing completed steps.
+3. Include both files in every commit.
+
+These two files are the source of truth that external architecture reviewers read. If they are stale, reviewers cannot do their job. A step is NOT complete until both files are current. Treat updating these files as part of the definition of done, not as a follow-up task.
+
+When starting a new cycle, create the new HANDOFF-CYCLE{N}.md from the template structure used in HANDOFF-CYCLE1.md before beginning Step 1.

@@ -1,31 +1,31 @@
 # Cycle 1 Handoff — SIS Core + Attendance
 
-**Status:** Steps 1–5 of 11 complete. Steps 6–11 remain.
+**Status:** Steps 1–9 of 11 complete. Steps 10–11 remain.
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle1-implementation-plan.html`
 
-This document was updated after the Cycle 1 architecture review. The original commits (`5cccc43`, `57ec312`) introduced 5 architecture deviations; review found 3 valid blockers, all now fixed in-place. The "deviations" section below tracks only the items that remain.
+This document was updated after the Cycle 1 architecture review. The original commits (`5cccc43`, `57ec312`) introduced 5 architecture deviations; review found 3 valid blockers, all now fixed in-place. Steps 7–9 added the web app (UI shell, Teacher Dashboard, Attendance Taking UI) and a small API extension (`/classes/my` `todayAttendance` summary). The "deviations" section below tracks only the items that remain.
 
 ---
 
 ## Step status
 
-| Step | Title                              | Status                         |
-| ---: | ---------------------------------- | ------------------------------ |
-|    1 | Academic Structure Schema          | Done                           |
-|    2 | Student & Family Schema            | Done                           |
-|    3 | Attendance Schema                  | Done (partitioned per ADR-007) |
-|    4 | Seed Data — A Living School        | Done                           |
-|   4b | Role-permission mappings (gap fix) | Done                           |
-|    5 | SIS NestJS Module                  | Done                           |
-|    6 | Attendance NestJS Module           | Done — vertical slice verified |
-|    7 | UI Shell & Design System           | Not started                    |
-|    8 | Teacher Dashboard                  | Not started                    |
-|    9 | Attendance Taking UI               | Not started                    |
-|   10 | Parent Dashboard & Attendance View | Not started                    |
-|   11 | Vertical Slice Integration Test    | Not started                    |
+| Step | Title                              | Status                                             |
+| ---: | ---------------------------------- | -------------------------------------------------- |
+|    1 | Academic Structure Schema          | Done                                               |
+|    2 | Student & Family Schema            | Done                                               |
+|    3 | Attendance Schema                  | Done (partitioned per ADR-007)                     |
+|    4 | Seed Data — A Living School        | Done                                               |
+|   4b | Role-permission mappings (gap fix) | Done                                               |
+|    5 | SIS NestJS Module                  | Done                                               |
+|    6 | Attendance NestJS Module           | Done — API vertical slice verified                 |
+|    7 | UI Shell & Design System           | Done — auth, layout, design tokens, components     |
+|    8 | Teacher Dashboard                  | Done — `/classes/my` extended with todayAttendance |
+|    9 | Attendance Taking UI               | Done — full UI vertical slice verified end-to-end  |
+|   10 | Parent Dashboard & Attendance View | Not started                                        |
+|   11 | Vertical Slice Integration Test    | Not started                                        |
 
-The vertical-slice exit deliverable (teacher marks Maya tardy → parent sees notification) is not yet wired. Steps 6–11 build it.
+The Cycle 1 exit deliverable (teacher marks Maya tardy → submits → dashboard updates → parent sees it) is API + teacher-side complete. Step 10 wires the parent-side; Step 11 walks the full UI script.
 
 ---
 
@@ -305,6 +305,171 @@ Two pre-existing bugs surfaced during Step 5 smoke tests. Both would have blocke
 
 ---
 
+## Step 7 — Web UI shell, design system, auth/tenant client
+
+New subtree: `apps/web/src/`. Next.js 14 App Router, Tailwind only (no component library). Test run: `pnpm --filter @campusos/web dev` → http://localhost:3000.
+
+**Auth bootstrap:**
+
+- On mount, `AuthProvider` calls `POST /api/v1/auth/refresh` (HttpOnly cookie). On success, calls `GET /api/v1/auth/me` and seeds the Zustand store. On failure, status flips to `unauthenticated` and protected routes redirect to `/login`.
+- The fetch wrapper attaches `Authorization: Bearer …` and `X-Tenant-Subdomain` (default `demo`, override via `NEXT_PUBLIC_TENANT_SUBDOMAIN`). On 401, it single-flights a `/auth/refresh` call (so N parallel 401s trigger one refresh) and retries the original request once. On terminal 401, `onUnauthenticated` clears state and routes to `/login`.
+
+**API extension for the shell:**
+
+- `GET /api/v1/auth/me` now returns `personType` (drives persona-aware UI) and a flat `permissions[]` (union across the user's `iam_effective_access_cache` rows). Used by the sidebar for **menu gating only** — `PermissionGuard` remains the authoritative access check on every protected request.
+
+**Persona-driven sidebar** (`Sidebar.tsx`):
+
+| Item        | Visible when                                                                     |
+| ----------- | -------------------------------------------------------------------------------- | ----- | ------ |
+| Dashboard   | always                                                                           |
+| Classes     | `personType === STAFF` and any of `att-001:read`, `sch-005:read`, `clr-001:read` |
+| Attendance  | any of `att-001:read                                                             | write | admin` |
+| My Children | `personType === GUARDIAN`                                                        |
+| Students    | any of `stu-001:read                                                             | write | admin` |
+| Settings    | `sch-001:admin`                                                                  |
+
+**Design tokens (Tailwind):**
+
+- Brand `campus.50–900` (existing) + semantic `success/warning/danger`.
+- Attendance status palette: `status.{present,tardy,absent,excused}.{DEFAULT,soft,text}` — used by the StatusBadge, attendance row tinting, and the Step 9 pill controls.
+- `borderRadius.card = 12px`, `shadow.card`, `shadow.elevated`.
+- `font.sans = DM Sans`, `font.display = DM Serif Display` (loaded via Google Fonts in `globals.css`).
+
+**Shared UI components** (`apps/web/src/components/ui/`):
+
+`Avatar`, `StatusBadge`, `LoadingSpinner` + `PageLoader`, `EmptyState`, `PageHeader`, `Modal`, `ToastProvider` + `useToast` (custom ~75-line provider — no `react-hot-toast` dep), `DataTable<T>`, `cn` helper.
+
+**App shell** (`apps/web/src/components/shell/`):
+
+`AppLayout` (responsive: sidebar inline ≥lg, mobile drawer with backdrop + close button below), `Sidebar`, `TopBar` (avatar menu with sign-out), inline SVG icon set (HomeIcon, ClassesIcon, AttendanceIcon, ChildrenIcon, PeopleIcon, SettingsIcon, MenuIcon, CloseIcon, LogoutIcon).
+
+**Routes:**
+
+- `/` → client-side redirect based on auth status to `/dashboard` or `/login`.
+- `/login` — five dev-account buttons (admin/principal/teacher/student/parent) wired to `POST /auth/dev-login`. Also handles the OIDC callback redirect: when Keycloak's callback redirects to `/login?token=…`, the page seeds the store and routes to `/dashboard`.
+- `/(app)/dashboard` — persona-aware switch (Step 8 wires teacher; Step 10 will wire parent).
+- `/(app)/classes/[id]/attendance` — Step 9.
+
+---
+
+## Step 8 — Teacher Dashboard + `/classes/my` extension
+
+### API: ClassResponseDto.todayAttendance
+
+`apps/api/src/sis/`. The `/classes/my` endpoint now returns each class enriched with a `todayAttendance` summary used by the dashboard. Other class endpoints (`list`, `getById`) leave it `undefined` to stay cheap.
+
+```ts
+TodayAttendanceSummaryDto {
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'SUBMITTED'
+  totalRecorded, present, tardy, absent, excused, earlyDeparture: number
+}
+```
+
+**Status derivation** — single grouped aggregate joins `sis_attendance_records` for today's date in one query:
+
+```sql
+SELECT class_id,
+       COUNT(*)::int AS total,
+       COUNT(*) FILTER (WHERE status='PRESENT')::int AS present,
+       COUNT(*) FILTER (WHERE status='TARDY')::int AS tardy,
+       …
+       BOOL_AND(confirmation_status='CONFIRMED') AS all_confirmed
+FROM sis_attendance_records
+WHERE date=$1::date AND class_id IN ($2::uuid, …)
+GROUP BY class_id
+```
+
+- 0 records → `NOT_STARTED`
+- ≥1 record AND `all_confirmed` → `SUBMITTED`
+- otherwise → `IN_PROGRESS`
+
+The aggregate is per-class (collapses across periods). For multi-period classes that's an MVP simplification — period-level state lives in Step 9.
+
+### Web: TeacherDashboard
+
+`apps/web/src/components/dashboard/TeacherDashboard.tsx` plus hooks:
+
+- `useMyClasses()` → `GET /classes/my`
+- `useAbsenceRequests({ status?, studentId? })` → `GET /absence-requests` (also used in Recent Activity)
+
+**Layout:**
+
+- Greeting (time-of-day aware) + today's date.
+- 4-card QuickStats row: Total students (sum of `enrollmentCount`), Attendance rate (`(present+tardy)/totalRecorded`, "—" until anything's marked), Tardies today, Absences today (last two accent-coloured).
+- Today's classes grid (1 / 2 / 3 cols responsive). Each card: status pill (`Not started | In progress | Submitted`), course name, period, room, enrollment count, exception badges (tardy/absent/excused) when present. The whole card is a `<Link>` to `/classes/:id/attendance`.
+- Recent activity panel: up to 5 latest absence requests with status pills.
+
+### Persona-aware dashboard router
+
+`apps/web/src/app/(app)/dashboard/page.tsx`:
+
+```ts
+const isTeacherView =
+  user.personType === 'STAFF' &&
+  hasAnyPermission(user, ['att-001:read', 'att-001:write', 'att-001:admin']);
+```
+
+Teachers see `TeacherDashboard`. All other personas see the placeholder until their dashboards land (Parent in Step 10).
+
+---
+
+## Step 9 — Attendance Taking UI
+
+`apps/web/src/app/(app)/classes/[id]/attendance/page.tsx`. Backend endpoints (Step 6) used unchanged.
+
+**Hooks** (`apps/web/src/hooks/use-attendance.ts`):
+
+- `useClass(id)` — class header info.
+- `useClassAttendance(classId, date, period)` — `GET /classes/:id/attendance/:date?period=…`. Disabled until `period` is known, so the lazy pre-populate fires deterministically on first render.
+- `useBatchSubmitAttendance(classId, date)` — `POST /classes/:id/attendance/:date/batch` mutation. On success invalidates `['attendance', classId, date]` and `['classes','my']` so the dashboard card flips to SUBMITTED immediately.
+
+**Page layout:**
+
+- Back link to `/dashboard`.
+- Header: course name, period, primary teacher, room, date picker (URL is the source of truth: `?date=YYYY-MM-DD`; today is implicit).
+- Roster `<ul>`: one `<li>` per attendance record with avatar, name, student number, and a 4-button status group (P/T/A/E). Non-PRESENT rows are tinted by their status colour and reveal a status-aware note input.
+- Sticky submit bar (fixed bottom): live exception summary ("Submit — 2 tardy, 1 absent" when there are exceptions; "Submit attendance" when none). Disabled while the mutation is in flight.
+
+**Read-only mode:** when every record is `CONFIRMED`, the page shows a green "Locked" banner with the day's tally and disables all controls. Per ADR/spec, confirms cannot be undone without admin override.
+
+**Override-map pattern:**
+
+- Local state is `Record<recordId, { status, note }>` of overrides relative to server state.
+- Setting a row back to its server value drops the override entirely. Submitting builds the batch payload from non-default rows only — matching the API contract that omitted students stay PRESENT.
+- Switching dates resets overrides.
+
+**Period assumption:** seed maps `class.section_code` 1–6 to period 1–6 (one period per class). The page uses `class.sectionCode` as the period. Multi-period classes are a future iteration.
+
+### Vertical-slice verification — UI side
+
+End-to-end run on `tenant_demo` after Step 9 landed:
+
+| #   | Action                                                                           | Result                                                            |
+| --- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 1   | `GET /classes/<period1>/attendance/2026-04-27?period=1`                          | 8 students inserted as PRESENT/PRE_POPULATED                      |
+| 2   | `POST .../batch` `{period:'1', records:[{maya, TARDY, "arrived 8:15"}]}`         | total=8, present=7, tardy=1, all CONFIRMED                        |
+| 3   | `GET /classes/my`                                                                | Period 1 → `status: SUBMITTED, present: 7, tardy: 1`              |
+| 4   | Web smoke (curl): `/login` 200, `/dashboard` 200, `/classes/<id>/attendance` 200 | route serves the auth-gated shell; React Query feeds it from #1–3 |
+
+The browser-side walk-through (login → dashboard → click class → see roster → tap Maya → submit → toast → dashboard SUBMITTED) is the Step 11 deliverable.
+
+---
+
+## CI / build hygiene fixes (between Step 6 and Step 9)
+
+These weren't part of the implementation plan but unblocked CI / Docker:
+
+- **Repo on GitHub.** `git@github.com:adamtromsness/campusos.git` (SSH), `main` branch.
+- **CI / Docker runtime aligned to Node 22.** `NODE_VERSION` env in `.github/workflows/ci.yml` plus `node:22-slim` base in `Dockerfile`. Production image and CI now share the same major.
+- **pnpm version is single-sourced from `packageManager`.** Removed the explicit `version: 10` from both `pnpm/action-setup@v4` invocations in `ci.yml`. With version omitted, the action reads `pnpm@10.33.2` from `package.json` `packageManager`, so CI and local installs stay locked together — no drift if pnpm is bumped.
+- **`@campusos/database` build chains `prisma generate`.** CI was failing with 14 implicit-any errors because `pnpm --filter @campusos/database build` ran `tsc` before `prisma generate`, and `@prisma/client` ships an empty stub until generation. Every Prisma reference downgraded to `any` and the cascade hit middleware params (`params`, `next`), provision-tenant `r` callbacks, and the `var tier` redeclaration in `seed-iam.ts`. Local builds masked it because the generated client persisted in the pnpm store. Fix: `"build": "pnpm run generate && tsc --project tsconfig.json"` in `packages/database/package.json`. Dockerfile's pre-build `prisma generate` becomes redundant but harmless (prisma generate is idempotent).
+- **Repo-wide Prettier pass.** 64 files had drifted from Prettier rules. Single `pnpm format` commit aligned them; `format:check` is now green.
+
+Outstanding warning: GitHub deprecated Node 20 for the **action runtime itself** (separate from `NODE_VERSION`) — `actions/checkout@v4`, `actions/setup-node@v4`, `pnpm/action-setup@v4` internally run on Node 20. Forced bump to Node 24 starts 2026-06-02. Acceptable to defer until those actions ship Node 24-compatible majors.
+
+---
+
 ## Architecture review response — what changed
 
 Initial peer review flagged 5 blockers; verification against the actual docs confirmed 3 valid, 2 incorrect. The 3 valid ones are now fixed:
@@ -344,30 +509,20 @@ Initial peer review flagged 5 blockers; verification against the actual docs con
 
 ---
 
-## What Step 7+ needs from Cycle 1's foundation
+## What Steps 10–11 need from the existing foundation
 
-The remaining UI steps (7–11) consume the API surface built in Steps 5 and 6.
-
-**Teacher dashboard (Step 8):**
-
-- `GET /api/v1/classes/my` → today's classes for the logged-in teacher (existing).
-- For each card, `GET /api/v1/classes/:id/attendance/today` → pre-populated roster + confirmation status.
-
-**Attendance taking UI (Step 9):**
-
-- `GET /api/v1/classes/:id/attendance/:date?period=N` → roster with statuses (lazy pre-populate fires here on first open).
-- `PATCH /api/v1/attendance/:id` → mark a student tardy/absent/etc.
-- `POST /api/v1/classes/:id/attendance/:date/batch` → submit the period.
+Steps 7–9 have already consumed and validated `/auth/me`, `/classes/my`, `/classes/:id`, `/classes/:id/attendance/:date`, and the batch submit endpoint. The remaining work is parent-facing.
 
 **Parent dashboard (Step 10):**
 
-- `GET /api/v1/students/my-children` → children list (existing).
-- `GET /api/v1/students/:id/attendance` → calendar/history view.
-- `POST /api/v1/absence-requests` → submit absence form.
+- `GET /api/v1/students/my-children` → children list (existing — resolves via `req.user.personId` → `sis_guardians.person_id`).
+- `GET /api/v1/students/:id/attendance` → calendar/history view (existing).
+- `POST /api/v1/absence-requests` → submit absence form (existing — SAME_DAY_REPORT auto-approves, ADVANCE_REQUEST queues PENDING).
+- Persona-aware `/dashboard`: the existing route already branches `STAFF → TeacherDashboard`. Adding a `GUARDIAN → ParentDashboard` branch is the entry point.
 
 **Vertical slice integration test (Step 11):**
 
-- All 7 steps of the test script in the plan map to existing endpoints. Step 6 implementation has already verified the API-side flow end-to-end — Step 11 will verify it via the UI in a browser.
+- All 9 steps of the test script in the plan map to endpoints that already exist. Step 6 validated the API-side flow; Step 9 added UI confirmation through the teacher path. Step 11 walks the full browser path: login as teacher → mark Maya tardy → submit → log in as parent → see notification → submit advance absence.
 
 **Persistent gotchas to be aware of:**
 
