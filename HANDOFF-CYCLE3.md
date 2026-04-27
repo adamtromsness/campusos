@@ -1,6 +1,6 @@
 # Cycle 3 Handoff — Communications
 
-**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), and 4 (Seed Data) DONE; Steps 5–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
+**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), and 5 (Notification Pipeline — Consumers & Queue) DONE; Steps 6–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle3-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher marks Maya tardy in Period 1 → Kafka event fires → notification consumer picks it up → in-app notification appears on David Chen's parent dashboard with a badge count → David clicks the notification → he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress → David sees it in his inbox → David replies → the reply goes through content moderation → James sees the reply in his inbox.
@@ -18,7 +18,7 @@ This document tracks the Cycle 3 build — the M40 Communications module — at 
 |    2 | Communications Schema — Notifications & Announcements         | Done — `008_msg_notifications_and_announcements.sql` applied to demo + test (7 base tables + 24 monthly partitions of `msg_notification_log`)        |
 |    3 | Communications Schema — Moderation & Support                  | Done — `009_msg_moderation.sql` applied to demo + test (6 tenant tables + 24 monthly partitions of `msg_moderation_log`); platform Prisma migration `20260427211003_add_communications_platform_tables` adds `platform_push_tokens` + `platform_dlq_messages` |
 |    4 | Seed Data — Messaging & Notifications                         | Done — `seed-messaging.ts` populates 13 messaging tables in `tenant_demo`; `seed-iam.ts` adds COM-002:read to Student + Staff; cache rebuilt |
-|    5 | Notification Pipeline — Consumers & Queue                     | Not started                                                                                                                   |
+|    5 | Notification Pipeline — Consumers & Queue                     | Done — `apps/api/src/notifications/` lands 5 Kafka consumers + NotificationQueueService + NotificationDeliveryWorker + RedisService; build verified clean, live boot subscribed all topics + Redis connected |
 |    6 | Messaging NestJS Module                                       | Not started                                                                                                                   |
 |    7 | Announcements NestJS Module                                   | Not started                                                                                                                   |
 |    8 | Notification Bell & Inbox UI                                  | Not started                                                                                                                   |
@@ -532,13 +532,150 @@ To force a re-seed: `TRUNCATE msg_thread_types CASCADE` is **not** safe because 
 
 ## Step 5 — Notification Pipeline — Consumers & Queue
 
-Not started. Plan:
+**Done.** Lands the entire Cycle 3 notification pipeline at `apps/api/src/notifications/` — the first user-facing payoff of the Cycle 1 + Cycle 2 Kafka emits. After Step 5 every domain event from attendance + grading + progress notes + absence requests, plus the message-posted event that ships in Step 6, fans out into the per-tenant `msg_notification_queue` with full preference + quiet-hours + Redis SET NX idempotency, and `NotificationDeliveryWorker` drains the queue every 10s into the per-recipient Redis sorted set the Step 8 NotificationBell will poll.
 
-- 5 Kafka consumers — AttendanceNotificationConsumer (`att.student.marked_tardy`, `att.student.marked_absent`), GradeNotificationConsumer (`cls.grade.published`), ProgressNoteNotificationConsumer (`cls.progress_note.published`), AbsenceRequestNotificationConsumer (`att.absence.requested`, `att.absence.reviewed`), MessageNotificationConsumer (`msg.message.posted`).
-- `NotificationQueueService` — preference + quiet-hours check, Redis SET NX idempotency.
-- `NotificationDeliveryWorker` — polls `msg_notification_queue`, in-app delivery via Redis sorted set, email/push stubbed, log to `msg_notification_log`.
+### Files
 
-Each consumer follows the GradebookSnapshotWorker pattern: read envelope → read-only `isClaimed()` check → process → claim-after-success.
+```
+apps/api/src/notifications/
+├── notifications.module.ts                                — wires everything; imports KafkaModule + TenantModule
+├── redis.service.ts                                       — first ioredis usage in the API
+├── notification-queue.service.ts                          — enqueue() (SET NX → prefs → quiet hours → INSERT PENDING)
+├── notification-delivery.worker.ts                        — 10s polling worker, multi-tenant
+└── consumers/
+    ├── notification-consumer-base.ts                     — unwrapEnvelope() + processWithIdempotency()
+    ├── attendance-notification.consumer.ts               — att.student.marked_{tardy,absent}
+    ├── grade-notification.consumer.ts                    — cls.grade.published
+    ├── progress-note-notification.consumer.ts            — cls.progress_note.published
+    ├── absence-request-notification.consumer.ts          — att.absence.{requested,reviewed}
+    └── message-notification.consumer.ts                  — msg.message.posted (producer ships Step 6)
+```
+
+`NotificationsModule` is registered in `AppModule` between `ClassroomModule` and the global `APP_GUARD` providers — Nest module ordering controls service initialisation, which means the Kafka consumer subscriptions land *after* the Cycle 2 GradebookSnapshotWorker subscribes. Each consumer's subscribe call is best-effort: if Kafka can't be reached the `KafkaConsumerService` logs `[skip-subscribe]` and continues, mirroring the Cycle 1/2 producer's behaviour.
+
+### Consumers (5)
+
+Every consumer follows the same shape:
+
+```ts
+async onModuleInit() {
+  await this.consumer.subscribe({
+    topics: [prefixedTopic(<topic>)],
+    groupId: '<consumer-group>',
+    handler: msg => this.handle(msg),
+  });
+}
+```
+
+`handle()` calls the shared helpers in `consumers/notification-consumer-base.ts`:
+
+1. `unwrapEnvelope<P>(msg, logger)` — pulls `event_id`, `tenant_id`, and the `tenant-subdomain` transport header out of the message (envelope-first, header-fallback) and reconstructs a `TenantInfo`. Returns null + warns if any of the three routing fields are missing.
+2. `processWithIdempotency(group, event, idempotency, logger, fn)` — read-only `isClaimed()` check on arrival (REVIEW-CYCLE2 BLOCKING 2 — claim-after-success), runs `fn` inside `runWithTenantContextAsync({tenant})`, then `claim()` after `fn` resolves. A throw inside `fn` leaves the event-id unclaimed so a Kafka redelivery (or the `MAX_ATTEMPTS=5` retry loop in `NotificationDeliveryWorker`) re-runs the work.
+
+| Consumer                                | Topics                                                  | Group                                            | Recipient resolution                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------------------- | ------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AttendanceNotificationConsumer`        | `att.student.marked_tardy`, `att.student.marked_absent` | `attendance-notification-consumer`               | Guardians of the student via `sis_student_guardians` filtered by `portal_access=true AND receives_reports=true AND g.account_id IS NOT NULL`. Notification types `attendance.tardy` / `attendance.absent`. Skips students with no portal-enabled guardians (the absentee log will still be in the dashboard).                                                                                       |
+| `GradeNotificationConsumer`             | `cls.grade.published`                                   | `grade-notification-consumer`                    | Student themself (via `sis_students → platform_students → platform_users.person_id`) + every portal-enabled guardian. Notification type `grade.published`. Does NOT subscribe to `cls.grade.unpublished` — unpublishing a grade quietly removes it from the gradebook; sending a "your grade is gone" notification would be more disruptive than helpful, and the snapshot worker still updates. |
+| `ProgressNoteNotificationConsumer`      | `cls.progress_note.published`                           | `progress-note-notification-consumer`            | Guardians when `is_parent_visible=true`, the student themself when `is_student_visible=true`. Mirrors the row-scope used by `ProgressNoteService.listForStudent`. Drops the event when both flags are false. Notification type `progress_note.published`.                                                                                                                                          |
+| `AbsenceRequestNotificationConsumer`    | `att.absence.requested`, `att.absence.reviewed`         | `absence-request-notification-consumer`          | On `requested`: every account holding `sch-001:admin` for the school's scope chain (school + platform), resolved via `platform.iam_effective_access_cache` JOIN `platform.iam_scope` JOIN `platform.iam_scope_type` filtered by `'sch-001:admin' = ANY(permission_codes)`. On `reviewed`: the original `sis_absence_requests.submitted_by`. Notification types `absence.requested` / `absence.reviewed`. |
+| `MessageNotificationConsumer`           | `msg.message.posted`                                    | `message-notification-consumer`                  | Every `msg_thread_participants` row for this thread where `platform_user_id <> sender AND left_at IS NULL AND is_muted=false`. Bumps the per-(user, thread) Redis HASH on `inbox:{accountId}` via `RedisService.incrementUnread()` for the Step 6 UnreadCountService. Notification type `message.posted`. Producer ships in Step 6 alongside MessageService.                                       |
+
+Notification type names (`attendance.tardy`, `grade.published`, …) line up exactly with the strings seeded into `msg_notification_preferences` by `seed-messaging.ts` (Step 4) so a Step 5 consumer can read the seed data without a translation layer.
+
+### `NotificationQueueService.enqueue()`
+
+Tenant-scoped service — every call must be inside `runWithTenantContextAsync` (the consumer base helper does this). Pipeline:
+
+```ts
+enqueue({ notificationType, recipientAccountId, payload, idempotencyKey, correlationId? }) → EnqueueResult
+```
+
+1. **Redis SET NX** on `notif:idem:{tenantSubdomain}:{idempotencyKey}` with 7-day TTL. The DB has no UNIQUE on `msg_notification_queue.idempotency_key` by design (Step 2 — avoids deadlocks during emergency fan-out). Redis is the authoritative dedup. If the key already exists → `outcome='deduped'`. Convention used by every consumer in this module: `<topic>:<eventId>:<recipientId>`.
+2. **Preference lookup** in `msg_notification_preferences` for `(platform_user_id, notification_type)`. Missing row → defaults to `IN_APP` enabled. Disabled or empty channels → release the Redis key + return `outcome='disabled'` so a future re-enable + redelivery can re-enqueue.
+3. **Quiet-hours check** when `quiet_hours_start` and `quiet_hours_end` are set. Wraps midnight (e.g. 22:00–07:00 = ON when local time is ≥22:00 OR <07:00). When in window, `scheduled_for` is shifted to the next quiet-end boundary so the row holds in PENDING until the worker covers that timestamp. Server runs in UTC; for now the quiet-hours strings are interpreted as UTC. A user-timezone-aware check is on the Step 8 follow-up list — schema is plain `TIME` and a TZ has to be pinned somewhere.
+4. **INSERT** into `msg_notification_queue` with `status='PENDING'`, `attempts=0`, `payload` as JSONB, `correlation_id` if supplied. On failure, releases the Redis idempotency key so a redelivery can retry.
+
+Returns `{ outcome: 'enqueued' | 'deduped' | 'disabled', queueId, channels, scheduledFor }`.
+
+### `NotificationDeliveryWorker`
+
+Polling worker. On `onModuleInit` it logs the cadence and schedules the first tick via `setTimeout(...).unref?.()` so it never blocks Node from exiting.
+
+| Knob                              | Default | Notes                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------------- | ------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOTIFICATION_POLL_INTERVAL_MS`   | 10_000  | Tick cadence. Each tick: load active schools → for each, enter tenant context → process up to 25 PENDING rows.                                                                                                                                                                                                                                                                                       |
+| `POLL_BATCH`                      | 25      | `LIMIT $POLL_BATCH FOR UPDATE SKIP LOCKED` per tenant per tick — bounded so a backed-up tenant never starves the others.                                                                                                                                                                                                                                                                            |
+| `FAILURE_BACKOFF_SECONDS`         | 30      | After a delivery throw, the queue row is flipped back to PENDING with `scheduled_for = now() + 30s`.                                                                                                                                                                                                                                                                                                |
+| `MAX_ATTEMPTS`                    | 5       | After this many failures, the row settles on `status='FAILED'`. The DLQ table (`platform_dlq_messages`) is reserved for Kafka consumer failures; delivery failures are tracked in-place on the queue row so a future moderator UI can review them.                                                                                                                                                  |
+
+Per-tenant tick:
+
+```sql
+BEGIN;
+SELECT id, recipient_id, notification_type, payload, attempts, correlation_id
+FROM msg_notification_queue
+WHERE status = 'PENDING' AND scheduled_for <= now()
+ORDER BY scheduled_for ASC
+LIMIT 25
+FOR UPDATE SKIP LOCKED;
+-- mark every row in-flight (status='SENT', sent_at=now(), attempts++) inside the same tx
+COMMIT;
+-- per row, deliver per-channel:
+--   IN_APP  → Redis ZADD on notif:inapp:{accountId} (capped at 100 entries via ZREMRANGEBYRANK 0,-101) + DELIVERED log row
+--   EMAIL/PUSH/SMS → log "[stub-deliver]" + SENT log row (provider integration is Phase 3)
+-- on throw: flip back to PENDING with 30s backoff; after MAX_ATTEMPTS settle on FAILED
+```
+
+`SELECT … FOR UPDATE SKIP LOCKED` lets two API replicas run side by side without double-delivering. Marking the row `SENT` inside the same transaction is the in-flight flag so a concurrent worker on the next tick sees it as already done; the actual UI render gates on `msg_notification_log.status='DELIVERED'` for IN_APP rows, so SENT-but-not-yet-logged is invisible. This is a deliberate trade — it keeps the worker simple, at the cost of holding the row lock while delivering. Phase 2 may switch to an explicit `PROCESSING` intermediate state once the dev volume is high enough to warrant it.
+
+### Multi-tenant routing for the worker
+
+Active tenants are pulled fresh on every tick from `platform.schools WHERE is_active = true`. Each row materialises a `TenantInfo` (using the table's `subdomain` + `schema_name` + `id` columns) and the worker enters `runWithTenantContextAsync({tenant})` before running its tenant-scoped queries. New schools added between ticks are picked up on the next refresh — no boot-time tenant cache. If the platform DB is unreachable, the worker logs once per tick and skips.
+
+### Connection & best-effort behaviour
+
+| Component               | If unreachable                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Redis                   | `RedisService.isConnected()` returns false. `claimIdempotency` fails open (returns true so the queue insert proceeds — the partial DB index on `idempotency_key` is the read-side dedup). `pushInAppNotification` and `incrementUnread` silently no-op. The worker still writes log rows + advances queue status; the IN_APP UI just won't see those rows until Redis is back. |
+| Kafka (consumer)        | First `subscribe()` failure flips the consumer service to `connected=false` and every subsequent subscribe is logged as `[skip-subscribe]`. Same posture as the Cycle 2 GradebookSnapshotWorker. The system continues serving HTTP traffic; events emitted while Kafka is down are simply not consumed.                                                                                                                       |
+| Postgres (platform)     | Idempotency lookup fails open — the consumer processes the event and writes the queue row (which the dedup happens at via Redis SET NX). The next tick's `loadActiveSchools()` returns empty and the worker reschedules.                                                                                                                                                                                                       |
+| Postgres (tenant)       | Worker tick logs the tenant-level error and continues to the next tenant. Consumer-side fan-out throws are caught + re-thrown by `processWithIdempotency` so the event-id stays unclaimed and Kafka can redeliver.                                                                                                                                                                                                              |
+
+### Verification (recorded 2026-04-27)
+
+```bash
+pnpm --filter @campusos/api build      # nest build → exits 0 with new module compiled
+pnpm --filter @campusos/api test       # 7 tests pass (existing tenant-context + health)
+node dist/main                          # boots; logs:
+#  - NotificationsModule dependencies initialized
+#  - NotificationDeliveryWorker polling every 10000ms
+#  - All 5 consumer subscribe attempts (succeed against the live broker, or
+#    fall back to [skip-subscribe] if the broker drops out — same path the
+#    GradebookSnapshotWorker takes)
+#  - Connected to Redis at redis://localhost:6379
+#  - Nest application successfully started
+```
+
+A live broker hand-off test (queueing a tardy mark and observing fan-out) is part of the Step 11 vertical slice; Step 5 verification is limited to the wire-up + boot-time subscriptions.
+
+### Permission / authorisation surface
+
+Step 5 ships zero new HTTP endpoints — all of the user-facing surface lands in Step 8 (notification bell + inbox). The consumers and worker run in the API process under no caller identity; tenant context is reconstructed from the Kafka envelope/headers exactly the way GradebookSnapshotWorker has done since Cycle 2 Step 6. Recipient resolution queries are read-only joins; nothing here mutates IAM state.
+
+The `iam_effective_access_cache` JOIN in `AbsenceRequestNotificationConsumer.loadSchoolAdminAccounts` is the first cache reader outside `apps/api/src/iam/`. We use the cache directly (rather than calling `PermissionCheckService.hasAnyPermissionInTenant` per candidate account) because the cardinality goes the other way — we need every admin in the school, not "is this account an admin?". The query mirrors the same scope-chain rule (SCHOOL row direct, PLATFORM row catches Platform Admins) so the answer is consistent with the request-path admin check.
+
+### Out-of-scope decisions for Step 5
+
+- **No HTTP endpoints land in this step.** The bell + dropdown + `/notifications` page ship in Step 8. Until then the only way to observe the queue draining is via the `msg_notification_log` table or the Redis `notif:inapp:{accountId}` sorted set.
+- **No retry curve / dead-letter for delivery failures.** A 30s constant-backoff retry up to 5 attempts then `status='FAILED'` is enough for Cycle 3. The DLQ table (`platform_dlq_messages`) is for Kafka consumer failures; mixing in delivery failures would couple two pipelines that have different failure modes.
+- **No quiet-hours timezone awareness.** The schema is plain `TIME`; the worker treats the bounds as UTC. A user-timezone column on `platform_users` (or a separate `notif_preferences` extension) is on the Step 8 follow-up list. Until then, the parent's seeded 22:00–07:00 quiet hours are interpreted as 22:00–07:00 UTC.
+- **No EMAIL / PUSH / SMS delivery.** Stubbed with `[stub-deliver]` log lines and a `msg_notification_log` row marked SENT (per the plan — Phase 3 Sendgrid / Twilio / FCM integration is post Test & Refine). The `platform_push_tokens` table from Step 3 is unused so far; it'll be populated by the Step 8 web onboarding flow + the future native client.
+- **No event-version branching on consumers.** Every Cycle 1+2 emit is `event_version=1`. When the first breaking payload change lands, the consumer can branch on `envelope.event_version` (the field is already in the unwrap). For now the consumer assumes v1 shapes.
+- **No correlation-id propagation from request → consumer → log.** The producer mints a fresh UUIDv7 per emit when no request-context correlation id exists; the consumers persist it onto the queue row + log row so it's traceable end-to-end. Wiring an `X-Correlation-Id` request middleware so the same id flows from HTTP → Kafka → notification is a small follow-up.
+- **`MessageNotificationConsumer` subscribes ahead of its producer.** `msg.message.posted` is emitted by the Step 6 messaging service. The consumer subscribing now means the moment Step 6's MessageService starts emitting, the notification + Redis unread bump fire — no follow-up deploy. This is the same "wire the consumer first, the producer second" sequencing the Cycle 2 GradebookSnapshotWorker used.
+- **No batching across recipients.** Each consumer enqueues one row per recipient. For the demo school's recipient counts (≤ 10 per fan-out) this is fine. A future bulk-enqueue helper is on the Phase 2 polish list if the per-row write turns into a hotspot.
+- **No tenant cache in the worker.** `platform.schools` is queried fresh per tick. With 1–2 active schools per dev / staging cluster and a 10s tick, the cost is negligible. If the active-school list grows past O(100), cache it for ~30s.
+- **Worker holds the row lock while delivering.** Acceptable for Cycle 3 demo volume; documented in `notification-delivery.worker.ts` so Phase 2 reviewers can decide whether to switch to a `PROCESSING` intermediate state.
 
 ---
 
@@ -602,7 +739,7 @@ pnpm --filter @campusos/api dev
 - **ADR-057 envelope on every emit.** Done in Step 0. The transport headers (`event-id`, `tenant-id`, `tenant-subdomain`) are still set on every message for backward compatibility with any consumer that hasn't migrated; once Cycle 3 ships, a Phase 2 follow-up can retire them.
 - **Communications tenant migrations (Steps 1–3).** Done — 19 of M40's 29 tables landed across migrations 007–009 (6 messaging + 7 notifications/announcements + 6 moderation/support). 10 deferred: emergency alerts (requires dedicated always-on service per Architecture Review), digest batching, translation request pipeline, retention/archival jobs, and a few smaller utility tables that the plan explicitly defers.
 - **Platform schema additions.** Done — `platform_push_tokens` + `platform_dlq_messages` landed via Prisma migration `20260427211003_add_communications_platform_tables`. First platform additions since Cycle 0.
-- **Email / push provider integration is stubbed.** The queue + log + delivery worker are built; Sendgrid / Twilio / FCM wire-up is Phase 3 (post Test & Refine).
+- **Email / push provider integration is stubbed.** The queue + log + delivery worker landed in Step 5; Sendgrid / Twilio / FCM wire-up is Phase 3 (post Test & Refine). Stub path writes a `[stub-deliver]` log line and a `msg_notification_log` row with `status=SENT`.
 - **Emergency alerts service.** Per the Architecture Review, requires a dedicated always-on service. Out of scope for Cycle 3; only `msg_alert_types` ships for schema completeness.
 - **Communication groups with dynamic membership.** Deferred — out of scope this cycle.
 - **Translation requests (AI pipeline).** Deferred.
