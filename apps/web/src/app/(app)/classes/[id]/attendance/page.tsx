@@ -56,7 +56,7 @@ export default function ClassAttendancePage() {
   const teacherName = cls.teachers[0]?.fullName ?? 'Unassigned';
 
   return (
-    <div className="mx-auto max-w-4xl pb-32">
+    <div className="mx-auto max-w-4xl">
       <Link
         href="/dashboard"
         className="mb-3 inline-flex items-center gap-1 text-sm text-campus-600 hover:text-campus-700"
@@ -82,6 +82,8 @@ export default function ClassAttendancePage() {
       />
 
       {locked && <SubmittedBanner records={records} />}
+
+      {!locked && records.length > 0 && <PreSubmitBanner totalStudents={records.length} />}
 
       {attendanceQuery.isLoading ? (
         <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -133,6 +135,23 @@ export default function ClassAttendancePage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function PreSubmitBanner({ totalStudents }: { totalStudents: number }) {
+  return (
+    <div className="mb-4 flex items-start gap-3 rounded-card border border-campus-200 bg-campus-50 px-4 py-3 text-sm">
+      <span aria-hidden className="mt-0.5">
+        ✏️
+      </span>
+      <div>
+        <p className="font-medium text-campus-700">Take attendance — {totalStudents} students</p>
+        <p className="mt-0.5 text-xs text-gray-600">
+          Default is Present. Tap a row to mark Tardy / Absent / Excused, then use the Submit button
+          at the bottom to confirm.
+        </p>
+      </div>
     </div>
   );
 }
@@ -280,9 +299,9 @@ function SubmitBar({ records, overrides, submitting, onSubmit }: SubmitBarProps)
   const exceptionLabel = formatExceptions(counts);
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
-      <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
-        <div className="text-sm text-gray-500">
+    <div className="sticky bottom-4 mt-4 rounded-card border border-gray-200 bg-white/95 px-4 py-3 shadow-elevated backdrop-blur">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-gray-600">
           {counts.PRESENT} present
           {exceptionCount > 0 ? ` · ${exceptionLabel}` : ''}
         </div>
@@ -290,10 +309,10 @@ function SubmitBar({ records, overrides, submitting, onSubmit }: SubmitBarProps)
           type="button"
           disabled={submitting}
           onClick={onSubmit}
-          className="inline-flex items-center gap-2 rounded-lg bg-campus-700 px-4 py-2 text-sm font-medium text-white shadow-card transition hover:bg-campus-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-lg bg-campus-700 px-5 py-2.5 text-sm font-semibold text-white shadow-card transition hover:bg-campus-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting && <LoadingSpinner size="sm" className="border-white/40 border-t-white" />}
-          {exceptionCount > 0 ? `Submit — ${exceptionLabel}` : 'Submit attendance'}
+          {exceptionCount > 0 ? `Submit attendance — ${exceptionLabel}` : 'Submit attendance'}
         </button>
       </div>
     </div>

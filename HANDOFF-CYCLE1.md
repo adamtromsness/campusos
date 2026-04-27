@@ -425,8 +425,9 @@ Teachers see `TeacherDashboard`. All other personas see the placeholder until th
 
 - Back link to `/dashboard`.
 - Header: course name, period, primary teacher, room, date picker (URL is the source of truth: `?date=YYYY-MM-DD`; today is implicit).
+- **Pre-submit banner** (unlocked state): "Take attendance — N students. Default is Present. Tap a row to mark Tardy / Absent / Excused, then use the Submit button at the bottom to confirm." Visible immediately after the header so the action path is obvious without scrolling.
 - Roster `<ul>`: one `<li>` per attendance record with avatar, name, student number, and a 4-button status group (P/T/A/E). Non-PRESENT rows are tinted by their status colour and reveal a status-aware note input.
-- Sticky submit bar (fixed bottom): live exception summary ("Submit — 2 tardy, 1 absent" when there are exceptions; "Submit attendance" when none). Disabled while the mutation is in flight.
+- **Submit bar** at the end of the roster (`position: sticky bottom-4`): live exception summary ("Submit attendance — 2 tardy, 1 absent" when there are exceptions; "Submit attendance" when none). Disabled while the mutation is in flight. Sticky positioning keeps it pinned to the bottom of the viewport while scrolling long rosters but the bar is part of the page flow — visible from first paint, not just when scrolled. (Earlier `position: fixed` rendering was reported as "no submit button" because users didn't notice the disconnected viewport-edge bar.)
 
 **Read-only mode:** when every record is `CONFIRMED`, the page shows a green "Locked" banner with the day's tally and disables all controls. Per ADR/spec, confirms cannot be undone without admin override.
 
