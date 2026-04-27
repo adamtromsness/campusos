@@ -1,6 +1,6 @@
 # Cycle 3 Handoff — Communications
 
-**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), 5 (Notification Pipeline — Consumers & Queue), and 6 (Messaging NestJS Module) DONE; Steps 7–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
+**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), 5 (Notification Pipeline — Consumers & Queue), 6 (Messaging NestJS Module), and 7 (Announcements NestJS Module) DONE; Steps 8–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle3-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher marks Maya tardy in Period 1 → Kafka event fires → notification consumer picks it up → in-app notification appears on David Chen's parent dashboard with a badge count → David clicks the notification → he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress → David sees it in his inbox → David replies → the reply goes through content moderation → James sees the reply in his inbox.
@@ -20,7 +20,7 @@ This document tracks the Cycle 3 build — the M40 Communications module — at 
 |    4 | Seed Data — Messaging & Notifications                         | Done — `seed-messaging.ts` populates 13 messaging tables in `tenant_demo`; `seed-iam.ts` adds COM-002:read to Student + Staff; cache rebuilt |
 |    5 | Notification Pipeline — Consumers & Queue                     | Done — `apps/api/src/notifications/` lands 5 Kafka consumers + NotificationQueueService + NotificationDeliveryWorker + RedisService; build verified clean, live boot subscribed all topics + Redis connected |
 |    6 | Messaging NestJS Module                                       | Done — `apps/api/src/messaging/` lands ThreadService + MessageService + UnreadCountService + ContentModerationService + 10 endpoints; live smoke confirmed BLOCK / FLAG / CLEAN paths and parent unread-bump → mark-read → badge=0 |
-|    7 | Announcements NestJS Module                                   | Not started                                                                                                                   |
+|    7 | Announcements NestJS Module                                   | Done — `apps/api/src/announcements/` lands AnnouncementService + AudienceFanOutWorker + 6 endpoints; live smoke against `tenant_demo` confirmed publish flow + ALL_SCHOOL (5) / CLASS (10) / YEAR_GROUP (9) / ROLE=PARENT (1) audience fan-out + idempotent mark-read + author/admin-only stats + invalid-audience guards |
 |    8 | Notification Bell & Inbox UI                                  | Not started                                                                                                                   |
 |    9 | Messaging UI                                                  | Not started                                                                                                                   |
 |   10 | Announcements UI                                              | Not started                                                                                                                   |
@@ -865,7 +865,129 @@ Step 6 adds 10 endpoints — 9 under `com-001:read` / `com-001:write`, plus the 
 
 ## Step 7 — Announcements NestJS Module
 
-Not started. Plan: `AnnouncementService`, `AudienceFanOutWorker` (consumes `msg.announcement.published`, resolves audience by `audience_type`, populates `msg_announcement_audiences`, enqueues notifications). ~6 endpoints under `com-002:read` / `com-002:write`.
+Lands the request-path module + Kafka consumer for school-wide, class-level, year-group, and role-targeted announcements with pre-computed audience fan-out.
+
+### Files
+
+```
+apps/api/src/announcements/
+  announcements.module.ts          — wires service + controller + worker
+  announcement.service.ts          — list / get / create / patch / mark-read / stats
+  announcement.controller.ts       — 6 endpoints under com-002:read / com-002:write
+  audience-fan-out.worker.ts       — Kafka consumer on msg.announcement.published
+  dto/
+    announcement.dto.ts            — Create / Update / List / Response / Stats DTOs
+```
+
+`AppModule` imports `AnnouncementsModule` after `MessagingModule` (no ordering dependency, but groups the M40 modules together).
+
+### Services
+
+#### `AnnouncementService.list(query, actor)` / `getById(id, actor)`
+
+Two scopes:
+- **Manager** (`actor.isSchoolAdmin || actor.personType === 'STAFF'`) sees every announcement in the tenant. Drafts are filtered out by default; pass `includeDrafts=true` to opt in. Expired ones are filtered out unless `includeExpired=true`.
+- **Reader** (everyone else holding `com-002:read`) sees only published, non-expired announcements where `EXISTS (SELECT 1 FROM msg_announcement_audiences WHERE platform_user_id = $accountId AND announcement_id = a.id)`. Single SELECT against the pre-computed audience eliminates real-time fan-out at read time.
+
+`is_read` is computed inline via `EXISTS` on `msg_announcement_reads`. The list query joins `msg_alert_types` for icon/severity surfacing and `platform.platform_users + iam_person` for the author display name. Sort: `publish_at DESC NULLS FIRST, created_at DESC`.
+
+#### `AnnouncementService.create(input, actor)`
+
+Manager-only (`isSchoolAdmin || personType=STAFF`). Validates:
+- `audienceType` ∈ {ALL_SCHOOL, CLASS, YEAR_GROUP, ROLE, CUSTOM}.
+- `audienceRef` MUST be empty when `audienceType=ALL_SCHOOL`, MUST be present otherwise (validated up front so the worker never sees a malformed event).
+- `alertTypeId` (when supplied) must belong to this tenant and be `is_active=true`.
+
+`isPublished=true` sets `publish_at = COALESCE(input.publishAt, now())` and emits `msg.announcement.published` via `KafkaProducerService.emit({ sourceModule: 'communications', ... })`. Draft otherwise.
+
+#### `AnnouncementService.update(id, input, actor)`
+
+Author or school admin only. **Published is one-way at this layer:** editing a published announcement returns 400 (the audience has already been fanned out and notifications dispatched — letting an author rewrite the body would silently change what was actually delivered). Setting `isPublished=false` on a draft also 400s (it's already a draft). Setting `isPublished=true` on a draft publishes it and emits.
+
+The patch is dynamic — only fields present in the body are SET. `audience_ref` is wiped to NULL when `audience_type` is changed to `ALL_SCHOOL`. Same alert-type-belongs-to-tenant guard as `create`.
+
+#### `AnnouncementService.markRead(id, actor)`
+
+Idempotent INSERT into `msg_announcement_reads` (UNIQUE on `(announcement_id, reader_id)`); returns `newlyRead=true` on the first call, `false` on every subsequent call. Inside the same tenant transaction it also flips the matching `msg_announcement_audiences` row from PENDING → DELIVERED so the stats endpoint reflects the read-side acknowledgment without waiting for the delivery worker.
+
+Refuses to mark a draft as read (400 — drafts are invisible to readers anyway, this just clarifies the error).
+
+#### `AnnouncementService.getStats(id, actor)`
+
+Author or school admin only. Two parallel aggregates inside one tenant context call:
+- `msg_announcement_audiences`: `total`, `pending`, `delivered`, `failed` via `COUNT(*) FILTER (WHERE delivery_status = …)`.
+- `msg_announcement_reads`: `count`.
+
+`readPercentage = round(read / total × 100, 2)`. The endpoint is permission-gated on `com-002:write` but the service layer enforces author-or-admin (the controller permission grants Teacher access, but a teacher cannot see another teacher's announcement stats — that's enforced here).
+
+### `AudienceFanOutWorker` (Kafka consumer)
+
+Group: `audience-fan-out-worker`. Topic: `prefixedTopic('msg.announcement.published')` (env-prefixed via `KAFKA_TOPIC_ENV`).
+
+Pipeline (`processWithIdempotency` from Step 5's `notification-consumer-base.ts`):
+1. `unwrapEnvelope` reads `event_id` + `tenant_id` off the ADR-057 envelope (header fallback).
+2. Read-only `IdempotencyService.isClaimed` on arrival — early-drop redelivered events.
+3. `runWithTenantContextAsync` enters the right schema.
+4. `loadAnnouncementContext(announcementId)` fetches body + alert-type metadata + author display name in one query.
+5. `resolveAudience(audience_type, audience_ref)` returns a deduplicated list of `platform_users.id`:
+   - **ALL_SCHOOL** — `SELECT DISTINCT account_id FROM platform.iam_role_assignment ra JOIN platform.iam_scope sc ... WHERE ra.status='ACTIVE' AND ((stp.code='SCHOOL' AND sc.entity_id = $schoolId) OR stp.code='PLATFORM')`. School + platform scope chain matches the Step 5 admin-resolution query.
+   - **CLASS** — UNION of: enrolled students (`sis_enrollments → sis_students → platform_students → platform_users`, status=ACTIVE), portal-enabled guardians of those students (`sis_student_guardians.portal_access=true AND g.account_id IS NOT NULL`), and class teachers (`sis_class_teachers.teacher_employee_id` joined to `platform_users.person_id` per the Cycle 2 HR-employee identity mapping).
+   - **YEAR_GROUP** — students with `sis_students.grade_level = $audienceRef` + their portal-enabled guardians. Teachers are intentionally excluded (year-group announcements target families).
+   - **ROLE** — accounts whose IAM role token (`UPPER(REGEXP_REPLACE(name, '\s+', '_', 'g'))`) equals the audience_ref. Same scope chain as ALL_SCHOOL.
+   - **CUSTOM** — logs and returns []. Reserved for the deferred Communication Groups feature.
+6. `writeAudienceRows(announcementId, accountIds)` bulk-inserts one row per recipient inside a tenant transaction with `delivery_status='DELIVERED', delivered_at=now()` and `ON CONFLICT (announcement_id, platform_user_id) DO NOTHING` (the unique constraint covers Kafka redelivery). Marking DELIVERED at insert time keeps stats accurate; PENDING was the schema default but the worker has effectively delivered the audience handoff.
+7. For each recipient: `NotificationQueueService.enqueue({ notificationType: 'announcement.published', recipientAccountId, payload, idempotencyKey: 'announcement.published:{eventId}:{accountId}' })`. Redis SET NX on the idempotency key prevents duplicate enqueues across redeliveries; preference + quiet-hours checks happen inside the queue service.
+8. `IdempotencyService.claim` after the loop completes — claim-after-success per REVIEW-CYCLE2 BLOCKING 2. A transient platform DB blip leaves the event-id un-claimed and the next Kafka redelivery re-runs (audience UNIQUE + Redis SET NX make it harmless).
+
+### Endpoints (6)
+
+| Method | Path                               | Permission        | Notes |
+|--------|------------------------------------|-------------------|-------|
+| GET    | /announcements                     | com-002:read      | manager → all (drafts opt-in via `?includeDrafts=true`); reader → audience-row-matched + published only |
+| GET    | /announcements/:id                 | com-002:read      | 404 when not visible to caller |
+| POST   | /announcements                     | com-002:write     | manager-only; draft or publish-now (`isPublished=true` emits) |
+| PATCH  | /announcements/:id                 | com-002:write     | author or admin; refuses to edit a published row; flipping `isPublished=true` publishes + emits |
+| POST   | /announcements/:id/read            | com-002:read      | idempotent — also flips audience row PENDING → DELIVERED |
+| GET    | /announcements/:id/stats           | com-002:write     | author or admin only (controller gate is com-002:write but service enforces author-or-admin) |
+
+`com-002:read` is held by every persona (Teacher, Parent, Student, Staff, School Admin, Platform Admin) per Step 4's seed-iam.ts extension. `com-002:write` is held by Teacher + School Admin + Platform Admin only.
+
+### Verification (recorded 2026-04-27)
+
+Live smoke against `tenant_demo` on port 4002 with all 5 test users:
+
+1. **Visibility scoping** — parent sees seeded `Welcome Back to School` (ALL_SCHOOL) + `Parent-Teacher Conference Dates` (ROLE=PARENT); student sees only `Welcome Back to School`; teacher (manager) sees both.
+2. **Draft creation** — principal POST creates `Early Dismissal Friday` as ALL_SCHOOL draft; `isPublished=false`, `publishAt=null`.
+3. **Reader 404 on draft** — parent GET on the draft id returns 404.
+4. **Permission denial** — student POST returns 403 (no com-002:write).
+5. **Draft → published** — principal PATCH `{"isPublished":true}` flips the row; producer emits `dev.msg.announcement.published`; AudienceFanOutWorker logs `Fanning out announcement … (audience=ALL_SCHOOL) to 5 recipients` (the 5 seeded test users).
+6. **Reader sees published** — parent GET on the same id now returns 200 with `isRead=false`.
+7. **Idempotent mark-read** — first POST `/read` returns `newlyRead=true`; second returns `newlyRead=false`. Re-fetching announcement shows `isRead=true`.
+8. **Stats** — principal GET `/stats` returns `totalAudience=5, readCount=1, readPercentage=20, pendingCount=0, deliveredCount=5, failedCount=0`.
+9. **Stats authorization** — non-author parent GET `/stats` returns 403.
+10. **Edit-after-publish** — principal PATCH on the published row returns 400 (`Published announcements cannot be edited`).
+11. **ROLE=PARENT publish** — POST with `{"audienceType":"ROLE","audienceRef":"PARENT","isPublished":true}` triggers `Fanning out announcement … (audience=ROLE/PARENT) to 1 recipients` (one parent in the seed); student GET on this id returns 404.
+12. **CLASS publish** — POST with `audienceType=CLASS, audienceRef=<sis_classes.id>` triggers `Fanning out … (audience=CLASS/<id>) to 10 recipients` (enrolled students + their guardians + the class's teachers).
+13. **YEAR_GROUP/9 publish** — POST resolves to 9 recipients (students in grade 9 + their portal-enabled guardians).
+14. **Notification queue row** — `SELECT FROM msg_notification_queue WHERE notification_type='announcement.published'` returns one PENDING row per audience member with the recipient_id matching the resolved account.
+15. **Validation errors** — POST with `audienceType=ALL_SCHOOL, audienceRef='PARENT'` returns 400; POST with `audienceType=ROLE` and no audienceRef returns 400.
+
+Build: `pnpm --filter @campusos/api build` clean. Live boot subscribed `audience-fan-out-worker` to `dev.msg.announcement.published` after the topic was pre-created via `kafka-topics.sh --create`. The first-boot Kafka topic auto-creation race that already affects `gradebook-snapshot-worker` on a fresh dev cluster also affects this worker; pre-creating the topic once is the dev workaround.
+
+### Permission / authorisation surface
+
+- All 6 endpoints gated on `com-002:read` or `com-002:write`.
+- Manager check at the service layer: `actor.isSchoolAdmin || actor.personType === 'STAFF'` — keeps the read SQL simple and matches the seed where Teachers+School Admin+Platform Admin hold `com-002:write`.
+- Author-or-admin check on `update` and `getStats` enforces that one teacher cannot edit or view stats for another teacher's announcement, even though both hold `com-002:write`.
+- Reader visibility is scope-collapsed to a single `msg_announcement_audiences` row check — the audience row is the access-control boundary for non-managers.
+
+### Out-of-scope decisions for Step 7
+
+- **Scheduled publish.** A Future-dated `publishAt` on a draft just stores the timestamp; nothing publishes it later. The plan calls this out explicitly; a periodic poll worker is a Phase 2 follow-up.
+- **Recurring announcements.** `is_recurring` + `recurrence_rule` columns are stored but no scheduler interprets them yet.
+- **Un-publish.** No endpoint or PATCH path can flip `is_published=true → false` once published. The audience has already been fanned out and notifications dispatched; un-publishing would leave a confusing audit trail. If retraction is needed, the row stays published and a new announcement is posted.
+- **CUSTOM audience.** The schema check accepts CUSTOM but the worker logs and drops. Reserved for the Communication Groups feature.
+- **Mass mark-as-read.** No "mark all as read" endpoint yet — the Step 8 NotificationBell is the natural home for that.
 
 ---
 

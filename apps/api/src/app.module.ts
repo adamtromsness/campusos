@@ -11,6 +11,7 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { ClassroomModule } from './classroom/classroom.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MessagingModule } from './messaging/messaging.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -48,6 +49,7 @@ var devOnlyControllers: Type<unknown>[] =
     ClassroomModule,
     NotificationsModule,
     MessagingModule,
+    AnnouncementsModule,
   ],
   controllers: devOnlyControllers,
   providers: [
