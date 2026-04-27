@@ -6,9 +6,20 @@ import type {
   AssignmentCategoryDto,
   AssignmentDto,
   AssignmentTypeDto,
+  BatchGradePayload,
+  BatchGradeResultDto,
   CreateAssignmentPayload,
+  GradeDto,
+  GradeSubmissionPayload,
+  GradebookClassResponseDto,
+  GradebookStudentResponseDto,
+  ProgressNoteDto,
+  PublishAllResultDto,
+  SubmissionDto,
+  TeacherSubmissionListDto,
   UpdateAssignmentPayload,
   UpsertCategoryEntry,
+  UpsertProgressNotePayload,
 } from '@/lib/types';
 
 // ── Assignment types (school-wide) ───────────────────────────────────────
@@ -111,6 +122,180 @@ export function useUpsertCategories(classId: string) {
       qc.setQueryData(['classroom', 'categories', 'class', classId], data);
       // Categories influence assignment list display (category name on each row)
       void qc.invalidateQueries({ queryKey: ['classroom', 'assignments', 'class', classId] });
+    },
+  });
+}
+
+// ── Gradebook ────────────────────────────────────────────────────────────
+
+export function useClassGradebook(classId: string | undefined, termId?: string) {
+  return useQuery({
+    queryKey: ['classroom', 'gradebook', 'class', classId, termId ?? null],
+    queryFn: () => {
+      const qs = termId ? `?termId=${encodeURIComponent(termId)}` : '';
+      return apiFetch<GradebookClassResponseDto>(`/api/v1/classes/${classId}/gradebook${qs}`);
+    },
+    enabled: !!classId,
+  });
+}
+
+export function useStudentGradebook(studentId: string | undefined, termId?: string) {
+  return useQuery({
+    queryKey: ['classroom', 'gradebook', 'student', studentId, termId ?? null],
+    queryFn: () => {
+      const qs = termId ? `?termId=${encodeURIComponent(termId)}` : '';
+      return apiFetch<GradebookStudentResponseDto>(`/api/v1/students/${studentId}/gradebook${qs}`);
+    },
+    enabled: !!studentId,
+  });
+}
+
+// ── Submissions ──────────────────────────────────────────────────────────
+
+export function useSubmissionsForAssignment(assignmentId: string | undefined) {
+  return useQuery({
+    queryKey: ['classroom', 'submissions', 'assignment', assignmentId],
+    queryFn: () =>
+      apiFetch<TeacherSubmissionListDto>(`/api/v1/assignments/${assignmentId}/submissions`),
+    enabled: !!assignmentId,
+  });
+}
+
+export function useSubmission(submissionId: string | undefined) {
+  return useQuery({
+    queryKey: ['classroom', 'submission', submissionId],
+    queryFn: () => apiFetch<SubmissionDto>(`/api/v1/submissions/${submissionId}`),
+    enabled: !!submissionId,
+  });
+}
+
+// ── Grading mutations ────────────────────────────────────────────────────
+
+interface GradeSubmissionArgs {
+  submissionId: string;
+  payload: GradeSubmissionPayload;
+  /** Used so the hook can invalidate the right caches without an extra round-trip. */
+  assignmentId?: string;
+  classId?: string;
+}
+
+export function useGradeSubmission() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ submissionId, payload }: GradeSubmissionArgs) =>
+      apiFetch<GradeDto>(`/api/v1/submissions/${submissionId}/grade`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (_, vars) => {
+      void qc.invalidateQueries({ queryKey: ['classroom', 'submission', vars.submissionId] });
+      if (vars.assignmentId) {
+        void qc.invalidateQueries({
+          queryKey: ['classroom', 'submissions', 'assignment', vars.assignmentId],
+        });
+      }
+      if (vars.classId) {
+        void qc.invalidateQueries({
+          queryKey: ['classroom', 'gradebook', 'class', vars.classId],
+        });
+      }
+    },
+  });
+}
+
+export function useBatchGrade(classId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BatchGradePayload) =>
+      apiFetch<BatchGradeResultDto>(`/api/v1/classes/${classId}/grades/batch`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => {
+      void qc.invalidateQueries({
+        queryKey: ['classroom', 'submissions', 'assignment', data.assignmentId],
+      });
+      void qc.invalidateQueries({ queryKey: ['classroom', 'gradebook', 'class', classId] });
+    },
+  });
+}
+
+interface GradeIdArgs {
+  gradeId: string;
+  assignmentId?: string;
+  classId?: string;
+  submissionId?: string;
+}
+
+function invalidateAfterGradeMutation(qc: ReturnType<typeof useQueryClient>, vars: GradeIdArgs) {
+  if (vars.submissionId)
+    void qc.invalidateQueries({ queryKey: ['classroom', 'submission', vars.submissionId] });
+  if (vars.assignmentId)
+    void qc.invalidateQueries({
+      queryKey: ['classroom', 'submissions', 'assignment', vars.assignmentId],
+    });
+  if (vars.classId)
+    void qc.invalidateQueries({ queryKey: ['classroom', 'gradebook', 'class', vars.classId] });
+}
+
+export function usePublishGrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ gradeId }: GradeIdArgs) =>
+      apiFetch<GradeDto>(`/api/v1/grades/${gradeId}/publish`, { method: 'POST' }),
+    onSuccess: (_, vars) => invalidateAfterGradeMutation(qc, vars),
+  });
+}
+
+export function useUnpublishGrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ gradeId }: GradeIdArgs) =>
+      apiFetch<GradeDto>(`/api/v1/grades/${gradeId}/unpublish`, { method: 'POST' }),
+    onSuccess: (_, vars) => invalidateAfterGradeMutation(qc, vars),
+  });
+}
+
+export function usePublishAllGrades(classId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (assignmentId: string) =>
+      apiFetch<PublishAllResultDto>(`/api/v1/classes/${classId}/grades/publish-all`, {
+        method: 'POST',
+        body: JSON.stringify({ assignmentId }),
+      }),
+    onSuccess: (data) => {
+      void qc.invalidateQueries({
+        queryKey: ['classroom', 'submissions', 'assignment', data.assignmentId],
+      });
+      void qc.invalidateQueries({ queryKey: ['classroom', 'gradebook', 'class', classId] });
+    },
+  });
+}
+
+// ── Progress notes ───────────────────────────────────────────────────────
+
+export function useStudentProgressNotes(studentId: string | undefined) {
+  return useQuery({
+    queryKey: ['classroom', 'progress-notes', 'student', studentId],
+    queryFn: () =>
+      apiFetch<ProgressNoteDto[]>(`/api/v1/students/${studentId}/progress-notes`),
+    enabled: !!studentId,
+  });
+}
+
+export function useUpsertProgressNote(classId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpsertProgressNotePayload) =>
+      apiFetch<ProgressNoteDto>(`/api/v1/classes/${classId}/progress-notes`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => {
+      void qc.invalidateQueries({
+        queryKey: ['classroom', 'progress-notes', 'student', data.studentId],
+      });
     },
   });
 }

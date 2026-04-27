@@ -78,7 +78,7 @@ export default function ClassAssignmentsPage() {
         }
       />
 
-      <ClassTabs classId={classId} active="assignments" hideGradebook />
+      <ClassTabs classId={classId} active="assignments" />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1 rounded-lg border border-gray-200 bg-white p-1">

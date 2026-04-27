@@ -198,6 +198,196 @@ export interface UpsertCategoryEntry {
   sortOrder?: number;
 }
 
+// ── Submissions, grades, gradebook (Cycle 2 Step 8) ──────────────────────
+
+export type SubmissionStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'SUBMITTED'
+  | 'GRADED'
+  | 'RETURNED';
+
+export interface SubmissionStudentSummary {
+  id: string;
+  studentNumber: string | null;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+}
+
+export interface SubmissionGradeSummary {
+  id: string;
+  gradeValue: number;
+  letterGrade: string | null;
+  feedback: string | null;
+  isPublished: boolean;
+  publishedAt: string | null;
+  gradedAt: string;
+}
+
+export interface SubmissionDto {
+  id: string;
+  assignmentId: string;
+  classId: string;
+  student: SubmissionStudentSummary;
+  status: SubmissionStatus;
+  submissionText: string | null;
+  attachments: Array<Record<string, unknown>>;
+  submittedAt: string | null;
+  returnedAt: string | null;
+  returnReason: string | null;
+  grade: SubmissionGradeSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeacherSubmissionListDto {
+  assignmentId: string;
+  classId: string;
+  rosterSize: number;
+  submittedCount: number;
+  gradedCount: number;
+  publishedCount: number;
+  submissions: SubmissionDto[];
+}
+
+export interface GradeDto {
+  id: string;
+  assignmentId: string;
+  classId: string;
+  studentId: string;
+  submissionId: string | null;
+  teacherId: string;
+  gradeValue: number;
+  maxPoints: number;
+  percentage: number;
+  letterGrade: string | null;
+  feedback: string | null;
+  isPublished: boolean;
+  gradedAt: string;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GradeSubmissionPayload {
+  gradeValue: number;
+  letterGrade?: string;
+  feedback?: string;
+  publish?: boolean;
+}
+
+export interface BatchGradeEntry {
+  studentId: string;
+  gradeValue: number;
+  letterGrade?: string;
+  feedback?: string;
+}
+
+export interface BatchGradePayload {
+  assignmentId: string;
+  entries: BatchGradeEntry[];
+  publish?: boolean;
+}
+
+export interface BatchGradeResultDto {
+  assignmentId: string;
+  classId: string;
+  processedCount: number;
+  insertedCount: number;
+  updatedCount: number;
+  publishedCount: number;
+  grades: GradeDto[];
+}
+
+export interface PublishAllResultDto {
+  assignmentId: string;
+  classId: string;
+  publishedCount: number;
+  grades: GradeDto[];
+}
+
+export interface GradebookStudentSummary {
+  id: string;
+  studentNumber: string | null;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+}
+
+export interface GradebookClassSummary {
+  id: string;
+  sectionCode: string | null;
+  courseCode: string | null;
+  courseName: string | null;
+}
+
+export interface GradebookSnapshotDto {
+  id: string;
+  classId: string;
+  studentId: string;
+  termId: string;
+  currentAverage: number | null;
+  letterGrade: string | null;
+  assignmentsGraded: number;
+  assignmentsTotal: number;
+  lastGradeEventAt: string | null;
+  lastUpdatedAt: string;
+}
+
+export interface GradebookClassRowDto {
+  student: GradebookStudentSummary;
+  snapshot: GradebookSnapshotDto | null;
+}
+
+export interface GradebookClassResponseDto {
+  class: GradebookClassSummary;
+  termId: string | null;
+  rows: GradebookClassRowDto[];
+}
+
+export interface GradebookStudentRowDto {
+  class: GradebookClassSummary;
+  snapshot: GradebookSnapshotDto | null;
+}
+
+export interface GradebookStudentResponseDto {
+  student: GradebookStudentSummary;
+  termId: string | null;
+  rows: GradebookStudentRowDto[];
+}
+
+export type EffortRating =
+  | 'EXCELLENT'
+  | 'GOOD'
+  | 'SATISFACTORY'
+  | 'NEEDS_IMPROVEMENT'
+  | 'UNSATISFACTORY';
+
+export interface ProgressNoteDto {
+  id: string;
+  classId: string;
+  studentId: string;
+  termId: string;
+  authorId: string;
+  noteText: string;
+  overallEffortRating: EffortRating | null;
+  isParentVisible: boolean;
+  isStudentVisible: boolean;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertProgressNotePayload {
+  studentId: string;
+  termId: string;
+  noteText: string;
+  overallEffortRating?: EffortRating;
+  isParentVisible?: boolean;
+  isStudentVisible?: boolean;
+}
+
 export interface AbsenceRequestDto {
   id: string;
   schoolId: string;

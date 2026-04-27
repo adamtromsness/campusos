@@ -44,7 +44,7 @@ export default function EditAssignmentPage() {
         description={`${cls.course.name} · Period ${cls.sectionCode}`}
       />
 
-      <ClassTabs classId={classId} active="assignments" hideGradebook />
+      <ClassTabs classId={classId} active="assignments" />
 
       {assignment ? (
         <AssignmentForm

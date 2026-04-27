@@ -1,6 +1,6 @@
 # Cycle 2 Handoff — Classroom, Assignments & Grading
 
-**Status:** Cycle 2 IN PROGRESS — Steps 1–7 done (full classroom schema, demo data, TCH role-permission map, the Assignments + Categories module, the Submissions + Grading + Gradebook + Progress Notes module, the first Kafka consumer in the system — GradebookSnapshotWorker — that recomputes gradebook snapshots asynchronously per ADR-010, and the teacher Assignments UI: list / create / edit / delete + category-weight modal under a new ClassTabs shell at `/classes/:id/{attendance,assignments}`). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
+**Status:** Cycle 2 IN PROGRESS — Steps 1–8 done (full classroom schema, demo data, TCH role-permission map, the Assignments + Categories module, the Submissions + Grading + Gradebook + Progress Notes module, the first Kafka consumer in the system — GradebookSnapshotWorker — that recomputes gradebook snapshots asynchronously per ADR-010, the teacher Assignments UI under the ClassTabs shell, and the teacher Grading UI: gradebook grid with inline cell editor + per-assignment "Publish all" + per-cell publish toggle, submissions queue, single-submission detail with grade entry, and per-student progress-note modal). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle2-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher creates an assignment for Period 1 Algebra → student Maya submits work → teacher grades and publishes → gradebook snapshot recomputes asynchronously → parent David sees Maya's updated average.
@@ -20,7 +20,7 @@ This document tracks the Cycle 2 build — the M21 Classroom module — at the s
 |    5 | Classroom NestJS Module — Submissions & Grading | Done — SubmissionService + GradeService + GradebookService + ProgressNoteService; 12 endpoints; per-class write gate; draft-grade visibility hidden from students/parents; Kafka emits for `cls.submission.submitted`, `cls.grade.published`, `cls.grade.unpublished`, `cls.progress_note.published` |
 |    6 | Kafka Events & Gradebook Snapshot Worker        | Done — `KafkaConsumerService`, `IdempotencyService`, `GradebookSnapshotWorker`; subscribes to `cls.grade.{published,unpublished}` (group `gradebook-snapshot-worker`); 30s debounce per `(schoolId, classId, studentId)`; idempotent via `platform_event_consumer_idempotency`; reuses the seed's weighted-average algorithm verbatim |
 |    7 | Teacher Assignments UI                          | Done — `ClassTabs` shell + `/classes/:id/assignments` list (filter, delete) + `/new` + `/[assignmentId]/edit` + `CategoryWeightModal`; new `GET /assignment-types` endpoint exposes the school's type catalogue to the create form |
-|    8 | Teacher Grading UI                              | Pending                                                             |
+|    8 | Teacher Grading UI                              | Done — `/classes/:id/gradebook` grid (color-coded cells × inline editor × per-assignment "Publish all"), `/assignments/:id/submissions` queue, `/submissions/:id` detail with grade entry; `ProgressNoteModal` per student; **fix to grade.service.ts** so updates to already-published grades emit `cls.grade.published` (Step 5 emit bug — only transitions were emitting before) |
 |    9 | Student & Parent Grade Views                    | Pending                                                             |
 |   10 | Vertical Slice Integration Test                 | Pending                                                             |
 
@@ -848,9 +848,99 @@ The browser-side interactivity (button clicks, modal state, navigations) was val
 
 ---
 
-## Step 8 — Teacher Grading UI (planned)
+## Step 8 — Teacher Grading UI
 
-The gradebook grid: students × assignments, color-coded cells, click-to-edit, batch publish per assignment. Submission detail page with grade entry + feedback. Progress notes editor.
+Lands the teacher-facing grading workflow on top of the Step 5 + Step 6 grading API + snapshot worker. Three new routes: a spreadsheet-style gradebook grid, a per-assignment submissions queue, and a single-submission detail page. Plus a per-student progress-note modal launched from the gradebook. Same Cycle 1 visual language (PageHeader, Modal, Toast, LoadingSpinner) and the same row-level auth pattern as Step 7 — the API already row-scopes everything; the UI calls the manager-only paths.
+
+### API fix included in this step
+
+`apps/api/src/classroom/grade.service.ts` — `upsertGrade` and `batchGrade` now emit `cls.grade.published` whenever an **already-published** grade is updated, not just when a draft transitions to published. Without this fix, the gradebook UI's most common interaction (re-grade a row that was already published — typo, recount, regrade after rubric change) would update `cls_grades` but leave the snapshot stale until the teacher unpublished+republished. The snapshot worker is idempotent so the redundant emit is harmless. Surfaced for the first time in the Step 8 smoke matrix when a 98 → 85 regrade left the snapshot at 98; pre-Step 6 testing only exercised draft↔published transitions.
+
+### Files
+
+**API (one targeted bug fix)**
+
+- `apps/api/src/classroom/grade.service.ts` — `upsertGrade`'s update branch now sets `emitPublishedAfter = publish || existing.is_published` so a value-only edit on an already-published grade also emits. `batchGrade` mirrors the same logic via a per-row `gradeIdsToEmit[]` accumulator.
+
+**Web (new components, hooks, routes)**
+
+- `apps/web/src/lib/types.ts` — adds the gradebook + submission + grade + progress-note shapes (`SubmissionDto`, `TeacherSubmissionListDto`, `GradeDto`, `GradebookClassResponseDto`, `GradebookStudentResponseDto`, `ProgressNoteDto`, payload types, `EffortRating`).
+- `apps/web/src/hooks/use-classroom.ts` — adds 11 new hooks: `useClassGradebook`, `useStudentGradebook`, `useSubmissionsForAssignment`, `useSubmission`, `useGradeSubmission`, `useBatchGrade`, `usePublishGrade`, `useUnpublishGrade`, `usePublishAllGrades`, `useStudentProgressNotes`, `useUpsertProgressNote`. All invalidate the right query keys so the gradebook + submissions queue stay in sync after any grade write.
+- `apps/web/src/components/classroom/GradeCellEditor.tsx` (new) — popover editor for the gradebook grid. Numeric input (auto-derives letter), feedback textarea, Save / Publish-or-Unpublish / Cancel; Enter saves, Esc cancels, validation for negative + over-max-points (extra-credit assignments bypass the over-max check). Exports `gradeTier(pct)` and `deriveLetter(pct)` for the cell rendering.
+- `apps/web/src/components/classroom/ProgressNoteModal.tsx` (new) — per-student progress-note upsert. Auto-loads any existing note for `(class, term)` via `useStudentProgressNotes` and pre-fills the form so editing is one click; `useUpsertProgressNote` hits the upsert-by-`(class, student, term)` endpoint. Effort rating dropdown + parent / student visibility toggles.
+- `apps/web/src/app/(app)/classes/[id]/gradebook/page.tsx` (new) — the spreadsheet. Roster rows × per-published-assignment columns. Per-cell tile shows `grade/max`, percentage, and a `draft` chip when unpublished. Tiers: ≥80% green, 60–79% amber, <60% red, no grade gray. Right column = `cls_gradebook_snapshots.currentAverage` for the resolved term. Per-assignment header has a "Publish all" button that calls `POST /classes/:id/grades/publish-all`. Each student's name has a `Progress note…` link that opens the modal.
+- `apps/web/src/app/(app)/assignments/[assignmentId]/submissions/page.tsx` (new) — submissions queue. Roster + submissions joined; sorted SUBMITTED first (grading priority), then by name. Status badges (NOT_STARTED / IN_PROGRESS / SUBMITTED / GRADED / RETURNED) with consistent palette. Header summary cards: roster size, submitted count, graded count, published count. "Publish all drafts" button surfaces only when `gradedCount > publishedCount`.
+- `apps/web/src/app/(app)/submissions/[id]/page.tsx` (new) — submission detail. Two columns: left = student work (text + attachment count), right = grade entry (numeric input, percentage + letter preview, feedback textarea, Save + Publish/Unpublish). Returning to the submissions queue after Save preserves the queue position via `router.push`.
+- `apps/web/src/components/classroom/ClassTabs.tsx` — `hideGradebook` prop now defaults to false; the attendance + assignments pages no longer pass it, so the Gradebook tab is universally visible.
+
+### Routes added
+
+```
+/classes/:id/gradebook                                  (the spreadsheet — students × assignments + weighted average column)
+/assignments/:assignmentId/submissions                  (submission queue with status badges + sort by grading priority)
+/submissions/:id                                        (single-submission detail with grade + feedback editor)
+```
+
+### Authorisation behaviour (recap)
+
+- Gradebook grid + submissions queue are gated by `tch-003:read` / `tch-002:read` on the API and additionally row-scoped (`assertCanReadClass` for the gradebook, `assertCanWriteClass` for the submissions list — the queue is teacher-only by design). Students hitting `/classes/:id/gradebook` would see only their own row via the existing per-student API; this UI is built for the teacher view, and the dashboard never links a student into the class-level gradebook page (Step 9 ships the student grade view).
+- Inline cell save uses `POST /submissions/:id/grade` which gates on `tch-003:write` + class-write membership at the API. The "Publish all" button hits `POST /classes/:id/grades/publish-all` (same gate).
+- The progress-note modal calls `POST /classes/:id/progress-notes` which the API gates by class-write membership and verifies the student is actively enrolled.
+
+### UX rules baked in
+
+- **Cells without a submission can't be graded.** Cell shows "not started" and the editor refuses to save with an inline toast: "No submission yet — student must submit before a grade can be entered." A future "force-grade missing student" path could go through the batch endpoint instead — out of scope this step.
+- **Optimistic-ish save.** The cell editor closes after the API resolves; React Query's `invalidateQueries` triggers a refetch of both the submissions list and the gradebook, so cells flip to their new values without manual cache surgery. A truly optimistic update (mutate the cache before the round-trip) is post-Cycle 2 polish.
+- **Snapshot column is read-only.** The right "Average" column reads from `cls_gradebook_snapshots`, which the worker populates 30s after the grade publish. Teachers will see the new average appear after a brief debounce, matching the user-facing latency that ADR-010 specifies. The header tooltip "Snapshots refresh asynchronously after each publish" is a teaser for that behaviour.
+- **Per-cell publish toggle + per-assignment "Publish all".** Two paths:
+  - Open the cell editor on a graded row → click `Publish` / `Unpublish` to flip individual rows.
+  - From the assignment column header (or from the submissions queue), `Publish all drafts` flips every drafted grade for that assignment in a single transaction.
+- **Submissions queue sorts by grading priority.** SUBMITTED rows come first (need grading), then IN_PROGRESS, NOT_STARTED, GRADED, RETURNED. Inside each tier, alphabetical by full name. Matches the natural flow of the workday.
+- **Submission detail is a single-form save.** No multi-step modal; the form lives on a dedicated page, the URL is shareable, and Save returns to the queue. Publish/Unpublish stays on this page so the teacher can preview the grade in context.
+- **Progress notes are upserts by `(class, student, term)`.** The modal pre-loads the existing note (if any) and the title flips between "Add" and "Update". The "Publish note" button always sets `published_at = now()` server-side (the API does this; the modal doesn't expose a draft state because the schema doesn't have one).
+- **Resolved term defaults to the class's term.** The gradebook grid passes the class's `term.id` to `useClassGradebook` indirectly — the API's `resolveTermId` defaults to today's term when the query param is omitted, and `cls.term?.id` from the existing `useClass` hook drives the `ProgressNoteModal`.
+- **No assignment-type filter on the gradebook.** With ≤10 columns per class in the seed it's not needed; once a real school has 30+ assignments per term, a category-level collapse will land in Phase 2 polish.
+
+### Verification (recorded 2026-04-27)
+
+```bash
+pnpm --filter @campusos/api build      # nest build → exits 0
+pnpm --filter @campusos/web build      # next build → all routes compile
+pnpm --filter @campusos/api start:prod
+pnpm --filter @campusos/web start --port 3001
+```
+
+API + worker smoke matrix (full curl trace stored in this commit's working notes — boiled down here):
+
+| #  | Scenario                                                                                                  | Expected                                                          | Got |
+| -- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | --- |
+| 1  | Teacher GET `/classes/:id/gradebook` for P1 Algebra 1                                                     | 8 rows; each with `currentAverage` from snapshot                  | ✅  |
+| 2  | Teacher GET `/assignments/:id/submissions` for the first quiz                                             | rosterSize=8, submittedCount=8, gradedCount=8, publishedCount=8   | ✅  |
+| 3  | Teacher POST `/submissions/:id/grade {gradeValue:85, publish:true}` on Aaliyah's already-published grade  | 200 with new grade; `cls.grade.published` emitted **(post-fix)**  | ✅  |
+| 4  | Snapshot worker recompute fires ~30s later — Aaliyah's snapshot drops 98 → 78 graded=1/2                  | one log line `avg=78.00 letter=C graded=1/2`; DB row matches      | ✅  |
+| 5  | Without the Step 5 emit fix, the same regrade left the snapshot stale at 98 (0 events emitted)            | confirmed by Kafka offset stuck at 13 + 0 idempotency rows        | ✅  |
+| 6  | Restore Aaliyah back to 98 — snapshot recomputes back to 98 graded=1/2 within 30s                         | log line `avg=98.00 letter=A`; idempotency table picks up 2 rows  | ✅  |
+| 7  | Web: GET `/classes/<P1>/gradebook` (prod build, port 3001)                                                | HTTP 200                                                          | ✅  |
+| 8  | Web: GET `/assignments/<id>/submissions`                                                                  | HTTP 200                                                          | ✅  |
+| 9  | Web: GET `/submissions/<id>`                                                                              | HTTP 200                                                          | ✅  |
+| 10 | Web: existing `/classes/<P1>/attendance` route still serves with the new tab bar (Gradebook tab visible)  | HTTP 200                                                          | ✅  |
+
+Idempotency rows were cleared and Aaliyah's grade was restored to 98 after the smoke run so the next reviewer starts from the seed baseline.
+
+### Out-of-scope decisions for Step 8
+
+- **Optimistic UI is invalidate-then-refetch, not in-place mutation.** Each grade write triggers `invalidateQueries`, which refetches the submissions list + gradebook for the page. There's a one-round-trip flicker between save and the cell update. A truly optimistic (mutate cache → confirm → roll back on error) is a Phase 2 polish item.
+- **Per-question grading not exposed.** `cls_submission_question_grades` exists in the schema but the UI grades the assignment as a whole. When the assignment-builder UI ships in a later cycle (with the question-builder forms), per-question grading will land alongside it.
+- **No "force-grade for missing submission" path.** A student who never submitted shows in the grid as "not started" and the editor refuses with a toast. The batch-grade endpoint actually allows this (it doesn't require a submission), but routing the inline cell editor through the batch endpoint to support a single missing student adds complexity for a path the demo doesn't exercise. Phase 2 polish — likely a "mark missing" cell action.
+- **Attachments aren't rendered.** `cls_submissions.attachments` is JSONB; the detail page shows the count and notes that preview UX is post-Cycle 2. File-upload submission UX is also deferred (Step 9 student form may add it).
+- **Returning a submission for revision is not exposed.** The `RETURNED` status exists in the enum but no UI affordance sets it. Teachers can unpublish a grade, which is the closest analog. If a Phase 2 review surfaces a need, add a `POST /submissions/:id/return` API + a "Return for revision" button on the detail page.
+- **No multi-row gradebook editing yet.** Each cell saves independently. A spreadsheet-style "tab to next cell, paste range from clipboard" experience would be excellent for power users — Phase 2 polish if teachers ask for it. The batch-grade endpoint exists, so the API side is ready.
+- **No "Publish all in class" button.** Per-assignment publish-all only. A class-wide publish would need the API to iterate assignments → call publish-all per assignment, which the UI could do with a single button — defer until a real school's workflow needs it.
+- **Inline cell editor doesn't change `letterGrade`.** Letter is auto-derived from percentage on save. A teacher who wants to override the letter (rare) can do it from the submission detail page only — and even there it goes through the same `letterGrade?` field on the API. Default-derive is fine because all 5 seeded grading scales bucket the same way.
+- **No grading-scale switch.** The cell + detail pages use the same A≥90 / B≥80 / … bucketing the seed uses. Multi-scale support waits until grading_scales becomes admin-editable in Phase 2.
+- **`useQueries` over per-assignment `useQuery`.** The earlier draft used `assignments.map(a => useQuery(...))` which violates rules-of-hooks. Refactored to `useQueries` so the array length can change without a hook-count mismatch. (One assignment added → no new render error.)
+- **The submission queue's "Publish all drafts" button is conditional.** Only renders when `gradedCount > publishedCount`. If everything is published, no nag. Same on the gradebook column header.
+- **Web smoke verified via prod build, not dev mode.** `next dev` got stuck on initial compile during the smoke session — the prod build (`next build` + `next start`) served all routes at HTTP 200. As with Step 7, real browser interaction (click an inline cell, type a value, watch the snapshot refresh) is reserved for the Step 10 vertical-slice CAT.
 
 ---
 

@@ -85,7 +85,7 @@ export default function ClassAttendancePage() {
         }
       />
 
-      <ClassTabs classId={classId!} active="attendance" hideGradebook />
+      <ClassTabs classId={classId!} active="attendance" />
 
       {locked && <SubmittedBanner records={records} />}
 

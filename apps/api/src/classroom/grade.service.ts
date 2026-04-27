@@ -222,6 +222,7 @@ export class GradeService {
 
     var publish = body.publish === true;
     var gradeIds: string[] = [];
+    var gradeIdsToEmit: string[] = [];
     var insertedCount = 0;
     var updatedCount = 0;
     var publishedCount = 0;
@@ -254,8 +255,10 @@ export class GradeService {
         );
         var submissionIdLink: string | null = subRows.length > 0 ? subRows[0]!.id : null;
 
-        var existingGrade = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-          'SELECT id FROM cls_grades WHERE assignment_id = $1::uuid AND student_id = $2::uuid',
+        var existingGrade = await tx.$queryRawUnsafe<
+          Array<{ id: string; is_published: boolean }>
+        >(
+          'SELECT id, is_published FROM cls_grades WHERE assignment_id = $1::uuid AND student_id = $2::uuid',
           meta.id,
           entry.studentId,
         );
@@ -307,6 +310,11 @@ export class GradeService {
         }
         if (publish) publishedCount++;
         gradeIds.push(gradeId);
+        // Track which grade ids end up published so the post-commit emit
+        // covers updates to already-published grades (value/feedback edits).
+        if (publish || (existingGrade.length > 0 && existingGrade[0]!.is_published)) {
+          gradeIdsToEmit.push(gradeId);
+        }
 
         if (submissionIdLink !== null) {
           await tx.$executeRawUnsafe(
@@ -319,9 +327,12 @@ export class GradeService {
 
     var grades = await this.fetchGradesByIds(gradeIds);
 
-    if (publish) {
-      for (var gi = 0; gi < grades.length; gi++) {
-        this.emitPublished(grades[gi]!, meta.termId);
+    if (gradeIdsToEmit.length > 0) {
+      var gradesToEmit = grades.filter(function (g) {
+        return gradeIdsToEmit.indexOf(g.id) >= 0;
+      });
+      for (var gi = 0; gi < gradesToEmit.length; gi++) {
+        this.emitPublished(gradesToEmit[gi]!, meta.termId);
       }
     }
 
@@ -489,7 +500,12 @@ export class GradeService {
           publish,
           ex.id,
         );
-        if (publish && !ex.is_published) emitPublishedAfter = true;
+        // Emit when the row is published after this update — covers both
+        // "draft → published" and "value changed on already-published grade".
+        // The snapshot worker is idempotent so a redundant emit is harmless,
+        // but failing to emit on a value change would leave the snapshot
+        // stale until another event fires.
+        if (publish || ex.is_published) emitPublishedAfter = true;
       } else {
         resultingId = generateId();
         await tx.$executeRawUnsafe(
