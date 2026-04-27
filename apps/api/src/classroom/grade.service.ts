@@ -6,6 +6,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { AssignmentService } from './assignment.service';
 import {
@@ -557,32 +558,58 @@ export class GradeService {
   }
 
   private emitPublished(g: GradeResponseDto, termId: string | null): void {
-    void this.kafka.emit('cls.grade.published', g.studentId, {
-      gradeId: g.id,
-      assignmentId: g.assignmentId,
-      classId: g.classId,
-      studentId: g.studentId,
-      gradeValue: g.gradeValue,
-      maxPoints: g.maxPoints,
-      letterGrade: g.letterGrade,
-      isExtraCredit: false,
-      termId: termId,
-      publishedAt: g.publishedAt,
-    });
+    void this.kafka.emit(
+      'cls.grade.published',
+      g.studentId,
+      {
+        gradeId: g.id,
+        assignmentId: g.assignmentId,
+        classId: g.classId,
+        studentId: g.studentId,
+        gradeValue: g.gradeValue,
+        maxPoints: g.maxPoints,
+        letterGrade: g.letterGrade,
+        isExtraCredit: false,
+        termId: termId,
+        publishedAt: g.publishedAt,
+      },
+      this.tenantHeaders(),
+    );
   }
 
   private emitUnpublished(g: GradeResponseDto, termId: string | null): void {
-    void this.kafka.emit('cls.grade.unpublished', g.studentId, {
-      gradeId: g.id,
-      assignmentId: g.assignmentId,
-      classId: g.classId,
-      studentId: g.studentId,
-      gradeValue: g.gradeValue,
-      maxPoints: g.maxPoints,
-      letterGrade: g.letterGrade,
-      isExtraCredit: false,
-      termId: termId,
-      unpublishedAt: new Date().toISOString(),
-    });
+    void this.kafka.emit(
+      'cls.grade.unpublished',
+      g.studentId,
+      {
+        gradeId: g.id,
+        assignmentId: g.assignmentId,
+        classId: g.classId,
+        studentId: g.studentId,
+        gradeValue: g.gradeValue,
+        maxPoints: g.maxPoints,
+        letterGrade: g.letterGrade,
+        isExtraCredit: false,
+        termId: termId,
+        unpublishedAt: new Date().toISOString(),
+      },
+      this.tenantHeaders(),
+    );
+  }
+
+  /**
+   * Standard transport headers for the cls.grade.* topics. The first consumer
+   * (GradebookSnapshotWorker, Step 6) reads these to scope the recompute to
+   * the right tenant schema and to dedupe redelivered messages via
+   * platform_event_consumer_idempotency. These headers are forward-compatible
+   * with the ADR-057 envelope landing in Cycle 3.
+   */
+  private tenantHeaders(): Record<string, string> {
+    var tenant = getCurrentTenant();
+    return {
+      'event-id': generateId(),
+      'tenant-id': tenant.schoolId,
+      'tenant-subdomain': tenant.subdomain,
+    };
   }
 }

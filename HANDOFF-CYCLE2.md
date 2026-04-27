@@ -1,6 +1,6 @@
 # Cycle 2 Handoff — Classroom, Assignments & Grading
 
-**Status:** Cycle 2 IN PROGRESS — Steps 1–5 done (full classroom schema, demo data, TCH role-permission map, the Assignments + Categories module, and the Submissions + Grading + Gradebook + Progress Notes module — 12 new endpoints under `/classroom` with row-level auth, debounced-snapshot pattern preserved per ADR-010). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
+**Status:** Cycle 2 IN PROGRESS — Steps 1–6 done (full classroom schema, demo data, TCH role-permission map, the Assignments + Categories module, the Submissions + Grading + Gradebook + Progress Notes module, and the first Kafka consumer in the system — GradebookSnapshotWorker — that recomputes gradebook snapshots asynchronously per ADR-010). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle2-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher creates an assignment for Period 1 Algebra → student Maya submits work → teacher grades and publishes → gradebook snapshot recomputes asynchronously → parent David sees Maya's updated average.
@@ -18,7 +18,7 @@ This document tracks the Cycle 2 build — the M21 Classroom module — at the s
 |    3 | Seed Data — Assignments & Grades                | Done — `seed-classroom.ts` lands 12 assignments + 80 submissions + 62 grades + 41 snapshots; TCH role-permission map updated |
 |    4 | Classroom NestJS Module — Assignments           | Done — `apps/api/src/classroom/` ships AssignmentService, CategoryService, controllers; 7 endpoints under `tch-002:read/write` with row-level auth |
 |    5 | Classroom NestJS Module — Submissions & Grading | Done — SubmissionService + GradeService + GradebookService + ProgressNoteService; 12 endpoints; per-class write gate; draft-grade visibility hidden from students/parents; Kafka emits for `cls.submission.submitted`, `cls.grade.published`, `cls.grade.unpublished`, `cls.progress_note.published` |
-|    6 | Kafka Events & Gradebook Snapshot Worker        | Pending                                                             |
+|    6 | Kafka Events & Gradebook Snapshot Worker        | Done — `KafkaConsumerService`, `IdempotencyService`, `GradebookSnapshotWorker`; subscribes to `cls.grade.{published,unpublished}` (group `gradebook-snapshot-worker`); 30s debounce per `(schoolId, classId, studentId)`; idempotent via `platform_event_consumer_idempotency`; reuses the seed's weighted-average algorithm verbatim |
 |    7 | Teacher Assignments UI                          | Pending                                                             |
 |    8 | Teacher Grading UI                              | Pending                                                             |
 |    9 | Student & Parent Grade Views                    | Pending                                                             |
@@ -631,9 +631,128 @@ All 25 cases passed. Smoke artefacts were rolled back by re-provisioning + re-ru
 
 ---
 
-## Step 6 — Kafka events & gradebook snapshot worker (planned)
+## Step 6 — Kafka events & gradebook snapshot worker
 
-First consumer in the system. New `KafkaConsumerService` in `apps/api/src/kafka/`. The worker is a NestJS provider with `OnModuleInit` that subscribes to `cls.grade.published` / `cls.grade.unpublished`. 30s debounce per (class_id, student_id) via an in-process queue. Idempotency via `platform_event_consumer_idempotency` so a redelivered event doesn't double-recompute.
+First Kafka consumer in CampusOS. Establishes the consumer pattern (subscribe + idempotency-claim + handler) that Cycle 3 (Communications) will reuse for notification delivery.
+
+### Files
+
+- `apps/api/src/kafka/kafka-consumer.service.ts` (new) — `KafkaConsumerService`. Subscribe-by-group registry. `subscribe({ topics, groupId, handler, fromBeginning })` opens its own kafkajs `Consumer`, runs `eachMessage` against the supplied handler, and flattens `Buffer` headers into a `Record<string,string>` so handlers don't deal with binary plumbing. Best-effort connection: if the broker is unreachable on boot, the service logs a warning and silently no-ops; subsequent emits keep working in producer-only mode.
+- `apps/api/src/kafka/idempotency.service.ts` (new) — `IdempotencyService`. Wraps `platform.platform_event_consumer_idempotency`. `claim(consumerGroup, eventId, topic)` returns `true` on first sight, `false` on re-delivery (catches `23505` unique violation against `(consumer_group, event_id)`). Uses the platform Prisma client directly — no tenant search_path required since this table is shared.
+- `apps/api/src/kafka/kafka.module.ts` — now exports `KafkaProducerService`, `KafkaConsumerService`, `IdempotencyService`. Imports `TenantModule` so the idempotency service can reach the platform client.
+- `apps/api/src/classroom/gradebook-snapshot-worker.service.ts` (new) — `GradebookSnapshotWorker`. NestJS provider; subscribes during `onModuleInit`. Owns the per-(schoolId, classId, studentId) debounce map. The recompute path matches `seed-classroom.ts` verbatim so the seed's snapshot baseline (90.50 for Maya in P1, etc.) is preserved across the first event. Includes a `flushAllForTest()` test seam so future integration tests can avoid a 30s wait.
+- `apps/api/src/classroom/classroom.module.ts` — registers `GradebookSnapshotWorker` as a provider + export.
+- `apps/api/src/classroom/grade.service.ts` — `emitPublished` / `emitUnpublished` now pass headers `{ event-id, tenant-id, tenant-subdomain }` via the shared `tenantHeaders()` helper. `event-id` is a fresh UUIDv7 per emit; `tenant-id` and `tenant-subdomain` come from `getCurrentTenant()`. These three headers are forward-compatible with the ADR-057 envelope (Cycle 3) — when the envelope lands, they migrate from raw transport headers to envelope fields with no payload reshape.
+
+### Architecture
+
+```
+              ┌──────────────────┐    cls.grade.{published,unpublished}    ┌──────────────────────┐
+  HTTP write  │  GradeService    │ ──────────────────────────────────────▶ │ KafkaProducerService │
+  (tenant ctx)│  (publish/unpub) │   payload + headers (event-id,           │  (best-effort emit)  │
+              └──────────────────┘   tenant-id, tenant-subdomain)            └──────────┬───────────┘
+                                                                                         │
+                                                                                         ▼ Kafka topic
+                                                                            ┌────────────────────────┐
+                                                                            │ KafkaConsumerService   │
+                                                                            │  groupId = gradebook-  │
+                                                                            │  snapshot-worker       │
+                                                                            └──────────┬─────────────┘
+                                                                                       │ ConsumedMessage
+                                                                                       ▼
+                                                                            ┌────────────────────────┐
+                                                                            │ GradebookSnapshotWorker│
+                                                                            │  1. claim eventId      │──▶ platform_event_consumer_idempotency
+                                                                            │     (skip on duplicate)│       INSERT (id, group, event, topic)
+                                                                            │  2. reset/start 30s    │        — 23505 → already processed
+                                                                            │     debounce timer     │
+                                                                            │  3. on flush:          │
+                                                                            │     runWithTenantCtx   │
+                                                                            │     → executeInTenantContext
+                                                                            │     → recompute        │──▶ tenant_<sd>.cls_gradebook_snapshots
+                                                                            │       weighted avg     │       UPSERT (class, student, term)
+                                                                            └────────────────────────┘
+```
+
+### Debounce semantics
+
+Key = `${schoolId}|${classId}|${studentId}`. On every event:
+
+1. **Idempotency claim first.** `IdempotencyService.claim(group, eventId, topic)` runs synchronously before the debounce reset. A redelivered duplicate fails the claim and is dropped — it can never reset the timer or trigger another recompute.
+2. **Reset (or create) the 30s timer.** Distinct events for the same key (e.g. publish-all flipping 8 students at once, or rapid unpublish/republish on the same row) collapse into a single recompute that fires 30 seconds after the *last* event in the burst.
+3. **Flush at timer expiry.** The flush calls `runWithTenantContextAsync` with a `TenantInfo` reconstructed from headers (schemaName = `tenant_<subdomain>`, organisationId = null, isFrozen = false). The recompute then calls `tenantPrisma.executeInTenantContext` exactly like a request-scoped service.
+
+The 30s window is deliberate: long enough that a teacher's batch publish doesn't fan out into 8 redundant recomputes, short enough that a parent refreshing the dashboard sees the new average within ~minute-scale latency. The `unref()` on the timer means a graceful shutdown won't be blocked by a pending flush.
+
+### Idempotency model
+
+- Each emit gets a fresh UUIDv7 in the `event-id` header (`grade.service.ts::tenantHeaders`).
+- The unique constraint `platform_event_consumer_idempotency_consumer_group_event_id_key` makes `claim` race-safe across multiple consumer instances.
+- Distinct events for the same `(class, student)` each get their own idempotency row — the recompute itself is what coalesces them, not the idempotency table.
+- Redelivery within the same consumer process is dropped at claim time; redelivery after a redeploy (when the in-memory debounce map is gone) is also dropped, because the idempotency row survives the restart.
+- ADR-057 envelope (Cycle 3) will migrate `event-id` from a raw transport header to an envelope field; no consumer change required — the `IdempotencyService` API stays the same.
+
+### Tenant context for the worker
+
+The worker runs outside any HTTP request, so AsyncLocalStorage is empty when an event arrives. The grade emit path attaches the necessary tenant info to the message header:
+
+| Header              | Source                          | Used by worker as           |
+| ------------------- | ------------------------------- | --------------------------- |
+| `event-id`          | `generateId()` (UUIDv7)         | idempotency `event_id`      |
+| `tenant-id`         | `getCurrentTenant().schoolId`   | `TenantInfo.schoolId`       |
+| `tenant-subdomain`  | `getCurrentTenant().subdomain`  | `TenantInfo.subdomain` → schemaName=`tenant_<sd>` |
+
+At flush time the worker calls `runWithTenantContextAsync({ tenant: synthesizedTenantInfo }, ...)` — `executeInTenantContext` then runs `SET LOCAL search_path TO "tenant_<subdomain>", platform, public` on the same pinned connection it uses for request-path queries. No new tenant-isolation surface area; the existing REVIEW-CYCLE1 `SET LOCAL`-inside-tx discipline carries over verbatim.
+
+The synthesized `TenantInfo` sets `isFrozen=false` because the producer-side guard already ran during the request that emitted the event; once the event is in flight, gradebook recomputation is part of the asynchronous cleanup of an already-authorised write. (A later cycle can revisit if `isFrozen` should be re-checked at flush time — currently it is not, and that matches the ADR-031 read-still-works guarantee for frozen tenants.)
+
+### Recompute algorithm
+
+Mirrors `packages/database/src/seed-classroom.ts` exactly so the seed-time baseline doesn't drift the first time a real event fires:
+
+1. Pull every `cls_grades` row for `(class_id, student_id)` with `is_published=true`, joined to `cls_assignments` and `cls_assignment_categories`.
+2. Group by category. Per-category mean of `(grade_value / max_points * 100)`.
+3. `currentAverage = Σ(category_mean × category_weight) / Σ(category_weight)` over **participating** categories only — i.e. categories that have at least one published grade contribute their full weight; categories with no published grades are excluded from numerator AND denominator (rather than counted as 0%).
+4. Letter grade derived via the same A≥90 / B≥80 / C≥70 / D≥60 / F<60 bucketing the seed uses.
+5. `assignments_total` = count of non-deleted, published `cls_assignments` rows for the class. `assignments_graded` = count of published grades that contributed to the average.
+6. Term resolution (only used when `sis_classes.term_id` is null on the class — the grade emit's `termId` is informational): today's term first, then most-recent term as fallback. Matches `gradebook.service.ts::resolveTermId`.
+7. Upsert via `INSERT ... ON CONFLICT (class_id, student_id, term_id) DO UPDATE` against the `cls_gradebook_snapshots_class_student_term_uq` constraint. New row → fresh UUIDv7; update path → bumps `current_average`, `letter_grade`, `assignments_graded`, `assignments_total`, `last_grade_event_at`, `last_updated_at`.
+8. Edge case: if the recompute reads zero published grades (every grade has been unpublished), the snapshot row is **deleted** rather than left as a stale 0%. Matches the parent-portal expectation that "no published grades" surfaces as "no grade yet" rather than "F".
+
+### Verification (recorded 2026-04-27)
+
+```bash
+pnpm --filter @campusos/api build      # nest build → exits 0
+pnpm --filter @campusos/api start:prod # api boots; KafkaConsumerService ready; subscribed: groupId=gradebook-snapshot-worker topics=cls.grade.published,cls.grade.unpublished
+```
+
+Smoke matrix (full curl trace stored in this commit's working notes — boiled down here):
+
+| #  | Scenario                                                                     | Expected                                | Got |
+| -- | ---------------------------------------------------------------------------- | --------------------------------------- | --- |
+| 1  | Baseline: 41 seed snapshots, 0 idempotency rows                              | 41 / 0                                  | ✅  |
+| 2  | Teacher unpublishes Maya's P1 homework grade (44/50, was contributing 88%)   | event emitted, snapshot stays 90.50 for ~30s, then drops to 92.00 (only Assessments left), graded=1/2 | ✅ |
+| 3  | API log: one `Snapshot recomputed` line at +30s with `avg=92.00 letter=A graded=1/2` | one log line, debounce respected | ✅ |
+| 4  | Idempotency: one row in `platform_event_consumer_idempotency`                | group=gradebook-snapshot-worker, topic=cls.grade.unpublished | ✅ |
+| 5  | Other students' snapshots untouched (verified by `last_updated_at`)          | 40 rows still at seed-time `2026-04-27 14:44`           | ✅ |
+| 6  | Teacher re-publishes the homework grade                                       | snapshot recomputes back to 90.50 graded=2/2 ~30s later | ✅ |
+| 7  | Debounce coalescing: 4 events fired in <1s on same (Maya, P1) — 2 unpub + 2 pub | exactly **one** recompute logged at +30s; final snapshot 90.50 | ✅ |
+| 8  | Idempotency table after Test 7: 3 published + 3 unpublished rows total       | 6 distinct event ids                    | ✅  |
+| 9  | Total snapshot count after all tests                                          | still 41 — no spurious inserts          | ✅  |
+
+The verification ran against the live demo tenant with Kafka up. Idempotency rows were cleared after the smoke run so the next reviewer starts clean (`DELETE FROM platform.platform_event_consumer_idempotency WHERE consumer_group='gradebook-snapshot-worker'` — 6 rows removed).
+
+### Out-of-scope decisions for Step 6
+
+- **Worker runs in-process.** `GradebookSnapshotWorker` is a NestJS provider in the API. A separate worker process is operationally cleaner for production scaling but premature for Cycle 2; the in-process worker shares the producer's Kafka client model and the request-path's tenant connection pool. When Cycle 3 (Communications) lands a second consumer, revisit whether to split workers into a dedicated process.
+- **Headers, not envelope.** Step 6 ships `event-id` / `tenant-id` / `tenant-subdomain` as raw Kafka transport headers, not as an ADR-057 envelope. Other emits (`cls.submission.submitted`, `cls.progress_note.published`, all `att.*`) still ship raw payloads with no headers, matching their Cycle 1/Cycle 2 producer-only state. Cycle 3 lifts everything to the canonical envelope at once.
+- **Idempotency claim before debounce.** Alternative considered: claim only the latest event id at flush time (so distinct events sharing the same debounce window cost one row instead of N). Rejected — that design lets a redelivered duplicate "into" the debounce window where it can extend the timer, masking real backpressure. Claiming on arrival keeps each event's first-time semantics independent. The cost (one row per emit instead of one per flush) is negligible.
+- **No retry / DLQ.** A handler that throws is logged at error and the consumer offset advances anyway (kafkajs default for `eachMessage`). Snapshots are eventually consistent — the next event for the same `(class, student)` re-runs the recompute. A more aggressive setup (retry with backoff, DLQ on N failures) is post-Cycle 2 hardening once we have real production traffic to size the retry window against.
+- **`assignments_total` excludes soft-deleted assignments.** The seed counts every assignment because the seed has no soft-deletes. The worker excludes `deleted_at IS NOT NULL` so a teacher who soft-deletes a stale assignment after grading sees the denominator drop on the next recompute. Matches the gradebook UI's "graded N of T" intuition.
+- **`isFrozen` is not re-checked at flush time.** Once the event is on the wire, the originating write was already authorised. ADR-031 says reads continue to work for frozen tenants; gradebook recompute is closer to a read than a new write from the user's perspective. Revisit if a frozen-tenant scenario surfaces a need.
+- **No on-startup catch-up scan.** If the worker is down for a window and grade events pile up, the consumer group reads from its last committed offset on resume — no separate "scan all snapshots and re-derive" pass. Acceptable because the seed baseline plus the next event for any drifted `(class, student)` closes the gap. A reconciliation job is post-Cycle-2 ops work.
+- **`KafkaConsumerService.subscribe` opens one Consumer per call.** Could share a Consumer across multiple subscriptions but at the cost of unifying group-id semantics; per-call Consumers map cleanly onto the standard Kafka model where each independent worker owns its own group.
+- **No metrics yet.** Snapshot recompute count, debounce hit rate, idempotency dedupe rate — all great Prometheus targets and all explicitly out of scope for this step. The structured `Snapshot recomputed: …` log line is the only observability surface for now.
 
 ---
 
@@ -705,7 +824,7 @@ pnpm --filter @campusos/database exec tsx src/build-cache.ts
 - **Cycle 2 seed pipeline.** Done in Step 3 — `pnpm seed:classroom` populates the demo tenant. `tenant_test` is intentionally left empty (test fixtures will set up their own data per test).
 - **`cls_lessons` API.** Minimal in Cycle 2 (table exists but no full CRUD endpoints). Full lesson planning is a later cycle.
 - **AI grading service.** `cls_ai_grading_jobs` table is created for forward compatibility but no AI worker is wired this cycle. The contract (AI never writes to `cls_grades`) is documented and will be enforced at the service layer when the AI service lands.
-- **ADR-057 envelope on Kafka events.** Cycle 2 emits raw payloads; Cycle 3 lands the canonical envelope (event_id, event_version, tenant_id, correlation_id) when the first consumer outside the gradebook worker reads from these topics. See `KafkaProducerService` TODO.
+- **ADR-057 envelope on Kafka events.** The `cls.grade.*` topics now carry transport headers `event-id`, `tenant-id`, `tenant-subdomain` (Step 6 — needed by the snapshot worker for idempotency + tenant context). Other topics still emit raw. Cycle 3 lifts everything to the canonical envelope (event_id, event_version, tenant_id, correlation_id) at once. See `KafkaProducerService` TODO.
 
 ---
 

@@ -8,6 +8,7 @@ import { SubmissionService } from './submission.service';
 import { GradeService } from './grade.service';
 import { GradebookService } from './gradebook.service';
 import { ProgressNoteService } from './progress-note.service';
+import { GradebookSnapshotWorker } from './gradebook-snapshot-worker.service';
 import { AssignmentController } from './assignment.controller';
 import { CategoryController } from './category.controller';
 import { SubmissionController } from './submission.controller';
@@ -20,8 +21,12 @@ import { ProgressNoteController } from './progress-note.controller';
  *
  * Step 4 lands assignment + category management. Step 5 adds submissions,
  * grading (single + batch + publish), gradebook reads (class + student),
- * and progress notes. Step 6 wires the gradebook snapshot Kafka consumer
- * that listens to cls.grade.published / cls.grade.unpublished.
+ * and progress notes. Step 6 wires GradebookSnapshotWorker — the first
+ * Kafka consumer in the system — which listens to cls.grade.published /
+ * cls.grade.unpublished and recomputes cls_gradebook_snapshots with a
+ * 30-second debounce per (class_id, student_id). Idempotency is via
+ * platform.platform_event_consumer_idempotency. Per ADR-010 the snapshot
+ * table is never touched inside a grade-write transaction.
  *
  * Row-level authorisation is delegated to ActorContextService (from IamModule)
  * — assignments, submissions, grades, and progress notes are visible to
@@ -38,6 +43,7 @@ import { ProgressNoteController } from './progress-note.controller';
     GradeService,
     GradebookService,
     ProgressNoteService,
+    GradebookSnapshotWorker,
   ],
   controllers: [
     AssignmentController,
@@ -54,6 +60,7 @@ import { ProgressNoteController } from './progress-note.controller';
     GradeService,
     GradebookService,
     ProgressNoteService,
+    GradebookSnapshotWorker,
   ],
 })
 export class ClassroomModule {}
