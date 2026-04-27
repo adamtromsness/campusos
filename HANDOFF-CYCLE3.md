@@ -1,6 +1,6 @@
 # Cycle 3 Handoff — Communications
 
-**Status:** Cycle 3 IN PROGRESS — Step 0 (ADR-057 envelope) DONE; Step 1 (Communications schema — Messaging) DONE; Steps 2–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
+**Status:** Cycle 3 IN PROGRESS — Step 0 (ADR-057 envelope), Step 1 (Communications schema — Messaging), and Step 2 (Communications schema — Notifications & Announcements) DONE; Steps 3–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle3-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher marks Maya tardy in Period 1 → Kafka event fires → notification consumer picks it up → in-app notification appears on David Chen's parent dashboard with a badge count → David clicks the notification → he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress → David sees it in his inbox → David replies → the reply goes through content moderation → James sees the reply in his inbox.
@@ -15,7 +15,7 @@ This document tracks the Cycle 3 build — the M40 Communications module — at 
 | ---: | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 |    0 | ADR-057 Event Envelope (carry-over from Cycle 2)              | Done — canonical envelope in `KafkaProducerService`; env-prefixed topics; all Cycle 1+2 producers migrated; gradebook worker reads envelope with header fallback |
 |    1 | Communications Schema — Messaging                             | Done — `007_msg_messaging.sql` applied to demo + test (6 base tables + 64 hash partitions of `msg_threads` + 24 monthly partitions of `msg_messages`) |
-|    2 | Communications Schema — Notifications & Announcements         | Not started                                                                                                                   |
+|    2 | Communications Schema — Notifications & Announcements         | Done — `008_msg_notifications_and_announcements.sql` applied to demo + test (7 base tables + 24 monthly partitions of `msg_notification_log`)        |
 |    3 | Communications Schema — Moderation & Support                  | Not started                                                                                                                   |
 |    4 | Seed Data — Messaging & Notifications                         | Not started                                                                                                                   |
 |    5 | Notification Pipeline — Consumers & Queue                     | Not started                                                                                                                   |
@@ -260,7 +260,106 @@ The new messaging tables are empty after Step 1. Cycle 1 (`seed:sis`) and Cycle 
 
 ## Step 2 — Communications Schema — Notifications & Announcements
 
-Not started. Plan: `msg_notification_queue`, `msg_notification_preferences`, `msg_notification_log` (RANGE monthly), `msg_announcements`, `msg_announcement_audiences`, `msg_announcement_reads`, `msg_alert_types`. Migration target: `008_msg_notifications_and_announcements.sql`.
+`packages/database/prisma/tenant/migrations/008_msg_notifications_and_announcements.sql` lands the M40 notification pipeline + announcement system: 7 base tables and 24 monthly RANGE partitions of `msg_notification_log` covering 2025-08 → 2027-08 (matches the `msg_messages` window from Step 1). Same idempotent CREATE-IF-NOT-EXISTS pattern as Cycle 1 / Cycle 2 / Step 1. Snake_case columns, `TEXT + CHECK` for enum-like fields. Soft UUID refs to `platform.platform_users` (no DB FK constraints — ADR-001/020).
+
+### Tables (7 base + 24 partitions of `msg_notification_log`)
+
+| Table                         | Purpose                                                                                                                              | Key columns                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `msg_alert_types`             | Configurable alert types per school (severity, default channels, ack required)                                                       | `school_id`, `name`, `description`, `severity` ∈ {INFO, WARNING, URGENT, EMERGENCY} (default INFO), `default_channels TEXT[]` (default `{IN_APP}`), `requires_acknowledgement`, `is_active`. UNIQUE(school_id, name). Created for schema completeness — emergency alert service is deferred (Architecture Review).                                                                                                                                                                |
+| `msg_notification_queue`      | Working queue of pending notifications for the delivery worker                                                                       | `id`, `school_id`, `recipient_id` (soft → `platform_users`), `notification_type`, `payload JSONB` (default `'{}'::jsonb`), `status` ∈ {PENDING, SENT, FAILED, SKIPPED}, `idempotency_key TEXT` (no UNIQUE), `scheduled_for TIMESTAMPTZ`, `sent_at`, `failure_reason`, `attempts INTEGER`, `correlation_id UUID`, `created_at`, `updated_at`. Partial INDEX(scheduled_for) WHERE `status='PENDING'` for the worker poll. Partial INDEX on `idempotency_key` for read-side dedup only. |
+| `msg_notification_preferences`| Per-(user, type) channel preferences + quiet hours                                                                                   | `id`, `school_id`, `platform_user_id` (soft), `notification_type`, `channels TEXT[]` (default `{IN_APP}`), `is_enabled`, `quiet_hours_start TIME`, `quiet_hours_end TIME`. UNIQUE(platform_user_id, notification_type). The Step 5 `NotificationQueueService` reads this row before enqueueing.                                                                                                                                                                                    |
+| `msg_notification_log`        | Durable per-attempt delivery log. **RANGE(sent_at) monthly** for retention management.                                               | `id`, `school_id`, `queue_id` (soft → `msg_notification_queue`, nullable), `recipient_id` (soft), `notification_type`, `channel` ∈ {PUSH, EMAIL, SMS, IN_APP}, `status` ∈ {SENT, DELIVERED, FAILED}, `provider_ref TEXT`, `error_message`, `sent_at` (default `now()`), `delivered_at`, `correlation_id UUID`. Composite PK `(id, sent_at)` so the partition column is in the unique constraint.                                                                                  |
+| `msg_announcements`           | Announcement record (school-wide / class / year-group / role / custom)                                                               | `id`, `school_id`, `author_id` (soft), `title`, `body`, `audience_type` ∈ {ALL_SCHOOL, CLASS, YEAR_GROUP, ROLE, CUSTOM}, `audience_ref TEXT` (polymorphic — see below), `alert_type_id` (FK to `msg_alert_types`, nullable), `publish_at`, `expires_at`, `is_published`, `is_recurring`, `recurrence_rule TEXT` (iCal RRULE), `created_at`, `updated_at`. INDEX(school_id, publish_at DESC) and a partial `WHERE is_published = true` for the active-feed query.                  |
+| `msg_announcement_audiences`  | Pre-computed audience populated by the AudienceFanOutWorker (Step 7) on publish — eliminates real-time fan-out at notification time  | `id`, `school_id`, `announcement_id` (DB FK, ON DELETE CASCADE), `platform_user_id` (soft), `delivery_status` ∈ {PENDING, DELIVERED, FAILED, SKIPPED}, `delivered_at`, `notification_queue_id UUID` (soft), `created_at`. UNIQUE(announcement_id, platform_user_id). INDEX(platform_user_id, delivery_status) is the inbox-side hot path.                                                                                                                                          |
+| `msg_announcement_reads`      | Per-(announcement, reader) read receipt; powers admin stats                                                                          | `id`, `school_id`, `announcement_id` (DB FK, ON DELETE CASCADE), `reader_id` (soft), `read_at`. UNIQUE(announcement_id, reader_id).                                                                                                                                                                                                                                                                                                                                                |
+
+### Partitioning detail
+
+- **`msg_notification_log`** — `PARTITION BY RANGE (sent_at)` with monthly leaves covering **2025-08 through 2027-08** (24 months, matches the `msg_messages` window from Step 1). The plan calls for pg_partman managing a rolling window; for Cycle 3 the partitions are pre-created statically. Adding a partition rotation job is post-Cycle 3 ops work — same posture as the year-partition rotation deferred in Cycle 1's `sis_attendance_records` and the messages partitions deferred in Step 1.
+- The other six tables in Step 2 are unpartitioned. Volume on `msg_notification_queue` is bounded (it is a working set, not a log — rows transition out as they are sent); volume on `msg_notification_preferences` is bounded by users × types; the announcement tables are bounded by announcement count. None reach the threshold where partitioning would help.
+
+### FKs (intra-tenant) and soft references
+
+| Constraint                                                          | Type                  | Notes                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `msg_announcements.alert_type_id → msg_alert_types(id)`             | DB-enforced           | Optional alert-type reference. `msg_alert_types` is unpartitioned, so PG happily replicates / enforces the constraint.                                                                                                                                                                                                              |
+| `msg_announcement_audiences.announcement_id → msg_announcements(id)`| DB-enforced (CASCADE) | Both tables unpartitioned. CASCADE on delete because audience rows have no meaning without the parent announcement.                                                                                                                                                                                                                |
+| `msg_announcement_reads.announcement_id → msg_announcements(id)`    | DB-enforced (CASCADE) | Same rationale.                                                                                                                                                                                                                                                                                                                      |
+| `msg_notification_log.queue_id → msg_notification_queue(id)`        | **Not enforced**      | Soft ref. The log is partitioned and the queue row may be purged on a different schedule than the log row, so DB-level enforcement would create awkward retention coupling. App layer treats `queue_id` as informational.                                                                                                          |
+| `msg_announcement_audiences.notification_queue_id`                  | **Not enforced**      | Soft ref. The fan-out worker writes the queue row first, then this row, so cross-table consistency is app-layer.                                                                                                                                                                                                                     |
+| `msg_*.school_id`                                                   | Soft (cross-schema)   | Soft UUID ref to `platform.schools(id)` — never a DB FK constraint per ADR-001/020.                                                                                                                                                                                                                                                  |
+| `msg_notification_queue.recipient_id`, `msg_notification_preferences.platform_user_id`, `msg_notification_log.recipient_id`, `msg_announcements.author_id`, `msg_announcement_audiences.platform_user_id`, `msg_announcement_reads.reader_id` | Soft (cross-schema) | Soft UUID ref to `platform.platform_users(id)` per ADR-055. `COMMENT ON COLUMN` annotations land in the migration so the rule is discoverable from the live schema.                                                                                                                                                  |
+
+### CHECK constraints
+
+| Constraint                                       | Predicate                                                       |
+| ------------------------------------------------ | --------------------------------------------------------------- |
+| `msg_alert_types_severity_chk`                   | `severity IN ('INFO','WARNING','URGENT','EMERGENCY')`           |
+| `msg_notification_queue_status_chk`              | `status IN ('PENDING','SENT','FAILED','SKIPPED')`               |
+| `msg_notification_log_channel_chk`               | `channel IN ('PUSH','EMAIL','SMS','IN_APP')`                    |
+| `msg_notification_log_status_chk`                | `status IN ('SENT','DELIVERED','FAILED')`                       |
+| `msg_announcements_audience_chk`                 | `audience_type IN ('ALL_SCHOOL','CLASS','YEAR_GROUP','ROLE','CUSTOM')` |
+| `msg_announcement_audiences_status_chk`          | `delivery_status IN ('PENDING','DELIVERED','FAILED','SKIPPED')` |
+
+### Verification (recorded 2026-04-27)
+
+```bash
+pnpm --filter @campusos/database provision --subdomain=demo   # 8 migrations applied
+pnpm --filter @campusos/database provision --subdomain=demo   # idempotent re-run, 8 migrations applied (no-op)
+pnpm --filter @campusos/database provision --subdomain=test   # same
+```
+
+Counts in `tenant_demo` after Step 2:
+
+| What                                                       | Count |
+| ---------------------------------------------------------- | ----: |
+| Logical base tables (top-level, was 44)                    |    51 |
+| `msg_threads` HASH partitions (h00–h63, from Step 1)       |    64 |
+| `msg_messages` RANGE partitions (2025-08 → 2027-08, Step 1)|    24 |
+| `msg_notification_log` RANGE partitions (2025-08 → 2027-08)|    24 |
+
+Intra-tenant FKs from Step 2 tables (3 total):
+
+```
+msg_announcements.alert_type_id            → msg_alert_types(id)
+msg_announcement_audiences.announcement_id → msg_announcements(id) ON DELETE CASCADE
+msg_announcement_reads.announcement_id     → msg_announcements(id) ON DELETE CASCADE
+```
+
+Cross-schema FKs from `tenant_demo`: **0** (verified via `pg_constraint` join).
+
+CHECK + FK smoke (live):
+
+| Constraint                              | Test                                                                          | Outcome  |
+| --------------------------------------- | ----------------------------------------------------------------------------- | -------- |
+| `msg_alert_types_severity_chk`          | INSERT severity='BOGUS'                                                       | ERROR ✅ |
+| `msg_notification_queue_status_chk`     | INSERT status='BOGUS'                                                         | ERROR ✅ |
+| `msg_notification_log_channel_chk`      | INSERT channel='BOGUS' (lands in 2026-04 partition)                           | ERROR ✅ |
+| `msg_notification_log_status_chk`       | INSERT channel='IN_APP', status='BOGUS' (lands in 2026-04 partition)          | ERROR ✅ |
+| `msg_announcements_audience_chk`        | INSERT audience_type='BOGUS'                                                  | ERROR ✅ |
+| `msg_announcement_audiences_status_chk` | INSERT delivery_status='BOGUS'                                                | ERROR ✅ |
+| `msg_announcements.alert_type_id` FK    | INSERT alert_type_id=<random uuid>                                            | ERROR ✅ |
+| `msg_announcement_audiences` FK         | INSERT announcement_id=<random uuid>                                          | ERROR ✅ |
+| `msg_announcement_reads` FK             | INSERT announcement_id=<random uuid>                                          | ERROR ✅ |
+| Happy-path INSERT across all 7 tables   | preferences `channels` defaults to `{IN_APP}`; alert types `default_channels` defaults to `{IN_APP}`; ON DELETE CASCADE removes audience + reads when the parent announcement is deleted | ✅ |
+
+The CHECK-violation insert into `msg_notification_log` also confirmed partition routing — the row was rejected from `msg_notification_log_2026_04` automatically.
+
+### Cycle 1 + Cycle 2 + Cycle 3 Step 1 seeds re-run cleanly
+
+The new notification + announcement tables are empty after Step 2. `seed:sis` and `seed:classroom` remain untouched and idempotent. Step 4 will land `seed:messaging` covering both Step 1 (messaging) and Step 2 (notifications/announcements).
+
+### Out-of-scope decisions for Step 2
+
+- **No DB UNIQUE on `msg_notification_queue.idempotency_key`.** The plan explicitly calls this out: "Idempotency via Redis SET NX (not a DB UNIQUE constraint — avoids deadlocks during emergency fan-out)." A partial index on `idempotency_key` is added for read-side investigation of duplicates and slow lookups by key, but it does not enforce uniqueness. The Step 5 `NotificationQueueService` does the SET NX check before insert.
+- **No pg_partman.** Monthly partitions of `msg_notification_log` are pre-created statically for 2025-08 → 2027-08 (24 months, matching the `msg_messages` window from Step 1). Same posture and same future ops work as Step 1.
+- **`msg_announcements.audience_ref` is a single TEXT column, not typed-per-branch.** The polymorphic target identifier is interpreted by the AudienceFanOutWorker (Step 7) based on `audience_type`: CLASS holds a `sis_classes.id` UUID rendered as text, YEAR_GROUP holds the grade-level label, ROLE holds an iam role name (e.g. `PARENT`), and ALL_SCHOOL leaves it NULL. CUSTOM may also leave it NULL and rely on a future custom-target table. Single TEXT keeps the schema simple at the cost of a tiny app-layer branch in the worker.
+- **`msg_announcement_audiences` and `msg_announcement_reads` use DB-enforced FKs (with CASCADE).** Both children, and their parent `msg_announcements`, are unpartitioned, so the standard PG FK + cascade pattern applies cleanly. This is intentionally different from the partitioned-parent precedent (`msg_messages`, `msg_threads` from Step 1) where FKs to partitioned tables are denormalised soft refs.
+- **`msg_notification_log.queue_id` is a soft ref, not a DB FK.** The log is partitioned by `sent_at`. The queue row may be purged on a different cadence than the log row (the queue is a working set; the log is a retention-managed audit trail). DB enforcement would create awkward retention coupling. App layer treats `queue_id` as informational.
+- **`msg_alert_types` ships in Step 2 even though emergency alerts are deferred.** Schema completeness — the table is small, additive, and lets `msg_announcements.alert_type_id` resolve. The emergency alert service (always-on, separate process) is explicitly out of scope per the plan and the Architecture Review.
+- **`updated_at` columns have no triggers.** Service code sets `updated_at = now()` explicitly on every mutation, matching every prior cycle. (Note: `msg_notification_log` and `msg_announcement_reads` don't carry `updated_at` because they are append-only.)
+- **CHECK strings still can't contain `;`.** The provision SQL splitter convention from Step 1 carries forward — every CHECK predicate, default expression, and `COMMENT ON COLUMN` value in this migration uses commas / "and" in place of any semicolon. Spot-checked all 6 COMMENT statements before applying.
 
 ---
 
