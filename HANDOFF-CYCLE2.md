@@ -1,6 +1,6 @@
 # Cycle 2 Handoff — Classroom, Assignments & Grading
 
-**Status:** Cycle 2 IN PROGRESS — Step 1 done. (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
+**Status:** Cycle 2 IN PROGRESS — Steps 1–2 done (full classroom schema landed, 15 tenant tables). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle2-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher creates an assignment for Period 1 Algebra → student Maya submits work → teacher grades and publishes → gradebook snapshot recomputes asynchronously → parent David sees Maya's updated average.
@@ -14,7 +14,7 @@ This document tracks the Cycle 2 build — the M21 Classroom module — at the s
 | Step | Title                                           | Status                                                              |
 | ---: | ----------------------------------------------- | ------------------------------------------------------------------- |
 |    1 | Classroom Schema — Lessons & Assignments        | Done — `005_cls_lessons_and_assignments.sql` applied to demo + test |
-|    2 | Classroom Schema — Submissions & Grading        | Pending                                                             |
+|    2 | Classroom Schema — Submissions & Grading        | Done — `006_cls_submissions_and_grading.sql` applied to demo + test |
 |    3 | Seed Data — Assignments & Grades                | Pending                                                             |
 |    4 | Classroom NestJS Module — Assignments           | Pending                                                             |
 |    5 | Classroom NestJS Module — Submissions & Grading | Pending                                                             |
@@ -43,11 +43,11 @@ Cycle 1 delivered SIS Core (academic structure, students/families, attendance) a
 
 ---
 
-## Schema changes — two tenant migrations (planned)
+## Schema changes — two tenant migrations
 
 All Cycle 2 migrations live in `packages/database/prisma/tenant/migrations/`. They follow the same idempotent pattern as the Cycle 1 migrations: `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, `DROP CONSTRAINT IF EXISTS … ; ADD CONSTRAINT …` for FK changes, `TEXT + CHECK IN (…)` for enum-like columns (the SQL splitter can't handle `CREATE TYPE` idempotently). Soft UUID references to `platform.*` tables — never DB-level FK constraints (ADR-001/020).
 
-**After Cycle 2 the tenant schema will hold ~38 tables:** 5 (Cycle 0) + 18 (Cycle 1 SIS + Attendance) + 15 (Cycle 2 Classroom) = 38, plus the 36 partition objects under `sis_attendance_records`.
+**After Steps 1–2 the tenant schema holds 38 base tables:** 5 (Cycle 0) + 18 (Cycle 1 SIS + Attendance) + 15 (Cycle 2 Classroom) = 38, plus 36 partition objects under `sis_attendance_records`.
 
 ### `005_cls_lessons_and_assignments.sql` — 7 tables (Step 1)
 
@@ -78,9 +78,39 @@ All Cycle 2 migrations live in `packages/database/prisma/tenant/migrations/`. Th
 - `cls_assignment_questions.assignment_id → cls_assignments(id) ON DELETE CASCADE`
 - `cls_answer_key_entries.question_id → cls_assignment_questions(id) ON DELETE CASCADE`
 
-### `006_cls_submissions_and_grading.sql` — 8 tables (Step 2, planned)
+### `006_cls_submissions_and_grading.sql` — 8 tables (Step 2)
 
-Will land in Step 2: `cls_submissions`, `cls_submission_question_grades`, `cls_ai_grading_jobs`, `cls_grades`, `cls_gradebook_snapshots`, `cls_report_cards`, `cls_report_card_entries`, `cls_student_progress_notes`. **Total Classroom tables after Step 2: 15.** ADR-010 (gradebook snapshots are async-only) is enforced by the schema itself: nothing in `cls_grades` writes to `cls_gradebook_snapshots` directly.
+| Table                            | Purpose                                                                        | Key columns                                                                                                                                                                                                                                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cls_submissions`                | One row per (assignment, student). Tracks status from NOT_STARTED to RETURNED. | `assignment_id` FK, `student_id` FK, `status` ∈ {NOT_STARTED, IN_PROGRESS, SUBMITTED, GRADED, RETURNED}, `submission_text`, `attachments JSONB`, `submitted_at`, `returned_at`, `return_reason`. UNIQUE(assignment_id, student_id). Partial index `(assignment_id, submitted_at DESC) WHERE status='SUBMITTED'`. |
+| `cls_submission_question_grades` | Per-question grade (and AI suggestion) within a submission.                    | `submission_id` FK, `question_id` FK, `student_response`, `ai_suggested_points NUMERIC(5,2)`, `ai_confidence NUMERIC(3,2)` (0–1), `teacher_awarded_points`, `feedback`. UNIQUE(submission_id, question_id). CHECK on `ai_confidence`.                                                                            |
+| `cls_ai_grading_jobs`            | Async AI grading job tracking. AI never writes to `cls_grades`.                | `submission_id` FK, `status` ∈ {PENDING, RUNNING, COMPLETE, FAILED}, `ai_suggested_grade`, `ai_confidence`, `ai_reasoning`, `model_version`, `started_at`, `completed_at`, `error_message`. Partial index `(status) WHERE status IN ('PENDING','RUNNING')` for the worker queue.                                 |
+| `cls_grades`                     | The teacher-confirmed grade for an (assignment, student). Source of truth.     | `assignment_id` FK, `student_id` FK, `submission_id` FK nullable, `teacher_id` (soft → hr_employees), `grade_value NUMERIC(6,2)`, `letter_grade`, `feedback`, `is_published`, `graded_at`, `published_at`. UNIQUE(assignment_id, student_id). CHECK `grade_value >= 0`.                                          |
+| `cls_gradebook_snapshots`        | Per-(class, student, term) running average. **Async-only writes (ADR-010).**   | `class_id` FK, `student_id` FK, `term_id` FK, `current_average NUMERIC(5,2)`, `letter_grade`, `assignments_graded`, `assignments_total`, `last_grade_event_at`, `last_updated_at`. UNIQUE(class_id, student_id, term_id).                                                                                        |
+| `cls_report_cards`               | A finalised report-card record per (student, class, term).                     | `student_id` FK, `class_id` FK, `term_id` FK, `status` ∈ {DRAFT, PUBLISHED}, `published_at`, `finalized_by` (soft). UNIQUE(student_id, class_id, term_id). Partial index for published cards.                                                                                                                    |
+| `cls_report_card_entries`        | One row per subject on a report card. Subject is intentional free text.        | `report_card_id` FK ON DELETE CASCADE, `subject TEXT`, `final_grade`, `grade_value NUMERIC(5,2)`, `teacher_comments`, `effort_grade`, `sort_order`. UNIQUE(report_card_id, subject).                                                                                                                             |
+| `cls_student_progress_notes`     | One mid-term narrative per (class, student, term). Author is a soft ref.       | `class_id` FK, `student_id` FK, `term_id` FK, `author_id` (soft → hr_employees), `note_text`, `overall_effort_rating` ∈ {EXCELLENT, GOOD, SATISFACTORY, NEEDS_IMPROVEMENT, UNSATISFACTORY}, `is_parent_visible`, `is_student_visible`, `published_at`. UNIQUE(class_id, student_id, term_id).                    |
+
+**Soft references** (UUID, no DB FK constraint, app-layer validation):
+
+- `cls_grades.teacher_id` → `hr_employees.id`
+- `cls_report_cards.finalized_by` → `hr_employees.id`
+- `cls_student_progress_notes.author_id` → `hr_employees.id`
+
+**Intra-tenant FKs** (DB-enforced; 18 total in this migration — see "Step 2 verification" section for the full list):
+
+- `cls_submissions.{assignment_id, student_id}` → `cls_assignments(id)` (CASCADE) / `sis_students(id)`
+- `cls_submission_question_grades.{submission_id, question_id}` → CASCADE on both parents
+- `cls_ai_grading_jobs.submission_id` → `cls_submissions(id)` (CASCADE)
+- `cls_grades.{assignment_id, student_id, submission_id}` → `cls_assignments`, `sis_students`, `cls_submissions` (no CASCADE — grades survive submission tweaks; assignment deletion is RESTRICT-by-default since the plan says assignments soft-delete)
+- `cls_gradebook_snapshots.{class_id, student_id, term_id}` → `sis_classes` (CASCADE) / `sis_students` / `sis_terms`
+- `cls_report_cards.{student_id, class_id, term_id}` → `sis_students` / `sis_classes` / `sis_terms`
+- `cls_report_card_entries.report_card_id` → `cls_report_cards(id)` (CASCADE)
+- `cls_student_progress_notes.{class_id, student_id, term_id}` → `sis_classes` (CASCADE) / `sis_students` / `sis_terms`
+
+**ADR-010 enforcement at the schema level.** `cls_grades` and `cls_gradebook_snapshots` are physically separate tables with no FK from one to the other. There are no triggers on `cls_grades` that touch `cls_gradebook_snapshots`. Any future violation of "snapshots are async-only" would require a deliberate change here — making the rule auditable from the migration alone.
+
+**AI / human boundary at the schema level.** `cls_ai_grading_jobs` and `cls_submission_question_grades.ai_suggested_*` columns are physically separate from `cls_grades`. `cls_grades` has no `ai_*` columns, and `cls_ai_grading_jobs` has no path to write to `cls_grades`. The contract — AI surfaces suggestions; only teacher action persists a grade — is enforced at the service layer (Step 5) and made obvious by the schema layout.
 
 ---
 
@@ -222,9 +252,94 @@ Tenant base table count: **30** (5 Cycle 0 + 18 Cycle 1 SIS + 7 Cycle 2 Step 1).
 
 ---
 
-## Step 2 — Classroom schema, submissions & grading (planned)
+## Step 2 — Classroom schema, submissions & grading
 
-Will land `006_cls_submissions_and_grading.sql` with the 8 grading-pipeline tables. ADR-010 is enforced by the schema layout: `cls_grades` and `cls_gradebook_snapshots` are physically separate tables, written by separate code paths.
+### Migration file
+
+`packages/database/prisma/tenant/migrations/006_cls_submissions_and_grading.sql`. 8 tables. Idempotent CREATE-IF-NOT-EXISTS pattern. TEXT+CHECK enums (status enums, AI confidence range, grade-value floor, effort rating). 18 intra-tenant FKs; zero soft refs to `platform.*` (the only soft refs are `teacher_id`, `author_id`, `finalized_by` → `hr_employees` — a tenant module that doesn't exist yet, kept as plain UUIDs for forward compatibility per ADR-001/020).
+
+Detailed tables — see `006_cls_submissions_and_grading.sql` schema-changes section above.
+
+### Step 2 verification (recorded 2026-04-27)
+
+```bash
+pnpm --filter @campusos/database provision --subdomain=demo   # 6 migrations, idempotent
+pnpm --filter @campusos/database provision --subdomain=test   # same
+```
+
+15 `cls_*` tables in `tenant_demo` (Steps 1+2 combined):
+
+```
+cls_ai_grading_jobs              (Step 2)
+cls_answer_key_entries           (Step 1)
+cls_assignment_categories        (Step 1)
+cls_assignment_questions         (Step 1)
+cls_assignment_types             (Step 1)
+cls_assignments                  (Step 1)
+cls_gradebook_snapshots          (Step 2)
+cls_grades                       (Step 2)
+cls_lesson_types                 (Step 1)
+cls_lessons                      (Step 1)
+cls_report_card_entries          (Step 2)
+cls_report_cards                 (Step 2)
+cls_student_progress_notes       (Step 2)
+cls_submission_question_grades   (Step 2)
+cls_submissions                  (Step 2)
+```
+
+18 intra-tenant FKs from the new Step 2 tables:
+
+```
+cls_ai_grading_jobs.submission_id              → cls_submissions(id)            ON DELETE CASCADE
+cls_gradebook_snapshots.class_id               → sis_classes(id)                ON DELETE CASCADE
+cls_gradebook_snapshots.student_id             → sis_students(id)
+cls_gradebook_snapshots.term_id                → sis_terms(id)
+cls_grades.assignment_id                       → cls_assignments(id)
+cls_grades.student_id                          → sis_students(id)
+cls_grades.submission_id                       → cls_submissions(id)
+cls_report_card_entries.report_card_id         → cls_report_cards(id)           ON DELETE CASCADE
+cls_report_cards.class_id                      → sis_classes(id)
+cls_report_cards.student_id                    → sis_students(id)
+cls_report_cards.term_id                       → sis_terms(id)
+cls_student_progress_notes.class_id            → sis_classes(id)                ON DELETE CASCADE
+cls_student_progress_notes.student_id          → sis_students(id)
+cls_student_progress_notes.term_id             → sis_terms(id)
+cls_submission_question_grades.question_id     → cls_assignment_questions(id)   ON DELETE CASCADE
+cls_submission_question_grades.submission_id   → cls_submissions(id)            ON DELETE CASCADE
+cls_submissions.assignment_id                  → cls_assignments(id)            ON DELETE CASCADE
+cls_submissions.student_id                     → sis_students(id)
+```
+
+**Zero cross-schema FKs** (ADR-001/020) — verified via the same `pg_constraint` join used in REVIEW-CYCLE1:
+
+```sql
+SELECT count(*) FROM pg_constraint c
+JOIN pg_class t ON t.oid = c.conrelid
+JOIN pg_class r ON r.oid = c.confrelid
+JOIN pg_namespace tn ON tn.oid = t.relnamespace
+JOIN pg_namespace rn ON rn.oid = r.relnamespace
+WHERE c.contype='f' AND tn.nspname='tenant_demo' AND rn.nspname <> 'tenant_demo';
+-- result: 0
+```
+
+**CHECK constraints fire as expected** (smoke-tested 2026-04-27):
+
+| Constraint                              | Test                                 | Outcome  |
+| --------------------------------------- | ------------------------------------ | -------- |
+| `cls_submissions_status_chk`            | INSERT status='BOGUS'                | ERROR ✅ |
+| `cls_ai_grading_jobs_ai_conf_chk`       | INSERT ai_confidence=1.5             | ERROR ✅ |
+| `cls_grades_value_chk`                  | INSERT grade_value=-5                | ERROR ✅ |
+| `cls_student_progress_notes_effort_chk` | INSERT overall_effort_rating='BOGUS' | ERROR ✅ |
+
+**Tenant base table count: 38** (5 Cycle 0 + 18 Cycle 1 + 15 Cycle 2 Steps 1–2). Re-running provision is a no-op (idempotency confirmed). Cycle 1 SIS seed re-runs cleanly.
+
+### Out-of-scope decisions for Step 2
+
+- **No partitioning on `cls_grades` or `cls_submissions`.** Volume in Cycle 2 is bounded (one row per (assignment, student); ~12 assignments × 15 students = 180 rows in the seed). Partitioning is appropriate for `sis_attendance_records` (one row per student × period × school day) but overkill here. Revisit in Wave 2 if the table grows past O(10⁷).
+- **`cls_ai_grading_jobs` allows multiple jobs per submission.** Re-running the AI is plausible (model change, retry on FAILED), so no UNIQUE on `submission_id`. The partial index `(status) WHERE status IN ('PENDING','RUNNING')` keeps the worker queue scan cheap.
+- **`cls_grades.submission_id` is nullable.** A teacher can record a grade for an assignment a student never submitted (e.g. zero-grade for missed work, or paper-based assignments). The submission FK is informational; the teacher-action grade stands alone.
+- **`cls_report_card_entries.subject` is free text, not a FK to `sis_courses`.** Per the plan: report cards label subjects in ways that don't always map 1:1 to courses (e.g. "Mathematics" combining Algebra + Geometry rows). Deliberate design choice from the ERD.
+- **No triggers.** ADR-010 (snapshots async-only) is enforced by the schema layout (no FK or trigger from `cls_grades` to `cls_gradebook_snapshots`) plus a service-layer rule, not by a `BEFORE INSERT` trigger that could be bypassed.
 
 ---
 
