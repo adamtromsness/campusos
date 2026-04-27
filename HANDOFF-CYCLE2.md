@@ -1,6 +1,6 @@
 # Cycle 2 Handoff — Classroom, Assignments & Grading
 
-**Status:** Cycle 2 IN PROGRESS — Steps 1–2 done (full classroom schema landed, 15 tenant tables). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
+**Status:** Cycle 2 IN PROGRESS — Steps 1–3 done (full classroom schema landed, 15 tenant tables; demo data seeded; TCH role-permission map updated). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle2-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher creates an assignment for Period 1 Algebra → student Maya submits work → teacher grades and publishes → gradebook snapshot recomputes asynchronously → parent David sees Maya's updated average.
@@ -15,7 +15,7 @@ This document tracks the Cycle 2 build — the M21 Classroom module — at the s
 | ---: | ----------------------------------------------- | ------------------------------------------------------------------- |
 |    1 | Classroom Schema — Lessons & Assignments        | Done — `005_cls_lessons_and_assignments.sql` applied to demo + test |
 |    2 | Classroom Schema — Submissions & Grading        | Done — `006_cls_submissions_and_grading.sql` applied to demo + test |
-|    3 | Seed Data — Assignments & Grades                | Pending                                                             |
+|    3 | Seed Data — Assignments & Grades                | Done — `seed-classroom.ts` lands 12 assignments + 80 submissions + 62 grades + 41 snapshots; TCH role-permission map updated |
 |    4 | Classroom NestJS Module — Assignments           | Pending                                                             |
 |    5 | Classroom NestJS Module — Submissions & Grading | Pending                                                             |
 |    6 | Kafka Events & Gradebook Snapshot Worker        | Pending                                                             |
@@ -127,15 +127,17 @@ All Cycle 2 migrations live in `packages/database/prisma/tenant/migrations/`. Th
 
 ## Permission catalogue updates
 
-Cycle 2 surfaces the TCH function group from the Function Library v11. Codes already exist in `packages/database/data/permissions.json` (the Cycle 1 reconciliation pulled the full 148/444 catalogue, including TCH). Step 3 (seed) wires them into roles:
+Cycle 2 surfaces the TCH function group from the Function Library v11. Codes already exist in `packages/database/data/permissions.json` (the Cycle 1 reconciliation pulled the full 148/444 catalogue, including TCH). Step 3 (seed) wired them into roles via `seed-iam.ts`:
 
-| Code        | Function     | Roles (after Step 3)                                                    |
-| ----------- | ------------ | ----------------------------------------------------------------------- |
-| `tch-002:*` | Assignments  | Teacher: read/write. Student/Parent: read.                              |
-| `tch-003:*` | Grade Book   | Teacher: read/write. Student/Parent: read (limited to own/linked rows). |
-| `tch-004:*` | Report Cards | Teacher: read/write. Student/Parent: read.                              |
+| Code        | Function     | Roles (after Step 3)                                                                                  |
+| ----------- | ------------ | ----------------------------------------------------------------------------------------------------- |
+| `tch-002:*` | Assignments  | Teacher: read/write. Student: read/write (so the submit endpoint can pass). Parent: read.            |
+| `tch-003:*` | Grade Book   | Teacher: read/write. Student/Parent: read (row-scoped to own/linked rows by `ActorContextService`).   |
+| `tch-004:*` | Report Cards | Teacher: read/write. Student/Parent: read.                                                            |
 
-Step 3 will also rebuild the effective access cache via `pnpm --filter @campusos/database exec tsx src/build-cache.ts` after the role-permission mapping update.
+Student keeps `tch-002:write` rather than just `read` because submitting an assignment is a write under the same function code (no separate "submit-own-work" code exists). Row-level scoping in the Step 5 service will enforce that students can only insert/update submissions where `student_id = self`.
+
+Step 3 also rebuilt the effective access cache (`pnpm --filter @campusos/database exec tsx src/build-cache.ts`) after the role-permission mapping update. Cached counts: Platform Admin 444, School Admin 444, Teacher 27, Student 14, Parent 11.
 
 ---
 
@@ -343,11 +345,97 @@ WHERE c.contype='f' AND tn.nspname='tenant_demo' AND rn.nspname <> 'tenant_demo'
 
 ---
 
-## Step 3 — Seed data (planned)
+## Step 3 — Seed data — assignments & grades
 
-Extends `seed-sis.ts` (or a new `seed-classroom.ts`) with: 5 assignment types, 3 categories per class (Homework 30 / Assessments 50 / Participation 20), 12 assignments across 6 classes, ~80 submissions, ~50 grades, gradebook snapshots, and one progress note for Maya. Follows the same lookup-or-create idempotency pattern as `seed-sis.ts`.
+### Files
 
-Also wires TCH-002/003/004 codes onto roles (Teacher: read/write; Student/Parent: read) and rebuilds the effective access cache.
+- `packages/database/src/seed-classroom.ts` (new) — idempotent classroom seeder, mirrors the structure of `seed-sis.ts`.
+- `packages/database/package.json` — added `seed:classroom` script (`tsx src/seed-classroom.ts`).
+- `packages/database/src/seed-iam.ts` — added Teacher `TCH-004:read+write`, Parent `TCH-002:read`, Student `TCH-004:read`. (Student already had `TCH-002:read+write` from Cycle 1; intentionally left in place — see "Permission catalogue updates" above.)
+
+### What gets seeded
+
+| Table                        | Rows | Notes                                                                                                                                    |
+| ---------------------------- | ---: | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `grading_scales`             |    1 | "Standard A-F (Percentage)", `is_default=true`, JSON grade buckets A≥90 / B≥80 / C≥70 / D≥60 / F<60.                                     |
+| `cls_assignment_types`       |    5 | Homework, Quiz, Test, Project, Classwork — one of each per school. Each `weight_in_category=100`.                                        |
+| `cls_assignment_categories`  |   18 | 3 per class × 6 classes: Homework (30) / Assessments (50) / Participation (20). Weights sum to 100 per class (validated at app layer).   |
+| `cls_assignments`            |   12 | 2 per class. All `is_published=true`. Mix of Quiz / Test / Project / Homework. Due dates spread Feb–Apr 2026.                            |
+| `cls_submissions`            |   80 | One per (assignment, enrolled student) for fully-graded assignments (41); partial assignments drop one submission per period 1 / 5 (39). |
+| `cls_grades`                 |   62 | All 41 fully-graded submissions get a published grade; 21 of the 39 partial submissions get graded, of which 12 are published.           |
+|   ↳ `is_published=true`      |   53 | Used by snapshot computation.                                                                                                            |
+|   ↳ `is_published=false`     |    9 | Draft grades on partial-graded assignments — exercises the publish/unpublish path that Step 5 will build.                                |
+| `cls_gradebook_snapshots`    |   41 | One per (class, student, term=Spring 2026) where the student has at least one published grade. Weighted by category.                    |
+| `cls_student_progress_notes` |    1 | Maya in P1 Algebra 1, term=Spring 2026, `overall_effort_rating='GOOD'`, `is_parent_visible=true`, `is_student_visible=true`.             |
+
+### Weighted-average math (snapshot computation)
+
+For each (class, student) with ≥1 published grade:
+
+1. Group published grades by category. For each category, take the simple mean of `(grade_value / max_points × 100)`.
+2. Weight each category by its declared `weight` and **renormalise** by the sum of weights for categories with at least one grade. Categories with zero published grades are excluded from both numerator and denominator (rather than counted as 0%).
+3. Letter grade derived from the resulting average using the same A/B/C/D/F bucketing as the grading scale.
+
+This is the same formula the Step 6 Kafka snapshot worker will implement; seed and worker MUST agree, so the algorithm is encoded in `seed-classroom.ts::seedClassroom` (the loop after the per-class grades query) and the Step 6 worker will port it verbatim.
+
+### Determinism
+
+Per-(student, assignment) percentages come from a hash on the SIS `student_number` + assignment index, mapped into the 70–98 range. Maya is overridden with a hand-picked 87–94 sequence so her parent-dashboard story shows a clean B+/A- across her four enrolled classes. Re-running on a clean tenant always produces identical numbers.
+
+### Verification (recorded 2026-04-27)
+
+```bash
+pnpm --filter @campusos/database seed:classroom
+# →  1 grading_scale (Standard A-F)
+# →  5 cls_assignment_types
+# →  18 cls_assignment_categories (3 per class, weights 30/50/20)
+# →  12 cls_assignments (12, 2 per class, all is_published=true)
+# →  80 cls_submissions
+# →  62 cls_grades (53 published, 9 draft)
+# →  41 cls_gradebook_snapshots
+# →  1 cls_student_progress_notes (Maya, P1 Algebra 1, parent + student visible)
+
+pnpm --filter @campusos/database seed:classroom   # idempotent re-run
+# → "Classroom data already seeded (12 cls_assignments rows) — skipping"
+```
+
+Maya's snapshots (verified end-to-end against the raw grade table):
+
+| Period | Class            | Snapshot avg | Letter | Graded / Total |
+| -----: | ---------------- | -----------: | :----: | -------------: |
+|      1 | Algebra 1        |        90.50 | A      |          2 / 2 |
+|      2 | English 9        |        92.00 | A      |          2 / 2 |
+|      3 | Biology          |        89.75 | B      |          2 / 2 |
+|      4 | World History    |        90.00 | A      |          2 / 2 |
+
+Manual recomputation of P1 Algebra 1 from the raw grades:
+
+```
+Assessments (weight 50): 1 grade @ 92.00%  →  cat avg 92.00
+Homework    (weight 30): 1 grade @ 88.00%  →  cat avg 88.00
+weighted = (50 × 92 + 30 × 88) / (50 + 30) = (4600 + 2640) / 80 = 90.50  ✓ matches snapshot
+```
+
+Letter-grade distribution across the 41 snapshots: 11 A, 18 B, 12 C, 0 D, 0 F (no F because the deterministic generator floors at 70 %; D would require ≤ 69 %).
+
+### Permission cache (rebuilt after Step 3)
+
+```
+admin@demo.campusos.dev     → 444 permissions
+principal@demo.campusos.dev → 444 permissions
+teacher@demo.campusos.dev   →  27 permissions   (was 25 before Step 3 — added tch-004:read, tch-004:write)
+student@demo.campusos.dev   →  14 permissions   (was 13 — added tch-004:read)
+parent@demo.campusos.dev    →  11 permissions   (was 10 — added tch-002:read)
+```
+
+### Out-of-scope decisions for Step 3
+
+- **No lessons seeded.** `cls_lessons` table is created but the lesson API is minimal in this cycle (per Step 1 out-of-scope decision); seeding lesson rows would just be dead data. `cls_assignments.lesson_id` is left NULL.
+- **No assignment questions / answer keys seeded.** Per the plan, questions / answer keys / AI-grading-jobs / per-question grades are exercised by the API tests in Step 5, not by the seed. Seeding them now would lock us into a UX choice (essay vs. MC vs. file upload) that the UI step (7) hasn't made yet.
+- **Submissions hold plain `submission_text='Submitted via portal.'`** No real attachments. Step 7 may upgrade this when it ships the submit form.
+- **No FAILED `cls_ai_grading_jobs` rows.** AI grading service is forward-compat-only this cycle; seeding the job table would be misleading.
+- **No report cards seeded.** Report-card generation is a Wave 1 backlog item (the schema exists for forward compatibility, but neither Step 5 nor Step 6 build the API). The first published report cards will land in a later cycle.
+- **No deterministic D / F grades.** The seed's percentage range floors at 70 to keep the demo cheerful; if a future review wants edge cases, lower the floor in `pickPercentage` to 50 and adjust Maya's overrides.
 
 ---
 
@@ -407,8 +495,8 @@ pnpm --filter @campusos/database migrate          # platform schema (Prisma)
 pnpm --filter @campusos/database seed             # 5 test users + Chen family + tenant_demo provisioned
 pnpm --filter @campusos/database exec tsx src/seed-iam.ts   # 444 permissions, 6 roles, role-permission map, role assignments
 pnpm --filter @campusos/database seed:sis         # Cycle 1 seed: students, guardians, families, today's attendance
+pnpm --filter @campusos/database seed:classroom   # Cycle 2 Step 3 seed: assignments, submissions, grades, gradebook snapshots, progress note
 pnpm --filter @campusos/database exec tsx src/build-cache.ts  # rebuild iam_effective_access_cache
-# (Cycle 2 seed lands in Step 3)
 
 # 4. Start the API
 pnpm --filter @campusos/api dev
@@ -426,6 +514,7 @@ docker exec campusos-postgres psql -U campusos -d campusos_dev -c "
 pnpm --filter @campusos/database provision --subdomain=demo
 pnpm --filter @campusos/database provision --subdomain=test
 pnpm --filter @campusos/database seed:sis        # Cycle 1 SIS — idempotent
+pnpm --filter @campusos/database seed:classroom  # Cycle 2 classroom — idempotent (skips when cls_assignments has rows)
 pnpm --filter @campusos/database exec tsx src/build-cache.ts
 ```
 
@@ -433,7 +522,7 @@ pnpm --filter @campusos/database exec tsx src/build-cache.ts
 
 ## Open items / known gaps (will be filled in as steps land)
 
-- **Cycle 2 seed pipeline.** Lands in Step 3. Until then, fresh tenants have empty `cls_*` tables.
+- **Cycle 2 seed pipeline.** Done in Step 3 — `pnpm seed:classroom` populates the demo tenant. `tenant_test` is intentionally left empty (test fixtures will set up their own data per test).
 - **`cls_lessons` API.** Minimal in Cycle 2 (table exists but no full CRUD endpoints). Full lesson planning is a later cycle.
 - **AI grading service.** `cls_ai_grading_jobs` table is created for forward compatibility but no AI worker is wired this cycle. The contract (AI never writes to `cls_grades`) is documented and will be enforced at the service layer when the AI service lands.
 - **ADR-057 envelope on Kafka events.** Cycle 2 emits raw payloads; Cycle 3 lands the canonical envelope (event_id, event_version, tenant_id, correlation_id) when the first consumer outside the gradebook worker reads from these topics. See `KafkaProducerService` TODO.

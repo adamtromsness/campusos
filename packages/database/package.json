@@ -13,6 +13,7 @@
     "generate": "prisma generate --schema=prisma/platform/schema.prisma",
     "seed": "tsx src/seed.ts",
     "seed:sis": "tsx src/seed-sis.ts",
+    "seed:classroom": "tsx src/seed-classroom.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

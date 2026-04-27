@@ -6,9 +6,29 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 
 Cycle 0 (Platform Foundation) is COMPLETE. **Cycle 1 (SIS Core + Attendance) is COMPLETE — all 11 steps done. Post-cycle architecture review fixes (REVIEW-CYCLE1) landed.** Schema, seed, SIS API, Attendance API + Kafka emits, web UI shell, Teacher Dashboard, Attendance Taking UI with confirm modal + batch submit, Parent Dashboard + child attendance calendar + absence-request form, AdminDashboard (school-wide overview + pending-absence queue), and a verified end-to-end vertical slice (`docs/cycle1-cat-script.md`). The post-cycle review tightened tenant isolation (`SET LOCAL search_path` inside an interactive tx), added row-level authorization to student reads, gated attendance writes by `sis_class_teachers` membership, and replaced cross-scope admin checks with a tenant-scope-chain check.
 
-**Cycle 2 (Classroom + Assignments + Grading) is IN PROGRESS — Steps 1–2 done.** Migrations `005_cls_lessons_and_assignments.sql` (7 tables) and `006_cls_submissions_and_grading.sql` (8 tables) add the full M21 Classroom schema — 15 tenant tables total. ADR-010 (gradebook snapshots are async-only) is enforced at the schema layout level: `cls_grades` and `cls_gradebook_snapshots` are physically separate tables with no FK or trigger linking them. AI / human boundary: `cls_ai_grading_jobs` and `cls_submission_question_grades.ai_*` columns store AI suggestions; `cls_grades` has zero `ai_*` columns and is written only by teacher action. 28 intra-tenant FKs across the two migrations; zero cross-schema FKs. Steps 3–10 (seed, NestJS module, Kafka snapshot worker, teacher/student/parent UI, vertical-slice CAT) remain.
+**Cycle 2 (Classroom + Assignments + Grading) is IN PROGRESS — Steps 1–3 done.** Migrations `005_cls_lessons_and_assignments.sql` (7 tables) and `006_cls_submissions_and_grading.sql` (8 tables) add the full M21 Classroom schema — 15 tenant tables total. ADR-010 (gradebook snapshots are async-only) is enforced at the schema layout level: `cls_grades` and `cls_gradebook_snapshots` are physically separate tables with no FK or trigger linking them. AI / human boundary: `cls_ai_grading_jobs` and `cls_submission_question_grades.ai_*` columns store AI suggestions; `cls_grades` has zero `ai_*` columns and is written only by teacher action. 28 intra-tenant FKs across the two migrations; zero cross-schema FKs. Step 3 (`seed-classroom.ts`) seeds 1 grading scale, 5 assignment types, 18 per-class categories (Homework 30 / Assessments 50 / Participation 20), 12 assignments, 80 submissions, 62 grades (53 published), 41 gradebook snapshots, and 1 progress note for Maya — and adds TCH-002:read (Parent), TCH-004:read (Student), TCH-004:read+write (Teacher) to the role-permission map. Steps 4–10 (NestJS module, Kafka snapshot worker, teacher/student/parent UI, vertical-slice CAT) remain.
 
 See `docs/campusos-cycle1-implementation-plan.html` and `docs/campusos-cycle2-implementation-plan.html` for step-by-step plans; `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for current build state and known gaps; `REVIEW-CYCLE1-CHATGPT.md` / `REVIEW-CYCLE1-CLAUDE.md` / `REVIEW-CYCLE1-FIXES.md` for the architecture review record.
+
+## Delivery Plan (Revised)
+
+**Phase 1: Build the Core (current)**
+- Cycle 0: Platform Foundation — COMPLETE
+- Cycle 1: SIS Core + Attendance — COMPLETE (reviewed, fixes applied)
+- Cycle 2: Classroom + Assignments + Grading — IN PROGRESS
+- Cycle 3: Communications — next (messaging, notifications, Kafka consumers)
+
+**Phase 2: Test and Refine (after Cycle 3)**
+- Walk through every workflow as each persona (teacher, parent, student, admin)
+- Refine UI design, navigation, and interaction patterns
+- Create UI design guide (`docs/ui-design-guide.md`) for future cycles
+- Test edge cases and identify missing features within existing modules
+- Fix issues and polish before expanding
+
+**Phase 3: Expand (after Phase 2 sign-off)**
+- Cycles 4–8: HR, Enrollment, Tasks, Calendar, Helpdesk
+- Each cycle follows validated patterns from Phase 1
+- UI matches the design guide established in Phase 2
 
 ## Architecture
 
@@ -16,7 +36,7 @@ See `docs/campusos-cycle1-implementation-plan.html` and `docs/campusos-cycle2-im
 - Schema-per-tenant multi-tenancy (PostgreSQL `search_path` switching)
 - Modular monolith (NestJS) with planned extraction of 6 services
 - Event-driven via Kafka
-- 5-wave delivery plan
+- Phased delivery plan (see "Delivery Plan (Revised)" above): build core (Cycles 0–3) → test & refine → expand (Cycles 4–8)
 
 ## Tech Stack
 
@@ -99,6 +119,7 @@ pnpm --filter @campusos/database provision --subdomain=test
 pnpm --filter @campusos/database seed                       # platform: org, school, 5 test users, Chen family, provisions tenant_demo
 pnpm --filter @campusos/database exec tsx src/seed-iam.ts   # 444 permissions, 6 roles, role-permission mappings, role assignments
 pnpm --filter @campusos/database seed:sis                   # 15 students, 10 guardians, 8 families, 41 enrollments + attendance
+pnpm --filter @campusos/database seed:classroom             # 12 assignments, 80 submissions, 62 grades, 41 gradebook snapshots, 1 progress note
 pnpm --filter @campusos/database exec tsx src/build-cache.ts  # rebuild iam_effective_access_cache (run after any role/permission change)
 
 # Rebuild from corrupted state (drops and re-provisions tenant schemas)
@@ -106,6 +127,7 @@ docker exec campusos-postgres psql -U campusos -d campusos_dev -c "DROP SCHEMA I
 pnpm --filter @campusos/database provision --subdomain=demo
 pnpm --filter @campusos/database provision --subdomain=test
 pnpm --filter @campusos/database seed:sis        # idempotent: lookup-or-create on platform identities
+pnpm --filter @campusos/database seed:classroom  # idempotent: skips if cls_assignments already populated
 pnpm --filter @campusos/database exec tsx src/build-cache.ts
 
 # Prisma studio (visual DB browser, platform schema only)
