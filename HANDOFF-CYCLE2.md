@@ -1,6 +1,6 @@
 # Cycle 2 Handoff — Classroom, Assignments & Grading
 
-**Status:** Cycle 2 IN PROGRESS — Steps 1–9 done (full classroom schema, demo data, TCH role-permission map, the Assignments + Categories module, the Submissions + Grading + Gradebook + Progress Notes module, the first Kafka consumer in the system — GradebookSnapshotWorker — that recomputes gradebook snapshots asynchronously per ADR-010, the teacher Assignments UI under the ClassTabs shell, the teacher Grading UI: gradebook grid with inline cell editor + per-assignment "Publish all" + per-cell publish toggle, submissions queue, single-submission detail with grade entry, and per-student progress-note modal, and now the student & parent grade views: StudentDashboard, /assignments inbox + detail/submit, /grades summary + per-class breakdown, parent dashboard Grades section + per-child gradebook + per-class breakdown w/ visible progress notes; backed by two new endpoints — GET /students/me and GET /students/:studentId/classes/:classId/grades). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
+**Status:** Cycle 2 COMPLETE — all 10 steps done (full classroom schema, demo data, TCH role-permission map, the Assignments + Categories module, the Submissions + Grading + Gradebook + Progress Notes module, the first Kafka consumer in the system — GradebookSnapshotWorker — that recomputes gradebook snapshots asynchronously per ADR-010, the teacher Assignments UI under the ClassTabs shell, the teacher Grading UI: gradebook grid with inline cell editor + per-assignment "Publish all" + per-cell publish toggle, submissions queue, single-submission detail with grade entry, and per-student progress-note modal, and now the student & parent grade views: StudentDashboard, /assignments inbox + detail/submit, /grades summary + per-class breakdown, parent dashboard Grades section + per-child gradebook + per-class breakdown w/ visible progress notes; backed by two new endpoints — GET /students/me and GET /students/:studentId/classes/:classId/grades). (Cycle 1 is COMPLETE; see `HANDOFF-CYCLE1.md` for the SIS + Attendance foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle2-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher creates an assignment for Period 1 Algebra → student Maya submits work → teacher grades and publishes → gradebook snapshot recomputes asynchronously → parent David sees Maya's updated average.
@@ -22,7 +22,7 @@ This document tracks the Cycle 2 build — the M21 Classroom module — at the s
 |    7 | Teacher Assignments UI                          | Done — `ClassTabs` shell + `/classes/:id/assignments` list (filter, delete) + `/new` + `/[assignmentId]/edit` + `CategoryWeightModal`; new `GET /assignment-types` endpoint exposes the school's type catalogue to the create form |
 |    8 | Teacher Grading UI                              | Done — `/classes/:id/gradebook` grid (color-coded cells × inline editor × per-assignment "Publish all"), `/assignments/:id/submissions` queue, `/submissions/:id` detail with grade entry; `ProgressNoteModal` per student; **fix to grade.service.ts** so updates to already-published grades emit `cls.grade.published` (Step 5 emit bug — only transitions were emitting before) |
 |    9 | Student & Parent Grade Views                    | Done — `StudentDashboard` + `/assignments` inbox + `/assignments/:id` student detail/submit + `/grades` + `/grades/:classId` per-class breakdown; parent: per-child Grades section on `ParentDashboard` + `/children/:id/grades` + `/children/:id/grades/:classId` w/ visible progress notes. Two new endpoints: `GET /students/me`, `GET /students/:studentId/classes/:classId/grades`. |
-|   10 | Vertical Slice Integration Test                 | Pending                                                             |
+|   10 | Vertical Slice Integration Test                 | Done — `docs/cycle2-cat-script.md` captures a live 9-step API walkthrough plus 3 permission denials, all green. Demo state restored at end of run. |
 
 The Cycle 2 exit deliverable is the end-to-end vertical slice: assignment creation → submission → grading → publish → snapshot debounced recomputation → parent sees updated average. The reproducible CAT script will land at `docs/cycle2-cat-script.md` as the Step 10 deliverable.
 
@@ -1031,9 +1031,48 @@ The endpoint-level `@RequirePermission` is the floor; the actual access boundary
 
 ---
 
-## Step 10 — Vertical Slice Integration Test (planned)
+## Step 10 — Vertical Slice Integration Test
 
-Reproducible CAT script at `docs/cycle2-cat-script.md`. The 9-step happy-path covers create → submit → grade → publish → debounced snapshot recomputation → student/parent visibility. Plus 3 permission-denial assertions.
+`docs/cycle2-cat-script.md` is the reproducible Customer Acceptance Test for Cycle 2. It mirrors the format of `docs/cycle1-cat-script.md` (the Step-11 CAT for SIS + Attendance) — manual UI walkthrough lines paired with `curl` verifications and captured outputs.
+
+### What the CAT proves
+
+The 9-step happy path threads every layer of the cycle in order:
+
+1. Teacher creates `Chapter 4 Homework` (Homework, 25 pts, due tomorrow, published) in P1 Algebra.
+2. Maya logs in. `/students/me` (Step 9 endpoint) returns her `sis_students` row; `/assignments/:id` is row-scoped to "published assignments in her enrolled classes."
+3. Maya submits. The idempotent upsert returns status `SUBMITTED`. `cls.submission.submitted` is emitted (best-effort; no consumer this cycle).
+4. Teacher grades 22/25 with feedback as a draft. Maya's `/submissions/mine` shows `status=GRADED, grade=null` — `rowToDto(row, includeDraftGrade=false)` collapses unpublished grades.
+5. Teacher `publish-all` for the assignment. The producer emits `cls.grade.published` with the Step-6 transport headers (`event-id`, `tenant-id`, `tenant-subdomain`).
+6. After the 30-second debounce, the worker recomputes `cls_gradebook_snapshots`. Captured log line in the CAT:
+
+   ```
+   [GradebookSnapshotWorker] Snapshot recomputed: class=…4bf5… student=…425b… avg=90.50 letter=A graded=3/3
+   ```
+
+   `assignments_graded` advances `2 → 3`. The recompute is keyed on `(consumer_group, event_id)` against `platform.platform_event_consumer_idempotency`; redelivery is rejected at the unique index.
+7. Maya's `GET /students/:studentId/classes/:classId/grades` (the new Step-9 endpoint) returns all three published grades including Chapter 4 Homework at `22/25 · 88%`.
+8. Parent David walks the same data through `sis_student_guardians`. The Algebra 1 average reads 90% A on the dashboard's Grades section; the per-class breakdown matches the student view.
+9. Three explicit permission denials, all 403:
+   - **student → POST /submissions/:id/grade** — `INSUFFICIENT_PERMISSIONS required=tch-003:write` (PermissionGuard cut).
+   - **parent → POST /assignments/:id/submit** — `INSUFFICIENT_PERMISSIONS required=tch-002:write` (PermissionGuard cut).
+   - **teacher → POST /classes/:id/assignments for a class they don't teach** — `Forbidden: You are not assigned to class …` (per-class write gate inside `AssignmentService.assertCanWriteClass`; tch-002:write is held tenant-wide so the link table is the actual access boundary).
+
+   Plus a bonus assertion: after `POST /grades/:id/unpublish`, the grade collapses to `null` for non-managers on the per-class endpoint without waiting for the snapshot to recompute.
+
+### Single-teacher caveat
+
+The demo seed assigns James Rivera to all six classes, so the "teacher can't write to a class they don't teach" assertion (#3) deletes James's `sis_class_teachers` row on P3 Biology, runs the call, then restores it. The CAT script includes both the delete and the restore so a re-run leaves the seed unchanged. A second `STAFF` user lands when HR (Cycle 4) builds out the employee module; until then this is the cleanest demo of the per-class write gate.
+
+### What's NOT in the CAT
+
+- **Kafka consumer-side test of `cls.submission.submitted` or `cls.progress_note.published`.** Those topics are emitted but have no consumer this cycle (notification delivery is Cycle 3). The CAT exercises only the `cls.grade.{published,unpublished}` round-trip — the loop that closes inside Cycle 2.
+- **Browser-driver e2e.** Same scope choice as the Cycle 1 CAT. Manual UI walkthrough lines are paired with reproducible API calls; Playwright lands when the surface stabilises (after Phase 2).
+- **Assertion of a visible-percentage delta on the snapshot.** Maya's average held at 90.50% across the run because the new 88% Homework rolled back into the same 30/50/20 weighted sum she already had. The behavioural test is `assignments_graded` advancing (2 → 3), not the percentage. The CAT documents this and suggests grading the new assignment higher / lower if a re-run wants to show movement.
+
+### How to re-run
+
+The CAT is self-contained — the prerequisites block fetches dev-login tokens for all three personas, and every shell snippet stands on its own with the IDs captured inline. The whole run takes about 2 minutes elapsed (most of it waiting for the two debounce windows). The cleanup at the end (a hard-delete of the new assignment's `cls_grades` + `cls_submissions` + `cls_assignments` rows, followed by an unpublish/republish on Linear Equations Quiz to flush the snapshot back to `2/2`) leaves `tenant_demo` exactly as `seed:classroom` produced it.
 
 ---
 
