@@ -14,7 +14,7 @@ This document tracks the Cycle 4 build — the M80 HR/Workforce module (core sub
 | Step | Title                                                   | Status                                                                                                                                                                                                                                                                                                                                          |
 | ---: | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |    0 | HR-Employee Identity Migration (carry-over from Cycle 2) | **Done** — `011_hr_employees_and_positions.sql` lands `hr_employees` (UNIQUE `person_id` + UNIQUE `account_id`, CHECK on `employment_type` + `employment_status`); `seed-hr.ts` inserts 4 employee rows for `tenant_demo` (Mitchell, Rivera, Park, Hayes — `admin@` Platform Admin intentionally NOT bridged) and runs the four bridge UPDATEs (6 + 62 + 0 + 1 rows re-pointed; 0 orphans). `ActorContextService` populates `actor.employeeId`. 12 service-layer call sites substituted from `actor.personId` → `actor.employeeId` (attendance, assignment, gradebook, submission, grade, progress-note, student visibilityClause, class.service.listForTeacherEmployee, class.service.loadTeachersForClasses join, class.controller.my, audience-fan-out.worker.audienceClass). `IamModule` now imports `TenantModule`. Build clean, type-check clean, live smoke against `tenant_demo` confirmed `GET /classes/my` for teacher@ returns the same 6 classes through the bridge, `GET /students` returns 15, `GET /classes/:id/gradebook` returns 3 students for P1. CLAUDE.md "Temporary HR-Employee Identity Mapping" bullet retired; the four `COMMENT ON COLUMN` annotations now reference the permanent ADR-055 convention. Resolves REVIEW-CYCLE2 DEVIATION 4. |
-|    1 | HR Schema — Employees & Positions                       | Not started — `011_hr_employees_and_positions.sql` will land 5 base tables on top of `hr_employees` from Step 0 (`hr_positions`, `hr_employee_positions`, `hr_emergency_contacts`, `hr_document_types`, `hr_employee_documents`).                                                                                                                |
+|    1 | HR Schema — Employees & Positions                       | **Done** — `011_hr_employees_and_positions.sql` extended with 5 base tables on top of `hr_employees` from Step 0 (`hr_positions`, `hr_employee_positions`, `hr_emergency_contacts`, `hr_document_types`, `hr_employee_documents`). 5 intra-tenant FKs (3 to `hr_employees ON DELETE CASCADE`, 1 to `hr_positions`, 1 to `hr_document_types`), 0 cross-schema FKs. Tenant base table count: 63 (was 58). Live verification on `tenant_demo`: 5 CHECK constraints fire, FK rejection clean, happy-path multi-insert across all 5 tables succeeds, ON DELETE CASCADE drops all 3 child rows when an `hr_employees` row is deleted. |
 |    2 | HR Schema — Leave Management                            | Not started — `012_hr_leave_management.sql` will land 3 base tables (`hr_leave_types`, `hr_leave_balances`, `hr_leave_requests`) with the approval-flow CHECK constraints and the leave-events skeleton.                                                                                                                                        |
 |    3 | HR Schema — Certifications & Training                   | Not started — `013_hr_certifications_and_training.sql` will land 5 base tables (`hr_staff_certifications`, `hr_training_requirements`, `hr_training_compliance`, `hr_cpd_requirements`, `hr_work_authorisation`).                                                                                                                                |
 |    4 | HR Schema — Onboarding                                  | Not started — `014_hr_onboarding.sql` will land 3 base tables (`hr_onboarding_templates`, `hr_onboarding_checklists`, `hr_onboarding_tasks`).                                                                                                                                                                                                   |
@@ -238,13 +238,87 @@ Live smoke against `tenant_demo` (recorded 2026-04-28):
 
 ## Step 1 — HR Schema — Employees & Positions
 
-_Not started._ When this step lands, this section will cover `011_hr_employees_and_positions.sql` in the same shape as Cycle 3 Steps 1–3: a Tables grid, FK / soft-ref grid, CHECK constraints, partition decisions (none — every Step 1 table is unpartitioned), idempotent provision verification, and an out-of-scope decisions list. The migration ships 5 base tables on top of `hr_employees` from Step 0:
+**Done.** `packages/database/prisma/tenant/migrations/011_hr_employees_and_positions.sql` (the same migration file used for Step 0) lands 5 additional base tables on top of `hr_employees`. Idempotent CREATE-IF-NOT-EXISTS pattern. Snake_case columns, `TEXT + CHECK` for enum-like fields where they appear elsewhere in HR (none in this step). All cross-schema refs to `platform.*` are soft per ADR-001/020. Intra-tenant FKs are DB-enforced where the parent is unpartitioned — the same pattern Cycle 1 / Cycle 2 used for non-partitioned parents.
 
-- `hr_positions`
-- `hr_employee_positions`
-- `hr_emergency_contacts`
-- `hr_document_types`
-- `hr_employee_documents`
+### Tables (5)
+
+| Table                   | Purpose                                                                                                                          | Key columns                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hr_positions`          | Per-school position catalogue. Each position is a job title that can be assigned via `hr_employee_positions`.                   | `id`, `school_id`, `title`, `department_id` (soft FK to `sis_departments(id)`), `is_teaching_role BOOLEAN`, `is_active BOOLEAN`. UNIQUE(school_id, title). Partial INDEX(school_id) WHERE `is_active=true` for the position-picker hot path. Partial INDEX(department_id) WHERE NOT NULL.                                                                                                                                  |
+| `hr_employee_positions` | Time-bounded position assignments. An employee can hold multiple positions (one primary), and the history is preserved via `effective_from` / `effective_to`. | `id`, `employee_id` (FK to `hr_employees(id) ON DELETE CASCADE`), `position_id` (FK to `hr_positions(id)`), `is_primary BOOLEAN DEFAULT true`, `fte NUMERIC(4,3) DEFAULT 1.000`, `effective_from DATE NOT NULL`, `effective_to DATE`. INDEX(employee_id, effective_from DESC) for "current + history" reads; INDEX(position_id) for the inverse "who holds this position" lookup; partial UNIQUE INDEX(employee_id) WHERE `is_primary AND effective_to IS NULL` so an employee has at most one current primary position. CHECK `effective_to IS NULL OR effective_to >= effective_from`. CHECK `fte > 0 AND fte <= 1.000`. |
+| `hr_emergency_contacts` | Per-employee emergency contact list. Distinct from `sis_emergency_contacts` (which is for student emergencies).                  | `id`, `employee_id` (FK to `hr_employees ON DELETE CASCADE`), `name`, `relationship`, `phone NOT NULL`, `email`, `is_primary BOOLEAN`, `sort_order INT`. INDEX(employee_id, sort_order). Partial UNIQUE INDEX(employee_id) WHERE `is_primary=true` so each employee has at most one primary contact.                                                                                                                       |
+| `hr_document_types`     | Per-school catalogue of document categories that may be attached to an employee record.                                          | `id`, `school_id`, `name`, `description`, `is_required BOOLEAN`, `retention_days INT` (NULL = no retention policy), `is_active BOOLEAN`. UNIQUE(school_id, name). CHECK `retention_days IS NULL OR retention_days > 0`. Partial INDEX(school_id) WHERE `is_active=true`.                                                                                                                                                  |
+| `hr_employee_documents` | Per-(employee, document) attached file. The file lives in object storage; this table holds the metadata.                       | `id`, `employee_id` (FK to `hr_employees ON DELETE CASCADE`), `document_type_id` (FK to `hr_document_types`), `file_name`, `s3_key TEXT`, `content_type`, `file_size_bytes BIGINT`, `uploaded_by` (soft → `platform_users`), `uploaded_at`, `expiry_date DATE`, `is_archived BOOLEAN`. INDEX(employee_id, document_type_id). Partial INDEX(expiry_date) WHERE `expiry_date IS NOT NULL AND is_archived=false` for the certification expiry sweep. CHECK `file_size_bytes IS NULL OR file_size_bytes >= 0`. |
+
+### FKs (intra-tenant) and soft references
+
+| Constraint                                                  | Type                  | Notes                                                                                                                                                                                |
+| ----------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `hr_employee_positions.employee_id → hr_employees(id)`      | DB-enforced (CASCADE) | Both unpartitioned. Cascade because a position-history row is meaningless without its parent employee — verified live with a temp-employee delete that dropped all three child rows. |
+| `hr_employee_positions.position_id → hr_positions(id)`      | DB-enforced           | No cascade — positions persist in the catalogue even if the assignment row is removed; the assignment's `effective_to` field handles end-of-tenure.                                   |
+| `hr_emergency_contacts.employee_id → hr_employees(id)`      | DB-enforced (CASCADE) | Same rationale as `hr_employee_positions`.                                                                                                                                            |
+| `hr_employee_documents.employee_id → hr_employees(id)`      | DB-enforced (CASCADE) | Same rationale.                                                                                                                                                                       |
+| `hr_employee_documents.document_type_id → hr_document_types(id)` | DB-enforced       | No cascade — deleting a document type with active documents requires explicit migration of those documents first.                                                                  |
+| `hr_positions.department_id → sis_departments(id)`          | **Soft (informational)** | Tenant-tenant ref but **deliberately unenforced**. The SIS module predates HR, the relationship is an informational hint, and a hard FK would create awkward delete coupling between SIS and HR going forward. App-layer handles the lookup. |
+| `hr_employee_documents.uploaded_by`                          | Soft (cross-schema)   | Soft UUID ref to `platform.platform_users(id)` per ADR-055. Audit-only.                                                                                                              |
+| `hr_*.school_id`                                            | Soft (cross-schema)   | Soft UUID ref to `platform.schools(id)` per ADR-001/020.                                                                                                                              |
+
+### CHECK constraints
+
+| Constraint                              | Predicate                                                            |
+| --------------------------------------- | -------------------------------------------------------------------- |
+| `hr_employee_positions_dates_chk`       | `effective_to IS NULL OR effective_to >= effective_from`              |
+| `hr_employee_positions_fte_chk`         | `fte > 0 AND fte <= 1.000`                                            |
+| `hr_document_types_retention_chk`       | `retention_days IS NULL OR retention_days > 0`                        |
+| `hr_employee_documents_size_chk`        | `file_size_bytes IS NULL OR file_size_bytes >= 0`                     |
+| `hr_employees_employment_type_chk`      | (Step 0) `employment_type IN ('FULL_TIME','PART_TIME','CONTRACT','TEMPORARY','INTERN','VOLUNTEER')` |
+| `hr_employees_employment_status_chk`    | (Step 0) `employment_status IN ('ACTIVE','ON_LEAVE','TERMINATED','SUSPENDED')` |
+
+### Verification (recorded 2026-04-28)
+
+```bash
+pnpm --filter @campusos/database provision --subdomain=demo   # 11 migrations applied (no-op for Steps 0+1 since CREATE IF NOT EXISTS)
+pnpm --filter @campusos/database provision --subdomain=test   # same
+```
+
+Counts in `tenant_demo` after Step 1:
+
+| What                                                             | Count |
+| ---------------------------------------------------------------- | ----: |
+| Logical base tables (top-level, was 58)                          |    63 |
+| HR tables (`hr_*`)                                                |     6 |
+| Intra-tenant FKs from Step 1 tables                              |     5 |
+| Cross-schema FKs from `tenant_demo`                              |     0 |
+| `hr_employees` rows (carry-over from Step 0)                      |     4 |
+| Step 1 child-table rows (post-smoke cleanup)                     |     0 |
+
+CHECK + FK + cascade smoke (live):
+
+| Constraint / behaviour                                       | Test                                                                                                  | Outcome  |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | -------- |
+| `hr_employee_positions_dates_chk`                            | INSERT effective_from=2026-01-01, effective_to=2025-01-01                                              | ERROR ✅ |
+| `hr_employee_positions_fte_chk`                              | INSERT fte=1.5                                                                                         | ERROR ✅ |
+| `hr_document_types_retention_chk`                            | INSERT retention_days=0                                                                                | ERROR ✅ |
+| `hr_employee_documents_size_chk`                             | INSERT file_size_bytes=-1                                                                              | ERROR ✅ |
+| `hr_employee_positions_employee_id_fkey`                     | INSERT employee_id=<random uuid>                                                                       | ERROR ✅ |
+| Happy-path multi-insert across all 5 new tables linked to Rivera | 1 position + 1 emergency contact + 1 document type + 1 document — all four child counts = 1          | ✅       |
+| ON DELETE CASCADE on `hr_employees` (temp employee)          | Pre-delete 1/1/1, DELETE FROM hr_employees, post-delete 0/0/0 across positions/contacts/documents      | ✅       |
+
+### Splitter `;`-in-block-comment trap (lesson)
+
+The first re-provision after extending the migration's header block-comment failed mid-comment with `unterminated quoted string` because the block-comment text contained `` `;` `` as an example to warn future readers about the quirk. The splitter splits on every `;` regardless of quoting context, **including inside block comments**. Fix: rewrite the warning text to spell out "no semicolons" instead of using a literal `;` as an inline example. CLAUDE.md's existing warning was correct ("never put a `;` inside a string literal") — this just sharpens it: the rule applies to anywhere in the migration file, not only inside string literals.
+
+### Out-of-scope decisions for Step 1
+
+- **`hr_positions.department_id` is a soft FK, not a DB-enforced one.** Both tables live in the tenant schema, so a hard FK would technically be allowed, but the SIS module predates HR. Coupling SIS-side delete behaviour to HR (a department deletion would suddenly need to consider HR positions) creates an unwelcome cross-module dependency for downstream cycles. Soft ref + app-layer validation is cleaner.
+- **`hr_emergency_contacts` is separate from `sis_emergency_contacts`.** The plan called this out. SIS emergency contacts are for *students*; HR ones are for *employees*. Keeping the tables separate avoids a polymorphic `contact_target_type` column and lets the two modules evolve independently.
+- **No partitioning.** Every Step 1 table is unpartitioned. Volume is bounded by (employees × positions-history-depth) and (employees × emergency-contacts) — far below the partitioning threshold even at multi-school scale. If a future merger explodes employee counts past O(10⁶), partition then.
+- **`uploaded_by` on `hr_employee_documents` is a soft ref.** Per ADR-055 / ADR-001/020, audit identity columns stay loose — a deactivated user shouldn't cascade into document metadata. The lifecycle is handled by the document service, not by the database.
+- **`retention_days` is informational-only at the schema layer.** Step 6's `EmployeeDocumentService` (and a future scheduled retention sweeper) reads this column to decide which documents are eligible for purge — but the schema doesn't auto-enforce. Compliance flow is app-layer.
+- **No Prisma model entries.** Tenant tables aren't in the Prisma schema (matches the Cycle 1–3 convention); services query via `client.$queryRawUnsafe` with explicit `$N::uuid` casts. Step 6 will surface DTOs through `class-validator`.
+- **No seed yet.** Step 5 owns the rest of the HR seed (positions, emergency contacts, document types, sample documents). Step 1 is schema-only.
+- **`is_primary` constraints are partial-unique-index, not table CHECKs.** Both `hr_employee_positions` and `hr_emergency_contacts` use a `WHERE` clause on the unique index so multiple non-primary rows are allowed. PostgreSQL unique constraints (vs unique indexes) don't support `WHERE` clauses, hence the `CREATE UNIQUE INDEX … WHERE` form.
+- **CHECK strings still cannot contain `;`.** Carries forward from every prior cycle. Spot-checked all CHECK predicates and `COMMENT ON COLUMN` strings in 011 — none contain `;`. The only place a `;` appeared was in the migration's header block-comment, which the splitter also cuts.
 
 Plan reference: Step 1 of `docs/campusos-cycle4-implementation-plan.html`.
 
