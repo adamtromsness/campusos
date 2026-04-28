@@ -210,21 +210,36 @@ export class RoomChangeRequestService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can approve room change requests');
     }
-    var existing = await this.getById(id, actor);
-    if (existing.status !== 'PENDING') {
-      throw new BadRequestException(
-        'Request is in status ' + existing.status + '; only PENDING requests can be approved',
+    // REVIEW-CYCLE5 BLOCKING 2: read status under FOR UPDATE inside the
+    // same tx that runs the UPDATE so two concurrent admins cannot both
+    // pass the PENDING check. The UPDATE WHERE clause also re-asserts
+    // status='PENDING' as belt-and-braces.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      var lockedRows = await tx.$queryRawUnsafe<
+        Array<{ status: string; requested_room_id: string | null }>
+      >(
+        'SELECT status, requested_room_id::text AS requested_room_id ' +
+          'FROM sch_room_change_requests WHERE id = $1::uuid FOR UPDATE',
+        id,
       );
-    }
-    var finalRoomId = body.approvedRoomId ?? existing.requestedRoomId;
-    if (!finalRoomId) {
-      throw new BadRequestException(
-        'approvedRoomId is required when the original request did not specify a room',
-      );
-    }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        "UPDATE sch_room_change_requests SET status = 'APPROVED', reviewed_at = now(), reviewed_by = $1::uuid, review_notes = $2, requested_room_id = $3::uuid, updated_at = now() WHERE id = $4::uuid",
+      if (lockedRows.length === 0) {
+        throw new NotFoundException('Room change request ' + id + ' not found');
+      }
+      var locked = lockedRows[0]!;
+      if (locked.status !== 'PENDING') {
+        throw new BadRequestException(
+          'Request is in status ' + locked.status + '; only PENDING requests can be approved',
+        );
+      }
+      var finalRoomId = body.approvedRoomId ?? locked.requested_room_id;
+      if (!finalRoomId) {
+        throw new BadRequestException(
+          'approvedRoomId is required when the original request did not specify a room',
+        );
+      }
+      await tx.$executeRawUnsafe(
+        "UPDATE sch_room_change_requests SET status = 'APPROVED', reviewed_at = now(), reviewed_by = $1::uuid, review_notes = $2, requested_room_id = $3::uuid, updated_at = now() " +
+          "WHERE id = $4::uuid AND status = 'PENDING'",
         actor.accountId,
         body.reviewNotes ?? null,
         finalRoomId,
@@ -242,15 +257,25 @@ export class RoomChangeRequestService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can reject room change requests');
     }
-    var existing = await this.getById(id, actor);
-    if (existing.status !== 'PENDING') {
-      throw new BadRequestException(
-        'Request is in status ' + existing.status + '; only PENDING requests can be rejected',
+    // REVIEW-CYCLE5 BLOCKING 2: same pattern as approve() — locked read +
+    // status validation + status-conditional UPDATE all in one tx.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      var lockedRows = await tx.$queryRawUnsafe<Array<{ status: string }>>(
+        'SELECT status FROM sch_room_change_requests WHERE id = $1::uuid FOR UPDATE',
+        id,
       );
-    }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        "UPDATE sch_room_change_requests SET status = 'REJECTED', reviewed_at = now(), reviewed_by = $1::uuid, review_notes = $2, updated_at = now() WHERE id = $3::uuid",
+      if (lockedRows.length === 0) {
+        throw new NotFoundException('Room change request ' + id + ' not found');
+      }
+      var locked = lockedRows[0]!;
+      if (locked.status !== 'PENDING') {
+        throw new BadRequestException(
+          'Request is in status ' + locked.status + '; only PENDING requests can be rejected',
+        );
+      }
+      await tx.$executeRawUnsafe(
+        "UPDATE sch_room_change_requests SET status = 'REJECTED', reviewed_at = now(), reviewed_by = $1::uuid, review_notes = $2, updated_at = now() " +
+          "WHERE id = $3::uuid AND status = 'PENDING'",
         actor.accountId,
         body.reviewNotes ?? null,
         id,

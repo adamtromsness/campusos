@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { generateId } from '@campusos/database';
+import { generateId, PrismaClient } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
@@ -139,11 +139,19 @@ export class RoomBookingService {
       }
     }
 
-    await this.assertNoConflicts(body.roomId, body.startAt, body.endAt, null);
-
     var bookingId = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    // REVIEW-CYCLE5 BLOCKING 1: serialise concurrent inserts on the same
+    // room. The conflict check + INSERT run inside one transaction, with a
+    // per-room advisory lock at the top so two simultaneous bookings on the
+    // same room cannot both pass the check. The lock auto-releases at
+    // commit/rollback. Hash the roomId text to a 64-bit lock key.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        'SELECT pg_advisory_xact_lock(hashtext($1))',
+        'sch_room_bookings:' + body.roomId,
+      );
+      await this.assertNoConflictsInTx(tx, body.roomId, body.startAt, body.endAt, null);
+      await tx.$executeRawUnsafe(
         'INSERT INTO sch_room_bookings (id, school_id, room_id, booked_by, booking_purpose, start_at, end_at, status) ' +
           "VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::timestamptz, $7::timestamptz, 'CONFIRMED')",
         bookingId,
@@ -182,66 +190,59 @@ export class RoomBookingService {
 
   /**
    * Reject a request if the room is already taken in the requested window.
-   * Two conflict sources: existing CONFIRMED bookings whose time range
-   * overlaps; and active timetable slots whose period start/end on the
-   * matching weekday overlaps the booking window.
+   * Runs inside the supplied transaction client so the conflict check
+   * shares the lock + isolation of the surrounding `create` tx (REVIEW-CYCLE5
+   * BLOCKING 1). Two conflict sources: existing CONFIRMED bookings whose
+   * time range overlaps; and active timetable slots whose period start/end
+   * on the matching weekday overlaps the booking window.
    */
-  private async assertNoConflicts(
+  private async assertNoConflictsInTx(
+    tx: PrismaClient,
     roomId: string,
     startAt: string,
     endAt: string,
     excludeBookingId: string | null,
   ): Promise<void> {
-    var conflicts = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      var bookingHits = await client.$queryRawUnsafe<Array<{ id: string }>>(
-        "SELECT id FROM sch_room_bookings WHERE status = 'CONFIRMED' AND room_id = $1::uuid " +
-          'AND start_at < $3::timestamptz AND end_at > $2::timestamptz ' +
-          'AND ($4::uuid IS NULL OR id <> $4::uuid) ' +
-          'LIMIT 1',
-        roomId,
-        startAt,
-        endAt,
-        excludeBookingId,
-      );
-      if (bookingHits.length > 0) {
-        return { kind: 'booking', id: bookingHits[0]!.id };
-      }
-      // Day-overlap check: a timetable slot whose period clock-time on the
-      // booking's weekday overlaps the booking window. The slot's date range
-      // must also cover the booking's date.
-      var slotHits = await client.$queryRawUnsafe<
-        Array<{ section_code: string; period_name: string }>
-      >(
-        'SELECT c.section_code, p.name AS period_name ' +
-          'FROM sch_timetable_slots s ' +
-          'JOIN sch_periods p ON p.id = s.period_id ' +
-          'JOIN sis_classes c ON c.id = s.class_id ' +
-          'WHERE s.room_id = $1::uuid ' +
-          'AND s.effective_from <= $3::date ' +
-          'AND (s.effective_to IS NULL OR s.effective_to >= $2::date) ' +
-          'AND (p.day_of_week IS NULL OR p.day_of_week = ((EXTRACT(ISODOW FROM $2::timestamptz) - 1)::int)) ' +
-          'AND (($2::timestamptz)::time < p.end_time AND ($3::timestamptz)::time > p.start_time) ' +
-          'LIMIT 1',
-        roomId,
-        startAt,
-        endAt,
-      );
-      if (slotHits.length > 0) {
-        return {
-          kind: 'slot',
-          label: slotHits[0]!.section_code + ' / ' + slotHits[0]!.period_name,
-        };
-      }
-      return null;
-    });
-    if (!conflicts) return;
-    if (conflicts.kind === 'booking') {
+    var bookingHits = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+      "SELECT id FROM sch_room_bookings WHERE status = 'CONFIRMED' AND room_id = $1::uuid " +
+        'AND start_at < $3::timestamptz AND end_at > $2::timestamptz ' +
+        'AND ($4::uuid IS NULL OR id <> $4::uuid) ' +
+        'LIMIT 1',
+      roomId,
+      startAt,
+      endAt,
+      excludeBookingId,
+    );
+    if (bookingHits.length > 0) {
       throw new ConflictException(
-        'Room is already booked for an overlapping window (booking ' + conflicts.id + ')',
+        'Room is already booked for an overlapping window (booking ' + bookingHits[0]!.id + ')',
       );
     }
-    throw new ConflictException(
-      'Room is in use by the timetable during the requested window: ' + conflicts.label,
+    // Day-overlap check: a timetable slot whose period clock-time on the
+    // booking's weekday overlaps the booking window. The slot's date range
+    // must also cover the booking's date.
+    var slotHits = await tx.$queryRawUnsafe<Array<{ section_code: string; period_name: string }>>(
+      'SELECT c.section_code, p.name AS period_name ' +
+        'FROM sch_timetable_slots s ' +
+        'JOIN sch_periods p ON p.id = s.period_id ' +
+        'JOIN sis_classes c ON c.id = s.class_id ' +
+        'WHERE s.room_id = $1::uuid ' +
+        'AND s.effective_from <= $3::date ' +
+        'AND (s.effective_to IS NULL OR s.effective_to >= $2::date) ' +
+        'AND (p.day_of_week IS NULL OR p.day_of_week = ((EXTRACT(ISODOW FROM $2::timestamptz) - 1)::int)) ' +
+        'AND (($2::timestamptz)::time < p.end_time AND ($3::timestamptz)::time > p.start_time) ' +
+        'LIMIT 1',
+      roomId,
+      startAt,
+      endAt,
     );
+    if (slotHits.length > 0) {
+      throw new ConflictException(
+        'Room is in use by the timetable during the requested window: ' +
+          slotHits[0]!.section_code +
+          ' / ' +
+          slotHits[0]!.period_name,
+      );
+    }
   }
 }

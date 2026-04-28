@@ -68,32 +68,49 @@ export class DayOverrideService {
       throw new ForbiddenException('Only admins can create day overrides');
     }
     var schoolId = getCurrentTenant().schoolId;
-    var existing = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<Array<{ id: string }>>(
-        'SELECT id FROM sch_calendar_day_overrides WHERE school_id = $1::uuid AND override_date = $2::date',
-        schoolId,
-        body.overrideDate,
-      );
-    });
-    if (existing.length > 0) {
-      throw new ConflictException(
-        'A day override already exists for ' + body.overrideDate + ' — DELETE it first',
-      );
-    }
     var overrideId = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        'INSERT INTO sch_calendar_day_overrides (id, school_id, override_date, bell_schedule_id, is_school_day, reason, created_by) ' +
-          'VALUES ($1::uuid, $2::uuid, $3::date, $4::uuid, $5, $6, $7::uuid)',
-        overrideId,
-        schoolId,
-        body.overrideDate,
-        body.bellScheduleId ?? null,
-        body.isSchoolDay !== false,
-        body.reason ?? null,
-        actor.accountId,
-      );
-    });
+    // REVIEW-CYCLE5 MAJOR 3: pre-check + INSERT in one tx so a concurrent
+    // create can't slip past the pre-check. The schema's UNIQUE(school_id,
+    // override_date) is the authoritative gate; on a 23505 race we still
+    // surface the friendly 409 instead of leaking the raw DB error.
+    try {
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        var existing = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          'SELECT id FROM sch_calendar_day_overrides WHERE school_id = $1::uuid AND override_date = $2::date',
+          schoolId,
+          body.overrideDate,
+        );
+        if (existing.length > 0) {
+          throw new ConflictException(
+            'A day override already exists for ' + body.overrideDate + ' — DELETE it first',
+          );
+        }
+        await tx.$executeRawUnsafe(
+          'INSERT INTO sch_calendar_day_overrides (id, school_id, override_date, bell_schedule_id, is_school_day, reason, created_by) ' +
+            'VALUES ($1::uuid, $2::uuid, $3::date, $4::uuid, $5, $6, $7::uuid)',
+          overrideId,
+          schoolId,
+          body.overrideDate,
+          body.bellScheduleId ?? null,
+          body.isSchoolDay !== false,
+          body.reason ?? null,
+          actor.accountId,
+        );
+      });
+    } catch (e: any) {
+      if (e instanceof ConflictException) throw e;
+      // Postgres UNIQUE violation = SQLSTATE 23505. Prisma surfaces it as
+      // a meta.code='P2002' on raw queries; the underlying driver also
+      // exposes the SQLSTATE on the message. Translate either shape.
+      var sqlState = e?.meta?.code === 'P2002' ? '23505' : (e?.code ?? e?.meta?.code ?? '');
+      var msg: string = e?.message ?? '';
+      if (sqlState === '23505' || msg.includes('23505')) {
+        throw new ConflictException(
+          'A day override already exists for ' + body.overrideDate + ' — DELETE it first',
+        );
+      }
+      throw e;
+    }
     return this.getByDate(body.overrideDate);
   }
 

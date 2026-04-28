@@ -10,6 +10,16 @@ on:
   pull_request:
     branches: [dev, sit, main]
 
+# Principle of least privilege per CodeQL `actions/missing-workflow-permissions`.
+# CI only reads source, runs the build pipeline, and (for the dev-branch docker-build
+# job) builds an image locally — none of that needs write access to repo contents,
+# issues, PRs, packages, or other GitHub-side state. The ECR push hooks below the
+# docker-build job are still commented out; if that path is enabled later, raise the
+# specific job's permissions inline (`permissions: { id-token: write, contents: read }`)
+# rather than widening the workflow default.
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: '22'
   DATABASE_URL: postgresql://campusos:campusos_dev@localhost:5432/campusos_dev?schema=platform
