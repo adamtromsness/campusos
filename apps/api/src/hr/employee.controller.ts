@@ -16,6 +16,8 @@ import { RequirePermission } from '../auth/require-permission.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
 import { EmployeeService } from './employee.service';
 import { EmployeeDocumentService } from './employee-document.service';
+import { CertificationService } from './certification.service';
+import { TrainingComplianceService } from './training-compliance.service';
 import {
   CreateEmployeeDto,
   EmployeeResponseDto,
@@ -26,6 +28,11 @@ import {
   CreateEmployeeDocumentDto,
   EmployeeDocumentResponseDto,
 } from './dto/employee-document.dto';
+import {
+  CertificationResponseDto,
+  CreateCertificationDto,
+} from './dto/certification.dto';
+import { EmployeeComplianceDto } from './dto/compliance.dto';
 
 interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };
@@ -38,6 +45,8 @@ export class EmployeeController {
   constructor(
     private readonly employees: EmployeeService,
     private readonly documents: EmployeeDocumentService,
+    private readonly certifications: CertificationService,
+    private readonly compliance: TrainingComplianceService,
     private readonly actors: ActorContextService,
   ) {}
 
@@ -123,5 +132,39 @@ export class EmployeeController {
   ): Promise<{ archived: boolean }> {
     var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     return this.documents.archive(id, docId, actor);
+  }
+
+  @Get(':id/certifications')
+  @RequirePermission('hr-004:read')
+  @ApiOperation({ summary: "List an employee's certifications (own or admin only)" })
+  async listCertifications(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<CertificationResponseDto[]> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.certifications.listForEmployee(id, actor);
+  }
+
+  @Post(':id/certifications')
+  @RequirePermission('hr-004:write')
+  @ApiOperation({ summary: 'Record a new certification for an employee (own or admin only)' })
+  async createCertification(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: CreateCertificationDto,
+    @Req() req: AuthedRequest,
+  ): Promise<CertificationResponseDto> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.certifications.create(id, body, actor);
+  }
+
+  @Get(':id/compliance')
+  @RequirePermission('hr-004:read')
+  @ApiOperation({ summary: "Per-employee training compliance breakdown (own or admin only)" })
+  async getCompliance(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<EmployeeComplianceDto> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.compliance.getForEmployee(id, actor);
   }
 }

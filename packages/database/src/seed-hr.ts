@@ -381,9 +381,16 @@ async function seedLeave(
   function balanceFor(employee: EmployeeRow, typeName: string): BalanceState {
     if (typeName === 'Unpaid Leave') return { accrued: 0, used: 0, pending: 0 };
     var spec = leaveTypes.filter(function (l) { return l.name === typeName; })[0]!;
+    // Rivera's running totals must agree with the seeded leave request rows
+    // (one APPROVED Sick request for 2 days, one PENDING PD request for 1 day).
+    // The non-negative balance CHECKs from migration 012 fail loudly if a
+    // cancel underflows, so getting these in sync is essential for the
+    // approval-flow smoke + the CAT.
     if (employee.account_email === 'teacher@demo.campusos.dev') {
       if (typeName === 'Sick Leave') return { accrued: spec.accrualRate, used: 2.0, pending: 0.0 };
-      if (typeName === 'Personal Leave') return { accrued: spec.accrualRate, used: 1.0, pending: 1.0 };
+      if (typeName === 'Professional Development') {
+        return { accrued: spec.accrualRate, used: 0.0, pending: 1.0 };
+      }
     }
     return { accrued: spec.accrualRate, used: 0, pending: 0 };
   }

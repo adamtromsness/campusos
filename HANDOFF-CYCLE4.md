@@ -20,7 +20,7 @@ This document tracks the Cycle 4 build — the M80 HR/Workforce module (core sub
 |    4 | HR Schema — Onboarding                                  | **Done** — `014_hr_onboarding.sql` lands 3 base tables (`hr_onboarding_templates` UNIQUE(school_id, name) with optional position_id; `hr_onboarding_checklists` UNIQUE(employee_id, template_id) with multi-column CHECK enforcing status / started_at / completed_at sync; `hr_onboarding_tasks` 5 categories × 4 statuses with multi-column CHECK on completed_at sync). 3 intra-tenant FKs (1 to hr_employees CASCADE, 1 to checklists CASCADE), 0 cross-schema FKs. Tenant base table count: 74 (was 71). Live verification on `tenant_demo`: 8 CHECKs fire (status enums, started_chk lifecycle, category, due_days, completed_chk lifecycle), happy-path template + checklist + 3 tasks, UNIQUE(employee_id, template_id) rejects duplicate, ON DELETE CASCADE drops all 3 tasks when checklist is removed. |
 |    5 | Seed Data — Employees, Leave, Certifications            | **Done** — `seed-hr.ts` extended with 7 idempotent layers (positions, leave types/balances/requests, certifications, training requirements + compliance, document types, onboarding). Counts in `tenant_demo` after the run: 4 employees, 5 positions + 4 assignments, 5 leave types + 20 balances + 2 leave requests, 4 certifications (Rivera Teaching Licence dynamically expires 60 days from today — drives CAT amber row), 4 training requirements + 4 compliance rows, 4 document types, 1 onboarding template + 1 checklist + 8 tasks. `seed-iam.ts` adds HR-001:read + HR-003:read+write + HR-004:read to Teacher/Staff and assigns Staff role to vp@ + counsellor@. After `build-cache.ts`: 7 account-scope pairs cached. |
 |    6 | HR NestJS Module — Employee Records & Directory         | **Done** — `apps/api/src/hr/` lands EmployeeService + PositionService + EmployeeDocumentService + 12 endpoints (`GET /employees`, `GET /employees/me`, `GET /employees/:id`, `POST /employees`, `PATCH /employees/:id`, `GET /employees/:id/documents`, `POST /employees/:id/documents`, `DELETE /employees/:id/documents/:docId`, `GET /positions`, `GET /positions/:id`, `POST /positions`, `PATCH /positions/:id`). `actor.employeeId` already populated by Cycle 4 Step 0's `ActorContextService` extension. Row-scope guard on documents (own profile OR admin only). HrModule wired into AppModule between ClassroomModule and NotificationsModule. Build clean, all routes mapped on boot, 12-scenario live smoke against `tenant_demo` confirms staff directory list, /me self-resolution, parent/student permission denials, counsellor 403 on Rivera's documents, teacher 403 on `hr-001:admin`, admin POST/PATCH round-trip on positions, admin POST /employees reaches the validators. |
-|    7 | HR NestJS Module — Leave & Certifications               | Not started — LeaveService + CertificationService + TrainingComplianceService + LeaveNotificationConsumer (Kafka consumer on `hr.leave.approved` → resolves affected classes via `sis_class_teachers` and emits `hr.leave.coverage_needed` for Cycle 5 Scheduling). ~12 endpoints under `hr-003:*` / `hr-004:*` + 5 Kafka events.                |
+|    7 | HR NestJS Module — Leave & Certifications               | **Done** — LeaveService + CertificationService + TrainingComplianceService + LeaveNotificationConsumer + 11 endpoints. Kafka emits: hr.leave.{requested,approved,rejected,cancelled}, hr.certification.verified. The consumer subscribes to all 4 leave topics, notifies admins on requested + submitter on approved/rejected, and republishes hr.leave.coverage_needed with affected class ids on approve. Build clean, 22-scenario live smoke against `tenant_demo` confirms full lifecycle + balance updates + cross-persona row-scope. Caught and fixed a Step 5 seed bug where Rivera's PD balance pending was inconsistent with the seeded PENDING request. |
 |    8 | Staff Directory & Employee Profile UI                   | Not started — `/staff` directory + `/staff/:id` tabbed profile (Info / Certifications / Leave / Documents) + `/staff/me` shortcut. New "Staff" launchpad tile under `hr-001:read`.                                                                                                                                                              |
 |    9 | Leave Management & Compliance Dashboard UI              | Not started — `/leave/new` request form, `/leave` employee history, `/leave/approvals` admin queue, `/compliance` admin dashboard. New "Leave" tile (all staff) and "Compliance" tile (admin-only).                                                                                                                                            |
 |   10 | Vertical Slice Integration Test                         | Not started — `docs/cycle4-cat-script.md` will land the reproducible end-to-end walkthrough: create employee → submit leave → approve → balance update → coverage event → compliance dashboard amber row.                                                                                                                                       |
@@ -856,9 +856,139 @@ Plan reference: Step 6 of `docs/campusos-cycle4-implementation-plan.html`.
 
 ## Step 7 — HR NestJS Module — Leave & Certifications
 
-_Not started._ LeaveService + CertificationService + TrainingComplianceService + LeaveNotificationConsumer. ~12 endpoints under `hr-003:*` and `hr-004:*` plus 5 Kafka events.
+**Done.** Lands the leave / cert / compliance request-path services + the first HR Kafka consumer. Build clean, all 11 new routes mapped, 22-scenario live smoke against `tenant_demo` passes end-to-end. The Step 6 `HrModule` is extended in place — Step 7 adds three new services, two new controllers, three new DTO files, and one Kafka consumer.
 
-Kafka events: `hr.leave.requested`, `hr.leave.approved`, `hr.leave.rejected`, `hr.leave.cancelled`, `hr.certification.expiring`. The `LeaveNotificationConsumer` listens on `hr.leave.approved`, resolves affected classes via `sis_class_teachers` for the leave date range, and emits `hr.leave.coverage_needed` (consumed by Cycle 5 Scheduling). Notifications flow through the Cycle 3 `NotificationQueueService`.
+### Files added
+
+```
+apps/api/src/hr/
+├── leave.service.ts                — submit / list / get / approve / reject / cancel (4 Kafka emits)
+├── certification.service.ts         — list / get / create / verify / listExpiringSoon (1 Kafka emit)
+├── training-compliance.service.ts   — getForEmployee / getDashboard
+├── leave-notification.consumer.ts   — group leave-notification-consumer
+├── leave.controller.ts              — 7 endpoints (/leave-types, /leave/me/balances, /leave-requests*)
+├── certifications.controller.ts     — 3 endpoints (/certifications/{:id, :id/verify, expiring-soon})
+├── compliance.controller.ts         — 1 endpoint (/compliance/dashboard, admin)
+└── dto/
+    ├── leave.dto.ts                 — LeaveType / LeaveBalance / LeaveRequest DTOs + Submit/Review queries
+    ├── certification.dto.ts         — Cert response + create + verify DTOs (10 cert types + 4 statuses)
+    └── compliance.dto.ts            — ComplianceRow + EmployeeCompliance + ComplianceDashboard
+```
+
+The existing `EmployeeController` was extended with three more endpoints — `GET /employees/:id/certifications`, `POST /employees/:id/certifications`, `GET /employees/:id/compliance` — so the per-employee surface stays under one controller. The verify endpoint lives on the standalone `CertificationsController` because it operates by cert id, not employee id.
+
+### Endpoints (11 new — total HR endpoint count: 23)
+
+| Method | Path                                       | Permission       | Notes                                                                                           |
+| ------ | ------------------------------------------ | ---------------- | ----------------------------------------------------------------------------------------------- |
+| GET    | `/leave-types`                              | `hr-003:read`    | Active leave types in the tenant.                                                                |
+| GET    | `/leave/me/balances`                        | `hr-003:read`    | Per-leave-type balance for the calling employee. Returns zeros for types with no balance row.    |
+| GET    | `/leave-requests`                           | `hr-003:read`    | Own history for non-admins; admin queue with `?status=` and `?employeeId=` filters.              |
+| GET    | `/leave-requests/:id`                       | `hr-003:read`    | Own or admin only — non-admins get a 404 for someone else's request.                              |
+| POST   | `/leave-requests`                           | `hr-003:write`   | Submit. Bumps `pending` and emits `hr.leave.requested`. Half-day support via `daysRequested>=0.5`. |
+| PATCH  | `/leave-requests/:id/approve`               | `hr-003:write`   | Admin-only. Decrements `pending`, increments `used`. Emits `hr.leave.approved`.                  |
+| PATCH  | `/leave-requests/:id/reject`                | `hr-003:write`   | Admin-only. Decrements `pending`. Emits `hr.leave.rejected`.                                     |
+| PATCH  | `/leave-requests/:id/cancel`                | `hr-003:write`   | Owner or admin. Decrements `pending` (PENDING) or `used` (APPROVED). Emits `hr.leave.cancelled`. |
+| GET    | `/employees/:id/certifications`             | `hr-004:read`    | Own or admin. Returns `daysUntilExpiry` per row computed from today.                             |
+| POST   | `/employees/:id/certifications`             | `hr-004:write`   | Admin-only at the gate — `hr-004:write` is admin-only per Step 5's seeded role-perm matrix.      |
+| GET    | `/employees/:id/compliance`                 | `hr-004:read`    | Own or admin per-employee breakdown with derived `urgency` per row.                              |
+| GET    | `/certifications/expiring-soon`             | `hr-004:read`    | Active certs expiring within 90 days (or already overdue) — admin sweep from the partial index.  |
+| GET    | `/certifications/:id`                       | `hr-004:read`    | Single cert read; row-scoped to own-or-admin.                                                    |
+| PATCH  | `/certifications/:id/verify`                | `hr-004:write`   | Admin-only. Sets `verification_status` to VERIFIED / REVOKED / EXPIRED. Emits `hr.certification.verified`. |
+| GET    | `/compliance/dashboard`                     | `hr-004:read`    | Admin-only at the service layer. Returns every ACTIVE employee even if they have zero compliance rows. |
+
+### Kafka emits (5 new topics — sourceModule:'hr')
+
+| Topic                          | Producer site                          | When                                                                                  |
+| ------------------------------ | -------------------------------------- | ------------------------------------------------------------------------------------- |
+| `hr.leave.requested`           | `LeaveService.submit`                  | Employee submits a request.                                                           |
+| `hr.leave.approved`            | `LeaveService.approve`                 | Admin approves. Triggers the `hr.leave.coverage_needed` republish in the consumer.    |
+| `hr.leave.rejected`            | `LeaveService.reject`                  | Admin rejects.                                                                        |
+| `hr.leave.cancelled`           | `LeaveService.cancel`                  | Owner or admin cancels. Owner-cancel is the no-notification branch in the consumer.   |
+| `hr.certification.verified`    | `CertificationService.verify`          | Admin sets verification_status (VERIFIED / REVOKED / EXPIRED).                        |
+| `hr.leave.coverage_needed`     | `LeaveNotificationConsumer` (republish) | When `hr.leave.approved` is consumed and the leaving employee has any class assignments. Cycle 5 Scheduling consumes this. |
+
+### LeaveNotificationConsumer
+
+`leave-notification.consumer.ts` reuses the Cycle 3 `unwrapEnvelope` + `processWithIdempotency` pattern. Subscribes to all 4 leave topics under group `leave-notification-consumer`. Handler dispatches by topic verb:
+
+- `requested` → `notifyAdmins` resolves every account with `sch-001:admin` via `iam_effective_access_cache` joined to `iam_scope`/`iam_scope_type` (school + platform scope chain), enqueues `leave.requested` IN_APP per admin.
+- `approved` → `notifySubmitter` enqueues `leave.approved` for the original submitter (via `payload.accountId`); then `emitCoverageNeeded` queries `sis_class_teachers` for every class the leaving employee is assigned to and republishes `hr.leave.coverage_needed` with `{requestId, employeeId, startDate, endDate, affectedClasses[]}` (each entry has classId / sectionCode / courseName for the Cycle 5 consumer).
+- `rejected` → `notifySubmitter` enqueues `leave.rejected`.
+- `cancelled` → no-op (the owner cancelled their own request — no notification needed); claim-after-success still fires so a redelivery is a no-op.
+
+The consumer relies on `NotificationQueueService.enqueue()`'s default-IN_APP-when-no-preferences-row behaviour, so the new `leave.requested` / `leave.approved` / `leave.rejected` notification types deliver without any seed updates to `msg_notification_preferences`.
+
+### Authorisation contract
+
+| Persona              | List / read leave types | Submit own leave | Approve / reject leave | Cancel own | Cancel any | Read own certs | Verify cert | Read compliance dashboard |
+| -------------------- | ----------------------- | ---------------- | ---------------------- | ---------- | ---------- | -------------- | ----------- | ------------------------- |
+| Platform Admin       | yes                     | n/a (no employee row) | yes              | n/a        | yes        | yes            | yes         | yes                       |
+| School Admin         | yes                     | yes              | yes                    | yes        | yes        | yes            | yes         | yes                       |
+| Teacher              | yes                     | yes              | 403                    | yes (own)  | 403        | yes (own)      | 403         | 403                       |
+| Staff (VP / Counsellor / Admin Asst) | yes        | yes              | 403                    | yes (own)  | 403        | yes (own)      | 403         | 403                       |
+| Parent / Student     | 403                     | 403              | 403                    | 403        | 403        | 403            | 403         | 403                       |
+
+`hr-004:write` is intentionally admin-only per the Step 5 seed. Employees can read their own certifications but cannot create / verify them through the API — admins do. This matches the plan's read/write split.
+
+### Verification (recorded 2026-04-28)
+
+```bash
+pnpm --filter @campusos/api build           # nest build → exits 0
+docker exec campusos-kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 --create --if-not-exists \
+  --topic dev.hr.leave.{requested,approved,rejected,cancelled,coverage_needed} \
+  --partitions 3 --replication-factor 1   # avoid the dev topic-auto-create race
+pnpm --filter @campusos/api start:prod      # 11 new HR routes mapped + leave-notification-consumer subscribed
+```
+
+22-scenario live smoke against `tenant_demo`:
+
+| #   | Scenario                                                                                  | Outcome  |
+| --- | ----------------------------------------------------------------------------------------- | -------- |
+| 1   | teacher@ `GET /leave-types`                                                                | 5 types listed (Sick, Personal, Bereavement, PD, Unpaid) ✅ |
+| 2   | teacher@ `GET /leave/me/balances`                                                          | 5 rows; Sick `used=2`, PD `pending=1` post-fix ✅ |
+| 3   | teacher@ `GET /leave-requests`                                                             | 2 own rows (1 APPROVED Sick, 1 PENDING PD) ✅ |
+| 4   | principal@ `GET /leave-requests?status=PENDING`                                            | 1 row — Rivera PD ✅ |
+| 5   | parent@ `GET /leave-types`                                                                 | 403 INSUFFICIENT_PERMISSIONS ✅ |
+| 6   | teacher@ submits a 1.5-day Sick request                                                    | 201; status=PENDING; days=1.5 ✅ |
+| 7   | teacher@ balances after submit                                                             | Sick `pending=1.5` ✅ |
+| 8   | principal@ approves                                                                        | status=APPROVED; reviewedBy + reviewedAt set ✅ |
+| 9   | teacher@ balances after approve                                                            | Sick `used=3.5 pending=0` ✅ |
+| 10  | `dev.hr.leave.coverage_needed` published                                                   | envelope shows 6 affected classes (Algebra 1 → Chemistry) ✅ |
+| 11  | `msg_notification_queue` after approve                                                     | 3 rows SENT — 2 `leave.requested` to admins, 1 `leave.approved` to Rivera ✅ |
+| 12  | teacher@ `GET /employees/:rivera/certifications`                                           | 3 VERIFIED certs sorted by expiry, Teaching Licence at `daysUntilExpiry=60` ✅ |
+| 13  | teacher@ `GET /employees/:rivera/compliance`                                               | 3 reqs: Safeguarding green, First Aid green, Teaching Licence Renewal amber ✅ |
+| 14  | principal@ `GET /compliance/dashboard`                                                     | totalEmployees=4, employeesWithGaps=2 (Mitchell red, Rivera amber) ✅ |
+| 15  | parent@ `GET /employees/:rivera/certifications`                                            | 403 at the gate (`hr-004:read` required) ✅ |
+| 16  | teacher@ `GET /compliance/dashboard`                                                       | 403 service-layer admin check ✅ |
+| 17  | principal@ `GET /certifications/expiring-soon`                                             | 1 row — Teaching Licence at `days=60` ✅ |
+| 18  | teacher@ cancels seeded PENDING PD request                                                 | status=CANCELLED; cancelledAt set ✅ |
+| 19  | teacher@ balances after cancel                                                             | PD `pending=0` ✅ |
+| 20  | principal@ creates a new cert for Rivera                                                   | 201; status=PENDING by default ✅ |
+| 21  | principal@ verifies the new cert                                                           | status=VERIFIED; verifiedBy + verifiedAt set ✅ |
+| 22  | teacher@ tries to verify (admin-only)                                                      | 403 INSUFFICIENT_PERMISSIONS ✅ |
+
+### Bug caught and fixed by the smoke
+
+Step 5's `seed-hr.ts` seeded Rivera's Professional Development `hr_leave_balances.pending=0` while *also* seeding a PENDING PD request for `days_requested=1.0`. The two were inconsistent. When the cancel smoke (scenario 18) tried to subtract 1 from `pending=0`, the migration-012 `pending_chk >= 0` correctly fired and rejected the underflow with a clean SQLSTATE 23514 — exactly the contract documented in Step 2's "Approval flow at the schema layer" note ("if Step 7's update would underflow `pending` or `used`, the UPDATE fails loudly rather than silently corrupting the running totals").
+
+The CHECK is doing its job; the seed was wrong. **Fix landed in Step 7's commit:** `seed-hr.ts::balanceFor` now sets Rivera's PD balance to `{ accrued: spec.accrualRate, used: 0, pending: 1.0 }` to match the seeded PENDING request. The same seed edit reset Rivera's Personal Leave to `used=0 pending=0` since no Personal request was ever seeded — those non-zeros were stale. The live demo tenant was patched in-place via SQL UPDATE so the smoke could complete in this session; on a fresh provision, `seed:hr` produces the correct shape from the start.
+
+### Dev-cluster topic auto-creation race (carried over from Cycle 3)
+
+The `leave-notification-consumer` hits the same KafkaJS "this server does not host this topic-partition" error that Cycle 3's `audience-fan-out-worker` hits on a fresh dev broker — the consumer subscribes before any producer has emitted to the topic, so the broker has no metadata for it yet. The fix (per the Cycle 3 handoff) is to pre-create the dev topics once with `kafka-topics.sh --create`. Step 7 ships 6 new wire topics (`dev.hr.leave.{requested,approved,rejected,cancelled,coverage_needed}` + `dev.hr.certification.verified`); pre-create them on a fresh dev cluster and the consumer subscribes cleanly. In production this race doesn't apply because topic auto-creation is centrally managed.
+
+### Out-of-scope decisions for Step 7
+
+- **No HR-004:write for non-admins.** Per the Step 5 seed-iam matrix, only admins hold `hr-004:write`. Employees can *read* their own certifications but cannot create / verify them via the API. Recording a new cert in the Step 9 UI flow goes through the admin (or, in a future iteration, a sub-cycle that grants `hr-004:write` to Teacher/Staff with a tighter row-scope guard). The plan documented this split.
+- **No `hr.certification.expiring` alert emit.** The plan calls for 90 / 30 / 7-day pre-expiry reminders. Step 7 lands the partial-index-backed read (`/certifications/expiring-soon`) and the `hr.certification.verified` emit, but the scheduled job that fires `hr.certification.expiring` per row at the right thresholds is reserved for a future ops follow-up alongside the day-end accrual job. The query is in place; the cron driver is not.
+- **No `hr.leave.coverage_needed` notification side-effect.** The plan expects Cycle 5 Scheduling to consume the topic. Step 7 publishes the event with full payload (affected classes inline) but does not enqueue any notifications for it. When Cycle 5 lands its consumer, it will produce `sched.coverage_assigned` (or similar) and feed back into `NotificationQueueService` for the substitute-teacher acknowledgement.
+- **No leave-balance accrual job.** Year-start accrual (`hr_leave_balances.accrued += hr_leave_types.accrual_rate` for every (employee, type) pair) is reserved for a future scheduled task. The seed sets balances explicitly; the request path's `upsertBalance` helper materialises a balance row from the type's `accrual_rate` if one doesn't exist when an employee submits.
+- **`hr_cpd_requirements` and `hr_work_authorisation` have no API surface yet.** Both schemas exist; Step 6/7 didn't surface either. They remain reserved for a later iteration alongside the Phase-2 work-authorisation reverification flow.
+- **No notification preferences seed for `leave.*` types.** `NotificationQueueService.enqueue()` defaults to IN_APP when no preference row exists (Step 5 of Cycle 3), so the new types deliver out of the box. Adding explicit preference rows is reserved for the user-prefs UI.
+- **Custom errors come from Prisma codes, not domain logic.** The cancel-underflow case bubbles up as a 500 with a Prisma `23514` constraint-violation error. The user-facing error envelope is fine for the smoke (and for the CAT, since the seed is now consistent), but a future polish pass could catch SQLSTATE 23514 in `LeaveService.cancel` and translate it to a clean 422 "leave balance is inconsistent with this request — contact HR".
+- **CAT scenarios deferred to Step 10.** The full reproducible vertical-slice walkthrough lands in `docs/cycle4-cat-script.md` once the Step 8 + 9 UI flows are in place.
 
 Plan reference: Step 7 of `docs/campusos-cycle4-implementation-plan.html`.
 
