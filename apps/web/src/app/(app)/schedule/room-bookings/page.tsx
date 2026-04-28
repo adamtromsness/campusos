@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/components/ui/cn';
+import { RoomAvailabilityChecker } from '@/components/scheduling/RoomAvailabilityChecker';
 import {
   useCancelRoomBooking,
   useCreateRoomBooking,
@@ -136,6 +137,10 @@ export default function RoomBookingsPage() {
           ) : undefined
         }
       />
+
+      <div className="mb-4">
+        <RoomAvailabilityChecker />
+      </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
         <label className="text-sm">

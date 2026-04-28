@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '../tenant/tenant.module';
 import { IamModule } from '../iam/iam.module';
 import { KafkaModule } from '../kafka/kafka.module';
+import { SisModule } from '../sis/sis.module';
 import { BellScheduleService } from './bell-schedule.service';
 import { TimetableService } from './timetable.service';
 import { RoomService } from './room.service';
@@ -59,7 +60,7 @@ import { SubstitutionController } from './substitution.controller';
  *   - sch-005:admin  — room catalogue CRUD.
  */
 @Module({
-  imports: [TenantModule, IamModule, KafkaModule],
+  imports: [TenantModule, IamModule, KafkaModule, SisModule],
   providers: [
     BellScheduleService,
     TimetableService,

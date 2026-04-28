@@ -9,6 +9,7 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { StudentService } from '../sis/student.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   CreateTimetableSlotDto,
@@ -88,6 +89,7 @@ export class TimetableService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
+    private readonly students: StudentService,
   ) {}
 
   /**
@@ -135,6 +137,34 @@ export class TimetableService {
 
   async listForRoom(roomId: string): Promise<TimetableSlotResponseDto[]> {
     return this.list({ roomId: roomId });
+  }
+
+  /**
+   * Slots for the classes a given student is actively enrolled in.
+   *
+   * Authorization is row-scoped: the caller must be allowed to see this
+   * student via `StudentService.assertCanViewStudent` (admin / parent of /
+   * assigned-class teacher / the student themself). The endpoint gate is
+   * `stu-001:read` so parents and students (who don't hold sch-001:read)
+   * can hit this; the row-scope check is the actual access gate.
+   */
+  async listForStudent(
+    studentId: string,
+    actor: ResolvedActor,
+  ): Promise<TimetableSlotResponseDto[]> {
+    await this.students.assertCanViewStudent(studentId, actor);
+    var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<SlotRow[]>(
+        SELECT_SLOT_BASE +
+          'WHERE s.class_id IN (' +
+          '  SELECT class_id FROM sis_enrollments ' +
+          "  WHERE student_id = $1::uuid AND status = 'ACTIVE'" +
+          ') ' +
+          'ORDER BY p.day_of_week NULLS FIRST, p.start_time, c.section_code',
+        studentId,
+      );
+    });
+    return rows.map(rowToDto);
   }
 
   async create(

@@ -69,6 +69,21 @@ export class TimetableController {
     return this.timetable.listForRoom(roomId);
   }
 
+  @Get('student/:studentId')
+  @RequirePermission('stu-001:read')
+  @ApiOperation({
+    summary:
+      "A student's weekly schedule. Row-scoped: caller must be admin, the student, " +
+      "the student's guardian, or an assigned class teacher.",
+  })
+  async forStudent(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Req() req: AuthedRequest,
+  ): Promise<TimetableSlotResponseDto[]> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.timetable.listForStudent(studentId, actor);
+  }
+
   @Post('slots')
   @RequirePermission('sch-001:admin')
   @ApiOperation({

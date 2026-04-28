@@ -39,7 +39,18 @@ function TeacherClassesView() {
   const classes = useMyClasses();
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader title="Classes" description="Your assigned classes for the current term." />
+      <PageHeader
+        title="Classes"
+        description="Your assigned classes for the current term."
+        actions={
+          <Link
+            href="/my-schedule"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+          >
+            My Schedule
+          </Link>
+        }
+      />
       <ClassListBody
         classes={classes.data ?? []}
         loading={classes.isLoading}
@@ -174,7 +185,18 @@ function StudentClassesView() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader title="My Classes" description="Your enrolled classes and current grades." />
+      <PageHeader
+        title="My Classes"
+        description="Your enrolled classes and current grades."
+        actions={
+          <Link
+            href="/my-schedule"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+          >
+            My Schedule
+          </Link>
+        }
+      />
       {me.isLoading || gradebook.isLoading ? (
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <LoadingSpinner size="sm" /> Loading your classes…

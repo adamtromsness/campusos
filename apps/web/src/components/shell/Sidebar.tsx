@@ -32,7 +32,11 @@ export function Sidebar({ user, schoolName = 'CampusOS', onNavigate }: SidebarPr
       </div>
       <nav className="flex-1 space-y-1 px-3 py-4">
         {apps.map((app) => {
-          const active = pathname === app.href || pathname?.startsWith(app.href + '/');
+          const matchAgainst = app.routePrefix ?? app.href;
+          const active =
+            pathname === app.href ||
+            pathname === matchAgainst ||
+            pathname?.startsWith(matchAgainst + '/');
           const Icon = app.icon;
           const count = app.badgeKey ? badges[app.badgeKey] : 0;
           return (

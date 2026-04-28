@@ -32,6 +32,14 @@ export interface AppDef {
   href: string;
   icon: (props: { className?: string }) => ReactNode;
   badgeKey?: BadgeKey;
+  /**
+   * Optional prefix used by the Sidebar to decide whether the tile is the
+   * active one. Defaults to the tile's `href`. Set this when the tile owns
+   * a wider URL space than its own href — e.g. the Schedule tile lives at
+   * `/schedule/timetable` but should also light up on `/schedule/coverage`,
+   * `/schedule/rooms`, and so on.
+   */
+  routePrefix?: string;
 }
 
 /**
@@ -120,6 +128,7 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       label: 'Schedule',
       description: 'Bell schedules, timetable, rooms, and bookings',
       href: '/schedule/timetable',
+      routePrefix: '/schedule',
       icon: CalendarIcon,
     });
   }

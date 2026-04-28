@@ -167,6 +167,18 @@ export function useTimetableForRoom(roomId: string | null | undefined, enabled =
   });
 }
 
+export function useTimetableForStudent(
+  studentId: string | null | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ['scheduling', 'timetable', 'student', studentId],
+    queryFn: () =>
+      apiFetch<TimetableSlotDto[]>(`/api/v1/timetable/student/${studentId}`),
+    enabled: enabled && typeof studentId === 'string' && studentId.length > 0,
+  });
+}
+
 export function useCreateTimetableSlot() {
   const qc = useQueryClient();
   return useMutation({
