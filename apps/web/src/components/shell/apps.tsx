@@ -4,6 +4,7 @@ import { type ReactNode } from 'react';
 import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
 import {
   AttendanceIcon,
+  CalendarIcon,
   ChatBubbleIcon,
   CheckCircleIcon,
   ChildrenIcon,
@@ -19,7 +20,8 @@ export type AppKey =
   | 'announcements'
   | 'staff'
   | 'leave'
-  | 'compliance';
+  | 'compliance'
+  | 'schedule';
 export type BadgeKey = 'messages' | 'announcements';
 
 export interface AppDef {
@@ -108,6 +110,16 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'Balances, requests, and approvals',
       href: '/leave',
       icon: AttendanceIcon,
+    });
+  }
+
+  if (hasAnyPermission(user, ['sch-001:read'])) {
+    apps.push({
+      key: 'schedule',
+      label: 'Schedule',
+      description: 'Bell schedules, timetable, rooms, and bookings',
+      href: '/schedule/timetable',
+      icon: CalendarIcon,
     });
   }
 

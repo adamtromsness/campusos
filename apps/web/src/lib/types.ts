@@ -799,3 +799,236 @@ export interface ComplianceDashboardDto {
   totalEmployees: number;
   employeesWithGaps: number;
 }
+
+// ── Cycle 5: Scheduling (M22) ─────────────────────────────────
+
+export type BellScheduleType = 'STANDARD' | 'EARLY_DISMISSAL' | 'ASSEMBLY' | 'EXAM' | 'CUSTOM';
+export type PeriodType = 'LESSON' | 'BREAK' | 'LUNCH' | 'REGISTRATION' | 'ASSEMBLY';
+
+export interface PeriodDto {
+  id: string;
+  bellScheduleId: string;
+  name: string;
+  dayOfWeek: number | null;
+  startTime: string;
+  endTime: string;
+  periodType: PeriodType;
+  sortOrder: number;
+}
+
+export interface BellScheduleDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  scheduleType: BellScheduleType;
+  isDefault: boolean;
+  periods: PeriodDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBellSchedulePayload {
+  name: string;
+  scheduleType: BellScheduleType;
+  isDefault?: boolean;
+}
+
+export interface UpdateBellSchedulePayload {
+  name?: string;
+  scheduleType?: BellScheduleType;
+  isDefault?: boolean;
+}
+
+export interface PeriodInputPayload {
+  id?: string;
+  name: string;
+  dayOfWeek?: number | null;
+  startTime: string;
+  endTime: string;
+  periodType: PeriodType;
+  sortOrder?: number;
+}
+
+export interface UpsertPeriodsPayload {
+  periods: PeriodInputPayload[];
+}
+
+export type RoomType =
+  | 'CLASSROOM'
+  | 'LAB'
+  | 'GYM'
+  | 'HALL'
+  | 'LIBRARY'
+  | 'OFFICE'
+  | 'OUTDOOR';
+
+export interface RoomDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  capacity: number | null;
+  roomType: RoomType;
+  hasProjector: boolean;
+  hasAv: boolean;
+  floor: string | null;
+  building: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  available?: boolean | null;
+}
+
+export interface CreateRoomPayload {
+  name: string;
+  capacity?: number;
+  roomType: RoomType;
+  hasProjector?: boolean;
+  hasAv?: boolean;
+  floor?: string;
+  building?: string;
+}
+
+export interface UpdateRoomPayload {
+  name?: string;
+  capacity?: number;
+  roomType?: RoomType;
+  hasProjector?: boolean;
+  hasAv?: boolean;
+  floor?: string;
+  building?: string;
+  isActive?: boolean;
+}
+
+export interface ListRoomsArgs {
+  includeInactive?: boolean;
+  roomType?: RoomType;
+  availabilityDate?: string;
+  availabilityPeriodId?: string;
+}
+
+export interface TimetableSlotDto {
+  id: string;
+  schoolId: string;
+  classId: string;
+  classSectionCode: string;
+  courseName: string;
+  periodId: string;
+  periodName: string;
+  dayOfWeek: number | null;
+  startTime: string;
+  endTime: string;
+  teacherId: string | null;
+  teacherName: string | null;
+  roomId: string;
+  roomName: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  notes: string | null;
+}
+
+export interface CreateTimetableSlotPayload {
+  classId: string;
+  periodId: string;
+  teacherId?: string | null;
+  roomId: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  notes?: string;
+}
+
+export interface UpdateTimetableSlotPayload {
+  teacherId?: string | null;
+  roomId?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  notes?: string;
+}
+
+export interface ListTimetableArgs {
+  classId?: string;
+  teacherId?: string;
+  roomId?: string;
+  onDate?: string;
+}
+
+export type RoomBookingStatus = 'CONFIRMED' | 'CANCELLED';
+
+export interface RoomBookingDto {
+  id: string;
+  schoolId: string;
+  roomId: string;
+  roomName: string;
+  bookedById: string;
+  bookedByName: string | null;
+  bookingPurpose: string;
+  startAt: string;
+  endAt: string;
+  status: RoomBookingStatus;
+  cancelledAt: string | null;
+  cancelledReason: string | null;
+  createdAt: string;
+}
+
+export interface CreateRoomBookingPayload {
+  roomId: string;
+  bookingPurpose: string;
+  startAt: string;
+  endAt: string;
+}
+
+export interface CancelRoomBookingPayload {
+  cancelledReason?: string;
+}
+
+export interface ListRoomBookingsArgs {
+  roomId?: string;
+  status?: RoomBookingStatus;
+  fromDate?: string;
+  toDate?: string;
+}
+
+export type RoomChangeRequestStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'AUTO_APPROVED';
+
+export interface RoomChangeRequestDto {
+  id: string;
+  schoolId: string;
+  timetableSlotId: string;
+  classSectionCode: string;
+  courseName: string;
+  periodName: string;
+  requestedById: string;
+  requestedByName: string | null;
+  currentRoomId: string;
+  currentRoomName: string;
+  requestedRoomId: string | null;
+  requestedRoomName: string | null;
+  requestDate: string;
+  reason: string;
+  status: RoomChangeRequestStatus;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  createdAt: string;
+}
+
+export interface CreateRoomChangeRequestPayload {
+  timetableSlotId: string;
+  requestedRoomId?: string | null;
+  requestDate: string;
+  reason: string;
+}
+
+export interface ReviewRoomChangeRequestPayload {
+  approvedRoomId?: string;
+  reviewNotes?: string;
+}
+
+export interface ListRoomChangeRequestsArgs {
+  status?: RoomChangeRequestStatus;
+  fromDate?: string;
+  toDate?: string;
+}
