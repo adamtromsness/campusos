@@ -209,7 +209,9 @@ function StudentClassCard({ row }: { row: GradebookStudentRowDto }) {
       className="block rounded-card border border-gray-200 bg-white p-5 shadow-card transition hover:border-campus-300 hover:shadow-elevated"
     >
       <p className="text-xs uppercase tracking-wide text-gray-500">{row.class.courseCode}</p>
-      <h3 className="mt-1 truncate text-base font-semibold text-gray-900">{row.class.courseName}</h3>
+      <h3 className="mt-1 truncate text-base font-semibold text-gray-900">
+        {row.class.courseName}
+      </h3>
       <p className="text-xs text-gray-500">{row.class.sectionCode}</p>
       <div className="mt-3 flex items-end gap-2">
         <span className="text-3xl font-semibold text-campus-700">
