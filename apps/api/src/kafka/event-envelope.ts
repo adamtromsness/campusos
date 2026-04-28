@@ -57,6 +57,15 @@ export interface EnvelopeOptions<P = unknown> {
   tenantId?: string;
   /** Trace id propagated from the request. Falls back to a fresh UUIDv7. */
   correlationId?: string;
+  /**
+   * Deterministic event id override (REVIEW-CYCLE4 MAJOR 3). When a Kafka
+   * consumer republishes an event derived from an inbound one, supplying a
+   * deterministic id (e.g. derived from the inbound event_id + a stable
+   * suffix) lets the next consumer's idempotency table catch a redelivery
+   * without needing the producer to be exactly-once. When omitted, a
+   * fresh UUIDv7 is generated as before.
+   */
+  eventId?: string;
 }
 
 /**
@@ -73,7 +82,7 @@ export function envelopeFromOptions<P>(opts: EnvelopeOptions<P>): EventEnvelope<
     );
   }
   return {
-    event_id: generateId(),
+    event_id: opts.eventId ?? generateId(),
     event_type: opts.eventType,
     event_version: opts.eventVersion ?? 1,
     occurred_at: opts.occurredAt ?? nowIso,

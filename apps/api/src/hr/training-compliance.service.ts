@@ -1,5 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
+import { PermissionCheckService } from '../iam/permission-check.service';
+import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   ComplianceDashboardDto,
@@ -66,7 +68,10 @@ var SELECT_COMPLIANCE_BASE =
 
 @Injectable()
 export class TrainingComplianceService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
   /**
    * Per-employee compliance breakdown. Visibility:
@@ -93,12 +98,27 @@ export class TrainingComplianceService {
   }
 
   /**
-   * Admin-only school-wide dashboard. Aggregates per-employee rows and
+   * School-wide dashboard for admins. Aggregates per-employee rows and
    * returns the school's total + the count of employees with at least one
    * red or amber row.
+   *
+   * Auth (REVIEW-CYCLE4 MAJOR 2): accepts School Admins (`sch-001:admin`,
+   * surfaced as `actor.isSchoolAdmin`) AND HR-Compliance Admins
+   * (`hr-004:admin` resolved via the tenant scope chain). The web tile in
+   * `apps.tsx` already gates on the same `sch-001:admin OR hr-004:admin`
+   * union, so the API and UI agree.
    */
   async getDashboard(actor: ResolvedActor): Promise<ComplianceDashboardDto> {
-    if (!actor.isSchoolAdmin) {
+    var allowed = actor.isSchoolAdmin;
+    if (!allowed) {
+      var tenant = getCurrentTenant();
+      allowed = await this.permCheck.hasAnyPermissionInTenant(
+        actor.accountId,
+        tenant.schoolId,
+        ['hr-004:admin'],
+      );
+    }
+    if (!allowed) {
       throw new ForbiddenException('Only admins can read the compliance dashboard');
     }
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {

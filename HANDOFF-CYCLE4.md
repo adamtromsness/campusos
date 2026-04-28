@@ -1304,14 +1304,36 @@ pnpm --filter @campusos/api dev
 
 ## Post-cycle architecture review
 
-_Pending._ After Step 10 lands, the Cycle 4 review request goes to the architecture-review pipeline (same flow as Cycles 1–3 — `REVIEW-CYCLE4-CHATGPT.md` / `REVIEW-CYCLE4-CLAUDE.md`). The expected verdict trail mirrors Cycle 3:
+**Round 1 at SHA `efbcb44` returned REJECT** pending 1 BLOCKING + 3 MAJOR. All 4 findings fixed in a follow-up commit, ready for Round 2 re-review. Full verdict + fix log in `REVIEW-CYCLE4-CHATGPT.md`.
 
-| Round | SHA | Verdict |
-| ----: | --- | ------- |
-| 1     | tbd | tbd     |
-| 2     | tbd | tbd     |
+| Round | SHA       | Verdict                                                            |
+| ----: | --------- | ------------------------------------------------------------------ |
+|     1 | `efbcb44` | REJECT pending 1 BLOCKING + 3 MAJOR (10 PASS / 3 DEVIATION / 1 VIOLATION) |
+|     2 | _pending_ | _to be filled in after Round 2 re-review_                          |
 
-Carry-overs from prior reviews relevant to the Cycle 4 closeout:
+### Round 1 findings + fixes applied
+
+| ID         | Severity     | Area                                                       | Fix landed in commit                                           |
+| ---------- | ------------ | ---------------------------------------------------------- | -------------------------------------------------------------- |
+| BLOCKING 1 | reliability  | Leave approve/reject/cancel double-apply under concurrency | `SELECT … FOR UPDATE` inside the same tx as the balance write  |
+| MAJOR 1    | access       | ON_LEAVE employees lose `actor.employeeId`                  | Resolver accepts `('ACTIVE','ON_LEAVE')`                        |
+| MAJOR 2    | access       | Compliance dashboard UI/API gate mismatch                  | Service accepts `sch-001:admin` OR tenant-scoped `hr-004:admin` |
+| MAJOR 3    | reliability  | `coverage_needed` republish duplicates on idempotency-claim failure | Deterministic event_id derived from inbound; `eventId?` added to `EmitOptions` / `EnvelopeOptions` |
+
+### Fix verification (recorded post-Round-1)
+
+- **BLOCKING 1 race smoke** — 5 parallel `PATCH /leave-requests/:id/approve` curls on the same PENDING request: 1 returned 200 APPROVED, 4 returned 400 with `"Leave request … is in status APPROVED; expected PENDING"`. Balance moved `pending=1 used=0 → pending=0 used=1` cleanly (no double-application).
+- **MAJOR 1** — flipped Rivera to `ON_LEAVE`, `GET /employees/me` returned 200 with `employmentStatus: 'ON_LEAVE'`. Flipped to `TERMINATED`, `/employees/me` returned 404 with the right error envelope.
+- **MAJOR 2** — principal@ `GET /compliance/dashboard` → 200; teacher@ → 403 with the existing message.
+- **MAJOR 3** — submitted + approved a fresh leave request, observed the inbound `hr.leave.approved.event_id`, observed the republished `hr.leave.coverage_needed.event_id`. Independently computed `sha1(inbound + ':hr.leave.coverage_needed.v1')` in Python — match. UUID v5 marker (`'5'` at index 14) in place. `correlation_id` on the coverage envelope equals the inbound event_id.
+
+Build clean (`pnpm --filter @campusos/api build`) and the cycle 10 CAT scenarios still pass (the lifecycle change is on the inside of the existing `executeInTenantTransaction` boundary, so nothing external sees a behavioural change beyond the new 400 status-mismatch response on a concurrent loser).
+
+### Carry-overs from prior reviews relevant to the Cycle 4 closeout
 
 - **REVIEW-CYCLE3 — DLQ dashboard / alert (operational).** Not Cycle 4 scope; tracked in the Phase 2 punch list.
-- **REVIEW-CYCLE2 DEVIATION 4 — Temporary HR-Employee Identity Mapping.** Resolved by Cycle 4 Step 0. Closeout commit will reference this deviation explicitly so the post-cycle reviewer can confirm.
+- **REVIEW-CYCLE2 DEVIATION 4 — Temporary HR-Employee Identity Mapping.** Resolved by Cycle 4 Step 0. The closeout commit references this deviation explicitly so the post-cycle reviewer can confirm.
+
+### Reviewer's carry-over for the next cycle
+
+- **`hr.leave.coverage_needed` consumer wiring.** Cycle 5 (Scheduling & Calendar) will land the consumer that drives substitute-teacher assignment from this topic. The deterministic event_id pattern from MAJOR 3 means the consumer's `IdempotencyService.claim` will catch any redelivery cleanly — the consumer can use the same Cycle 3 `processWithIdempotency` skeleton without further work.

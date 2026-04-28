@@ -29,6 +29,13 @@ export interface EmitOptions<P = unknown> {
   tenantId?: string;
   tenantSubdomain?: string;
   correlationId?: string;
+  /**
+   * Deterministic event id override (REVIEW-CYCLE4 MAJOR 3). Forwarded to
+   * `envelopeFromOptions`. When omitted, a fresh UUIDv7 is generated.
+   * Use this when republishing an event derived from an inbound one so
+   * downstream idempotency catches Kafka redeliveries.
+   */
+  eventId?: string;
   /** Extra Kafka headers, merged on top of the default envelope routing headers. */
   headers?: Record<string, string>;
 }
@@ -123,6 +130,7 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
       occurredAt: opts.occurredAt,
       tenantId: opts.tenantId,
       correlationId: opts.correlationId,
+      eventId: opts.eventId,
     };
     var envelope: EventEnvelope<P>;
     try {

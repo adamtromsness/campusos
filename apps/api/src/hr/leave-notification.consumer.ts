@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { ConsumedMessage, KafkaConsumerService } from '../kafka/kafka-consumer.service';
 import { IdempotencyService } from '../kafka/idempotency.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
@@ -10,6 +11,46 @@ import {
   processWithIdempotency,
   unwrapEnvelope,
 } from '../notifications/consumers/notification-consumer-base';
+
+/**
+ * Build a deterministic UUID for a `hr.leave.coverage_needed` republish
+ * (REVIEW-CYCLE4 MAJOR 3). Cycle 5's consumer idempotency table dedupes
+ * on event_id; if the inbound `hr.leave.approved` is redelivered, this
+ * republish carries the same event_id and the consumer drops the dup.
+ *
+ * The implementation hashes the inbound event_id with a stable suffix and
+ * formats the first 16 bytes as a RFC-4122 v5-style UUID. We don't use
+ * the `uuid` package because `@campusos/api` doesn't depend on it; node's
+ * built-in `crypto.createHash` is enough for a deterministic id.
+ *
+ * Changing the suffix or the hash function would invalidate historical
+ * idempotency claims — keep the constants pinned.
+ */
+var COVERAGE_NEEDED_SUFFIX = 'hr.leave.coverage_needed.v1';
+
+function deterministicCoverageEventId(inboundEventId: string): string {
+  var hash = createHash('sha1')
+    .update(inboundEventId + ':' + COVERAGE_NEEDED_SUFFIX)
+    .digest();
+  // Format the first 16 bytes as a RFC-4122-shaped UUID with the v5 marker
+  // (high nibble of byte 6 = 5) and the variant marker (high two bits of
+  // byte 8 = 10). This matches what the `uuid` package's v5() produces for
+  // the same name, so a future migration to the `uuid` lib is drop-in.
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  var hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
 
 /**
  * LeaveNotificationConsumer (Cycle 4 Step 7).
@@ -207,10 +248,19 @@ export class LeaveNotificationConsumer implements OnModuleInit {
       );
       return;
     }
+    // Deterministic event_id derived from the inbound `hr.leave.approved`
+    // event_id (REVIEW-CYCLE4 MAJOR 3). A Kafka redelivery of the same
+    // approved event would re-execute this republish, but the recipient
+    // consumer's `platform_event_consumer_idempotency` claim catches it
+    // by event_id. Without this, the deduplication has to happen on the
+    // payload, which is more error-prone.
+    var deterministicEventId = deterministicCoverageEventId(event.eventId);
     void this.kafka.emit({
       topic: 'hr.leave.coverage_needed',
       key: p.requestId,
       sourceModule: 'hr',
+      eventId: deterministicEventId,
+      correlationId: event.eventId,
       payload: {
         requestId: p.requestId,
         employeeId: p.employeeId,

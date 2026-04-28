@@ -70,15 +70,20 @@ export class ActorContextService {
   }
 
   /**
-   * Resolve the active hr_employees.id for the calling iam_person within
-   * the current tenant. Returns null for non-staff personas, terminated /
-   * suspended employees, and the Platform Admin persona (which has no
-   * hr_employees row by design).
+   * Resolve the hr_employees.id for the calling iam_person within the
+   * current tenant. Returns null for non-staff personas, the Platform
+   * Admin persona (which has no hr_employees row by design), and
+   * employees in TERMINATED / SUSPENDED status (access disabled).
+   *
+   * ACTIVE and ON_LEAVE employees both resolve — an employee out on
+   * leave still needs to read their own profile, balances, and request
+   * history (REVIEW-CYCLE4 MAJOR 1). The TERMINATED + SUSPENDED states
+   * are the ones that revoke access.
    */
   private async resolveEmployeeId(personId: string): Promise<string | null> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ id: string }>>(
-        "SELECT id::text AS id FROM hr_employees WHERE person_id = $1::uuid AND employment_status = 'ACTIVE' LIMIT 1",
+        "SELECT id::text AS id FROM hr_employees WHERE person_id = $1::uuid AND employment_status IN ('ACTIVE', 'ON_LEAVE') LIMIT 1",
         personId,
       );
     });

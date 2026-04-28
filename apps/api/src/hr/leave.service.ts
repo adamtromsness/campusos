@@ -296,6 +296,11 @@ export class LeaveService {
   /**
    * Approve a PENDING request. Decrements `pending`, increments `used`.
    * Emits `hr.leave.approved`. Admin-only.
+   *
+   * Concurrency (REVIEW-CYCLE4 BLOCKING 1): the request row is locked with
+   * SELECT ... FOR UPDATE inside the same transaction that writes the
+   * balance + status. Two concurrent admin approve attempts serialise on
+   * the row lock; the second one re-reads status='APPROVED' and 400s.
    */
   async approve(
     id: string,
@@ -305,15 +310,15 @@ export class LeaveService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can approve leave requests');
     }
-    var existing = await this.loadForReview(id, 'PENDING');
     var academicYearId = await this.requireCurrentAcademicYearId();
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    var locked = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      var row = await this.lockAndValidate(tx, id, 'PENDING');
       await tx.$executeRawUnsafe(
         'UPDATE hr_leave_balances SET pending = pending - $1::numeric, used = used + $1::numeric, updated_at = now() ' +
           'WHERE employee_id = $2::uuid AND leave_type_id = $3::uuid AND academic_year_id = $4::uuid',
-        existing.days_requested,
-        existing.employee_id,
-        existing.leave_type_id,
+        row.days_requested,
+        row.employee_id,
+        row.leave_type_id,
         academicYearId,
       );
       await tx.$executeRawUnsafe(
@@ -322,6 +327,7 @@ export class LeaveService {
         body.reviewNotes ?? null,
         id,
       );
+      return row;
     });
     var dto = await this.getById(id, actor);
     void this.kafka.emit({
@@ -330,9 +336,9 @@ export class LeaveService {
       sourceModule: 'hr',
       payload: {
         requestId: id,
-        employeeId: existing.employee_id,
-        accountId: existing.account_id,
-        leaveTypeId: existing.leave_type_id,
+        employeeId: locked.employee_id,
+        accountId: locked.account_id,
+        leaveTypeId: locked.leave_type_id,
         leaveTypeName: dto.leaveTypeName,
         startDate: dto.startDate,
         endDate: dto.endDate,
@@ -353,15 +359,15 @@ export class LeaveService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can reject leave requests');
     }
-    var existing = await this.loadForReview(id, 'PENDING');
     var academicYearId = await this.requireCurrentAcademicYearId();
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    var locked = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      var row = await this.lockAndValidate(tx, id, 'PENDING');
       await tx.$executeRawUnsafe(
         'UPDATE hr_leave_balances SET pending = pending - $1::numeric, updated_at = now() ' +
           'WHERE employee_id = $2::uuid AND leave_type_id = $3::uuid AND academic_year_id = $4::uuid',
-        existing.days_requested,
-        existing.employee_id,
-        existing.leave_type_id,
+        row.days_requested,
+        row.employee_id,
+        row.leave_type_id,
         academicYearId,
       );
       await tx.$executeRawUnsafe(
@@ -370,6 +376,7 @@ export class LeaveService {
         body.reviewNotes ?? null,
         id,
       );
+      return row;
     });
     var dto = await this.getById(id, actor);
     void this.kafka.emit({
@@ -378,9 +385,9 @@ export class LeaveService {
       sourceModule: 'hr',
       payload: {
         requestId: id,
-        employeeId: existing.employee_id,
-        accountId: existing.account_id,
-        leaveTypeId: existing.leave_type_id,
+        employeeId: locked.employee_id,
+        accountId: locked.account_id,
+        leaveTypeId: locked.leave_type_id,
         leaveTypeName: dto.leaveTypeName,
         startDate: dto.startDate,
         endDate: dto.endDate,
@@ -396,18 +403,29 @@ export class LeaveService {
   /**
    * Cancel an own request. PENDING → reverse `pending`. APPROVED → reverse
    * `used`. Anything else → 400. Owners and admins can cancel.
+   *
+   * Concurrency (REVIEW-CYCLE4 BLOCKING 1): the request row is locked with
+   * SELECT ... FOR UPDATE inside the transaction; the previous status is
+   * read from the locked row, not from a stale read taken before the tx.
+   * A double-cancel race serialises and the second call sees the
+   * already-CANCELLED status and 400s.
    */
   async cancel(id: string, actor: ResolvedActor): Promise<LeaveRequestResponseDto> {
-    var existing = await this.loadForReview(id, null);
-    if (!actor.isSchoolAdmin && actor.employeeId !== existing.employee_id) {
-      throw new ForbiddenException('Only the owning employee or an admin can cancel this leave request');
-    }
-    if (existing.status === 'REJECTED' || existing.status === 'CANCELLED') {
-      throw new BadRequestException('Request is already ' + existing.status);
+    // Cheap pre-flight ownership check outside the tx so a non-owner
+    // doesn't acquire a row lock just to be told to go away.
+    var preflight = await this.loadForReview(id, null);
+    if (!actor.isSchoolAdmin && actor.employeeId !== preflight.employee_id) {
+      throw new ForbiddenException(
+        'Only the owning employee or an admin can cancel this leave request',
+      );
     }
     var academicYearId = await this.requireCurrentAcademicYearId();
-    var balanceColumn = existing.status === 'APPROVED' ? 'used' : 'pending';
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    var locked = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      var row = await this.lockAndValidate(tx, id, null);
+      if (row.status === 'REJECTED' || row.status === 'CANCELLED') {
+        throw new BadRequestException('Request is already ' + row.status);
+      }
+      var balanceColumn = row.status === 'APPROVED' ? 'used' : 'pending';
       await tx.$executeRawUnsafe(
         'UPDATE hr_leave_balances SET ' +
           balanceColumn +
@@ -415,15 +433,16 @@ export class LeaveService {
           balanceColumn +
           ' - $1::numeric, updated_at = now() ' +
           'WHERE employee_id = $2::uuid AND leave_type_id = $3::uuid AND academic_year_id = $4::uuid',
-        existing.days_requested,
-        existing.employee_id,
-        existing.leave_type_id,
+        row.days_requested,
+        row.employee_id,
+        row.leave_type_id,
         academicYearId,
       );
       await tx.$executeRawUnsafe(
         "UPDATE hr_leave_requests SET status = 'CANCELLED', cancelled_at = now(), updated_at = now() WHERE id = $1::uuid",
         id,
       );
+      return row;
     });
     var dto = await this.getById(id, actor);
     void this.kafka.emit({
@@ -432,19 +451,67 @@ export class LeaveService {
       sourceModule: 'hr',
       payload: {
         requestId: id,
-        employeeId: existing.employee_id,
-        accountId: existing.account_id,
-        leaveTypeId: existing.leave_type_id,
+        employeeId: locked.employee_id,
+        accountId: locked.account_id,
+        leaveTypeId: locked.leave_type_id,
         leaveTypeName: dto.leaveTypeName,
         startDate: dto.startDate,
         endDate: dto.endDate,
         daysRequested: dto.daysRequested,
-        previousStatus: existing.status,
+        previousStatus: locked.status,
         cancelledBy: actor.accountId,
         status: 'CANCELLED',
       },
     });
     return dto;
+  }
+
+  /**
+   * Locks the leave-request row with SELECT FOR UPDATE inside the caller's
+   * transaction, then validates status. The lock blocks any concurrent
+   * approve/reject/cancel on the same row from reading inconsistent state.
+   *
+   * `requireStatus=null` returns whatever status is on the row; the caller
+   * is responsible for rejecting invalid transitions. `requireStatus='PENDING'`
+   * returns the row only if it's still PENDING — used by approve/reject.
+   */
+  private async lockAndValidate(
+    tx: any,
+    id: string,
+    requireStatus: string | null,
+  ): Promise<{
+    id: string;
+    employee_id: string;
+    account_id: string;
+    leave_type_id: string;
+    days_requested: string;
+    status: string;
+  }> {
+    var rows = (await tx.$queryRawUnsafe(
+      'SELECT lr.id, lr.employee_id, e.account_id::text AS account_id, lr.leave_type_id, lr.days_requested::text, lr.status ' +
+        'FROM hr_leave_requests lr ' +
+        'JOIN hr_employees e ON e.id = lr.employee_id ' +
+        'WHERE lr.id = $1::uuid ' +
+        'FOR UPDATE OF lr',
+      id,
+    )) as Array<{
+      id: string;
+      employee_id: string;
+      account_id: string;
+      leave_type_id: string;
+      days_requested: string;
+      status: string;
+    }>;
+    if (rows.length === 0) {
+      throw new NotFoundException('Leave request ' + id + ' not found');
+    }
+    var row = rows[0]!;
+    if (requireStatus && row.status !== requireStatus) {
+      throw new BadRequestException(
+        'Leave request ' + id + ' is in status ' + row.status + '; expected ' + requireStatus,
+      );
+    }
+    return row;
   }
 
   private async upsertBalance(
