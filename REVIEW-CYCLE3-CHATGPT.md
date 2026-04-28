@@ -1,10 +1,14 @@
 # Cycle 3 Architecture Review — ChatGPT (Adversarial)
 
 **Reviewer:** ChatGPT
-**Date:** April 28, 2026
 **Scope:** Full Cycle 3 (Communications — messaging, notifications, announcements, moderation, vertical-slice CAT)
-**Reviewed at SHA:** `7c7e3d4` (commit `feat: Cycle 3 Step 11 — vertical-slice CAT (cycle complete)`)
-**Verdict:** **REJECT pending two reliability/security fixes**
+**Final verdict:** **APPROVED** at SHA `592d366` (April 28, 2026)
+**Verdict trail:**
+
+| Round | Date           | SHA       | Verdict                                            |
+| ----: | -------------- | --------- | -------------------------------------------------- |
+|     1 | April 28, 2026 | `7c7e3d4` | REJECT pending two reliability/security fixes      |
+|     2 | April 28, 2026 | `592d366` | APPROVED to proceed (one follow-up for next cycle) |
 
 ---
 
@@ -60,8 +64,44 @@ ADR-057 requires consumer idempotency and DLQ behavior after failures.
 
 ---
 
-## Final gate decision
+## Round 1 gate decision
 
 **Reject pending fixes.**
 
 Fix the shared Kafka consumer failure semantics and the notification delivery in-flight state. Then re-review for approval.
+
+---
+
+# Round 2 — Re-review at `592d366`
+
+**Date:** April 28, 2026
+**SHA:** `592d366` (commit `fix(cycle3): address ChatGPT review — consumer retry/DLQ, delivery state, manager scope`)
+**Verdict:** **APPROVED**
+
+## Summary
+
+The three remaining findings from Round 1 are addressed.
+
+## Fixed
+
+1. **Kafka consumer failure handling.** `KafkaConsumerService` now rethrows handler failures until max attempts, then writes to `platform.platform_dlq_messages` and advances the partition. That resolves the at-least-once / DLQ concern.
+
+   _Reference:_ `apps/api/src/kafka/kafka-consumer.service.ts`
+
+2. **Notification delivery in-flight state.** The worker now uses `PENDING → PROCESSING → SENT`, with stale-`PROCESSING` recovery and retry/backoff. `SENT` no longer means "in flight."
+
+   _Reference:_ `apps/api/src/notifications/notification-delivery.worker.ts`
+
+3. **Announcement manager scope.** `isManager()` now checks school-admin or `com-002:write` in the tenant scope chain, instead of treating all staff as managers.
+
+   _Reference:_ `apps/api/src/announcements/announcement.service.ts`
+
+## Final gate decision
+
+**Approved to proceed.**
+
+## Carry-over for the next cycle
+
+One follow-up to verify in the next cycle: ensure the `platform.platform_dlq_messages` table exists in migrations and is seeded/available in all environments, since the consumer now depends on it.
+
+**Status of the follow-up at approval time:** the table is already in the platform Prisma migration `20260427211003_add_communications_platform_tables` (Cycle 3 Step 3), and the CI workflow runs `npx prisma migrate deploy --schema=prisma/platform/schema.prisma` so the table is created in CI and any environment that follows the deploy pipeline. The follow-up is therefore satisfied at the schema level; what remains is operational — wire a DLQ-row dashboard / alert into Phase 2 so a parked poison message gets human attention, not just a quiet row in a table.
