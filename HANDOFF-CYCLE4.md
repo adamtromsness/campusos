@@ -15,7 +15,7 @@ This document tracks the Cycle 4 build — the M80 HR/Workforce module (core sub
 | ---: | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |    0 | HR-Employee Identity Migration (carry-over from Cycle 2) | **Done** — `011_hr_employees_and_positions.sql` lands `hr_employees` (UNIQUE `person_id` + UNIQUE `account_id`, CHECK on `employment_type` + `employment_status`); `seed-hr.ts` inserts 4 employee rows for `tenant_demo` (Mitchell, Rivera, Park, Hayes — `admin@` Platform Admin intentionally NOT bridged) and runs the four bridge UPDATEs (6 + 62 + 0 + 1 rows re-pointed; 0 orphans). `ActorContextService` populates `actor.employeeId`. 12 service-layer call sites substituted from `actor.personId` → `actor.employeeId` (attendance, assignment, gradebook, submission, grade, progress-note, student visibilityClause, class.service.listForTeacherEmployee, class.service.loadTeachersForClasses join, class.controller.my, audience-fan-out.worker.audienceClass). `IamModule` now imports `TenantModule`. Build clean, type-check clean, live smoke against `tenant_demo` confirmed `GET /classes/my` for teacher@ returns the same 6 classes through the bridge, `GET /students` returns 15, `GET /classes/:id/gradebook` returns 3 students for P1. CLAUDE.md "Temporary HR-Employee Identity Mapping" bullet retired; the four `COMMENT ON COLUMN` annotations now reference the permanent ADR-055 convention. Resolves REVIEW-CYCLE2 DEVIATION 4. |
 |    1 | HR Schema — Employees & Positions                       | **Done** — `011_hr_employees_and_positions.sql` extended with 5 base tables on top of `hr_employees` from Step 0 (`hr_positions`, `hr_employee_positions`, `hr_emergency_contacts`, `hr_document_types`, `hr_employee_documents`). 5 intra-tenant FKs (3 to `hr_employees ON DELETE CASCADE`, 1 to `hr_positions`, 1 to `hr_document_types`), 0 cross-schema FKs. Tenant base table count: 63 (was 58). Live verification on `tenant_demo`: 5 CHECK constraints fire, FK rejection clean, happy-path multi-insert across all 5 tables succeeds, ON DELETE CASCADE drops all 3 child rows when an `hr_employees` row is deleted. |
-|    2 | HR Schema — Leave Management                            | Not started — `012_hr_leave_management.sql` will land 3 base tables (`hr_leave_types`, `hr_leave_balances`, `hr_leave_requests`) with the approval-flow CHECK constraints and the leave-events skeleton.                                                                                                                                        |
+|    2 | HR Schema — Leave Management                            | **Done** — `012_hr_leave_management.sql` lands 3 base tables (`hr_leave_types`, `hr_leave_balances`, `hr_leave_requests`) with 5 intra-tenant FKs (2 to `hr_employees ON DELETE CASCADE`, 2 to `hr_leave_types`, 1 to `sis_academic_years`), 10 CHECK constraints (status enum, date range, days > 0, all-or-nothing HR-initiated, non-negative accrual/balance/used/pending). Tenant base table count: 66 (was 63). Live verification on `tenant_demo`: 6 CHECKs fire, UNIQUE on `(employee, type, year)` rejects duplicates, happy-path inserts succeed, ON DELETE CASCADE drops balances + requests when a temp employee is deleted. |
 |    3 | HR Schema — Certifications & Training                   | Not started — `013_hr_certifications_and_training.sql` will land 5 base tables (`hr_staff_certifications`, `hr_training_requirements`, `hr_training_compliance`, `hr_cpd_requirements`, `hr_work_authorisation`).                                                                                                                                |
 |    4 | HR Schema — Onboarding                                  | Not started — `014_hr_onboarding.sql` will land 3 base tables (`hr_onboarding_templates`, `hr_onboarding_checklists`, `hr_onboarding_tasks`).                                                                                                                                                                                                   |
 |    5 | Seed Data — Employees, Leave, Certifications            | Not started — `seed-hr.ts` will populate 5 employee records, 5 positions + assignments, 5 leave types + balances, 2 sample leave requests, certifications (incl. Rivera's Teaching Licence expiring in 60 days), training requirements + pre-computed compliance, document types, and a New Teacher Onboarding template. Adds HR-001/003/004 to roles. |
@@ -326,9 +326,106 @@ Plan reference: Step 1 of `docs/campusos-cycle4-implementation-plan.html`.
 
 ## Step 2 — HR Schema — Leave Management
 
-_Not started._ Migration `012_hr_leave_management.sql`. 3 base tables: `hr_leave_types`, `hr_leave_balances`, `hr_leave_requests`. CHECK on the leave-request status enum. `hr_leave_balances` UNIQUE constraint on `(employee_id, leave_type_id, academic_year_id)` so the balance row stays single-source-of-truth.
+**Done.** `packages/database/prisma/tenant/migrations/012_hr_leave_management.sql` lands 3 base tables. Idempotent CREATE-IF-NOT-EXISTS pattern. Snake_case columns, `TEXT + CHECK` for the request status enum. DB-enforced FKs to `hr_employees ON DELETE CASCADE`, `hr_leave_types`, and `sis_academic_years` (the latter non-cascade — deleting an academic year while balances exist is a data-integrity concern that should fail loudly).
 
-The leave approval flow (PENDING → APPROVED / REJECTED / CANCELLED) is implemented in Step 7 services, but the schema-level CHECK constraints land here.
+### Tables (3)
+
+| Table                | Purpose                                                                                                                          | Key columns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hr_leave_types`     | Per-school leave catalogue (Sick, Personal, Bereavement, PD, Unpaid).                                                            | `id`, `school_id`, `name`, `description`, `is_paid BOOLEAN DEFAULT true`, `accrual_rate NUMERIC(5,2) DEFAULT 0` (days/year — 0 means non-accruing), `max_balance NUMERIC(5,2)` (NULL = uncapped), `is_active BOOLEAN`. UNIQUE(school_id, name). CHECK `accrual_rate >= 0` and `max_balance IS NULL OR max_balance >= 0`. Partial INDEX(school_id) WHERE `is_active = true`.                                                                                                                          |
+| `hr_leave_balances`  | Per-(employee, type, academic year) running balance. Single source of truth, derived by the approval workflow that lands in Step 7. | `id`, `employee_id` (FK to `hr_employees ON DELETE CASCADE`), `leave_type_id` (FK to `hr_leave_types`), `academic_year_id` (FK to `sis_academic_years` non-cascade), `accrued NUMERIC(5,2)`, `used NUMERIC(5,2)`, `pending NUMERIC(5,2)`. UNIQUE(employee_id, leave_type_id, academic_year_id). CHECKs: `accrued >= 0`, `used >= 0`, `pending >= 0`. INDEX(employee_id, academic_year_id) and (leave_type_id).                                                                                       |
+| `hr_leave_requests`  | Request lifecycle. PENDING → APPROVED / REJECTED / CANCELLED.                                                                    | `id`, `employee_id` (FK CASCADE), `leave_type_id` (FK), `start_date DATE`, `end_date DATE`, `days_requested NUMERIC(4,1)` (half-day support), `status TEXT DEFAULT 'PENDING'`, `reason`, `submitted_at`, `reviewed_at`, `reviewed_by` (soft → `platform_users`), `review_notes`, `cancelled_at`, `is_hr_initiated BOOLEAN DEFAULT false`, `hr_initiated_by` (soft), `hr_initiated_reason TEXT`. CHECK `status IN ('PENDING','APPROVED','REJECTED','CANCELLED')`, `end_date >= start_date`, `days_requested > 0`, and a multi-column CHECK that `is_hr_initiated`, `hr_initiated_by`, and `hr_initiated_reason` are all-set or all-null together (no partial HR-initiated state). INDEX(employee_id, status); partial INDEX(status, start_date) WHERE `status IN ('PENDING','APPROVED')` for the upcoming-leave queries; INDEX(leave_type_id). |
+
+### Approval flow at the schema layer
+
+The schema doesn't enforce the state machine — it only accepts the four valid status values. Step 7's `LeaveService` owns the transitions:
+
+```
+submit  -> status=PENDING, balance.pending += days_requested
+           Kafka emit: hr.leave.requested
+approve -> status=APPROVED, reviewed_by/reviewed_at set
+           balance.pending -= days_requested
+           balance.used    += days_requested
+           Kafka emit: hr.leave.approved (consumed by Cycle 5 Scheduling)
+reject  -> status=REJECTED, reviewed_by/reviewed_at/review_notes set
+           balance.pending -= days_requested
+           Kafka emit: hr.leave.rejected
+cancel  -> status=CANCELLED, cancelled_at set
+           balance.pending -= days_requested (if was PENDING)
+           or balance.used -= days_requested  (if was APPROVED)
+           Kafka emit: hr.leave.cancelled
+```
+
+The non-negative balance CHECKs guarantee the math can't go below zero — if Step 7's update would underflow `pending` or `used`, the UPDATE fails loudly rather than silently corrupting the running totals.
+
+### FKs (intra-tenant) and soft references
+
+| Constraint                                                  | Type                  | Notes                                                                                                                                                                                |
+| ----------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `hr_leave_balances.employee_id → hr_employees(id)`          | DB-enforced (CASCADE) | Both unpartitioned. Cascade because a balance row without its parent employee is meaningless. Verified live with a temp-employee delete that dropped the linked balance + request rows. |
+| `hr_leave_balances.leave_type_id → hr_leave_types(id)`      | DB-enforced           | No cascade — leave types persist in the catalogue across deletions; balances should not silently vanish if a type is removed (the active-flag is the right cleanup mechanism).        |
+| `hr_leave_balances.academic_year_id → sis_academic_years(id)` | DB-enforced           | Tenant-tenant ref. Non-cascade so that deleting an academic year while balances still reference it fails loudly.                                                                       |
+| `hr_leave_requests.employee_id → hr_employees(id)`          | DB-enforced (CASCADE) | Same rationale as balances.                                                                                                                                                           |
+| `hr_leave_requests.leave_type_id → hr_leave_types(id)`      | DB-enforced           | Same as balances.                                                                                                                                                                     |
+| `hr_leave_requests.reviewed_by`                             | Soft (cross-schema)   | UUID ref to `platform.platform_users(id)` per ADR-055 — audit-only.                                                                                                                   |
+| `hr_leave_requests.hr_initiated_by`                         | Soft (cross-schema)   | UUID ref to `platform.platform_users(id)` per ADR-055.                                                                                                                                |
+| `hr_leave_types.school_id`, `hr_leave_balances.*` (none of the school columns)   | Soft / no column      | `hr_leave_types.school_id` is a soft UUID per ADR-001/020. The balance and request rows are tenant-scoped via search_path; school_id isn't denormalised on them because every read joins through `hr_employees` already. |
+
+### CHECK constraints
+
+| Constraint                              | Predicate                                                                                                                          |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `hr_leave_types_accrual_chk`            | `accrual_rate >= 0`                                                                                                                |
+| `hr_leave_types_max_balance_chk`        | `max_balance IS NULL OR max_balance >= 0`                                                                                          |
+| `hr_leave_balances_accrued_chk`         | `accrued >= 0`                                                                                                                     |
+| `hr_leave_balances_used_chk`            | `used >= 0`                                                                                                                        |
+| `hr_leave_balances_pending_chk`         | `pending >= 0`                                                                                                                     |
+| `hr_leave_requests_status_chk`          | `status IN ('PENDING','APPROVED','REJECTED','CANCELLED')`                                                                          |
+| `hr_leave_requests_dates_chk`           | `end_date >= start_date`                                                                                                            |
+| `hr_leave_requests_days_chk`            | `days_requested > 0`                                                                                                                |
+| `hr_leave_requests_hr_initiated_chk`    | `(is_hr_initiated=false AND hr_initiated_by IS NULL AND hr_initiated_reason IS NULL) OR (is_hr_initiated=true AND hr_initiated_by IS NOT NULL AND hr_initiated_reason IS NOT NULL)` |
+
+### Verification (recorded 2026-04-28)
+
+```bash
+pnpm --filter @campusos/database provision --subdomain=demo   # 12 migrations applied
+pnpm --filter @campusos/database provision --subdomain=test   # 12 migrations applied
+```
+
+Counts in `tenant_demo` after Step 2:
+
+| What                                                             | Count |
+| ---------------------------------------------------------------- | ----: |
+| Logical base tables (top-level, was 63)                          |    66 |
+| HR tables (`hr_*`)                                                |     9 |
+| Intra-tenant FKs from Step 2 tables                              |     5 |
+| Cross-schema FKs from `tenant_demo`                              |     0 |
+
+CHECK + FK + UNIQUE + cascade smoke (live):
+
+| Constraint / behaviour                                       | Test                                                                                                  | Outcome  |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | -------- |
+| `hr_leave_requests_status_chk`                               | INSERT status='BOGUS'                                                                                  | ERROR ✅ |
+| `hr_leave_requests_dates_chk`                                | INSERT start=2026-05-05, end=2026-05-01                                                                | ERROR ✅ |
+| `hr_leave_requests_days_chk`                                 | INSERT days_requested=0                                                                                | ERROR ✅ |
+| `hr_leave_requests_hr_initiated_chk`                         | INSERT is_hr_initiated=true with hr_initiated_reason=NULL                                              | ERROR ✅ |
+| `hr_leave_types_accrual_chk`                                 | INSERT accrual_rate=-1                                                                                 | ERROR ✅ |
+| `hr_leave_balances_accrued_chk`                              | INSERT accrued=-1                                                                                      | ERROR ✅ |
+| `hr_leave_balances_employee_type_year_uq`                    | INSERT a second balance for the same (employee, type, year) tuple                                      | ERROR ✅ |
+| Happy-path multi-insert linked to Rivera                     | 2 leave types + 1 balance + 2 requests (one PENDING, one HR-initiated APPROVED)                        | ✅       |
+| ON DELETE CASCADE on `hr_employees` (temp employee)          | Pre-delete: 1 balance / 1 request. DELETE FROM hr_employees. Post-delete: 0 / 0.                       | ✅       |
+
+### Out-of-scope decisions for Step 2
+
+- **No accrual job in this step.** The Step 7 `LeaveService` will own the at-year-start accrual run that bumps `accrued` for every (employee, type) pair. This step just lands the schema with the CHECKs that prevent negative values.
+- **No leave coverage logic.** The plan calls for an `hr.leave.coverage_needed` event in Step 7, consumed by Cycle 5 Scheduling. The producer (`LeaveNotificationConsumer`) lands in Step 7; this step doesn't ship any event-shape definitions.
+- **`days_requested` is denormalised relative to `end_date - start_date`.** Stored explicitly because half-days, partial-day cancellations, and weekend-skipping are all app-layer concerns. The CHECK `days_requested > 0` is the only schema-level constraint.
+- **`hr_leave_balances.school_id` not denormalised.** Every read joins through `hr_employees.school_id` already; adding the column to the balance row would just be a write-time consistency concern with no query benefit.
+- **`reviewed_by` and `hr_initiated_by` are soft cross-schema refs.** Audit identity columns stay loose per ADR-055.
+- **No `effective_balance` computed column.** "Available days" is `accrued - used - pending`, computable in service code or a SQL expression on read. Storing it would add another non-negative CHECK to keep in sync; not worth it.
+- **No partitioning.** Volume bounded by employees × leave types × years and employees × historic requests. Far below partitioning threshold even at multi-school scale.
+- **No seed yet.** Step 5 owns leave-type catalogue seeding (5 types: Sick, Personal, Bereavement, PD, Unpaid), per-employee balances for the current academic year, and 2 sample request rows.
+- **CHECK strings still cannot contain `;`.** Spot-checked all CHECK predicates and `COMMENT ON COLUMN` strings in 012 — none contain `;`. The block-comment header was reviewed for the "splitter cuts on every `;`" trap that bit Step 1.
 
 Plan reference: Step 2 of `docs/campusos-cycle4-implementation-plan.html`.
 
