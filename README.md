@@ -4,8 +4,14 @@
 
 ## Status
 
+**Phase 1 (Build the Core) — COMPLETE.** All four foundation cycles shipped, reviewed, and approved.
+
 - **Cycle 0 (Platform Foundation):** Complete — auth, tenancy, IAM, guard chain.
-- **Cycle 1 (SIS Core + Attendance):** Steps 1–6 of 11 done — schema, seed, SIS module, Attendance module with Kafka emits, vertical slice verified end-to-end. UI work (Steps 7–11) remains. See `HANDOFF-CYCLE1.md` for current state.
+- **Cycle 1 (SIS Core + Attendance):** Complete — 11/11 steps. Schema, seed, SIS API, Attendance API + Kafka emits, web shell, Teacher/Parent/Admin dashboards, attendance taking + absence requests, end-to-end vertical slice. Post-cycle review fixes applied (tenant isolation, row-level auth, manager scope). See `HANDOFF-CYCLE1.md`.
+- **Cycle 2 (Classroom + Assignments + Grading):** Complete — 10/10 steps. Assignments + categories + submissions + grading + gradebook snapshots (first Kafka consumer with claim-after-success idempotency), teacher grading UI, student/parent grade views, CAT verified end-to-end. Post-cycle review APPROVED at `d876e86`. See `HANDOFF-CYCLE2.md`.
+- **Cycle 3 (Communications):** Complete — 11/11 steps. Messaging + content moderation, notifications pipeline (5 Kafka consumers + delivery worker + Redis idempotency), announcements + audience fan-out worker, NotificationBell + `/notifications` history, full messaging + announcements UIs, 7-scenario CAT verified end-to-end. Post-cycle review APPROVED at `592d366` after Round 2 (Kafka consumer DLQ retry, delivery worker PROCESSING state, announcement manager scope fixes applied). See `HANDOFF-CYCLE3.md` and `REVIEW-CYCLE3-CHATGPT.md`.
+
+**Phase 2 (Test & Refine) — IN PROGRESS.** Walking every workflow as each persona, refining UI/navigation, building the UI design guide (`docs/ui-design-guide.md`), and tightening edge cases before expanding into Cycles 4–8 (HR, Enrollment, Tasks, Calendar, Helpdesk).
 
 ## Architecture
 
@@ -76,10 +82,14 @@ pnpm dev
 
 ## Development Pipeline
 
+Phase 1 followed a build → review → fix → approve loop per cycle:
+
 ```
-Claude writes code → CI/CD tests → ChatGPT reviews → Human accepts
-     (DEV)            (SIT)           (SIT)            (CAT)
+Claude writes code → CI/CD tests → ChatGPT reviews → fixes applied → Human accepts
+     (DEV)            (SIT)           (SIT)            (DEV)           (CAT)
 ```
+
+Each cycle ships a vertical-slice CAT script (`docs/cycle{N}-cat-script.md`) that reproduces the end-to-end flow against `tenant_demo`. Phase 2 is now exercising those flows persona-by-persona to surface UX gaps and edge cases before Phase 3 (Cycles 4–8) expands the system.
 
 ## Design Documents
 
