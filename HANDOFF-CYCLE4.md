@@ -19,7 +19,7 @@ This document tracks the Cycle 4 build — the M80 HR/Workforce module (core sub
 |    3 | HR Schema — Certifications & Training                   | **Done** — `013_hr_certifications_and_training.sql` lands 5 base tables (`hr_staff_certifications` with 10 cert types + 4 verification statuses + ADR-015 reference-only DBS handling, `hr_training_requirements` with 5 frequency values + multi-column CUSTOM-frequency CHECK, `hr_training_compliance` with `linked_certification_id ON DELETE SET NULL`, `hr_cpd_requirements`, `hr_work_authorisation` with 6 document types + separate expiry / reverification dates). 7 intra-tenant FKs, 0 cross-schema FKs. Tenant base table count: 71 (was 66). Live verification on `tenant_demo`: 7 CHECKs fire, ON DELETE SET NULL on linked cert keeps compliance row, ON DELETE CASCADE on hr_employees drops cert/compliance/work_auth rows, UNIQUE(employee_id) on hr_work_authorisation rejects duplicates. |
 |    4 | HR Schema — Onboarding                                  | **Done** — `014_hr_onboarding.sql` lands 3 base tables (`hr_onboarding_templates` UNIQUE(school_id, name) with optional position_id; `hr_onboarding_checklists` UNIQUE(employee_id, template_id) with multi-column CHECK enforcing status / started_at / completed_at sync; `hr_onboarding_tasks` 5 categories × 4 statuses with multi-column CHECK on completed_at sync). 3 intra-tenant FKs (1 to hr_employees CASCADE, 1 to checklists CASCADE), 0 cross-schema FKs. Tenant base table count: 74 (was 71). Live verification on `tenant_demo`: 8 CHECKs fire (status enums, started_chk lifecycle, category, due_days, completed_chk lifecycle), happy-path template + checklist + 3 tasks, UNIQUE(employee_id, template_id) rejects duplicate, ON DELETE CASCADE drops all 3 tasks when checklist is removed. |
 |    5 | Seed Data — Employees, Leave, Certifications            | **Done** — `seed-hr.ts` extended with 7 idempotent layers (positions, leave types/balances/requests, certifications, training requirements + compliance, document types, onboarding). Counts in `tenant_demo` after the run: 4 employees, 5 positions + 4 assignments, 5 leave types + 20 balances + 2 leave requests, 4 certifications (Rivera Teaching Licence dynamically expires 60 days from today — drives CAT amber row), 4 training requirements + 4 compliance rows, 4 document types, 1 onboarding template + 1 checklist + 8 tasks. `seed-iam.ts` adds HR-001:read + HR-003:read+write + HR-004:read to Teacher/Staff and assigns Staff role to vp@ + counsellor@. After `build-cache.ts`: 7 account-scope pairs cached. |
-|    6 | HR NestJS Module — Employee Records & Directory         | Not started — `apps/api/src/hr/` will land EmployeeService, PositionService, EmployeeDocumentService, and extend `ActorContextService.resolveActor()` to populate `actor.employeeId` from `hr_employees.person_id`. ~10 endpoints under `hr-001:*`.                                                                                              |
+|    6 | HR NestJS Module — Employee Records & Directory         | **Done** — `apps/api/src/hr/` lands EmployeeService + PositionService + EmployeeDocumentService + 12 endpoints (`GET /employees`, `GET /employees/me`, `GET /employees/:id`, `POST /employees`, `PATCH /employees/:id`, `GET /employees/:id/documents`, `POST /employees/:id/documents`, `DELETE /employees/:id/documents/:docId`, `GET /positions`, `GET /positions/:id`, `POST /positions`, `PATCH /positions/:id`). `actor.employeeId` already populated by Cycle 4 Step 0's `ActorContextService` extension. Row-scope guard on documents (own profile OR admin only). HrModule wired into AppModule between ClassroomModule and NotificationsModule. Build clean, all routes mapped on boot, 12-scenario live smoke against `tenant_demo` confirms staff directory list, /me self-resolution, parent/student permission denials, counsellor 403 on Rivera's documents, teacher 403 on `hr-001:admin`, admin POST/PATCH round-trip on positions, admin POST /employees reaches the validators. |
 |    7 | HR NestJS Module — Leave & Certifications               | Not started — LeaveService + CertificationService + TrainingComplianceService + LeaveNotificationConsumer (Kafka consumer on `hr.leave.approved` → resolves affected classes via `sis_class_teachers` and emits `hr.leave.coverage_needed` for Cycle 5 Scheduling). ~12 endpoints under `hr-003:*` / `hr-004:*` + 5 Kafka events.                |
 |    8 | Staff Directory & Employee Profile UI                   | Not started — `/staff` directory + `/staff/:id` tabbed profile (Info / Certifications / Leave / Documents) + `/staff/me` shortcut. New "Staff" launchpad tile under `hr-001:read`.                                                                                                                                                              |
 |    9 | Leave Management & Compliance Dashboard UI              | Not started — `/leave/new` request form, `/leave` employee history, `/leave/approvals` admin queue, `/compliance` admin dashboard. New "Leave" tile (all staff) and "Compliance" tile (admin-only).                                                                                                                                            |
@@ -731,9 +731,124 @@ Plan reference: Step 5 of `docs/campusos-cycle4-implementation-plan.html`.
 
 ## Step 6 — HR NestJS Module — Employee Records & Directory
 
-_Not started._ `apps/api/src/hr/` lands EmployeeService, PositionService, EmployeeDocumentService. Extends `ActorContextService.resolveActor()` to populate `actor.employeeId` (deferred from Step 0 if Step 0 only seeds — this step finalises the wire-up). ~10 endpoints under `hr-001:read` / `hr-001:write` / `hr-001:admin`.
+**Done.** `apps/api/src/hr/` lands the first HR API surface — three services, two controllers, three DTO files, 12 endpoints. The `actor.employeeId` field was already populated by `ActorContextService.resolveActor` in Cycle 4 Step 0; this step is purely additive on top.
 
-Row-level authorisation: employees view the staff directory (everyone with `hr-001:read`) and their own full profile; admins view + edit all employees; teachers cannot view other employees' documents or leave details.
+### Files
+
+```
+apps/api/src/hr/
+├── hr.module.ts                 — wires services + controllers; imports TenantModule + IamModule
+├── employee.service.ts          — list / getById / getMe / create / update + position join
+├── position.service.ts          — list / getById / create / update with active-assignment count
+├── employee-document.service.ts — list / create / archive with own-or-admin row-scope guard
+├── employee.controller.ts       — 8 endpoints under /employees (incl. /employees/:id/documents)
+├── position.controller.ts       — 4 endpoints under /positions
+└── dto/
+    ├── employee.dto.ts          — EmployeeResponseDto, CreateEmployeeDto, UpdateEmployeeDto, ListEmployeesQueryDto
+    ├── position.dto.ts          — PositionResponseDto, CreatePositionDto, UpdatePositionDto
+    └── employee-document.dto.ts — EmployeeDocumentResponseDto, CreateEmployeeDocumentDto
+```
+
+### Endpoints
+
+| Method | Path                                       | Permission     | Notes                                                                                                                                                          |
+| ------ | ------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/employees`                               | `hr-001:read`  | Staff directory. Filters: `employmentStatus`, `includeInactive` (admin-only flip), `search` (LIKE across first/last name + email + employee_number).            |
+| GET    | `/employees/me`                            | `hr-001:read`  | Resolves the calling user's employee record via `actor.employeeId`. 404 for parents/students/Platform Admin (no `hr_employees` row).                          |
+| GET    | `/employees/:id`                           | `hr-001:read`  | Single profile with the joined position list.                                                                                                                  |
+| POST   | `/employees`                               | `hr-001:write` | Admin-only (service-layer ForbiddenException for non-admins). Validates `personId` + `accountId` against the platform schema. Optional `initialPositionId`.    |
+| PATCH  | `/employees/:id`                           | `hr-001:write` | Admin-only. Dynamic SET-clause builder for employee_number / employment_type / employment_status / termination_date.                                            |
+| GET    | `/employees/:id/documents`                 | `hr-001:read`  | Row-scope: own employee OR admin. Returns non-archived rows joined to `hr_document_types` for the type label.                                                   |
+| POST   | `/employees/:id/documents`                 | `hr-001:write` | Same row-scope. Validates the document type is active + the employee exists. `uploaded_by = actor.accountId`.                                                  |
+| DELETE | `/employees/:id/documents/:docId`          | `hr-001:write` | Soft-archive (`is_archived=true`). Hard delete is intentionally not exposed.                                                                                   |
+| GET    | `/positions`                               | `hr-001:read`  | Returns each position with `activeAssignments` count + joined `sis_departments.name`. `?includeInactive=true` shows soft-deactivated.                          |
+| GET    | `/positions/:id`                           | `hr-001:read`  | Single position read.                                                                                                                                          |
+| POST   | `/positions`                               | `hr-001:admin` | Admin-only — `hr-001:admin` is the gate (intentionally narrower than `:write` because positions are tenant-wide config).                                       |
+| PATCH  | `/positions/:id`                           | `hr-001:admin` | Same gate. Updates title / department_id / is_teaching_role / is_active.                                                                                       |
+
+### Authorisation contract
+
+| Persona              | Directory list / read | Own profile     | Other profile          | Documents (own)  | Documents (other) | Position writes |
+| -------------------- | --------------------- | --------------- | ---------------------- | ---------------- | ----------------- | --------------- |
+| Platform Admin       | yes                   | 404 (no record) | yes                    | n/a              | yes               | yes             |
+| School Admin         | yes                   | yes             | yes                    | yes              | yes               | yes             |
+| Teacher              | yes                   | yes             | yes (info only)        | yes              | 403               | 403             |
+| Staff (VP / Counsellor / Admin Asst) | yes                   | yes             | yes (info only)        | yes              | 403               | 403             |
+| Parent               | 403                   | 403             | 403                    | 403              | 403               | 403             |
+| Student              | 403                   | 403             | 403                    | 403              | 403               | 403             |
+
+Notes on the matrix:
+- Parents/students hold no HR codes (per `seed-iam.ts`) so every endpoint hits the global `PermissionGuard` → 403.
+- Teachers and Staff share the directory (`hr-001:read` covers list + read) and `/employees/me`. They can read other profiles but the *documents* row-scope inside `EmployeeDocumentService.assertCanAccess` cuts cross-employee document access cleanly.
+- The Platform Admin persona is `isSchoolAdmin=true` via the `sch-001:admin` code on the platform scope, so it bypasses the document row-scope. `actor.employeeId` is null for this persona, so `/employees/me` returns 404 — `admin@` is not an employee.
+
+### Row-scope pattern
+
+```ts
+// EmployeeDocumentService.assertCanAccess
+if (actor.isSchoolAdmin) return;
+if (actor.employeeId === employeeId) return;
+throw new ForbiddenException(
+  'Only the owning employee or a school admin can access this employee document set',
+);
+```
+
+This is the same shape as the Cycle 1 `student.service.ts::visibilityClause` and Cycle 2 `gradebook.service.ts::isClassManager`, just specialised to the (employee, document) pair.
+
+### DTOs and validation
+
+`EmploymentType` and `EmploymentStatus` arrays in `dto/employee.dto.ts` are exported with `as const` and used as both the `IsIn(...)` validator argument and the discriminator in `EmployeeResponseDto.employmentType`/`employmentStatus`. The values mirror the SQL CHECK constraints in `011_hr_employees_and_positions.sql` exactly — keeping the schema and the API surface in lockstep.
+
+`ListPositionsQueryDto` uses `class-transformer`'s `@Transform` to coerce the `?includeInactive=true` query string into a boolean before `IsBoolean` runs, so the URL parses cleanly without extra controller-layer munging.
+
+### Module wiring
+
+```ts
+@Module({
+  imports: [TenantModule, IamModule],
+  providers: [EmployeeService, PositionService, EmployeeDocumentService],
+  controllers: [EmployeeController, PositionController],
+  exports: [EmployeeService, PositionService, EmployeeDocumentService],
+})
+export class HrModule {}
+```
+
+`HrModule` lives between `ClassroomModule` and `NotificationsModule` in `AppModule.imports`. Step 7 will extend the same module with `LeaveService` / `CertificationService` / `TrainingComplianceService` / `LeaveNotificationConsumer` — sharing the same TenantModule + IamModule wiring and the `actor.employeeId` resolution.
+
+### Verification (recorded 2026-04-28)
+
+```bash
+pnpm --filter @campusos/api build           # nest build → exits 0
+pnpm --filter @campusos/api start:prod      # 12 HR routes mapped on boot, AppModule init clean
+```
+
+Live smoke against `tenant_demo`:
+
+| #   | Scenario                                                                  | Expected                                                                              | Got |
+| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | --- |
+| 1   | `principal@` `GET /employees`                                              | 4 employees ordered by last name, each with employee_number + primaryPositionTitle    | ✅  |
+| 2   | `teacher@` `GET /employees/me`                                             | Resolves Rivera. positions=1, primaryPositionTitle='Teacher'                          | ✅  |
+| 3   | `principal@` `GET /positions`                                              | 5 positions ordered by title; Administrative Assistant has activeAssignments=0        | ✅  |
+| 4   | `parent@` `GET /employees`                                                 | 403 INSUFFICIENT_PERMISSIONS at the gate (`hr-001:read` required)                     | ✅  |
+| 5   | `student@` `GET /positions`                                                | 403 same                                                                              | ✅  |
+| 6   | `parent@` `GET /employees/me`                                              | 403 (parents have no HR codes — gate hits before the 404 branch)                      | ✅  |
+| 7   | `teacher@` `GET /employees/:rivera/documents`                              | `[]` (own profile, no docs seeded)                                                    | ✅  |
+| 8   | `principal@` `GET /employees/:rivera/documents`                            | `[]` (admin can read any employee's docs)                                              | ✅  |
+| 9   | `counsellor@` `GET /employees/:rivera/documents`                           | 403 from row-scope guard with the explicit "owning employee or school admin" message  | ✅  |
+| 10  | `teacher@` `POST /positions`                                               | 403 (`hr-001:admin` required)                                                          | ✅  |
+| 11  | `principal@` `POST /positions` then `PATCH /positions/:id` (deactivate)    | 200 round-trip; new row created with title='Smoke Position', then patched isActive=false | ✅  |
+| 12  | `principal@` `POST /employees` with bogus body                              | 400 from `IsUUID` validators (proves the admin POST path is reachable)                 | ✅  |
+
+### Out-of-scope decisions for Step 6
+
+- **No `/employees/:id` row-scope yet.** The plan says "employees can view the staff directory and their own full profile" — but since admins also need to read everyone's profile, and teachers/staff legitimately need to see colleague info, the `GET /employees/:id` endpoint is open to anyone with `hr-001:read`. Sensitive fields (documents, leave details) are guarded individually by their own endpoints. If a future cycle wants to redact certain fields based on persona, that's a layer on `rowToDto`.
+- **`POST /employees` does not create the underlying iam_person.** Plan-aligned: "Admin creates an employee record." The expectation is that the iam_person + platform_users records already exist (from Keycloak provisioning or a prior platform seed). The POST validates both exist and that they're linked to each other before inserting. New-hire signup flows that bootstrap the identity surface land in a later cycle.
+- **`POST /employees/:id/documents` does not handle the file upload.** The plan describes signed-URL S3 uploads with `s3Key` returned to the client; the API endpoint accepts a pre-uploaded `s3Key`. Provisioning the actual upload pipeline (presign endpoint, bucket policy) is out of scope for Cycle 4.
+- **No `expiry_date` enforcement on documents.** The schema's partial expiry index is in place for the future certification-expiry sweep, but the API does not auto-archive expired documents this cycle.
+- **No `PATCH /employee-positions/:id` endpoint.** Position reassignments (promote, change FTE, end-date a current assignment) need an end-to-end "history-preserving" pattern that pairs a close on the current row with an insert of the new one. That's a Step 7+ concern alongside leave events.
+- **No bulk-create endpoint.** The plan calls for individual employee creation. Bulk import is a future cycle (alongside the platform_users provisioning flow).
+- **`actor.isSchoolAdmin` is the only "who can write?" gate.** Service-layer methods that check the gate (`EmployeeService.create`, `EmployeeService.update`, `PositionService.create`, `PositionService.update`, `EmployeeDocumentService.assertCanAccess`) all rely on `actor.isSchoolAdmin`. The `@RequirePermission('hr-001:write'/'hr-001:admin')` decorator is the necessary gate; the `isSchoolAdmin` check inside the service is the sufficient one — both layers agree on the answer for the seeded personas because Platform Admin and School Admin both hold the relevant codes.
+- **No DTO serialisation tests.** Cycle 4's CAT (Step 10) will exercise the response shapes end-to-end through the UI; a unit-test pass is reserved for Phase 2 hardening.
 
 Plan reference: Step 6 of `docs/campusos-cycle4-implementation-plan.html`.
 

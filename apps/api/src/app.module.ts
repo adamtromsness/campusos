@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { SisModule } from './sis/sis.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ClassroomModule } from './classroom/classroom.module';
+import { HrModule } from './hr/hr.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
@@ -47,6 +48,7 @@ var devOnlyControllers: Type<unknown>[] =
     SisModule,
     AttendanceModule,
     ClassroomModule,
+    HrModule,
     NotificationsModule,
     MessagingModule,
     AnnouncementsModule,
