@@ -3,10 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { type AuthUser } from '@/lib/auth-store';
-import {
-  useMarkAllNotificationsRead,
-  useNotificationInbox,
-} from '@/hooks/use-notifications';
+import { useMarkAllNotificationsRead, useNotificationInbox } from '@/hooks/use-notifications';
 import type { NotificationItem } from '@/lib/types';
 import { cn } from '@/components/ui/cn';
 import {
@@ -147,9 +144,7 @@ function NotificationRow({ item, user, onSelect }: NotificationRowProps) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-gray-900">{title}</p>
-        {subtitle && (
-          <p className="mt-0.5 line-clamp-2 text-xs text-gray-600">{subtitle}</p>
-        )}
+        {subtitle && <p className="mt-0.5 line-clamp-2 text-xs text-gray-600">{subtitle}</p>}
         <p className="mt-1 text-[11px] text-gray-400">{formatRelative(item.occurredAt)}</p>
       </div>
       {!item.isRead && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-campus-500" />}

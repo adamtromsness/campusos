@@ -26,8 +26,7 @@ export function useAnnouncements(args: AnnouncementsListArgs = {}) {
       'list',
       { drafts: args.includeDrafts ?? false, expired: args.includeExpired ?? false },
     ],
-    queryFn: () =>
-      apiFetch<AnnouncementDto[]>(`/api/v1/announcements${qs ? `?${qs}` : ''}`),
+    queryFn: () => apiFetch<AnnouncementDto[]>(`/api/v1/announcements${qs ? `?${qs}` : ''}`),
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });

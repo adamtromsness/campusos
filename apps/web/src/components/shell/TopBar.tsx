@@ -34,40 +34,40 @@ export function TopBar({ user, onOpenMenu }: TopBarProps) {
           <NotificationBell user={user} />
         )}
         <div className="relative">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-3 rounded-full px-2 py-1 text-left hover:bg-gray-50"
-        >
-          <Avatar name={user.displayName} size="sm" />
-          <div className="hidden sm:block">
-            <p className="text-sm font-medium text-gray-900">{user.displayName}</p>
-            <p className="text-xs text-gray-500">{user.email}</p>
-          </div>
-        </button>
-
-        {open && (
-          <div
-            className="absolute right-0 top-12 z-40 w-56 overflow-hidden rounded-card border border-gray-200 bg-white shadow-elevated"
-            onMouseLeave={() => setOpen(false)}
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="flex items-center gap-3 rounded-full px-2 py-1 text-left hover:bg-gray-50"
           >
-            <div className="border-b border-gray-100 px-4 py-3">
+            <Avatar name={user.displayName} size="sm" />
+            <div className="hidden sm:block">
               <p className="text-sm font-medium text-gray-900">{user.displayName}</p>
-              <p className="mt-0.5 text-xs text-gray-500">{user.email}</p>
+              <p className="text-xs text-gray-500">{user.email}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                void logout();
-              }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          </button>
+
+          {open && (
+            <div
+              className="absolute right-0 top-12 z-40 w-56 overflow-hidden rounded-card border border-gray-200 bg-white shadow-elevated"
+              onMouseLeave={() => setOpen(false)}
             >
-              <LogoutIcon className="h-4 w-4" />
-              Sign out
-            </button>
-          </div>
-        )}
+              <div className="border-b border-gray-100 px-4 py-3">
+                <p className="text-sm font-medium text-gray-900">{user.displayName}</p>
+                <p className="mt-0.5 text-xs text-gray-500">{user.email}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  void logout();
+                }}
+                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <LogoutIcon className="h-4 w-4" />
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

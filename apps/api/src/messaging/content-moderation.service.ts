@@ -131,7 +131,8 @@ export class ContentModerationService {
           action: act,
           policyId: p.id,
           matchedKeywords: matches,
-          messageStatus: act === 'ESCALATED' ? 'ESCALATED' : (act as ModerationVerdict['messageStatus']),
+          messageStatus:
+            act === 'ESCALATED' ? 'ESCALATED' : (act as ModerationVerdict['messageStatus']),
         };
       }
     }
@@ -171,7 +172,7 @@ export class ContentModerationService {
           'INSERT INTO msg_moderation_log ' +
             '(id, school_id, message_id, message_created_at, thread_id, sender_id, ' +
             ' policy_id, flag_type, matched_keywords, severity, review_outcome) ' +
-            "VALUES ($1::uuid, $2::uuid, $3::uuid, $4::timestamptz, $5::uuid, $6::uuid, " +
+            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::timestamptz, $5::uuid, $6::uuid, ' +
             " $7::uuid, $8, $9::text[], $10, 'PENDING')",
           logId,
           tenant.schoolId,
@@ -189,9 +190,7 @@ export class ContentModerationService {
       // Never let a logging failure swallow the message verdict — the
       // verdict has already been applied. Log it loudly so an operator
       // notices the audit gap.
-      this.logger.error(
-        'Failed to write msg_moderation_log row: ' + (e?.stack || e?.message || e),
-      );
+      this.logger.error('Failed to write msg_moderation_log row: ' + (e?.stack || e?.message || e));
     }
   }
 }

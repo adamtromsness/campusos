@@ -9,6 +9,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import {
   AUDIENCE_TYPES,
   AnnouncementResponseDto,
@@ -102,9 +103,7 @@ function validateAudience(audienceType: AudienceType, audienceRef: string | unde
     return;
   }
   if (!audienceRef || audienceRef.trim().length === 0) {
-    throw new BadRequestException(
-      'audienceRef is required for audienceType=' + audienceType,
-    );
+    throw new BadRequestException('audienceRef is required for audienceType=' + audienceType);
   }
 }
 
@@ -130,14 +129,29 @@ export class AnnouncementService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
+    private readonly permissions: PermissionCheckService,
   ) {}
 
   /**
-   * Caller is allowed to author / edit announcements. Used by the controller
-   * for write paths and by stats which is gated on author or admin.
+   * Caller is allowed to author / edit announcements and read every
+   * announcement in the tenant (including drafts authored by anyone).
+   *
+   * REVIEW-CYCLE3 MAJOR fix: previously this returned true for any actor
+   * with `personType === 'STAFF'`, which leaked tenant-wide announcements
+   * (and drafts when the includeDrafts flag was set) to staff who only
+   * held com-002:read. The seed gives Staff just com-002:read, not
+   * com-002:write, so they should be readers not managers. We now gate
+   * manager status on actually holding com-002:write in this tenant's
+   * scope chain (school + platform per ADR-036), which matches the IAM
+   * seed exactly: Teachers and School Admins hold com-002:write, Staff
+   * does not.
    */
-  private isManager(actor: ResolvedActor): boolean {
-    return actor.isSchoolAdmin || actor.personType === 'STAFF';
+  private async isManager(actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    var tenant = getCurrentTenant();
+    return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'com-002:write',
+    ]);
   }
 
   async list(
@@ -145,7 +159,7 @@ export class AnnouncementService {
     actor: ResolvedActor,
   ): Promise<AnnouncementResponseDto[]> {
     var tenant = getCurrentTenant();
-    var manager = this.isManager(actor);
+    var manager = await this.isManager(actor);
     var includeDrafts = manager && query.includeDrafts === true;
     var includeExpired = query.includeExpired === true;
 
@@ -172,7 +186,7 @@ export class AnnouncementService {
 
   async getById(id: string, actor: ResolvedActor): Promise<AnnouncementResponseDto> {
     var tenant = getCurrentTenant();
-    var manager = this.isManager(actor);
+    var manager = await this.isManager(actor);
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var sql = SELECT_ANNOUNCEMENT_BASE + 'WHERE a.id = $2::uuid AND a.school_id = $3::uuid ';
       var params: any[] = [actor.accountId, id, tenant.schoolId];
@@ -198,8 +212,10 @@ export class AnnouncementService {
     input: CreateAnnouncementDto,
     actor: ResolvedActor,
   ): Promise<AnnouncementResponseDto> {
-    if (!this.isManager(actor)) {
-      throw new ForbiddenException('Only staff and school administrators may create announcements');
+    if (!(await this.isManager(actor))) {
+      throw new ForbiddenException(
+        'Only com-002:write holders (Teacher, School Admin) may create announcements',
+      );
     }
     validateAudience(input.audienceType, input.audienceRef ?? null);
     if (input.alertTypeId) {
@@ -229,7 +245,7 @@ export class AnnouncementService {
         input.title,
         input.body,
         input.audienceType,
-        input.audienceType === 'ALL_SCHOOL' ? null : input.audienceRef ?? null,
+        input.audienceType === 'ALL_SCHOOL' ? null : (input.audienceRef ?? null),
         input.alertTypeId ?? null,
         publishAt,
         input.expiresAt ?? null,
@@ -238,7 +254,14 @@ export class AnnouncementService {
     });
 
     if (publishImmediately) {
-      await this.emitPublished(id, actor.accountId, input.audienceType, input.audienceRef ?? null, input.title, publishAt);
+      await this.emitPublished(
+        id,
+        actor.accountId,
+        input.audienceType,
+        input.audienceRef ?? null,
+        input.title,
+        publishAt,
+      );
     }
 
     return this.getByIdInternal(id);
@@ -255,8 +278,10 @@ export class AnnouncementService {
     input: UpdateAnnouncementDto,
     actor: ResolvedActor,
   ): Promise<AnnouncementResponseDto> {
-    if (!this.isManager(actor)) {
-      throw new ForbiddenException('Only staff and school administrators may edit announcements');
+    if (!(await this.isManager(actor))) {
+      throw new ForbiddenException(
+        'Only com-002:write holders (Teacher, School Admin) may edit announcements',
+      );
     }
     var tenant = getCurrentTenant();
     var existing = await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -282,18 +307,22 @@ export class AnnouncementService {
     var current = existing[0]!;
     var isAuthor = current.author_id === actor.accountId;
     if (!isAuthor && !actor.isSchoolAdmin) {
-      throw new ForbiddenException('Only the author or a school administrator may edit this announcement');
+      throw new ForbiddenException(
+        'Only the author or a school administrator may edit this announcement',
+      );
     }
     if (current.is_published) {
       throw new BadRequestException('Published announcements cannot be edited');
     }
     if (input.isPublished === false) {
-      throw new BadRequestException('Cannot set isPublished=false on a draft (already unpublished)');
+      throw new BadRequestException(
+        'Cannot set isPublished=false on a draft (already unpublished)',
+      );
     }
 
     var newAudienceType = (input.audienceType ?? current.audience_type) as AudienceType;
     var newAudienceRef =
-      input.audienceType !== undefined ? input.audienceRef ?? null : current.audience_ref;
+      input.audienceType !== undefined ? (input.audienceRef ?? null) : current.audience_ref;
     validateAudience(newAudienceType, newAudienceRef);
     if (input.alertTypeId) {
       await this.assertAlertTypeBelongsToTenant(input.alertTypeId);
@@ -480,7 +509,8 @@ export class AnnouncementService {
         tenant.schoolId,
       );
     });
-    if (rows.length === 0) throw new BadRequestException('Alert type ' + alertTypeId + ' not found or inactive');
+    if (rows.length === 0)
+      throw new BadRequestException('Alert type ' + alertTypeId + ' not found or inactive');
   }
 
   private async emitPublished(

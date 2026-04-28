@@ -92,7 +92,11 @@ export class AudienceFanOutWorker implements OnModuleInit {
     if (!event) return;
     if (!event.payload.announcementId || !event.payload.audienceType) {
       this.logger.warn(
-        'Dropping ' + msg.topic + ' (eventId=' + event.eventId + ') — missing announcement routing fields',
+        'Dropping ' +
+          msg.topic +
+          ' (eventId=' +
+          event.eventId +
+          ') — missing announcement routing fields',
       );
       return;
     }
@@ -168,7 +172,10 @@ export class AudienceFanOutWorker implements OnModuleInit {
         });
       } catch (e: any) {
         this.logger.error(
-          'Enqueue failed for ' + accountId + ' (announcement.published): ' + (e?.stack || e?.message || e),
+          'Enqueue failed for ' +
+            accountId +
+            ' (announcement.published): ' +
+            (e?.stack || e?.message || e),
         );
         throw e;
       }
@@ -213,17 +220,11 @@ export class AudienceFanOutWorker implements OnModuleInit {
    */
   private async audienceAllSchool(): Promise<string[]> {
     var tenant = getCurrentTenant();
-    var rows = await this.tenantPrisma.getPlatformClient().$queryRawUnsafe<
-      Array<{ account_id: string }>
-    >(
-      'SELECT DISTINCT ra.account_id::text AS account_id ' +
-        'FROM platform.iam_role_assignment ra ' +
-        'JOIN platform.iam_scope sc ON sc.id = ra.scope_id ' +
-        'JOIN platform.iam_scope_type stp ON stp.id = sc.scope_type_id ' +
-        "WHERE ra.status = 'ACTIVE' " +
-        " AND ((stp.code = 'SCHOOL' AND sc.entity_id = $1::uuid) OR stp.code = 'PLATFORM')",
-      tenant.schoolId,
-    );
+    var rows = await this.tenantPrisma
+      .getPlatformClient()
+      .$queryRawUnsafe<
+        Array<{ account_id: string }>
+      >('SELECT DISTINCT ra.account_id::text AS account_id ' + 'FROM platform.iam_role_assignment ra ' + 'JOIN platform.iam_scope sc ON sc.id = ra.scope_id ' + 'JOIN platform.iam_scope_type stp ON stp.id = sc.scope_type_id ' + "WHERE ra.status = 'ACTIVE' " + " AND ((stp.code = 'SCHOOL' AND sc.entity_id = $1::uuid) OR stp.code = 'PLATFORM')", tenant.schoolId);
     return rows.map(function (r) {
       return r.account_id;
     });
@@ -312,20 +313,11 @@ export class AudienceFanOutWorker implements OnModuleInit {
    */
   private async audienceRole(roleToken: string): Promise<string[]> {
     var tenant = getCurrentTenant();
-    var rows = await this.tenantPrisma.getPlatformClient().$queryRawUnsafe<
-      Array<{ account_id: string }>
-    >(
-      'SELECT DISTINCT ra.account_id::text AS account_id ' +
-        'FROM platform.iam_role_assignment ra ' +
-        'JOIN platform.roles r ON r.id = ra.role_id ' +
-        'JOIN platform.iam_scope sc ON sc.id = ra.scope_id ' +
-        'JOIN platform.iam_scope_type stp ON stp.id = sc.scope_type_id ' +
-        "WHERE ra.status = 'ACTIVE' " +
-        " AND UPPER(REGEXP_REPLACE(r.name, '\\s+', '_', 'g')) = $1 " +
-        " AND ((stp.code = 'SCHOOL' AND sc.entity_id = $2::uuid) OR stp.code = 'PLATFORM')",
-      roleToken,
-      tenant.schoolId,
-    );
+    var rows = await this.tenantPrisma
+      .getPlatformClient()
+      .$queryRawUnsafe<
+        Array<{ account_id: string }>
+      >('SELECT DISTINCT ra.account_id::text AS account_id ' + 'FROM platform.iam_role_assignment ra ' + 'JOIN platform.roles r ON r.id = ra.role_id ' + 'JOIN platform.iam_scope sc ON sc.id = ra.scope_id ' + 'JOIN platform.iam_scope_type stp ON stp.id = sc.scope_type_id ' + "WHERE ra.status = 'ACTIVE' " + " AND UPPER(REGEXP_REPLACE(r.name, '\\s+', '_', 'g')) = $1 " + " AND ((stp.code = 'SCHOOL' AND sc.entity_id = $2::uuid) OR stp.code = 'PLATFORM')", roleToken, tenant.schoolId);
     return rows.map(function (r) {
       return r.account_id;
     });
@@ -341,10 +333,7 @@ export class AudienceFanOutWorker implements OnModuleInit {
    * notification queue takes over from here); leaving everything PENDING
    * forever would skew the stats endpoint.
    */
-  private async writeAudienceRows(
-    announcementId: string,
-    accountIds: string[],
-  ): Promise<void> {
+  private async writeAudienceRows(announcementId: string, accountIds: string[]): Promise<void> {
     if (accountIds.length === 0) return;
     var tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {

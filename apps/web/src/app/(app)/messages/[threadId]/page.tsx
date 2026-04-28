@@ -40,9 +40,7 @@ export default function ThreadPage() {
   // returns so the hook order stays stable across loading / error states.
   const ordered = useMemo(() => {
     if (!messages.data) return [] as MessageDto[];
-    return [...messages.data].sort(
-      (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
-    );
+    return [...messages.data].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
   }, [messages.data]);
 
   // Mark thread as read when it first loads with unread messages. Track per
@@ -74,7 +72,9 @@ export default function ThreadPage() {
       <div className="mx-auto max-w-3xl">
         <div className="rounded-card border border-gray-200 bg-white px-5 py-12 text-center">
           <p className="text-sm font-semibold text-gray-900">
-            {status === 404 ? "This conversation isn't available." : 'Could not load the conversation.'}
+            {status === 404
+              ? "This conversation isn't available."
+              : 'Could not load the conversation.'}
           </p>
           <Link
             href="/messages"
@@ -99,12 +99,11 @@ export default function ThreadPage() {
 
   const t = thread.data;
   const others = t.participants.filter((p) => p.platformUserId !== user.id && !p.leftAt);
-  const headline = others.map((p) => p.displayName || p.email || 'Unknown').join(', ') || 'Just you';
+  const headline =
+    others.map((p) => p.displayName || p.email || 'Unknown').join(', ') || 'Just you';
   const isAdmin = hasAnyPermission(user, ['sch-001:admin']);
   const canPost = hasAnyPermission(user, ['com-001:write']);
-  const isParticipant = t.participants.some(
-    (p) => p.platformUserId === user.id && !p.leftAt,
-  );
+  const isParticipant = t.participants.some((p) => p.platformUserId === user.id && !p.leftAt);
 
   async function onSend(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -149,11 +148,12 @@ export default function ThreadPage() {
             </div>
           )}
           {!messages.isLoading && ordered.length === 0 && (
-            <p className="py-12 text-center text-sm text-gray-500">No messages in this thread yet.</p>
+            <p className="py-12 text-center text-sm text-gray-500">
+              No messages in this thread yet.
+            </p>
           )}
-          {!messages.isLoading && ordered.map((m) => (
-            <MessageBubble key={m.id} message={m} ownAccountId={user.id} />
-          ))}
+          {!messages.isLoading &&
+            ordered.map((m) => <MessageBubble key={m.id} message={m} ownAccountId={user.id} />)}
           <div ref={messagesEndRef} />
         </div>
 
@@ -203,7 +203,13 @@ interface ThreadHeaderProps {
   canArchive: boolean;
 }
 
-function ThreadHeader({ thread, headline, onArchive, archivePending, canArchive }: ThreadHeaderProps) {
+function ThreadHeader({
+  thread,
+  headline,
+  onArchive,
+  archivePending,
+  canArchive,
+}: ThreadHeaderProps) {
   return (
     <div className="mb-4 flex items-start justify-between gap-4">
       <div className="min-w-0 flex-1">
@@ -247,7 +253,8 @@ interface MessageBubbleProps {
 function MessageBubble({ message, ownAccountId }: MessageBubbleProps) {
   const isMine = message.senderId === ownAccountId;
   const isDeleted = message.isDeleted;
-  const isFlagged = message.moderationStatus === 'FLAGGED' || message.moderationStatus === 'ESCALATED';
+  const isFlagged =
+    message.moderationStatus === 'FLAGGED' || message.moderationStatus === 'ESCALATED';
   const senderName = message.senderName || 'Unknown';
 
   return (
@@ -255,9 +262,7 @@ function MessageBubble({ message, ownAccountId }: MessageBubbleProps) {
       <Avatar name={senderName} size="sm" />
       <div className={cn('max-w-[75%] min-w-0', isMine && 'items-end')}>
         <div className={cn('flex items-baseline gap-2', isMine && 'flex-row-reverse')}>
-          <span className="text-xs font-semibold text-gray-700">
-            {isMine ? 'You' : senderName}
-          </span>
+          <span className="text-xs font-semibold text-gray-700">{isMine ? 'You' : senderName}</span>
           <span className="text-[10px] text-gray-400">{formatRelative(message.createdAt)}</span>
           {message.isEdited && !isDeleted && (
             <span className="text-[10px] italic text-gray-400">edited</span>
@@ -276,9 +281,7 @@ function MessageBubble({ message, ownAccountId }: MessageBubbleProps) {
           {isDeleted ? 'Message deleted' : message.body}
         </div>
         {isFlagged && !isDeleted && (
-          <p className="mt-1 text-[11px] text-amber-700">
-            Flagged for review
-          </p>
+          <p className="mt-1 text-[11px] text-amber-700">Flagged for review</p>
         )}
       </div>
     </div>
@@ -300,7 +303,10 @@ function labelForType(name: string): string {
   }
 }
 
-function handlePostError(err: unknown, toast: (msg: string, variant?: 'info' | 'success' | 'warning' | 'error') => void) {
+function handlePostError(
+  err: unknown,
+  toast: (msg: string, variant?: 'info' | 'success' | 'warning' | 'error') => void,
+) {
   if (err instanceof ApiError) {
     if (err.status === 422) {
       toast(

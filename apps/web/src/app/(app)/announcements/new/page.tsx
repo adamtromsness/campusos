@@ -16,9 +16,21 @@ import type { AudienceType, CreateAnnouncementPayload } from '@/lib/types';
 
 const AUDIENCE_OPTIONS: Array<{ value: AudienceType; label: string; description: string }> = [
   { value: 'ALL_SCHOOL', label: 'All school', description: 'Everyone enrolled at this school.' },
-  { value: 'CLASS', label: 'Class', description: 'Students in a specific class, plus their guardians and the assigned teachers.' },
-  { value: 'YEAR_GROUP', label: 'Year group', description: 'Students in one grade level, plus their guardians.' },
-  { value: 'ROLE', label: 'Role', description: 'Everyone who holds a specific role at this school.' },
+  {
+    value: 'CLASS',
+    label: 'Class',
+    description: 'Students in a specific class, plus their guardians and the assigned teachers.',
+  },
+  {
+    value: 'YEAR_GROUP',
+    label: 'Year group',
+    description: 'Students in one grade level, plus their guardians.',
+  },
+  {
+    value: 'ROLE',
+    label: 'Role',
+    description: 'Everyone who holds a specific role at this school.',
+  },
 ];
 
 // Hard-coded for Step 10 — see HANDOFF-CYCLE3.md. The audience worker resolves
@@ -111,9 +123,7 @@ export default function NewAnnouncementPage() {
       router.push(`/announcements/${created.id}`);
     } catch (err) {
       const message =
-        err instanceof ApiError && err.message
-          ? err.message
-          : 'Could not save the announcement.';
+        err instanceof ApiError && err.message ? err.message : 'Could not save the announcement.';
       toast(message, 'error');
     }
   }

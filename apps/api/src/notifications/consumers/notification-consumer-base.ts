@@ -104,10 +104,7 @@ export async function processWithIdempotency(
     alreadyClaimed = await idempotency.isClaimed(consumerGroup, event.eventId);
   } catch (e: any) {
     logger.error(
-      'Idempotency lookup failed (eventId=' +
-        event.eventId +
-        '): ' +
-        (e?.stack || e?.message || e),
+      'Idempotency lookup failed (eventId=' + event.eventId + '): ' + (e?.stack || e?.message || e),
     );
     // Fail open: better to process and (idempotently) re-enqueue than to
     // silently drop a notification because the platform DB blinked.

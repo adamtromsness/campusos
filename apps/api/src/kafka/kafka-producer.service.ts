@@ -128,9 +128,7 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
     try {
       envelope = envelopeFromOptions(envelopeOpts);
     } catch (e: any) {
-      this.logger.warn(
-        'Failed to build envelope for ' + opts.topic + ': ' + (e?.message || e),
-      );
+      this.logger.warn('Failed to build envelope for ' + opts.topic + ': ' + (e?.message || e));
       return;
     }
 

@@ -1146,24 +1146,26 @@ pnpm --filter @campusos/database exec tsx src/build-cache.ts
 **Final verdict:** **APPROVED** after fixes pushed in commit `d876e86`. Re-review confirmed both blockers resolved; ADR-057 envelope and temporary HR-employee identity mapping accepted as documented non-blocking carry-overs (envelope lands in Cycle 3; HR mapping lands with M16).
 **Full record:** `REVIEW-CYCLE2-CHATGPT.md` (review + fixes-applied log + reviewer's approval verbatim).
 
-| #         | Severity  | Item                                                                            | Status                                |
-| --------- | --------- | ------------------------------------------------------------------------------- | ------------------------------------- |
-| BLOCKING 1 | Critical  | `GET /classes/:classId/gradebook` leaked roster grades to students/parents      | Fixed — switched to `tch-003:write` + `assertCanWriteClass` |
-| BLOCKING 2 | Critical  | Snapshot worker was at-most-once (claim-on-arrival lost work on transient fail) | Fixed — claim-after-success rewrite   |
-| DEVIATION 3 | Major     | ADR-057 envelope still not landed (now matters because a real consumer exists)  | Deferred to Cycle 3                   |
-| DEVIATION 4 | Major     | Teacher identity overloaded (`*_employee_id` cols hold `iam_person.id`)         | Documented + `COMMENT ON COLUMN`      |
+| #           | Severity | Item                                                                            | Status                                                      |
+| ----------- | -------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| BLOCKING 1  | Critical | `GET /classes/:classId/gradebook` leaked roster grades to students/parents      | Fixed — switched to `tch-003:write` + `assertCanWriteClass` |
+| BLOCKING 2  | Critical | Snapshot worker was at-most-once (claim-on-arrival lost work on transient fail) | Fixed — claim-after-success rewrite                         |
+| DEVIATION 3 | Major    | ADR-057 envelope still not landed (now matters because a real consumer exists)  | Deferred to Cycle 3                                         |
+| DEVIATION 4 | Major    | Teacher identity overloaded (`*_employee_id` cols hold `iam_person.id`)         | Documented + `COMMENT ON COLUMN`                            |
 
 ### Fix BLOCKING 1 — `/classes/:classId/gradebook` is now manager-only
 
 **Problem.** The route was protected by `tch-003:read`, which Teacher / Parent / Student all hold. The service then called `assertCanReadClass`, which lets parents linked to a child in the class and students enrolled in the class through. The body of the response was a roster-wide row-per-student grade matrix — so a parent or student could see every classmate's average.
 
 **Fix.**
+
 - `apps/api/src/classroom/gradebook.controller.ts` — `getClassGradebook` permission gate switched from `tch-003:read` to `tch-003:write`. `tch-003:write` is held only by Teacher / School Admin / Platform Admin (per `seed-iam.ts`).
 - `apps/api/src/classroom/gradebook.service.ts::getClassGradebook` — row-scope check switched from `assignments.assertCanReadClass(...)` to `assignments.assertCanWriteClass(...)`. Admin bypasses; teachers must appear in `sis_class_teachers` for the specific class. Same gate the assignment write paths already use.
 
 Two layers (permission + per-class row-scope), because a teacher with `tch-003:write` in another school's class would still pass the permission gate but must be denied by the row-scope check.
 
 Students/parents continue to use the per-student endpoints which were already correctly row-scoped:
+
 - `GET /students/:studentId/gradebook`
 - `GET /students/:studentId/classes/:classId/grades`
 

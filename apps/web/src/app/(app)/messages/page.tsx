@@ -100,9 +100,10 @@ function ThreadRow({ thread, currentAccountId }: ThreadRowProps) {
   const others = thread.participants.filter(
     (p) => p.platformUserId !== currentAccountId && !p.leftAt,
   );
-  const headline = others.length > 0
-    ? others.map((p) => p.displayName || p.email || 'Unknown').join(', ')
-    : 'Just you';
+  const headline =
+    others.length > 0
+      ? others.map((p) => p.displayName || p.email || 'Unknown').join(', ')
+      : 'Just you';
   const unread = thread.unreadCount || 0;
   const subject = thread.subject || labelForType(thread.threadTypeName);
   const preview = thread.lastMessagePreview || 'No messages yet';
@@ -120,7 +121,12 @@ function ThreadRow({ thread, currentAccountId }: ThreadRowProps) {
       <Avatar name={others[0]?.displayName || others[0]?.email || '?'} size="md" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-3">
-          <p className={cn('truncate text-sm font-semibold text-gray-900', unread > 0 && 'text-gray-950')}>
+          <p
+            className={cn(
+              'truncate text-sm font-semibold text-gray-900',
+              unread > 0 && 'text-gray-950',
+            )}
+          >
             {headline}
           </p>
           <span className="shrink-0 text-xs text-gray-400">

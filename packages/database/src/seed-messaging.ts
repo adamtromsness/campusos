@@ -295,8 +295,7 @@ async function seedMessaging() {
   );
 
   var totalThreads = 3;
-  var totalMessages =
-    threadA.messages.length + threadB.messages.length + threadC.messages.length;
+  var totalMessages = threadA.messages.length + threadB.messages.length + threadC.messages.length;
   console.log('  ' + totalThreads + ' msg_threads (3 sample threads)');
   console.log('  ' + totalMessages + ' msg_messages');
 
@@ -368,7 +367,8 @@ async function seedMessaging() {
     },
     {
       name: 'PARENT_INFORMATIONAL',
-      description: 'Time-sensitive but non-urgent updates aimed at parents (e.g. conference schedules).',
+      description:
+        'Time-sensitive but non-urgent updates aimed at parents (e.g. conference schedules).',
       severity: 'INFO',
       channels: ['IN_APP', 'EMAIL'],
       requiresAck: false,
@@ -641,7 +641,8 @@ async function seedMessaging() {
       thread_id: threadA.threadId,
       thread_subject: 'Maya — Spring 2026 progress check-in',
       sender_name: 'James Rivera',
-      preview: "I'll send a copy of the rubric I use for grading proofs and a couple of practice sheets.",
+      preview:
+        "I'll send a copy of the rubric I use for grading proofs and a couple of practice sheets.",
     }),
     'seed-message-thread-a-pending',
     generateId(),
@@ -654,7 +655,7 @@ async function seedMessaging() {
     'INSERT INTO ' +
       TENANT_SCHEMA +
       '.msg_notification_log ' +
-      "(id, school_id, queue_id, recipient_id, notification_type, channel, status, sent_at, delivered_at) " +
+      '(id, school_id, queue_id, recipient_id, notification_type, channel, status, sent_at, delivered_at) ' +
       "VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'attendance.tardy', 'IN_APP', 'DELIVERED', $5::timestamptz, $5::timestamptz)",
     generateId(),
     schoolId,
@@ -666,7 +667,7 @@ async function seedMessaging() {
     'INSERT INTO ' +
       TENANT_SCHEMA +
       '.msg_notification_log ' +
-      "(id, school_id, queue_id, recipient_id, notification_type, channel, status, sent_at, delivered_at) " +
+      '(id, school_id, queue_id, recipient_id, notification_type, channel, status, sent_at, delivered_at) ' +
       "VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'grade.published', 'IN_APP', 'DELIVERED', $5::timestamptz, $5::timestamptz)",
     generateId(),
     schoolId,

@@ -174,9 +174,7 @@ function toInboxItem(
 function historyRowToItem(row: HistoryRow, lastReadAt: number): NotificationInboxItem {
   var occurredMs = row.occurred_at.getTime();
   var payload =
-    row.payload && typeof row.payload === 'object'
-      ? (row.payload as Record<string, unknown>)
-      : {};
+    row.payload && typeof row.payload === 'object' ? (row.payload as Record<string, unknown>) : {};
   return {
     id: row.id,
     type: row.notification_type,

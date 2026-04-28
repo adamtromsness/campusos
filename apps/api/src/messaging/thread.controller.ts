@@ -47,7 +47,7 @@ export class ThreadController {
 
   @Get()
   @RequirePermission('com-001:read')
-  @ApiOperation({ summary: "Inbox — threads visible to the calling user" })
+  @ApiOperation({ summary: 'Inbox — threads visible to the calling user' })
   async list(
     @Query() q: ListThreadsQueryDto,
     @Req() req: AuthedRequest,
@@ -60,8 +60,8 @@ export class ThreadController {
   @RequirePermission('com-001:read')
   @ApiOperation({
     summary:
-      "Active thread types for this tenant. Used by the compose UI to drive the thread-type " +
-      "selector and the recipient-picker role filter.",
+      'Active thread types for this tenant. Used by the compose UI to drive the thread-type ' +
+      'selector and the recipient-picker role filter.',
   })
   async listTypes(@Req() req: AuthedRequest): Promise<ThreadTypeDto[]> {
     var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
@@ -73,8 +73,8 @@ export class ThreadController {
   @ApiOperation({
     summary:
       "Platform users in this school whose IAM role token matches the thread type's " +
-      "allowed_participant_roles. Excludes self and users with a msg_user_blocks row in " +
-      "either direction. Used by the compose UI to populate the recipient picker.",
+      'allowed_participant_roles. Excludes self and users with a msg_user_blocks row in ' +
+      'either direction. Used by the compose UI to populate the recipient picker.',
   })
   async listRecipients(
     @Query('threadTypeId', new ParseUUIDPipe()) threadTypeId: string,

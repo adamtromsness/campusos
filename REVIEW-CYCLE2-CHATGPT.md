@@ -103,9 +103,10 @@ projections exist.
 **Triage (Claude):** VALID and the deeper bug originates in Cycle 1
 (`sis_class_teachers.teacher_employee_id`) — it has propagated. Going with option
 (b): document an explicit "Temporary HR-Employee Identity Mapping" rule in CLAUDE.md
-+ HANDOFF-CYCLE2.md, and add `COMMENT ON COLUMN` annotations in the migration SQL
-so the constraint is discoverable from the schema. Renaming columns later is a
-non-breaking, additive migration when the HR module ships.
+
+- HANDOFF-CYCLE2.md, and add `COMMENT ON COLUMN` annotations in the migration SQL
+  so the constraint is discoverable from the schema. Renaming columns later is a
+  non-breaking, additive migration when the HR module ships.
 
 ---
 

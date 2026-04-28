@@ -401,6 +401,7 @@ curl -s -w "\n  HTTP=%{http_code}\n" \
 ```
 
 ✅ **Pass.** The 3 cuts cover the 3 distinct gating styles in Cycle 3:
+
 - **Endpoint permission** — `PermissionGuard` rejects POST `/announcements` because `com-002:write` is held only by Teacher and School Admin (per the IAM seed). Student gets the standard 403 envelope with the required permission code.
 - **Method-tier scope mismatch** — both Parent and the per-author/admin filter behind `GET /announcements/:id/stats` are `com-002:write` gates. Parent holds `com-002:read` only, so the endpoint returns 403 before the row-level "are you the author" check ever fires.
 - **Row scope as 404** — `ThreadService.getById` deliberately collapses 403→404 for non-participants who aren't admins so the API can't be probed for thread existence. The student gets the same shape they would for a UUID that genuinely doesn't exist.
@@ -430,25 +431,25 @@ This is exactly the kind of latent bug a vertical-slice integration test exists 
 
 **All 7 plan-mandated scenarios pass.** The Cycle 3 vertical slice is verified end-to-end:
 
-|   # | Scenario                                                          | Status |
-| --: | ----------------------------------------------------------------- | :----: |
-|   1 | Tardy mark → Kafka → consumer → queue → worker → parent's bell    |   ✅   |
-|   2 | Grade publish → fan-out to student + portal-enabled guardians     |   ✅   |
-|   3 | Direct messaging (compose, deliver, reply, mark-read)             |   ✅   |
-|   4 | Content moderation BLOCK keyword → 422 + msg_moderation_log row   |   ✅   |
-|   5 | Announcement publish → audience fan-out → mark-read → stats       |   ✅   |
-|   6 | Disabled `is_enabled` preference suppresses enqueue               |   ✅   |
+|   # | Scenario                                                                              | Status |
+| --: | ------------------------------------------------------------------------------------- | :----: |
+|   1 | Tardy mark → Kafka → consumer → queue → worker → parent's bell                        |   ✅   |
+|   2 | Grade publish → fan-out to student + portal-enabled guardians                         |   ✅   |
+|   3 | Direct messaging (compose, deliver, reply, mark-read)                                 |   ✅   |
+|   4 | Content moderation BLOCK keyword → 422 + msg_moderation_log row                       |   ✅   |
+|   5 | Announcement publish → audience fan-out → mark-read → stats                           |   ✅   |
+|   6 | Disabled `is_enabled` preference suppresses enqueue                                   |   ✅   |
 |   7 | Three independent permission denials (403 endpoint / 403 method-tier / 404 row scope) |   ✅   |
 
 Permission matrix (Cycle 3 additions on top of Cycle 1+2):
 
-| Caller  | Endpoint                                  | Required        | Held? | Result |
-| ------- | ----------------------------------------- | --------------- | :---: | -----: |
-| student | `POST /announcements`                     | `com-002:write` |   ✗   |    403 |
-| parent  | `GET /announcements/:id/stats`            | `com-002:write` |   ✗   |    403 |
-| student | `GET /threads/:id` (non-participant)      | row scope       |   ✗   |    404 |
-| student | `POST /threads` for TEACHER_PARENT type   | role allow-list |   ✗   |    400 |
-| parent  | `POST /threads/:id/messages` w/ BLOCK kw  | content policy  |   ✗   |    422 |
+| Caller  | Endpoint                                 | Required        | Held? | Result |
+| ------- | ---------------------------------------- | --------------- | :---: | -----: |
+| student | `POST /announcements`                    | `com-002:write` |   ✗   |    403 |
+| parent  | `GET /announcements/:id/stats`           | `com-002:write` |   ✗   |    403 |
+| student | `GET /threads/:id` (non-participant)     | row scope       |   ✗   |    404 |
+| student | `POST /threads` for TEACHER_PARENT type  | role allow-list |   ✗   |    400 |
+| parent  | `POST /threads/:id/messages` w/ BLOCK kw | content policy  |   ✗   |    422 |
 
 ---
 

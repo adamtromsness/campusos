@@ -40,9 +40,7 @@ export function useNotificationHistory(args: HistoryArgs = {}) {
   return useQuery({
     queryKey: ['notifications', 'history', args.limit ?? 25, args.type ?? 'all', args.before ?? ''],
     queryFn: () =>
-      apiFetch<NotificationHistoryResponse>(
-        `/api/v1/notifications/history${qs ? `?${qs}` : ''}`,
-      ),
+      apiFetch<NotificationHistoryResponse>(`/api/v1/notifications/history${qs ? `?${qs}` : ''}`),
   });
 }
 

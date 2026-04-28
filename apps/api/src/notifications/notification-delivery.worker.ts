@@ -18,6 +18,20 @@ import { RedisService } from './redis.service';
  *     (provider integration is Phase 3 work). We mark the queue row SENT
  *     all the same so the polling loop doesn't reprocess it.
  *
+ * State machine (REVIEW-CYCLE3 BLOCKING 2):
+ *
+ *   PENDING    -> PROCESSING  (claim under FOR UPDATE in a short tx)
+ *   PROCESSING -> SENT        (only after successful Redis + log writes)
+ *   PROCESSING -> PENDING     (transient failure — scheduled_for backoff,
+ *                              attempts++; eventually FAILED at MAX_ATTEMPTS)
+ *   PROCESSING -> PENDING     (also via the stale-row sweep below, for
+ *                              rows whose worker died mid-flight)
+ *
+ * SENT means "delivered" — never just "in-flight". A crash between the claim
+ * and the delivery leaves the row in PROCESSING with `processing_started_at`
+ * stamped; the next tick's sweep resets such rows to PENDING after the
+ * stale threshold so delivery is retried.
+ *
  * Multi-tenant polling: the worker fetches the active school list from
  * `platform.schools` once per tick, then for each school enters
  * `runWithTenantContextAsync` and runs a single
@@ -42,6 +56,10 @@ var POLL_INTERVAL_MS_DEFAULT = 10_000;
 var POLL_BATCH = 25;
 var FAILURE_BACKOFF_SECONDS = 30;
 var MAX_ATTEMPTS = 5;
+// Rows stuck in PROCESSING for longer than this are assumed orphaned by a
+// dead worker and recovered to PENDING on the next tick. Generous default —
+// in practice no individual delivery should take more than a few seconds.
+var STALE_PROCESSING_SECONDS = 5 * 60;
 
 interface PendingRow {
   id: string;
@@ -165,12 +183,16 @@ export class NotificationDeliveryWorker implements OnModuleInit, OnApplicationSh
   }
 
   private async processPendingForTenant(tenant: TenantInfo): Promise<void> {
-    // Pull a small batch under a transaction with FOR UPDATE SKIP LOCKED.
-    // The transaction stays open while we process to keep the lock — that's
-    // not ideal for a high-volume worker but is fine for Cycle 3 demo
-    // volumes (a few rows per minute peak). When we tune for Phase 2 we
-    // can switch to "SELECT ids ; UPDATE TO PROCESSING ; release lock ;
-    // process ; UPDATE TO SENT" so processing happens outside the lock.
+    // Phase 0 — recover stale PROCESSING rows. A worker that died mid-flight
+    // would have left rows in PROCESSING with processing_started_at stamped.
+    // Reset them to PENDING with a fresh scheduled_for so this tick picks
+    // them up. Bounded by STALE_PROCESSING_SECONDS so we don't stomp on
+    // legitimately-running deliveries from a sibling worker.
+    await this.recoverStaleProcessing();
+
+    // Phase 1 — claim a batch atomically. SELECT … FOR UPDATE SKIP LOCKED
+    // + UPDATE status='PROCESSING' commits the in-flight flag without
+    // marking the row delivered. PROCESSING means "claimed", not "done".
     var rows = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       var pending = await tx.$queryRawUnsafe<PendingRow[]>(
         'SELECT id, recipient_id, notification_type, payload, attempts, correlation_id ' +
@@ -183,15 +205,12 @@ export class NotificationDeliveryWorker implements OnModuleInit, OnApplicationSh
       );
       if (pending.length === 0) return [] as PendingRow[];
 
-      // Mark every row in-flight so a concurrent worker would see SENT and
-      // skip it on the next tick. We immediately deliver and overwrite the
-      // status afterwards. Using SENT as the in-flight flag is acceptable
-      // because the DELIVERED state on `msg_notification_log` is what the
-      // UI actually renders against.
       for (var i = 0; i < pending.length; i++) {
         await tx.$executeRawUnsafe(
-          "UPDATE msg_notification_queue SET status = 'SENT', sent_at = now(), " +
-            ' attempts = attempts + 1, updated_at = now() WHERE id = $1::uuid',
+          "UPDATE msg_notification_queue SET status = 'PROCESSING', " +
+            ' processing_started_at = now(), ' +
+            ' attempts = attempts + 1, updated_at = now() ' +
+            'WHERE id = $1::uuid',
           pending[i]!.id,
         );
       }
@@ -200,20 +219,70 @@ export class NotificationDeliveryWorker implements OnModuleInit, OnApplicationSh
 
     if (rows.length === 0) return;
 
-    // Deliver each. The deliver step writes the log row + Redis update; if
-    // it throws we flip the queue row back to PENDING with a small
-    // backoff so the next tick retries. After MAX_ATTEMPTS we leave it as
-    // FAILED for human review.
+    // Phase 2 — deliver outside the claim tx. On success, flip PROCESSING
+    // -> SENT (and clear processing_started_at). On failure, flip back to
+    // PENDING with backoff (or FAILED at MAX_ATTEMPTS exhaust). The status
+    // never lies: SENT is delivered, PROCESSING is in-flight, PENDING is
+    // retryable, FAILED is terminal.
     for (var k = 0; k < rows.length; k++) {
       var row = rows[k]!;
       try {
         await this.deliver(tenant, row);
+        await this.markSent(row.id);
       } catch (e: any) {
         this.logger.warn(
           'Delivery failed for queue ' + row.id + ': ' + (e?.stack || e?.message || e),
         );
         await this.markFailure(row.id, row.attempts + 1, e?.message || String(e));
       }
+    }
+  }
+
+  /**
+   * Reset stale PROCESSING rows back to PENDING. Runs at the top of every
+   * tick. The recovered row keeps its `attempts` count (so MAX_ATTEMPTS
+   * still bounds total retries — including ones lost to crashes) and gets
+   * a fresh scheduled_for so it lines up at the front of the next claim.
+   */
+  private async recoverStaleProcessing(): Promise<void> {
+    try {
+      await this.tenantPrisma.executeInTenantContext(async (client) => {
+        await client.$executeRawUnsafe(
+          'UPDATE msg_notification_queue SET ' +
+            " status = 'PENDING', " +
+            ' processing_started_at = NULL, ' +
+            ' scheduled_for = now(), ' +
+            ' updated_at = now() ' +
+            "WHERE status = 'PROCESSING' " +
+            ' AND processing_started_at < now() - ($1::int * interval ' +
+            "'1 second')",
+          STALE_PROCESSING_SECONDS,
+        );
+      });
+    } catch (e: any) {
+      this.logger.warn('Stale-row recovery sweep failed (non-fatal): ' + (e?.message || e));
+    }
+  }
+
+  /** Flip PROCESSING -> SENT after a successful deliver(). */
+  private async markSent(queueId: string): Promise<void> {
+    try {
+      await this.tenantPrisma.executeInTenantContext(async (client) => {
+        await client.$executeRawUnsafe(
+          "UPDATE msg_notification_queue SET status = 'SENT', sent_at = now(), " +
+            ' processing_started_at = NULL, updated_at = now() ' +
+            'WHERE id = $1::uuid',
+          queueId,
+        );
+      });
+    } catch (e: any) {
+      // Loud — a failed status flip after successful delivery means the row
+      // will be retried on the next tick by the stale-recovery path.
+      // Idempotency on Redis ZADD makes the redelivery safe (same queue_id
+      // overwrites the existing sorted-set entry).
+      this.logger.error(
+        'Failed to mark queue ' + queueId + ' SENT after delivery: ' + (e?.message || e),
+      );
     }
   }
 
@@ -296,6 +365,7 @@ export class NotificationDeliveryWorker implements OnModuleInit, OnApplicationSh
           'UPDATE msg_notification_queue SET ' +
             ' status = $1, ' +
             ' failure_reason = $2, ' +
+            ' processing_started_at = NULL, ' +
             " scheduled_for = CASE WHEN $1 = 'PENDING' THEN $3::timestamptz ELSE scheduled_for END, " +
             ' updated_at = now() ' +
             'WHERE id = $4::uuid',

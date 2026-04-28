@@ -113,8 +113,7 @@ export default function AnnouncementDetailPage() {
       await update.mutateAsync({ isPublished: true });
       toast('Announcement published.', 'success');
     } catch (err) {
-      const message =
-        err instanceof ApiError && err.message ? err.message : 'Could not publish.';
+      const message = err instanceof ApiError && err.message ? err.message : 'Could not publish.';
       toast(message, 'error');
     }
   }
@@ -235,10 +234,7 @@ function StatsPanel({
         <Metric label="Audience" value={stats.totalAudience.toString()} />
         <Metric label="Read" value={`${stats.readCount} (${pct}%)`} />
         <Metric label="Delivered" value={stats.deliveredCount.toString()} />
-        <Metric
-          label="Pending / failed"
-          value={`${stats.pendingCount} / ${stats.failedCount}`}
-        />
+        <Metric label="Pending / failed" value={`${stats.pendingCount} / ${stats.failedCount}`} />
       </div>
       <div className="mt-4">
         <div className="mb-1 flex items-center justify-between text-xs text-gray-500">

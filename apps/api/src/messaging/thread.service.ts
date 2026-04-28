@@ -130,10 +130,7 @@ export class ThreadService {
    * read endpoint (Step 6 ships the schema; the audit log entry lands in
    * `getById` below).
    */
-  async list(
-    filters: ListThreadsQueryDto,
-    actor: ResolvedActor,
-  ): Promise<ThreadResponseDto[]> {
+  async list(filters: ListThreadsQueryDto, actor: ResolvedActor): Promise<ThreadResponseDto[]> {
     var includeArchived = filters.includeArchived === true;
     var threads = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var sql =
@@ -268,7 +265,8 @@ export class ThreadService {
         tenant.schoolId,
       );
     });
-    if (typeRows.length === 0) throw new NotFoundException('Thread type ' + threadTypeId + ' not found');
+    if (typeRows.length === 0)
+      throw new NotFoundException('Thread type ' + threadTypeId + ' not found');
     var threadType = typeRows[0]!;
     if (!threadType.is_active) {
       throw new BadRequestException('Thread type is not active');
@@ -353,9 +351,7 @@ export class ThreadService {
         if (!ok) continue;
       }
       var name =
-        ent.firstName && ent.lastName
-          ? ent.firstName + ' ' + ent.lastName
-          : ent.displayName;
+        ent.firstName && ent.lastName ? ent.firstName + ' ' + ent.lastName : ent.displayName;
       candidates.push({
         platformUserId: ent.platformUserId,
         displayName: name,
@@ -461,7 +457,9 @@ export class ThreadService {
     for (var i = 0; i < input.participants.length; i++) {
       var pid = input.participants[i]!.platformUserId;
       if (pid === actor.accountId) {
-        throw new BadRequestException('The thread creator is added automatically and must not appear in `participants`');
+        throw new BadRequestException(
+          'The thread creator is added automatically and must not appear in `participants`',
+        );
       }
       if (seen[pid]) continue;
       seen[pid] = true;
@@ -527,12 +525,10 @@ export class ThreadService {
     }
 
     // Validate every recipient has a platform_users row in the system.
-    var existing = await this.tenantPrisma
-      .getPlatformClient()
-      .platformUser.findMany({
-        where: { id: { in: recipientIds } },
-        select: { id: true },
-      });
+    var existing = await this.tenantPrisma.getPlatformClient().platformUser.findMany({
+      where: { id: { in: recipientIds } },
+      select: { id: true },
+    });
     var existingSet: Record<string, boolean> = {};
     for (var ei = 0; ei < existing.length; ei++) existingSet[existing[ei]!.id] = true;
     for (var ri = 0; ri < recipientIds.length; ri++) {
@@ -560,7 +556,7 @@ export class ThreadService {
       // Owner row first — the creator is always added with role OWNER even
       // if they appeared in the input list with a different role.
       await tx.$executeRawUnsafe(
-        "INSERT INTO msg_thread_participants (id, thread_id, school_id, platform_user_id, role) " +
+        'INSERT INTO msg_thread_participants (id, thread_id, school_id, platform_user_id, role) ' +
           "VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'OWNER') " +
           'ON CONFLICT (thread_id, platform_user_id) DO NOTHING',
         generateId(),
@@ -629,7 +625,7 @@ export class ThreadService {
             'ON CONFLICT (message_id, reader_id) DO NOTHING',
           generateId(),
           u.id,
-          (typeof u.created_at === 'string' ? u.created_at : u.created_at.toISOString()),
+          typeof u.created_at === 'string' ? u.created_at : u.created_at.toISOString(),
           u.thread_id,
           actor.accountId,
         );
@@ -697,7 +693,7 @@ export class ThreadService {
           'LEFT JOIN platform.platform_users u ON u.id = p.platform_user_id ' +
           'LEFT JOIN platform.iam_person ip ON ip.id = u.person_id ' +
           'WHERE p.thread_id = ANY($1::uuid[]) ' +
-          'ORDER BY p.role = \'OWNER\' DESC, ip.last_name, ip.first_name',
+          "ORDER BY p.role = 'OWNER' DESC, ip.last_name, ip.first_name",
         threadIds,
       );
     });
@@ -744,7 +740,10 @@ export class ThreadService {
    * deliberately generic message — the API never reveals which side is
    * blocking who.
    */
-  private async assertNoBlocks(creatorAccountId: string, recipientAccountIds: string[]): Promise<void> {
+  private async assertNoBlocks(
+    creatorAccountId: string,
+    recipientAccountIds: string[],
+  ): Promise<void> {
     if (recipientAccountIds.length === 0) return;
     var blocks = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ blocker_id: string; blocked_id: string }>>(
@@ -825,9 +824,7 @@ export class ThreadService {
         );
       });
     } catch (e: any) {
-      this.logger.error(
-        'Failed to write msg_admin_access_log: ' + (e?.stack || e?.message || e),
-      );
+      this.logger.error('Failed to write msg_admin_access_log: ' + (e?.stack || e?.message || e));
     }
   }
 }

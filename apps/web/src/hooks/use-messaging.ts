@@ -39,10 +39,7 @@ export function useThread(threadId: string | null | undefined) {
 export function useThreadMessages(threadId: string | null | undefined, limit = 50) {
   return useQuery({
     queryKey: ['messaging', 'messages', threadId, limit],
-    queryFn: () =>
-      apiFetch<MessageDto[]>(
-        `/api/v1/threads/${threadId}/messages?limit=${limit}`,
-      ),
+    queryFn: () => apiFetch<MessageDto[]>(`/api/v1/threads/${threadId}/messages?limit=${limit}`),
     enabled: typeof threadId === 'string' && threadId.length > 0,
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
@@ -61,9 +58,7 @@ export function useMessagingRecipients(threadTypeId: string | null | undefined) 
   return useQuery({
     queryKey: ['messaging', 'recipients', threadTypeId],
     queryFn: () =>
-      apiFetch<MessagingRecipientDto[]>(
-        `/api/v1/threads/recipients?threadTypeId=${threadTypeId}`,
-      ),
+      apiFetch<MessagingRecipientDto[]>(`/api/v1/threads/recipients?threadTypeId=${threadTypeId}`),
     enabled: typeof threadTypeId === 'string' && threadTypeId.length > 0,
     staleTime: 60_000,
   });

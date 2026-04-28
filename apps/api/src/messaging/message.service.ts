@@ -295,9 +295,9 @@ export class MessageService {
     if (existing.sender_id !== actor.accountId) {
       throw new ForbiddenException('Only the original sender may edit this message');
     }
-    var createdAtMs = (typeof existing.created_at === 'string'
-      ? new Date(existing.created_at)
-      : existing.created_at).getTime();
+    var createdAtMs = (
+      typeof existing.created_at === 'string' ? new Date(existing.created_at) : existing.created_at
+    ).getTime();
     if (Date.now() - createdAtMs > EDIT_WINDOW_MS) {
       throw new BadRequestException('Messages can only be edited within 15 minutes of posting');
     }
@@ -363,7 +363,9 @@ export class MessageService {
     }
     var canDelete = existing.sender_id === actor.accountId || actor.isSchoolAdmin;
     if (!canDelete) {
-      throw new ForbiddenException('Only the sender or a school administrator may delete a message');
+      throw new ForbiddenException(
+        'Only the sender or a school administrator may delete a message',
+      );
     }
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
@@ -401,10 +403,7 @@ export class MessageService {
     });
   }
 
-  private async fetchById(
-    messageId: string,
-    createdAt: Date | null,
-  ): Promise<MessageResponseDto> {
+  private async fetchById(messageId: string, createdAt: Date | null): Promise<MessageResponseDto> {
     // Composite PK is (id, created_at) — but `id` is a UUIDv7 with embedded
     // timestamp prefix and the tenant has at most ~10⁵ messages per month,
     // so a `WHERE id = $1` scan against the index is fine. We pass

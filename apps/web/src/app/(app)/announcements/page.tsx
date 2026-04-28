@@ -33,18 +33,14 @@ export default function AnnouncementsPage() {
     if (filterKey === 'drafts') return list.filter((a) => !a.isPublished);
     if (filterKey === 'expired') {
       const now = Date.now();
-      return list.filter(
-        (a) => a.expiresAt && Date.parse(a.expiresAt) < now,
-      );
+      return list.filter((a) => a.expiresAt && Date.parse(a.expiresAt) < now);
     }
     return list;
   }, [announcements.data, filterKey]);
 
   if (!user) return null;
 
-  const unreadCount = (announcements.data ?? []).filter(
-    (a) => !a.isRead && a.isPublished,
-  ).length;
+  const unreadCount = (announcements.data ?? []).filter((a) => !a.isRead && a.isPublished).length;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -99,7 +95,7 @@ export default function AnnouncementsPage() {
             filterKey === 'drafts'
               ? 'No drafts'
               : filterKey === 'unread'
-                ? 'You\'re caught up'
+                ? "You're caught up"
                 : filterKey === 'expired'
                   ? 'No expired announcements'
                   : 'No announcements yet'
@@ -180,7 +176,9 @@ function AnnouncementRow({ announcement }: { announcement: AnnouncementDto }) {
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-2">
           <AudiencePill announcement={a} />
-          {a.alertTypeName && <SeverityPill severity={a.alertTypeSeverity} label={a.alertTypeName} />}
+          {a.alertTypeName && (
+            <SeverityPill severity={a.alertTypeSeverity} label={a.alertTypeName} />
+          )}
           {!a.isPublished && (
             <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] uppercase tracking-wide text-gray-700">
               Draft
@@ -194,9 +192,7 @@ function AnnouncementRow({ announcement }: { announcement: AnnouncementDto }) {
           {unread && <span className="h-2 w-2 rounded-full bg-campus-500" />}
         </div>
         <p className="mt-1 line-clamp-2 text-sm text-gray-600">{a.body}</p>
-        {a.authorName && (
-          <p className="mt-1 text-xs text-gray-400">From {a.authorName}</p>
-        )}
+        {a.authorName && <p className="mt-1 text-xs text-gray-400">From {a.authorName}</p>}
       </div>
     </Link>
   );
@@ -211,13 +207,7 @@ function AudiencePill({ announcement }: { announcement: AnnouncementDto }) {
   );
 }
 
-function SeverityPill({
-  severity,
-  label,
-}: {
-  severity: string | null;
-  label: string;
-}) {
+function SeverityPill({ severity, label }: { severity: string | null; label: string }) {
   const cls =
     severity === 'URGENT'
       ? 'bg-rose-100 text-rose-700'

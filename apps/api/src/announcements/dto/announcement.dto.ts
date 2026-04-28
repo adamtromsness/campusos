@@ -40,7 +40,9 @@ export class CreateAnnouncementDto {
   @IsString()
   audienceRef?: string;
 
-  @ApiPropertyOptional({ description: 'msg_alert_types.id — controls icon and severity in the bell UI' })
+  @ApiPropertyOptional({
+    description: 'msg_alert_types.id — controls icon and severity in the bell UI',
+  })
   @IsOptional()
   @IsUUID()
   alertTypeId?: string;
@@ -178,7 +180,9 @@ export class AnnouncementStatsResponseDto {
     description: 'Read percentage rounded to 2 decimals. 0 when audience is empty.',
   })
   readPercentage!: number;
-  @ApiProperty({ description: 'Audience rows still PENDING delivery (worker hasn\'t fanned out yet)' })
+  @ApiProperty({
+    description: "Audience rows still PENDING delivery (worker hasn't fanned out yet)",
+  })
   pendingCount!: number;
   @ApiProperty() deliveredCount!: number;
   @ApiProperty() failedCount!: number;

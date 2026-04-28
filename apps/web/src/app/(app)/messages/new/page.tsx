@@ -9,11 +9,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/components/ui/cn';
-import {
-  useCreateThread,
-  useMessagingRecipients,
-  useThreadTypes,
-} from '@/hooks/use-messaging';
+import { useCreateThread, useMessagingRecipients, useThreadTypes } from '@/hooks/use-messaging';
 import { useAuthStore, hasAnyPermission } from '@/lib/auth-store';
 import { ApiError } from '@/lib/api-client';
 import type { MessagingRecipientDto, ThreadTypeDto } from '@/lib/types';
@@ -140,7 +136,10 @@ export default function ComposeMessagePage() {
       )}
 
       {!types.isLoading && eligibleTypes.length > 0 && (
-        <form onSubmit={onSubmit} className="space-y-5 rounded-card border border-gray-200 bg-white p-5">
+        <form
+          onSubmit={onSubmit}
+          className="space-y-5 rounded-card border border-gray-200 bg-white p-5"
+        >
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
               Conversation type
@@ -230,7 +229,8 @@ export default function ComposeMessagePage() {
             </div>
             {selectedRecipientIds.length > 0 && (
               <p className="mt-1 text-xs text-gray-500">
-                {selectedRecipientIds.length} recipient{selectedRecipientIds.length === 1 ? '' : 's'} selected
+                {selectedRecipientIds.length} recipient
+                {selectedRecipientIds.length === 1 ? '' : 's'} selected
               </p>
             )}
           </div>
@@ -311,7 +311,10 @@ function describeType(t?: ThreadTypeDto): string {
   return `Open to: ${t.allowedRoles.map(prettyRole).join(', ')}.`;
 }
 
-function handleSendError(err: unknown, toast: (msg: string, variant?: 'info' | 'success' | 'warning' | 'error') => void) {
+function handleSendError(
+  err: unknown,
+  toast: (msg: string, variant?: 'info' | 'success' | 'warning' | 'error') => void,
+) {
   if (err instanceof ApiError) {
     if (err.status === 422) {
       toast(

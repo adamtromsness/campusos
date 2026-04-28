@@ -139,7 +139,10 @@ export class GradeNotificationConsumer implements OnModuleInit {
         });
       } catch (e: any) {
         this.logger.error(
-          'Enqueue failed for ' + accountId + ' (grade.published): ' + (e?.stack || e?.message || e),
+          'Enqueue failed for ' +
+            accountId +
+            ' (grade.published): ' +
+            (e?.stack || e?.message || e),
         );
         throw e;
       }

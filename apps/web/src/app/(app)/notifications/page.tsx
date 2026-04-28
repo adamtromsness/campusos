@@ -18,10 +18,7 @@ import {
   GradeIcon,
   MegaphoneIcon,
 } from '@/components/shell/icons';
-import {
-  useMarkAllNotificationsRead,
-  useNotificationHistory,
-} from '@/hooks/use-notifications';
+import { useMarkAllNotificationsRead, useNotificationHistory } from '@/hooks/use-notifications';
 import { useAuthStore } from '@/lib/auth-store';
 import type { NotificationItem } from '@/lib/types';
 import { cn } from '@/components/ui/cn';
@@ -167,7 +164,12 @@ function NotificationListRow({ item, user }: NotificationListRowProps) {
       </div>
     </>
   );
-  if (link) return <Link href={link} className={cls}>{body}</Link>;
+  if (link)
+    return (
+      <Link href={link} className={cls}>
+        {body}
+      </Link>
+    );
   return <div className={cls}>{body}</div>;
 }
 
