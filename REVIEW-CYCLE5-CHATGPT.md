@@ -4,13 +4,15 @@
 **Scope:** Full Cycle 5 (Scheduling & Calendar — bell schedules, timetable with EXCLUSION constraints, rooms + bookings, calendar + day overrides, coverage requests + substitution timetable, CoverageConsumer, NestJS modules, web UI, vertical-slice CAT)
 **Round 1 SHA under review:** `e214bdc` (CI fix — Cycle 5 COMPLETE through Step 10)
 **Round 1 verdict:** **REJECT** — pending 2 BLOCKING fixes
+**Round 2 SHA under review:** `653fd4c` (BLOCKING + 2 actionable MAJOR fixes + CodeQL `permissions: contents: read`)
+**Final verdict:** **APPROVED** at `1650497` (April 28, 2026)
 
 **Verdict trail:**
 
-| Round | Date           | SHA       | Verdict                                                               |
-| ----: | -------------- | --------- | --------------------------------------------------------------------- |
-|     1 | April 28, 2026 | `e214bdc` | REJECT pending 2 BLOCKING fixes (4 DEVIATION + 9 PASS)                |
-|     2 | April 28, 2026 | `653fd4c` | Awaiting re-review — 4 fixes landed (2 BLOCKING + 2 actionable MAJOR) |
+| Round | Date           | SHA       | Verdict                                                                     |
+| ----: | -------------- | --------- | --------------------------------------------------------------------------- |
+|     1 | April 28, 2026 | `e214bdc` | REJECT pending 2 BLOCKING fixes (4 DEVIATION + 9 PASS)                      |
+|     2 | April 28, 2026 | `1650497` | **APPROVED** — both BLOCKINGs fixed, both actionable MAJORs fixed, CI green |
 
 ---
 
@@ -213,3 +215,34 @@ The reviewer also flagged the other "Soft FK" comments in 016 + 017 implicitly. 
 | MAJOR 4    | COMMENT text rewrite                                                          |             1 | `col_description` matches new text |
 
 The fixes land in commit **`653fd4c`**. Cycle 5 is now ready for Round 2 re-review.
+
+---
+
+## Round 2 — Result: APPROVED
+
+The reviewer re-walked all four fixes against `653fd4c` and the cosmetic follow-ups at `c0402c9` + `1650497`. Verbatim verdict:
+
+> The two blocking issues and the two actionable major follow-ups from my prior review are addressed.
+>
+> 1. **Room booking concurrency — fixed.** `RoomBookingService.create()` now wraps the conflict check and insert in a single tenant transaction and takes a per-room `pg_advisory_xact_lock(...)` before checking conflicts. That serialises concurrent bookings for the same room, so two overlapping CONFIRMED bookings should no longer slip through.
+> 2. **Room change approve/reject race — fixed.** `approve()` and `reject()` now perform the status read inside the transaction using `FOR UPDATE`, validate locked status, and update with `WHERE status = 'PENDING'`. That closes the last-writer-wins race.
+> 3. **Day override duplicate race — fixed.** `DayOverrideService.create()` now runs pre-check and insert inside one transaction and translates 23505 / P2002 into the intended friendly 409 Conflict.
+> 4. **Migration comment mismatch — fixed.** `sch_timetable_slots.teacher_id` is now documented as a real DB-enforced FK to `hr_employees(id)`, matching the actual schema.
+>
+> Two items remain, but I agree they are not Cycle 5 blockers:
+>
+> - Consumer envelope tenant validation is still a Phase 2 hardening item.
+> - `sch.coverage.needed` remains best-effort after DB commit, acceptable because the coverage board is DB-driven rather than event-driven.
+>
+> **Approved to proceed.**
+
+### Carry-over to Phase 2 (not Cycle 5 scope)
+
+The two MAJOR deviations are tracked here so they're easy to find when Phase 2 wiring lands:
+
+- **MAJOR 1 — Consumer envelope tenant validation.** Affects every Kafka consumer in the system (Cycles 3 + 4 + 5). The fix lives in `apps/api/src/notifications/consumers/notification-consumer-base.ts` and should validate the `(tenant_id, subdomain)` pair from the inbound envelope against `platform_tenant_routing` before pinning context. Consider gating behind a defence-in-depth flag so existing topics keep working during rollout.
+- **MAJOR 2 — `sch.coverage.needed` best-effort emit.** Currently fired after DB commit — if the broker is down, coverage rows exist but no event ships. Acceptable for the current Step 8 coverage board (DB-driven), but if any future consumer needs the event, the right pattern is a transactional outbox: write the event row inside the same tx as the coverage rows, have a separate worker drain the outbox to Kafka.
+
+### Cycle 5 ships clean
+
+All schema, seed, API, web, and CAT deliverables are stable. The 11-commit Cycle 5 chain plus the 4-commit review-fix chain land on `main` with CI green. Ready for the next cycle.
