@@ -611,3 +611,191 @@ export interface AbsenceRequestDto {
   reviewerNotes: string | null;
   createdAt: string;
 }
+
+// ── Cycle 4: HR & Workforce Core (M80) ──────────────────────
+
+export type EmploymentType =
+  | 'FULL_TIME'
+  | 'PART_TIME'
+  | 'CONTRACT'
+  | 'TEMPORARY'
+  | 'INTERN'
+  | 'VOLUNTEER';
+
+export type EmploymentStatus = 'ACTIVE' | 'ON_LEAVE' | 'TERMINATED' | 'SUSPENDED';
+
+export interface EmployeePositionDto {
+  id: string;
+  positionId: string;
+  positionTitle: string;
+  isTeachingRole: boolean;
+  isPrimary: boolean;
+  fte: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
+export interface EmployeeDto {
+  id: string;
+  personId: string;
+  accountId: string;
+  schoolId: string;
+  employeeNumber: string | null;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email: string | null;
+  employmentType: EmploymentType;
+  employmentStatus: EmploymentStatus;
+  hireDate: string;
+  terminationDate: string | null;
+  positions: EmployeePositionDto[];
+  primaryPositionTitle: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PositionDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  isTeachingRole: boolean;
+  isActive: boolean;
+  activeAssignments: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmployeeDocumentDto {
+  id: string;
+  employeeId: string;
+  documentTypeId: string;
+  documentTypeName: string;
+  fileName: string;
+  s3Key: string;
+  contentType: string | null;
+  fileSizeBytes: number | null;
+  uploadedBy: string;
+  uploadedAt: string;
+  expiryDate: string | null;
+  isArchived: boolean;
+}
+
+export type CertificationType =
+  | 'TEACHING_LICENCE'
+  | 'FIRST_AID'
+  | 'SAFEGUARDING_LEVEL1'
+  | 'SAFEGUARDING_LEVEL2'
+  | 'DBS_BASIC'
+  | 'DBS_ENHANCED'
+  | 'FOOD_HYGIENE'
+  | 'FIRE_SAFETY_WARDEN'
+  | 'SPECIALIST_SUBJECT'
+  | 'CUSTOM';
+
+export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'EXPIRED' | 'REVOKED';
+
+export interface CertificationDto {
+  id: string;
+  employeeId: string;
+  certificationType: CertificationType;
+  certificationName: string;
+  issuingBody: string | null;
+  referenceNumber: string | null;
+  issuedDate: string | null;
+  expiryDate: string | null;
+  verificationStatus: VerificationStatus;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+  documentS3Key: string | null;
+  notes: string | null;
+  daysUntilExpiry: number | null;
+}
+
+export type LeaveRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export interface LeaveTypeDto {
+  id: string;
+  name: string;
+  description: string | null;
+  isPaid: boolean;
+  accrualRate: number;
+  maxBalance: number | null;
+  isActive: boolean;
+}
+
+export interface LeaveBalanceDto {
+  leaveTypeId: string;
+  leaveTypeName: string;
+  isPaid: boolean;
+  accrued: number;
+  used: number;
+  pending: number;
+  available: number;
+  academicYearId: string;
+}
+
+export interface LeaveRequestDto {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  leaveTypeId: string;
+  leaveTypeName: string;
+  startDate: string;
+  endDate: string;
+  daysRequested: number;
+  status: LeaveRequestStatus;
+  reason: string | null;
+  submittedAt: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  reviewNotes: string | null;
+  cancelledAt: string | null;
+  isHrInitiated: boolean;
+}
+
+export interface SubmitLeaveRequestPayload {
+  leaveTypeId: string;
+  startDate: string;
+  endDate: string;
+  daysRequested: number;
+  reason?: string;
+}
+
+export interface ReviewLeaveRequestPayload {
+  reviewNotes?: string;
+}
+
+export type ComplianceUrgency = 'green' | 'amber' | 'red';
+
+export interface ComplianceRowDto {
+  requirementId: string;
+  requirementName: string;
+  certificationType: string | null;
+  frequency: string;
+  isCompliant: boolean;
+  lastCompletedDate: string | null;
+  nextDueDate: string | null;
+  linkedCertificationId: string | null;
+  daysUntilDue: number | null;
+  urgency: ComplianceUrgency;
+}
+
+export interface EmployeeComplianceDto {
+  employeeId: string;
+  employeeName: string;
+  primaryPositionTitle: string | null;
+  rows: ComplianceRowDto[];
+  totalRequirements: number;
+  compliantCount: number;
+  amberCount: number;
+  redCount: number;
+}
+
+export interface ComplianceDashboardDto {
+  employees: EmployeeComplianceDto[];
+  totalEmployees: number;
+  employeesWithGaps: number;
+}

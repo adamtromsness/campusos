@@ -2,9 +2,15 @@
 
 import { type ReactNode } from 'react';
 import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
-import { ChatBubbleIcon, ChildrenIcon, ClassesIcon, MegaphoneIcon } from './icons';
+import {
+  ChatBubbleIcon,
+  ChildrenIcon,
+  ClassesIcon,
+  MegaphoneIcon,
+  PeopleIcon,
+} from './icons';
 
-export type AppKey = 'classes' | 'children' | 'messages' | 'announcements';
+export type AppKey = 'classes' | 'children' | 'messages' | 'announcements' | 'staff';
 export type BadgeKey = 'messages' | 'announcements';
 
 export interface AppDef {
@@ -73,6 +79,16 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/announcements',
       icon: MegaphoneIcon,
       badgeKey: 'announcements',
+    });
+  }
+
+  if (hasAnyPermission(user, ['hr-001:read'])) {
+    apps.push({
+      key: 'staff',
+      label: 'Staff',
+      description: 'Employee directory and profiles',
+      href: '/staff',
+      icon: PeopleIcon,
     });
   }
 

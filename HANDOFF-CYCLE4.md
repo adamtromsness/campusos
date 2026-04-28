@@ -21,7 +21,7 @@ This document tracks the Cycle 4 build — the M80 HR/Workforce module (core sub
 |    5 | Seed Data — Employees, Leave, Certifications            | **Done** — `seed-hr.ts` extended with 7 idempotent layers (positions, leave types/balances/requests, certifications, training requirements + compliance, document types, onboarding). Counts in `tenant_demo` after the run: 4 employees, 5 positions + 4 assignments, 5 leave types + 20 balances + 2 leave requests, 4 certifications (Rivera Teaching Licence dynamically expires 60 days from today — drives CAT amber row), 4 training requirements + 4 compliance rows, 4 document types, 1 onboarding template + 1 checklist + 8 tasks. `seed-iam.ts` adds HR-001:read + HR-003:read+write + HR-004:read to Teacher/Staff and assigns Staff role to vp@ + counsellor@. After `build-cache.ts`: 7 account-scope pairs cached. |
 |    6 | HR NestJS Module — Employee Records & Directory         | **Done** — `apps/api/src/hr/` lands EmployeeService + PositionService + EmployeeDocumentService + 12 endpoints (`GET /employees`, `GET /employees/me`, `GET /employees/:id`, `POST /employees`, `PATCH /employees/:id`, `GET /employees/:id/documents`, `POST /employees/:id/documents`, `DELETE /employees/:id/documents/:docId`, `GET /positions`, `GET /positions/:id`, `POST /positions`, `PATCH /positions/:id`). `actor.employeeId` already populated by Cycle 4 Step 0's `ActorContextService` extension. Row-scope guard on documents (own profile OR admin only). HrModule wired into AppModule between ClassroomModule and NotificationsModule. Build clean, all routes mapped on boot, 12-scenario live smoke against `tenant_demo` confirms staff directory list, /me self-resolution, parent/student permission denials, counsellor 403 on Rivera's documents, teacher 403 on `hr-001:admin`, admin POST/PATCH round-trip on positions, admin POST /employees reaches the validators. |
 |    7 | HR NestJS Module — Leave & Certifications               | **Done** — LeaveService + CertificationService + TrainingComplianceService + LeaveNotificationConsumer + 11 endpoints. Kafka emits: hr.leave.{requested,approved,rejected,cancelled}, hr.certification.verified. The consumer subscribes to all 4 leave topics, notifies admins on requested + submitter on approved/rejected, and republishes hr.leave.coverage_needed with affected class ids on approve. Build clean, 22-scenario live smoke against `tenant_demo` confirms full lifecycle + balance updates + cross-persona row-scope. Caught and fixed a Step 5 seed bug where Rivera's PD balance pending was inconsistent with the seeded PENDING request. |
-|    8 | Staff Directory & Employee Profile UI                   | Not started — `/staff` directory + `/staff/:id` tabbed profile (Info / Certifications / Leave / Documents) + `/staff/me` shortcut. New "Staff" launchpad tile under `hr-001:read`.                                                                                                                                                              |
+|    8 | Staff Directory & Employee Profile UI                   | **Done** — Three new routes (`/staff`, `/staff/[id]`, `/staff/me`) plus a "Staff" launchpad tile under `hr-001:read` (using existing `PeopleIcon`). `apps/web/src/lib/types.ts` extended with the full HR DTO surface; `apps/web/src/hooks/use-hr.ts` adds 16 hooks (12 queries + 4 mutations). Tabbed profile gates Certifications / Leave / Documents to own-profile-or-admin; Info tab is open to anyone with `hr-001:read`. Build clean — `/staff` 6.18 kB, `/staff/[id]` 6.49 kB, `/staff/me` 2.34 kB First Load JS. |
 |    9 | Leave Management & Compliance Dashboard UI              | Not started — `/leave/new` request form, `/leave` employee history, `/leave/approvals` admin queue, `/compliance` admin dashboard. New "Leave" tile (all staff) and "Compliance" tile (admin-only).                                                                                                                                            |
 |   10 | Vertical Slice Integration Test                         | Not started — `docs/cycle4-cat-script.md` will land the reproducible end-to-end walkthrough: create employee → submit leave → approve → balance update → coverage event → compliance dashboard amber row.                                                                                                                                       |
 
@@ -996,11 +996,108 @@ Plan reference: Step 7 of `docs/campusos-cycle4-implementation-plan.html`.
 
 ## Step 8 — Staff Directory & Employee Profile UI
 
-_Not started._ Adds the "Staff" launchpad tile (`hr-001:read`-gated) and the corresponding sidebar entry via `apps/web/src/components/shell/apps.tsx::getAppsForUser(user)` (UI Design Principles in CLAUDE.md — single source of truth for tile + sidebar). Three pages:
+**Done.** Three new routes plus a launchpad tile, all gated on `hr-001:read`. The single-source `apps/web/src/components/shell/apps.tsx::getAppsForUser` was updated so the tile renders in both the home grid and the sidebar — same flow Cycles 1–3 established for every other persona-aware app entry.
 
-- `/staff` — searchable directory.
-- `/staff/:id` — tabbed profile (Info / Certifications / Leave / Documents). Own profile shows all tabs; others' profiles show only Info unless the viewer is an admin.
-- `/staff/me` — redirects to `/staff/:myEmployeeId`.
+### Files added
+
+```
+apps/web/src/
+├── lib/types.ts                          — appended HR DTO surface (~150 lines)
+├── hooks/use-hr.ts                       — 16 hooks (new file)
+├── components/shell/apps.tsx             — Staff tile under hr-001:read
+└── app/(app)/staff/
+    ├── page.tsx                          — searchable directory list
+    ├── [id]/page.tsx                     — tabbed profile (Info / Certifications / Leave / Documents)
+    └── me/page.tsx                       — client-side redirect to /staff/:myEmployeeId
+```
+
+### Routes and persona behaviour
+
+| Route                | Visible to                          | Behaviour                                                                                                                                                                                                          |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/staff`             | anyone with `hr-001:read`           | Searchable list of employees. Card per row: avatar (initials), name, primary position title, employee number, email. `?search=` and (admin-only) `?includeInactive=true` query string mirror the API surface.    |
+| `/staff/[id]`        | anyone with `hr-001:read`           | Tabbed profile. Info tab always visible. Certifications / Leave / Documents tabs only render when `useMyEmployee().data?.id === id` OR the user holds `sch-001:admin`. Non-admins viewing someone else see Info only. |
+| `/staff/me`          | anyone with `hr-001:read`           | Calls `useMyEmployee` (`/employees/me`). On success: `router.replace('/staff/:id')`. On 404 (parent / student / Platform Admin without an `hr_employees` row): shows a clean "no employee record" empty state.   |
+
+### Tabbed profile contents
+
+- **Info tab** — three cards. Left: avatar + full name + email. Right: `Employment` field grid (employee number, status, type, hire date, optional termination date, primary position). Bottom: full-width `Position history` list with `effective_from → effective_to` range and FTE per row, with `Primary` and `Teaching` pills where applicable.
+- **Certifications tab** — 4-stat summary card (Requirements / Compliant / Expiring / Non-compliant) at the top; per-cert list with green/amber/red `UrgencyPill` derived from `verificationStatus` (EXPIRED/REVOKED → red) and `daysUntilExpiry` (≤90 → amber, otherwise green); per-requirement breakdown joined to the seeded `hr_training_compliance` rows showing `lastCompletedDate` / `nextDueDate` and the same urgency pill (driven by the API's already-derived `urgency` field).
+- **Leave tab** — balance cards (own profile only — admins viewing someone else see a hint message instead, since `/leave/me/balances` is calling-employee-only by design); request history list using `useLeaveRequests({ employeeId })` which the API filters server-side.
+- **Documents tab** — list view with file name, document type label, file size, and expiry. Empty state describes that uploads ship in Step 9.
+
+The tab visibility check fires on the client only — the server-side endpoints are independently gated, so a user trying to hit `/employees/:other-id/certifications` directly still gets a 403 from the API row-scope guard. The UI just doesn't surface the tab at all.
+
+### Hooks (`apps/web/src/hooks/use-hr.ts`)
+
+| Hook                              | Verb / cadence                                                |
+| --------------------------------- | ------------------------------------------------------------- |
+| `useEmployees(args, enabled)`     | GET `/employees` — refetch on focus.                          |
+| `useEmployee(id, enabled)`        | GET `/employees/:id`.                                          |
+| `useMyEmployee(enabled)`          | GET `/employees/me` — `retry: false` so 404s don't loop.       |
+| `usePositions(enabled)`           | GET `/positions` — 5-min stale time.                            |
+| `useEmployeeDocuments(id)`        | GET `/employees/:id/documents`.                                 |
+| `useEmployeeCertifications(id)`   | GET `/employees/:id/certifications`.                            |
+| `useExpiringCertifications()`     | GET `/certifications/expiring-soon` — 60-s poll.                |
+| `useEmployeeCompliance(id)`       | GET `/employees/:id/compliance`.                                |
+| `useComplianceDashboard()`        | GET `/compliance/dashboard` — 60-s poll.                        |
+| `useLeaveTypes()`                 | GET `/leave-types` — 5-min stale time.                          |
+| `useMyLeaveBalances()`            | GET `/leave/me/balances`.                                       |
+| `useLeaveRequests(args)`          | GET `/leave-requests` with `?status=`/`?employeeId=`.           |
+| `useSubmitLeaveRequest()`         | POST `/leave-requests` — invalidates leave-requests + balances. |
+| `useApproveLeaveRequest(id)`      | PATCH `/leave-requests/:id/approve`.                            |
+| `useRejectLeaveRequest(id)`       | PATCH `/leave-requests/:id/reject`.                             |
+| `useCancelLeaveRequest()`         | PATCH `/leave-requests/:id/cancel`.                             |
+| `useVerifyCertification(id)`      | PATCH `/certifications/:id/verify`.                             |
+
+Every query accepts an `enabled` boolean so non-admin personas don't fire 403 calls — `apps/web/src/app/(app)/staff/[id]/page.tsx` uses this to gate the Certifications / Compliance / Documents fetches behind the `canSeeFullProfile` flag.
+
+### Tile and sidebar wiring
+
+`apps/web/src/components/shell/apps.tsx::getAppsForUser` gained a new branch:
+
+```ts
+if (hasAnyPermission(user, ['hr-001:read'])) {
+  apps.push({
+    key: 'staff',
+    label: 'Staff',
+    description: 'Employee directory and profiles',
+    href: '/staff',
+    icon: PeopleIcon,
+  });
+}
+```
+
+Per the project's UI Design Principles, the launchpad and the sidebar both render from this list, so adding the Staff app required exactly one edit. The tile shows up for every persona that holds the code: principal@ (sch-001:admin → all codes), teacher@ (HR-001:read added in Step 5), vp@ + counsellor@ (Staff role same), Platform Admin (everyFunction). Parents and students don't hold the code, so the tile is hidden cleanly.
+
+### Verification (recorded 2026-04-28)
+
+```bash
+pnpm --filter @campusos/web build       # next build → exits 0
+pnpm --filter @campusos/api build       # nest build still clean (no type drift)
+```
+
+Bundle sizes:
+
+| Route                | First Load JS |
+| -------------------- | ------------: |
+| `/staff`             | 6.18 kB        |
+| `/staff/[id]`        | 6.49 kB        |
+| `/staff/me`          | 2.34 kB        |
+
+The bundle sizes match the comparable Cycle 3 `/announcements` / `/announcements/[id]` routes — the page-level data fetching is React Query plus the existing `apiFetch`, so no new shared chunks are pulled in.
+
+### Out-of-scope decisions for Step 8
+
+- **No upload flow on the Documents tab.** The tab renders the list and the empty state; the actual upload UI (signed-URL fetch + PUT to S3 + POST to `/employees/:id/documents`) lands in Step 9 alongside the leave + compliance pages. The existing `EmployeeDocumentService.create` endpoint accepts a pre-uploaded `s3Key`, so the UI scaffolding doesn't need to change when the upload arrives.
+- **No edit-profile path on the Info tab.** The plan reserves admin-only employee CRUD for the admin-side flows; an `Edit` button + form will land alongside the leave + compliance UI in Step 9. The Step 6 `PATCH /employees/:id` endpoint is in place; the form just isn't built yet.
+- **No emergency-contact section on the Info tab.** Schema landed in Step 1 but no API surface exists yet (deferred from Step 6). When Cycle 5 or Phase 2 hardens the HR module, an emergency-contact card will slot in next to Position history.
+- **No CPD / work-authorisation tabs.** Both schemas exist; no API surface; no UI. Reserved for a later iteration.
+- **`/staff/me` redirects rather than rendering inline.** This keeps a single source-of-truth for the profile UI (`[id]/page.tsx`) and makes the deep-link surface stable — sharing a profile URL by ID always works, but `/staff/me` is the personalised entry point. The redirect runs in `useEffect` so the API call has time to land before Next router replaces.
+- **`useLeaveRequests({ employeeId })` is admin-only at the API.** The Step 7 `LeaveService.list` short-circuits non-admins to their own employee_id, so passing a different employeeId from the UI just returns the caller's own list. The Leave tab uses this intentionally — admins viewing someone else's profile get the right rows; non-admins viewing their own get the right rows; non-admins viewing someone else don't see this tab in the first place.
+- **No new icons.** Reused the existing `PeopleIcon` for the Staff tile to avoid bloating `icons.tsx`. If a more specific icon helps Phase 2 design, it's a one-file addition.
+- **Bundle deltas tracked but not optimized further.** The 6 kB / 6 kB / 2 kB route bundles are in line with Cycle 3's announcement pages. No code-splitting beyond the route boundary.
+- **CAT integration deferred to Step 10.** The Step 10 vertical-slice script will exercise these pages against `tenant_demo` end-to-end alongside the Step 9 leave + compliance flows.
 
 Plan reference: Step 8 of `docs/campusos-cycle4-implementation-plan.html`.
 
