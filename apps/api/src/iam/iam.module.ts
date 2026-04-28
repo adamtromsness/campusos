@@ -6,6 +6,7 @@ import { RoleService } from './role.service';
 import { AssignmentService } from './assignment.service';
 import { ScopeService } from './scope.service';
 import { ActorContextService } from './actor-context.service';
+import { TenantModule } from '../tenant/tenant.module';
 
 /**
  * IAM Module — Identity & Access Management
@@ -21,6 +22,7 @@ import { ActorContextService } from './actor-context.service';
  * - ScopeService — scope hierarchy management
  */
 @Module({
+  imports: [TenantModule],
   providers: [
     {
       provide: PrismaClient,

@@ -139,6 +139,18 @@ async function main() {
       email: 'parent@demo.campusos.dev',
       personType: 'GUARDIAN' as const,
     },
+    {
+      firstName: 'Linda',
+      lastName: 'Park',
+      email: 'vp@demo.campusos.dev',
+      personType: 'STAFF' as const,
+    },
+    {
+      firstName: 'Marcus',
+      lastName: 'Hayes',
+      email: 'counsellor@demo.campusos.dev',
+      personType: 'STAFF' as const,
+    },
   ];
 
   for (var i = 0; i < testUsers.length; i++) {
@@ -247,12 +259,14 @@ async function main() {
   console.log('');
   console.log('  Seed complete!');
   console.log('');
-  console.log('  5 users:');
+  console.log('  7 users:');
   console.log('    admin@demo.campusos.dev      (Platform Admin)');
-  console.log('    principal@demo.campusos.dev   (School Admin)');
-  console.log('    teacher@demo.campusos.dev     (Teacher)');
-  console.log('    student@demo.campusos.dev     (Student)');
-  console.log('    parent@demo.campusos.dev      (Parent)');
+  console.log('    principal@demo.campusos.dev  (School Admin)');
+  console.log('    teacher@demo.campusos.dev    (Teacher)');
+  console.log('    student@demo.campusos.dev    (Student)');
+  console.log('    parent@demo.campusos.dev     (Parent)');
+  console.log('    vp@demo.campusos.dev         (Vice Principal)');
+  console.log('    counsellor@demo.campusos.dev (Counsellor)');
   console.log('');
   console.log('  1 family: Chen (David + Maya)');
   console.log('  1 IdP: Keycloak Dev');

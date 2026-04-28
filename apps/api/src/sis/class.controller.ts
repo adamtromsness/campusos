@@ -2,6 +2,7 @@ import { Controller, Get, Param, ParseUUIDPipe, Query, Req } from '@nestjs/commo
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { ActorContextService } from '../iam/actor-context.service';
 import { ClassService } from './class.service';
 import { ClassResponseDto, ListClassesQueryDto, RosterEntryDto } from './dto/class.dto';
 
@@ -13,13 +14,18 @@ interface AuthedRequest extends Request {
 @ApiBearerAuth()
 @Controller('classes')
 export class ClassController {
-  constructor(private readonly classes: ClassService) {}
+  constructor(
+    private readonly classes: ClassService,
+    private readonly actors: ActorContextService,
+  ) {}
 
   @Get('my')
   @RequirePermission('stu-001:read', 'att-001:read')
   @ApiOperation({ summary: 'List classes taught by the authenticated user' })
   async my(@Req() req: AuthedRequest): Promise<ClassResponseDto[]> {
-    return this.classes.listForTeacherPerson(req.user!.personId);
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    if (!actor.employeeId) return [];
+    return this.classes.listForTeacherEmployee(actor.employeeId);
   }
 
   @Get()

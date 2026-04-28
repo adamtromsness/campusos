@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
@@ -195,6 +200,11 @@ export class GradeService {
     actor: ResolvedActor,
   ): Promise<BatchGradeResponseDto> {
     await this.assignments.assertCanWriteClass(classId, actor);
+    if (!actor.employeeId) {
+      throw new ForbiddenException(
+        'Only employees can author grades. The calling user has no hr_employees record.',
+      );
+    }
     var meta = await this.loadAssignmentForGrading(body.assignmentId);
     if (meta.isDeleted) {
       throw new NotFoundException('Assignment ' + body.assignmentId + ' not found');
@@ -287,7 +297,7 @@ export class GradeService {
             letter,
             entry.feedback ?? null,
             submissionIdLink,
-            actor.personId,
+            actor.employeeId,
             publish,
             gradeId,
           );
@@ -304,7 +314,7 @@ export class GradeService {
             meta.id,
             entry.studentId,
             submissionIdLink,
-            actor.personId,
+            actor.employeeId,
             entry.gradeValue.toFixed(2),
             letter,
             entry.feedback ?? null,
@@ -472,6 +482,11 @@ export class GradeService {
     publish: boolean,
     actor: ResolvedActor,
   ): Promise<string> {
+    if (!actor.employeeId) {
+      throw new ForbiddenException(
+        'Only employees can author grades. The calling user has no hr_employees record.',
+      );
+    }
     var pct = meta.maxPoints > 0 ? (gradeValue / meta.maxPoints) * 100 : 0;
     var letter = explicitLetter ?? deriveLetter(pct);
     var emitPublishedAfter = false;
@@ -502,7 +517,7 @@ export class GradeService {
           letter,
           feedback ?? null,
           submissionIdLink,
-          actor.personId,
+          actor.employeeId,
           publish,
           ex.id,
         );
@@ -524,7 +539,7 @@ export class GradeService {
           meta.id,
           studentId,
           submissionIdLink,
-          actor.personId,
+          actor.employeeId,
           gradeValue.toFixed(2),
           letter,
           feedback ?? null,

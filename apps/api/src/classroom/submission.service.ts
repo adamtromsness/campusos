@@ -277,12 +277,13 @@ export class SubmissionService {
   private async isManagerOfClass(classId: string, actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
     if (actor.personType !== 'STAFF') return false;
+    if (!actor.employeeId) return false;
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ ok: number }>>(
         'SELECT 1 AS ok FROM sis_class_teachers ' +
           'WHERE class_id = $1::uuid AND teacher_employee_id = $2::uuid',
         classId,
-        actor.personId,
+        actor.employeeId,
       );
     });
     return rows.length > 0;
@@ -454,12 +455,13 @@ export class SubmissionService {
     if (actor.isSchoolAdmin) return true;
     if (actor.personType === 'STAFF') {
       // Teacher must be assigned to the class.
+      if (!actor.employeeId) return false;
       var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe<Array<{ ok: number }>>(
           'SELECT 1 AS ok FROM sis_class_teachers ' +
             'WHERE class_id = $1::uuid AND teacher_employee_id = $2::uuid',
           row.class_id,
-          actor.personId,
+          actor.employeeId,
         );
       });
       return rows.length > 0;

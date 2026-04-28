@@ -175,22 +175,24 @@ export class ClassService {
   }
 
   /**
-   * Classes taught by the given teacher, identified by their iam_person.id.
-   * (We seeded sis_class_teachers.teacher_employee_id with iam_person.id; an HR module
-   *  will later remap this to hr_employees but the lookup pattern remains.)
+   * Classes taught by the given teacher, identified by their hr_employees.id
+   * (Cycle 4 Step 0). The caller resolves the employee id via
+   * ActorContextService.resolveActor(...).employeeId; non-staff or
+   * employee-less callers should not invoke this method (return [] up the
+   * stack instead).
    *
    * Each class is enriched with todayAttendance — used by the teacher dashboard.
    * Rule: 0 records → NOT_STARTED; >=1 record, all CONFIRMED → SUBMITTED;
    * otherwise IN_PROGRESS (some pre-populated rows still pending).
    */
-  async listForTeacherPerson(teacherPersonId: string): Promise<ClassResponseDto[]> {
+  async listForTeacherEmployee(teacherEmployeeId: string): Promise<ClassResponseDto[]> {
     var today = new Date().toISOString().slice(0, 10);
     var result = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var rows = await client.$queryRawUnsafe<ClassRow[]>(
         CLASS_SELECT_BASE +
           'WHERE c.id IN (SELECT class_id FROM sis_class_teachers WHERE teacher_employee_id = $1::uuid) ' +
           'ORDER BY c.section_code',
-        teacherPersonId,
+        teacherEmployeeId,
       );
       var classIds = rows.map(function (r) {
         return r.id;
@@ -293,11 +295,14 @@ export class ClassService {
         return '$' + (idx + 1) + '::uuid';
       })
       .join(',');
+    // Cycle 4 Step 0: ct.teacher_employee_id holds hr_employees.id, so we
+    // hop through hr_employees.person_id to reach iam_person.
     return client.$queryRawUnsafe(
       'SELECT ct.class_id, ct.is_primary_teacher, ' +
         'ip.id AS person_id, ip.first_name, ip.last_name ' +
         'FROM sis_class_teachers ct ' +
-        'JOIN platform.iam_person ip ON ip.id = ct.teacher_employee_id ' +
+        'JOIN hr_employees he ON he.id = ct.teacher_employee_id ' +
+        'JOIN platform.iam_person ip ON ip.id = he.person_id ' +
         'WHERE ct.class_id IN (' +
         placeholders +
         ')',

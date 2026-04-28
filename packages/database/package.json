@@ -15,6 +15,7 @@
     "seed:sis": "tsx src/seed-sis.ts",
     "seed:classroom": "tsx src/seed-classroom.ts",
     "seed:messaging": "tsx src/seed-messaging.ts",
+    "seed:hr": "tsx src/seed-hr.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

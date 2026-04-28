@@ -4,6 +4,8 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 
 ## Project Status
 
+**Cycle 4 (HR & Workforce Core) is IN PROGRESS — Step 0 (HR-Employee Identity Migration) DONE.** `packages/database/prisma/tenant/migrations/011_hr_employees_and_positions.sql` lands the `hr_employees` table (soft FK to `platform.iam_person` via UNIQUE `person_id` + soft FK to `platform.platform_users` via UNIQUE `account_id`, CHECK constraints on `employment_type` + `employment_status`). `packages/database/src/seed-hr.ts` (idempotent, gated on `hr_employees` row count) inserts 4 employee rows for `tenant_demo` (Mitchell as `principal@`, Rivera as `teacher@`, Park as `vp@`, Hayes as `counsellor@`; the `admin@` Platform Admin persona is intentionally NOT bridged), then runs four `UPDATE … FROM hr_employees WHERE e.person_id = t.column` bridge statements inside one `executeInTenantTransaction` to re-point `sis_class_teachers.teacher_employee_id`, `cls_grades.teacher_id`, `cls_lessons.teacher_id`, and `cls_student_progress_notes.author_id` from `iam_person.id` to `hr_employees.id`. Live verification: 4 rows inserted, 6 + 62 + 0 + 1 rows bridged across the four columns, 0 orphans. `ActorContextService.resolveActor(...)` now populates `actor.employeeId: string | null` via a tenant-scoped lookup against `hr_employees.person_id`. All staff-side service code substituted: `attendance.service.ts::assertCanWriteClassAttendance`, `assignment.service.ts::{assertCanWriteClass,canReadClass STAFF,isClassManager}`, `gradebook.service.ts::{assertCanViewStudent STAFF,isClassManager}`, `submission.service.ts::{isManagerOfClass,canSeeSubmission STAFF}`, `grade.service.ts::{batchGrade,upsertGrade}` (4 INSERT/UPDATE sites; `ForbiddenException` guard at entry of both write paths since `cls_grades.teacher_id` is NOT NULL), `progress-note.service.ts::{upsert,listForStudent STAFF,assertCanViewStudent STAFF}` (2 INSERT/UPDATE sites + `ForbiddenException` guard), `student.service.ts::visibilityClause STAFF`, `class.service.ts::listForTeacherEmployee` (renamed from `listForTeacherPerson`), `class.service.ts::loadTeachersForClasses` (now joins through `hr_employees` to `iam_person`), `class.controller.ts::my` (resolves actor + passes `actor.employeeId`), `audience-fan-out.worker.ts::audienceClass` (joins through `hr_employees.account_id` to `platform_users` for the CLASS-audience teacher branch). `IamModule` now imports `TenantModule` so `ActorContextService` can do the tenant-scoped lookup. Live smoke against `tenant_demo` confirmed `GET /classes/my` for `teacher@` returns the same 6 classes as before the bridge, `GET /students` returns 15 students via the new STAFF predicate, `GET /classes/:id/gradebook` returns 3 students for the P1 class. The four `COMMENT ON COLUMN` annotations on the bridged columns were rewritten to retire the "TEMPORARY HR-EMPLOYEE IDENTITY MAPPING" wording and adopt the permanent "Soft FK to hr_employees(id) per ADR-055" convention. **Migration gotcha re-confirmed:** the SQL splitter in `provision-tenant.ts` cuts on `;` even inside string literals — the `COMMENT ON COLUMN` strings cannot contain `;`. Use commas / "and" / em-dashes instead. Tripped this on the first re-provision attempt; the four updated COMMENTs and the new `hr_employees.school_id` COMMENT all use punctuation that survives the splitter. (Steps 1–10 of Cycle 4 — schemas for positions, leave, certifications, training compliance, onboarding, and the corresponding NestJS modules + UI + CAT — remain to ship; see `docs/campusos-cycle4-implementation-plan.html` and `HANDOFF-CYCLE4.md` for the plan.)
+
 Cycle 0 (Platform Foundation) is COMPLETE. **Cycle 1 (SIS Core + Attendance) is COMPLETE — all 11 steps done. Post-cycle architecture review fixes (REVIEW-CYCLE1) landed.** Schema, seed, SIS API, Attendance API + Kafka emits, web UI shell, Teacher Dashboard, Attendance Taking UI with confirm modal + batch submit, Parent Dashboard + child attendance calendar + absence-request form, AdminDashboard (school-wide overview + pending-absence queue), and a verified end-to-end vertical slice (`docs/cycle1-cat-script.md`). The post-cycle review tightened tenant isolation (`SET LOCAL search_path` inside an interactive tx), added row-level authorization to student reads, gated attendance writes by `sis_class_teachers` membership, and replaced cross-scope admin checks with a tenant-scope-chain check.
 
 **Cycle 3 (Communications) is COMPLETE — all 11 steps done. Post-cycle architecture review APPROVED at commit `592d366` (REVIEW-CYCLE3-CHATGPT — final verdict).** Round 1 at SHA `7c7e3d4` returned REJECT pending two reliability/security fixes; Round 2 at SHA `592d366` returned APPROVED to proceed. The three findings (BLOCKING 1 Kafka consumer error swallowing, BLOCKING 2 NotificationDeliveryWorker SENT-as-in-flight, MAJOR overly-broad `isManager()` scope) were all fixed in `592d366`.
@@ -31,9 +33,10 @@ See `docs/campusos-cycle1-implementation-plan.html`, `docs/campusos-cycle2-imple
 - Test edge cases and identify missing features within existing modules
 - Fix issues and polish before expanding
 
-**Phase 3: Expand (after Phase 2 sign-off)**
+**Phase 3: Expand (current — Cycle 4 in progress)**
 
-- Cycles 4–8: HR, Enrollment, Tasks, Calendar, Helpdesk
+- Cycle 4: HR & Workforce Core — IN PROGRESS. Step 0 (HR-Employee Identity Migration) DONE; resolves the Cycle 2 DEVIATION 4 carry-over. Steps 1–10 (positions/leave/certifications/onboarding schemas, seed, NestJS modules, UI, vertical-slice CAT) pending. See `HANDOFF-CYCLE4.md`.
+- Cycles 5–8: Enrollment, Tasks, Calendar, Helpdesk
 - Each cycle follows validated patterns from Phase 1
 - UI matches the design guide established in Phase 2
 
@@ -82,7 +85,7 @@ These are foundational decisions for the web app. New views must follow them; ex
 apps/api/                → NestJS backend (modular monolith)
 apps/api/src/auth/       → AuthGuard (JWT), PermissionGuard, @Public, @RequirePermission
 apps/api/src/tenant/     → TenantResolverMiddleware, TenantGuard, TenantPrismaService, AsyncLocalStorage
-apps/api/src/iam/        → Roles, permissions, assignments, effective access cache, ActorContextService (resolves caller persona + isSchoolAdmin per tenant)
+apps/api/src/iam/        → Roles, permissions, assignments, effective access cache, ActorContextService (resolves caller persona + isSchoolAdmin + employeeId per tenant — Cycle 4 Step 0 added the tenant-scoped hr_employees lookup keyed on iam_person.id)
 apps/api/src/platform/   → M0 Platform Core
 apps/api/src/sis/        → M20 SIS Core (Cycle 1 Step 5): students, classes, families, guardians; /classes/my includes todayAttendance summary (Step 8); /students/me added in Cycle 2 Step 9 to bootstrap a STUDENT persona's own studentId
 apps/api/src/attendance/ → ATT-001..005 (Cycle 1 Step 6): attendance + absence requests + Kafka emits
@@ -121,7 +124,7 @@ packages/shared/         → Shared TypeScript types and constants
 - **No implicit access:** Guardian access derived from `iam_relationship_access_rule`, never assumed.
 - **Manager-only roster reads:** Endpoints that return roster-wide grade or assessment data (e.g. `GET /classes/:classId/gradebook`) MUST gate on a _manager_ permission tier (`tch-003:write`, not `tch-003:read`) AND a row-scope manager check (`assertCanWriteClass` — admin OR `sis_class_teachers` membership). `*:read` codes are typically held by students and parents, so they cannot be the gate for cross-roster views. Per-student endpoints (`/students/:id/...`) stay on `*:read` because they are already row-scoped to the linked person. (REVIEW-CYCLE2 BLOCKING 1.)
 - **Kafka consumer idempotency must be claim-after-success.** Workers MUST NOT claim `platform_event_consumer_idempotency` on message arrival, because a recompute failure after the claim is at-most-once and silently drops the work. The pattern is: read-only `IdempotencyService.isClaimed(group, eventId)` on arrival → process → on success, `claim(group, eventId)` for every event-id that contributed to the flush. Recompute paths must be idempotent (UPSERT) so duplicate redelivery after an unclaimed failure is harmless. Pattern lives in `apps/api/src/classroom/gradebook-snapshot-worker.service.ts`. (REVIEW-CYCLE2 BLOCKING 2.)
-- **Temporary HR-Employee identity mapping (REVIEW-CYCLE2 DEVIATION 4):** Until the M16 HR module ships, columns documented in the ERD as soft references to `hr_employees.id` actually hold `iam_person.id` directly. Applies to `sis_class_teachers.teacher_employee_id`, `cls_grades.teacher_id`, `cls_lessons.teacher_id`, and `cls_student_progress_notes.author_id`. Services compare these against `ActorContextService.resolveActor(...).personId`. The constraint is annotated on the columns themselves via `COMMENT ON COLUMN`, so it is discoverable from the live schema. When HR lands, the bridge migration is additive — no service code needs to flip on day one.
+- **Staff identity (resolved in Cycle 4 Step 0):** `sis_class_teachers.teacher_employee_id`, `cls_grades.teacher_id`, `cls_lessons.teacher_id`, and `cls_student_progress_notes.author_id` reference `hr_employees(id)` (soft FK per ADR-055 / ADR-001/020). Resolve the calling employee via `actor.employeeId` from `ActorContextService.resolveActor(...)` — null-safe; non-staff personas and the synthetic Platform Admin (which has no `hr_employees` row) get `null` and the row-scope check should short-circuit. The Cycle 2 DEVIATION 4 temporary mapping (column held `iam_person.id` directly) was retired by `seed-hr.ts`'s bridge UPDATE, which re-pointed every existing row to its corresponding `hr_employees.id`. The convention is annotated on each column via `COMMENT ON COLUMN`, so it is discoverable from the live schema.
 
 ## Guard Chain (every request)
 
@@ -157,6 +160,7 @@ pnpm --filter @campusos/database exec tsx src/seed-iam.ts   # 444 permissions, 6
 pnpm --filter @campusos/database seed:sis                   # 15 students, 10 guardians, 8 families, 41 enrollments + attendance
 pnpm --filter @campusos/database seed:classroom             # 12 assignments, 80 submissions, 62 grades, 41 gradebook snapshots, 1 progress note
 pnpm --filter @campusos/database seed:messaging             # 4 thread types, 3 threads, 10 messages, 40 notification prefs, 2 moderation policies, 2 announcements, 3 queue rows
+pnpm --filter @campusos/database seed:hr                    # Cycle 4 Step 0: 4 hr_employees rows (Mitchell/Rivera/Park/Hayes) + bridge UPDATEs that re-point soft FKs from iam_person.id to hr_employees.id
 pnpm --filter @campusos/database exec tsx src/build-cache.ts  # rebuild iam_effective_access_cache (run after any role/permission change)
 
 # Rebuild from corrupted state (drops and re-provisions tenant schemas)
@@ -166,6 +170,7 @@ pnpm --filter @campusos/database provision --subdomain=test
 pnpm --filter @campusos/database seed:sis        # idempotent: lookup-or-create on platform identities
 pnpm --filter @campusos/database seed:classroom  # idempotent: skips if cls_assignments already populated
 pnpm --filter @campusos/database seed:messaging  # idempotent: skips if msg_thread_types already populated
+pnpm --filter @campusos/database seed:hr         # idempotent: skips per-employee if hr_employees row already exists; bridge UPDATEs are naturally no-ops once columns hold hr_employees.id
 pnpm --filter @campusos/database exec tsx src/build-cache.ts
 
 # Prisma studio (visual DB browser, platform schema only)
@@ -175,20 +180,24 @@ pnpm --filter @campusos/database studio
 ## Database
 
 - **Platform schema** (~29 tables after Cycle 3 Step 3): organisations, schools, iam_person, platform_users, platform_students, platform_families, roles, permissions (**444 codes**), iam_scope, iam_role_assignment, iam_effective_access_cache, **platform_push_tokens (Cycle 3 Step 3)**, **platform_dlq_messages (Cycle 3 Step 3)**, and more. Managed by Prisma at `packages/database/prisma/platform/schema.prisma`.
-- **Tenant schema** (57 base tables after Cycle 3 Step 3): 5 from Cycle 0 foundation (school_config, school_feature_flags, grading_scales, custom_field_definitions, custom_field_values) + 18 SIS tables from Cycle 1 (sis_academic_years, sis_terms, sis_departments, sis_courses, sis_classes, sis_class_teachers, sis_enrollments, sis_families, sis_students, sis_staff, sis_guardians, sis_student_guardians, sis_family_members, sis_emergency_contacts, sis_student_notes, sis_absence_requests, sis_attendance_records, sis_attendance_evidence) + 15 Classroom tables from Cycle 2 (cls_lesson_types, cls_lessons, cls_assignment_types, cls_assignment_categories, cls_assignments, cls_assignment_questions, cls_answer_key_entries, cls_submissions, cls_submission_question_grades, cls_ai_grading_jobs, cls_grades, cls_gradebook_snapshots, cls_report_cards, cls_report_card_entries, cls_student_progress_notes) + 6 Communications messaging tables from Cycle 3 Step 1 (msg_thread_types, msg_threads, msg_thread_participants, msg_messages, msg_message_attachments, msg_message_reads) + 7 Communications notification/announcement tables from Cycle 3 Step 2 (msg_alert_types, msg_notification_queue, msg_notification_preferences, msg_notification_log, msg_announcements, msg_announcement_audiences, msg_announcement_reads) + 6 Communications moderation/support tables from Cycle 3 Step 3 (msg_moderation_policies, msg_moderation_log, msg_tags, msg_user_tags, msg_user_blocks, msg_admin_access_log). Plus 36 partition objects under sis_attendance_records (4 year partitions × 8 hash leaves + 4 year parents) + 64 hash partitions of msg_threads + 24 monthly partitions of msg_messages (2025-08 → 2027-08) + 24 monthly partitions of msg_notification_log (2025-08 → 2027-08) + 24 monthly partitions of msg_moderation_log (2025-08 → 2027-08).
+- **Tenant schema** (58 base tables after Cycle 4 Step 0 — added `hr_employees`): 5 from Cycle 0 foundation (school_config, school_feature_flags, grading_scales, custom_field_definitions, custom_field_values) + 18 SIS tables from Cycle 1 (sis_academic_years, sis_terms, sis_departments, sis_courses, sis_classes, sis_class_teachers, sis_enrollments, sis_families, sis_students, sis_staff, sis_guardians, sis_student_guardians, sis_family_members, sis_emergency_contacts, sis_student_notes, sis_absence_requests, sis_attendance_records, sis_attendance_evidence) + 15 Classroom tables from Cycle 2 (cls_lesson_types, cls_lessons, cls_assignment_types, cls_assignment_categories, cls_assignments, cls_assignment_questions, cls_answer_key_entries, cls_submissions, cls_submission_question_grades, cls_ai_grading_jobs, cls_grades, cls_gradebook_snapshots, cls_report_cards, cls_report_card_entries, cls_student_progress_notes) + 6 Communications messaging tables from Cycle 3 Step 1 (msg_thread_types, msg_threads, msg_thread_participants, msg_messages, msg_message_attachments, msg_message_reads) + 7 Communications notification/announcement tables from Cycle 3 Step 2 (msg_alert_types, msg_notification_queue, msg_notification_preferences, msg_notification_log, msg_announcements, msg_announcement_audiences, msg_announcement_reads) + 6 Communications moderation/support tables from Cycle 3 Step 3 (msg_moderation_policies, msg_moderation_log, msg_tags, msg_user_tags, msg_user_blocks, msg_admin_access_log). Plus 36 partition objects under sis_attendance_records (4 year partitions × 8 hash leaves + 4 year parents) + 64 hash partitions of msg_threads + 24 monthly partitions of msg_messages (2025-08 → 2027-08) + 24 monthly partitions of msg_notification_log (2025-08 → 2027-08) + 24 monthly partitions of msg_moderation_log (2025-08 → 2027-08).
 - Tenant migrations are SQL files in `packages/database/prisma/tenant/migrations/`, split by semicolons, each statement executed individually by `provision-tenant.ts`. **Caveat:** statements that start with `--` after trim are filtered out — keep header comments minimal or use `/* … */`. **Caveat 2:** never put a `;` inside a string literal (e.g. inside a `COMMENT ON COLUMN ... IS '...'` value or a `DEFAULT` expression) — the splitter will cut the statement mid-string. Use commas / "and" instead. Tripped this on `007_msg_messaging.sql`.
 - Tenant SQL must be idempotent: use `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, and `DROP CONSTRAINT IF EXISTS … ; ADD CONSTRAINT …` for FK changes (Postgres has no `ADD CONSTRAINT IF NOT EXISTS`).
 - Enum-like columns use `TEXT + CHECK IN (…)` rather than PG `ENUM` types — `CREATE TYPE` isn't idempotent under the SQL splitter.
 
 ## Test Users (seeded, Keycloak)
 
-| Email                       | Role                                 | Password   |
-| --------------------------- | ------------------------------------ | ---------- |
-| admin@demo.campusos.dev     | Platform Admin (all 444 permissions) | admin123   |
-| principal@demo.campusos.dev | School Admin                         | admin123   |
-| teacher@demo.campusos.dev   | Teacher (James Rivera)               | teacher123 |
-| student@demo.campusos.dev   | Student (Maya Chen)                  | student123 |
-| parent@demo.campusos.dev    | Parent (David Chen, Maya's father)   | parent123  |
+| Email                          | Role                                 | Password      |
+| ------------------------------ | ------------------------------------ | ------------- |
+| admin@demo.campusos.dev        | Platform Admin (all 444 permissions) | admin123      |
+| principal@demo.campusos.dev    | School Admin (Sarah Mitchell)        | admin123      |
+| teacher@demo.campusos.dev      | Teacher (James Rivera)               | teacher123    |
+| student@demo.campusos.dev      | Student (Maya Chen)                  | student123    |
+| parent@demo.campusos.dev       | Parent (David Chen, Maya's father)   | parent123     |
+| vp@demo.campusos.dev           | Vice Principal (Linda Park)          | vp123         |
+| counsellor@demo.campusos.dev   | Counsellor (Marcus Hayes)            | counsellor123 |
+
+**Cycle 4 Step 0 note:** The `admin@` Platform Admin persona is intentionally NOT bridged to `hr_employees` — it represents a system administrator, not a school employee. The other four staff (Mitchell via `principal@`, Rivera, Park, Hayes) each have an `hr_employees` row.
 
 Dev login: `POST /api/v1/auth/dev-login` with `{"email":"..."}` and `X-Tenant-Subdomain: demo` header.
 
@@ -207,6 +216,7 @@ Read these when you need table definitions, column details, ADR specifics, or pe
 - `docs/cycle2-cat-script.md` — Cycle 2 Customer Acceptance Test script (the Step 10 deliverable; live API + worker walkthrough)
 - `docs/campusos-cycle3-implementation-plan.html` — Cycle 3 plan: 11 steps for Communications (messaging, notifications, announcements, moderation)
 - `docs/cycle3-cat-script.md` — Cycle 3 Customer Acceptance Test script (the Step 11 deliverable; 7 scenarios end-to-end across Kafka consumers + delivery worker + audience fan-out + content moderation)
+- `docs/campusos-cycle4-implementation-plan.html` — Cycle 4 plan: 10 steps for HR & Workforce Core (employees, positions, leave, certifications, training compliance, onboarding) + Step 0 HR-Employee Identity Migration
 
 ## Conventions
 

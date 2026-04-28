@@ -235,8 +235,8 @@ export class AudienceFanOutWorker implements OnModuleInit {
    * Audience is: enrolled students + their portal-enabled guardians + the
    * class's assigned teachers.
    *
-   * Teachers: sis_class_teachers.teacher_employee_id is iam_person.id (per
-   * REVIEW-CYCLE2 DEVIATION 4 — temporary HR-employee identity mapping).
+   * Teachers: sis_class_teachers.teacher_employee_id is hr_employees.id
+   * (Cycle 4 Step 0). Resolve back to platform_users via hr_employees.account_id.
    */
   private async audienceClass(classId: string): Promise<string[]> {
     return this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -258,10 +258,11 @@ export class AudienceFanOutWorker implements OnModuleInit {
           " WHERE e.class_id = $1::uuid AND e.status = 'ACTIVE' " +
           '   AND sg.portal_access = true AND g.account_id IS NOT NULL ' +
           ' UNION ' +
-          // Teachers assigned to the class — teacher_employee_id is iam_person.id
-          ' SELECT u.id::text AS account_id ' +
+          // Teachers assigned to the class — teacher_employee_id → hr_employees.id
+          // (Cycle 4 Step 0); join through hr_employees.account_id to platform_users.
+          ' SELECT he.account_id::text AS account_id ' +
           ' FROM sis_class_teachers ct ' +
-          ' JOIN platform.platform_users u ON u.person_id = ct.teacher_employee_id ' +
+          ' JOIN hr_employees he ON he.id = ct.teacher_employee_id ' +
           ' WHERE ct.class_id = $1::uuid ' +
           ') sub ' +
           'WHERE account_id IS NOT NULL',

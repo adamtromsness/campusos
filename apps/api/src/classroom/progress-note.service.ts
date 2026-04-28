@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
@@ -68,6 +68,11 @@ export class ProgressNoteService {
     actor: ResolvedActor,
   ): Promise<ProgressNoteResponseDto> {
     await this.assignments.assertCanWriteClass(classId, actor);
+    if (!actor.employeeId) {
+      throw new ForbiddenException(
+        'Only employees can author progress notes. The calling user has no hr_employees record.',
+      );
+    }
 
     var enrollRows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ ok: number }>>(
@@ -115,7 +120,7 @@ export class ProgressNoteService {
             'published_at = now(), ' +
             'updated_at = now() ' +
             'WHERE id = $6::uuid',
-          actor.personId,
+          actor.employeeId,
           body.noteText,
           body.overallEffortRating ?? null,
           isParentVisible,
@@ -134,7 +139,7 @@ export class ProgressNoteService {
         classId,
         body.studentId,
         body.termId,
-        actor.personId,
+        actor.employeeId,
         body.noteText,
         body.overallEffortRating ?? null,
         isParentVisible,
@@ -156,7 +161,7 @@ export class ProgressNoteService {
         termId: body.termId,
         isParentVisible: isParentVisible,
         isStudentVisible: isStudentVisible,
-        authorId: actor.personId,
+        authorId: actor.employeeId,
         publishedAt: publishedAt,
       },
     });
@@ -194,12 +199,13 @@ export class ProgressNoteService {
       }
       switch (actor.personType) {
         case 'STAFF':
+          if (!actor.employeeId) return [];
           sql +=
             'AND class_id IN (' +
             'SELECT class_id FROM sis_class_teachers WHERE teacher_employee_id = $2::uuid' +
             ') ' +
             'ORDER BY published_at DESC NULLS LAST, created_at DESC';
-          params.push(actor.personId);
+          params.push(actor.employeeId);
           return client.$queryRawUnsafe<ProgressNoteRow[]>(sql, ...params);
         case 'STUDENT':
           sql +=
@@ -265,13 +271,14 @@ export class ProgressNoteService {
           return rows2.length > 0;
         }
         case 'STAFF': {
+          if (!actor.employeeId) return false;
           var rows3 = await client.$queryRawUnsafe<Array<{ ok: number }>>(
             'SELECT 1 AS ok FROM sis_enrollments e ' +
               'JOIN sis_class_teachers ct ON ct.class_id = e.class_id ' +
               "WHERE e.student_id = $1::uuid AND e.status = 'ACTIVE' " +
               'AND ct.teacher_employee_id = $2::uuid',
             studentId,
-            actor.personId,
+            actor.employeeId,
           );
           return rows3.length > 0;
         }

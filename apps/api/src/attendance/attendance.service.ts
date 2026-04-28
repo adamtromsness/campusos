@@ -74,8 +74,9 @@ export class AttendanceService {
 
   /**
    * Verify that the caller is allowed to write attendance for this class.
-   * School/Platform admins bypass; otherwise the caller's iam_person.id must
-   * appear in sis_class_teachers.teacher_employee_id for the class.
+   * School/Platform admins bypass; otherwise the caller's hr_employees.id
+   * (resolved via ActorContextService) must appear in
+   * sis_class_teachers.teacher_employee_id for the class.
    *
    * 403 deliberately over 404: the caller already has att-001:write on the
    * tenant via PermissionGuard; what's missing is the per-class assignment.
@@ -85,12 +86,17 @@ export class AttendanceService {
     actor: ResolvedActor,
   ): Promise<void> {
     if (actor.isSchoolAdmin) return;
+    if (!actor.employeeId) {
+      throw new ForbiddenException(
+        'You are not assigned to class ' + classId + ' and cannot record attendance',
+      );
+    }
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ ok: number }>>(
         'SELECT 1 AS ok FROM sis_class_teachers ' +
           'WHERE class_id = $1::uuid AND teacher_employee_id = $2::uuid',
         classId,
-        actor.personId,
+        actor.employeeId,
       );
     });
     if (rows.length === 0) {

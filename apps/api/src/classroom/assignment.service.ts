@@ -118,12 +118,17 @@ export class AssignmentService {
       if (exists.length === 0) throw new NotFoundException('Class ' + classId + ' not found');
       return;
     }
+    if (!actor.employeeId) {
+      throw new ForbiddenException(
+        'You are not assigned to class ' + classId + ' and cannot manage its assignments',
+      );
+    }
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ ok: number }>>(
         'SELECT 1 AS ok FROM sis_class_teachers ' +
           'WHERE class_id = $1::uuid AND teacher_employee_id = $2::uuid',
         classId,
-        actor.personId,
+        actor.employeeId,
       );
     });
     if (rows.length === 0) {
@@ -146,11 +151,12 @@ export class AssignmentService {
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       switch (actor.personType) {
         case 'STAFF': {
+          if (!actor.employeeId) return false;
           var rows = await client.$queryRawUnsafe<Array<{ ok: number }>>(
             'SELECT 1 AS ok FROM sis_class_teachers ' +
               'WHERE class_id = $1::uuid AND teacher_employee_id = $2::uuid',
             classId,
-            actor.personId,
+            actor.employeeId,
           );
           return rows.length > 0;
         }
@@ -190,12 +196,13 @@ export class AssignmentService {
   private async isClassManager(classId: string, actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
     if (actor.personType !== 'STAFF') return false;
+    if (!actor.employeeId) return false;
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ ok: number }>>(
         'SELECT 1 AS ok FROM sis_class_teachers ' +
           'WHERE class_id = $1::uuid AND teacher_employee_id = $2::uuid',
         classId,
-        actor.personId,
+        actor.employeeId,
       );
     });
     return rows.length > 0;

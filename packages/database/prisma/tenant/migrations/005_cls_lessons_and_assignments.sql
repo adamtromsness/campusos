@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS cls_lessons (
 );
 CREATE INDEX IF NOT EXISTS cls_lessons_class_idx ON cls_lessons(class_id);
 CREATE INDEX IF NOT EXISTS cls_lessons_teacher_idx ON cls_lessons(teacher_id);
-COMMENT ON COLUMN cls_lessons.teacher_id IS 'TEMPORARY HR-EMPLOYEE IDENTITY MAPPING (REVIEW-CYCLE2 DEVIATION 4): holds iam_person.id directly until the HR module ships. See sis_class_teachers.teacher_employee_id and CLAUDE.md "Temporary HR-Employee Identity Mapping" for the project-wide rule.';
+COMMENT ON COLUMN cls_lessons.teacher_id IS 'Soft FK to hr_employees(id) per ADR-055 (resolved in Cycle 4 Step 0). Resolve via actor.employeeId from ActorContextService.resolveActor(...). Until Cycle 4 Step 0 the column held iam_person.id directly (REVIEW-CYCLE2 DEVIATION 4) and the seed-hr bridge UPDATE re-pointed every existing row to hr_employees.id.';
 CREATE INDEX IF NOT EXISTS cls_lessons_class_date_idx ON cls_lessons(class_id, date) WHERE class_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS cls_lessons_template_idx ON cls_lessons(school_id) WHERE is_template = true;
 CREATE TABLE IF NOT EXISTS cls_assignment_types (

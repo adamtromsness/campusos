@@ -56,7 +56,8 @@ function rowToDto(row: StudentRow): StudentResponseDto {
  * - Guardians → only students linked via sis_student_guardians/sis_guardians.
  * - Students → only their own sis_students row (resolved via platform_students.person_id).
  * - Teachers (STAFF) → only students enrolled in classes where they are
- *   listed in sis_class_teachers.teacher_employee_id.
+ *   listed in sis_class_teachers.teacher_employee_id (Cycle 4 Step 0:
+ *   bound from actor.employeeId, the calling iam_person's hr_employees row).
  * - Anything else (volunteers, external, etc.) → no rows.
  *
  * The placeholder index is the caller's `$start`; the function returns the
@@ -98,6 +99,12 @@ function visibilityClause(actor: ResolvedActor, start: number): VisibilityClause
         consumed: 1,
       };
     case 'STAFF':
+      // Teacher with no hr_employees row (e.g. the synthetic Platform Admin
+      // persona) sees no rows via this predicate; school-admin bypass at the
+      // top of visibilityClause handles the legitimate admin case.
+      if (!actor.employeeId) {
+        return { fragment: 'AND FALSE ', param: null, consumed: 0 };
+      }
       return {
         fragment:
           'AND s.id IN (' +
@@ -107,7 +114,7 @@ function visibilityClause(actor: ResolvedActor, start: number): VisibilityClause
           start +
           '::uuid' +
           ') ',
-        param: actor.personId,
+        param: actor.employeeId,
         consumed: 1,
       };
     default:

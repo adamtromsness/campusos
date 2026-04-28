@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS cls_grades (
 CREATE INDEX IF NOT EXISTS cls_grades_assignment_idx ON cls_grades(assignment_id);
 CREATE INDEX IF NOT EXISTS cls_grades_student_idx ON cls_grades(student_id);
 CREATE INDEX IF NOT EXISTS cls_grades_teacher_idx ON cls_grades(teacher_id);
-COMMENT ON COLUMN cls_grades.teacher_id IS 'TEMPORARY HR-EMPLOYEE IDENTITY MAPPING (REVIEW-CYCLE2 DEVIATION 4): holds iam_person.id directly until the HR module ships. Written from ActorContextService.resolveActor(...).personId. See CLAUDE.md "Temporary HR-Employee Identity Mapping" for the project-wide rule.';
+COMMENT ON COLUMN cls_grades.teacher_id IS 'Soft FK to hr_employees(id) per ADR-055 (resolved in Cycle 4 Step 0). Written from actor.employeeId via ActorContextService.resolveActor(...). Until Cycle 4 Step 0 the column held iam_person.id directly (REVIEW-CYCLE2 DEVIATION 4) and the seed-hr bridge UPDATE re-pointed every existing row to hr_employees.id.';
 CREATE INDEX IF NOT EXISTS cls_grades_assignment_published_idx ON cls_grades(assignment_id) WHERE is_published = true;
 CREATE INDEX IF NOT EXISTS cls_grades_student_published_idx ON cls_grades(student_id) WHERE is_published = true;
 CREATE TABLE IF NOT EXISTS cls_gradebook_snapshots (
@@ -139,4 +139,4 @@ CREATE TABLE IF NOT EXISTS cls_student_progress_notes (
 CREATE INDEX IF NOT EXISTS cls_student_progress_notes_student_idx ON cls_student_progress_notes(student_id);
 CREATE INDEX IF NOT EXISTS cls_student_progress_notes_class_term_idx ON cls_student_progress_notes(class_id, term_id);
 CREATE INDEX IF NOT EXISTS cls_student_progress_notes_parent_visible_idx ON cls_student_progress_notes(student_id) WHERE is_parent_visible = true AND published_at IS NOT NULL;
-COMMENT ON COLUMN cls_student_progress_notes.author_id IS 'TEMPORARY HR-EMPLOYEE IDENTITY MAPPING (REVIEW-CYCLE2 DEVIATION 4): holds iam_person.id directly until the HR module ships. Written from ActorContextService.resolveActor(...).personId. See CLAUDE.md "Temporary HR-Employee Identity Mapping" for the project-wide rule.'
+COMMENT ON COLUMN cls_student_progress_notes.author_id IS 'Soft FK to hr_employees(id) per ADR-055 (resolved in Cycle 4 Step 0). Written from actor.employeeId via ActorContextService.resolveActor(...). Until Cycle 4 Step 0 the column held iam_person.id directly (REVIEW-CYCLE2 DEVIATION 4) and the seed-hr bridge UPDATE re-pointed every existing row to hr_employees.id.'
