@@ -94,7 +94,7 @@ function LoginPageInner() {
     <main className="flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <h1 className="font-display text-4xl text-campus-700">CampusOS</h1>
+          <h1 className="text-4xl font-semibold tracking-tight text-campus-700">CampusOS</h1>
           <p className="mt-2 text-sm text-gray-500">
             The School Operating System — sign in to continue
           </p>

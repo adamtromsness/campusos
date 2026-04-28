@@ -16,13 +16,14 @@ import type {
  * useThreads — inbox query. Polls every 15s while the inbox is open so
  * incoming messages and unread counters refresh without a manual reload.
  */
-export function useThreads(includeArchived = false) {
+export function useThreads(includeArchived = false, enabled = true) {
   const qs = includeArchived ? '?includeArchived=true' : '';
   return useQuery({
     queryKey: ['messaging', 'threads', { includeArchived }],
     queryFn: () => apiFetch<ThreadDto[]>(`/api/v1/threads${qs}`),
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
+    enabled,
   });
 }
 

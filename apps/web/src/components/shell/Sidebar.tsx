@@ -2,54 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { type ReactNode } from 'react';
 import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
+import { useAppBadges } from '@/hooks/use-app-badges';
 import { cn } from '@/components/ui/cn';
-import { ChatBubbleIcon, HomeIcon, MegaphoneIcon } from './icons';
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: (props: { className?: string }) => ReactNode;
-  visibleFor: (user: AuthUser) => boolean;
-}
-
-// Only routes that actually exist in apps/web/src/app are listed here.
-// Cycle 1 ships with /dashboard as the navigation hub — class cards and
-// children cards are the in-page entry points to detail views. Step 9 adds
-// student-only Assignments and Grades section landing pages.
-const NAV_ITEMS: NavItem[] = [
-  {
-    href: '/dashboard',
-    label: 'Dashboard',
-    icon: HomeIcon,
-    visibleFor: () => true,
-  },
-  {
-    href: '/assignments',
-    label: 'Assignments',
-    icon: HomeIcon,
-    visibleFor: (u) => u.personType === 'STUDENT',
-  },
-  {
-    href: '/grades',
-    label: 'Grades',
-    icon: HomeIcon,
-    visibleFor: (u) => u.personType === 'STUDENT',
-  },
-  {
-    href: '/messages',
-    label: 'Messages',
-    icon: ChatBubbleIcon,
-    visibleFor: (u) => hasAnyPermission(u, ['com-001:read']),
-  },
-  {
-    href: '/announcements',
-    label: 'Announcements',
-    icon: MegaphoneIcon,
-    visibleFor: (u) => hasAnyPermission(u, ['com-002:read']),
-  },
-];
+import { getAppsForUser } from './apps';
 
 interface SidebarProps {
   user: AuthUser;
@@ -59,24 +15,30 @@ interface SidebarProps {
 
 export function Sidebar({ user, schoolName = 'CampusOS', onNavigate }: SidebarProps) {
   const pathname = usePathname();
-  const items = NAV_ITEMS.filter((item) => item.visibleFor(user));
+  const apps = getAppsForUser(user);
+  const badges = useAppBadges(user);
 
   return (
     <aside className="flex h-full w-64 flex-col bg-campus-700 text-campus-100">
-      <div className="flex h-16 items-center px-5">
-        <span className="font-display text-2xl text-white">CampusOS</span>
-      </div>
+      <Link
+        href="/dashboard"
+        onClick={onNavigate}
+        className="flex h-16 items-center px-5 font-sans text-2xl font-semibold tracking-tight text-white"
+      >
+        CampusOS
+      </Link>
       <div className="border-y border-campus-600 px-5 py-3 text-xs uppercase tracking-wide text-campus-300">
         {schoolName}
       </div>
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {items.map((item) => {
-          const active = pathname === item.href || pathname?.startsWith(item.href + '/');
-          const Icon = item.icon;
+        {apps.map((app) => {
+          const active = pathname === app.href || pathname?.startsWith(app.href + '/');
+          const Icon = app.icon;
+          const count = app.badgeKey ? badges[app.badgeKey] : 0;
           return (
             <Link
-              key={item.href}
-              href={item.href}
+              key={app.href}
+              href={app.href}
               onClick={onNavigate}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
@@ -86,7 +48,15 @@ export function Sidebar({ user, schoolName = 'CampusOS', onNavigate }: SidebarPr
               )}
             >
               <Icon className="h-5 w-5" />
-              <span>{item.label}</span>
+              <span className="flex-1">{app.label}</span>
+              {count > 0 && (
+                <span
+                  aria-label={`${count} unread`}
+                  className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold leading-none text-white"
+                >
+                  {count > 99 ? '99+' : count}
+                </span>
+              )}
             </Link>
           );
         })}

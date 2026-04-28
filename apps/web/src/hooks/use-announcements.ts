@@ -15,7 +15,7 @@ interface AnnouncementsListArgs {
   includeExpired?: boolean;
 }
 
-export function useAnnouncements(args: AnnouncementsListArgs = {}) {
+export function useAnnouncements(args: AnnouncementsListArgs = {}, enabled = true) {
   const params = new URLSearchParams();
   if (args.includeDrafts) params.set('includeDrafts', 'true');
   if (args.includeExpired) params.set('includeExpired', 'true');
@@ -29,6 +29,7 @@ export function useAnnouncements(args: AnnouncementsListArgs = {}) {
     queryFn: () => apiFetch<AnnouncementDto[]>(`/api/v1/announcements${qs ? `?${qs}` : ''}`),
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
+    enabled,
   });
 }
 

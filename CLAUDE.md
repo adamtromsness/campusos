@@ -37,6 +37,27 @@ See `docs/campusos-cycle1-implementation-plan.html`, `docs/campusos-cycle2-imple
 - Each cycle follows validated patterns from Phase 1
 - UI matches the design guide established in Phase 2
 
+## UI Design Principles
+
+These are foundational decisions for the web app. New views must follow them; existing views are migrated as they are touched.
+
+- **Less is more.** No screen should feel cluttered. When in doubt, remove information rather than add it. The previous persona-specific dashboards (TeacherDashboard, ParentDashboard, StudentDashboard, AdminDashboard) packed stats, tables, and queues onto the home page; they have been deleted in favour of a clean launchpad.
+- **Home page is a launchpad, not a dashboard.** `/dashboard` is a Google-style centered page: `CampusOS` logo, persona-aware greeting (`Good morning/afternoon/evening, {Name}`), a search input ("What would you like to do today?"), and a grid of App tiles. No stats, no tables, no lists. Each App owns its own detail views.
+- **Apps are the primary navigation unit.** The current apps are **Classes** (or **My Classes** for students, **My Children** for parents), **Messages**, and **Announcements**. The sidebar lists exactly the same apps as the home grid — the two surfaces stay in sync via `apps/web/src/components/shell/apps.tsx::getAppsForUser(user)`. Adding a new app is one edit: add it to the catalogue and it shows up in both surfaces with the right persona gating.
+- **Persona-aware app grid.** Driven by IAM permissions and `personType`, not by role names:
+  - `sch-001:admin` OR `personType=STAFF` → Classes tile pointing at `/classes`
+  - `personType=STUDENT` → My Classes tile (same `/classes` route, student variant)
+  - `personType=GUARDIAN` → My Children tile pointing at `/children`
+  - Anyone with `com-001:read` → Messages tile
+  - Anyone with `com-002:read` → Announcements tile
+- **iOS-style unread badges.** Red circle, white number, capped at "99+", in the top-right of an app tile and trailing-aligned on a sidebar row. Wired through `apps/web/src/hooks/use-app-badges.ts`:
+  - **Messages** badge = sum of `ThreadDto.unreadCount` from `useThreads()` (15s poll).
+  - **Announcements** badge = count of `useAnnouncements()` rows where `isPublished && !isRead` (30s poll).
+  - The hooks are gated on permissions via an optional `enabled` argument so a STUDENT without `com-001:read` doesn't 403 on `/threads`. Both queries already poll, so badges refresh without extra plumbing.
+  - The top-bar `NotificationBell` is the unified cross-app notifier and is independent of these per-app badges.
+- **Logo is sans-serif.** The "CampusOS" wordmark uses the Tailwind `font-sans` stack (DM Sans / Inter / system) with `font-semibold` and `tracking-tight`. Never `font-display` (DM Serif Display) for the wordmark. The default text wordmark is a placeholder until a school uploads its own logo. `font-display` is still allowed for in-page article titles like an announcement detail headline; it must not be used for the brand mark.
+- **App pages are minimal lists, not dashboards.** `/classes` and `/children` are flat grids of cards (one card per class / child) with one or two primary actions per row. Recent activity, queues, and aggregate stats belong in their own future apps (Attendance, Absences, etc.), not bolted onto a launchpad or a list page.
+
 ## Architecture
 
 - **840 tables** across 38 modules, governed by 76 ADRs (Architecture Decision Records)
