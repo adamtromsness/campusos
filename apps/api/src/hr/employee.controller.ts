@@ -28,10 +28,7 @@ import {
   CreateEmployeeDocumentDto,
   EmployeeDocumentResponseDto,
 } from './dto/employee-document.dto';
-import {
-  CertificationResponseDto,
-  CreateCertificationDto,
-} from './dto/certification.dto';
+import { CertificationResponseDto, CreateCertificationDto } from './dto/certification.dto';
 import { EmployeeComplianceDto } from './dto/compliance.dto';
 
 interface AuthedRequest extends Request {
@@ -159,7 +156,7 @@ export class EmployeeController {
 
   @Get(':id/compliance')
   @RequirePermission('hr-004:read')
-  @ApiOperation({ summary: "Per-employee training compliance breakdown (own or admin only)" })
+  @ApiOperation({ summary: 'Per-employee training compliance breakdown (own or admin only)' })
   async getCompliance(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthedRequest,

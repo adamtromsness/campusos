@@ -11,7 +11,8 @@ export class ComplianceRowDto {
   @ApiPropertyOptional({ nullable: true }) linkedCertificationId!: string | null;
   @ApiPropertyOptional({ nullable: true }) daysUntilDue!: number | null;
   @ApiProperty({
-    description: 'Derived urgency tier from days_until_due. green = compliant, amber = expiring within 90, red = overdue / non-compliant.',
+    description:
+      'Derived urgency tier from days_until_due. green = compliant, amber = expiring within 90, red = overdue / non-compliant.',
   })
   urgency!: 'green' | 'amber' | 'red';
 }

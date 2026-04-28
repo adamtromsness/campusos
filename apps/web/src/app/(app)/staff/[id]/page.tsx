@@ -135,13 +135,8 @@ function InfoTab({ emp }: { emp: EmployeeDto }) {
           <Field label="Status" value={prettyStatus(emp.employmentStatus)} />
           <Field label="Type" value={prettyType(emp.employmentType)} />
           <Field label="Hire date" value={emp.hireDate} />
-          {emp.terminationDate && (
-            <Field label="Termination date" value={emp.terminationDate} />
-          )}
-          <Field
-            label="Primary position"
-            value={emp.primaryPositionTitle ?? '— not assigned'}
-          />
+          {emp.terminationDate && <Field label="Termination date" value={emp.terminationDate} />}
+          <Field label="Primary position" value={emp.primaryPositionTitle ?? '— not assigned'} />
         </dl>
       </section>
 
@@ -229,7 +224,8 @@ function CertificationsTab({ employeeId }: { employeeId: string }) {
                 <div>
                   <p className="font-medium text-gray-900">{r.requirementName}</p>
                   <p className="text-xs text-gray-500">
-                    {r.frequency} · {r.lastCompletedDate ? `last ${r.lastCompletedDate}` : 'never completed'}
+                    {r.frequency} ·{' '}
+                    {r.lastCompletedDate ? `last ${r.lastCompletedDate}` : 'never completed'}
                     {r.nextDueDate && ` · due ${r.nextDueDate}`}
                   </p>
                 </div>
@@ -310,7 +306,8 @@ function LeaveTab({ employeeId, isOwnProfile }: { employeeId: string; isOwnProfi
         </section>
       ) : (
         <p className="text-sm text-gray-500">
-          Leave balances are visible only to the owning employee. Admins can view request history below.
+          Leave balances are visible only to the owning employee. Admins can view request history
+          below.
         </p>
       )}
 
@@ -331,8 +328,7 @@ function LeaveTab({ employeeId, isOwnProfile }: { employeeId: string; isOwnProfi
                 <div>
                   <p className="font-medium text-gray-900">{r.leaveTypeName}</p>
                   <p className="text-xs text-gray-500">
-                    {r.startDate} → {r.endDate} · {r.daysRequested}d
-                    {r.reason && ` · ${r.reason}`}
+                    {r.startDate} → {r.endDate} · {r.daysRequested}d{r.reason && ` · ${r.reason}`}
                   </p>
                 </div>
                 <LeaveStatusPill status={r.status} />
@@ -453,7 +449,10 @@ function prettyStatus(s: string): string {
 }
 
 function prettyType(t: string): string {
-  return t.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  return t
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function prettyBytes(n: number): string {

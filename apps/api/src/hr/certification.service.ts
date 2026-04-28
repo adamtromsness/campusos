@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
@@ -148,7 +144,8 @@ export class CertificationService {
         certId,
       );
     });
-    if (existing.length === 0) throw new NotFoundException('Certification ' + certId + ' not found');
+    if (existing.length === 0)
+      throw new NotFoundException('Certification ' + certId + ' not found');
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
         'UPDATE hr_staff_certifications SET verification_status = $1, verified_by = $2::uuid, verified_at = now(), notes = COALESCE($3, notes), updated_at = now() ' +
@@ -206,7 +203,7 @@ export class CertificationService {
       return client.$queryRawUnsafe<CertificationRow[]>(
         SELECT_CERT_BASE +
           "WHERE verification_status IN ('PENDING','VERIFIED') " +
-          "AND expiry_date IS NOT NULL " +
+          'AND expiry_date IS NOT NULL ' +
           "AND expiry_date <= (now() + INTERVAL '90 days')::date " +
           'ORDER BY expiry_date',
       );

@@ -5,7 +5,7 @@
 **Last verified:** 2026-04-28 (against `tenant_demo` on `main`)
 **Plan reference:** `docs/campusos-cycle4-implementation-plan.html` § Step 10
 
-This is the manual walkthrough that exercises every layer of Cycle 4 — the HR-Employee identity bridge from Step 0, the 17 hr_* tables landed across Steps 1–4, the seeded employee / leave / certification / compliance state from Step 5, the 23 HR endpoints across Steps 6–7, the LeaveNotificationConsumer that republishes `hr.leave.coverage_needed` for Cycle 5 Scheduling, and the 7 HR web routes from Steps 8–9. The format mirrors `docs/cycle1-cat-script.md`, `docs/cycle2-cat-script.md`, and `docs/cycle3-cat-script.md`.
+This is the manual walkthrough that exercises every layer of Cycle 4 — the HR-Employee identity bridge from Step 0, the 17 hr\_\* tables landed across Steps 1–4, the seeded employee / leave / certification / compliance state from Step 5, the 23 HR endpoints across Steps 6–7, the LeaveNotificationConsumer that republishes `hr.leave.coverage_needed` for Cycle 5 Scheduling, and the 7 HR web routes from Steps 8–9. The format mirrors `docs/cycle1-cat-script.md`, `docs/cycle2-cat-script.md`, and `docs/cycle3-cat-script.md`.
 
 The verification below was captured live with the API, all Cycle 1–3 Kafka consumers, the LeaveNotificationConsumer, the audience-fan-out-worker, the gradebook-snapshot-worker, and the notification-delivery worker all running against the freshly-seeded demo tenant. Outputs are recorded inline so a reviewer can re-run the script and diff the results against this transcript.
 
@@ -218,12 +218,12 @@ curl -s -X POST -H "Authorization: Bearer $TEACHER" -H "X-Tenant-Subdomain: demo
 
 ```json
 {
-  "id":"019dd548-d1b6-7666-af87-af3a8d0ad89a",
-  "status":"PENDING",
-  "daysRequested":1,
-  "reason":"Medical appointment",
-  "startDate":"2026-06-15",
-  "endDate":"2026-06-15"
+  "id": "019dd548-d1b6-7666-af87-af3a8d0ad89a",
+  "status": "PENDING",
+  "daysRequested": 1,
+  "reason": "Medical appointment",
+  "startDate": "2026-06-15",
+  "endDate": "2026-06-15"
 }
 ```
 
@@ -249,24 +249,25 @@ docker exec campusos-kafka /opt/kafka/bin/kafka-console-consumer.sh \
 
 ```json
 {
-  "event_id":"019dd548-d1c3-7666-af87-b0e29c0e2f11",
-  "event_type":"hr.leave.requested",
-  "event_version":1,
-  "occurred_at":"2026-04-28T18:10:12.547Z",
-  "published_at":"2026-04-28T18:10:12.547Z",
-  "tenant_id":"019dc92b-ea59-7bb7-aa7f-929729562010",
-  "source_module":"hr",
-  "correlation_id":"019dd548-d1c3-7666-af87-bc6250d220ea",
-  "payload":{
-    "requestId":"019dd548-d1b6-7666-af87-af3a8d0ad89a",
-    "employeeId":"019dd544-85e6-7997-b89d-099bf973ba2b",
-    "accountId":"019dc92d-0882-7442-abf5-e33e03046357",
-    "leaveTypeId":"019dd544-8608-7997-b89d-6fe5885a36ca",
-    "leaveTypeName":"Sick Leave",
-    "startDate":"2026-06-15","endDate":"2026-06-15",
-    "daysRequested":1,
-    "reason":"Medical appointment",
-    "status":"PENDING"
+  "event_id": "019dd548-d1c3-7666-af87-b0e29c0e2f11",
+  "event_type": "hr.leave.requested",
+  "event_version": 1,
+  "occurred_at": "2026-04-28T18:10:12.547Z",
+  "published_at": "2026-04-28T18:10:12.547Z",
+  "tenant_id": "019dc92b-ea59-7bb7-aa7f-929729562010",
+  "source_module": "hr",
+  "correlation_id": "019dd548-d1c3-7666-af87-bc6250d220ea",
+  "payload": {
+    "requestId": "019dd548-d1b6-7666-af87-af3a8d0ad89a",
+    "employeeId": "019dd544-85e6-7997-b89d-099bf973ba2b",
+    "accountId": "019dc92d-0882-7442-abf5-e33e03046357",
+    "leaveTypeId": "019dd544-8608-7997-b89d-6fe5885a36ca",
+    "leaveTypeName": "Sick Leave",
+    "startDate": "2026-06-15",
+    "endDate": "2026-06-15",
+    "daysRequested": 1,
+    "reason": "Medical appointment",
+    "status": "PENDING"
   }
 }
 ```
@@ -288,10 +289,10 @@ curl -s -X PATCH -H "Authorization: Bearer $PRINCIPAL" -H "X-Tenant-Subdomain: d
 
 ```json
 {
-  "status":"APPROVED",
-  "reviewedBy":"019dc92d-087d-7442-abf5-d16bc2fe960d",
-  "reviewedAt":"2026-04-28T18:11:19.004Z",
-  "reviewNotes":"Approved — feel better"
+  "status": "APPROVED",
+  "reviewedBy": "019dc92d-087d-7442-abf5-d16bc2fe960d",
+  "reviewedAt": "2026-04-28T18:11:19.004Z",
+  "reviewNotes": "Approved — feel better"
 }
 ```
 
@@ -311,18 +312,19 @@ Sick Leave  accrued=10  used=3  pending=0  available=7
 
 ```json
 {
-  "event_id":"019dd549-d565-7666-af87-ee8c13cb9ae8",
-  "event_type":"hr.leave.approved",
-  "tenant_id":"019dc92b-ea59-7bb7-aa7f-929729562010",
-  "source_module":"hr",
-  "payload":{
-    "requestId":"019dd548-d1b6-7666-af87-af3a8d0ad89a",
-    "leaveTypeName":"Sick Leave",
-    "startDate":"2026-06-15","endDate":"2026-06-15",
-    "daysRequested":1,
-    "reviewedBy":"019dc92d-087d-7442-abf5-d16bc2fe960d",
-    "reviewedAt":"2026-04-28T18:11:19.004Z",
-    "status":"APPROVED"
+  "event_id": "019dd549-d565-7666-af87-ee8c13cb9ae8",
+  "event_type": "hr.leave.approved",
+  "tenant_id": "019dc92b-ea59-7bb7-aa7f-929729562010",
+  "source_module": "hr",
+  "payload": {
+    "requestId": "019dd548-d1b6-7666-af87-af3a8d0ad89a",
+    "leaveTypeName": "Sick Leave",
+    "startDate": "2026-06-15",
+    "endDate": "2026-06-15",
+    "daysRequested": 1,
+    "reviewedBy": "019dc92d-087d-7442-abf5-d16bc2fe960d",
+    "reviewedAt": "2026-04-28T18:11:19.004Z",
+    "status": "APPROVED"
   }
 }
 ```
@@ -331,19 +333,20 @@ The `LeaveNotificationConsumer` consumes this, enqueues a `leave.approved` IN_AP
 
 ```json
 {
-  "event_id":"019dd549-d572-7666-af88-00daf92bfec6",
-  "event_type":"hr.leave.coverage_needed",
-  "source_module":"hr",
-  "payload":{
-    "requestId":"019dd548-d1b6-7666-af87-af3a8d0ad89a",
-    "startDate":"2026-06-15","endDate":"2026-06-15",
-    "affectedClasses":[
-      {"classId":"019dd544-…","sectionCode":"1","courseName":"Algebra 1"},
-      {"classId":"019dd544-…","sectionCode":"2","courseName":"English 9"},
-      {"classId":"019dd544-…","sectionCode":"3","courseName":"Biology"},
-      {"classId":"019dd544-…","sectionCode":"4","courseName":"World History"},
-      {"classId":"019dd544-…","sectionCode":"5","courseName":"Geometry"},
-      {"classId":"019dd544-…","sectionCode":"6","courseName":"Chemistry"}
+  "event_id": "019dd549-d572-7666-af88-00daf92bfec6",
+  "event_type": "hr.leave.coverage_needed",
+  "source_module": "hr",
+  "payload": {
+    "requestId": "019dd548-d1b6-7666-af87-af3a8d0ad89a",
+    "startDate": "2026-06-15",
+    "endDate": "2026-06-15",
+    "affectedClasses": [
+      { "classId": "019dd544-…", "sectionCode": "1", "courseName": "Algebra 1" },
+      { "classId": "019dd544-…", "sectionCode": "2", "courseName": "English 9" },
+      { "classId": "019dd544-…", "sectionCode": "3", "courseName": "Biology" },
+      { "classId": "019dd544-…", "sectionCode": "4", "courseName": "World History" },
+      { "classId": "019dd544-…", "sectionCode": "5", "courseName": "Geometry" },
+      { "classId": "019dd544-…", "sectionCode": "6", "courseName": "Chemistry" }
     ]
   }
 }
@@ -432,7 +435,7 @@ curl -s -H "Authorization: Bearer $TEACHER" -H "X-Tenant-Subdomain: demo" \
 HTTP 200 — teacher passing employeeId=Mitchell → got 1 rows (own-only filter strips it)
 ```
 
-`LeaveService.list` short-circuits non-admins to their own `employee_id` regardless of the supplied filter, so the teacher sees only their own PENDING — never another employee's. This is the right behaviour: the API doesn't 403 on a benign read attempt; it just restricts the row scope. The actual approval *write* path is the gated one (9b).
+`LeaveService.list` short-circuits non-admins to their own `employee_id` regardless of the supplied filter, so the teacher sees only their own PENDING — never another employee's. This is the right behaviour: the API doesn't 403 on a benign read attempt; it just restricts the row scope. The actual approval _write_ path is the gated one (9b).
 
 ### 9b. teacher@ tries to approve their own request (admin-only at the service layer)
 
@@ -497,26 +500,26 @@ UI: the parent and student log in and the launchpad has no Staff / Leave / Compl
 
 ## Scenario summary
 
-| #  | Scenario                                                                  | Outcome  |
-| -- | ------------------------------------------------------------------------- | -------- |
-| 0a | hr_employees row count                                                    | 4 ✅       |
-| 0b | Bridge orphan check (4 columns)                                           | 0 / 0 / 0 / 0 ✅ |
-| 0c | Tenant base table count                                                   | 74 ✅      |
-| 0d | Cross-schema FKs from tenant_demo                                          | 0 ✅       |
-| 1  | principal@ GET /employees                                                  | 4 employees, ordered by last name ✅ |
-| 2  | teacher@ profile + certifications + balances                                | Rivera profile, 3 verified certs, balances correct (PD pending=1, Sick used=2) ✅ |
-| 3  | teacher@ submits 1-day Sick                                                | 201 PENDING; balance pending bumps 0 → 1 ✅ |
-| 4  | hr.leave.requested envelope on the wire                                    | source_module=hr, full payload inline ✅ |
-| 5  | principal@ approves                                                        | 200 APPROVED; reviewedBy + reviewedAt set ✅ |
-| 6  | Balance update + hr.leave.approved + hr.leave.coverage_needed              | Sick used 2 → 3, pending 1 → 0; coverage envelope contains all 6 of Rivera's classes ✅ |
-| 7  | Notifications enqueued (2 admins on requested + Rivera on approved)        | 3 rows SENT in msg_notification_queue ✅ |
-| 8  | Compliance dashboard amber row + Rivera's per-employee detail              | totalEmployees=4 employeesWithGaps=2; Teaching Licence amber at 60d ✅ |
-| 9a | teacher@ leave queue is own-rows-only (no leak)                            | 1 row ✅ |
-| 9b | teacher@ approve attempt → 403 service-layer admin check                   | "Only admins can approve leave requests" ✅ |
-| 9c | teacher@ certification verify → 403 hr-004:write gate                      | "INSUFFICIENT_PERMISSIONS required hr-004:write" ✅ |
-| 9d | teacher@ compliance dashboard → 403 service-layer admin check              | "Only admins can read the compliance dashboard" ✅ |
-| 9e | parent@ /employees → 403 hr-001:read gate                                  | "INSUFFICIENT_PERMISSIONS required hr-001:read" ✅ |
-| 9f | student@ /leave-types → 403 hr-003:read gate                                | "INSUFFICIENT_PERMISSIONS required hr-003:read" ✅ |
+| #   | Scenario                                                            | Outcome                                                                                 |
+| --- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 0a  | hr_employees row count                                              | 4 ✅                                                                                    |
+| 0b  | Bridge orphan check (4 columns)                                     | 0 / 0 / 0 / 0 ✅                                                                        |
+| 0c  | Tenant base table count                                             | 74 ✅                                                                                   |
+| 0d  | Cross-schema FKs from tenant_demo                                   | 0 ✅                                                                                    |
+| 1   | principal@ GET /employees                                           | 4 employees, ordered by last name ✅                                                    |
+| 2   | teacher@ profile + certifications + balances                        | Rivera profile, 3 verified certs, balances correct (PD pending=1, Sick used=2) ✅       |
+| 3   | teacher@ submits 1-day Sick                                         | 201 PENDING; balance pending bumps 0 → 1 ✅                                             |
+| 4   | hr.leave.requested envelope on the wire                             | source_module=hr, full payload inline ✅                                                |
+| 5   | principal@ approves                                                 | 200 APPROVED; reviewedBy + reviewedAt set ✅                                            |
+| 6   | Balance update + hr.leave.approved + hr.leave.coverage_needed       | Sick used 2 → 3, pending 1 → 0; coverage envelope contains all 6 of Rivera's classes ✅ |
+| 7   | Notifications enqueued (2 admins on requested + Rivera on approved) | 3 rows SENT in msg_notification_queue ✅                                                |
+| 8   | Compliance dashboard amber row + Rivera's per-employee detail       | totalEmployees=4 employeesWithGaps=2; Teaching Licence amber at 60d ✅                  |
+| 9a  | teacher@ leave queue is own-rows-only (no leak)                     | 1 row ✅                                                                                |
+| 9b  | teacher@ approve attempt → 403 service-layer admin check            | "Only admins can approve leave requests" ✅                                             |
+| 9c  | teacher@ certification verify → 403 hr-004:write gate               | "INSUFFICIENT_PERMISSIONS required hr-004:write" ✅                                     |
+| 9d  | teacher@ compliance dashboard → 403 service-layer admin check       | "Only admins can read the compliance dashboard" ✅                                      |
+| 9e  | parent@ /employees → 403 hr-001:read gate                           | "INSUFFICIENT_PERMISSIONS required hr-001:read" ✅                                      |
+| 9f  | student@ /leave-types → 403 hr-003:read gate                        | "INSUFFICIENT_PERMISSIONS required hr-003:read" ✅                                      |
 
 All 16 checks (4 bridge + 12 plan scenarios) pass.
 
@@ -541,7 +544,7 @@ All 16 checks (4 bridge + 12 plan scenarios) pass.
 
 The CAT didn't surface any new bugs on its final run, but the Step 7 approval-flow smoke caught one bug that **would** have tripped the cancel scenario:
 
-**Bug:** Step 5's `seed-hr.ts` seeded Rivera's Professional Development `hr_leave_balances.pending=0` while *also* seeding a PENDING PD request for `days_requested=1.0`. The two were inconsistent. When the cancel path subtracted 1 from `pending=0`, the migration-012 `pending_chk >= 0` correctly fired and rejected the underflow with SQLSTATE 23514 — exactly the contract Step 2's "Approval flow at the schema layer" note documented ("if Step 7's update would underflow `pending` or `used`, the UPDATE fails loudly rather than silently corrupting the running totals").
+**Bug:** Step 5's `seed-hr.ts` seeded Rivera's Professional Development `hr_leave_balances.pending=0` while _also_ seeding a PENDING PD request for `days_requested=1.0`. The two were inconsistent. When the cancel path subtracted 1 from `pending=0`, the migration-012 `pending_chk >= 0` correctly fired and rejected the underflow with SQLSTATE 23514 — exactly the contract Step 2's "Approval flow at the schema layer" note documented ("if Step 7's update would underflow `pending` or `used`, the UPDATE fails loudly rather than silently corrupting the running totals").
 
 **Fix:** `seed-hr.ts::balanceFor` now sets Rivera's PD balance to `{ accrued: spec.accrualRate, used: 0, pending: 1.0 }` to match the seeded PENDING request. The same edit reset Rivera's Personal Leave to `used=0 pending=0` since no Personal request was ever seeded — those non-zeros were stale. The fix is baked into the Step 7 commit (`70b6cf3`); on a fresh provision, `seed:hr` produces the correct shape from the start, and the cancel path works without any in-flight patching.
 

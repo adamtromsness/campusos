@@ -117,19 +117,15 @@ export default function MyLeavePage() {
                 <div className="min-w-0">
                   <p className="font-medium text-gray-900">{r.leaveTypeName}</p>
                   <p className="text-xs text-gray-500">
-                    {r.startDate} → {r.endDate} · {r.daysRequested}d
-                    {r.reason && ` · ${r.reason}`}
+                    {r.startDate} → {r.endDate} · {r.daysRequested}d{r.reason && ` · ${r.reason}`}
                   </p>
                   {r.reviewNotes && (
-                    <p className="mt-1 text-xs italic text-gray-500">
-                      Reviewer: {r.reviewNotes}
-                    </p>
+                    <p className="mt-1 text-xs italic text-gray-500">Reviewer: {r.reviewNotes}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
                   <LeaveStatusPill status={r.status} />
-                  {(r.status === 'PENDING' ||
-                    (r.status === 'APPROVED' && (isAdmin || true))) && (
+                  {(r.status === 'PENDING' || (r.status === 'APPROVED' && (isAdmin || true))) && (
                     <button
                       type="button"
                       onClick={() => onCancel(r)}

@@ -54,7 +54,9 @@ export class LeaveController {
 
   @Get('leave-requests')
   @RequirePermission('hr-003:read')
-  @ApiOperation({ summary: "List leave requests — own history for non-admins, full queue for admins" })
+  @ApiOperation({
+    summary: 'List leave requests — own history for non-admins, full queue for admins',
+  })
   async listRequests(
     @Query() query: ListLeaveRequestsQueryDto,
     @Req() req: AuthedRequest,

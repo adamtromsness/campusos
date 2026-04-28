@@ -79,10 +79,7 @@ export class TrainingComplianceService {
    *   - Owning employee can read their own.
    *   - Anyone else gets 403.
    */
-  async getForEmployee(
-    employeeId: string,
-    actor: ResolvedActor,
-  ): Promise<EmployeeComplianceDto> {
+  async getForEmployee(employeeId: string, actor: ResolvedActor): Promise<EmployeeComplianceDto> {
     if (!actor.isSchoolAdmin && actor.employeeId !== employeeId) {
       throw new ForbiddenException(
         'Only the owning employee or a school admin can read compliance details',
@@ -112,11 +109,9 @@ export class TrainingComplianceService {
     var allowed = actor.isSchoolAdmin;
     if (!allowed) {
       var tenant = getCurrentTenant();
-      allowed = await this.permCheck.hasAnyPermissionInTenant(
-        actor.accountId,
-        tenant.schoolId,
-        ['hr-004:admin'],
-      );
+      allowed = await this.permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+        'hr-004:admin',
+      ]);
     }
     if (!allowed) {
       throw new ForbiddenException('Only admins can read the compliance dashboard');
@@ -141,7 +136,12 @@ export class TrainingComplianceService {
     // shows the full roster.
     var allEmployees = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<
-        Array<{ id: string; first_name: string; last_name: string; primary_position_title: string | null }>
+        Array<{
+          id: string;
+          first_name: string;
+          last_name: string;
+          primary_position_title: string | null;
+        }>
       >(
         'SELECT e.id, ip.first_name, ip.last_name, pos.title AS primary_position_title ' +
           'FROM hr_employees e ' +
@@ -199,11 +199,11 @@ export class TrainingComplianceService {
       else redCount++;
     }
     var firstRow = rows[0];
-    var firstName = firstRow ? firstRow.employee_first_name : fallback?.firstName ?? '';
-    var lastName = firstRow ? firstRow.employee_last_name : fallback?.lastName ?? '';
+    var firstName = firstRow ? firstRow.employee_first_name : (fallback?.firstName ?? '');
+    var lastName = firstRow ? firstRow.employee_last_name : (fallback?.lastName ?? '');
     var primaryPositionTitle = firstRow
       ? firstRow.primary_position_title
-      : fallback?.primaryPositionTitle ?? null;
+      : (fallback?.primaryPositionTitle ?? null);
     return {
       employeeId: employeeId,
       employeeName: firstName + ' ' + lastName,

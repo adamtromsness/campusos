@@ -1,21 +1,10 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
 import { CertificationService } from './certification.service';
-import {
-  CertificationResponseDto,
-  VerifyCertificationDto,
-} from './dto/certification.dto';
+import { CertificationResponseDto, VerifyCertificationDto } from './dto/certification.dto';
 
 interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };
@@ -32,7 +21,9 @@ export class CertificationsController {
 
   @Get('expiring-soon')
   @RequirePermission('hr-004:read')
-  @ApiOperation({ summary: 'List certifications expiring within 90 days (or overdue) — admin sweep' })
+  @ApiOperation({
+    summary: 'List certifications expiring within 90 days (or overdue) — admin sweep',
+  })
   async listExpiringSoon(): Promise<CertificationResponseDto[]> {
     return this.certifications.listExpiringSoon();
   }

@@ -108,17 +108,23 @@ export class UpdateEmployeeDto {
 }
 
 export class ListEmployeesQueryDto {
-  @ApiPropertyOptional({ description: 'Filter by employment status — defaults to ACTIVE only when omitted.' })
+  @ApiPropertyOptional({
+    description: 'Filter by employment status — defaults to ACTIVE only when omitted.',
+  })
   @IsOptional()
   @IsIn(EMPLOYMENT_STATUSES as unknown as string[])
   employmentStatus?: EmploymentStatus;
 
-  @ApiPropertyOptional({ description: 'When true, include terminated/suspended/on-leave employees.' })
+  @ApiPropertyOptional({
+    description: 'When true, include terminated/suspended/on-leave employees.',
+  })
   @IsOptional()
   @IsBoolean()
   includeInactive?: boolean;
 
-  @ApiPropertyOptional({ description: 'Free-text search across first/last name, email, employee_number.' })
+  @ApiPropertyOptional({
+    description: 'Free-text search across first/last name, email, employee_number.',
+  })
   @IsOptional()
   @IsString()
   @MinLength(1)

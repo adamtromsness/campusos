@@ -24,9 +24,7 @@ export default function ComplianceDashboardPage() {
     const list = dashboard.data?.employees ?? [];
     if (filter === 'gaps') return list.filter((e) => e.amberCount > 0 || e.redCount > 0);
     if (filter === 'compliant') {
-      return list.filter(
-        (e) => e.totalRequirements > 0 && e.amberCount === 0 && e.redCount === 0,
-      );
+      return list.filter((e) => e.totalRequirements > 0 && e.amberCount === 0 && e.redCount === 0);
     }
     return list;
   }, [dashboard.data, filter]);
@@ -60,8 +58,16 @@ export default function ComplianceDashboardPage() {
 
       <section className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat label="Active employees" value={totalEmployees} />
-        <Stat label="With gaps" value={employeesWithGaps} tone={employeesWithGaps > 0 ? 'amber' : 'green'} />
-        <Stat label="Compliant" value={`${compliantPct}%`} tone={compliantPct === 100 ? 'green' : 'amber'} />
+        <Stat
+          label="With gaps"
+          value={employeesWithGaps}
+          tone={employeesWithGaps > 0 ? 'amber' : 'green'}
+        />
+        <Stat
+          label="Compliant"
+          value={`${compliantPct}%`}
+          tone={compliantPct === 100 ? 'green' : 'amber'}
+        />
       </section>
 
       <div className="mt-6 flex flex-wrap gap-2">
@@ -101,7 +107,9 @@ export default function ComplianceDashboardPage() {
                 key={emp.employeeId}
                 emp={emp}
                 expanded={expanded === emp.employeeId}
-                onToggle={() => setExpanded((cur) => (cur === emp.employeeId ? null : emp.employeeId))}
+                onToggle={() =>
+                  setExpanded((cur) => (cur === emp.employeeId ? null : emp.employeeId))
+                }
               />
             ))}
           </ul>
@@ -184,7 +192,9 @@ function EmployeeCard({
                     <p className="font-medium text-gray-900">{r.requirementName}</p>
                     <p className="text-xs text-gray-500">
                       {r.frequency.toLowerCase()}
-                      {r.lastCompletedDate ? ` · last ${r.lastCompletedDate}` : ' · never completed'}
+                      {r.lastCompletedDate
+                        ? ` · last ${r.lastCompletedDate}`
+                        : ' · never completed'}
                       {r.nextDueDate && ` · due ${r.nextDueDate}`}
                       {r.daysUntilDue !== null && ` · ${r.daysUntilDue}d`}
                     </p>

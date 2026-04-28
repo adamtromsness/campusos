@@ -29,7 +29,11 @@ export function useEmployees(args: EmployeesListArgs = {}, enabled = true) {
   if (args.includeInactive) params.set('includeInactive', 'true');
   const qs = params.toString();
   return useQuery({
-    queryKey: ['hr', 'employees', { search: args.search ?? null, includeInactive: !!args.includeInactive }],
+    queryKey: [
+      'hr',
+      'employees',
+      { search: args.search ?? null, includeInactive: !!args.includeInactive },
+    ],
     queryFn: () => apiFetch<EmployeeDto[]>(`/api/v1/employees${qs ? `?${qs}` : ''}`),
     refetchOnWindowFocus: true,
     enabled,
@@ -69,22 +73,17 @@ export function usePositions(enabled = true) {
 export function useEmployeeDocuments(employeeId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['hr', 'documents', employeeId],
-    queryFn: () =>
-      apiFetch<EmployeeDocumentDto[]>(`/api/v1/employees/${employeeId}/documents`),
+    queryFn: () => apiFetch<EmployeeDocumentDto[]>(`/api/v1/employees/${employeeId}/documents`),
     enabled: enabled && typeof employeeId === 'string' && employeeId.length > 0,
   });
 }
 
 // ── Certifications ─────────────────────────────────────────
 
-export function useEmployeeCertifications(
-  employeeId: string | null | undefined,
-  enabled = true,
-) {
+export function useEmployeeCertifications(employeeId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['hr', 'certifications', employeeId],
-    queryFn: () =>
-      apiFetch<CertificationDto[]>(`/api/v1/employees/${employeeId}/certifications`),
+    queryFn: () => apiFetch<CertificationDto[]>(`/api/v1/employees/${employeeId}/certifications`),
     enabled: enabled && typeof employeeId === 'string' && employeeId.length > 0,
   });
 }
@@ -119,8 +118,7 @@ export function useVerifyCertification(certificationId: string) {
 export function useEmployeeCompliance(employeeId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['hr', 'compliance', 'employee', employeeId],
-    queryFn: () =>
-      apiFetch<EmployeeComplianceDto>(`/api/v1/employees/${employeeId}/compliance`),
+    queryFn: () => apiFetch<EmployeeComplianceDto>(`/api/v1/employees/${employeeId}/compliance`),
     enabled: enabled && typeof employeeId === 'string' && employeeId.length > 0,
   });
 }
@@ -164,7 +162,11 @@ export function useLeaveRequests(args: LeaveRequestsArgs = {}, enabled = true) {
   if (args.employeeId) params.set('employeeId', args.employeeId);
   const qs = params.toString();
   return useQuery({
-    queryKey: ['hr', 'leave-requests', { status: args.status ?? null, employeeId: args.employeeId ?? null }],
+    queryKey: [
+      'hr',
+      'leave-requests',
+      { status: args.status ?? null, employeeId: args.employeeId ?? null },
+    ],
     queryFn: () => apiFetch<LeaveRequestDto[]>(`/api/v1/leave-requests${qs ? `?${qs}` : ''}`),
     enabled,
     refetchOnWindowFocus: true,

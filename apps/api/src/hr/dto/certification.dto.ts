@@ -1,11 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsDateString,
-  IsIn,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export var CERTIFICATION_TYPES = [
   'TEACHING_LICENCE',
@@ -88,7 +82,10 @@ export class CreateCertificationDto {
 }
 
 export class VerifyCertificationDto {
-  @ApiProperty({ enum: ['VERIFIED', 'REVOKED', 'EXPIRED'], description: 'New verification status.' })
+  @ApiProperty({
+    enum: ['VERIFIED', 'REVOKED', 'EXPIRED'],
+    description: 'New verification status.',
+  })
   @IsIn(['VERIFIED', 'REVOKED', 'EXPIRED'])
   status!: 'VERIFIED' | 'REVOKED' | 'EXPIRED';
 

@@ -16,13 +16,7 @@ var TENANT_SCHEMA = 'tenant_demo';
 interface StaffSpec {
   email: string;
   hireDate: string;
-  employmentType:
-    | 'FULL_TIME'
-    | 'PART_TIME'
-    | 'CONTRACT'
-    | 'TEMPORARY'
-    | 'INTERN'
-    | 'VOLUNTEER';
+  employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'TEMPORARY' | 'INTERN' | 'VOLUNTEER';
   employeeNumber: string;
   // Display label for the seed log only.
   positionLabel: string;
@@ -99,15 +93,17 @@ async function seedHr() {
   var inserted = 0;
   for (var j = 0; j < staffRows.length; j++) {
     var row = staffRows[j]!;
-    var existing = await client.$queryRawUnsafe<Array<{ id: string }>>(
-      'SELECT id::text AS id FROM ' +
-        TENANT_SCHEMA +
-        '.hr_employees WHERE person_id = $1::uuid',
+    var existing = (await client.$queryRawUnsafe(
+      'SELECT id::text AS id FROM ' + TENANT_SCHEMA + '.hr_employees WHERE person_id = $1::uuid',
       row.personId,
-    );
+    )) as Array<{ id: string }>;
     if (existing.length > 0) {
       console.log(
-        '  hr_employees row already exists for ' + row.spec.email + ' (' + row.spec.positionLabel + ')',
+        '  hr_employees row already exists for ' +
+          row.spec.email +
+          ' (' +
+          row.spec.positionLabel +
+          ')',
       );
       continue;
     }
@@ -127,7 +123,9 @@ async function seedHr() {
       row.spec.hireDate,
     );
     inserted += 1;
-    console.log('  hr_employees row inserted for ' + row.spec.email + ' (' + row.spec.positionLabel + ')');
+    console.log(
+      '  hr_employees row inserted for ' + row.spec.email + ' (' + row.spec.positionLabel + ')',
+    );
   }
 
   // ── 4. Bridge UPDATEs — re-point soft FKs from iam_person.id to hr_employees.id ──
@@ -166,7 +164,7 @@ async function seedHr() {
   console.log('  Orphan check (every value in a bridged column must resolve in hr_employees):');
   for (var m = 0; m < bridgeStatements.length; m++) {
     var b = bridgeStatements[m]!;
-    var orphans = await client.$queryRawUnsafe<Array<{ orphans: bigint }>>(
+    var orphans = (await client.$queryRawUnsafe(
       'SELECT count(*)::bigint AS orphans ' +
         'FROM ' +
         TENANT_SCHEMA +
@@ -181,7 +179,7 @@ async function seedHr() {
         '.hr_employees e WHERE e.id = t.' +
         b.column +
         ')',
-    );
+    )) as Array<{ orphans: bigint }>;
     var n = orphans[0] ? Number(orphans[0].orphans) : 0;
     console.log('    ' + b.table + '.' + b.column + ' — ' + n + ' orphan(s)');
     if (n > 0) {
@@ -201,9 +199,9 @@ async function seedHr() {
   await seedStep5Layers(client, schoolId);
 
   // ── 7. Summary ────────────────────────────────────────────
-  var totalEmployees = await client.$queryRawUnsafe<Array<{ c: bigint }>>(
+  var totalEmployees = (await client.$queryRawUnsafe(
     'SELECT count(*)::bigint AS c FROM ' + TENANT_SCHEMA + '.hr_employees',
-  );
+  )) as Array<{ c: bigint }>;
   console.log('');
   console.log(
     '  HR seed complete — ' +
@@ -221,14 +219,14 @@ interface EmployeeRow {
 }
 
 async function loadEmployeesForSeed(client: any): Promise<EmployeeRow[]> {
-  return client.$queryRawUnsafe<EmployeeRow[]>(
+  return (await client.$queryRawUnsafe(
     'SELECT e.id::text AS id, u.email::text AS account_email, e.hire_date::text AS hire_date ' +
       'FROM ' +
       TENANT_SCHEMA +
       '.hr_employees e ' +
       'JOIN platform.platform_users u ON u.id = e.account_id ' +
       'ORDER BY e.hire_date',
-  );
+  )) as EmployeeRow[];
 }
 
 async function seedStep5Layers(client: any, schoolId: string): Promise<void> {
@@ -237,7 +235,8 @@ async function seedStep5Layers(client: any, schoolId: string): Promise<void> {
 
   var employees = await loadEmployeesForSeed(client);
   var employeeByEmail: Record<string, EmployeeRow> = {};
-  for (var i = 0; i < employees.length; i++) employeeByEmail[employees[i]!.account_email] = employees[i]!;
+  for (var i = 0; i < employees.length; i++)
+    employeeByEmail[employees[i]!.account_email] = employees[i]!;
   var rivera = employeeByEmail['teacher@demo.campusos.dev'];
   var mitchell = employeeByEmail['principal@demo.campusos.dev'];
   var park = employeeByEmail['vp@demo.campusos.dev'];
@@ -247,11 +246,11 @@ async function seedStep5Layers(client: any, schoolId: string): Promise<void> {
   }
 
   // Current academic year for balances and CPD targets.
-  var ayRows = await client.$queryRawUnsafe<Array<{ id: string }>>(
+  var ayRows = (await client.$queryRawUnsafe(
     'SELECT id::text AS id FROM ' +
       TENANT_SCHEMA +
       '.sis_academic_years WHERE is_current = true LIMIT 1',
-  );
+  )) as Array<{ id: string }>;
   if (ayRows.length === 0) {
     throw new Error('seed-hr Step 5: no current academic year. Run seed:sis first.');
   }
@@ -274,9 +273,9 @@ async function seedPositions(
   park: EmployeeRow,
   hayes: EmployeeRow,
 ): Promise<void> {
-  var existing = await client.$queryRawUnsafe<Array<{ c: bigint }>>(
+  var existing = (await client.$queryRawUnsafe(
     'SELECT count(*)::bigint AS c FROM ' + TENANT_SCHEMA + '.hr_positions',
-  );
+  )) as Array<{ c: bigint }>;
   if (existing[0] && Number(existing[0].c) > 0) {
     console.log('    positions already seeded (' + existing[0].c + ' rows) — skipping');
     return;
@@ -331,9 +330,9 @@ async function seedLeave(
   park: EmployeeRow,
   hayes: EmployeeRow,
 ): Promise<void> {
-  var existing = await client.$queryRawUnsafe<Array<{ c: bigint }>>(
+  var existing = (await client.$queryRawUnsafe(
     'SELECT count(*)::bigint AS c FROM ' + TENANT_SCHEMA + '.hr_leave_types',
-  );
+  )) as Array<{ c: bigint }>;
   if (existing[0] && Number(existing[0].c) > 0) {
     console.log('    leave types already seeded (' + existing[0].c + ' rows) — skipping');
     return;
@@ -380,7 +379,9 @@ async function seedLeave(
   }
   function balanceFor(employee: EmployeeRow, typeName: string): BalanceState {
     if (typeName === 'Unpaid Leave') return { accrued: 0, used: 0, pending: 0 };
-    var spec = leaveTypes.filter(function (l) { return l.name === typeName; })[0]!;
+    var spec = leaveTypes.filter(function (l) {
+      return l.name === typeName;
+    })[0]!;
     // Rivera's running totals must agree with the seeded leave request rows
     // (one APPROVED Sick request for 2 days, one PENDING PD request for 1 day).
     // The non-negative balance CHECKs from migration 012 fail loudly if a
@@ -459,9 +460,9 @@ async function seedCertifications(
   rivera: EmployeeRow,
   mitchell: EmployeeRow,
 ): Promise<void> {
-  var existing = await client.$queryRawUnsafe<Array<{ c: bigint }>>(
+  var existing = (await client.$queryRawUnsafe(
     'SELECT count(*)::bigint AS c FROM ' + TENANT_SCHEMA + '.hr_staff_certifications',
-  );
+  )) as Array<{ c: bigint }>;
   if (existing[0] && Number(existing[0].c) > 0) {
     console.log('    certifications already seeded (' + existing[0].c + ' rows) — skipping');
     return;
@@ -556,20 +557,20 @@ async function seedCertifications(
 }
 
 async function seedTrainingRequirements(client: any, schoolId: string): Promise<void> {
-  var existing = await client.$queryRawUnsafe<Array<{ c: bigint }>>(
+  var existing = (await client.$queryRawUnsafe(
     'SELECT count(*)::bigint AS c FROM ' + TENANT_SCHEMA + '.hr_training_requirements',
-  );
+  )) as Array<{ c: bigint }>;
   if (existing[0] && Number(existing[0].c) > 0) {
     console.log('    training requirements already seeded (' + existing[0].c + ' rows) — skipping');
     return;
   }
-  var teacherPos = await client.$queryRawUnsafe<Array<{ id: string }>>(
+  var teacherPos = (await client.$queryRawUnsafe(
     'SELECT id::text AS id FROM ' +
       TENANT_SCHEMA +
       '.hr_positions WHERE school_id = $1::uuid AND title = $2',
     schoolId,
     'Teacher',
-  );
+  )) as Array<{ id: string }>;
   var teacherPosId = teacherPos[0]?.id ?? null;
 
   interface RequirementSpec {
@@ -579,10 +580,30 @@ async function seedTrainingRequirements(client: any, schoolId: string): Promise<
     positionId: string | null;
   }
   var requirements: RequirementSpec[] = [
-    { name: 'Annual Safeguarding Refresh', certificationType: 'SAFEGUARDING_LEVEL1', frequency: 'ANNUAL', positionId: null },
-    { name: 'First Aid Recertification', certificationType: 'FIRST_AID', frequency: 'BIENNIAL', positionId: null },
-    { name: 'Annual Fire Safety Briefing', certificationType: null, frequency: 'ANNUAL', positionId: null },
-    { name: 'Teaching Licence Renewal', certificationType: 'TEACHING_LICENCE', frequency: 'ANNUAL', positionId: teacherPosId },
+    {
+      name: 'Annual Safeguarding Refresh',
+      certificationType: 'SAFEGUARDING_LEVEL1',
+      frequency: 'ANNUAL',
+      positionId: null,
+    },
+    {
+      name: 'First Aid Recertification',
+      certificationType: 'FIRST_AID',
+      frequency: 'BIENNIAL',
+      positionId: null,
+    },
+    {
+      name: 'Annual Fire Safety Briefing',
+      certificationType: null,
+      frequency: 'ANNUAL',
+      positionId: null,
+    },
+    {
+      name: 'Teaching Licence Renewal',
+      certificationType: 'TEACHING_LICENCE',
+      frequency: 'ANNUAL',
+      positionId: teacherPosId,
+    },
   ];
 
   for (var i = 0; i < requirements.length; i++) {
@@ -599,7 +620,9 @@ async function seedTrainingRequirements(client: any, schoolId: string): Promise<
       spec.frequency,
     );
   }
-  console.log('    training requirements: 4 rows (3 school-wide, 1 position-specific Teaching Licence Renewal)');
+  console.log(
+    '    training requirements: 4 rows (3 school-wide, 1 position-specific Teaching Licence Renewal)',
+  );
 }
 
 async function seedTrainingCompliance(
@@ -607,26 +630,26 @@ async function seedTrainingCompliance(
   rivera: EmployeeRow,
   mitchell: EmployeeRow,
 ): Promise<void> {
-  var existing = await client.$queryRawUnsafe<Array<{ c: bigint }>>(
+  var existing = (await client.$queryRawUnsafe(
     'SELECT count(*)::bigint AS c FROM ' + TENANT_SCHEMA + '.hr_training_compliance',
-  );
+  )) as Array<{ c: bigint }>;
   if (existing[0] && Number(existing[0].c) > 0) {
     console.log('    training compliance already seeded (' + existing[0].c + ' rows) — skipping');
     return;
   }
   // Resolve requirement ids by name.
-  var reqRows = await client.$queryRawUnsafe<Array<{ id: string; training_name: string }>>(
+  var reqRows = (await client.$queryRawUnsafe(
     'SELECT id::text AS id, training_name FROM ' + TENANT_SCHEMA + '.hr_training_requirements',
-  );
+  )) as Array<{ id: string; training_name: string }>;
   var reqIdByName: Record<string, string> = {};
   for (var r = 0; r < reqRows.length; r++) reqIdByName[reqRows[r]!.training_name] = reqRows[r]!.id;
 
   // Resolve cert ids by (employee, type).
-  var certRows = await client.$queryRawUnsafe<Array<{ id: string; employee_id: string; certification_type: string }>>(
+  var certRows = (await client.$queryRawUnsafe(
     'SELECT id::text AS id, employee_id::text AS employee_id, certification_type FROM ' +
       TENANT_SCHEMA +
       '.hr_staff_certifications',
-  );
+  )) as Array<{ id: string; employee_id: string; certification_type: string }>;
   function findCert(employeeId: string, certType: string): string | null {
     for (var i = 0; i < certRows.length; i++) {
       if (certRows[i]!.employee_id === employeeId && certRows[i]!.certification_type === certType) {
@@ -707,9 +730,9 @@ async function seedTrainingCompliance(
 }
 
 async function seedDocumentTypes(client: any, schoolId: string): Promise<void> {
-  var existing = await client.$queryRawUnsafe<Array<{ c: bigint }>>(
+  var existing = (await client.$queryRawUnsafe(
     'SELECT count(*)::bigint AS c FROM ' + TENANT_SCHEMA + '.hr_document_types',
-  );
+  )) as Array<{ c: bigint }>;
   if (existing[0] && Number(existing[0].c) > 0) {
     console.log('    document types already seeded (' + existing[0].c + ' rows) — skipping');
     return;
@@ -733,24 +756,26 @@ async function seedDocumentTypes(client: any, schoolId: string): Promise<void> {
       d.retentionDays,
     );
   }
-  console.log('    document types: 4 rows (Contract, Background Check, W-4, Teaching Licence Copy)');
+  console.log(
+    '    document types: 4 rows (Contract, Background Check, W-4, Teaching Licence Copy)',
+  );
 }
 
 async function seedOnboarding(client: any, schoolId: string, rivera: EmployeeRow): Promise<void> {
-  var existing = await client.$queryRawUnsafe<Array<{ c: bigint }>>(
+  var existing = (await client.$queryRawUnsafe(
     'SELECT count(*)::bigint AS c FROM ' + TENANT_SCHEMA + '.hr_onboarding_templates',
-  );
+  )) as Array<{ c: bigint }>;
   if (existing[0] && Number(existing[0].c) > 0) {
     console.log('    onboarding template already seeded (' + existing[0].c + ' rows) — skipping');
     return;
   }
-  var teacherPos = await client.$queryRawUnsafe<Array<{ id: string }>>(
+  var teacherPos = (await client.$queryRawUnsafe(
     'SELECT id::text AS id FROM ' +
       TENANT_SCHEMA +
       '.hr_positions WHERE school_id = $1::uuid AND title = $2',
     schoolId,
     'Teacher',
-  );
+  )) as Array<{ id: string }>;
   var teacherPosId = teacherPos[0]?.id ?? null;
 
   var templateId = generateId();
@@ -785,14 +810,70 @@ async function seedOnboarding(client: any, schoolId: string, rivera: EmployeeRow
     sortOrder: number;
   }
   var tasks: TaskSpec[] = [
-    { title: 'Submit signed employment contract', description: 'Return signed contract to HR.', category: 'DOCUMENT', isRequired: true, dueDays: 0, sortOrder: 1 },
-    { title: 'Complete I-9 / right-to-work verification', description: 'Bring eligible documents to HR for verification.', category: 'DOCUMENT', isRequired: true, dueDays: 3, sortOrder: 2 },
-    { title: 'Submit Tax Form W-4', description: 'Federal withholding election.', category: 'DOCUMENT', isRequired: true, dueDays: 3, sortOrder: 3 },
-    { title: 'Background check authorisation', description: 'Sign release form so HR can run the check.', category: 'DOCUMENT', isRequired: true, dueDays: 1, sortOrder: 4 },
-    { title: 'Safeguarding Level 1 training', description: 'Complete the online module.', category: 'TRAINING', isRequired: true, dueDays: 14, sortOrder: 5 },
-    { title: 'First Aid certification', description: 'Attend the in-person Red Cross session.', category: 'TRAINING', isRequired: true, dueDays: 30, sortOrder: 6 },
-    { title: 'Issue laptop and SIS account', description: 'IT provisions equipment and platform access.', category: 'SYSTEM_ACCESS', isRequired: true, dueDays: 1, sortOrder: 7 },
-    { title: 'Classroom orientation walkthrough', description: 'Tour with assigned mentor teacher.', category: 'ORIENTATION', isRequired: true, dueDays: 7, sortOrder: 8 },
+    {
+      title: 'Submit signed employment contract',
+      description: 'Return signed contract to HR.',
+      category: 'DOCUMENT',
+      isRequired: true,
+      dueDays: 0,
+      sortOrder: 1,
+    },
+    {
+      title: 'Complete I-9 / right-to-work verification',
+      description: 'Bring eligible documents to HR for verification.',
+      category: 'DOCUMENT',
+      isRequired: true,
+      dueDays: 3,
+      sortOrder: 2,
+    },
+    {
+      title: 'Submit Tax Form W-4',
+      description: 'Federal withholding election.',
+      category: 'DOCUMENT',
+      isRequired: true,
+      dueDays: 3,
+      sortOrder: 3,
+    },
+    {
+      title: 'Background check authorisation',
+      description: 'Sign release form so HR can run the check.',
+      category: 'DOCUMENT',
+      isRequired: true,
+      dueDays: 1,
+      sortOrder: 4,
+    },
+    {
+      title: 'Safeguarding Level 1 training',
+      description: 'Complete the online module.',
+      category: 'TRAINING',
+      isRequired: true,
+      dueDays: 14,
+      sortOrder: 5,
+    },
+    {
+      title: 'First Aid certification',
+      description: 'Attend the in-person Red Cross session.',
+      category: 'TRAINING',
+      isRequired: true,
+      dueDays: 30,
+      sortOrder: 6,
+    },
+    {
+      title: 'Issue laptop and SIS account',
+      description: 'IT provisions equipment and platform access.',
+      category: 'SYSTEM_ACCESS',
+      isRequired: true,
+      dueDays: 1,
+      sortOrder: 7,
+    },
+    {
+      title: 'Classroom orientation walkthrough',
+      description: 'Tour with assigned mentor teacher.',
+      category: 'ORIENTATION',
+      isRequired: true,
+      dueDays: 7,
+      sortOrder: 8,
+    },
   ];
   for (var i = 0; i < tasks.length; i++) {
     var t = tasks[i]!;

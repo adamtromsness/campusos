@@ -9,10 +9,10 @@
 
 **Verdict trail:**
 
-| Round | Date           | SHA         | Verdict                                              |
-| ----: | -------------- | ----------- | ---------------------------------------------------- |
-|     1 | April 28, 2026 | `efbcb44`   | REJECT pending 1 BLOCKING fix (3 MAJOR + 10 PASS)    |
-|     2 | _pending_      | _post-fix_  | _to be filled in after Round 2 re-review_            |
+| Round | Date           | SHA        | Verdict                                           |
+| ----: | -------------- | ---------- | ------------------------------------------------- |
+|     1 | April 28, 2026 | `efbcb44`  | REJECT pending 1 BLOCKING fix (3 MAJOR + 10 PASS) |
+|     2 | _pending_      | _post-fix_ | _to be filled in after Round 2 re-review_         |
 
 ---
 
@@ -26,7 +26,7 @@ Cycle 4 is strong overall, but the leave lifecycle has a real concurrency bug. R
 
 **File:** `apps/api/src/hr/leave.service.ts` — `approve()`, `reject()`, `cancel()`
 
-**Issue.** Each method calls `loadForReview(id, 'PENDING')` *outside* the transaction, then runs the balance UPDATE + status UPDATE inside a separate `executeInTenantTransaction`. Two simultaneous admin actions can both pass the PENDING check, both enter their respective transactions, and both apply the balance deltas + the status flip. The non-negative balance CHECKs from migration 012 catch *some* underflow patterns (e.g. double-cancel from `pending=0`) but do not catch double-decrement of `pending` plus double-increment of `used` on a concurrent approve. The visible symptom would be `used` running ahead of reality; balances drift; `available = accrued - used - pending` goes negative under load.
+**Issue.** Each method calls `loadForReview(id, 'PENDING')` _outside_ the transaction, then runs the balance UPDATE + status UPDATE inside a separate `executeInTenantTransaction`. Two simultaneous admin actions can both pass the PENDING check, both enter their respective transactions, and both apply the balance deltas + the status flip. The non-negative balance CHECKs from migration 012 catch _some_ underflow patterns (e.g. double-cancel from `pending=0`) but do not catch double-decrement of `pending` plus double-increment of `used` on a concurrent approve. The visible symptom would be `used` running ahead of reality; balances drift; `available = accrued - used - pending` goes negative under load.
 
 **Required fix.** Move the status read inside the transaction and lock it: `SELECT … FROM hr_leave_requests WHERE id = $1 FOR UPDATE`. Then verify status and update balances inside the same transaction. For approve/reject, require `status='PENDING'` after the lock. For cancel, use the locked previous status to decide whether to subtract from `pending` or `used`.
 

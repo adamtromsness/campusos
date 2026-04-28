@@ -16,11 +16,7 @@ import { Transform } from 'class-transformer';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
 import { PositionService } from './position.service';
-import {
-  CreatePositionDto,
-  PositionResponseDto,
-  UpdatePositionDto,
-} from './dto/position.dto';
+import { CreatePositionDto, PositionResponseDto, UpdatePositionDto } from './dto/position.dto';
 
 interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };

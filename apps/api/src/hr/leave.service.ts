@@ -155,8 +155,8 @@ export class LeaveService {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<LeaveBalanceRow[]>(
         'SELECT lt.id AS leave_type_id, lt.name AS leave_type_name, lt.is_paid, ' +
-          "$2::uuid AS academic_year_id, COALESCE(b.accrued, 0)::text AS accrued, " +
-          "COALESCE(b.used, 0)::text AS used, COALESCE(b.pending, 0)::text AS pending, " +
+          '$2::uuid AS academic_year_id, COALESCE(b.accrued, 0)::text AS accrued, ' +
+          'COALESCE(b.used, 0)::text AS used, COALESCE(b.pending, 0)::text AS pending, ' +
           "$1::uuid AS employee_id, '' AS id " +
           'FROM hr_leave_types lt ' +
           'LEFT JOIN hr_leave_balances b ON b.leave_type_id = lt.id AND b.employee_id = $1::uuid AND b.academic_year_id = $2::uuid ' +

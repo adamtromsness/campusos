@@ -71,7 +71,10 @@ export default function NewLeaveRequestPage() {
         <p className="mt-4 text-sm text-gray-500">
           Leave is only available to staff with an employee record.
         </p>
-        <Link href="/dashboard" className="mt-4 inline-block text-sm text-campus-700 hover:underline">
+        <Link
+          href="/dashboard"
+          className="mt-4 inline-block text-sm text-campus-700 hover:underline"
+        >
           ← Back to home
         </Link>
       </div>
@@ -110,17 +113,28 @@ export default function NewLeaveRequestPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-2">
-        <Link href="/leave" className="text-sm text-gray-500 transition-colors hover:text-campus-700">
+        <Link
+          href="/leave"
+          className="text-sm text-gray-500 transition-colors hover:text-campus-700"
+        >
           ← My Leave
         </Link>
       </div>
-      <PageHeader title="Request leave" description="Submit a new leave request for admin review." />
+      <PageHeader
+        title="Request leave"
+        description="Submit a new leave request for admin review."
+      />
 
-      <form onSubmit={onSubmit} className="mt-6 space-y-5 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+      <form
+        onSubmit={onSubmit}
+        className="mt-6 space-y-5 rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+      >
         <div>
           <label className="block text-sm font-medium text-gray-700">Leave type</label>
           {types.isLoading ? (
-            <div className="mt-2 py-2"><LoadingSpinner /></div>
+            <div className="mt-2 py-2">
+              <LoadingSpinner />
+            </div>
           ) : (
             <select
               value={leaveTypeId}
@@ -170,7 +184,9 @@ export default function NewLeaveRequestPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700">
             Days requested
-            <span className="ml-2 text-xs font-normal text-gray-500">(supports halves — e.g. 0.5)</span>
+            <span className="ml-2 text-xs font-normal text-gray-500">
+              (supports halves — e.g. 0.5)
+            </span>
           </label>
           <input
             type="number"
@@ -183,8 +199,9 @@ export default function NewLeaveRequestPage() {
           />
           {balanceForType && daysRequested > balanceForType.available && (
             <p className="mt-1 text-xs text-amber-700">
-              You only have {balanceForType.available} day{balanceForType.available === 1 ? '' : 's'} available.
-              The request will go through but the admin may reject it.
+              You only have {balanceForType.available} day
+              {balanceForType.available === 1 ? '' : 's'} available. The request will go through but
+              the admin may reject it.
             </p>
           )}
         </div>

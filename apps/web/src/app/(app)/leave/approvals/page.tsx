@@ -8,11 +8,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
-import {
-  useApproveLeaveRequest,
-  useLeaveRequests,
-  useRejectLeaveRequest,
-} from '@/hooks/use-hr';
+import { useApproveLeaveRequest, useLeaveRequests, useRejectLeaveRequest } from '@/hooks/use-hr';
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
 import type { LeaveRequestDto } from '@/lib/types';
 
@@ -22,16 +18,15 @@ export default function LeaveApprovalsPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = !!user && hasAnyPermission(user, ['sch-001:admin']);
   const requests = useLeaveRequests({ status: 'PENDING' }, isAdmin);
-  const [reviewing, setReviewing] = useState<{ req: Pending; mode: 'approve' | 'reject' } | null>(null);
+  const [reviewing, setReviewing] = useState<{ req: Pending; mode: 'approve' | 'reject' } | null>(
+    null,
+  );
 
   if (!user) return null;
   if (!isAdmin) {
     return (
       <div className="mx-auto max-w-3xl">
-        <PageHeader
-          title="Leave Approvals"
-          description="Approving leave requests is admin-only."
-        />
+        <PageHeader title="Leave Approvals" description="Approving leave requests is admin-only." />
         <EmptyState
           title="Admin access required"
           description="Ask a school admin to review pending leave requests."
@@ -76,7 +71,10 @@ export default function LeaveApprovalsPage() {
         ) : (
           <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white shadow-sm">
             {queue.map((r) => (
-              <li key={r.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <li
+                key={r.id}
+                className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div className="flex items-start gap-3">
                   <Avatar name={r.employeeName} size="md" />
                   <div className="min-w-0">
@@ -84,10 +82,10 @@ export default function LeaveApprovalsPage() {
                     <p className="text-xs text-gray-500">
                       {r.leaveTypeName} · {r.startDate} → {r.endDate} · {r.daysRequested}d
                     </p>
-                    {r.reason && (
-                      <p className="mt-1 text-xs italic text-gray-500">“{r.reason}”</p>
-                    )}
-                    <p className="mt-1 text-xs text-gray-400">submitted {r.submittedAt.slice(0, 10)}</p>
+                    {r.reason && <p className="mt-1 text-xs italic text-gray-500">“{r.reason}”</p>}
+                    <p className="mt-1 text-xs text-gray-400">
+                      submitted {r.submittedAt.slice(0, 10)}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 sm:flex-shrink-0">
@@ -113,11 +111,7 @@ export default function LeaveApprovalsPage() {
       </div>
 
       {reviewing && (
-        <ReviewModal
-          mode={reviewing.mode}
-          req={reviewing.req}
-          onClose={() => setReviewing(null)}
-        />
+        <ReviewModal mode={reviewing.mode} req={reviewing.req} onClose={() => setReviewing(null)} />
       )}
     </div>
   );
@@ -184,9 +178,7 @@ function ReviewModal({
         {req.leaveTypeName} · {req.startDate} → {req.endDate} ({req.daysRequested} day
         {req.daysRequested === 1 ? '' : 's'})
       </p>
-      {req.reason && (
-        <p className="mt-2 text-sm italic text-gray-500">“{req.reason}”</p>
-      )}
+      {req.reason && <p className="mt-2 text-sm italic text-gray-500">“{req.reason}”</p>}
       <label className="mt-4 block text-sm font-medium text-gray-700">
         {mode === 'approve' ? 'Approval note (optional)' : 'Reason (optional)'}
       </label>

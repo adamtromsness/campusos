@@ -176,7 +176,8 @@ export class LeaveNotificationConsumer implements OnModuleInit {
       leave_type_name: p.leaveTypeName ?? null,
       start_date: p.startDate,
       end_date: p.endDate,
-      days_requested: typeof p.daysRequested === 'string' ? Number(p.daysRequested) : p.daysRequested,
+      days_requested:
+        typeof p.daysRequested === 'string' ? Number(p.daysRequested) : p.daysRequested,
       reason: p.reason ?? null,
       deep_link: '/leave/approvals',
     };
@@ -198,7 +199,11 @@ export class LeaveNotificationConsumer implements OnModuleInit {
     var p = event.payload;
     if (!p.accountId) {
       this.logger.warn(
-        'Dropping ' + notificationType + ' fan-out — no accountId on payload (request ' + p.requestId + ')',
+        'Dropping ' +
+          notificationType +
+          ' fan-out — no accountId on payload (request ' +
+          p.requestId +
+          ')',
       );
       return;
     }
@@ -207,7 +212,8 @@ export class LeaveNotificationConsumer implements OnModuleInit {
       leave_type_name: p.leaveTypeName ?? null,
       start_date: p.startDate,
       end_date: p.endDate,
-      days_requested: typeof p.daysRequested === 'string' ? Number(p.daysRequested) : p.daysRequested,
+      days_requested:
+        typeof p.daysRequested === 'string' ? Number(p.daysRequested) : p.daysRequested,
       status: p.status,
       review_notes: p.reviewNotes ?? null,
       reviewed_at: p.reviewedAt ?? null,

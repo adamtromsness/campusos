@@ -87,7 +87,9 @@ export class ReviewLeaveRequestDto {
 }
 
 export class ListLeaveRequestsQueryDto {
-  @ApiPropertyOptional({ description: 'Filter by status. Admins use this to drive the approval queue (?status=PENDING).' })
+  @ApiPropertyOptional({
+    description: 'Filter by status. Admins use this to drive the approval queue (?status=PENDING).',
+  })
   @IsOptional()
   @IsIn(LEAVE_REQUEST_STATUSES as unknown as string[])
   status?: LeaveRequestStatus;
