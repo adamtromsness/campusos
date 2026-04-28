@@ -193,6 +193,10 @@ async function seedIam() {
         'SCH-003': ['read'],
         'BEH-001': ['read', 'write'],
         'COU-002': ['write'],
+        // Cycle 4 HR — read directory, manage own leave, view own certs.
+        'HR-001': ['read'],
+        'HR-003': ['read', 'write'],
+        'HR-004': ['read'],
       },
     },
     {
@@ -233,6 +237,12 @@ async function seedIam() {
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
         'SCH-003': ['read'],
+        // Cycle 4 HR — staff who aren't teachers (counsellor, vp,
+        // admin assistant) still read the directory + manage own leave +
+        // view own certs.
+        'HR-001': ['read'],
+        'HR-003': ['read', 'write'],
+        'HR-004': ['read'],
       },
     },
   ];
@@ -350,37 +360,47 @@ async function seedIam() {
   }
 
   // ── 6. Assign roles to test users ──────────────────────────
-  var existingAssignments = await client.iamRoleAssignment.count();
-  if (existingAssignments > 0) {
+  // Per-user idempotent lookup-or-create so adding users in later cycles
+  // (vp@, counsellor@ in Cycle 4 Step 0) doesn't require dropping the
+  // existing assignments.
+  var userRoleMap = [
+    { email: 'admin@demo.campusos.dev', role: 'Platform Admin', scopeId: platformScopeId },
+    { email: 'principal@demo.campusos.dev', role: 'School Admin', scopeId: schoolScopeId },
+    { email: 'teacher@demo.campusos.dev', role: 'Teacher', scopeId: schoolScopeId },
+    { email: 'student@demo.campusos.dev', role: 'Student', scopeId: schoolScopeId },
+    { email: 'parent@demo.campusos.dev', role: 'Parent', scopeId: schoolScopeId },
+    // Cycle 4 Step 0 added these two staff to the platform seed.
+    { email: 'vp@demo.campusos.dev', role: 'Staff', scopeId: schoolScopeId },
+    { email: 'counsellor@demo.campusos.dev', role: 'Staff', scopeId: schoolScopeId },
+  ];
+
+  var newAssignmentCount = 0;
+  for (var ui = 0; ui < userRoleMap.length; ui++) {
+    var mapping = userRoleMap[ui]!;
+    var user = await client.platformUser.findFirst({ where: { email: mapping.email } });
+    var role = await client.role.findFirst({ where: { name: mapping.role } });
+    if (!user || !role) continue;
+
+    var existing = await client.iamRoleAssignment.findFirst({
+      where: { accountId: user.id, roleId: role.id, scopeId: mapping.scopeId },
+    });
+    if (existing) continue;
+
+    await client.iamRoleAssignment.create({
+      data: {
+        id: generateId(),
+        accountId: user.id,
+        roleId: role.id,
+        scopeId: mapping.scopeId,
+        status: 'ACTIVE',
+        source: 'MANUAL',
+      },
+    });
+    newAssignmentCount++;
+    console.log('  ' + mapping.email + ' -> ' + mapping.role);
+  }
+  if (newAssignmentCount === 0) {
     console.log('  Role assignments already seeded');
-  } else {
-    var userRoleMap = [
-      { email: 'admin@demo.campusos.dev', role: 'Platform Admin', scopeId: platformScopeId },
-      { email: 'principal@demo.campusos.dev', role: 'School Admin', scopeId: schoolScopeId },
-      { email: 'teacher@demo.campusos.dev', role: 'Teacher', scopeId: schoolScopeId },
-      { email: 'student@demo.campusos.dev', role: 'Student', scopeId: schoolScopeId },
-      { email: 'parent@demo.campusos.dev', role: 'Parent', scopeId: schoolScopeId },
-    ];
-
-    for (var ui = 0; ui < userRoleMap.length; ui++) {
-      var mapping = userRoleMap[ui]!;
-      var user = await client.platformUser.findFirst({ where: { email: mapping.email } });
-      var role = await client.role.findFirst({ where: { name: mapping.role } });
-
-      if (user && role) {
-        await client.iamRoleAssignment.create({
-          data: {
-            id: generateId(),
-            accountId: user.id,
-            roleId: role.id,
-            scopeId: mapping.scopeId,
-            status: 'ACTIVE',
-            source: 'MANUAL',
-          },
-        });
-        console.log('  ' + mapping.email + ' -> ' + mapping.role);
-      }
-    }
   }
 
   console.log('');
