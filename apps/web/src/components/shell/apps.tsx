@@ -3,14 +3,23 @@
 import { type ReactNode } from 'react';
 import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
 import {
+  AttendanceIcon,
   ChatBubbleIcon,
+  CheckCircleIcon,
   ChildrenIcon,
   ClassesIcon,
   MegaphoneIcon,
   PeopleIcon,
 } from './icons';
 
-export type AppKey = 'classes' | 'children' | 'messages' | 'announcements' | 'staff';
+export type AppKey =
+  | 'classes'
+  | 'children'
+  | 'messages'
+  | 'announcements'
+  | 'staff'
+  | 'leave'
+  | 'compliance';
 export type BadgeKey = 'messages' | 'announcements';
 
 export interface AppDef {
@@ -89,6 +98,26 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'Employee directory and profiles',
       href: '/staff',
       icon: PeopleIcon,
+    });
+  }
+
+  if (hasAnyPermission(user, ['hr-003:read'])) {
+    apps.push({
+      key: 'leave',
+      label: 'Leave',
+      description: 'Balances, requests, and approvals',
+      href: '/leave',
+      icon: AttendanceIcon,
+    });
+  }
+
+  if (hasAnyPermission(user, ['sch-001:admin', 'hr-004:admin'])) {
+    apps.push({
+      key: 'compliance',
+      label: 'Compliance',
+      description: 'School-wide training compliance',
+      href: '/compliance',
+      icon: CheckCircleIcon,
     });
   }
 

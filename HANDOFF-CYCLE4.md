@@ -22,7 +22,7 @@ This document tracks the Cycle 4 build — the M80 HR/Workforce module (core sub
 |    6 | HR NestJS Module — Employee Records & Directory         | **Done** — `apps/api/src/hr/` lands EmployeeService + PositionService + EmployeeDocumentService + 12 endpoints (`GET /employees`, `GET /employees/me`, `GET /employees/:id`, `POST /employees`, `PATCH /employees/:id`, `GET /employees/:id/documents`, `POST /employees/:id/documents`, `DELETE /employees/:id/documents/:docId`, `GET /positions`, `GET /positions/:id`, `POST /positions`, `PATCH /positions/:id`). `actor.employeeId` already populated by Cycle 4 Step 0's `ActorContextService` extension. Row-scope guard on documents (own profile OR admin only). HrModule wired into AppModule between ClassroomModule and NotificationsModule. Build clean, all routes mapped on boot, 12-scenario live smoke against `tenant_demo` confirms staff directory list, /me self-resolution, parent/student permission denials, counsellor 403 on Rivera's documents, teacher 403 on `hr-001:admin`, admin POST/PATCH round-trip on positions, admin POST /employees reaches the validators. |
 |    7 | HR NestJS Module — Leave & Certifications               | **Done** — LeaveService + CertificationService + TrainingComplianceService + LeaveNotificationConsumer + 11 endpoints. Kafka emits: hr.leave.{requested,approved,rejected,cancelled}, hr.certification.verified. The consumer subscribes to all 4 leave topics, notifies admins on requested + submitter on approved/rejected, and republishes hr.leave.coverage_needed with affected class ids on approve. Build clean, 22-scenario live smoke against `tenant_demo` confirms full lifecycle + balance updates + cross-persona row-scope. Caught and fixed a Step 5 seed bug where Rivera's PD balance pending was inconsistent with the seeded PENDING request. |
 |    8 | Staff Directory & Employee Profile UI                   | **Done** — Three new routes (`/staff`, `/staff/[id]`, `/staff/me`) plus a "Staff" launchpad tile under `hr-001:read` (using existing `PeopleIcon`). `apps/web/src/lib/types.ts` extended with the full HR DTO surface; `apps/web/src/hooks/use-hr.ts` adds 16 hooks (12 queries + 4 mutations). Tabbed profile gates Certifications / Leave / Documents to own-profile-or-admin; Info tab is open to anyone with `hr-001:read`. Build clean — `/staff` 6.18 kB, `/staff/[id]` 6.49 kB, `/staff/me` 2.34 kB First Load JS. |
-|    9 | Leave Management & Compliance Dashboard UI              | Not started — `/leave/new` request form, `/leave` employee history, `/leave/approvals` admin queue, `/compliance` admin dashboard. New "Leave" tile (all staff) and "Compliance" tile (admin-only).                                                                                                                                            |
+|    9 | Leave Management & Compliance Dashboard UI              | **Done** — 4 new routes (`/leave`, `/leave/new`, `/leave/approvals`, `/compliance`) + 2 new launchpad tiles (Leave under `hr-003:read`, Compliance under `sch-001:admin` OR `hr-004:admin`). Reuses the Step 8 hooks; no new hooks added. Build clean: `/leave` 5.66 kB, `/leave/new` 5.74 kB, `/leave/approvals` 6.06 kB, `/compliance` 5.65 kB First Load JS. |
 |   10 | Vertical Slice Integration Test                         | Not started — `docs/cycle4-cat-script.md` will land the reproducible end-to-end walkthrough: create employee → submit leave → approve → balance update → coverage event → compliance dashboard amber row.                                                                                                                                       |
 
 The Cycle 4 exit deliverable is the end-to-end vertical slice from the plan's Step 10 alongside the resolution of the temporary HR-employee identity mapping that has been carried since Cycle 2 Step 5. `docs/cycle4-cat-script.md` will be the reproducible CAT script.
@@ -1105,12 +1105,96 @@ Plan reference: Step 8 of `docs/campusos-cycle4-implementation-plan.html`.
 
 ## Step 9 — Leave Management & Compliance Dashboard UI
 
-_Not started._ Two new launchpad tiles ("Leave" for all staff, "Compliance" for admins) plus four pages:
+**Done.** Four new routes plus two new launchpad tiles, all reusing the Step 8 `use-hr.ts` hook layer. No new types, no new API surface — the work is purely additive on the web side.
 
-- `/leave/new` — request form with leave-type dropdown, date range picker, half-day support, balance preview.
-- `/leave` — employee view of balances + request history with cancel buttons on PENDING.
-- `/leave/approvals` — admin queue.
-- `/compliance` — admin training-compliance dashboard, color-coded by urgency (green / amber / red), filters by department / position / status.
+### Files added
+
+```
+apps/web/src/
+├── components/shell/apps.tsx                 — appended Leave + Compliance tiles
+└── app/(app)/
+    ├── leave/page.tsx                        — My Leave (employee view)
+    ├── leave/new/page.tsx                    — Request leave form
+    ├── leave/approvals/page.tsx              — Admin approval queue with Modal
+    └── compliance/page.tsx                   — Admin school-wide dashboard
+```
+
+### Tiles and persona behaviour
+
+| Tile        | Permission gate                       | Visible to                                                              |
+| ----------- | ------------------------------------- | ----------------------------------------------------------------------- |
+| Leave       | `hr-003:read`                         | Teacher, Staff, School Admin, Platform Admin (anyone with HR-003 read). |
+| Compliance  | `sch-001:admin` OR `hr-004:admin`     | School Admin and Platform Admin only.                                    |
+
+Parents and students hold neither code, so both tiles are hidden cleanly.
+
+### Routes
+
+| Route                | Visible to                          | Behaviour                                                                                                                                                                                                          |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/leave`             | anyone with `hr-003:read`           | Balance cards (per type, two-tone progress bar — campus-blue for `used`, amber for `pending`, headline `available` count) + request history list with status pills. Per-row Cancel button on PENDING / APPROVED rows behind a `window.confirm` guard, wired to `useCancelLeaveRequest`. Header `New request` button → `/leave/new`. |
+| `/leave/new`         | anyone with `hr-003:read`           | Form: leave-type dropdown defaulted to the first active type, `<input type="date">` pickers for start/end, `daysRequested` auto-calc from the date range with manual half-day override, optional reason textarea (≤500 chars). Live balance preview for the selected type; amber warning when `daysRequested > available`. Submit through `useSubmitLeaveRequest` → success toast → `router.push('/leave')`. |
+| `/leave/approvals`   | `sch-001:admin`                     | List of PENDING requests via `useLeaveRequests({status:'PENDING'})`. Per-row Approve / Reject buttons open a Modal with optional review-notes textarea. Approve uses primary CTA; Reject uses red CTA. Mutations: `useApproveLeaveRequest(id)` / `useRejectLeaveRequest(id)`. Empty state when queue is clear. Non-admins see an "Admin access required" empty state — the API gate is the actual access control. |
+| `/compliance`        | `sch-001:admin` OR `hr-004:admin`   | 3-stat header (Active employees / With gaps / Compliant %); 3 filter chips (All / Has gaps / Fully compliant); per-employee row with `compliantCount / amberCount / redCount` summary pills + "View profile" link to `/staff/:id` + Details toggle expanding the per-requirement rows with green/amber/red urgency pills. Empty state per filter mode. |
+
+### Hook reuse from Step 8
+
+Step 9 adds zero new hooks. Every interaction goes through the Step 8 `use-hr.ts` surface:
+
+- `useMyEmployee`, `useMyLeaveBalances`, `useLeaveRequests`, `useCancelLeaveRequest` — `/leave`.
+- `useMyEmployee`, `useLeaveTypes`, `useMyLeaveBalances`, `useSubmitLeaveRequest` — `/leave/new`.
+- `useLeaveRequests`, `useApproveLeaveRequest`, `useRejectLeaveRequest` — `/leave/approvals`.
+- `useComplianceDashboard` — `/compliance`.
+
+Each mutation invalidates the affected query keys, so the UI re-renders without manual refetches.
+
+### Authorisation contract
+
+| Persona              | /leave (own) | /leave/new | /leave/approvals | /compliance |
+| -------------------- | ------------ | ---------- | ---------------- | ----------- |
+| Platform Admin       | n/a (no employee row — empty state) | n/a | yes | yes |
+| School Admin         | yes (own balances)                  | yes | yes | yes |
+| Teacher              | yes                                  | yes | empty state (admin-only) | hidden tile |
+| Staff (VP / Counsellor / Admin Asst) | yes                  | yes | empty state | hidden tile |
+| Parent / Student     | hidden tile + 403 if URL guessed     | hidden tile + 403 | hidden tile + 403 | hidden tile + 403 |
+
+The tiles are hidden when the user lacks the gate code. Direct URL guesses still hit the global `PermissionGuard` at the API and return 403.
+
+### UX details
+
+- **Balance cards** (`/leave`) — two-tone progress bar visualises `used` (campus-blue) and `pending` (amber) as a percentage of `accrued`. The bar stops at 100 % even if running totals exceed (defensive — shouldn't happen given the migration-012 CHECKs). Headline shows `available = accrued - used - pending`.
+- **`/leave/new` auto-calc** — `daysRequested` defaults to whole-day diff between start and end dates. Users can override (e.g. `0.5` for half-day; the API accepts `>= 0.5`). When `daysRequested > balanceForType.available`, an amber inline warning appears under the field but the form still submits — the admin can still approve, and Unpaid Leave has no `available` budget anyway.
+- **Cancel guard** — `/leave` uses `window.confirm` rather than a modal because cancel is a single-step action. The mutation is idempotent (a second cancel returns 400 from `LeaveService.cancel`'s status guard) so an accidental double-click is harmless.
+- **Approval Modal** — re-uses the existing `Modal` primitive. Shared `ReviewModal` component swaps the action target via the `mode: 'approve' | 'reject'` prop. Both buttons disable during the mutation; toast surfaces success or the API error message.
+- **Compliance Details toggle** — the page tracks one expanded employee at a time via local state. Expanding another collapses the previous one. This keeps the dashboard scannable and avoids long pages on schools with dozens of staff.
+
+### Verification (recorded 2026-04-28)
+
+```bash
+pnpm --filter @campusos/web build       # next build → exits 0
+```
+
+Bundle sizes:
+
+| Route                | First Load JS |
+| -------------------- | ------------: |
+| `/leave`             | 5.66 kB        |
+| `/leave/new`         | 5.74 kB        |
+| `/leave/approvals`   | 6.06 kB        |
+| `/compliance`        | 5.65 kB        |
+
+In line with the Cycle 3 / Step 8 ranges.
+
+### Out-of-scope decisions for Step 9
+
+- **No /leave/[id] detail page.** The list rows on `/leave` and `/leave/approvals` show enough metadata (type, dates, reason, status, optional review notes) that a per-request detail page didn't earn its keep this cycle. If a future workflow needs deeper drill-down (e.g. attachments, audit trail), it lands as `/leave/[id]/page.tsx` reusing `useLeaveRequest`.
+- **No bulk approval.** The approval modal is per-row. Bulk actions would require multi-select state + a server-side batch endpoint; not in plan.
+- **No date-picker library.** Native `<input type="date">` is used for start / end. It's accessible, has built-in validation, and ships zero new bundle weight. If a future cycle wants a richer calendar picker, it can swap in.
+- **No drag-and-drop reorder on the approval queue.** Sort order comes from the API (`submitted_at DESC`); admins work top-down.
+- **Compliance dashboard filter is client-side.** With ~4–10 employees per school the data set is tiny; server-side filtering would just add a round-trip. If schools grow into the hundreds, the API can grow `?gapsOnly=true` and the chip can wire it.
+- **Department / position filters not implemented.** Plan called for "Filter by department, position, compliance status." Status filter is in. Department + position filters are deferred — `hr_positions.department_id` is a soft FK to `sis_departments(id)` and the API doesn't currently surface a department label on each employee. When `EmployeeService` joins it through, the filter is a one-line addition.
+- **No CSV export.** Out of scope for the CAT. If admins need to share the dashboard, they screenshot or copy-paste; a dedicated export ships with Phase 2 hardening.
+- **Approval queue Modal doesn't preview balance impact.** The admin sees days requested but not "if I approve, this drops Rivera's Sick balance to N". Adding a balance preview is a one-line `useMyLeaveBalances` extension scoped to the target employee — but there's no `/leave/balances?employeeId=` endpoint yet (`/leave/me/balances` is calling-employee-only). Reserved for a Phase 2 polish pass.
 
 Plan reference: Step 9 of `docs/campusos-cycle4-implementation-plan.html`.
 
