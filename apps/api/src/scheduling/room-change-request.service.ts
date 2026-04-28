@@ -98,11 +98,7 @@ export class RoomChangeRequestService {
         'WHERE ($1::text IS NULL OR rcr.status = $1::text) ' +
         'AND ($2::date IS NULL OR rcr.request_date >= $2::date) ' +
         'AND ($3::date IS NULL OR rcr.request_date <= $3::date) ';
-      var params: any[] = [
-        query.status ?? null,
-        query.fromDate ?? null,
-        query.toDate ?? null,
-      ];
+      var params: any[] = [query.status ?? null, query.fromDate ?? null, query.toDate ?? null];
       var idx = params.length + 1;
       if (!actor.isSchoolAdmin) {
         if (!actor.employeeId) return [] as RequestRow[];
@@ -141,9 +137,7 @@ export class RoomChangeRequestService {
     actor: ResolvedActor,
   ): Promise<RoomChangeRequestResponseDto> {
     if (!actor.employeeId && !actor.isSchoolAdmin) {
-      throw new ForbiddenException(
-        'Only employees can submit room change requests',
-      );
+      throw new ForbiddenException('Only employees can submit room change requests');
     }
     var slotRows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ room_id: string; teacher_id: string | null }>>(
@@ -152,9 +146,7 @@ export class RoomChangeRequestService {
       );
     });
     if (slotRows.length === 0) {
-      throw new NotFoundException(
-        'Timetable slot ' + body.timetableSlotId + ' not found',
-      );
+      throw new NotFoundException('Timetable slot ' + body.timetableSlotId + ' not found');
     }
     var slot = slotRows[0]!;
 

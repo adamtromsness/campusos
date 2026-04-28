@@ -25,10 +25,7 @@ export default function MySchedulePage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader
-        title="My Schedule"
-        description="Your weekly timetable."
-      />
+      <PageHeader title="My Schedule" description="Your weekly timetable." />
       <EmptyState
         title="No schedule available"
         description="My Schedule is available to staff and students. Parents can find their child's schedule from the My Children page."
@@ -43,15 +40,9 @@ function TeacherScheduleView() {
   const slots = useTimetableForTeacher(employeeId);
   const fromIso = todayIso();
   const toIso = addDaysIso(fromIso, 14);
-  const subs = useSubstitutionsForTeacher(
-    employeeId,
-    { fromDate: fromIso, toDate: toIso },
-  );
+  const subs = useSubstitutionsForTeacher(employeeId, { fromDate: fromIso, toDate: toIso });
 
-  const upcomingCovers = useMemo(
-    () => subs.data ?? [],
-    [subs.data],
-  );
+  const upcomingCovers = useMemo(() => subs.data ?? [], [subs.data]);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -84,9 +75,7 @@ function TeacherScheduleView() {
 
       {employeeId && upcomingCovers.length > 0 && (
         <section className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-amber-900">
-            Upcoming substitution coverage
-          </h3>
+          <h3 className="text-sm font-semibold text-amber-900">Upcoming substitution coverage</h3>
           <p className="mt-1 text-xs text-amber-800">
             You&apos;re covering for another teacher on these dates.
           </p>

@@ -384,8 +384,7 @@ function EventDetailModal({
           )}
         </div>
         <p className="text-gray-700">
-          <strong>When:</strong>{' '}
-          {event.startDate}
+          <strong>When:</strong> {event.startDate}
           {event.endDate !== event.startDate && ` → ${event.endDate}`}
           {!event.allDay && event.startTime && (
             <>

@@ -121,22 +121,18 @@ export default function RoomsPage() {
           <LoadingSpinner />
         </div>
       ) : rooms.isError ? (
-        <EmptyState
-          title="Couldn't load rooms"
-          description="Try refreshing the page."
-        />
+        <EmptyState title="Couldn't load rooms" description="Try refreshing the page." />
       ) : list.length === 0 ? (
         <EmptyState
           title="No rooms found"
-          description={isAdmin ? 'Add the first room to get started.' : 'Rooms have not been configured yet.'}
+          description={
+            isAdmin ? 'Add the first room to get started.' : 'Rooms have not been configured yet.'
+          }
         />
       ) : (
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((r) => (
-            <li
-              key={r.id}
-              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-            >
+            <li key={r.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-gray-900">{r.name}</p>

@@ -112,11 +112,7 @@ export class CoverageService {
         'WHERE ($1::date IS NULL OR cr.coverage_date >= $1::date) ' +
         'AND ($2::date IS NULL OR cr.coverage_date <= $2::date) ' +
         'AND ($3::text IS NULL OR cr.status = $3::text) ';
-      var params: any[] = [
-        query.fromDate ?? null,
-        query.toDate ?? null,
-        query.status ?? null,
-      ];
+      var params: any[] = [query.fromDate ?? null, query.toDate ?? null, query.status ?? null];
       var idx = params.length + 1;
       if (!actor.isSchoolAdmin) {
         if (!actor.employeeId) return [] as CoverageRow[];
@@ -200,9 +196,7 @@ export class CoverageService {
         );
       }
       if (body.substituteId === row.absent_teacher_id) {
-        throw new BadRequestException(
-          'A teacher cannot substitute for their own coverage request',
-        );
+        throw new BadRequestException('A teacher cannot substitute for their own coverage request');
       }
 
       var roomId = body.roomId ?? row.slot_room_id;
@@ -232,10 +226,7 @@ export class CoverageService {
         );
       } catch (e: any) {
         var msg = e?.message || '';
-        if (
-          e?.code === '23505' ||
-          /sch_substitution_timetable_slot_date_uq/.test(msg)
-        ) {
+        if (e?.code === '23505' || /sch_substitution_timetable_slot_date_uq/.test(msg)) {
           throw new BadRequestException(
             'A substitution timetable row already exists for this slot on this date',
           );

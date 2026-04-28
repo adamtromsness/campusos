@@ -104,10 +104,7 @@ export class RoomBookingService {
    * period clock-time overlaps the booking window. The schema does not
    * enforce booking-vs-slot conflict, so this app-layer check is the gate.
    */
-  async create(
-    body: CreateRoomBookingDto,
-    actor: ResolvedActor,
-  ): Promise<RoomBookingResponseDto> {
+  async create(body: CreateRoomBookingDto, actor: ResolvedActor): Promise<RoomBookingResponseDto> {
     if (!actor.employeeId && !actor.isSchoolAdmin) {
       throw new ForbiddenException(
         'Only employees can book rooms — non-staff personas have no booking identity',
@@ -171,9 +168,7 @@ export class RoomBookingService {
       throw new BadRequestException('Booking is already CANCELLED');
     }
     if (!actor.isSchoolAdmin && actor.employeeId !== existing.bookedById) {
-      throw new ForbiddenException(
-        'Only the original booker or an admin can cancel this booking',
-      );
+      throw new ForbiddenException('Only the original booker or an admin can cancel this booking');
     }
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
@@ -225,7 +220,7 @@ export class RoomBookingService {
           'AND s.effective_from <= $3::date ' +
           'AND (s.effective_to IS NULL OR s.effective_to >= $2::date) ' +
           'AND (p.day_of_week IS NULL OR p.day_of_week = ((EXTRACT(ISODOW FROM $2::timestamptz) - 1)::int)) ' +
-          "AND (($2::timestamptz)::time < p.end_time AND ($3::timestamptz)::time > p.start_time) " +
+          'AND (($2::timestamptz)::time < p.end_time AND ($3::timestamptz)::time > p.start_time) ' +
           'LIMIT 1',
         roomId,
         startAt,
@@ -246,8 +241,7 @@ export class RoomBookingService {
       );
     }
     throw new ConflictException(
-      'Room is in use by the timetable during the requested window: ' +
-        conflicts.label,
+      'Room is in use by the timetable during the requested window: ' + conflicts.label,
     );
   }
 }

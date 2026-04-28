@@ -114,10 +114,7 @@ export class CalendarService {
 
   async getById(id: string, actor: ResolvedActor): Promise<CalendarEventResponseDto> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<EventRow[]>(
-        SELECT_EVENT_BASE + 'WHERE e.id = $1::uuid',
-        id,
-      );
+      return client.$queryRawUnsafe<EventRow[]>(SELECT_EVENT_BASE + 'WHERE e.id = $1::uuid', id);
     });
     if (rows.length === 0) throw new NotFoundException('Calendar event ' + id + ' not found');
     var row = rows[0]!;
@@ -154,8 +151,8 @@ export class CalendarService {
         body.startDate,
         body.endDate,
         allDay,
-        allDay ? null : body.startTime ?? null,
-        allDay ? null : body.endTime ?? null,
+        allDay ? null : (body.startTime ?? null),
+        allDay ? null : (body.endTime ?? null),
         body.bellScheduleId ?? null,
         body.affectsAttendance === true,
         body.isPublished === true,
@@ -175,8 +172,7 @@ export class CalendarService {
     }
     var existing = await this.getById(id, actor);
     var nextAllDay = body.allDay !== undefined ? body.allDay : existing.allDay;
-    var nextStart =
-      body.startTime !== undefined ? body.startTime : existing.startTime;
+    var nextStart = body.startTime !== undefined ? body.startTime : existing.startTime;
     var nextEnd = body.endTime !== undefined ? body.endTime : existing.endTime;
     this.assertTimeShape(nextAllDay, nextStart ?? undefined, nextEnd ?? undefined);
 
@@ -267,10 +263,7 @@ export class CalendarService {
     }
     await this.getById(id, actor);
     await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        'DELETE FROM sch_calendar_events WHERE id = $1::uuid',
-        id,
-      );
+      await client.$executeRawUnsafe('DELETE FROM sch_calendar_events WHERE id = $1::uuid', id);
     });
     return { deleted: true };
   }

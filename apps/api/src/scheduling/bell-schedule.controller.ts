@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
@@ -72,7 +63,7 @@ export class BellScheduleController {
 
   @Post(':id/periods')
   @RequirePermission('sch-001:admin')
-  @ApiOperation({ summary: 'Replace the schedule\'s periods (full upsert, admin only)' })
+  @ApiOperation({ summary: "Replace the schedule's periods (full upsert, admin only)" })
   async upsertPeriods(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpsertPeriodsDto,

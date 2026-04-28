@@ -144,10 +144,7 @@ export default function CoverageHistoryPage() {
       ) : (
         <div className="space-y-5">
           {grouped.map(([day, items]) => (
-            <section
-              key={day}
-              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-            >
+            <section key={day} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                 {new Date(day + 'T00:00:00Z').toLocaleDateString(undefined, {
                   weekday: 'long',
@@ -169,12 +166,9 @@ export default function CoverageHistoryPage() {
                       <p className="text-xs text-gray-500">
                         Absent: {r.absentTeacherName} · Room {r.roomName}
                         {r.assignedSubstituteName && ` · Sub: ${r.assignedSubstituteName}`}
-                        {r.assignedAt &&
-                          ` · assigned ${new Date(r.assignedAt).toLocaleString()}`}
+                        {r.assignedAt && ` · assigned ${new Date(r.assignedAt).toLocaleString()}`}
                       </p>
-                      {r.notes && (
-                        <p className="mt-1 text-xs italic text-gray-500">{r.notes}</p>
-                      )}
+                      {r.notes && <p className="mt-1 text-xs italic text-gray-500">{r.notes}</p>}
                     </div>
                     <span
                       className={cn(

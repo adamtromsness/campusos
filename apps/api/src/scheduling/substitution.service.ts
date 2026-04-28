@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
-import {
-  ListSubstitutionsQueryDto,
-  SubstitutionResponseDto,
-} from './dto/coverage.dto';
+import { ListSubstitutionsQueryDto, SubstitutionResponseDto } from './dto/coverage.dto';
 
 interface SubRow {
   id: string;

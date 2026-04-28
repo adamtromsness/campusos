@@ -492,14 +492,14 @@ curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $PARENT"  -H 
 curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "Authorization: Bearer $STUDENT" -H "X-Tenant-Subdomain: demo" -H "Content-Type: application/json" -d '{"name":"X","scheduleType":"CUSTOM"}' http://localhost:4000/api/v1/bell-schedules
 ```
 
-| Step | Caller | Action                                       | Required perm    | Expected | Got |
-| ---: | ------ | -------------------------------------------- | ---------------- | -------- | ---: |
-|  10a | Parent  | `GET /timetable`                            | `sch-001:read`   | 403      | **403** |
-|  10b | Student | `POST /room-bookings`                       | `sch-005:write`  | 403      | **403** |
-|  10c | Teacher | `PATCH /coverage/:id/assign`                | admin (service)  | 403      | **403** |
-|  10d | Parent  | `POST /calendar`                            | `sch-003:admin`  | 403      | **403** |
-|  10e | Parent  | `GET /timetable/student/:unrelated`         | row-scope reject | 404      | **404** |
-|  10f | Student | `POST /bell-schedules`                      | `sch-001:admin`  | 403      | **403** |
+| Step | Caller  | Action                              | Required perm    | Expected |     Got |
+| ---: | ------- | ----------------------------------- | ---------------- | -------- | ------: |
+|  10a | Parent  | `GET /timetable`                    | `sch-001:read`   | 403      | **403** |
+|  10b | Student | `POST /room-bookings`               | `sch-005:write`  | 403      | **403** |
+|  10c | Teacher | `PATCH /coverage/:id/assign`        | admin (service)  | 403      | **403** |
+|  10d | Parent  | `POST /calendar`                    | `sch-003:admin`  | 403      | **403** |
+|  10e | Parent  | `GET /timetable/student/:unrelated` | row-scope reject | 404      | **404** |
+|  10f | Student | `POST /bell-schedules`              | `sch-001:admin`  | 403      | **403** |
 
 10a–10b–10d–10f are gate-tier permission denials (the `@RequirePermission` decorator catches them before the service layer). 10c is service-layer admin check (the gate `sch-004:write` does pass for the teacher per Step 4's grant, but `CoverageService.assign` enforces `actor.isSchoolAdmin` which fails for Rivera). 10e is the row-scope rejection from `StudentService.assertCanViewStudent` — a parent calling `/timetable/student/:id` for a student they aren't linked to via `sis_student_guardians` gets 404 (collapsed from 403 to avoid probing existence of student ids the caller has no access to).
 

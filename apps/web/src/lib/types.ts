@@ -853,14 +853,7 @@ export interface UpsertPeriodsPayload {
   periods: PeriodInputPayload[];
 }
 
-export type RoomType =
-  | 'CLASSROOM'
-  | 'LAB'
-  | 'GYM'
-  | 'HALL'
-  | 'LIBRARY'
-  | 'OFFICE'
-  | 'OUTDOOR';
+export type RoomType = 'CLASSROOM' | 'LAB' | 'GYM' | 'HALL' | 'LIBRARY' | 'OFFICE' | 'OUTDOOR';
 
 export interface RoomDto {
   id: string;
@@ -987,11 +980,7 @@ export interface ListRoomBookingsArgs {
   toDate?: string;
 }
 
-export type RoomChangeRequestStatus =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'AUTO_APPROVED';
+export type RoomChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'AUTO_APPROVED';
 
 export interface RoomChangeRequestDto {
   id: string;

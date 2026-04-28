@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
@@ -102,10 +98,7 @@ export class RoomService {
 
   async getById(id: string): Promise<RoomResponseDto> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<RoomRow[]>(
-        SELECT_ROOM_BASE + 'WHERE id = $1::uuid',
-        id,
-      );
+      return client.$queryRawUnsafe<RoomRow[]>(SELECT_ROOM_BASE + 'WHERE id = $1::uuid', id);
     });
     if (rows.length === 0) throw new NotFoundException('Room ' + id + ' not found');
     return rowToDto(rows[0]!);
@@ -135,11 +128,7 @@ export class RoomService {
     return this.getById(roomId);
   }
 
-  async update(
-    id: string,
-    body: UpdateRoomDto,
-    actor: ResolvedActor,
-  ): Promise<RoomResponseDto> {
+  async update(id: string, body: UpdateRoomDto, actor: ResolvedActor): Promise<RoomResponseDto> {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can update rooms');
     }

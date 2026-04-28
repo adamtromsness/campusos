@@ -118,10 +118,7 @@ export class TimetableService {
 
   async getById(id: string): Promise<TimetableSlotResponseDto> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<SlotRow[]>(
-        SELECT_SLOT_BASE + 'WHERE s.id = $1::uuid',
-        id,
-      );
+      return client.$queryRawUnsafe<SlotRow[]>(SELECT_SLOT_BASE + 'WHERE s.id = $1::uuid', id);
     });
     if (rows.length === 0) throw new NotFoundException('Timetable slot ' + id + ' not found');
     return rowToDto(rows[0]!);
@@ -174,10 +171,7 @@ export class TimetableService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can create timetable slots');
     }
-    if (
-      body.effectiveTo &&
-      new Date(body.effectiveTo) < new Date(body.effectiveFrom)
-    ) {
+    if (body.effectiveTo && new Date(body.effectiveTo) < new Date(body.effectiveFrom)) {
       throw new BadRequestException('effectiveTo must be on or after effectiveFrom');
     }
     var schoolId = getCurrentTenant().schoolId;
@@ -277,10 +271,7 @@ export class TimetableService {
     }
     await this.getById(id);
     await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        'DELETE FROM sch_timetable_slots WHERE id = $1::uuid',
-        id,
-      );
+      await client.$executeRawUnsafe('DELETE FROM sch_timetable_slots WHERE id = $1::uuid', id);
     });
     void this.emitTimetableUpdated(id, 'deleted');
     return { deleted: true };

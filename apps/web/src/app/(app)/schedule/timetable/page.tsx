@@ -88,7 +88,11 @@ export default function TimetablePage() {
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-        <FilterChip active={filterMode === 'all'} onClick={() => setFilterMode('all')} label="All" />
+        <FilterChip
+          active={filterMode === 'all'}
+          onClick={() => setFilterMode('all')}
+          label="All"
+        />
         <FilterChip
           active={filterMode === 'teacher'}
           onClick={() => setFilterMode('teacher')}
@@ -178,11 +182,7 @@ export default function TimetablePage() {
             </thead>
             <tbody>
               {periods.map((p) => (
-                <PeriodRow
-                  key={p.id}
-                  period={p}
-                  slotsByPeriodAndDay={slotsByPeriodAndDay}
-                />
+                <PeriodRow key={p.id} period={p} slotsByPeriodAndDay={slotsByPeriodAndDay} />
               ))}
             </tbody>
           </table>

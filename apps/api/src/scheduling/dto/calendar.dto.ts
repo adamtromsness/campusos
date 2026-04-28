@@ -161,12 +161,16 @@ export class UpdateCalendarEventDto {
 }
 
 export class ListCalendarEventsQueryDto {
-  @ApiPropertyOptional({ description: 'ISO date YYYY-MM-DD — events ending on or after this date.' })
+  @ApiPropertyOptional({
+    description: 'ISO date YYYY-MM-DD — events ending on or after this date.',
+  })
   @IsOptional()
   @IsDateString()
   fromDate?: string;
 
-  @ApiPropertyOptional({ description: 'ISO date YYYY-MM-DD — events starting on or before this date.' })
+  @ApiPropertyOptional({
+    description: 'ISO date YYYY-MM-DD — events starting on or before this date.',
+  })
   @IsOptional()
   @IsDateString()
   toDate?: string;

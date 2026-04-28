@@ -1,12 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsDateString,
-  IsIn,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-} from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export var COVERAGE_STATUSES = ['OPEN', 'ASSIGNED', 'COVERED', 'CANCELLED'] as const;
 export type CoverageStatus = (typeof COVERAGE_STATUSES)[number];
@@ -39,8 +32,7 @@ export class AssignCoverageDto {
   substituteId!: string;
 
   @ApiPropertyOptional({
-    description:
-      "Optional override room. Defaults to the original slot's room when omitted.",
+    description: "Optional override room. Defaults to the original slot's room when omitted.",
   })
   @IsOptional()
   @IsUUID()

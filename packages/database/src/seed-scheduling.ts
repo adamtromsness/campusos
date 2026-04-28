@@ -20,14 +20,26 @@ interface PeriodSpec {
 // from the slot's effective date range, not from a per-day period row.
 var STANDARD_DAY_PERIODS: PeriodSpec[] = [
   { name: 'Period 1', startTime: '08:00', endTime: '08:50', periodType: 'LESSON', sortOrder: 1 },
-  { name: 'Morning Break', startTime: '08:50', endTime: '09:00', periodType: 'BREAK', sortOrder: 2 },
+  {
+    name: 'Morning Break',
+    startTime: '08:50',
+    endTime: '09:00',
+    periodType: 'BREAK',
+    sortOrder: 2,
+  },
   { name: 'Period 2', startTime: '09:00', endTime: '09:50', periodType: 'LESSON', sortOrder: 3 },
   { name: 'Period 3', startTime: '10:00', endTime: '10:50', periodType: 'LESSON', sortOrder: 4 },
   { name: 'Period 4', startTime: '10:50', endTime: '11:40', periodType: 'LESSON', sortOrder: 5 },
   { name: 'Lunch', startTime: '11:40', endTime: '12:20', periodType: 'LUNCH', sortOrder: 6 },
   { name: 'Period 5', startTime: '12:20', endTime: '13:10', periodType: 'LESSON', sortOrder: 7 },
   { name: 'Period 6', startTime: '13:10', endTime: '14:00', periodType: 'LESSON', sortOrder: 8 },
-  { name: 'Afternoon Break', startTime: '14:00', endTime: '14:10', periodType: 'BREAK', sortOrder: 9 },
+  {
+    name: 'Afternoon Break',
+    startTime: '14:00',
+    endTime: '14:10',
+    periodType: 'BREAK',
+    sortOrder: 9,
+  },
   { name: 'Period 7', startTime: '14:10', endTime: '15:00', periodType: 'LESSON', sortOrder: 10 },
   { name: 'Period 8', startTime: '15:00', endTime: '15:50', periodType: 'LESSON', sortOrder: 11 },
 ];
@@ -55,16 +67,96 @@ interface RoomSpec {
 }
 
 var ROOMS: RoomSpec[] = [
-  { name: 'Room 101', roomType: 'CLASSROOM', capacity: 30, hasProjector: true, hasAv: false, building: 'Main', floor: '1' },
-  { name: 'Room 102', roomType: 'CLASSROOM', capacity: 30, hasProjector: true, hasAv: false, building: 'Main', floor: '1' },
-  { name: 'Room 103', roomType: 'CLASSROOM', capacity: 30, hasProjector: true, hasAv: false, building: 'Main', floor: '1' },
-  { name: 'Room 104', roomType: 'CLASSROOM', capacity: 30, hasProjector: true, hasAv: false, building: 'Main', floor: '1' },
-  { name: 'Room 105', roomType: 'CLASSROOM', capacity: 30, hasProjector: true, hasAv: false, building: 'Main', floor: '1' },
-  { name: 'Room 106', roomType: 'CLASSROOM', capacity: 30, hasProjector: true, hasAv: false, building: 'Main', floor: '1' },
-  { name: 'Science Lab', roomType: 'LAB', capacity: 25, hasProjector: true, hasAv: true, building: 'Science', floor: '1' },
-  { name: 'Gymnasium', roomType: 'GYM', capacity: 100, hasProjector: false, hasAv: true, building: 'Athletics', floor: '1' },
-  { name: 'Library', roomType: 'LIBRARY', capacity: 50, hasProjector: true, hasAv: false, building: 'Main', floor: '2' },
-  { name: 'Main Hall', roomType: 'HALL', capacity: 200, hasProjector: true, hasAv: true, building: 'Main', floor: '1' },
+  {
+    name: 'Room 101',
+    roomType: 'CLASSROOM',
+    capacity: 30,
+    hasProjector: true,
+    hasAv: false,
+    building: 'Main',
+    floor: '1',
+  },
+  {
+    name: 'Room 102',
+    roomType: 'CLASSROOM',
+    capacity: 30,
+    hasProjector: true,
+    hasAv: false,
+    building: 'Main',
+    floor: '1',
+  },
+  {
+    name: 'Room 103',
+    roomType: 'CLASSROOM',
+    capacity: 30,
+    hasProjector: true,
+    hasAv: false,
+    building: 'Main',
+    floor: '1',
+  },
+  {
+    name: 'Room 104',
+    roomType: 'CLASSROOM',
+    capacity: 30,
+    hasProjector: true,
+    hasAv: false,
+    building: 'Main',
+    floor: '1',
+  },
+  {
+    name: 'Room 105',
+    roomType: 'CLASSROOM',
+    capacity: 30,
+    hasProjector: true,
+    hasAv: false,
+    building: 'Main',
+    floor: '1',
+  },
+  {
+    name: 'Room 106',
+    roomType: 'CLASSROOM',
+    capacity: 30,
+    hasProjector: true,
+    hasAv: false,
+    building: 'Main',
+    floor: '1',
+  },
+  {
+    name: 'Science Lab',
+    roomType: 'LAB',
+    capacity: 25,
+    hasProjector: true,
+    hasAv: true,
+    building: 'Science',
+    floor: '1',
+  },
+  {
+    name: 'Gymnasium',
+    roomType: 'GYM',
+    capacity: 100,
+    hasProjector: false,
+    hasAv: true,
+    building: 'Athletics',
+    floor: '1',
+  },
+  {
+    name: 'Library',
+    roomType: 'LIBRARY',
+    capacity: 50,
+    hasProjector: true,
+    hasAv: false,
+    building: 'Main',
+    floor: '2',
+  },
+  {
+    name: 'Main Hall',
+    roomType: 'HALL',
+    capacity: 200,
+    hasProjector: true,
+    hasAv: true,
+    building: 'Main',
+    floor: '1',
+  },
 ];
 
 // Class section_code (the period number from seed-sis.ts) -> the room name we
@@ -179,7 +271,8 @@ async function seedScheduling() {
       '.hr_employees e JOIN platform.platform_users u ON u.id = e.account_id',
   )) as Array<{ id: string; email: string }>;
   var employeeByEmail: Record<string, string> = {};
-  for (var ei = 0; ei < employees.length; ei++) employeeByEmail[employees[ei]!.email] = employees[ei]!.id;
+  for (var ei = 0; ei < employees.length; ei++)
+    employeeByEmail[employees[ei]!.email] = employees[ei]!.id;
   var riveraEmployeeId = employeeByEmail['teacher@demo.campusos.dev'];
   var parkEmployeeId = employeeByEmail['vp@demo.campusos.dev'];
   var mitchellEmployeeId = employeeByEmail['principal@demo.campusos.dev'];
@@ -201,7 +294,13 @@ async function seedScheduling() {
   var standardId = await insertBellSchedule(client, schoolId, 'Standard Day', 'STANDARD', true);
   await insertPeriods(client, standardId, STANDARD_DAY_PERIODS);
   console.log('    Standard Day (default) — ' + STANDARD_DAY_PERIODS.length + ' periods');
-  var earlyId = await insertBellSchedule(client, schoolId, 'Early Dismissal', 'EARLY_DISMISSAL', false);
+  var earlyId = await insertBellSchedule(
+    client,
+    schoolId,
+    'Early Dismissal',
+    'EARLY_DISMISSAL',
+    false,
+  );
   await insertPeriods(client, earlyId, EARLY_DISMISSAL_PERIODS);
   console.log('    Early Dismissal — ' + EARLY_DISMISSAL_PERIODS.length + ' periods');
 
@@ -246,7 +345,9 @@ async function seedScheduling() {
   }
 
   var classes = (await client.$queryRawUnsafe(
-    'SELECT id::text AS id, section_code FROM ' + TENANT_SCHEMA + '.sis_classes ORDER BY section_code',
+    'SELECT id::text AS id, section_code FROM ' +
+      TENANT_SCHEMA +
+      '.sis_classes ORDER BY section_code',
   )) as Array<{ id: string; section_code: string }>;
   if (classes.length === 0) throw new Error('No sis_classes — run seed:sis first');
 
@@ -278,7 +379,9 @@ async function seedScheduling() {
       '2025-08-15',
     );
   }
-  console.log('    ' + Object.keys(slotByClassId).length + ' timetable slots — Rivera in P1-P6, M-F');
+  console.log(
+    '    ' + Object.keys(slotByClassId).length + ' timetable slots — Rivera in P1-P6, M-F',
+  );
   if (!slotIdForPeriod1) throw new Error('Period 1 slot was not seeded — cannot wire coverage');
 
   // ── 6. Calendar events ──
@@ -309,7 +412,13 @@ async function seedScheduling() {
     return e.isPublished;
   }).length;
   console.log(
-    '    ' + CALENDAR_EVENTS.length + ' events (' + publishedCount + ' published, ' + (CALENDAR_EVENTS.length - publishedCount) + ' draft)',
+    '    ' +
+      CALENDAR_EVENTS.length +
+      ' events (' +
+      publishedCount +
+      ' published, ' +
+      (CALENDAR_EVENTS.length - publishedCount) +
+      ' draft)',
   );
 
   // ── 7. Day override — snow day ──

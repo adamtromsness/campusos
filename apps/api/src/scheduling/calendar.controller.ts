@@ -55,9 +55,7 @@ export class CalendarController {
   @Get('overrides')
   @RequirePermission('sch-003:read')
   @ApiOperation({ summary: 'List day overrides' })
-  async listOverrides(
-    @Query() query: ListDayOverridesQueryDto,
-  ): Promise<DayOverrideResponseDto[]> {
+  async listOverrides(@Query() query: ListDayOverridesQueryDto): Promise<DayOverrideResponseDto[]> {
     return this.overrides.list(query);
   }
 

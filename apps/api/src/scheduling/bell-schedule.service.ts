@@ -38,10 +38,7 @@ interface PeriodRow {
   sort_order: number;
 }
 
-function bellScheduleRowToDto(
-  row: BellScheduleRow,
-  periods: PeriodRow[],
-): BellScheduleResponseDto {
+function bellScheduleRowToDto(row: BellScheduleRow, periods: PeriodRow[]): BellScheduleResponseDto {
   return {
     id: row.id,
     schoolId: row.school_id,
@@ -257,9 +254,7 @@ export class BellScheduleService {
     await this.getById(scheduleId);
     body.periods.forEach(function (p: PeriodInputDto) {
       if (p.startTime >= p.endTime) {
-        throw new BadRequestException(
-          'Period "' + p.name + '" has startTime >= endTime',
-        );
+        throw new BadRequestException('Period "' + p.name + '" has startTime >= endTime');
       }
     });
 

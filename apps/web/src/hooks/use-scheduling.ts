@@ -167,14 +167,10 @@ export function useTimetableForRoom(roomId: string | null | undefined, enabled =
   });
 }
 
-export function useTimetableForStudent(
-  studentId: string | null | undefined,
-  enabled = true,
-) {
+export function useTimetableForStudent(studentId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['scheduling', 'timetable', 'student', studentId],
-    queryFn: () =>
-      apiFetch<TimetableSlotDto[]>(`/api/v1/timetable/student/${studentId}`),
+    queryFn: () => apiFetch<TimetableSlotDto[]>(`/api/v1/timetable/student/${studentId}`),
     enabled: enabled && typeof studentId === 'string' && studentId.length > 0,
   });
 }
@@ -338,10 +334,7 @@ export function useCancelRoomBooking() {
 
 // ── Room change requests ──────────────────────────────────────────
 
-export function useRoomChangeRequests(
-  args: ListRoomChangeRequestsArgs = {},
-  enabled = true,
-) {
+export function useRoomChangeRequests(args: ListRoomChangeRequestsArgs = {}, enabled = true) {
   const params = new URLSearchParams();
   if (args.status) params.set('status', args.status);
   if (args.fromDate) params.set('fromDate', args.fromDate);
@@ -478,8 +471,7 @@ export function useUpdateCalendarEvent(id: string) {
 export function useDeleteCalendarEvent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch<void>(`/api/v1/calendar/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => apiFetch<void>(`/api/v1/calendar/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['scheduling', 'calendar'] });
     },
@@ -500,8 +492,7 @@ export function useDayOverrides(args: ListDayOverridesArgs = {}, enabled = true)
       'overrides',
       { fromDate: args.fromDate ?? null, toDate: args.toDate ?? null },
     ],
-    queryFn: () =>
-      apiFetch<DayOverrideDto[]>(`/api/v1/calendar/overrides${qs ? `?${qs}` : ''}`),
+    queryFn: () => apiFetch<DayOverrideDto[]>(`/api/v1/calendar/overrides${qs ? `?${qs}` : ''}`),
     enabled,
   });
 }

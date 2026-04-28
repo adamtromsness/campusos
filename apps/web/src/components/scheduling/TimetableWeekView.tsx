@@ -92,10 +92,7 @@ export function TimetableWeekView({
   }
   if (error) {
     return (
-      <EmptyState
-        title="Couldn't load the timetable"
-        description="Try refreshing the page."
-      />
+      <EmptyState title="Couldn't load the timetable" description="Try refreshing the page." />
     );
   }
   if (!defaultSchedule) {
@@ -119,9 +116,7 @@ export function TimetableWeekView({
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((label, i) => (
               <th key={label} className="px-3 py-2">
                 {label}
-                <span className="ml-1 font-normal text-gray-400">
-                  {weekDates[i]?.slice(5)}
-                </span>
+                <span className="ml-1 font-normal text-gray-400">{weekDates[i]?.slice(5)}</span>
               </th>
             ))}
           </tr>
@@ -232,9 +227,7 @@ function SlotCell({
     <div
       className={cn(
         'rounded-lg border px-2 py-1.5',
-        isSubbed
-          ? 'border-amber-300 bg-amber-50'
-          : 'border-campus-100 bg-campus-50',
+        isSubbed ? 'border-amber-300 bg-amber-50' : 'border-campus-100 bg-campus-50',
       )}
     >
       <p
@@ -245,24 +238,15 @@ function SlotCell({
       >
         {slot.classSectionCode}
       </p>
-      <p
-        className={cn(
-          'truncate text-[11px]',
-          isSubbed ? 'text-amber-900' : 'text-campus-700',
-        )}
-      >
+      <p className={cn('truncate text-[11px]', isSubbed ? 'text-amber-900' : 'text-campus-700')}>
         {slot.courseName}
       </p>
       {showTeacher && (
         <p className="truncate text-[11px] text-gray-600">
           {isSubbed ? (
             <>
-              <span className="line-through opacity-60">
-                {slot.teacherName ?? 'TBD'}
-              </span>{' '}
-              <span className="font-semibold text-amber-900">
-                → {substitution!.substituteName}
-              </span>
+              <span className="line-through opacity-60">{slot.teacherName ?? 'TBD'}</span>{' '}
+              <span className="font-semibold text-amber-900">→ {substitution!.substituteName}</span>
             </>
           ) : (
             <>{slot.teacherName ?? 'TBD'}</>
@@ -274,9 +258,7 @@ function SlotCell({
           {isSubbed && substitution!.roomName !== slot.roomName ? (
             <>
               <span className="line-through opacity-60">{slot.roomName}</span>{' '}
-              <span className="font-medium text-amber-900">
-                → {substitution!.roomName}
-              </span>
+              <span className="font-medium text-amber-900">→ {substitution!.roomName}</span>
             </>
           ) : (
             <>{slot.roomName}</>

@@ -138,12 +138,7 @@ export class CoverageConsumer implements OnModuleInit {
     var dates = enumerateWeekdayDates(p.startDate, p.endDate);
     if (dates.length === 0) {
       this.logger.debug(
-        '[' +
-          CONSUMER_GROUP +
-          '] no weekday dates between ' +
-          p.startDate +
-          ' and ' +
-          p.endDate,
+        '[' + CONSUMER_GROUP + '] no weekday dates between ' + p.startDate + ' and ' + p.endDate,
       );
       return;
     }
@@ -175,7 +170,7 @@ export class CoverageConsumer implements OnModuleInit {
           var coverageId = generateId();
           try {
             await tx.$executeRawUnsafe(
-              "INSERT INTO sch_coverage_requests (id, school_id, timetable_slot_id, absent_teacher_id, leave_request_id, coverage_date, status) " +
+              'INSERT INTO sch_coverage_requests (id, school_id, timetable_slot_id, absent_teacher_id, leave_request_id, coverage_date, status) ' +
                 "VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::date, 'OPEN')",
               coverageId,
               schoolId,
@@ -231,9 +226,7 @@ export class CoverageConsumer implements OnModuleInit {
         tenantSubdomain: event.tenant.subdomain,
       });
     } else {
-      this.logger.debug(
-        '[' + CONSUMER_GROUP + '] no new coverage rows for leave ' + p.requestId,
-      );
+      this.logger.debug('[' + CONSUMER_GROUP + '] no new coverage rows for leave ' + p.requestId);
     }
   }
 

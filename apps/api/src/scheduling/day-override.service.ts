@@ -63,10 +63,7 @@ export class DayOverrideService {
     return rows.map(rowToDto);
   }
 
-  async create(
-    body: CreateDayOverrideDto,
-    actor: ResolvedActor,
-  ): Promise<DayOverrideResponseDto> {
+  async create(body: CreateDayOverrideDto, actor: ResolvedActor): Promise<DayOverrideResponseDto> {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can create day overrides');
     }
@@ -100,10 +97,7 @@ export class DayOverrideService {
     return this.getByDate(body.overrideDate);
   }
 
-  async deleteByDate(
-    overrideDate: string,
-    actor: ResolvedActor,
-  ): Promise<{ deleted: boolean }> {
+  async deleteByDate(overrideDate: string, actor: ResolvedActor): Promise<{ deleted: boolean }> {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can delete day overrides');
     }
@@ -125,8 +119,7 @@ export class DayOverrideService {
     var schoolId = getCurrentTenant().schoolId;
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<OverrideRow[]>(
-        SELECT_OVERRIDE_BASE +
-          'WHERE o.school_id = $1::uuid AND o.override_date = $2::date',
+        SELECT_OVERRIDE_BASE + 'WHERE o.school_id = $1::uuid AND o.override_date = $2::date',
         schoolId,
         overrideDate,
       );

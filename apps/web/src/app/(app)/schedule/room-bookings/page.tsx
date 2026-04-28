@@ -29,7 +29,11 @@ function isoLocalToTimestamp(value: string): string {
 function formatRange(start: string, end: string): string {
   const s = new Date(start);
   const e = new Date(end);
-  const dayKey = s.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const dayKey = s.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
   const tStart = s.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   const tEnd = e.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   return `${dayKey}, ${tStart}–${tEnd}`;
@@ -109,7 +113,9 @@ export default function RoomBookingsPage() {
 
   async function onCancel(b: RoomBookingDto) {
     if (b.status !== 'CONFIRMED') return;
-    if (!window.confirm(`Cancel ${b.roomName} booking on ${new Date(b.startAt).toLocaleString()}?`)) {
+    if (
+      !window.confirm(`Cancel ${b.roomName} booking on ${new Date(b.startAt).toLocaleString()}?`)
+    ) {
       return;
     }
     try {
@@ -180,15 +186,9 @@ export default function RoomBookingsPage() {
           <LoadingSpinner />
         </div>
       ) : bookings.isError ? (
-        <EmptyState
-          title="Couldn't load bookings"
-          description="Try refreshing the page."
-        />
+        <EmptyState title="Couldn't load bookings" description="Try refreshing the page." />
       ) : grouped.length === 0 ? (
-        <EmptyState
-          title="No bookings"
-          description="No room bookings match the current filters."
-        />
+        <EmptyState title="No bookings" description="No room bookings match the current filters." />
       ) : (
         <div className="space-y-5">
           {grouped.map(([day, items]) => (

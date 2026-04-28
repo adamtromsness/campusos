@@ -55,10 +55,7 @@ export class RoomController {
   @Post()
   @RequirePermission('sch-005:admin')
   @ApiOperation({ summary: 'Create a room (admin only)' })
-  async create(
-    @Body() body: CreateRoomDto,
-    @Req() req: AuthedRequest,
-  ): Promise<RoomResponseDto> {
+  async create(@Body() body: CreateRoomDto, @Req() req: AuthedRequest): Promise<RoomResponseDto> {
     var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     return this.rooms.create(body, actor);
   }

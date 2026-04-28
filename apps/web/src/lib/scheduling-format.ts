@@ -50,13 +50,7 @@ export const ROOM_TYPES: RoomType[] = [
   'OUTDOOR',
 ];
 
-export const PERIOD_TYPES: PeriodType[] = [
-  'LESSON',
-  'BREAK',
-  'LUNCH',
-  'REGISTRATION',
-  'ASSEMBLY',
-];
+export const PERIOD_TYPES: PeriodType[] = ['LESSON', 'BREAK', 'LUNCH', 'REGISTRATION', 'ASSEMBLY'];
 
 export const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 

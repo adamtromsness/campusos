@@ -78,10 +78,7 @@ export default function CoverageBoardPage() {
           <LoadingSpinner />
         </div>
       ) : list.length === 0 ? (
-        <EmptyState
-          title="No coverage needed"
-          description="Nothing to cover on this date."
-        />
+        <EmptyState title="No coverage needed" description="Nothing to cover on this date." />
       ) : (
         <div className="space-y-5">
           {open.length > 0 && (
@@ -117,14 +114,8 @@ export default function CoverageBoardPage() {
         </div>
       )}
 
-      <AssignCoverageModal
-        target={assignTarget}
-        onClose={() => setAssignTarget(null)}
-      />
-      <CancelCoverageModal
-        target={cancelTarget}
-        onClose={() => setCancelTarget(null)}
-      />
+      <AssignCoverageModal target={assignTarget} onClose={() => setAssignTarget(null)} />
+      <CancelCoverageModal target={cancelTarget} onClose={() => setCancelTarget(null)} />
     </div>
   );
 }
@@ -149,7 +140,10 @@ function CoverageSection({
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</h3>
       <ul className="divide-y divide-gray-100 rounded-lg bg-white">
         {items.map((r) => (
-          <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+          <li
+            key={r.id}
+            className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm"
+          >
             <div className="min-w-0">
               <p className="font-medium text-gray-900">
                 {r.periodName} · {r.classSectionCode} · {r.courseName}
@@ -223,9 +217,7 @@ function AssignCoverageModal({
   const eligible = useMemo(() => {
     const all = employees.data ?? [];
     if (!target) return all;
-    return all.filter(
-      (e) => e.id !== target.absentTeacherId && e.employmentStatus === 'ACTIVE',
-    );
+    return all.filter((e) => e.id !== target.absentTeacherId && e.employmentStatus === 'ACTIVE');
   }, [employees.data, target]);
 
   if (!target) return null;
@@ -383,9 +375,9 @@ function CancelCoverageModal({
       }
     >
       <p className="mb-3 text-sm text-gray-700">
-        Cancel coverage for {target.periodName} · {target.classSectionCode} on {target.coverageDate}?
-        Any matching substitution row will be dropped — the substitute will no longer see this period
-        on their day-view.
+        Cancel coverage for {target.periodName} · {target.classSectionCode} on {target.coverageDate}
+        ? Any matching substitution row will be dropped — the substitute will no longer see this
+        period on their day-view.
       </p>
       <label className="block text-sm">
         <span className="font-medium text-gray-700">Notes (optional)</span>

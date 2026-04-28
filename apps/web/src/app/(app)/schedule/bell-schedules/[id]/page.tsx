@@ -211,7 +211,11 @@ export default function BellScheduleDetailPage() {
         {draft.length === 0 ? (
           <EmptyState
             title="No periods yet"
-            description={isAdmin ? 'Add a period to define this schedule.' : 'Periods have not been configured.'}
+            description={
+              isAdmin
+                ? 'Add a period to define this schedule.'
+                : 'Periods have not been configured.'
+            }
           />
         ) : (
           <div className="overflow-x-auto">
@@ -297,7 +301,9 @@ export default function BellScheduleDetailPage() {
                       )}
                     </td>
                     <td className="px-2 py-2 text-xs text-gray-500">
-                      {p.dayOfWeek === null ? 'Every weekday' : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][p.dayOfWeek] ?? '?'}
+                      {p.dayOfWeek === null
+                        ? 'Every weekday'
+                        : (['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][p.dayOfWeek] ?? '?')}
                     </td>
                     {isAdmin && (
                       <td className="px-2 py-2">

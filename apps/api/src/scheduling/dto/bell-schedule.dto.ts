@@ -125,7 +125,7 @@ export class PeriodInputDto {
 export class UpsertPeriodsDto {
   @ApiProperty({
     type: [PeriodInputDto],
-    description: 'Replace the schedule\'s periods with this set (full upsert).',
+    description: "Replace the schedule's periods with this set (full upsert).",
   })
   @IsArray()
   @ArrayMaxSize(50)
