@@ -1032,3 +1032,169 @@ export interface ListRoomChangeRequestsArgs {
   fromDate?: string;
   toDate?: string;
 }
+
+// ── Calendar / Coverage (Cycle 5 Step 8) ─────────────────────
+
+export type CalendarEventType =
+  | 'HOLIDAY'
+  | 'PROFESSIONAL_DEVELOPMENT'
+  | 'EARLY_DISMISSAL'
+  | 'ASSEMBLY'
+  | 'EXAM_PERIOD'
+  | 'PARENT_EVENT'
+  | 'FIELD_TRIP'
+  | 'CUSTOM';
+
+export interface CalendarEventDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  description: string | null;
+  eventType: CalendarEventType;
+  startDate: string;
+  endDate: string;
+  allDay: boolean;
+  startTime: string | null;
+  endTime: string | null;
+  bellScheduleId: string | null;
+  bellScheduleName: string | null;
+  affectsAttendance: boolean;
+  isPublished: boolean;
+  createdById: string | null;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCalendarEventPayload {
+  title: string;
+  description?: string;
+  eventType: CalendarEventType;
+  startDate: string;
+  endDate: string;
+  allDay?: boolean;
+  startTime?: string;
+  endTime?: string;
+  bellScheduleId?: string;
+  affectsAttendance?: boolean;
+  isPublished?: boolean;
+}
+
+export interface UpdateCalendarEventPayload {
+  title?: string;
+  description?: string;
+  eventType?: CalendarEventType;
+  startDate?: string;
+  endDate?: string;
+  allDay?: boolean;
+  startTime?: string;
+  endTime?: string;
+  bellScheduleId?: string | null;
+  affectsAttendance?: boolean;
+  isPublished?: boolean;
+}
+
+export interface ListCalendarEventsArgs {
+  fromDate?: string;
+  toDate?: string;
+  eventType?: CalendarEventType;
+  includeDrafts?: boolean;
+}
+
+export interface DayOverrideDto {
+  id: string;
+  schoolId: string;
+  overrideDate: string;
+  bellScheduleId: string | null;
+  bellScheduleName: string | null;
+  isSchoolDay: boolean;
+  reason: string | null;
+  createdAt: string;
+}
+
+export interface CreateDayOverridePayload {
+  overrideDate: string;
+  bellScheduleId?: string;
+  isSchoolDay?: boolean;
+  reason?: string;
+}
+
+export interface ListDayOverridesArgs {
+  fromDate?: string;
+  toDate?: string;
+}
+
+export type DayResolutionSource = 'OVERRIDE' | 'EVENT' | 'DEFAULT' | 'NONE';
+
+export interface CalendarDayResolutionDto {
+  date: string;
+  resolvedFrom: DayResolutionSource;
+  isSchoolDay: boolean;
+  bellScheduleId: string | null;
+  bellScheduleName: string | null;
+  overrideId: string | null;
+  overrideReason: string | null;
+  eventIds: string[];
+}
+
+export type CoverageStatus = 'OPEN' | 'ASSIGNED' | 'COVERED' | 'CANCELLED';
+
+export interface CoverageRequestDto {
+  id: string;
+  schoolId: string;
+  timetableSlotId: string;
+  classSectionCode: string;
+  courseName: string;
+  periodId: string;
+  periodName: string;
+  roomId: string;
+  roomName: string;
+  absentTeacherId: string;
+  absentTeacherName: string;
+  leaveRequestId: string | null;
+  coverageDate: string;
+  status: CoverageStatus;
+  assignedSubstituteId: string | null;
+  assignedSubstituteName: string | null;
+  assignedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface AssignCoveragePayload {
+  substituteId: string;
+  roomId?: string;
+  notes?: string;
+}
+
+export interface CancelCoveragePayload {
+  notes?: string;
+}
+
+export interface ListCoverageArgs {
+  fromDate?: string;
+  toDate?: string;
+  status?: CoverageStatus;
+}
+
+export interface SubstitutionDto {
+  id: string;
+  schoolId: string;
+  originalSlotId: string;
+  classSectionCode: string;
+  courseName: string;
+  periodName: string;
+  effectiveDate: string;
+  substituteId: string;
+  substituteName: string;
+  roomId: string;
+  roomName: string;
+  coverageRequestId: string | null;
+  absentTeacherName: string | null;
+  notes: string | null;
+}
+
+export interface ListSubstitutionsArgs {
+  fromDate?: string;
+  toDate?: string;
+}

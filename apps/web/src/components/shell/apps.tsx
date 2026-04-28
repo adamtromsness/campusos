@@ -21,7 +21,8 @@ export type AppKey =
   | 'staff'
   | 'leave'
   | 'compliance'
-  | 'schedule';
+  | 'schedule'
+  | 'calendar';
 export type BadgeKey = 'messages' | 'announcements';
 
 export interface AppDef {
@@ -119,6 +120,16 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       label: 'Schedule',
       description: 'Bell schedules, timetable, rooms, and bookings',
       href: '/schedule/timetable',
+      icon: CalendarIcon,
+    });
+  }
+
+  if (hasAnyPermission(user, ['sch-003:read'])) {
+    apps.push({
+      key: 'calendar',
+      label: 'Calendar',
+      description: 'Holidays, PD days, and school events',
+      href: '/calendar',
       icon: CalendarIcon,
     });
   }

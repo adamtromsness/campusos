@@ -3,23 +3,37 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import type {
+  AssignCoveragePayload,
   BellScheduleDto,
+  CalendarDayResolutionDto,
+  CalendarEventDto,
+  CancelCoveragePayload,
   CancelRoomBookingPayload,
+  CoverageRequestDto,
   CreateBellSchedulePayload,
+  CreateCalendarEventPayload,
+  CreateDayOverridePayload,
   CreateRoomBookingPayload,
   CreateRoomChangeRequestPayload,
   CreateRoomPayload,
   CreateTimetableSlotPayload,
+  DayOverrideDto,
+  ListCalendarEventsArgs,
+  ListCoverageArgs,
+  ListDayOverridesArgs,
   ListRoomBookingsArgs,
   ListRoomChangeRequestsArgs,
   ListRoomsArgs,
+  ListSubstitutionsArgs,
   ListTimetableArgs,
   ReviewRoomChangeRequestPayload,
   RoomBookingDto,
   RoomChangeRequestDto,
   RoomDto,
+  SubstitutionDto,
   TimetableSlotDto,
   UpdateBellSchedulePayload,
+  UpdateCalendarEventPayload,
   UpdateRoomPayload,
   UpdateTimetableSlotPayload,
   UpsertPeriodsPayload,
@@ -376,5 +390,237 @@ export function useRejectRoomChangeRequest(id: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['scheduling', 'room-change-requests'] });
     },
+  });
+}
+
+// ── Calendar events ───────────────────────────────────────────────
+
+export function useCalendarEvents(args: ListCalendarEventsArgs = {}, enabled = true) {
+  const params = new URLSearchParams();
+  if (args.fromDate) params.set('fromDate', args.fromDate);
+  if (args.toDate) params.set('toDate', args.toDate);
+  if (args.eventType) params.set('eventType', args.eventType);
+  if (args.includeDrafts) params.set('includeDrafts', 'true');
+  const qs = params.toString();
+  return useQuery({
+    queryKey: [
+      'scheduling',
+      'calendar',
+      'events',
+      {
+        fromDate: args.fromDate ?? null,
+        toDate: args.toDate ?? null,
+        eventType: args.eventType ?? null,
+        includeDrafts: !!args.includeDrafts,
+      },
+    ],
+    queryFn: () => apiFetch<CalendarEventDto[]>(`/api/v1/calendar${qs ? `?${qs}` : ''}`),
+    enabled,
+  });
+}
+
+export function useCalendarEvent(id: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['scheduling', 'calendar', 'event', id],
+    queryFn: () => apiFetch<CalendarEventDto>(`/api/v1/calendar/${id}`),
+    enabled: enabled && typeof id === 'string' && id.length > 0,
+  });
+}
+
+export function useCalendarDayResolution(date: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['scheduling', 'calendar', 'day', date],
+    queryFn: () => apiFetch<CalendarDayResolutionDto>(`/api/v1/calendar/day/${date}`),
+    enabled: enabled && typeof date === 'string' && date.length > 0,
+  });
+}
+
+export function useCreateCalendarEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateCalendarEventPayload) =>
+      apiFetch<CalendarEventDto>(`/api/v1/calendar`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'calendar'] });
+    },
+  });
+}
+
+export function useUpdateCalendarEvent(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateCalendarEventPayload) =>
+      apiFetch<CalendarEventDto>(`/api/v1/calendar/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'calendar'] });
+    },
+  });
+}
+
+export function useDeleteCalendarEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/api/v1/calendar/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'calendar'] });
+    },
+  });
+}
+
+// ── Day overrides ─────────────────────────────────────────────────
+
+export function useDayOverrides(args: ListDayOverridesArgs = {}, enabled = true) {
+  const params = new URLSearchParams();
+  if (args.fromDate) params.set('fromDate', args.fromDate);
+  if (args.toDate) params.set('toDate', args.toDate);
+  const qs = params.toString();
+  return useQuery({
+    queryKey: [
+      'scheduling',
+      'calendar',
+      'overrides',
+      { fromDate: args.fromDate ?? null, toDate: args.toDate ?? null },
+    ],
+    queryFn: () =>
+      apiFetch<DayOverrideDto[]>(`/api/v1/calendar/overrides${qs ? `?${qs}` : ''}`),
+    enabled,
+  });
+}
+
+export function useCreateDayOverride() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateDayOverridePayload) =>
+      apiFetch<DayOverrideDto>(`/api/v1/calendar/overrides`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'calendar'] });
+    },
+  });
+}
+
+export function useDeleteDayOverride() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (date: string) =>
+      apiFetch<void>(`/api/v1/calendar/overrides/${date}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'calendar'] });
+    },
+  });
+}
+
+// ── Coverage ──────────────────────────────────────────────────────
+
+export function useCoverageRequests(args: ListCoverageArgs = {}, enabled = true) {
+  const params = new URLSearchParams();
+  if (args.fromDate) params.set('fromDate', args.fromDate);
+  if (args.toDate) params.set('toDate', args.toDate);
+  if (args.status) params.set('status', args.status);
+  const qs = params.toString();
+  return useQuery({
+    queryKey: [
+      'scheduling',
+      'coverage',
+      {
+        fromDate: args.fromDate ?? null,
+        toDate: args.toDate ?? null,
+        status: args.status ?? null,
+      },
+    ],
+    queryFn: () => apiFetch<CoverageRequestDto[]>(`/api/v1/coverage${qs ? `?${qs}` : ''}`),
+    enabled,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useCoverageRequest(id: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['scheduling', 'coverage', 'detail', id],
+    queryFn: () => apiFetch<CoverageRequestDto>(`/api/v1/coverage/${id}`),
+    enabled: enabled && typeof id === 'string' && id.length > 0,
+  });
+}
+
+export function useAssignCoverage(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AssignCoveragePayload) =>
+      apiFetch<CoverageRequestDto>(`/api/v1/coverage/${id}/assign`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'coverage'] });
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'substitutions'] });
+      void qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useCancelCoverage(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CancelCoveragePayload = {}) =>
+      apiFetch<CoverageRequestDto>(`/api/v1/coverage/${id}/cancel`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'coverage'] });
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'substitutions'] });
+    },
+  });
+}
+
+// ── Substitutions ─────────────────────────────────────────────────
+
+export function useSubstitutions(args: ListSubstitutionsArgs = {}, enabled = true) {
+  const params = new URLSearchParams();
+  if (args.fromDate) params.set('fromDate', args.fromDate);
+  if (args.toDate) params.set('toDate', args.toDate);
+  const qs = params.toString();
+  return useQuery({
+    queryKey: [
+      'scheduling',
+      'substitutions',
+      { fromDate: args.fromDate ?? null, toDate: args.toDate ?? null },
+    ],
+    queryFn: () => apiFetch<SubstitutionDto[]>(`/api/v1/substitutions${qs ? `?${qs}` : ''}`),
+    enabled,
+  });
+}
+
+export function useSubstitutionsForTeacher(
+  employeeId: string | null | undefined,
+  args: ListSubstitutionsArgs = {},
+  enabled = true,
+) {
+  const params = new URLSearchParams();
+  if (args.fromDate) params.set('fromDate', args.fromDate);
+  if (args.toDate) params.set('toDate', args.toDate);
+  const qs = params.toString();
+  return useQuery({
+    queryKey: [
+      'scheduling',
+      'substitutions',
+      'teacher',
+      employeeId,
+      { fromDate: args.fromDate ?? null, toDate: args.toDate ?? null },
+    ],
+    queryFn: () =>
+      apiFetch<SubstitutionDto[]>(
+        `/api/v1/substitutions/teacher/${employeeId}${qs ? `?${qs}` : ''}`,
+      ),
+    enabled: enabled && typeof employeeId === 'string' && employeeId.length > 0,
   });
 }
