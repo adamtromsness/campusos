@@ -4,15 +4,15 @@
 **Scope:** Full Cycle 4 (HR & Workforce Core — HR-Employee identity bridge, employees + positions schema, leave management, certifications + training compliance, onboarding, NestJS modules, web UI, vertical-slice CAT)
 **Round 1 SHA under review:** `efbcb44` (Step 10 — vertical-slice CAT, Cycle 4 COMPLETE)
 **Round 1 verdict:** **REJECT** — pending 1 BLOCKING fix
-**Round 2 SHA under review:** _pending re-review after fix commit_
-**Final verdict:** _pending Round 2_
+**Round 2 SHA under review:** `76ddf03` (BLOCKING + 3 MAJOR fixes + CI fix)
+**Final verdict:** **APPROVED** at `76ddf03` (April 28, 2026)
 
 **Verdict trail:**
 
-| Round | Date           | SHA        | Verdict                                           |
-| ----: | -------------- | ---------- | ------------------------------------------------- |
-|     1 | April 28, 2026 | `efbcb44`  | REJECT pending 1 BLOCKING fix (3 MAJOR + 10 PASS) |
-|     2 | _pending_      | _post-fix_ | _to be filled in after Round 2 re-review_         |
+| Round | Date           | SHA       | Verdict                                           |
+| ----: | -------------- | --------- | ------------------------------------------------- |
+|     1 | April 28, 2026 | `efbcb44` | REJECT pending 1 BLOCKING fix (3 MAJOR + 10 PASS) |
+|     2 | April 28, 2026 | `76ddf03` | **APPROVED** — all 4 findings fixed, CI green     |
 
 ---
 
@@ -140,6 +140,52 @@ Same scope-chain helper as every other tenant-bounded admin check (`PermissionCh
 
 ---
 
-## Round 2 — _pending_
+## Round 2 — Result: APPROVED at `76ddf03`
 
-Once the four fixes commit, the cycle is ready for re-review. Expected outcome (mirroring Cycle 3's trail): re-review at the new SHA returns APPROVED. The Round 2 entry in the table at the top will be filled in after that re-review lands.
+Re-review by ChatGPT against `76ddf03` (April 28, 2026). The reviewer confirmed the four Round-1 findings are addressed and the cycle is clean.
+
+### Reviewer's Round 2 confirmations (verbatim by finding)
+
+1. **Leave lifecycle concurrency** — `approve()`, `reject()`, and `cancel()` now lock the leave request row inside the transaction using `SELECT ... FOR UPDATE OF lr`, validate the status from the locked row, and then update balances/status in the same transaction. That closes the double-apply race.
+2. **`ON_LEAVE` actor resolution** — `ActorContextService.resolveEmployeeId()` now resolves employees with `employment_status IN ('ACTIVE', 'ON_LEAVE')`, while still excluding `TERMINATED` and `SUSPENDED`.
+3. **Compliance dashboard permission alignment** — `TrainingComplianceService.getDashboard()` now allows either school admin status or tenant-scoped `hr-004:admin`, matching the UI contract.
+4. **Deterministic `hr.leave.coverage_needed` event id** — `LeaveNotificationConsumer` now derives a deterministic coverage-needed event id from the inbound event id and passes it through `KafkaProducerService.emit()`, preventing duplicate downstream processing on redelivery.
+
+**Final gate decision:** **Approved to proceed.** Cycle 4 is now clean from the reviewer's perspective.
+
+### Anchored review URLs (the reviewer's primary sources)
+
+- `apps/api/src/hr/leave.service.ts` @ `76ddf03`
+- `apps/api/src/iam/actor-context.service.ts` @ `76ddf03`
+- `apps/api/src/hr/training-compliance.service.ts` @ `76ddf03`
+- `apps/api/src/hr/leave-notification.consumer.ts` @ `76ddf03`
+
+### Closeout commit chain (Cycle 4 ships at `76ddf03`)
+
+```
+76ddf03  fix(ci): TS2347 in seed-hr + Prettier drift across Cycle 4 files
+bda8a16  fix(cycle4-review): BLOCKING 1 + 3 MAJOR fixes from Round 1
+0ab7316  docs(cycle4): post-cycle review documents — handoff briefing + verdict shell
+efbcb44  feat(cycle4-step10): vertical-slice CAT — Cycle 4 COMPLETE
+fe806b4  feat(cycle4-step9): leave management and compliance dashboard UI
+162b594  feat(cycle4-step8): staff directory and employee profile UI
+70b6cf3  feat(cycle4-step7): HR NestJS — leave, certifications, compliance + Kafka consumer
+9a931f2  feat(cycle4-step6): HR NestJS module — employee directory & documents
+de55a78  feat(cycle4-step5): seed HR — positions, leave, certs, onboarding
+4013e4c  feat(cycle4-step4): HR schema — onboarding
+158caea  feat(cycle4-step3): HR schema — certifications & training compliance
+3c5f151  feat(cycle4-step2): HR schema — leave management
+510a4ea  feat(cycle4-step1): HR schema — employees & positions
+4c9b489  feat(cycle4-step0): resolve HR-Employee identity mapping
+```
+
+Tags:
+
+- `cycle4-complete` → `efbcb44` (Step 10 closeout, pre-review)
+- `cycle4-review-fixes` → `bda8a16` (Round-1 fix commit, pre-CI fix)
+- `cycle4-approved` → `76ddf03` (final approved SHA — what the architecture review pinned)
+
+### Reviewer carry-overs for the next cycle
+
+- **`hr.leave.coverage_needed` consumer wiring.** Cycle 5 (Scheduling & Calendar) will land the consumer that drives substitute-teacher assignment from this topic. The deterministic event_id pattern from MAJOR 3 means the consumer's `IdempotencyService.claim` will catch any redelivery cleanly — the consumer can use the same Cycle 3 `processWithIdempotency` skeleton without further work.
+- **DLQ-row dashboard / alert wiring.** Carried forward from Cycle 3's review. Not Cycle 4 scope; tracked in the Phase 2 punch list.

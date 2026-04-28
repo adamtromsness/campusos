@@ -1304,12 +1304,14 @@ pnpm --filter @campusos/api dev
 
 ## Post-cycle architecture review
 
-**Round 1 at SHA `efbcb44` returned REJECT** pending 1 BLOCKING + 3 MAJOR. All 4 findings fixed in a follow-up commit, ready for Round 2 re-review. Full verdict + fix log in `REVIEW-CYCLE4-CHATGPT.md`.
+**APPROVED at SHA `76ddf03`** (2026-04-28). Full verdict trail in `REVIEW-CYCLE4-CHATGPT.md`:
 
 | Round | SHA       | Verdict                                                                   |
 | ----: | --------- | ------------------------------------------------------------------------- |
 |     1 | `efbcb44` | REJECT pending 1 BLOCKING + 3 MAJOR (10 PASS / 3 DEVIATION / 1 VIOLATION) |
-|     2 | _pending_ | _to be filled in after Round 2 re-review_                                 |
+|     2 | `76ddf03` | **APPROVED** — all 4 Round-1 findings fixed, CI green                     |
+
+The four Round-1 findings (BLOCKING 1 leave-lifecycle race, MAJOR 1 ON_LEAVE access, MAJOR 2 compliance dashboard UI/API mismatch, MAJOR 3 `coverage_needed` non-deterministic event_id) were all addressed in `bda8a16`. The CI fix at `76ddf03` resolved a TS2347 in `seed-hr.ts` (13 generic-call sites that `nest build` skipped but `tsc` from `pnpm --filter @campusos/database build` caught) plus Prettier drift across 24 Cycle 4 files. The reviewer re-reviewed at `76ddf03` and confirmed all four fixes; final verdict APPROVED.
 
 ### Round 1 findings + fixes applied
 
