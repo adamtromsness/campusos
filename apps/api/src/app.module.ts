@@ -10,6 +10,7 @@ import { SisModule } from './sis/sis.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ClassroomModule } from './classroom/classroom.module';
 import { HrModule } from './hr/hr.module';
+import { SchedulingModule } from './scheduling/scheduling.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
@@ -49,6 +50,7 @@ var devOnlyControllers: Type<unknown>[] =
     AttendanceModule,
     ClassroomModule,
     HrModule,
+    SchedulingModule,
     NotificationsModule,
     MessagingModule,
     AnnouncementsModule,
