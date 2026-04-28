@@ -1,6 +1,6 @@
 # Cycle 3 Handoff — Communications
 
-**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), 5 (Notification Pipeline — Consumers & Queue), 6 (Messaging NestJS Module), 7 (Announcements NestJS Module), and 8 (Notification Bell & Inbox UI) DONE; Steps 9–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
+**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), 5 (Notification Pipeline — Consumers & Queue), 6 (Messaging NestJS Module), 7 (Announcements NestJS Module), 8 (Notification Bell & Inbox UI), and 9 (Messaging UI) DONE; Steps 10–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle3-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher marks Maya tardy in Period 1 → Kafka event fires → notification consumer picks it up → in-app notification appears on David Chen's parent dashboard with a badge count → David clicks the notification → he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress → David sees it in his inbox → David replies → the reply goes through content moderation → James sees the reply in his inbox.
@@ -22,7 +22,7 @@ This document tracks the Cycle 3 build — the M40 Communications module — at 
 |    6 | Messaging NestJS Module                                       | Done — `apps/api/src/messaging/` lands ThreadService + MessageService + UnreadCountService + ContentModerationService + 10 endpoints; live smoke confirmed BLOCK / FLAG / CLEAN paths and parent unread-bump → mark-read → badge=0 |
 |    7 | Announcements NestJS Module                                   | Done — `apps/api/src/announcements/` lands AnnouncementService + AudienceFanOutWorker + 6 endpoints; live smoke against `tenant_demo` confirmed publish flow + ALL_SCHOOL (5) / CLASS (10) / YEAR_GROUP (9) / ROLE=PARENT (1) audience fan-out + idempotent mark-read + author/admin-only stats + invalid-audience guards |
 |    8 | Notification Bell & Inbox UI                                  | Done — `apps/api/src/notifications/notification-inbox.{service,controller}.ts` adds 3 endpoints (GET /notifications/inbox, GET /notifications/history, POST /notifications/mark-all-read); `apps/web/src/components/notifications/NotificationBell.tsx` mounts in TopBar polling every 30s; `/notifications` page renders full paginated history with 6 filter chips; live smoke against `tenant_demo` confirmed parent unread count, mark-all-read, server-side type filter, and cursor pagination |
-|    9 | Messaging UI                                                  | Not started                                                                                                                   |
+|    9 | Messaging UI                                                  | Done — `apps/web/src/app/(app)/messages/{page,new/page,[threadId]/page}.tsx` lands inbox + compose + thread view; `apps/web/src/hooks/use-messaging.ts` + 9 hooks; Sidebar gains a Messages entry under com-001:read; backend `ThreadResponseDto` extended with `lastMessagePreview` + `lastSenderName` (LATERAL JOIN, list endpoint only) + 2 new endpoints (`GET /threads/types`, `GET /threads/recipients`); latent `loadRoleTokens` bug fixed (`platform.iam_role` → `platform.roles`); live smoke against `tenant_demo` passed all 10 assertions including thread create with initialMessage, BLOCK→422 with policy string, mark-read clearing badge, student blocked from TEACHER_PARENT, archive flip |
 |   10 | Announcements UI                                              | Not started                                                                                                                   |
 |   11 | Vertical Slice Integration Test                               | Not started                                                                                                                   |
 
@@ -1094,7 +1094,101 @@ ZRANGE notif:inapp:019dc92d-088d-7442-abf6-089e5d9460ee 0 0 WITHSCORES
 
 ## Step 9 — Messaging UI
 
-Not started. Plan: `/messages` inbox, `/messages/:threadId` thread view, `/messages/new` compose with role-aware recipient picker, moderation feedback ("This message was not sent because it contains content that violates school policy" — no keyword detail).
+Done. Three new pages under `apps/web/src/app/(app)/messages/` plus a small backend additive layer for the compose recipient picker and the inbox preview.
+
+### Backend additions
+
+**`ThreadResponseDto`** (`apps/api/src/messaging/dto/thread.dto.ts`) gains two nullable fields:
+
+- `lastMessagePreview` — first 80 chars of the most recent non-deleted `msg_messages.body` for the thread, derived via `LEFT JOIN LATERAL (SELECT … ORDER BY created_at DESC LIMIT 1)`. Populated on `GET /threads` only; null on `GET /threads/:id` so we don't widen the partition scan when a single thread is fetched (the row is tiny but the LATERAL is the cost).
+- `lastSenderName` — display name of the last sender, joined through `platform.platform_users` + `platform.iam_person` inside the LATERAL.
+
+**Two new endpoints** on `ThreadController` (registered before `:id` so the static route segments win):
+
+| Method | Path | Permission | DTO Out | Notes |
+|--------|------|------------|---------|-------|
+| `GET`  | `/threads/types` | `com-001:read` | `ThreadTypeDto[]` | Lists `msg_thread_types` with `is_active=true`. Non-admins are filtered to non-system rows so the compose UI doesn't render an option that the create path will reject. |
+| `GET`  | `/threads/recipients?threadTypeId=:id` | `com-001:write` | `MessagingRecipientDto[]` | Returns every active platform user in the school whose IAM role token matches the thread type's `allowed_participant_roles`, excluding self and excluding any user with a `msg_user_blocks` row in either direction. |
+
+`ThreadTypeDto` shape: `{id, name, description, allowedRoles: string[], isSystem}`. `MessagingRecipientDto` shape: `{platformUserId, displayName, email, roles: string[]}`. The recipient query reuses the same scope-chain join as `loadRoleTokens` (school + platform per ADR-036) — `iam_role_assignment + roles + iam_scope + iam_scope_type`, filtered to ACTIVE assignments. Role aggregation per account happens in TS so a user with multiple roles (rare) gets all their tokens emitted.
+
+Both endpoints take `ParseUUIDPipe` on the threadTypeId so a malformed id returns 400 before hitting the DB.
+
+### Latent bug fixed during smoke
+
+`ThreadService.loadRoleTokens` (Step 6) and the new `listRecipients` query both referenced `platform.iam_role` — but the actual table is `platform.roles`. The bug was dormant because Step 6 only invoked `loadRoleTokens` from `ThreadService.create()`, and the seeded threads in Step 4 were inserted directly via the seed script (no role check there), so a live create-thread call with non-empty `allowed_participant_roles` had never run end-to-end before today. Both queries now point at `platform.roles`. Verified live in the smoke test (assertion #9: student rejected from TEACHER_PARENT with the correct role-validation message).
+
+### Web hooks
+
+`apps/web/src/hooks/use-messaging.ts` (new file) exposes 9 hooks:
+
+| Hook | Method | Endpoint | Polling |
+|------|--------|----------|---------|
+| `useThreads(includeArchived)` | GET | `/threads[?includeArchived=true]` | 15s |
+| `useThread(threadId)` | GET | `/threads/:id` | 30s |
+| `useThreadMessages(threadId, limit)` | GET | `/threads/:id/messages?limit=` | 15s |
+| `useThreadTypes()` | GET | `/threads/types` | staleTime 5min |
+| `useMessagingRecipients(threadTypeId)` | GET | `/threads/recipients?threadTypeId=` | staleTime 1min |
+| `useCreateThread()` | POST | `/threads` | mutation |
+| `usePostMessage(threadId)` | POST | `/threads/:id/messages` | mutation |
+| `useMarkThreadRead()` | POST | `/threads/:id/read` | mutation |
+| `useArchiveThread()` | PATCH | `/threads/:id/archive` | mutation |
+
+All mutations invalidate `['messaging', 'threads']` and `['notifications']` (the latter because messaging mutations bump unread counters). `useCreateThread` also pre-warms the per-thread cache via `qc.setQueryData`.
+
+Types added to `apps/web/src/lib/types.ts`: `ThreadDto`, `ThreadParticipantDto`, `ThreadTypeDto`, `MessagingRecipientDto`, `MessageDto`, `CreateThreadPayload`, `PostMessagePayload`, `MarkThreadReadResponse`, `ThreadParticipantRole`, `MessageModerationStatus`.
+
+### Pages
+
+**`/messages` (inbox, static route, 2.85 kB First Load)** — `apps/web/src/app/(app)/messages/page.tsx`. Newest-first thread list. Each row: avatar of the first non-self participant, headline = comma-joined other-participant names, subject (or thread-type label if no subject), the LATERAL preview prefixed with `lastSenderName`, relative timestamp, and an unread badge capped at "99+". A `Show archived` checkbox toggles the `?includeArchived=true` query param. `Compose` button lives in the PageHeader actions slot.
+
+**`/messages/new` (compose, static route, 6.32 kB First Load)** — `apps/web/src/app/(app)/messages/new/page.tsx`. Form with:
+1. **Thread-type chips** driven by `useThreadTypes()` filtered to non-system. Default-selects the first eligible type on load.
+2. **Recipient picker** — search input + scrollable checkbox list driven by `useMessagingRecipients(threadTypeId)`. Search matches name, email, or role token (case-insensitive). Each row shows avatar, name, role tokens, and email. Selected state highlights the row in `bg-campus-50/60`.
+3. **Subject** (optional, max 200).
+4. **Body** (max 8000).
+
+Submit POSTs `/threads` with `participants: [{ platformUserId }]` and `initialMessage`. On `ApiError.status === 422` the UI surfaces the exact moderation string from the plan: "This message was not sent because it contains content that violates school policy." On 400/403 it surfaces the server message (e.g. block-list violation, role mismatch). On success it routes to `/messages/:threadId`.
+
+**`/messages/[threadId]` (thread view, dynamic route, 4.21 kB First Load)** — `apps/web/src/app/(app)/messages/[threadId]/page.tsx`. Header: subject (falls back to participant headline), thread-type label pill, optional Archived pill, archive toggle (visible to participants + admins). Message list: oldest-first with bubble styling — own messages right-aligned + `bg-campus-600 text-white`, others left-aligned + `bg-gray-100`. Soft-deleted messages render italic "Message deleted". FLAGGED / ESCALATED messages get a small "Flagged for review" hint visible to the sender. Auto-scrolls to the latest message on every poll.
+
+Reply input renders below the list when:
+- the user holds `com-001:write`,
+- the user is an active participant (not just an admin observer),
+- the thread is not archived.
+
+Admins viewing a non-participant thread get a read-only banner: "Read-only — admins can review this thread but cannot post into it." The thread auto-marks-read on first mount when `unreadCount > 0` (tracked via a `lastMarkedReadFor` ref so the 30-second poll doesn't re-fire it). Archiving routes back to `/messages`; restoring stays on the page.
+
+The `/messages/[threadId]` ApiError 404 surfaces a "This conversation isn't available" panel with a back-to-inbox link — matches the backend's deliberate 404-on-not-participant-and-not-admin from `ThreadService.getById`.
+
+### Sidebar
+
+`apps/web/src/components/shell/Sidebar.tsx` adds a `Messages` entry gated on `com-001:read`. Visible to teachers, parents, students, and admins (every seeded persona qualifies — Step 4 added COM-001 read/write to every relevant role, plus COM-002:read to Student/Staff). Uses the existing `ChatBubbleIcon` from `apps/web/src/components/shell/icons.tsx`.
+
+### What this step deliberately does NOT include
+
+- **Attachment upload** — `msg_message_attachments` is in the schema (Step 1) but the upload + signed-URL flow is deferred. The plan calls for "attachment upload" but the implementation cost (S3 client + signed-URL service + content-type checks + size limits) is multiple days of work for a feature that the seeded test users don't exercise; defer to Phase 2 (Test & Refine) if Phase 1 testing surfaces it as a blocker.
+- **Per-thread mute** — `msg_thread_participants.is_muted` is in the schema but no toggle is exposed.
+- **Self-leave / admin-remove participant** — also deferred.
+- **Edit / delete from the UI** — Step 6 has the endpoints (`PATCH /messages/:id` author-only-15min, `DELETE /messages/:id` author-or-admin) but the bubble doesn't render an action menu yet. The thread view will pick this up in a small Phase 2 follow-up.
+- **Search** — no message search endpoint or UI; the inbox + thread view are scroll-only.
+
+### Live smoke verification (2026-04-27, against `tenant_demo`)
+
+All 10 assertions in `/tmp/smoke-step9.sh` passed:
+
+1. Teacher inbox lists 3 seeded threads with truncated previews + sender names (TEACHER_PARENT / ADMIN_STAFF / CLASS_DISCUSSION).
+2. Parent inbox lists only the 1 thread they participate in. `GET /threads/types` returns the 3 non-system types with allowed-roles arrays loaded.
+3. `GET /threads/recipients?threadTypeId=<TEACHER_PARENT>` for the parent returns only James Rivera (TEACHER) + Sarah Mitchell (SCHOOL_ADMIN) — no other parents listed, role allow-list works.
+4. Parent creates a new thread to the teacher with `initialMessage="Hello, this is a smoke test"` — returns 201 with 2 participants and the resolved subject.
+5. Teacher's inbox immediately reflects the new thread with `preview='Hello, this is a smoke test' sender='David Chen' unread=1` — confirms the LATERAL + the synchronous Redis bump.
+6. Parent posts a clean reply `"Following up — when is the next conference?"` → 201.
+7. Parent posts a BLOCK keyword (`"this is shit"`) → 422 with the exact policy string the UI surfaces ("This message was not sent because it contains content that violates school policy.") + a `BLOCKED / URGENT / {shit}` row in `msg_moderation_log`.
+8. Teacher calls `POST /threads/:id/read` → `marked=2 unreadCount=0` (the initial message + the clean reply).
+9. Student attempts to create a TEACHER_PARENT thread to the teacher → 400 with `"Participant <id> does not hold any of the required roles for thread type TEACHER_PARENT (TEACHER, PARENT, SCHOOL_ADMIN)"` — STUDENT is not in the allow-list.
+10. Teacher archives the smoke thread → `isArchived=true`. Inbox without `?includeArchived=true` no longer surfaces it.
+
+Build verified clean: `pnpm --filter @campusos/api build` (nest build OK), `pnpm --filter @campusos/web build` (next build — `/messages` 2.85 kB, `/messages/[threadId]` 4.21 kB, `/messages/new` 6.32 kB First Load JS).
 
 ---
 

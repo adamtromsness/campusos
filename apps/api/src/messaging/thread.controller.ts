@@ -19,7 +19,9 @@ import {
   ArchiveThreadDto,
   CreateThreadDto,
   ListThreadsQueryDto,
+  MessagingRecipientDto,
   ThreadResponseDto,
+  ThreadTypeDto,
 } from './dto/thread.dto';
 import { MarkThreadReadResponseDto } from './dto/message.dto';
 
@@ -52,6 +54,34 @@ export class ThreadController {
   ): Promise<ThreadResponseDto[]> {
     var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     return this.threads.list(q, actor);
+  }
+
+  @Get('types')
+  @RequirePermission('com-001:read')
+  @ApiOperation({
+    summary:
+      "Active thread types for this tenant. Used by the compose UI to drive the thread-type " +
+      "selector and the recipient-picker role filter.",
+  })
+  async listTypes(@Req() req: AuthedRequest): Promise<ThreadTypeDto[]> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.threads.listThreadTypes(actor);
+  }
+
+  @Get('recipients')
+  @RequirePermission('com-001:write')
+  @ApiOperation({
+    summary:
+      "Platform users in this school whose IAM role token matches the thread type's " +
+      "allowed_participant_roles. Excludes self and users with a msg_user_blocks row in " +
+      "either direction. Used by the compose UI to populate the recipient picker.",
+  })
+  async listRecipients(
+    @Query('threadTypeId', new ParseUUIDPipe()) threadTypeId: string,
+    @Req() req: AuthedRequest,
+  ): Promise<MessagingRecipientDto[]> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.threads.listRecipients(threadTypeId, actor);
   }
 
   @Get(':id')

@@ -90,6 +90,44 @@ export class ThreadResponseDto {
   participants!: ThreadParticipantDto[];
   @ApiProperty({ description: 'Unread message count for the calling user (Redis-backed)' })
   unreadCount!: number;
+  @ApiProperty({
+    nullable: true,
+    description:
+      'First 80 chars of the most recent non-deleted message. Populated on list endpoints; ' +
+      'null on getById.',
+  })
+  lastMessagePreview!: string | null;
+  @ApiProperty({
+    nullable: true,
+    description: 'Display name of the most recent message sender. Populated on list endpoints.',
+  })
+  lastSenderName!: string | null;
+}
+
+export class ThreadTypeDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty({ nullable: true }) description!: string | null;
+  @ApiProperty({
+    type: [String],
+    description:
+      'Synthetic role tokens (e.g. TEACHER, PARENT, SCHOOL_ADMIN) — empty array means any role. ' +
+      'Used by the compose UI to filter the recipient picker.',
+  })
+  allowedRoles!: string[];
+  @ApiProperty({ description: 'true for system-only thread types (cannot be created from the UI)' })
+  isSystem!: boolean;
+}
+
+export class MessagingRecipientDto {
+  @ApiProperty() platformUserId!: string;
+  @ApiProperty({ nullable: true }) displayName!: string | null;
+  @ApiProperty({ nullable: true }) email!: string | null;
+  @ApiProperty({
+    type: [String],
+    description: 'IAM role tokens this user holds in the school + platform scope chain.',
+  })
+  roles!: string[];
 }
 
 export class ListThreadsQueryDto {

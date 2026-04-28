@@ -448,6 +448,86 @@ export interface MarkAllReadResponse {
   lastReadAt: number;
 }
 
+// ── Messaging (Cycle 3 Step 9) ────────────────────────────────────────────
+
+export type ThreadParticipantRole = 'OWNER' | 'PARTICIPANT' | 'OBSERVER';
+export type MessageModerationStatus = 'CLEAN' | 'FLAGGED' | 'BLOCKED' | 'ESCALATED';
+
+export interface ThreadParticipantDto {
+  id: string;
+  platformUserId: string;
+  role: ThreadParticipantRole | string;
+  displayName: string | null;
+  email: string | null;
+  isMuted: boolean;
+  lastReadAt: string | null;
+  leftAt: string | null;
+}
+
+export interface ThreadDto {
+  id: string;
+  schoolId: string;
+  threadTypeId: string;
+  threadTypeName: string;
+  subject: string | null;
+  createdBy: string;
+  lastMessageAt: string | null;
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  participants: ThreadParticipantDto[];
+  unreadCount: number;
+  lastMessagePreview: string | null;
+  lastSenderName: string | null;
+}
+
+export interface ThreadTypeDto {
+  id: string;
+  name: string;
+  description: string | null;
+  allowedRoles: string[];
+  isSystem: boolean;
+}
+
+export interface MessagingRecipientDto {
+  platformUserId: string;
+  displayName: string | null;
+  email: string | null;
+  roles: string[];
+}
+
+export interface MessageDto {
+  id: string;
+  threadId: string;
+  senderId: string;
+  senderName: string | null;
+  body: string;
+  isEdited: boolean;
+  editedAt: string | null;
+  isDeleted: boolean;
+  deletedAt: string | null;
+  moderationStatus: MessageModerationStatus | string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateThreadPayload {
+  threadTypeId: string;
+  subject?: string;
+  participants: { platformUserId: string; role?: ThreadParticipantRole }[];
+  initialMessage?: string;
+}
+
+export interface PostMessagePayload {
+  body: string;
+}
+
+export interface MarkThreadReadResponse {
+  threadId: string;
+  marked: number;
+  unreadCount: number;
+}
+
 export interface AbsenceRequestDto {
   id: string;
   schoolId: string;

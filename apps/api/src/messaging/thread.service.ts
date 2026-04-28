@@ -14,8 +14,10 @@ import {
   ArchiveThreadDto,
   CreateThreadDto,
   ListThreadsQueryDto,
+  MessagingRecipientDto,
   ThreadParticipantDto,
   ThreadResponseDto,
+  ThreadTypeDto,
 } from './dto/thread.dto';
 
 interface ThreadRow {
@@ -29,6 +31,12 @@ interface ThreadRow {
   is_archived: boolean;
   created_at: Date | string;
   updated_at: Date | string;
+  // Populated only by `list` via the LATERAL preview join. `getById` leaves
+  // these undefined, which `rowToDto` turns into nulls on the wire.
+  last_message_preview?: string | null;
+  last_sender_first_name?: string | null;
+  last_sender_last_name?: string | null;
+  last_sender_display_name?: string | null;
 }
 
 interface ParticipantRow {
@@ -55,6 +63,10 @@ function rowToDto(
   participants: ParticipantRow[],
   unreadCount: number,
 ): ThreadResponseDto {
+  var lastSender =
+    t.last_sender_first_name && t.last_sender_last_name
+      ? t.last_sender_first_name + ' ' + t.last_sender_last_name
+      : t.last_sender_display_name || null;
   return {
     id: t.id,
     schoolId: t.school_id,
@@ -68,6 +80,8 @@ function rowToDto(
     updatedAt: toIso(t.updated_at) || '',
     participants: participants.map(participantRowToDto),
     unreadCount: unreadCount,
+    lastMessagePreview: t.last_message_preview ?? null,
+    lastSenderName: lastSender,
   };
 }
 
@@ -125,7 +139,11 @@ export class ThreadService {
       var sql =
         'SELECT t.id, t.school_id, t.thread_type_id, tt.name AS thread_type_name, ' +
         ' t.subject, t.created_by, t.last_message_at, t.is_archived, ' +
-        ' t.created_at, t.updated_at ' +
+        ' t.created_at, t.updated_at, ' +
+        ' lm.body AS last_message_preview, ' +
+        ' lm.sender_first_name AS last_sender_first_name, ' +
+        ' lm.sender_last_name AS last_sender_last_name, ' +
+        ' lm.sender_display_name AS last_sender_display_name ' +
         'FROM msg_threads t ' +
         'JOIN msg_thread_types tt ON tt.id = t.thread_type_id ';
       var params: any[] = [];
@@ -134,6 +152,19 @@ export class ThreadService {
           'JOIN msg_thread_participants p ON p.thread_id = t.id AND p.platform_user_id = $1::uuid AND p.left_at IS NULL ';
         params.push(actor.accountId);
       }
+      sql +=
+        'LEFT JOIN LATERAL (' +
+        '  SELECT LEFT(m.body, 80) AS body, ' +
+        '         ip.first_name AS sender_first_name, ' +
+        '         ip.last_name AS sender_last_name, ' +
+        '         u.display_name AS sender_display_name ' +
+        '  FROM msg_messages m ' +
+        '  LEFT JOIN platform.platform_users u ON u.id = m.sender_id ' +
+        '  LEFT JOIN platform.iam_person ip ON ip.id = u.person_id ' +
+        '  WHERE m.thread_id = t.id AND m.is_deleted = false ' +
+        '  ORDER BY m.created_at DESC ' +
+        '  LIMIT 1' +
+        ') lm ON true ';
       if (!includeArchived) {
         sql += 'WHERE t.is_archived = false ';
       } else {
@@ -157,6 +188,213 @@ export class ThreadService {
     return threads.map(function (t) {
       return rowToDto(t, byThread[t.id] || [], unread[t.id] || 0);
     });
+  }
+
+  /**
+   * List active thread types for the calling tenant. Used by the compose UI
+   * to render the thread-type selector. School admins see system threads;
+   * regular users do not (they cannot create them anyway).
+   */
+  async listThreadTypes(actor: ResolvedActor): Promise<ThreadTypeDto[]> {
+    var tenant = getCurrentTenant();
+    var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<
+        Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          allowed_participant_roles: string[];
+          is_system: boolean;
+        }>
+      >(
+        'SELECT id::text AS id, name, description, allowed_participant_roles, is_system ' +
+          'FROM msg_thread_types ' +
+          'WHERE school_id = $1::uuid AND is_active = true ' +
+          'ORDER BY name',
+        tenant.schoolId,
+      );
+    });
+    return rows
+      .filter(function (r) {
+        return actor.isSchoolAdmin || !r.is_system;
+      })
+      .map(function (r) {
+        return {
+          id: r.id,
+          name: r.name,
+          description: r.description,
+          allowedRoles: r.allowed_participant_roles,
+          isSystem: r.is_system,
+        };
+      });
+  }
+
+  /**
+   * List platform users in the tenant that the caller may add as recipients
+   * for a given thread type. Filters by:
+   *   - Same school as the caller (active iam_role_assignment in school
+   *     scope or platform scope, matching the chain used by `loadRoleTokens`).
+   *   - IAM role token is in the thread type's allowed_participant_roles
+   *     (an empty allowed-list means "any role" — system threads only,
+   *     reserved for admins).
+   *   - Excludes the caller themselves.
+   *   - Excludes anyone with a `msg_user_blocks` row in either direction
+   *     against the caller (so the picker cannot suggest someone the
+   *     thread create path would later refuse).
+   *
+   * The recipient list is the same shape regardless of persona — the
+   * backend role-token filter is the access boundary. Search/sort lives
+   * client-side in the compose UI for now.
+   */
+  async listRecipients(
+    threadTypeId: string,
+    actor: ResolvedActor,
+  ): Promise<MessagingRecipientDto[]> {
+    var tenant = getCurrentTenant();
+
+    var typeRows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<
+        Array<{
+          id: string;
+          allowed_participant_roles: string[];
+          is_active: boolean;
+          is_system: boolean;
+        }>
+      >(
+        'SELECT id::text AS id, allowed_participant_roles, is_active, is_system ' +
+          'FROM msg_thread_types ' +
+          'WHERE id = $1::uuid AND school_id = $2::uuid',
+        threadTypeId,
+        tenant.schoolId,
+      );
+    });
+    if (typeRows.length === 0) throw new NotFoundException('Thread type ' + threadTypeId + ' not found');
+    var threadType = typeRows[0]!;
+    if (!threadType.is_active) {
+      throw new BadRequestException('Thread type is not active');
+    }
+    if (threadType.is_system && !actor.isSchoolAdmin) {
+      throw new ForbiddenException('System thread types are admin-only');
+    }
+
+    // Pull every account in this school's scope chain with its role tokens.
+    var pclient = this.tenantPrisma.getPlatformClient();
+    var accountRows = await pclient.$queryRawUnsafe<
+      Array<{
+        account_id: string;
+        role_name: string;
+        display_name: string | null;
+        email: string | null;
+        first_name: string | null;
+        last_name: string | null;
+      }>
+    >(
+      'SELECT ra.account_id::text AS account_id, r.name AS role_name, ' +
+        '       u.display_name, u.email, ' +
+        '       ip.first_name, ip.last_name ' +
+        'FROM platform.iam_role_assignment ra ' +
+        'JOIN platform.roles r ON r.id = ra.role_id ' +
+        'JOIN platform.iam_scope sc ON sc.id = ra.scope_id ' +
+        'JOIN platform.iam_scope_type stp ON stp.id = sc.scope_type_id ' +
+        'JOIN platform.platform_users u ON u.id = ra.account_id ' +
+        'LEFT JOIN platform.iam_person ip ON ip.id = u.person_id ' +
+        "WHERE ra.status = 'ACTIVE' " +
+        ' AND ra.account_id <> $1::uuid ' +
+        " AND ((stp.code = 'SCHOOL' AND sc.entity_id = $2::uuid) OR stp.code = 'PLATFORM')",
+      actor.accountId,
+      tenant.schoolId,
+    );
+
+    // Aggregate role tokens per account.
+    var byAccount: Record<
+      string,
+      {
+        platformUserId: string;
+        displayName: string | null;
+        email: string | null;
+        firstName: string | null;
+        lastName: string | null;
+        roles: string[];
+      }
+    > = {};
+    for (var i = 0; i < accountRows.length; i++) {
+      var r = accountRows[i]!;
+      var token = roleNameToToken(r.role_name);
+      var entry = byAccount[r.account_id];
+      if (!entry) {
+        entry = {
+          platformUserId: r.account_id,
+          displayName: r.display_name,
+          email: r.email,
+          firstName: r.first_name,
+          lastName: r.last_name,
+          roles: [],
+        };
+        byAccount[r.account_id] = entry;
+      }
+      if (entry.roles.indexOf(token) === -1) entry.roles.push(token);
+    }
+
+    // Apply role allow-list (empty list = no filter — system threads).
+    var allowed = threadType.allowed_participant_roles;
+    var hasAllowList = allowed.length > 0;
+    var candidates: MessagingRecipientDto[] = [];
+    var ids = Object.keys(byAccount);
+    for (var k = 0; k < ids.length; k++) {
+      var ent = byAccount[ids[k]!]!;
+      if (hasAllowList) {
+        var ok = false;
+        for (var m = 0; m < ent.roles.length; m++) {
+          if (allowed.indexOf(ent.roles[m]!) >= 0) {
+            ok = true;
+            break;
+          }
+        }
+        if (!ok) continue;
+      }
+      var name =
+        ent.firstName && ent.lastName
+          ? ent.firstName + ' ' + ent.lastName
+          : ent.displayName;
+      candidates.push({
+        platformUserId: ent.platformUserId,
+        displayName: name,
+        email: ent.email,
+        roles: ent.roles,
+      });
+    }
+
+    // Drop anyone with a block-list entry in either direction.
+    if (candidates.length > 0) {
+      var candidateIds = candidates.map(function (c) {
+        return c.platformUserId;
+      });
+      var blocks = await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe<Array<{ blocker_id: string; blocked_id: string }>>(
+          'SELECT blocker_id::text AS blocker_id, blocked_id::text AS blocked_id ' +
+            'FROM msg_user_blocks ' +
+            'WHERE (blocker_id = $1::uuid AND blocked_id = ANY($2::uuid[])) ' +
+            ' OR (blocked_id = $1::uuid AND blocker_id = ANY($2::uuid[]))',
+          actor.accountId,
+          candidateIds,
+        );
+      });
+      var blockedSet: Record<string, boolean> = {};
+      for (var b = 0; b < blocks.length; b++) {
+        var br = blocks[b]!;
+        blockedSet[br.blocker_id === actor.accountId ? br.blocked_id : br.blocker_id] = true;
+      }
+      candidates = candidates.filter(function (c) {
+        return !blockedSet[c.platformUserId];
+      });
+    }
+
+    candidates.sort(function (a, b) {
+      var an = (a.displayName || a.email || '').toLowerCase();
+      var bn = (b.displayName || b.email || '').toLowerCase();
+      return an < bn ? -1 : an > bn ? 1 : 0;
+    });
+    return candidates;
   }
 
   /**
@@ -543,7 +781,7 @@ export class ThreadService {
     var rows = await pclient.$queryRawUnsafe<Array<{ account_id: string; role_name: string }>>(
       'SELECT ra.account_id::text AS account_id, r.name AS role_name ' +
         'FROM platform.iam_role_assignment ra ' +
-        'JOIN platform.iam_role r ON r.id = ra.role_id ' +
+        'JOIN platform.roles r ON r.id = ra.role_id ' +
         'JOIN platform.iam_scope sc ON sc.id = ra.scope_id ' +
         'JOIN platform.iam_scope_type stp ON stp.id = sc.scope_type_id ' +
         "WHERE ra.status = 'ACTIVE' " +
