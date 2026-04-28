@@ -17,7 +17,7 @@ This document tracks the Cycle 4 build — the M80 HR/Workforce module (core sub
 |    1 | HR Schema — Employees & Positions                       | **Done** — `011_hr_employees_and_positions.sql` extended with 5 base tables on top of `hr_employees` from Step 0 (`hr_positions`, `hr_employee_positions`, `hr_emergency_contacts`, `hr_document_types`, `hr_employee_documents`). 5 intra-tenant FKs (3 to `hr_employees ON DELETE CASCADE`, 1 to `hr_positions`, 1 to `hr_document_types`), 0 cross-schema FKs. Tenant base table count: 63 (was 58). Live verification on `tenant_demo`: 5 CHECK constraints fire, FK rejection clean, happy-path multi-insert across all 5 tables succeeds, ON DELETE CASCADE drops all 3 child rows when an `hr_employees` row is deleted. |
 |    2 | HR Schema — Leave Management                            | **Done** — `012_hr_leave_management.sql` lands 3 base tables (`hr_leave_types`, `hr_leave_balances`, `hr_leave_requests`) with 5 intra-tenant FKs (2 to `hr_employees ON DELETE CASCADE`, 2 to `hr_leave_types`, 1 to `sis_academic_years`), 10 CHECK constraints (status enum, date range, days > 0, all-or-nothing HR-initiated, non-negative accrual/balance/used/pending). Tenant base table count: 66 (was 63). Live verification on `tenant_demo`: 6 CHECKs fire, UNIQUE on `(employee, type, year)` rejects duplicates, happy-path inserts succeed, ON DELETE CASCADE drops balances + requests when a temp employee is deleted. |
 |    3 | HR Schema — Certifications & Training                   | **Done** — `013_hr_certifications_and_training.sql` lands 5 base tables (`hr_staff_certifications` with 10 cert types + 4 verification statuses + ADR-015 reference-only DBS handling, `hr_training_requirements` with 5 frequency values + multi-column CUSTOM-frequency CHECK, `hr_training_compliance` with `linked_certification_id ON DELETE SET NULL`, `hr_cpd_requirements`, `hr_work_authorisation` with 6 document types + separate expiry / reverification dates). 7 intra-tenant FKs, 0 cross-schema FKs. Tenant base table count: 71 (was 66). Live verification on `tenant_demo`: 7 CHECKs fire, ON DELETE SET NULL on linked cert keeps compliance row, ON DELETE CASCADE on hr_employees drops cert/compliance/work_auth rows, UNIQUE(employee_id) on hr_work_authorisation rejects duplicates. |
-|    4 | HR Schema — Onboarding                                  | Not started — `014_hr_onboarding.sql` will land 3 base tables (`hr_onboarding_templates`, `hr_onboarding_checklists`, `hr_onboarding_tasks`).                                                                                                                                                                                                   |
+|    4 | HR Schema — Onboarding                                  | **Done** — `014_hr_onboarding.sql` lands 3 base tables (`hr_onboarding_templates` UNIQUE(school_id, name) with optional position_id; `hr_onboarding_checklists` UNIQUE(employee_id, template_id) with multi-column CHECK enforcing status / started_at / completed_at sync; `hr_onboarding_tasks` 5 categories × 4 statuses with multi-column CHECK on completed_at sync). 3 intra-tenant FKs (1 to hr_employees CASCADE, 1 to checklists CASCADE), 0 cross-schema FKs. Tenant base table count: 74 (was 71). Live verification on `tenant_demo`: 8 CHECKs fire (status enums, started_chk lifecycle, category, due_days, completed_chk lifecycle), happy-path template + checklist + 3 tasks, UNIQUE(employee_id, template_id) rejects duplicate, ON DELETE CASCADE drops all 3 tasks when checklist is removed. |
 |    5 | Seed Data — Employees, Leave, Certifications            | Not started — `seed-hr.ts` will populate 5 employee records, 5 positions + assignments, 5 leave types + balances, 2 sample leave requests, certifications (incl. Rivera's Teaching Licence expiring in 60 days), training requirements + pre-computed compliance, document types, and a New Teacher Onboarding template. Adds HR-001/003/004 to roles. |
 |    6 | HR NestJS Module — Employee Records & Directory         | Not started — `apps/api/src/hr/` will land EmployeeService, PositionService, EmployeeDocumentService, and extend `ActorContextService.resolveActor()` to populate `actor.employeeId` from `hr_employees.person_id`. ~10 endpoints under `hr-001:*`.                                                                                              |
 |    7 | HR NestJS Module — Leave & Certifications               | Not started — LeaveService + CertificationService + TrainingComplianceService + LeaveNotificationConsumer (Kafka consumer on `hr.leave.approved` → resolves affected classes via `sis_class_teachers` and emits `hr.leave.coverage_needed` for Cycle 5 Scheduling). ~12 endpoints under `hr-003:*` / `hr-004:*` + 5 Kafka events.                |
@@ -538,7 +538,100 @@ Plan reference: Step 3 of `docs/campusos-cycle4-implementation-plan.html`.
 
 ## Step 4 — HR Schema — Onboarding
 
-_Not started._ Migration `014_hr_onboarding.sql`. 3 base tables: `hr_onboarding_templates`, `hr_onboarding_checklists`, `hr_onboarding_tasks`.
+**Done.** `packages/database/prisma/tenant/migrations/014_hr_onboarding.sql` lands 3 base tables. Idempotent CREATE-IF-NOT-EXISTS pattern. Snake_case columns, `TEXT + CHECK` for the status / category enums. Multi-column CHECKs keep the `started_at` / `completed_at` lifecycle columns in sync with `status`, eliminating the entire class of "row claims COMPLETED but completed_at is NULL" bugs at the schema layer.
+
+### Tables (3)
+
+| Table                       | Purpose                                                                                              | Key columns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hr_onboarding_templates`   | Per-school template catalogue. Optional `position_id` scope.                                          | `id`, `school_id`, `name`, `description`, `position_id` (FK to `hr_positions`, NULL = generic for any new hire), `is_active BOOLEAN`. UNIQUE(school_id, name). Partial INDEX(school_id) WHERE active; partial INDEX(position_id) WHERE NOT NULL.                                                                                                                                                                                                                                                                                                                                                                          |
+| `hr_onboarding_checklists`  | Instantiated checklist per new hire. One per (employee, template).                                   | `id`, `employee_id` (FK CASCADE), `template_id` (FK to `hr_onboarding_templates`), `status TEXT DEFAULT 'NOT_STARTED'`, `started_at TIMESTAMPTZ`, `completed_at TIMESTAMPTZ`, `assigned_by` (soft → `platform_users`), `assigned_at`, `notes`. UNIQUE(employee_id, template_id). CHECK `status IN ('NOT_STARTED','IN_PROGRESS','COMPLETED')`. Multi-column CHECK that the lifecycle is `NOT_STARTED ⇒ both timestamps NULL`, `IN_PROGRESS ⇒ started_at set, completed_at NULL`, `COMPLETED ⇒ both set`. INDEX(employee_id, status); INDEX(template_id).                                                                       |
+| `hr_onboarding_tasks`       | Individual task rows on a checklist.                                                                  | `id`, `checklist_id` (FK CASCADE), `title`, `description`, `category TEXT DEFAULT 'OTHER'`, `is_required BOOLEAN`, `due_days_from_start INT`, `sort_order INT`, `status TEXT DEFAULT 'PENDING'`, `completed_at TIMESTAMPTZ`, `completed_by` (soft → `platform_users`), `notes`. CHECK `category IN ('DOCUMENT','TRAINING','SYSTEM_ACCESS','ORIENTATION','OTHER')`. CHECK `status IN ('PENDING','IN_PROGRESS','COMPLETED','SKIPPED')`. CHECK `due_days_from_start IS NULL OR due_days_from_start >= 0`. Multi-column CHECK that `completed_at` is set if and only if status is COMPLETED or SKIPPED. INDEX(checklist_id, sort_order); INDEX(checklist_id, status). |
+
+### Lifecycle CHECKs at the schema layer
+
+The plan calls for an Onboarding Service in Step 7 that owns the state machine. The schema layer adds two multi-column CHECKs that pin the lifecycle:
+
+```sql
+-- hr_onboarding_checklists_started_chk
+(status='NOT_STARTED' AND started_at IS NULL  AND completed_at IS NULL)
+OR
+(status='IN_PROGRESS' AND started_at IS NOT NULL AND completed_at IS NULL)
+OR
+(status='COMPLETED'   AND started_at IS NOT NULL AND completed_at IS NOT NULL)
+
+-- hr_onboarding_tasks_completed_chk
+(status IN ('COMPLETED','SKIPPED') AND completed_at IS NOT NULL)
+OR
+(status NOT IN ('COMPLETED','SKIPPED') AND completed_at IS NULL)
+```
+
+Either CHECK fails the row outright if a service-layer bug tries to set status without the matching timestamp. Verified live with 4 deliberately bogus inserts that all rejected.
+
+### FKs (intra-tenant) and soft references
+
+| Constraint                                                  | Type                  | Notes                                                                                                                                                                              |
+| ----------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hr_onboarding_templates.position_id → hr_positions(id)`    | DB-enforced (no cascade) | Deleting a position with active templates should fail loudly so a school admin notices the dangling configuration.                                                                  |
+| `hr_onboarding_checklists.employee_id → hr_employees(id)`   | DB-enforced (CASCADE) | Employee delete drops their checklists.                                                                                                                                            |
+| `hr_onboarding_checklists.template_id → hr_onboarding_templates(id)` | DB-enforced (no cascade) | Same rationale as templates → positions.                                                                                                                                          |
+| `hr_onboarding_tasks.checklist_id → hr_onboarding_checklists(id)` | DB-enforced (CASCADE) | Deleting a checklist drops its tasks. Verified live (3 tasks → 0 after parent delete).                                                                                              |
+| `hr_onboarding_checklists.assigned_by`, `hr_onboarding_tasks.completed_by` | Soft (cross-schema)   | UUID refs to `platform.platform_users(id)` per ADR-055 — audit-only.                                                                                                                |
+| `hr_onboarding_templates.school_id`                         | Soft (cross-schema)   | UUID ref to `platform.schools(id)` per ADR-001/020.                                                                                                                                 |
+
+### CHECK constraints
+
+| Constraint                                              | Predicate                                                                                                                          |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `hr_onboarding_checklists_status_chk`                   | `status IN ('NOT_STARTED','IN_PROGRESS','COMPLETED')`                                                                              |
+| `hr_onboarding_checklists_started_chk`                  | (lifecycle CHECK — see above)                                                                                                       |
+| `hr_onboarding_tasks_category_chk`                      | `category IN ('DOCUMENT','TRAINING','SYSTEM_ACCESS','ORIENTATION','OTHER')`                                                         |
+| `hr_onboarding_tasks_status_chk`                        | `status IN ('PENDING','IN_PROGRESS','COMPLETED','SKIPPED')`                                                                         |
+| `hr_onboarding_tasks_due_days_chk`                      | `due_days_from_start IS NULL OR due_days_from_start >= 0`                                                                          |
+| `hr_onboarding_tasks_completed_chk`                     | (lifecycle CHECK — see above)                                                                                                       |
+
+### Verification (recorded 2026-04-28)
+
+```bash
+pnpm --filter @campusos/database provision --subdomain=demo   # 14 migrations applied
+pnpm --filter @campusos/database provision --subdomain=test   # 14 migrations applied
+```
+
+Counts in `tenant_demo` after Step 4:
+
+| What                                                             | Count |
+| ---------------------------------------------------------------- | ----: |
+| Logical base tables (top-level, was 71)                          |    74 |
+| HR tables (`hr_*`)                                                |    17 |
+| Intra-tenant FKs from Step 4 tables                              |     3 |
+| Cross-schema FKs from `tenant_demo`                              |     0 |
+
+CHECK + FK + UNIQUE + cascade smoke (live):
+
+| Constraint / behaviour                                       | Test                                                                                                  | Outcome  |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | -------- |
+| `hr_onboarding_checklists_status_chk` and `started_chk`      | INSERT status='BOGUS'                                                                                  | ERROR ✅ |
+| `hr_onboarding_checklists_started_chk` (NOT_STARTED + started_at)  | INSERT status='NOT_STARTED' with started_at=now()                                                      | ERROR ✅ |
+| `hr_onboarding_checklists_started_chk` (COMPLETED + no completed_at) | INSERT status='COMPLETED' with started_at=now() but completed_at=NULL                                 | ERROR ✅ |
+| `hr_onboarding_tasks_category_chk`                           | INSERT category='BOGUS'                                                                                | ERROR ✅ |
+| `hr_onboarding_tasks_status_chk`                             | INSERT status='BOGUS'                                                                                  | ERROR ✅ |
+| `hr_onboarding_tasks_due_days_chk`                           | INSERT due_days_from_start=-1                                                                          | ERROR ✅ |
+| `hr_onboarding_tasks_completed_chk` (PENDING + completed_at)  | INSERT status='PENDING' with completed_at=now()                                                        | ERROR ✅ |
+| `hr_onboarding_tasks_completed_chk` (COMPLETED + no completed_at) | INSERT status='COMPLETED' with completed_at=NULL                                                       | ERROR ✅ |
+| Happy path: 1 template + 1 checklist + 3 tasks linked to Rivera | inserts succeed, 1 task moves to COMPLETED with completed_at, checklist moves to IN_PROGRESS with started_at | ✅       |
+| `hr_onboarding_checklists_employee_template_uq`              | INSERT a duplicate (employee_id, template_id)                                                          | ERROR ✅ |
+| ON DELETE CASCADE on `hr_onboarding_checklists`              | DELETE FROM hr_onboarding_checklists drops 3 child tasks (3 → 0)                                       | ✅       |
+
+### Out-of-scope decisions for Step 4
+
+- **No assignee per task.** The plan models tasks as "assigned to the new hire" implicitly. If future schools need per-task delegation (e.g. IT handles SYSTEM_ACCESS while HR handles DOCUMENT), an `assignee_account_id` column lands later as additive — no current data needs to migrate.
+- **`completed_by` is a soft cross-schema ref, not always the employee themselves.** It captures whoever marked the task done, which may be the new hire (self-service) or an admin. The audit doesn't need to be tighter than that for this cycle.
+- **No checklist-level progress percentage.** Compute on read: `COUNT(status='COMPLETED') / COUNT(*)`. Storing it would be one more thing to keep in sync — and the index on `(checklist_id, status)` makes the read aggregation cheap.
+- **`due_days_from_start` is a non-negative INT.** Tasks due *before* the checklist start would be admin-initiated pre-boarding work and don't really belong on a "new hire onboarding" checklist; a CHECK > 0 would be too strict (day-zero kickoff tasks are valid), so `>= 0` is the right floor.
+- **No template versioning.** Editing a template doesn't propagate to existing checklists. Versioning land-patterns can ship later without touching this schema (add a `version INT` and a CHECK).
+- **No partitioning.** Volume bounded by employees × templates. Far below partitioning threshold.
+- **No seed yet.** Step 5 owns the "New Teacher Onboarding" template + 8 sample tasks per the plan.
+- **CHECK strings still cannot contain `;`.** Spot-checked all CHECK predicates and `COMMENT ON COLUMN` strings in 014 — none contain `;`. The block-comment header was reviewed for the splitter trap.
 
 Plan reference: Step 4 of `docs/campusos-cycle4-implementation-plan.html`.
 
