@@ -10,6 +10,7 @@
 | Round | Date           | SHA       | Verdict                                                |
 | ----: | -------------- | --------- | ------------------------------------------------------ |
 |     1 | April 28, 2026 | `e214bdc` | REJECT pending 2 BLOCKING fixes (4 DEVIATION + 9 PASS) |
+|     2 | April 28, 2026 | `653fd4c` | Awaiting re-review — 4 fixes landed (2 BLOCKING + 2 actionable MAJOR) |
 
 ---
 
@@ -211,4 +212,4 @@ The reviewer also flagged the other "Soft FK" comments in 016 + 017 implicitly. 
 | MAJOR 3    | One-tx pre-check + 23505 / P2002 catch → `ConflictException`                  |           ~25 | 5 parallel → 1 win + 4×409         |
 | MAJOR 4    | COMMENT text rewrite                                                          |             1 | `col_description` matches new text |
 
-The fixes land in commit **`<round-2 sha>`**. Cycle 5 is now ready for Round 2 re-review.
+The fixes land in commit **`653fd4c`**. Cycle 5 is now ready for Round 2 re-review.
