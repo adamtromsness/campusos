@@ -7,9 +7,9 @@
 
 **Verdict trail:**
 
-| Round | Date           | SHA       | Verdict                                                |
-| ----: | -------------- | --------- | ------------------------------------------------------ |
-|     1 | April 28, 2026 | `e214bdc` | REJECT pending 2 BLOCKING fixes (4 DEVIATION + 9 PASS) |
+| Round | Date           | SHA       | Verdict                                                               |
+| ----: | -------------- | --------- | --------------------------------------------------------------------- |
+|     1 | April 28, 2026 | `e214bdc` | REJECT pending 2 BLOCKING fixes (4 DEVIATION + 9 PASS)                |
 |     2 | April 28, 2026 | `653fd4c` | Awaiting re-review — 4 fixes landed (2 BLOCKING + 2 actionable MAJOR) |
 
 ---
