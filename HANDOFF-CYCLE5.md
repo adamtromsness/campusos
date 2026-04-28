@@ -1,6 +1,6 @@
 # Cycle 5 Handoff — Scheduling & Calendar
 
-**Status:** Cycle 5 **IN PROGRESS — Steps 1–3 done; Steps 4–10 pending.** Step 1 lands `015_sch_bell_schedules_and_rooms.sql` with 3 base tables (sch_bell_schedules, sch_periods, sch_rooms) for the foundation of the M22 Academic Scheduling module. Step 2 lands `016_sch_timetable_and_bookings.sql` with 3 base tables (sch_timetable_slots with two `EXCLUDE USING gist` constraints catching teacher and room double-booking against overlapping daterange windows, sch_room_bookings, sch_room_change_requests) plus the `btree_gist` extension. Step 3 lands `017_sch_calendar_and_coverage.sql` with 4 base tables (sch_calendar_events with a multi-column time-consistency CHECK keeping all_day in lockstep with start_time/end_time, sch_calendar_day_overrides with UNIQUE(school_id, override_date), sch_coverage_requests with a 3-branch assignment_chk and UNIQUE(timetable_slot_id, coverage_date), sch_substitution_timetable with UNIQUE(original_slot_id, effective_date) and ON DELETE CASCADE on coverage_request_id). Cycle 5 is the second cycle of Phase 3 (Expand). It connects Cycle 1's classes to a real timetable, Cycle 4's leave events to a substitute-coverage workflow, and ships a school calendar that every persona can read. Cycles 0–4 are COMPLETE; see `HANDOFF-CYCLE1.md`, `HANDOFF-CYCLE2.md`, `HANDOFF-CYCLE3.md`, and `HANDOFF-CYCLE4.md` for the foundation this cycle builds on.
+**Status:** Cycle 5 **IN PROGRESS — Steps 1–4 done; Steps 5–10 pending.** Step 1 lands `015_sch_bell_schedules_and_rooms.sql` with 3 base tables (sch_bell_schedules, sch_periods, sch_rooms) for the foundation of the M22 Academic Scheduling module. Step 2 lands `016_sch_timetable_and_bookings.sql` with 3 base tables (sch_timetable_slots with two `EXCLUDE USING gist` constraints catching teacher and room double-booking against overlapping daterange windows, sch_room_bookings, sch_room_change_requests) plus the `btree_gist` extension. Step 3 lands `017_sch_calendar_and_coverage.sql` with 4 base tables (sch_calendar_events with a multi-column time-consistency CHECK keeping all_day in lockstep with start_time/end_time, sch_calendar_day_overrides with UNIQUE(school_id, override_date), sch_coverage_requests with a 3-branch assignment_chk and UNIQUE(timetable_slot_id, coverage_date), sch_substitution_timetable with UNIQUE(original_slot_id, effective_date) and ON DELETE CASCADE on coverage_request_id). Cycle 5 is the second cycle of Phase 3 (Expand). It connects Cycle 1's classes to a real timetable, Cycle 4's leave events to a substitute-coverage workflow, and ships a school calendar that every persona can read. Cycles 0–4 are COMPLETE; see `HANDOFF-CYCLE1.md`, `HANDOFF-CYCLE2.md`, `HANDOFF-CYCLE3.md`, and `HANDOFF-CYCLE4.md` for the foundation this cycle builds on.
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle5-implementation-plan.html`
 **Vertical-slice deliverable:** Admin configures a bell schedule with 8 periods → assigns timetable slots (Rivera teaches Algebra in Room 101, Period 1) → Rivera's Cycle 1 class now has a room + time → Rivera submits a sick leave request (Cycle 4) → admin approves → `hr.leave.coverage_needed` fires → CoverageConsumer creates coverage-needed records for Rivera's classes on the leave dates → admin assigns a substitute → `sch.coverage.assigned` fires → substitute notification fires through the Cycle 3 notification pipeline → school calendar reflects the coverage for that day.
@@ -16,7 +16,7 @@ This document tracks the Cycle 5 build — the M22 Academic Scheduling module (c
 |    1 | Scheduling Schema — Bell Schedules & Rooms             | **Done** — `015_sch_bell_schedules_and_rooms.sql` lands 3 base tables (`sch_bell_schedules` with 5-value `schedule_type` CHECK + `is_default` flag + UNIQUE(school_id, name); `sch_periods` with FK to bell_schedule ON DELETE CASCADE + nullable `day_of_week` SMALLINT (rotation-friendly) + 5-value `period_type` CHECK + start<end CHECK + UNIQUE(bell_schedule_id, COALESCE(day_of_week,-1), start_time); `sch_rooms` with 7-value `room_type` CHECK + soft `fac_space_id` ref + UNIQUE(school_id, name)). 1 intra-tenant FK (sch_periods → sch_bell_schedules CASCADE), 0 cross-schema FKs. Tenant base table count: 77 (was 74). Live verification on `tenant_demo`: every CHECK fires (schedule_type, period_type, room_type, period start≥end), UNIQUE on (school_id, name) for both bell schedules and rooms rejects duplicates, UNIQUE on (bell_schedule_id, COALESCE(day_of_week,-1), start_time) rejects duplicate period slots, FK rejection clean, happy-path multi-insert across all 3 tables succeeds, ON DELETE CASCADE drops periods when the parent bell schedule is deleted. |
 |    2 | Scheduling Schema — Timetable & Bookings               | **Done** — `016_sch_timetable_and_bookings.sql` lands 3 base tables on top of `CREATE EXTENSION IF NOT EXISTS btree_gist`: `sch_timetable_slots` (DB-enforced FKs to `sis_classes`, `sch_periods`, `sch_rooms`, and nullable `hr_employees`; UNIQUE(class_id, period_id, effective_from); two `EXCLUDE USING gist` constraints — `sch_timetable_slots_teacher_no_overlap` on `(teacher_id WITH =, period_id WITH =, daterange(effective_from, COALESCE(effective_to, 'infinity'::date), '[)') WITH &&)` and `sch_timetable_slots_room_no_overlap` on the same shape with `room_id`); `sch_room_bookings` (CONFIRMED/CANCELLED status with multi-column lifecycle CHECK on cancelled_at/cancelled_reason; window CHECK end_at > start_at); `sch_room_change_requests` (PENDING/APPROVED/REJECTED/AUTO_APPROVED with multi-column reviewed_chk that PENDING ⇔ reviewed_at NULL). 8 intra-tenant FKs, 0 cross-schema FKs. Tenant base table count: 80 (was 77). Live verification on `tenant_demo`: teacher EXCLUSION rejects overlapping slot for same teacher/period (SQLSTATE 23P01); room EXCLUSION same; non-overlapping date ranges accepted (close out at 2027-08-31, reopen 2027-09-01); NULL teacher does not conflict with NULL teacher; dates_chk + UNIQUE(class_id, period_id, effective_from) + all 4 FKs (period, room, class, teacher) reject bogus/orphan refs; status + window + multi-column lifecycle CHECKs on bookings + change_requests all fire. |
 |    3 | Scheduling Schema — Calendar & Coverage                | **Done** — `017_sch_calendar_and_coverage.sql` lands 4 base tables: `sch_calendar_events` (8-value `event_type` CHECK HOLIDAY/PROFESSIONAL_DEVELOPMENT/EARLY_DISMISSAL/ASSEMBLY/EXAM_PERIOD/PARENT_EVENT/FIELD_TRIP/CUSTOM, optional `bell_schedule_id` override FK, `affects_attendance` flag, multi-column time-consistency CHECK keeping `all_day` in lockstep with `start_time`/`end_time` and rejecting `start_time >= end_time` on non-all-day rows); `sch_calendar_day_overrides` (UNIQUE(school_id, override_date), nullable `bell_schedule_id` ref, `is_school_day` flag for snow days); `sch_coverage_requests` (4-value `status` CHECK OPEN/ASSIGNED/COVERED/CANCELLED, UNIQUE(timetable_slot_id, coverage_date), 3-branch `assignment_chk` enforcing OPEN ⇔ assigned_substitute_id NULL AND assigned_at NULL, ASSIGNED/COVERED ⇒ both NOT NULL, CANCELLED unconstrained for audit); `sch_substitution_timetable` (UNIQUE(original_slot_id, effective_date), DB-enforced FKs to sch_timetable_slots, hr_employees, sch_rooms, and sch_coverage_requests with ON DELETE CASCADE). 9 intra-tenant FKs, 0 cross-schema FKs. Tenant base table count: 84 (was 80). Total scheduling tables: 10. Live verification on `tenant_demo` (25 assertions): every CHECK fires (event_type/dates/time-consistency 5 paths/coverage status/assignment 3 paths), every UNIQUE rejects duplicates (override per-date, coverage per-(slot, date), substitution per-(slot, date)), every FK rejects orphans (calendar→bell_schedule, override→bell_schedule, coverage→slot, coverage→teacher, substitution→request, substitution→slot), happy-path multi-insert across all 4 tables succeeds, OPEN→ASSIGNED transition with assigned_substitute_id + assigned_at accepted, ON DELETE CASCADE on `sch_coverage_requests` drops the matching `sch_substitution_timetable` row cleanly. |
-|    4 | Seed Data — Schedules, Rooms, Timetable                | TBD — Seed bell schedule with 8 periods + Early Dismissal variant; 10 rooms (101–106 + Lab + Gym + Library + Hall); timetable slots for Rivera's 6 classes Periods 1–6 M-F; 5 calendar events (Spring Break, PD day, parent-teacher conf, end-of-year assembly, prom); 1 day override (snow day); 1 coverage request linked to Rivera's seeded sick leave with Park as substitute; 1 room booking. Adds SCH-001/003/004/005 read codes to Teacher/Staff per the plan; SCH-003 read also to Parent/Student. Rebuild access cache.    |
+|    4 | Seed Data — Schedules, Rooms, Timetable                | **Done** — `packages/database/src/seed-scheduling.ts` (idempotent, gated on `sch_bell_schedules` row count) seeds the demo tenant: **2 bell schedules** ("Standard Day" default with 11 periods (8 LESSON / 1 LUNCH / 2 BREAK, 08:00–15:50) + "Early Dismissal" with 8 periods (6 LESSON / 1 LUNCH / 1 BREAK, 08:00–12:30), all with `day_of_week=NULL` so each period applies to every weekday); **10 rooms** (Room 101–106 CLASSROOM cap 30 with projector; Science Lab cap 25 with projector+AV; Gymnasium cap 100 with AV; Library cap 50 with projector; Main Hall cap 200 with projector+AV); **6 timetable slots** mapping Rivera's Cycle 1 classes onto Standard Day Period 1–6 (Algebra→Room 101, English→102, Biology→103, World History→104, Geometry→105, Chemistry→106) with `effective_from='2025-08-15'` (academic year start) and open-ended `effective_to`; **5 calendar events** (Spring Break HOLIDAY 04-14→04-18 affects_attendance=true / PD Day PROFESSIONAL_DEVELOPMENT 03-15 affects_attendance=true / Parent-Teacher Conference Evening PARENT_EVENT 05-01 18:00–20:00 non-all-day / End of Year Assembly ASSEMBLY 06-06 / Senior Prom CUSTOM 05-23 draft — 4 published, 1 draft); **1 day override** (2026-02-07 snow day, is_school_day=false, reason='Winter storm closure'); **1 coverage request** ASSIGNED to VP Park covering Rivera's Period 1 Algebra on 2026-03-09 (Day 1 of Rivera's seeded APPROVED sick leave) with `leave_request_id` populated to the Cycle 4 seed's APPROVED hr_leave_requests row; **1 substitution_timetable row** materialising Park's assignment in Room 101 on 2026-03-09; **1 room booking** (Main Hall booked by Mitchell for the Parent-Teacher Conference Evening 18:00–20:00 status=CONFIRMED). **`seed-iam.ts` updated:** Teacher gains SCH-004:read + SCH-005:read+write (31 → 34); Staff gains SCH-001:read + SCH-004:read + SCH-005:read+write (10 → 14). After `tsx src/build-cache.ts`: cache holds 7 account-scope pairs — admin/principal 444, teacher 34, vp/counsellor 14, student 15, parent 11. **Bug caught and fixed mid-run:** the calendar events INSERT initially passed nullable `start_time`/`end_time` as TEXT and the coverage requests INSERT passed `leave_request_id` as TEXT — both columns are typed (TIME and UUID), so Postgres refused to coerce; explicit `$N::time` and `$5::uuid` casts on the affected parameters resolved both. Idempotent re-run gates cleanly on the `sch_bell_schedules` row count. Tenant base table count unchanged at 84 (data only — no DDL). |
 |    5 | Scheduling NestJS Module — Timetable & Rooms           | TBD — `apps/api/src/scheduling/` BellScheduleService, TimetableService, RoomService, RoomBookingService, RoomChangeRequestService. ~18 endpoints. EXCLUSION constraint violation (SQLSTATE 23P01) translated to 409 Conflict with the conflicting actor name in the message. Emits `sch.timetable.updated`.                                                                                                                                                                                                                          |
 |    6 | Scheduling NestJS Module — Calendar & Coverage         | TBD — CalendarService, DayOverrideService, CoverageService, SubstitutionService + the **CoverageConsumer** (group `coverage-consumer`, subscribes to `hr.leave.coverage_needed` from Cycle 4). Reuses `unwrapEnvelope` + `processWithIdempotency` (Cycle 3 pattern). Emits `sch.coverage.needed` and `sch.coverage.assigned`. ~12 endpoints + 1 Kafka consumer + 3 event types.                                                                                                                                                       |
 |    7 | Schedule & Timetable UI                                | TBD — Schedule app tile + bell schedule editor (`/schedule/bell-schedules`), timetable grid (`/schedule/timetable`), room management (`/schedule/rooms`), room bookings (`/schedule/room-bookings`).                                                                                                                                                                                                                                                                                                                                 |
@@ -372,6 +372,96 @@ Plan reference: Step 3 of `docs/campusos-cycle5-implementation-plan.html`.
 
 ---
 
+## Step 4 — Seed Data — Schedules, Rooms, Timetable
+
+**Done.** `packages/database/src/seed-scheduling.ts` lands an idempotent layer on top of the Cycle 5 schema. The seed is gated on `sch_bell_schedules` row count and lookup-or-create per row underneath, so a re-run on a populated tenant is a no-op — same shape as `seed-classroom.ts` and `seed-messaging.ts`. `seed-iam.ts` is updated in lockstep to grant the new SCH read / write permissions to Teacher and Staff personas.
+
+### What gets seeded
+
+| Layer                | Rows | Notes                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------- | ---: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bell schedules       |    2 | "Standard Day" (default) + "Early Dismissal".                                                                                                                                                                                                                                                                                                                                                  |
+| Periods              |   19 | Standard Day = 11 (P1–P8 LESSON, 1 LUNCH, 2 BREAK, 08:00–15:50). Early Dismissal = 8 (6 LESSON, 1 LUNCH, 1 BREAK, 08:00–12:30). All `day_of_week=NULL` — each period applies to every weekday.                                                                                                                                                                                                |
+| Rooms                |   10 | Room 101–106 CLASSROOM (capacity 30 with projector); Science Lab (cap 25, projector + AV); Gymnasium (cap 100, AV); Library (cap 50, projector); Main Hall (cap 200, projector + AV). Each has `building` and `floor` populated for the room-listing UI.                                                                                                                                       |
+| Timetable slots      |    6 | Rivera's Cycle 1 classes mapped onto Standard Day Periods 1–6: Algebra→Room 101, English→102, Biology→103, World History→104, Geometry→105, Chemistry→106. `effective_from='2025-08-15'`, open-ended `effective_to`.                                                                                                                                                                          |
+| Calendar events      |    5 | Spring Break (HOLIDAY, 04-14→04-18, all_day, affects_attendance=true, published) / PD Day (PROFESSIONAL_DEVELOPMENT, 03-15, affects_attendance=true, published) / Parent-Teacher Conference Evening (PARENT_EVENT, 05-01 18:00–20:00, non-all-day, published) / End of Year Assembly (ASSEMBLY, 06-06, published) / Senior Prom (CUSTOM, 05-23, draft). 4 published, 1 draft.                |
+| Day overrides        |    1 | 2026-02-07 snow day, `is_school_day=false`, reason='Winter storm closure'. No `bell_schedule_id` (closure days don't need a schedule).                                                                                                                                                                                                                                                          |
+| Coverage requests    |    1 | ASSIGNED row covering Rivera's Period 1 Algebra on 2026-03-09 (Day 1 of Rivera's Cycle 4 APPROVED sick leave). VP Linda Park as `assigned_substitute_id`. `assigned_at='2026-03-08T17:00:00Z'`. `leave_request_id` populated by joining to the Cycle 4 seed's APPROVED hr_leave_requests row — kept soft per the migration's design.                                                              |
+| Substitution rows    |    1 | Park substitutes Period 1 Algebra in Room 101 on 2026-03-09. Same room as the original slot; the column captures the relocation channel for future cases where a sub is moved.                                                                                                                                                                                                                  |
+| Room bookings        |    1 | Main Hall booked by Mitchell (`booked_by`) for the Parent-Teacher Conference Evening 2026-05-01 18:00–20:00, status=CONFIRMED. Naturally aligns with the matching calendar event so the Step 8 calendar UI surfaces both side-by-side.                                                                                                                                                          |
+
+### IAM updates
+
+`seed-iam.ts` adds the following permission codes to the role-permission map:
+
+| Role    | Code      | Tier(s)        | Why                                                                                                                                                              |
+| ------- | --------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Teacher | SCH-004   | read           | A teacher needs to see their own coverage assignments. Admin still owns the write tier — coverage assignment is admin-only.                                       |
+| Teacher | SCH-005   | read + write   | Teachers can browse rooms and submit room bookings (e.g. for after-school events).                                                                                |
+| Staff   | SCH-001   | read           | Non-teaching staff (VP, counsellor) need to read the master schedule for context — same scope teachers already have.                                              |
+| Staff   | SCH-004   | read           | VPs and counsellors can fill in as substitutes — they need to see assignments scoped to themselves.                                                                |
+| Staff   | SCH-005   | read + write   | Non-teaching staff need to book rooms (counselling drop-in, club spaces) just like teachers.                                                                       |
+
+Parent and Student already had `SCH-003:read` from a prior seed; that does not change. The plan's matrix called for `SCH-003:read` on Teacher / Parent / Student / Staff, which was already in place — no edit needed for that row.
+
+After re-running `seed-iam.ts` against `tenant_demo`:
+
+| Account                      | Cached effective permissions |
+| ---------------------------- | ---------------------------: |
+| admin@demo.campusos.dev       |                          444 |
+| principal@demo.campusos.dev   |                          444 |
+| teacher@demo.campusos.dev     |     34 (was 31 — +SCH-004:read, SCH-005:read, SCH-005:write) |
+| student@demo.campusos.dev     |                           15 |
+| parent@demo.campusos.dev      |                           11 |
+| vp@demo.campusos.dev          |     14 (was 10 — +SCH-001:read, SCH-004:read, SCH-005:read, SCH-005:write) |
+| counsellor@demo.campusos.dev  |     14 (was 10 — same set as VP)                                            |
+
+### Idempotency design
+
+The seed gates on `SELECT count(*) FROM sch_bell_schedules` — non-zero short-circuits the whole script with an "already populated — skipping" log. Per-row `ON CONFLICT DO NOTHING` was deliberately not used: the bell schedule + periods + rooms layer is internally consistent only when seeded as a single atomic batch, and gating once at the top keeps the structure simple. Re-runs against an empty `sch_*` set complete in a single pass; re-runs against a populated set are no-ops. The bridge to Cycle 4's HR data (Rivera as `teacher_id`, Park as `assigned_substitute_id`, the `leave_request_id` lookup) is a per-run resolve from `hr_employees.account_id` against `platform.platform_users.email` — independent of seed order, so the script tolerates any future re-shuffling of the seed pipeline.
+
+### Bug caught + fixed mid-run
+
+Two `$executeRawUnsafe` calls passed parameters as TEXT that the target columns required typed:
+
+| Call                              | Column                             | Fix                              |
+| --------------------------------- | ---------------------------------- | -------------------------------- |
+| `INSERT INTO sch_calendar_events` | `start_time TIME`, `end_time TIME` | `$9::time, $10::time` parameter casts |
+| `INSERT INTO sch_coverage_requests` | `leave_request_id UUID`            | `$5::uuid` parameter cast        |
+
+Same pattern documented in the Conventions section of `CLAUDE.md` — Prisma sends raw query parameters as TEXT and Postgres won't auto-coerce. Caught on the first run; both casts fixed in the same edit; second run completed cleanly. Truncating the partially-seeded `sch_*` tables between runs was the workaround for the in-progress idempotency gate, since the gate trips after the first row lands.
+
+### Verification (recorded 2026-04-28)
+
+```bash
+pnpm --filter @campusos/database exec tsx src/seed-iam.ts   # Teacher 34 perms (+3), Staff 14 perms (+4)
+pnpm --filter @campusos/database seed:scheduling             # 2 schedules, 19 periods, 10 rooms, 6 slots, 5 events, 1 override, 1 coverage, 1 substitution, 1 booking
+pnpm --filter @campusos/database seed:scheduling             # idempotent re-run — "already populated — skipping"
+pnpm --filter @campusos/database exec tsx src/build-cache.ts # 7 account-scope pairs, 444 / 444 / 34 / 15 / 11 / 14 / 14
+```
+
+Cross-table relational sanity check (live against `tenant_demo`):
+
+| Check                                                                        | Result                                  |
+| ---------------------------------------------------------------------------- | --------------------------------------- |
+| Rivera teaches 6 timetable slots                                             | 6 ✅                                     |
+| Park is the substitute on 1 substitution_timetable row                       | 1 ✅                                     |
+| `sch_coverage_requests.leave_request_id` joins to Rivera's APPROVED 03-09 leave | `2026-03-09 / 2026-03-09 / APPROVED` ✅  |
+| Parent-Teacher Conference Evening event time                                 | `2026-05-01 18:00:00-20:00:00` ✅        |
+
+### Out-of-scope decisions for Step 4
+
+- **Only 6 timetable slots.** Rivera's 6 classes get slots; Periods 7 + 8 of the Standard Day are unused this seed because the Cycle 1 demo only has 6 classes. Step 5's TimetableService will be the place to add more once additional teachers / classes land.
+- **Single coverage row.** The plan's text mentions Day 1 of Rivera's 2-day sick leave; Day 2 (2026-03-10) is intentionally left without a coverage row so the Step 8 admin queue starts empty. The Step 10 CAT will exercise the live OPEN→ASSIGNED transition by triggering the CoverageConsumer end-to-end.
+- **`day_of_week=NULL` on every period.** A class at Period 1 meets every weekday — `effective_from`/`effective_to` on the timetable slot is the date envelope; the period itself does not vary by weekday. Cycle 5b's `sch_rotation_cycles` will own per-day rotation when (and if) we ship A/B day schedules.
+- **No SCH-002 (Course Selection) seeding.** Course selection depends on the enrollment module, deferred until a future cycle.
+- **No CRT (Course Selection) UI plumbing on this seed.** Calendar events created by Mitchell carry `created_by=principal.id`; this prepopulates a single author so the Step 8 calendar UI shows non-null author labels on day one.
+- **`tenant_test` not seeded.** Matches the precedent set by `seed-sis.ts`, `seed-classroom.ts`, `seed-messaging.ts`, and `seed-hr.ts` — `tenant_demo` is the demo / smoke tenant; `tenant_test` stays empty for tests.
+
+Plan reference: Step 4 of `docs/campusos-cycle5-implementation-plan.html`.
+
+---
+
 ## Quick reference — running the stack from a fresh clone
 
 ```bash
@@ -384,17 +474,19 @@ pnpm --filter @campusos/database seed:sis
 pnpm --filter @campusos/database seed:classroom
 pnpm --filter @campusos/database seed:messaging
 pnpm --filter @campusos/database seed:hr
+pnpm --filter @campusos/database seed:scheduling
 pnpm --filter @campusos/database exec tsx src/build-cache.ts
 pnpm --filter @campusos/api dev
 ```
 
-Cycle 5's `seed:scheduling` lands in Step 4. Until then, the seed pipeline is unchanged from Cycle 4.
+After Step 4 the seed pipeline ends with `seed:scheduling`; Steps 5–10 don't add a new seed step.
 
 ---
 
 ## Open items / known gaps (will be filled in as steps land)
 
 - ~~**Steps 2–3 schema migrations.**~~ **Done** — 016 + 017 land 7 new tenant tables (3 timetable/booking + 4 calendar/coverage). Total tenant base table count after Step 3: 84.
+- ~~**Step 4 seed + permission updates.**~~ **Done** — `seed:scheduling` populates 2 bell schedules + 19 periods + 10 rooms + 6 timetable slots + 5 calendar events + 1 day override + 1 ASSIGNED coverage row + 1 substitution row + 1 room booking. SCH-001/004/005 grants extended to Teacher and Staff.
 - **Step 4 seed + permission updates.** SCH-001/003/004/005 codes added to Teacher / Staff / Parent / Student / School Admin / Platform Admin per the matrix in the plan.
 - **Steps 5–6 NestJS module.** ~30 endpoints (~18 timetable/rooms + ~12 calendar/coverage) + 3 Kafka emits (`sch.timetable.updated`, `sch.coverage.needed`, `sch.coverage.assigned`) + 1 new consumer (CoverageConsumer subscribing to `hr.leave.coverage_needed`).
 - **Steps 7–9 UI.** Two launchpad tiles ("Schedule" and "Calendar"), 7+ pages.
@@ -408,7 +500,7 @@ Cycle 5's `seed:scheduling` lands in Step 4. Until then, the seed pipeline is un
 
 1. ✅ Tenant schema: 3 new scheduling tables. Total tenant tables: 77. (Step 1.)
 2. ✅ Tenant schema: 10 new scheduling tables with EXCLUSION constraints. All 10 done after Step 3 (3 from Step 1 + 3 from Step 2 with `btree_gist` and the two timetable EXCLUSIONs + 4 from Step 3 with calendar events / day overrides / coverage requests / substitution timetable). Total tenant tables after Step 3: 84. (Steps 2–3.)
-3. Bell schedule, periods, rooms, timetable slots seeded for the demo school. (Step 4.)
+3. ✅ Bell schedule, periods, rooms, timetable slots seeded for the demo school. (Step 4.)
 4. Timetable API: ~18 endpoints with conflict detection via EXCLUSION constraints. (Step 5.)
 5. Calendar API: ~12 endpoints for events, day overrides, coverage, substitutions. (Step 6.)
 6. CoverageConsumer: consumes `hr.leave.coverage_needed`, creates coverage requests automatically. (Step 6.)

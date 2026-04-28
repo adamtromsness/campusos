@@ -191,6 +191,10 @@ async function seedIam() {
         'COM-002': ['read', 'write'],
         'SCH-001': ['read'],
         'SCH-003': ['read'],
+        // Cycle 5 — coverage read so a teacher sees their own coverage,
+        // room booking read+write so they can request and manage rooms.
+        'SCH-004': ['read'],
+        'SCH-005': ['read', 'write'],
         'BEH-001': ['read', 'write'],
         'COU-002': ['write'],
         // Cycle 4 HR — read directory, manage own leave, view own certs.
@@ -236,7 +240,13 @@ async function seedIam() {
         'ATT-001': ['read'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
+        'SCH-001': ['read'],
         'SCH-003': ['read'],
+        // Cycle 5 — coverage read so VPs and counsellors who fill in as
+        // substitutes can see their assignments, room booking read+write
+        // so non-teaching staff can book the hall, library, etc.
+        'SCH-004': ['read'],
+        'SCH-005': ['read', 'write'],
         // Cycle 4 HR — staff who aren't teachers (counsellor, vp,
         // admin assistant) still read the directory + manage own leave +
         // view own certs.
