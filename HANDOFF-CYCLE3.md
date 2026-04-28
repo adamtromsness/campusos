@@ -1,6 +1,6 @@
 # Cycle 3 Handoff — Communications
 
-**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), 5 (Notification Pipeline — Consumers & Queue), 6 (Messaging NestJS Module), 7 (Announcements NestJS Module), 8 (Notification Bell & Inbox UI), and 9 (Messaging UI) DONE; Steps 10–11 not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
+**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), 5 (Notification Pipeline — Consumers & Queue), 6 (Messaging NestJS Module), 7 (Announcements NestJS Module), 8 (Notification Bell & Inbox UI), 9 (Messaging UI), and 10 (Announcements UI) DONE; Step 11 (vertical-slice CAT) not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle3-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher marks Maya tardy in Period 1 → Kafka event fires → notification consumer picks it up → in-app notification appears on David Chen's parent dashboard with a badge count → David clicks the notification → he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress → David sees it in his inbox → David replies → the reply goes through content moderation → James sees the reply in his inbox.
@@ -23,7 +23,7 @@ This document tracks the Cycle 3 build — the M40 Communications module — at 
 |    7 | Announcements NestJS Module                                   | Done — `apps/api/src/announcements/` lands AnnouncementService + AudienceFanOutWorker + 6 endpoints; live smoke against `tenant_demo` confirmed publish flow + ALL_SCHOOL (5) / CLASS (10) / YEAR_GROUP (9) / ROLE=PARENT (1) audience fan-out + idempotent mark-read + author/admin-only stats + invalid-audience guards |
 |    8 | Notification Bell & Inbox UI                                  | Done — `apps/api/src/notifications/notification-inbox.{service,controller}.ts` adds 3 endpoints (GET /notifications/inbox, GET /notifications/history, POST /notifications/mark-all-read); `apps/web/src/components/notifications/NotificationBell.tsx` mounts in TopBar polling every 30s; `/notifications` page renders full paginated history with 6 filter chips; live smoke against `tenant_demo` confirmed parent unread count, mark-all-read, server-side type filter, and cursor pagination |
 |    9 | Messaging UI                                                  | Done — `apps/web/src/app/(app)/messages/{page,new/page,[threadId]/page}.tsx` lands inbox + compose + thread view; `apps/web/src/hooks/use-messaging.ts` + 9 hooks; Sidebar gains a Messages entry under com-001:read; backend `ThreadResponseDto` extended with `lastMessagePreview` + `lastSenderName` (LATERAL JOIN, list endpoint only) + 2 new endpoints (`GET /threads/types`, `GET /threads/recipients`); latent `loadRoleTokens` bug fixed (`platform.iam_role` → `platform.roles`); live smoke against `tenant_demo` passed all 10 assertions including thread create with initialMessage, BLOCK→422 with policy string, mark-read clearing badge, student blocked from TEACHER_PARENT, archive flip |
-|   10 | Announcements UI                                              | Not started                                                                                                                   |
+|   10 | Announcements UI                                              | Done — `apps/web/src/app/(app)/announcements/{page,new/page,[id]/page}.tsx` lands feed + compose + detail-with-stats; `apps/web/src/hooks/use-announcements.ts` + 6 hooks; Sidebar gains an Announcements entry under com-002:read; backend was already complete in Step 7, Step 10 is purely additive on the web side; live smoke against `tenant_demo` passed all 13 assertions including draft creation, draft hidden from non-managers, PATCH publish + audience worker fan-out (10 recipients for CLASS), idempotent mark-read, stats panel reflects readCount, student blocked from POST 403, parent blocked from non-author stats 403 |
 |   11 | Vertical Slice Integration Test                               | Not started                                                                                                                   |
 
 The Cycle 3 exit deliverable is the end-to-end vertical slice: tardy mark → Kafka event → notification consumer → parent in-app notification → click-through to attendance detail. Plus direct messaging with content moderation, and audience-targeted announcements with read tracking. The reproducible CAT script will land at `docs/cycle3-cat-script.md` as the Step 11 deliverable.
@@ -1194,7 +1194,88 @@ Build verified clean: `pnpm --filter @campusos/api build` (nest build OK), `pnpm
 
 ## Step 10 — Announcements UI
 
-Not started. Plan: `/announcements` feed (audience-filtered), `/announcements/new` create form (admin/teacher only) with audience selector + schedule + expiry, per-announcement stats (admin only).
+Done. Three new pages under `apps/web/src/app/(app)/announcements/` plus a hooks file. The Step 7 backend already exposed every endpoint we needed (6 endpoints under `com-002:read` / `com-002:write`); Step 10 is purely additive on the web side — zero backend changes.
+
+### Web hooks
+
+`apps/web/src/hooks/use-announcements.ts` (new file) exposes 6 hooks:
+
+| Hook | Method | Endpoint | Notes |
+|------|--------|----------|-------|
+| `useAnnouncements({ includeDrafts, includeExpired })` | GET | `/announcements?…` | 30s poll, refetch-on-focus. Server-side filters drive the visible-row scope; the feed page also applies a client-side filter for the Unread chip. |
+| `useAnnouncement(id)` | GET | `/announcements/:id` | One-shot. Detail page hook. |
+| `useAnnouncementStats(id)` | GET | `/announcements/:id/stats` | 30s poll, `enabled: typeof id === 'string'` — the detail page passes `null` for non-managers so the hook never fires the 403. |
+| `useCreateAnnouncement` | POST | `/announcements` | Pre-warms `['announcements', 'detail', id]`; invalidates `['announcements', 'list']` and `['notifications']`. |
+| `useUpdateAnnouncement(id)` | PATCH | `/announcements/:id` | Used by the detail page's "Publish now" button. Invalidates list + stats + detail. |
+| `useMarkAnnouncementRead` | POST | `/announcements/:id/read` | Idempotent on the server; used by the detail page on first mount. |
+
+Types added to `apps/web/src/lib/types.ts`: `AudienceType`, `AnnouncementDto`, `AnnouncementStatsDto`, `CreateAnnouncementPayload`, `UpdateAnnouncementPayload`, `MarkAnnouncementReadResponse` — all camelCase, mirroring the Step 7 `rowToDto` shape exactly.
+
+### Pages
+
+**`/announcements` (feed, static route, 2.83 kB First Load)** — `apps/web/src/app/(app)/announcements/page.tsx`. Newest-first list. Each row:
+- Severity-tinted icon bubble (URGENT → rose, WARNING → amber, default → campus tones) with `MegaphoneIcon`.
+- Title + relative timestamp.
+- Audience pill (`All school` / `Class` / `Grade N` / `<role>`), optional alert-type pill, "Draft" pill if unpublished, "Expired" pill if past `expiresAt`, blue dot if unread.
+- Body preview line-clamped to 2 lines.
+- "From <author>" footer if the author name is set.
+
+Filter chips: **All / Unread**, plus **Drafts / Expired** for users with `com-002:write` only. Drafts/Expired flip the corresponding query params (`includeDrafts=true` / `includeExpired=true`) so the server includes them, and the feed page also filters client-side to narrow to just drafts or just expired rows. Compose button in the PageHeader actions slot for users with `com-002:write`.
+
+**`/announcements/new` (compose, static route, 5.96 kB First Load)** — `apps/web/src/app/(app)/announcements/new/page.tsx`. Permission-gated on `com-002:write` (non-managers see an EmptyState). Form fields:
+1. **Title** (max 200).
+2. **Body** (textarea, no client-side max — backend accepts arbitrarily long plain text).
+3. **Audience type pills**: ALL_SCHOOL / CLASS / YEAR_GROUP / ROLE. Each picks reset `audienceRef`. CUSTOM is intentionally not exposed — backend reserves it for the deferred Communication Groups feature and the AudienceFanOutWorker logs+drops it.
+4. **Conditional audience-ref picker**:
+   - **CLASS**: `useClasses` (`GET /classes` — backend row-scopes for teachers / admins) → `<select>` with `sectionCode — course.name` options sorted by course name, then section.
+   - **YEAR_GROUP**: hard-coded grade list `['9', '10', '11', '12']`. The seed currently uses `'9'` and `'10'`; 11–12 are exposed for forward compatibility. A dedicated `/grades` distinct-list endpoint is on the post-cycle list if schools pin different conventions.
+   - **ROLE**: hard-coded `['TEACHER', 'STUDENT', 'PARENT', 'SCHOOL_ADMIN']`. These match the `iam_role` seed tokens used by the AudienceFanOutWorker. Future custom roles will need a backend role-list endpoint.
+5. **Expires (optional)**: `<input type="datetime-local">`. Local-tz input is converted to ISO via `new Date(value).toISOString()` before POST.
+6. **Two submit buttons**: `Save draft` → POST with `isPublished: false`; `Publish now` → POST with `isPublished: true`. Backend defaults `publishAt` to `now()` when publishing, and emits `msg.announcement.published` so the AudienceFanOutWorker resolves the audience and fans out.
+
+Validation: title + body required; audience-ref required for CLASS / YEAR_GROUP / ROLE. Toast surfaces server errors (400 from invalid audience, 403, etc.). On success, routes to `/announcements/:id`.
+
+**`/announcements/[id]` (detail, dynamic route, 3.59 kB First Load)** — `apps/web/src/app/(app)/announcements/[id]/page.tsx`. Header: back link to feed, "Publish now" button when announcement is a draft and caller has `com-002:write`. Article: severity-tinted icon, title, audience + alert-type + Draft/Expired pills, "From <author> · Published <relative> · Expires <relative>" line, body in `whitespace-pre-wrap`. Auto-marks-read on first mount when `isPublished && !isRead`, tracked via a `lastMarkedReadFor` ref so the cache invalidation that follows mark-read doesn't re-fire it.
+
+Stats panel below the article — visible to authors and school admins only:
+- 4 metric cards: Audience, Read (count + %), Delivered, Pending / Failed.
+- Read-progress bar (campus-600, capped 0–100%).
+- For drafts: the panel collapses to a "Stats appear here once the announcement is published." line.
+
+The stats query is gated by passing `null` to `useAnnouncementStats(id)` when the caller can't see them — the hook's `enabled` flag short-circuits and the request never fires the backend's 403, so non-managers don't see a stats error in their devtools.
+
+### Sidebar
+
+`apps/web/src/components/shell/Sidebar.tsx` adds an `Announcements` entry gated on `com-002:read`. Visible to teachers, parents, students, staff, and admins (Step 4 added `COM-002:read` to Student + Staff). Uses the existing `MegaphoneIcon` from `apps/web/src/components/shell/icons.tsx`.
+
+### What this step deliberately does NOT include
+
+- **Scheduling published-in-the-future.** The backend's `publishAt` is "when this is supposed to publish from"; the AudienceFanOutWorker only fires at the moment `isPublished` flips true. There's no scheduled-publish job, so a future-`publishAt` published announcement would still fan out immediately. Since the user-facing concept of "publish later" is already covered by the draft flow (save now, publish later when you're ready), the compose UI doesn't expose `publishAt`. A scheduled-publish worker is post-cycle work.
+- **Edit a draft from the UI.** The `useUpdateAnnouncement` hook is wired and the detail page's Publish-now button uses it; a full draft-editor (title/body/audience/expiry edit screen) is post-cycle. The Step 7 backend constraint — published is one-way, drafts are mutable — would let an editor land cleanly when needed.
+- **Rich-text body.** Per the plan, the body input is plain text. Rich-text or markdown rendering is post-cycle.
+- **Attachment / image upload.** Not in the announcement schema or DTO.
+- **Distinct grade-level endpoint.** Hard-coded 9–12 in the picker; a backend `GET /grades` is a small future addition.
+- **Distinct role-token endpoint.** Hard-coded the four canonical tokens; same reasoning as above.
+
+### Live smoke verification (2026-04-27, against `tenant_demo`)
+
+All 13 assertions in `/tmp/smoke-step10.sh` passed:
+
+1. Parent feed lists 5 audience-targeted announcements (Grade 9 picture day / Field trip permission slips / Parent Volunteer Day / Early Dismissal Friday / Parent-Teacher Conference Dates) — the audience worker had already resolved all of these as deliverable to David Chen (parent of Maya Chen, grade 9).
+2. Teacher creates a CLASS-targeted draft against one of their classes (`019dcf66-…`) — `isPublished=false`, no fan-out.
+3. Teacher sees the draft via `?includeDrafts=true`.
+4. Parent does NOT see the draft on the default feed (drafts are author/admin only).
+5. Teacher PATCHes `isPublished=true` — response shows `publishAt` set to the current timestamp.
+6. After a 5-second wait for Kafka delivery, the AudienceFanOutWorker has resolved the CLASS audience.
+7. Stats endpoint reports `totalAudience=10 deliveredCount=10 readCount=0` — the resolved audience is the class roster (students + portal-enabled guardians + assigned teachers per the Step 7 worker logic).
+8. Parent's default feed now surfaces the published announcement.
+9. Parent calls POST `/announcements/:id/read` → `newlyRead=true`.
+10. Parent calls the same endpoint again → `newlyRead=false` (idempotent).
+11. Stats endpoint now reports `totalAudience=10 readCount=1 readPercentage=10`.
+12. Student attempts POST `/announcements` → 403 with `INSUFFICIENT_PERMISSIONS` and `required: ["com-002:write"]`.
+13. Parent attempts GET `/announcements/:id/stats` → 403 (non-author non-admin can't read stats).
+
+Build verified clean: `pnpm --filter @campusos/web build` (next build — `/announcements` 2.83 kB, `/announcements/[id]` 3.59 kB, `/announcements/new` 5.96 kB First Load JS). Backend unchanged this step so the API build is the same as Step 9.
 
 ---
 

@@ -528,6 +528,70 @@ export interface MarkThreadReadResponse {
   unreadCount: number;
 }
 
+// ── Announcements (Cycle 3 Step 10) ───────────────────────────────────────
+
+export type AudienceType = 'ALL_SCHOOL' | 'CLASS' | 'YEAR_GROUP' | 'ROLE' | 'CUSTOM';
+
+export interface AnnouncementDto {
+  id: string;
+  schoolId: string;
+  authorId: string;
+  authorName: string | null;
+  title: string;
+  body: string;
+  audienceType: AudienceType;
+  audienceRef: string | null;
+  alertTypeId: string | null;
+  alertTypeName: string | null;
+  alertTypeSeverity: string | null;
+  publishAt: string | null;
+  expiresAt: string | null;
+  isPublished: boolean;
+  isRecurring: boolean;
+  recurrenceRule: string | null;
+  isRead: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnnouncementStatsDto {
+  announcementId: string;
+  totalAudience: number;
+  readCount: number;
+  readPercentage: number;
+  pendingCount: number;
+  deliveredCount: number;
+  failedCount: number;
+}
+
+export interface CreateAnnouncementPayload {
+  title: string;
+  body: string;
+  audienceType: AudienceType;
+  audienceRef?: string;
+  alertTypeId?: string;
+  publishAt?: string;
+  expiresAt?: string;
+  isPublished?: boolean;
+}
+
+export interface UpdateAnnouncementPayload {
+  title?: string;
+  body?: string;
+  audienceType?: AudienceType;
+  audienceRef?: string;
+  alertTypeId?: string;
+  publishAt?: string;
+  expiresAt?: string;
+  isPublished?: boolean;
+}
+
+export interface MarkAnnouncementReadResponse {
+  announcementId: string;
+  readAt: string;
+  newlyRead: boolean;
+}
+
 export interface AbsenceRequestDto {
   id: string;
   schoolId: string;

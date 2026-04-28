@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { type ReactNode } from 'react';
 import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
 import { cn } from '@/components/ui/cn';
-import { ChatBubbleIcon, HomeIcon } from './icons';
+import { ChatBubbleIcon, HomeIcon, MegaphoneIcon } from './icons';
 
 interface NavItem {
   href: string;
@@ -42,6 +42,12 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Messages',
     icon: ChatBubbleIcon,
     visibleFor: (u) => hasAnyPermission(u, ['com-001:read']),
+  },
+  {
+    href: '/announcements',
+    label: 'Announcements',
+    icon: MegaphoneIcon,
+    visibleFor: (u) => hasAnyPermission(u, ['com-002:read']),
   },
 ];
 
