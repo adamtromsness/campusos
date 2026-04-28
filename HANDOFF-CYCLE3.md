@@ -1,6 +1,6 @@
 # Cycle 3 Handoff — Communications
 
-**Status:** Cycle 3 IN PROGRESS — Steps 0 (ADR-057 envelope), 1 (Messaging), 2 (Notifications & Announcements), 3 (Moderation & Support), 4 (Seed Data), 5 (Notification Pipeline — Consumers & Queue), 6 (Messaging NestJS Module), 7 (Announcements NestJS Module), 8 (Notification Bell & Inbox UI), 9 (Messaging UI), and 10 (Announcements UI) DONE; Step 11 (vertical-slice CAT) not started. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
+**Status:** Cycle 3 COMPLETE — all 11 steps done. Steps 0 (ADR-057 envelope), 1 (Messaging schema), 2 (Notifications & Announcements schema), 3 (Moderation & Support schema), 4 (Seed Data), 5 (Notification Pipeline — Consumers & Queue), 6 (Messaging NestJS Module), 7 (Announcements NestJS Module), 8 (Notification Bell & Inbox UI), 9 (Messaging UI), 10 (Announcements UI), and 11 (Vertical Slice CAT). The Phase 1 (Build the Core) milestone is done; Phase 2 (Test & Refine) is the next stage. (Cycles 0, 1, and 2 are COMPLETE; see `HANDOFF-CYCLE1.md` and `HANDOFF-CYCLE2.md` for the SIS + Attendance + Classroom foundation this cycle builds on.)
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle3-implementation-plan.html`
 **Vertical-slice deliverable:** Teacher marks Maya tardy in Period 1 → Kafka event fires → notification consumer picks it up → in-app notification appears on David Chen's parent dashboard with a badge count → David clicks the notification → he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress → David sees it in his inbox → David replies → the reply goes through content moderation → James sees the reply in his inbox.
@@ -24,7 +24,7 @@ This document tracks the Cycle 3 build — the M40 Communications module — at 
 |    8 | Notification Bell & Inbox UI                                  | Done — `apps/api/src/notifications/notification-inbox.{service,controller}.ts` adds 3 endpoints (GET /notifications/inbox, GET /notifications/history, POST /notifications/mark-all-read); `apps/web/src/components/notifications/NotificationBell.tsx` mounts in TopBar polling every 30s; `/notifications` page renders full paginated history with 6 filter chips; live smoke against `tenant_demo` confirmed parent unread count, mark-all-read, server-side type filter, and cursor pagination |
 |    9 | Messaging UI                                                  | Done — `apps/web/src/app/(app)/messages/{page,new/page,[threadId]/page}.tsx` lands inbox + compose + thread view; `apps/web/src/hooks/use-messaging.ts` + 9 hooks; Sidebar gains a Messages entry under com-001:read; backend `ThreadResponseDto` extended with `lastMessagePreview` + `lastSenderName` (LATERAL JOIN, list endpoint only) + 2 new endpoints (`GET /threads/types`, `GET /threads/recipients`); latent `loadRoleTokens` bug fixed (`platform.iam_role` → `platform.roles`); live smoke against `tenant_demo` passed all 10 assertions including thread create with initialMessage, BLOCK→422 with policy string, mark-read clearing badge, student blocked from TEACHER_PARENT, archive flip |
 |   10 | Announcements UI                                              | Done — `apps/web/src/app/(app)/announcements/{page,new/page,[id]/page}.tsx` lands feed + compose + detail-with-stats; `apps/web/src/hooks/use-announcements.ts` + 6 hooks; Sidebar gains an Announcements entry under com-002:read; backend was already complete in Step 7, Step 10 is purely additive on the web side; live smoke against `tenant_demo` passed all 13 assertions including draft creation, draft hidden from non-managers, PATCH publish + audience worker fan-out (10 recipients for CLASS), idempotent mark-read, stats panel reflects readCount, student blocked from POST 403, parent blocked from non-author stats 403 |
-|   11 | Vertical Slice Integration Test                               | Not started                                                                                                                   |
+|   11 | Vertical Slice Integration Test                               | Done — `docs/cycle3-cat-script.md` lands the 7-scenario CAT verified live against `tenant_demo`; same commit fixes 3 latent consumer-SQL bugs caught by the run (`c.title` → `co.name` joined through `sis_courses` in `grade-notification.consumer.ts`, `attendance-notification.consumer.ts`, `progress-note-notification.consumer.ts`) |
 
 The Cycle 3 exit deliverable is the end-to-end vertical slice: tardy mark → Kafka event → notification consumer → parent in-app notification → click-through to attendance detail. Plus direct messaging with content moderation, and audience-targeted announcements with read tracking. The reproducible CAT script will land at `docs/cycle3-cat-script.md` as the Step 11 deliverable.
 
@@ -1281,7 +1281,66 @@ Build verified clean: `pnpm --filter @campusos/web build` (next build — `/anno
 
 ## Step 11 — Vertical Slice Integration Test
 
-Not started. Plan: `docs/cycle3-cat-script.md` — 7 scenarios covering tardy → notification, grade → notification, direct message, moderation block, announcements, preference honouring, permission denials. Phase 1 exit criteria.
+Done. The Cycle 3 CAT script lives at `docs/cycle3-cat-script.md` and was verified live against `tenant_demo` on 2026-04-27. The harness drives the API + the 6 Kafka consumers (5 notification consumers + 1 audience-fan-out worker) + the gradebook-snapshot worker + the notification-delivery worker, captures real outputs into `/tmp/cat3-out/`, and embeds them in the script so a reviewer can re-run and diff.
+
+### What the CAT proves
+
+| #   | Scenario                                                     | Status |
+| --: | ------------------------------------------------------------ | :----: |
+|   1 | Tardy → Kafka → consumer → queue → worker → parent's bell    |   ✅   |
+|   2 | Grade publish → fan-out to student + portal-enabled guardians |   ✅   |
+|   3 | Direct messaging compose + delivery + reply + mark-read       |   ✅   |
+|   4 | Content moderation BLOCK keyword → 422 + log row              |   ✅   |
+|   5 | Announcement publish → audience fan-out → mark-read → stats   |   ✅   |
+|   6 | `is_enabled=false` preference suppresses enqueue              |   ✅   |
+|   7 | 3 permission denials (403 endpoint / 403 method-tier / 404 row scope) |   ✅   |
+
+### Latent bugs caught and fixed in the same commit
+
+This was the first time a real Kafka event flowed end-to-end through the notification consumer recipient-resolution path in `tenant_demo`. Three of the five consumers were silently throwing during context lookup because their SQL referenced a `c.title` column on `sis_classes` that doesn't exist (the actual class display name comes from `sis_courses.name` joined through `course_id`). The bug never tripped before:
+
+- Step 5's smoke verified the consumer subscribed and the queue/worker booted, but didn't drive a real event.
+- Step 6's smoke (messaging) doesn't touch these three consumers.
+- Step 7's smoke (announcements) uses a different consumer (`AudienceFanOutWorker`).
+- Step 8's smoke (notification bell) drove the bell from PRE-EXISTING seeded queue rows that `seed-messaging.ts` writes directly — never through the consumer path.
+
+Fix: replace `c.title || ' (' || c.section_code || ')' AS class_name` with `co.name || ' (' || c.section_code || ')' AS class_name` and add `JOIN sis_courses co ON co.id = c.course_id` in:
+
+- `apps/api/src/notifications/consumers/grade-notification.consumer.ts`
+- `apps/api/src/notifications/consumers/attendance-notification.consumer.ts`
+- `apps/api/src/notifications/consumers/progress-note-notification.consumer.ts`
+
+Both the bug and the fix are documented inline in `docs/cycle3-cat-script.md` under "Latent bugs caught by the CAT" so the post-cycle reviewer can see this was caught in Step 11 (not pushed to production) and resolved in the same commit that closes the cycle.
+
+### Quiet-hours reset for the harness
+
+The seed sets David Chen's notification preferences to **22:00–07:00 UTC quiet hours** on every type to demonstrate the mechanic. If the CAT runs inside that window (e.g. mid-day in the Americas), `NotificationQueueService.enqueue()` correctly defers `scheduled_for` to 07:00 UTC and the delivery worker correctly skips every row — meaning Scenarios 1–5 would never see the bell light up. The harness clears David's quiet hours at the top of the run and restores them via `trap … EXIT`, so the test is deterministic regardless of when it runs. Scenario 6 covers preference honoring through `is_enabled=false` instead, which is the cleaner assertion of the contract anyway (the `is_enabled` short-circuit is the same code path that EMAIL/SMS providers will route through later).
+
+### Captured outputs
+
+The reproducible inline outputs in `docs/cycle3-cat-script.md` cover:
+
+- Scenario 1: `unreadCount=15` with `attendance.tardy student=Maya Chen status=TARDY` at the top of David's inbox + matching `attendance.tardy SENT` row in `msg_notification_queue`.
+- Scenario 2: parent grade.published rows = 2, student = 3 (Quadratics Homework Set @ 88%, Linear Equations Quiz @ 92%).
+- Scenario 3: thread `019dd1b2-…` create with `unreadCount=2` for parent, reply round-trip teacher's badge bumps, `mark-read marked=1 unreadCount=0`.
+- Scenario 4: 422 + `BLOCKED / URGENT / {shit}` log row.
+- Scenario 5: stats before fan-out `{total:5, read:0}`, all 3 personas see the row, parent mark-read returns `newlyRead=true`, stats after `readCount=1 readPercentage=20`.
+- Scenario 6: `BEFORE=3 AFTER=3` (no delta when `is_enabled=false`).
+- Scenario 7: 403 / 403 / 404 with the exact error envelopes (`INSUFFICIENT_PERMISSIONS` for the two announcement gates, "Thread … not found" for the row-scope cut).
+
+### Cycle 3 exit checklist (from the plan)
+
+1. ✅ ADR-057 event envelope implemented. All producers migrated. Gradebook worker updated.
+2. ✅ Tenant schema: 19 of M40's 29 Communications tables landed (10 deferred per scope decisions documented above). Platform schema: +2 (`platform_push_tokens`, `platform_dlq_messages`).
+3. ✅ 5 Kafka consumers: attendance, grade, progress note, absence request, message notifications.
+4. ✅ NotificationQueueService with preference checking, quiet hours, Redis idempotency.
+5. ✅ Messaging: threads, messages, read tracking, Redis unread counters, content moderation interceptor.
+6. ✅ Announcements: create, publish, audience fan-out, read tracking, stats.
+7. ✅ Notification bell with badge count, dropdown, deep links to source.
+8. ✅ Messaging UI: inbox, thread view, compose, moderation feedback.
+9. ✅ Announcement UI: feed, create, stats.
+10. ✅ Vertical slice test: all 7 scenarios pass (this step).
+11. ✅ HANDOFF-CYCLE3.md and CLAUDE.md updated. Local builds clean (`pnpm --filter @campusos/api build` + `pnpm --filter @campusos/web build`).
 
 ---
 

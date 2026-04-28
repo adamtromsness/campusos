@@ -163,13 +163,14 @@ export class GradeNotificationConsumer implements OnModuleInit {
       >(
         'SELECT ip.first_name, ip.last_name, ' +
           ' u.id::text AS student_account_id, ' +
-          " c.title || ' (' || c.section_code || ')' AS class_name, " +
+          " co.name || ' (' || c.section_code || ')' AS class_name, " +
           ' a.title AS assignment_title ' +
           'FROM sis_students s ' +
           'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
           'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
           'LEFT JOIN platform.platform_users u ON u.person_id = ps.person_id ' +
           'JOIN sis_classes c ON c.id = $2::uuid ' +
+          'JOIN sis_courses co ON co.id = c.course_id ' +
           'JOIN cls_assignments a ON a.id = $3::uuid ' +
           'WHERE s.id = $1::uuid',
         studentId,

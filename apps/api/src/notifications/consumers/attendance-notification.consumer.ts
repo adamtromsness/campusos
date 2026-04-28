@@ -177,11 +177,12 @@ export class AttendanceNotificationConsumer implements OnModuleInit {
         }>
       >(
         'SELECT ip.first_name, ip.last_name, s.student_number, ' +
-          " c.title || ' (' || c.section_code || ')' AS class_name " +
+          " co.name || ' (' || c.section_code || ')' AS class_name " +
           'FROM sis_students s ' +
           'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
           'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
           'JOIN sis_classes c ON c.id = $2::uuid ' +
+          'JOIN sis_courses co ON co.id = c.course_id ' +
           'WHERE s.id = $1::uuid',
         studentId,
         classId,

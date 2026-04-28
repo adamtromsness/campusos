@@ -164,7 +164,7 @@ export class ProgressNoteNotificationConsumer implements OnModuleInit {
       >(
         'SELECT ip.first_name, ip.last_name, ' +
           ' u.id::text AS student_account_id, ' +
-          " c.title || ' (' || c.section_code || ')' AS class_name, " +
+          " co.name || ' (' || c.section_code || ')' AS class_name, " +
           ' t.name AS term_name, ' +
           ' ap.first_name AS author_first_name, ' +
           ' ap.last_name AS author_last_name ' +
@@ -173,6 +173,7 @@ export class ProgressNoteNotificationConsumer implements OnModuleInit {
           'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
           'LEFT JOIN platform.platform_users u ON u.person_id = ps.person_id ' +
           'JOIN sis_classes c ON c.id = $2::uuid ' +
+          'JOIN sis_courses co ON co.id = c.course_id ' +
           'JOIN sis_terms t ON t.id = $3::uuid ' +
           'LEFT JOIN platform.iam_person ap ON ap.id = $4::uuid ' +
           'WHERE s.id = $1::uuid',
