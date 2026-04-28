@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 5 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
+.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
+.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
+.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
+.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
+.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
+.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}
+.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}
+.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
+.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
+.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
+.step-title{font-size:19px;font-weight:700;color:var(--accent)}
+.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
+.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
+.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.step .depends{font-size:12px;color:var(--text-light);margin-top:6px}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
+.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
+.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
+.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 3</div>
+    <h1>Cycle 5: Scheduling &amp; Calendar<br>Implementation Plan</h1>
+    <div class="sub">Bell schedules, timetable slots, school calendar, room bookings, daily coverage, and substitute management. Consumes the hr.leave.coverage_needed event from Cycle 4 to auto-flag classes that need coverage when a teacher takes leave.</div>
+    <span class="version">April 2026 &middot; 10 Steps &middot; ERD v11 &middot; M22 Academic Scheduling (Core Subset)</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 5 builds the M22 Academic Scheduling module &mdash; the operational backbone that connects everything. When a teacher takes leave (Cycle 4), the schedule knows which classes need coverage. When attendance is taken (Cycle 1), the schedule defines what period it is. When a parent views their child's timetable, this module provides the data. The full ERD has 27 scheduling tables; this cycle implements the 12 core tables that deliver the daily operations workflow.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin configures the bell schedule (8 periods, M-F) &rarr; assigns timetable slots (Rivera teaches Algebra in Room 101, Period 1) &rarr; Rivera's Cycle 1 class now has a room + time &rarr; Rivera submits a sick leave request (Cycle 4) &rarr; admin approves &rarr; <code>hr.leave.coverage_needed</code> fires &rarr; CoverageConsumer creates coverage-needed records for Rivera's classes on the leave dates &rarr; admin assigns a substitute &rarr; substitute notification fires &rarr; school calendar shows the coverage for that day.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope:</strong> sch_bell_schedules, sch_periods, sch_rooms, sch_timetable_slots (with teacher + room double-booking EXCLUSION constraints), sch_room_bookings, sch_room_change_requests, sch_calendar_events, sch_calendar_day_overrides, sch_substitution_timetable, sch_coverage_requests. Plus the CoverageConsumer for <code>hr.leave.coverage_needed</code>. Functions SCH-001, SCH-003, SCH-004, SCH-005.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to Cycle 5b or later:</strong> sch_rotation_cycles + sch_rotation_calendar (A/B day schedules &mdash; ADR-053 advanced scheduling). sch_scheduling_requests + sch_scheduling_candidates + sch_scheduling_candidate_slots (automated constraint solver). sch_exam_sessions + sch_exam_session_rooms + sch_exam_seatings + sch_exam_invigilator_assignments (exam scheduling). sch_coteaching_arrangements (co-teaching). sch_pull_out_interventions (specialist pull-outs). sch_cross_school_staff_assignments (district staff). sch_cover_arrangements + sch_cover_arrangement_classes + sch_cover_split_students (complex cover beyond simple substitution). SCH-002 (Course Selection) &mdash; depends on enrollment module.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:34%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Scheduling Schema &mdash; Bell Schedules &amp; Rooms</td><td>Schema</td><td>sch_bell_schedules, sch_periods, sch_rooms</td></tr>
+    <tr><td><strong>2</strong></td><td>Scheduling Schema &mdash; Timetable &amp; Bookings</td><td>Schema</td><td>sch_timetable_slots (with EXCLUSION constraints), sch_room_bookings, sch_room_change_requests</td></tr>
+    <tr><td><strong>3</strong></td><td>Scheduling Schema &mdash; Calendar &amp; Coverage</td><td>Schema</td><td>sch_calendar_events, sch_calendar_day_overrides, sch_substitution_timetable, sch_coverage_requests</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Schedules, Rooms, Timetable</td><td>Seed</td><td>Bell schedule with 8 periods, 10 rooms, timetable slots for all 6 classes, calendar events, sample coverage</td></tr>
+    <tr><td><strong>5</strong></td><td>Scheduling NestJS Module &mdash; Timetable &amp; Rooms</td><td>Code</td><td>BellScheduleService, TimetableService, RoomService, RoomBookingService</td></tr>
+    <tr><td><strong>6</strong></td><td>Scheduling NestJS Module &mdash; Calendar &amp; Coverage</td><td>Code</td><td>CalendarService, CoverageService, CoverageConsumer (hr.leave.coverage_needed), SubstitutionService</td></tr>
+    <tr><td><strong>7</strong></td><td>Schedule &amp; Timetable UI</td><td>UI</td><td>Schedule app tile, bell schedule editor, timetable grid view, room management</td></tr>
+    <tr><td><strong>8</strong></td><td>Calendar &amp; Coverage UI</td><td>UI</td><td>School calendar, daily coverage board, substitute assignment, room booking</td></tr>
+    <tr><td><strong>9</strong></td><td>Teacher &amp; Parent Schedule Views</td><td>UI</td><td>Teacher "My Schedule" view, parent "Child's Timetable" view, room availability checker</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>End-to-end: configure schedule &rarr; leave approved &rarr; coverage auto-created &rarr; sub assigned &rarr; calendar reflects</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Scheduling Schema &mdash; Bell Schedules &amp; Rooms</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The foundation: what periods exist in a school day, and what rooms are available to schedule into.</p>
+
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>sch_bell_schedules</strong> &mdash; <code>school_id</code>, <code>name TEXT NOT NULL</code>, <code>schedule_type</code> ENUM(STANDARD, EARLY_DISMISSAL, ASSEMBLY, EXAM, CUSTOM), <code>is_default BOOLEAN DEFAULT false</code>. UNIQUE(school_id, name). A school might have: "Standard Day", "Early Dismissal", "Exam Schedule".</li>
+      <li><strong>sch_periods</strong> &mdash; <code>bell_schedule_id FK</code>, <code>name TEXT NOT NULL</code> (e.g. "Period 1", "Lunch", "Advisory"), <code>day_of_week SMALLINT</code> (0=Mon..6=Sun, nullable for rotation schedules), <code>start_time TIME NOT NULL</code>, <code>end_time TIME NOT NULL</code>, <code>period_type</code> ENUM(LESSON, BREAK, LUNCH, REGISTRATION, ASSEMBLY). CHECK: <code>start_time &lt; end_time</code>. UNIQUE(bell_schedule_id, COALESCE(day_of_week, -1), start_time). Rotation-day column exists in ERD but deferred (requires sch_rotation_cycles).</li>
+      <li><strong>sch_rooms</strong> &mdash; <code>school_id</code>, <code>name TEXT NOT NULL</code>, <code>capacity INT</code>, <code>room_type</code> ENUM(CLASSROOM, LAB, GYM, HALL, LIBRARY, OFFICE, OUTDOOR), <code>has_projector BOOLEAN</code>, <code>has_av BOOLEAN</code>, <code>floor TEXT</code>, <code>building TEXT</code>, <code>is_active BOOLEAN DEFAULT true</code>, <code>fac_space_id UUID</code> (DISPLAY-ONLY soft ref to future fac_spaces). UNIQUE(school_id, name).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 3 new tables. Migration: <code>015_sch_bell_schedules_and_rooms.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Scheduling Schema &mdash; Timetable &amp; Bookings</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The timetable is the master schedule &mdash; which class meets in which room with which teacher during which period. The EXCLUSION constraints enforce no double-booking at the database level.</p>
+
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>sch_timetable_slots</strong> &mdash; <code>school_id</code>, <code>class_id UUID FK(sis_classes)</code>, <code>period_id UUID FK(sch_periods)</code>, <code>teacher_id UUID FK(hr_employees)</code> nullable, <code>room_id UUID FK(sch_rooms)</code>, <code>effective_from DATE NOT NULL</code>, <code>effective_to DATE</code>. UNIQUE(class_id, period_id, effective_from). Two EXCLUSION constraints using btree_gist: (1) <strong>Teacher double-booking:</strong> <code>EXCLUDE USING gist (teacher_id WITH =, period_id WITH =, daterange(effective_from, COALESCE(effective_to,'infinity'),'[)') WITH &&)</code>. (2) <strong>Room double-booking:</strong> <code>EXCLUDE USING gist (room_id WITH =, period_id WITH =, daterange(effective_from, COALESCE(effective_to,'infinity'),'[)') WITH &&)</code>. Emits <code>sch.timetable.updated</code> on INSERT/UPDATE.</li>
+      <li><strong>sch_room_bookings</strong> &mdash; <code>school_id</code>, <code>room_id FK</code>, <code>booked_by UUID FK</code> (soft to hr_employees), <code>booking_purpose TEXT</code>, <code>start_at TIMESTAMPTZ</code>, <code>end_at TIMESTAMPTZ</code>, <code>status</code> ENUM(CONFIRMED, CANCELLED). Application checks <code>sch_timetable_slots</code> before confirming &mdash; room cannot be double-booked against a timetable slot.</li>
+      <li><strong>sch_room_change_requests</strong> &mdash; <code>timetable_slot_id FK</code>, <code>requested_by UUID FK(hr_employees)</code>, <code>current_room_id FK</code>, <code>requested_room_id FK</code> nullable (null = "any available"), <code>request_date DATE NOT NULL</code>, <code>reason TEXT NOT NULL</code>, <code>status</code> ENUM(PENDING, APPROVED, REJECTED, AUTO_APPROVED). INDEX(school_id, status, request_date).</li>
+    </ol>
+
+    <div class="detail-heading">EXCLUSION Constraints &mdash; btree_gist</div>
+    <p>The timetable uses PostgreSQL EXCLUSION constraints with the <code>btree_gist</code> extension. This requires <code>CREATE EXTENSION IF NOT EXISTS btree_gist</code> at the top of the migration. The constraints prevent: a teacher being assigned to two classes in the same period at the same time, and a room being assigned to two classes in the same period at the same time. These are schema-enforced invariants &mdash; the application layer cannot violate them even with a bug.</p>
+
+    <div class="produces">Produces &rarr; 3 new tables with EXCLUSION constraints. Migration: <code>016_sch_timetable_and_bookings.sql</code>. Requires <code>btree_gist</code> extension.</div>
+    <div class="depends">Depends on &rarr; Step 1 (sch_periods, sch_rooms), Cycle 1 (sis_classes), Cycle 4 (hr_employees)</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Scheduling Schema &mdash; Calendar &amp; Coverage</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The school calendar, day-type overrides, coverage request tracking, and substitution timetable. The coverage table is what the <code>hr.leave.coverage_needed</code> consumer writes to.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>sch_calendar_events</strong> &mdash; <code>school_id</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>event_type</code> ENUM(HOLIDAY, PROFESSIONAL_DEVELOPMENT, EARLY_DISMISSAL, ASSEMBLY, EXAM_PERIOD, PARENT_EVENT, FIELD_TRIP, CUSTOM), <code>start_date DATE NOT NULL</code>, <code>end_date DATE NOT NULL</code>, <code>all_day BOOLEAN DEFAULT true</code>, <code>start_time TIME</code>, <code>end_time TIME</code>, <code>bell_schedule_id FK</code> nullable (override bell schedule for this day), <code>affects_attendance BOOLEAN DEFAULT false</code> (when true, attendance pre-population skips this day), <code>is_published BOOLEAN DEFAULT false</code>, <code>created_by UUID</code> (soft). INDEX(school_id, start_date, end_date).</li>
+      <li><strong>sch_calendar_day_overrides</strong> &mdash; <code>school_id</code>, <code>override_date DATE NOT NULL</code>, <code>bell_schedule_id FK</code> (override the default bell schedule for this date), <code>is_school_day BOOLEAN DEFAULT true</code> (false = no classes, e.g. snow day), <code>reason TEXT</code>. UNIQUE(school_id, override_date). Overrides take precedence over the default bell schedule and calendar events.</li>
+      <li><strong>sch_coverage_requests</strong> &mdash; <code>school_id</code>, <code>timetable_slot_id FK</code>, <code>absent_teacher_id FK(hr_employees)</code>, <code>leave_request_id UUID</code> (soft to hr_leave_requests), <code>coverage_date DATE NOT NULL</code>, <code>status</code> ENUM(OPEN, ASSIGNED, COVERED, CANCELLED), <code>assigned_substitute_id FK(hr_employees)</code> nullable, <code>assigned_at TIMESTAMPTZ</code>, <code>notes TEXT</code>. UNIQUE(timetable_slot_id, coverage_date). INDEX(school_id, coverage_date, status). Created automatically by the CoverageConsumer when a leave request is approved.</li>
+      <li><strong>sch_substitution_timetable</strong> &mdash; <code>original_slot_id FK(sch_timetable_slots)</code>, <code>effective_date DATE NOT NULL</code>, <code>substitute_id UUID FK(hr_employees)</code>, <code>room_id FK(sch_rooms)</code>, <code>coverage_request_id FK(sch_coverage_requests)</code>. UNIQUE(original_slot_id, effective_date). Created when a substitute is assigned to a coverage request. The substitute sees this slot in their schedule for that day.</li>
+    </ol>
+
+    <div class="detail-heading">Coverage Flow</div>
+    <p>When a teacher's leave is approved (Cycle 4), the <code>hr.leave.coverage_needed</code> Kafka event fires with the employee's affected class IDs and date range. The CoverageConsumer in this cycle reads the event, queries <code>sch_timetable_slots</code> for the teacher's classes on those dates, and creates one <code>sch_coverage_requests</code> row per (slot, date) pair with status=OPEN. Admin then assigns a substitute via the coverage board UI, which creates the <code>sch_substitution_timetable</code> row and fires <code>sch.coverage.assigned</code>.</p>
+
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>017_sch_calendar_and_coverage.sql</code>. Total scheduling tables: 10.</div>
+    <div class="depends">Depends on &rarr; Steps 1&ndash;2, Cycle 4 (hr_employees, hr_leave_requests)</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Seed Data &mdash; Schedules, Rooms, Timetable</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <p>Populate the scheduling module with realistic demo data that connects to the existing Cycle 1 classes and Cycle 4 employees.</p>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>Bell schedule:</strong> "Standard Day" (default) with 8 LESSON periods (Period 1&ndash;8, 50 min each, 8:00 AM &ndash; 3:30 PM, with breaks and lunch). "Early Dismissal" with 6 shortened periods (35 min each, 8:00 AM &ndash; 12:30 PM).</li>
+      <li><strong>Rooms:</strong> 10 rooms &mdash; Room 101 through 106 (CLASSROOM), Science Lab (LAB), Gymnasium (GYM), Library (LIBRARY), Main Hall (HALL). Capacities ranging from 25 to 200.</li>
+      <li><strong>Timetable slots:</strong> All 6 of Rivera's Cycle 1 classes slotted into Periods 1&ndash;6, M-F, assigned to rooms. Period 1 = Algebra in Room 101, Period 2 = English in Room 102, etc. <code>effective_from</code> = academic year start date.</li>
+      <li><strong>Calendar events:</strong> 5 events &mdash; "Spring Break" (HOLIDAY, April 14&ndash;18, affects_attendance=true), "Professional Development Day" (PD, March 15, affects_attendance=true), "Parent-Teacher Conference Evening" (PARENT_EVENT, May 1, 6pm&ndash;8pm, all_day=false), "End of Year Assembly" (ASSEMBLY, June 6), "Senior Prom" (CUSTOM, May 23). Mix of published and draft.</li>
+      <li><strong>Day override:</strong> One snow day on Feb 7 (is_school_day=false, reason="Winter storm closure").</li>
+      <li><strong>Coverage request:</strong> One OPEN request for Rivera's Period 1 class on Rivera's seeded sick leave dates (from Cycle 4 seed). Status=ASSIGNED with the VP (Linda Park) as substitute.</li>
+      <li><strong>Substitution timetable:</strong> One row matching the coverage request &mdash; Park substitutes Rivera's Period 1 Algebra in Room 101 on the sick day.</li>
+      <li><strong>Room booking:</strong> One booking &mdash; Main Hall booked for the Parent-Teacher Conference Evening.</li>
+      <li><strong>Permission updates:</strong> Add SCH-001 (Master Schedule) read to Teacher/Staff. Add SCH-003 (Calendar) read to Teacher/Parent/Student/Staff. Add SCH-004 (Coverage) read/write to Teacher/Staff (read for teachers to see their coverage, write for admin to assign). Add SCH-005 (Room Booking) read/write to Teacher/Staff. Rebuild effective access cache.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Populated schedule with timetable, calendar, and coverage data.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Scheduling NestJS Module &mdash; Timetable &amp; Rooms</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>The scheduling backbone: bell schedule management, timetable CRUD with conflict detection, and room management with booking.</p>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>BellScheduleService</strong> &mdash; <code>GET /bell-schedules</code>, <code>GET /bell-schedules/:id</code> (with periods), <code>POST /bell-schedules</code>, <code>PATCH /bell-schedules/:id</code>. <code>POST /bell-schedules/:id/periods</code> (bulk upsert periods). Admin only for writes (<code>sch-001:admin</code>). Read for all staff (<code>sch-001:read</code>).</li>
+      <li><strong>TimetableService</strong> &mdash; <code>GET /timetable</code> (full school timetable, filterable by class, teacher, room, day), <code>GET /timetable/teacher/:employeeId</code> (teacher's schedule), <code>GET /timetable/class/:classId</code> (class schedule), <code>GET /timetable/room/:roomId</code> (room schedule), <code>POST /timetable/slots</code> (create slot &mdash; the EXCLUSION constraint catches double-booking at the DB level; the service wraps the constraint violation in a friendly 409 Conflict response), <code>PATCH /timetable/slots/:id</code>, <code>DELETE /timetable/slots/:id</code>. Emits <code>sch.timetable.updated</code> on writes.</li>
+      <li><strong>RoomService</strong> &mdash; <code>GET /rooms</code> (list with availability for a given date/period), <code>GET /rooms/:id</code>, <code>POST /rooms</code>, <code>PATCH /rooms/:id</code>. Admin only for writes (<code>sch-005:admin</code>).</li>
+      <li><strong>RoomBookingService</strong> &mdash; <code>GET /room-bookings</code> (filter by room, date range), <code>POST /room-bookings</code> (checks against timetable slots before confirming), <code>PATCH /room-bookings/:id/cancel</code>. <code>@RequirePermission('sch-005:write')</code>.</li>
+      <li><strong>RoomChangeRequestService</strong> &mdash; <code>POST /room-change-requests</code> (teacher submits), <code>GET /room-change-requests</code> (admin queue), <code>PATCH /room-change-requests/:id/approve</code> (creates a one-day timetable override), <code>PATCH /room-change-requests/:id/reject</code>. <code>@RequirePermission('sch-005:write')</code>.</li>
+    </ol>
+
+    <div class="detail-heading">Conflict Handling</div>
+    <p>When <code>POST /timetable/slots</code> tries to double-book a teacher or room, PostgreSQL's EXCLUSION constraint fires error code 23P01 (exclusion violation). The service catches this and returns <code>409 Conflict</code> with a message like "Teacher James Rivera is already scheduled for Period 1 during this date range" or "Room 101 is already booked for Period 1". The app layer doesn't need to re-implement the conflict check &mdash; the database is the authority.</p>
+
+    <div class="produces">Produces &rarr; SchedulingModule with 5 services, ~18 endpoints.</div>
+    <div class="depends">Depends on &rarr; Step 4 (seed data), Cycle 1 (SIS classes), Cycle 4 (hr_employees)</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Scheduling NestJS Module &mdash; Calendar &amp; Coverage</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>The school calendar and the coverage workflow. This step lands the CoverageConsumer that finally connects Cycle 4's leave system to Cycle 5's scheduling.</p>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>CalendarService</strong> &mdash; <code>GET /calendar</code> (events for a date range, filterable by type), <code>GET /calendar/:id</code>, <code>POST /calendar</code>, <code>PATCH /calendar/:id</code>, <code>DELETE /calendar/:id</code>. <code>GET /calendar/day/:date</code> (returns the effective bell schedule for a specific date: checks day overrides first, then calendar events, then default). <code>@RequirePermission('sch-003:read')</code> or <code>'sch-003:write'</code>.</li>
+      <li><strong>DayOverrideService</strong> &mdash; <code>GET /calendar/overrides</code>, <code>POST /calendar/overrides</code> (e.g. declare a snow day), <code>DELETE /calendar/overrides/:date</code>. Admin only (<code>sch-003:admin</code>).</li>
+      <li><strong>CoverageService</strong> &mdash; <code>GET /coverage</code> (daily coverage board &mdash; all OPEN + ASSIGNED requests for a date), <code>GET /coverage/:id</code>, <code>PATCH /coverage/:id/assign</code> (assign substitute &mdash; creates substitution timetable row, fires <code>sch.coverage.assigned</code>), <code>PATCH /coverage/:id/cancel</code>. <code>@RequirePermission('sch-004:read')</code> or <code>'sch-004:write'</code>.</li>
+      <li><strong>CoverageConsumer</strong> &mdash; Kafka consumer on <code>hr.leave.coverage_needed</code> (group: <code>coverage-consumer</code>). For each affected class in the event payload, creates an <code>sch_coverage_requests</code> row with status=OPEN. Uses the deterministic event_id from Cycle 4's REVIEW fix (the consumer's idempotency claim catches redeliveries). Fires <code>sch.coverage.needed</code> with the list of open slots for the admin dashboard.</li>
+      <li><strong>SubstitutionService</strong> &mdash; <code>GET /substitutions</code> (for a date range), <code>GET /substitutions/teacher/:employeeId</code> (a substitute's assignments). Read-only &mdash; substitution rows are created by the coverage assignment workflow, not directly.</li>
+    </ol>
+
+    <div class="detail-heading">Kafka Events</div>
+    <ol class="detail-list">
+      <li><strong>Consumes:</strong> <code>hr.leave.coverage_needed</code> (from Cycle 4) &mdash; creates coverage requests.</li>
+      <li><strong>Emits:</strong> <code>sch.timetable.updated</code> (on timetable changes), <code>sch.coverage.needed</code> (when coverage requests are created), <code>sch.coverage.assigned</code> (when a substitute is assigned &mdash; notifies the substitute + the absent teacher).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; CalendarService, CoverageService, CoverageConsumer, SubstitutionService, DayOverrideService. ~12 endpoints + 1 Kafka consumer + 3 event types.</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Schedule &amp; Timetable UI</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>Admin-facing schedule management. A new "Schedule" app tile on the home page.</p>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Bell Schedule Editor</strong> <code>/schedule/bell-schedules</code> &mdash; list of bell schedules. Click one to see its periods in a timeline/grid. Add/edit periods. Mark one as default. Admin only (<code>sch-001:admin</code>).</li>
+      <li><strong>Timetable Grid</strong> <code>/schedule/timetable</code> &mdash; week-view grid: periods as rows, days as columns. Each cell shows class name + teacher + room. Color-coded by department. Filter by teacher, room, or class. Click a cell to edit (admin) or view detail (teacher). The EXCLUSION constraint means the grid can never show overlaps.</li>
+      <li><strong>Room Management</strong> <code>/schedule/rooms</code> &mdash; list of rooms with type, capacity, amenities. Click a room to see its schedule for the week (which classes use it when). Create/edit rooms. Admin only for writes.</li>
+      <li><strong>Room Bookings</strong> <code>/schedule/room-bookings</code> &mdash; calendar view of room bookings. Teachers can book rooms for free periods. Availability check prevents double-booking against the timetable.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Schedule app tile, bell schedule editor, timetable grid, room management, room bookings.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Calendar &amp; Coverage UI</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>The school calendar and the daily coverage board &mdash; the "air traffic control" for school operations.</p>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>School Calendar</strong> <code>/calendar</code> &mdash; month/week view showing holidays, PD days, events, early dismissals. Color-coded by event type. Published events visible to all; draft events visible to admin only. A new "Calendar" app tile on the home page for everyone with <code>sch-003:read</code>.</li>
+      <li><strong>Daily Coverage Board</strong> <code>/schedule/coverage</code> &mdash; shows today's coverage status. Each row: period, class, absent teacher, status (OPEN/ASSIGNED/COVERED), assigned substitute. OPEN rows highlighted red. Admin can click OPEN → assign a substitute from a dropdown of available employees (those not already scheduled for that period). Assigning fires the Kafka event and sends a notification to the substitute. Admin only for writes (<code>sch-004:write</code>).</li>
+      <li><strong>Coverage History</strong> <code>/schedule/coverage/history</code> &mdash; filter by date range, teacher, substitute. Shows past coverage assignments for reporting.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Calendar app tile, school calendar, daily coverage board, coverage history.</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Teacher &amp; Parent Schedule Views</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>The non-admin schedule views. Teachers see their own timetable; parents see their child's timetable.</p>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>My Schedule (Teacher)</strong> &mdash; integrated into the existing Classes view. A "My Schedule" tab shows the teacher's week-view timetable: period, class, room, with any substitution overrides highlighted. Also shows upcoming coverage assignments if the teacher is assigned as a substitute for another teacher.</li>
+      <li><strong>Child's Timetable (Parent)</strong> &mdash; integrated into the existing "My Children" view. Each child card gains a "Schedule" link showing their weekly class schedule: period, class name, teacher, room. Substitutions shown with the substitute teacher's name highlighted.</li>
+      <li><strong>Student's Timetable (Student)</strong> &mdash; integrated into "My Classes" with a "My Schedule" tab showing the same weekly view.</li>
+      <li><strong>Room Availability Checker</strong> &mdash; on the room bookings page, a quick "check availability" widget: select a date + period → see which rooms are free. Available to anyone with <code>sch-005:read</code>.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Teacher/parent/student schedule views integrated into existing navigation.</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <p>End-to-end proof that the scheduling module connects the leave system to the coverage workflow.</p>
+
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Verify timetable:</strong> GET the school timetable. Verify Rivera's 6 classes appear with correct periods, rooms, and times.</li>
+      <li><strong>Verify teacher schedule:</strong> Log in as teacher. View "My Schedule." Verify all 6 periods show with correct rooms.</li>
+      <li><strong>Verify parent view:</strong> Log in as parent. View Maya's timetable. Verify her enrolled classes appear with correct schedule.</li>
+      <li><strong>Double-booking prevention:</strong> As admin, try to create a timetable slot that conflicts with Rivera's existing Period 1. Verify 409 Conflict with a clear message.</li>
+      <li><strong>Leave &rarr; coverage flow:</strong> Verify the seeded coverage request exists (from Cycle 4's leave approval). Verify status=ASSIGNED with Park as substitute. Verify the substitution timetable row exists.</li>
+      <li><strong>Live leave &rarr; coverage:</strong> As Rivera, submit a new 1-day leave request. As admin, approve it. Wait for <code>hr.leave.coverage_needed</code> Kafka event. Verify CoverageConsumer creates OPEN coverage requests for Rivera's classes on that date.</li>
+      <li><strong>Assign substitute:</strong> As admin, open the coverage board. Assign Park to one of the OPEN slots. Verify <code>sch.coverage.assigned</code> fires. Verify Park receives a notification.</li>
+      <li><strong>Calendar:</strong> View the school calendar. Verify Spring Break, PD day, and events appear. Verify the snow day override shows as a non-school day.</li>
+      <li><strong>Room booking:</strong> As teacher, book Main Hall for a free period. Verify the booking appears. Try to book a room that's in use during that period &mdash; verify conflict prevention.</li>
+      <li><strong>Permission denials:</strong> Parent cannot access timetable admin. Student cannot book rooms. Teacher cannot assign substitutes.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Verified scheduling vertical slice. Leave &rarr; coverage &rarr; substitute assignment flow working end-to-end.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 5 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 10 new scheduling tables with EXCLUSION constraints. Total tenant tables: ~85.</li>
+      <li>Bell schedule, periods, rooms, timetable slots seeded for the demo school.</li>
+      <li>Timetable API: ~18 endpoints with conflict detection via EXCLUSION constraints.</li>
+      <li>Calendar API: ~12 endpoints for events, day overrides, coverage, substitutions.</li>
+      <li>CoverageConsumer: consumes hr.leave.coverage_needed, creates coverage requests automatically.</li>
+      <li>Admin UI: bell schedule editor, timetable grid, room management, coverage board, calendar.</li>
+      <li>Teacher/parent/student: timetable views integrated into existing navigation.</li>
+      <li>Vertical slice test: leave approved &rarr; coverage auto-created &rarr; sub assigned &rarr; calendar reflects.</li>
+      <li>HANDOFF-CYCLE5.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">After Cycle 5, CampusOS has five complete workflow domains: attendance, classroom/grading, communications, HR, and scheduling. The teacher absence &rarr; substitute coverage loop is fully automated. The next cycles expand into enrollment/payments (Cycle 6), service tickets (Cycle 7), and cross-module integration hardening (Cycle 8).</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 5 Implementation Plan &mdash; April 2026. Derived from: ERD v11 (M22 Academic Scheduling, 27 tables &mdash; 10 in scope), Function Library (SCH-001, SCH-003, SCH-004, SCH-005), Architecture Review (ADR-027/053 scheduling scope), REVIEW-CYCLE4-CHATGPT MAJOR 3 (deterministic event_id for coverage_needed).</p>
+  </div>
+</div>
+
+</body>
+</html>
