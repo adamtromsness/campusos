@@ -7,6 +7,7 @@ import {
   IsISO8601,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -103,8 +104,12 @@ export class UpdateMyProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) preferredName?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20) suffix?: string | null;
 
-  // REVIEW-CYCLE6.1 MAJOR 4: also enforce min-length 1 per element so
+  // REVIEW-CYCLE6.1 MAJOR 4: enforce min-length 1 per element so
   // previousNames=[''] doesn't persist a junk empty-string row.
+  // REVIEW-CYCLE6.1 Round 2 minor follow-up: also reject
+  // whitespace-only entries via @Matches(/\S/) so previousNames=['   ']
+  // is rejected too. The validator does not auto-trim — clients still
+  // need to send trimmed values; this just blocks pure-whitespace.
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()
@@ -112,6 +117,7 @@ export class UpdateMyProfileDto {
   @IsString({ each: true })
   @MinLength(1, { each: true })
   @MaxLength(100, { each: true })
+  @Matches(/\S/, { each: true, message: 'each previousNames entry must contain non-whitespace' })
   previousNames?: string[];
 
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) primaryPhone?: string | null;

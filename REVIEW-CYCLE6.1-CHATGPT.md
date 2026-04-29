@@ -4,15 +4,15 @@
 **Scope:** Full Cycle 6.1 (Profile & Household — `iam_person` + `platform_families` + `platform_family_members` extensions in Step 1, `sis_student_demographics` + `sis_guardians` employment in Step 2, `usr-001` permission in Step 3, seed in Step 4, ProfileModule in Step 5, HouseholdsModule in Step 6, Profile UI + avatar dropdown in Step 7, vertical-slice CAT in Step 8). The reviewer's brief is `REVIEW-CYCLE6.1-HANDOFF-CHATGPT.md`.
 **Round 1 SHA under review:** `e72525e` (Cycle 6.1 COMPLETE through Step 8 + review prep)
 **Round 1 verdict:** **REJECT** — pending 3 BLOCKING + 4 DEVIATION fixes
-**Round 2 SHA under review:** _(will be set when the fix commit lands)_
-**Final verdict:** _(TBD — Round 2 verification pending)_
+**Round 2 SHA under review:** `29bf6a2` (REVIEW-CYCLE6.1 fix commit)
+**Final verdict:** **APPROVED** at `29bf6a2` (April 29, 2026)
 
 **Verdict trail:**
 
-| Round | Date           | SHA                | Verdict                                                 |
-| ----: | -------------- | ------------------ | ------------------------------------------------------- |
-|     1 | April 29, 2026 | `e72525e`          | **REJECT** pending 3 BLOCKING + 4 DEVIATION (see below) |
-|     2 | April 29, 2026 | _(fix commit SHA)_ | _(TBD — Round 2 verification)_                          |
+| Round | Date           | SHA       | Verdict                                                 |
+| ----: | -------------- | --------- | ------------------------------------------------------- |
+|     1 | April 29, 2026 | `e72525e` | **REJECT** pending 3 BLOCKING + 4 DEVIATION (see below) |
+|     2 | April 29, 2026 | `29bf6a2` | **APPROVED** — all 7 fixes confirmed by reviewer        |
 
 ---
 
@@ -205,18 +205,41 @@ Plus three **new** strong passes from the fix commit:
 
 ---
 
-## Round 2 verdict
+## Round 2 verdict — APPROVED at `29bf6a2`
 
-_(To be filled in by the reviewer after re-running the diff against the fix commit. Implementer's expectation: Round 2 returns **APPROVED** since all 3 BLOCKING and all 4 DEVIATION findings are fixed with live verification. The git tag `cycle6.1-approved` lands on the fix commit at that point.)_
+The reviewer confirmed all 3 BLOCKING + 4 DEVIATION fixes against `29bf6a2` and the final gate decision is **Approved to proceed.**
+
+### Reviewer's confirmed fixes
+
+- ✅ **Admin profile reads/writes are now tenant-scoped.** `GET/PATCH /profile/:personId` routes through `getAdminProfile` / `updateAdminProfile`; the service verifies the target person has a current-tenant projection through `sis_students`, `sis_guardians`, or `hr_employees` before reading/updating `iam_person`.
+- ✅ **Admin household override is now tenant-scoped.** `hasAdmin(actor, familyId)` requires both tenant-scoped admin permission AND household affiliation with the current tenant before allowing override access.
+- ✅ **Staff emergency-contact upsert is now concurrency-safe.** The service locks the parent `hr_employees` row with `FOR UPDATE` before demoting/inserting/updating emergency-contact rows; unique conflicts translated to `409 Conflict`.
+- ✅ `previousNames` rejects empty strings via `@MinLength(1, { each: true })`.
+- ✅ Legacy household roles have UI labels — no `undefined` rendering.
+- ✅ Profile updates run platform + tenant writes in one transaction through `executeInTenantTransaction`.
+- ✅ Review artifact documents live verification + preserves Round 1 strong passes.
+
+### Minor non-blocking note (reviewer)
+
+> `previousNames: ['   ']` would still pass because `MinLength` does not trim. Add trim/normalization later if you care about whitespace-only historical names.
+
+**Closeout follow-up (this commit):** addressed the whitespace-only note at the same time as documenting the verdict — `apps/api/src/profile/dto/profile.dto.ts` `previousNames` now also has `@Matches(/\S/, { each: true, message: 'each previousNames entry must contain non-whitespace' })` so `['   ']` is rejected too. The validator still does not auto-trim — clients are responsible for trimming before sending — but pure-whitespace entries can no longer reach the database.
 
 ---
 
 ## Notes for downstream cycles
 
-After Cycle 6.1 ships APPROVED:
+Cycle 6.1 ships APPROVED at `29bf6a2`:
 
-- Tag `cycle6.1-complete` on the Step 8 CAT commit (`e72525e`, already pushed).
-- Tag `cycle6.1-approved` on the fix commit.
-- Update `CLAUDE.md` Project Status entry to "**APPROVED at <fix SHA>**".
+- Tag `cycle6.1-complete` on the Step 8 CAT commit (`e72525e`).
+- Tag `cycle6.1-approved` on the fix commit (`29bf6a2`).
+- `CLAUDE.md` Project Status entry updated to "**COMPLETE + APPROVED at `29bf6a2`**".
 - The `householdAffiliatedWithCurrentTenant` and `assertTargetInCurrentTenant` helpers establish the pattern for any future admin endpoint that operates on platform-scoped data — bookmark them as the canonical tenant-scope guard for cross-schema admin paths.
-- Future Cycle 7 (Helpdesk) does not depend on Cycle 6.1 outputs; the Cycle 7 work can start immediately after Cycle 6.1 is APPROVED.
+- Future Cycle 7 (Helpdesk) does not depend on Cycle 6.1 outputs; the Cycle 7 work can start immediately.
+
+Phase 2 punch list (carried forward from Cycle 6.1, not blocking Cycle 7):
+
+- Whitespace trim/normalization on `previousNames` is enforced via `@Matches(/\S/)` (whitespace-only rejected) but not auto-trimmed at the validator. A future improvement could add a `@Transform` to trim leading/trailing whitespace before persistence.
+- Guardian-side emergency contact storage (parents have no schema home today) — flagged in the original Step 5 handoff. Future cycle could add `platform.iam_emergency_contacts` keyed on `iam_person.id` to close the gap.
+- Add-member directory picker (currently raw UUID input on the modal). Backend already returns a friendly 409 if the picker fails to filter.
+- `previous_names TEXT[]` audit history table (vs. the current array column) — Phase 2 polish.
