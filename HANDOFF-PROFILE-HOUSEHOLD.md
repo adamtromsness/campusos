@@ -25,7 +25,7 @@
 | 1    | Platform Schema — iam_person + platform_families Extensions   | ✅ Done (2026-04-29) |
 | 2    | Tenant Schema — Demographics & Guardian Employment            | ✅ Done (2026-04-29) |
 | 3    | Permission Catalogue — usr-001                                | ✅ Done (2026-04-29) |
-| 4    | Seed Data — Household + Personal Fields + Demographics        | ⏳ Planned     |
+| 4    | Seed Data — Household + Personal Fields + Demographics        | ✅ Done (2026-04-29) |
 | 5    | Profile NestJS Module                                         | ⏳ Planned     |
 | 6    | Households NestJS Module                                      | ⏳ Planned     |
 | 7    | Profile UI — Tabbed Page + Avatar Menu                        | ⏳ Planned     |
@@ -274,13 +274,53 @@ The closing log line in `seed-iam.ts` (`'  ' + functions.length * tiers.length +
 
 ## Step 4 — Seed Data — Household + Personal Fields + Demographics
 
-**Status:** ⏳ Planned.
+**Status:** ✅ Done (2026-04-29). New `packages/database/src/seed-profile.ts` (idempotent, gated on whether Chen Family already has a HEAD_OF_HOUSEHOLD member). Wired into `package.json` as `seed:profile`.
 
-### Plan recap
-New `seed-profile.ts`, gated on Chen family `platform_family_members` row count. Populates the household + member rows + personal fields on all 5 users + demographics for 15 students + David's guardian employment.
+### What shipped — five sections in one script
 
-### Verification (TBD)
-Will record: idempotent re-run produces zero changes; every seeded persona's `GET /profile/me` returns the populated shape; family balance / tenant data unchanged.
+A) **Chen Family shared-household fields** — `platformFamily.update` populates `address_line1='1234 Oak Street'`, `city='Springfield'`, `state='IL'`, `postal_code='62701'`, `country='US'`, `home_phone='+1-217-555-0123'`, `home_language='en'`, `mailing_address_same=true`. Pure platform write — regular Prisma update.
+
+B) **Migrate Chen Family member roles** — `familyMember.updateMany` with `where memberRole='PARENT'` flips David Chen's role to `HEAD_OF_HOUSEHOLD` (his `is_primary_contact=true` is preserved). A second `updateMany` flips Maya Chen's `STUDENT` to `CHILD`. Both use the new enum values added in Step 1.
+
+C) **iam_person personal fields on 6 accounts** — David, Sarah, James, Linda, Marcus, Maya each get `preferredName` (Dave / Sarah / Jim / Linda / Marc / Maya), a unique `primary_phone` (`+1-217-555-01XX`), `phone_type_primary='MOBILE'`, a `work_phone` for the 4 staff personas, a `personal_email`, `preferred_language='en'`, and a fresh `profile_updated_at` timestamp. Maya additionally gets `date_of_birth='2011-03-15'`. The CHECK constraints from Step 1 (phone_type IN MOBILE/HOME/WORK) are exercised — every supplied value passes.
+
+D) **`sis_student_demographics` for 15 seeded students** — schema-qualified raw INSERT against `tenant_demo.sis_student_demographics`, joined through `sis_students.platform_student_id → platform_students.person_id` to identify Maya. All 15 rows get `primary_language='English'`. Maya additionally gets `gender='Female'` so the Step 7 Demographics tab has something to render. `ON CONFLICT (student_id) DO NOTHING` is the row-level idempotency guard (the script-level gate in section B is the primary one; this is belt-and-braces).
+
+E) **David Chen's `sis_guardians` employment** — schema-qualified raw `UPDATE` keyed on `person_id`. Sets `employer='Chen Engineering LLC'`, `employer_phone='+1-217-555-0177'` (matches David's `work_phone` on `iam_person`), `occupation='Mechanical Engineer'`, `work_address='100 Engineering Blvd, Springfield, IL 62701'`. The work_address is intentionally a different physical address from the home address (1234 Oak Street) so the UI's Employment vs. Household tab split is visually distinct.
+
+### Verification (recorded 2026-04-29)
+
+`pnpm seed:profile` first run:
+- A) Chen Family address + home phone populated ✓
+- B) PARENT → HEAD_OF_HOUSEHOLD count=1, STUDENT → CHILD count=1 ✓
+- C) iam_person personal fields populated on 6 accounts ✓
+- D) sis_student_demographics rows inserted=15 ✓
+- E) David Chen sis_guardians employment populated rowsAffected=1 ✓
+
+Second run: `Chen Family already migrated to household roles. Skipping.` ✓
+
+Live read-back queries confirmed:
+
+| Check                                                          | Got |
+|----------------------------------------------------------------|-----|
+| Chen Family address row                                        | 1   |
+| Chen Family members with new role values                       | David HEAD_OF_HOUSEHOLD primary, Maya CHILD ✓ |
+| iam_person rows with `preferred_name` populated                | 6   |
+| iam_person rows with `phone_type_primary='MOBILE'`             | 6   |
+| iam_person rows with `personal_email` populated                | 5 (Maya intentionally null — students don't have a personal email yet) |
+| Maya `date_of_birth='2011-03-15'`                              | ✓   |
+| sis_student_demographics rows                                  | 15  |
+| Rows with `primary_language='English'`                         | 15  |
+| Rows with `gender` populated                                   | 1 (Maya only) |
+| sis_guardians rows with `employer` populated                   | 1 (David Chen) |
+
+### Notes for downstream steps
+
+- The CHECK on `phone_type_primary` from Step 1 was exercised in production by this seed — every supplied value (`MOBILE` for all 6 personas) passes the constraint. No regressions caught.
+- The Step 5 ProfileService can now read the populated shape immediately on first boot; no additional smoke data needed for the live verification.
+- The Step 7 Profile UI's Personal Info tab will render preferred names + phones immediately. Demographics tab for Maya will render gender + primary_language. Employment tab for David will render the four employment fields. Other personas' Demographics / Employment tabs render empty (admin-or-self-service-fillable).
+- `profile_updated_at` is set to the seed run time, so every Profile row has a non-null "Last updated" timestamp out of the gate.
+- The seed targets `tenant_demo` only (matching every other Cycle 1+ seed). `tenant_test` stays at the schema baseline with no data.
 
 ---
 
