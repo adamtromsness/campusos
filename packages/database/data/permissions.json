@@ -739,6 +739,11 @@
       "code": "TRN-005",
       "name": "Field Trips & Special Trips",
       "group": "Transportation"
+    },
+    {
+      "code": "USR-001",
+      "name": "Profile Management",
+      "group": "User Profile & Household"
     }
   ],
   "tiers": ["read", "write", "admin"],
@@ -759,6 +764,7 @@
         "Meetings & Conferences",
         "Achievements & Portfolio"
       ],
+      "functions": ["USR-001"],
       "tier": "write"
     },
     "Student": {
@@ -775,7 +781,8 @@
         "COM-001",
         "SCH-003",
         "CLB-001",
-        "CLB-004"
+        "CLB-004",
+        "USR-001"
       ],
       "tier": "read"
     },
@@ -792,12 +799,14 @@
         "HLT-005",
         "PUB-003",
         "FDS-003",
-        "TRN-001"
+        "TRN-001",
+        "USR-001"
       ],
       "tier": "read"
     },
     "Staff": {
       "groups": ["Communications", "Meetings & Conferences", "System Administration"],
+      "functions": ["USR-001"],
       "tier": "read"
     }
   }

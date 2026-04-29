@@ -24,7 +24,7 @@
 | ---- | ------------------------------------------------------------- | -------------- |
 | 1    | Platform Schema — iam_person + platform_families Extensions   | ✅ Done (2026-04-29) |
 | 2    | Tenant Schema — Demographics & Guardian Employment            | ✅ Done (2026-04-29) |
-| 3    | Permission Catalogue — usr-001                                | ⏳ Planned     |
+| 3    | Permission Catalogue — usr-001                                | ✅ Done (2026-04-29) |
 | 4    | Seed Data — Household + Personal Fields + Demographics        | ⏳ Planned     |
 | 5    | Profile NestJS Module                                         | ⏳ Planned     |
 | 6    | Households NestJS Module                                      | ⏳ Planned     |
@@ -217,13 +217,58 @@ Constraint smoke (single transaction with savepoints, all rolled back):
 
 ## Step 3 — Permission Catalogue — usr-001
 
-**Status:** ⏳ Planned.
+**Status:** ✅ Done (2026-04-29).
 
-### Plan recap
-Add `usr-001:read/write/admin` to `packages/database/data/permissions.json`. Update `seed-iam.ts` role grants. Run `tsx src/build-cache.ts`.
+### What shipped
 
-### Verification (TBD)
-Will record: catalogue total (447), each persona's effective access cache row count delta, every role has the expected read+write, only School Admin + Platform Admin have admin.
+- `packages/database/data/permissions.json` — added `{ code: "USR-001", name: "Profile Management", group: "User Profile & Household" }` to the `functions` array (alphabetically after TRN-005). Catalogue total grew from 148 to **149 functions × 3 tiers = 447 permissions**.
+- `defaultRoles` block in the same file updated for documentation parity (Teacher / Parent / Student / Staff each gain `USR-001`). The block is reference-only — no consumer reads it; the live grants are in `seed-iam.ts`.
+- `packages/database/src/seed-iam.ts` — added `'USR-001': ['read', 'write']` to the Teacher / Parent / Student / Staff entries in `rolePermsSpec`. School Admin gets all three tiers automatically via `everyFunction: ['read','write','admin']`. Platform Admin gets all 447 via the platform-admin path.
+- Header comment updated from "148 functions x 3 tiers = 444 permissions" to "149 functions x 3 tiers = 447 permissions".
+
+### Verification (recorded 2026-04-29)
+
+`tsx src/seed-iam.ts` output:
+- Platform Admin: 3 permissions newly assigned (447 total)
+- School Admin: 3 newly added (out of 447 targeted)
+- Teacher: 2 newly added (36 targeted total — was 34 + 2)
+- Parent: 2 newly added (17 targeted — was 15 + 2)
+- Student: 2 newly added (17 targeted — was 15 + 2)
+- Staff: 2 newly added (16 targeted — was 14 + 2)
+
+`tsx src/build-cache.ts` output (per-account cache):
+
+| Account                          | Total | Δ vs Cycle 6 |
+|----------------------------------|-------|--------------|
+| admin@demo (Platform Admin)      | 447   | +3           |
+| principal@demo (School Admin)    | 447   | +3           |
+| teacher@demo                     | 36    | +2           |
+| student@demo                     | 17    | +2           |
+| parent@demo                      | 17    | +2           |
+| vp@demo                          | 16    | +2           |
+| counsellor@demo                  | 16    | +2           |
+
+Per-persona USR codes verified live by querying `iam_effective_access_cache.permission_codes`:
+
+| Persona  | Codes |
+|----------|-------|
+| admin@   | usr-001:admin, usr-001:read, usr-001:write |
+| principal@ | usr-001:admin, usr-001:read, usr-001:write |
+| teacher@ | usr-001:read, usr-001:write |
+| parent@  | usr-001:read, usr-001:write |
+| student@ | usr-001:read, usr-001:write |
+| vp@      | usr-001:read, usr-001:write |
+| counsellor@ | usr-001:read, usr-001:write |
+
+### Known cosmetic bug (not Step 3 scope)
+
+The closing log line in `seed-iam.ts` (`'  ' + functions.length * tiers.length + ' permissions, …'`) prints `298 permissions` instead of `447`. This is a pre-existing `var` shadowing bug — the inner loop reuses `var tiers` for `spec.perms[fc]` so the outer `tiers` array (from `permData.tiers`) gets overwritten by the time the closing log runs. The actual seed worked correctly (per-line totals all show 447). Not fixing this round; it's a one-line `let` change for a future sweep.
+
+### Notes for downstream steps
+
+- Step 5 (ProfileService) gates `/profile/me` on `usr-001:read` and `PATCH /profile/me` on `usr-001:write`. Admin endpoints `/profile/:personId` use `iam-001:read` and `iam-001:write` (not `usr-001:admin`), since admin profile editing has been an `iam-001` concern since Cycle 0.
+- Step 6 (HouseholdsService) gates `GET /households/my` on `usr-001:read` and `PATCH /households/...` on `usr-001:write` PLUS the service-layer `assertCanEditHousehold(id, actor)` role check (HEAD_OF_HOUSEHOLD or SPOUSE; admin override via `iam-001:write`).
+- Step 7 (UI) avatar dropdown shows the "My Profile" link to anyone with `usr-001:read` (= every persona after this Step).
 
 ---
 

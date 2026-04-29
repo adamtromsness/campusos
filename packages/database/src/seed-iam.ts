@@ -8,7 +8,7 @@ import { join } from 'path';
 
 /**
  * Seeds the IAM subsystem:
- * 1. Permission catalogue (148 functions x 3 tiers = 444 permissions)
+ * 1. Permission catalogue (149 functions x 3 tiers = 447 permissions)
  * 2. Scope types (PLATFORM, DISTRICT, SCHOOL, DEPARTMENT, CLASS, ACTIVITY)
  * 3. Default system roles (Platform Admin, School Admin, Teacher, Student, Parent, Staff)
  * 4. Role-permission mappings
@@ -201,6 +201,10 @@ async function seedIam() {
         'HR-001': ['read'],
         'HR-003': ['read', 'write'],
         'HR-004': ['read'],
+        // Profile & Household mini-cycle — every persona self-services
+        // their own profile via /profile/me. Row scope at the service
+        // layer keeps non-admins bound to their own iam_person row.
+        'USR-001': ['read', 'write'],
       },
     },
     {
@@ -223,6 +227,10 @@ async function seedIam() {
         // actor.personId) keeps parents bound to their own family account.
         'STU-003': ['read', 'write'],
         'FIN-001': ['read', 'write'],
+        // Profile & Household mini-cycle — own profile self-service +
+        // shared-household editing (HouseholdsService gates on member
+        // role HEAD_OF_HOUSEHOLD or SPOUSE).
+        'USR-001': ['read', 'write'],
       },
     },
     {
@@ -239,6 +247,10 @@ async function seedIam() {
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
         'SCH-003': ['read'],
+        // Profile & Household mini-cycle — students self-service their
+        // own profile + Demographics tab. Household is read-only for
+        // non-HEAD/SPOUSE members per HouseholdsService.canEdit.
+        'USR-001': ['read', 'write'],
       },
     },
     {
@@ -261,6 +273,9 @@ async function seedIam() {
         'HR-001': ['read'],
         'HR-003': ['read', 'write'],
         'HR-004': ['read'],
+        // Profile & Household mini-cycle — every persona self-services
+        // their own profile (covers VP, counsellor, admin assistant).
+        'USR-001': ['read', 'write'],
       },
     },
   ];
