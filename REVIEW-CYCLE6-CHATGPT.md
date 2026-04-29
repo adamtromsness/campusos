@@ -4,13 +4,15 @@
 **Scope:** Full Cycle 6 (Enrollment & Payments — `enr_*` schema in Steps 1+2, `pay_*` schema in Steps 3+4, seeds in Step 5, `EnrollmentModule` + `PaymentsModule` + `PaymentAccountWorker` in Steps 6+7, admin admissions UI in Step 8, parent application UI in Step 9, billing admin UI in Step 10, parent billing UI in Step 11, vertical-slice CAT in Step 12). The reviewer's brief was scoped beyond Cycle 6 and includes accumulated issues from prior cycles.
 **Round 1 SHA under review:** `f7db6a5` (Cycle 6 COMPLETE through Step 12 + prettier formatting pass)
 **Round 1 verdict:** **REJECT** — pending 8 actionable fixes (mix of BLOCKING + MAJOR)
-**Final verdict:** TBD (Round 2 after fixes land)
+**Round 2 SHA under review:** `64993a8` (REVIEW-CYCLE6 fix commit)
+**Final verdict:** **APPROVED** at `64993a8` (April 29, 2026)
 
 **Verdict trail:**
 
 | Round | Date           | SHA       | Verdict                                                                          |
 | ----: | -------------- | --------- | -------------------------------------------------------------------------------- |
 |     1 | April 29, 2026 | `f7db6a5` | REJECT pending 8 actionable fixes (3 WRONG · 5 ACCEPTED-DEVIATION · 8 VALID-fix) |
+|     2 | April 29, 2026 | `64993a8` | **APPROVED** — all 8 fixes confirmed; accepted deviations remain Phase 2         |
 
 ---
 
@@ -275,3 +277,48 @@ Block comment rewritten to accurately describe what the middleware does today: h
 | 12 (MINOR)   | JSDoc rewrite                                                                                                              | text-only                                                                      |
 
 The fixes ship in a single commit ready for Round 2 re-review.
+
+---
+
+## Round 2 — Result: APPROVED
+
+The reviewer re-walked all 8 fixes against `64993a8` directly. Verbatim verdict:
+
+> ## Final Cycle 6 Gate Decision at `64993a8`: **Approved**
+>
+> I reviewed commit `64993a8` directly. The Round-2 fixes are present and address the actionable Cycle 6 findings.
+>
+> ### Confirmed fixes
+>
+> - Attendance class reads are now actor-scoped; parent/student reads are filtered, and lazy prepopulation only runs for admins/class teachers.
+> - Student gradebook access now filters staff/teacher views to only the classes that teacher is assigned to.
+> - Invoice cancellation now writes a compensating `ADJUSTMENT` for outstanding balance on non-draft cancelled invoices.
+> - Refund logic now subtracts completed refunds from invoice paid amount and recomputes invoice status after refund.
+> - `generateFromSchedule()` now uses a per-family/schedule advisory lock and repeats the existence check inside the transaction.
+> - Capacity recompute now uses a per-period/grade advisory lock.
+> - `enr.offer.issued` now uses `guardian_person_id` from the locked application snapshot.
+> - Payment account number allocation now uses a per-school advisory lock before `MAX(account_number)+1`.
+>
+> The prior stale findings are also resolved: `ResolvedActor.employeeId` exists and is populated, Kafka consumer retry/DLQ behavior is implemented, and tenant execution still uses interactive transactions with `SET LOCAL search_path`.
+>
+> ## Remaining accepted deviations
+>
+> The Phase 2 items remain acceptable as documented: consumer tenant-header validation, platform/internal non-tenant permission mode, DB-enforced ledger immutability, and outbox/event atomicity.
+>
+> ## Final verdict
+>
+> **Cycle 6 is approved to proceed.**
+
+### Carry-over to Phase 2 (not Cycle 6 scope)
+
+The accepted deviations are tracked here so they're easy to find when Phase 2 hardening lands:
+
+- **MAJOR 13 — Consumer envelope tenant validation.** Already on the punch list since REVIEW-CYCLE5 MAJOR 1. Affects every consumer in the system. The fix lives in `apps/api/src/notifications/consumers/notification-consumer-base.ts::unwrapEnvelope` and should validate the `(tenant_id, subdomain)` pair from the inbound envelope against `platform_tenant_routing` before pinning context. Consider gating behind a defence-in-depth flag so existing topics keep working during rollout.
+- **MAJOR 14 — Platform/internal v11 endpoints non-tenant permission mode.** Forward-looking; v11 endpoints don't exist yet. When they ship, `PermissionGuard` needs a path that resolves permissions outside any tenant context.
+- **MAJOR 15 — Ledger immutability hardening.** Optional Phase 2: add a `BEFORE UPDATE/DELETE` trigger to every `pay_ledger_entries` partition, or revoke UPDATE/DELETE at the role level. ADR-010 currently relies on service-side discipline (no service method exposes mutation), which is reasonable but defence-in-depth would be stronger.
+- **MAJOR 16 — Transactional outbox for Kafka emit.** Already on the punch list since REVIEW-CYCLE5 MAJOR 2. Future cycles that need exactly-once delivery (e.g. payment + Stripe charge + downstream consumer that has real-world side-effects) would adopt the outbox pattern: write the event row inside the same tx as the domain change, drain the outbox to Kafka via a separate worker. Cycle 6 emits are best-effort because every downstream consumer is idempotent on the (deterministic) event_id.
+- **MAJOR 11 carry-over — `sis_students` materialisation.** The future EnrollmentConfirmedWorker will materialise `sis_students` rows from `enr_applications` on enroll and re-emit `enr.student.enrolled`, at which point `PaymentAccountWorker` will idempotently insert the `pay_family_account_students` link. Tracked in Step 7 + Step 12 documentation.
+
+### Cycle 6 ships clean
+
+All schema, seed, API, web, CAT deliverables, and architecture-review fixes are stable. The 12-commit Cycle 6 chain plus the 1-commit review-fix lands on `main` with CI green. Tagged as `cycle6-approved` at `64993a8`. Ready for the next cycle.
