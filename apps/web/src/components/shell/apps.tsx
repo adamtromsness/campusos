@@ -24,7 +24,8 @@ export type AppKey =
   | 'compliance'
   | 'schedule'
   | 'calendar'
-  | 'admissions';
+  | 'admissions'
+  | 'apply';
 export type BadgeKey = 'messages' | 'announcements';
 
 export interface AppDef {
@@ -152,6 +153,15 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'Enrollment periods, applications, offers, and waitlist',
       href: '/admissions/applications',
       routePrefix: '/admissions',
+      icon: AcademicCapIcon,
+    });
+  } else if (isGuardian && hasAnyPermission(user, ['stu-003:write'])) {
+    apps.push({
+      key: 'apply',
+      label: 'Apply',
+      description: 'Submit and track admissions applications',
+      href: '/apply',
+      routePrefix: '/apply',
       icon: AcademicCapIcon,
     });
   }
