@@ -67,10 +67,7 @@ export class RefundService {
     private readonly ledger: LedgerService,
   ) {}
 
-  async list(
-    query: ListRefundsQueryDto,
-    actor: ResolvedActor,
-  ): Promise<RefundResponseDto[]> {
+  async list(query: ListRefundsQueryDto, actor: ResolvedActor): Promise<RefundResponseDto[]> {
     if (!actor.isSchoolAdmin) {
       // Refunds are admin-only at the read tier — parents see their refund
       // back as a REFUND ledger entry, not as a separate refund row in the
@@ -146,7 +143,9 @@ export class RefundService {
       var pay = rows[0]!;
       if (pay.status !== 'COMPLETED') {
         throw new BadRequestException(
-          'Cannot refund payment in status ' + pay.status + '; only COMPLETED payments are refundable',
+          'Cannot refund payment in status ' +
+            pay.status +
+            '; only COMPLETED payments are refundable',
         );
       }
       var paymentAmount = Number(pay.amount);
@@ -236,10 +235,7 @@ export class RefundService {
 
   async getById(id: string): Promise<RefundResponseDto> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<RefundRow[]>(
-        SELECT_REFUND_BASE + 'WHERE id = $1::uuid',
-        id,
-      );
+      return client.$queryRawUnsafe<RefundRow[]>(SELECT_REFUND_BASE + 'WHERE id = $1::uuid', id);
     });
     if (rows.length === 0) throw new NotFoundException('Refund ' + id + ' not found');
     return rowToDto(rows[0]!);

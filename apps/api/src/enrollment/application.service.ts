@@ -197,9 +197,7 @@ export class ApplicationService {
       var notes = await this.loadNotesFor(client, ids, actor.isSchoolAdmin);
       return { screening, documents, notes };
     });
-    return rows.map((r) =>
-      applicationRowToDto(r, data.screening, data.documents, data.notes),
-    );
+    return rows.map((r) => applicationRowToDto(r, data.screening, data.documents, data.notes));
   }
 
   async getById(id: string, actor: ResolvedActor): Promise<ApplicationResponseDto> {
@@ -231,10 +229,7 @@ export class ApplicationService {
    * allowed for back-office data entry; admins are not row-scoped.
    * Emits enr.application.submitted on success.
    */
-  async create(
-    body: CreateApplicationDto,
-    actor: ResolvedActor,
-  ): Promise<ApplicationResponseDto> {
+  async create(body: CreateApplicationDto, actor: ResolvedActor): Promise<ApplicationResponseDto> {
     if (!actor.isSchoolAdmin && actor.personType !== 'GUARDIAN') {
       throw new ForbiddenException('Only guardians or admins can submit applications');
     }
@@ -269,7 +264,9 @@ export class ApplicationService {
           body.enrollmentPeriodId,
         )) as Array<{ id: string }>;
         if (streamRows.length === 0) {
-          throw new BadRequestException('Stream ' + body.streamId + ' is not active in this period');
+          throw new BadRequestException(
+            'Stream ' + body.streamId + ' is not active in this period',
+          );
         }
       }
 
@@ -386,11 +383,7 @@ export class ApplicationService {
         );
       }
 
-      await this.capacity.recompute(
-        tx,
-        current.enrollment_period_id,
-        current.applying_for_grade,
-      );
+      await this.capacity.recompute(tx, current.enrollment_period_id, current.applying_for_grade);
       return current;
     });
 

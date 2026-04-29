@@ -53,9 +53,7 @@ export class FeeScheduleController {
   @Get('fee-schedules/:id')
   @RequirePermission('fin-001:read')
   @ApiOperation({ summary: 'Get a single fee schedule' })
-  async getScheduleById(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<FeeScheduleResponseDto> {
+  async getScheduleById(@Param('id', ParseUUIDPipe) id: string): Promise<FeeScheduleResponseDto> {
     return this.fees.getScheduleById(id);
   }
 

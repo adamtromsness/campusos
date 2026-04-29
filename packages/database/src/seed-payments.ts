@@ -67,8 +67,7 @@ async function seedPayments() {
   for (var ayi = 0; ayi < ayRows.length; ayi++) {
     if (ayRows[ayi]!.name === '2025-2026') academicYear2025 = ayRows[ayi]!;
   }
-  if (!academicYear2025)
-    throw new Error('Academic year 2025-2026 not found — run seed:sis first');
+  if (!academicYear2025) throw new Error('Academic year 2025-2026 not found — run seed:sis first');
 
   // ── 5. Fee categories ──
   console.log('  fee categories:');

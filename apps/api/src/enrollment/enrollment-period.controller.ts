@@ -35,9 +35,7 @@ export class EnrollmentPeriodController {
   @Get(':id')
   @RequirePermission('stu-003:read')
   @ApiOperation({ summary: 'Get an enrollment period with streams + capacities + summary' })
-  async getById(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<EnrollmentPeriodResponseDto> {
+  async getById(@Param('id', ParseUUIDPipe) id: string): Promise<EnrollmentPeriodResponseDto> {
     return this.periods.getById(id);
   }
 

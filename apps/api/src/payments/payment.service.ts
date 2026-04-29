@@ -75,10 +75,7 @@ export class PaymentService {
     private readonly ledger: LedgerService,
   ) {}
 
-  async list(
-    query: ListPaymentsQueryDto,
-    actor: ResolvedActor,
-  ): Promise<PaymentResponseDto[]> {
+  async list(query: ListPaymentsQueryDto, actor: ResolvedActor): Promise<PaymentResponseDto[]> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var sql = SELECT_PAYMENT_BASE + 'WHERE 1=1 ';
       var params: any[] = [];
@@ -280,10 +277,7 @@ export class PaymentService {
     return dto;
   }
 
-  private async isAccountHolder(
-    familyAccountId: string,
-    personId: string,
-  ): Promise<boolean> {
+  private async isAccountHolder(familyAccountId: string, personId: string): Promise<boolean> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ holder: string }>>(
         'SELECT account_holder_id::text AS holder FROM pay_family_accounts WHERE id = $1::uuid',

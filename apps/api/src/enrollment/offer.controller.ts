@@ -71,7 +71,7 @@ export class OfferController {
   @RequirePermission('stu-003:write')
   @ApiOperation({
     summary:
-      "Respond to an offer (parent or admin). On ACCEPT, application status flips to ENROLLED and enr.student.enrolled fires.",
+      'Respond to an offer (parent or admin). On ACCEPT, application status flips to ENROLLED and enr.student.enrolled fires.',
   })
   async respond(
     @Param('id', ParseUUIDPipe) id: string,

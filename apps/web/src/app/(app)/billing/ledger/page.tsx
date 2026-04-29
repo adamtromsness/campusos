@@ -108,9 +108,7 @@ export default function ParentLedgerPage() {
       <div className="mt-2 rounded-card border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-[11px] uppercase tracking-wide text-gray-500">
-              Current balance
-            </p>
+            <p className="text-[11px] uppercase tracking-wide text-gray-500">Current balance</p>
             <p
               className={`text-2xl font-semibold ${
                 currentBalance > 0
@@ -136,9 +134,7 @@ export default function ParentLedgerPage() {
           {ledger.isLoading ? (
             <LoadingSpinner />
           ) : rows.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-500">
-              No ledger entries yet.
-            </p>
+            <p className="py-6 text-center text-sm text-gray-500">No ledger entries yet.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
@@ -153,9 +149,7 @@ export default function ParentLedgerPage() {
               <tbody className="divide-y divide-gray-100">
                 {rows.map(({ entry, runningBalance }) => (
                   <tr key={entry.id}>
-                    <td className="px-2 py-2 text-gray-600">
-                      {formatDateTime(entry.createdAt)}
-                    </td>
+                    <td className="px-2 py-2 text-gray-600">{formatDateTime(entry.createdAt)}</td>
                     <td className="px-2 py-2">
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
@@ -165,9 +159,7 @@ export default function ParentLedgerPage() {
                         {ENTRY_TYPE_LABELS[entry.entryType]}
                       </span>
                     </td>
-                    <td className="px-2 py-2 text-gray-700">
-                      {entry.description ?? '—'}
-                    </td>
+                    <td className="px-2 py-2 text-gray-700">{entry.description ?? '—'}</td>
                     <td
                       className={`px-2 py-2 text-right font-semibold ${
                         Number(entry.amount) >= 0 ? 'text-rose-700' : 'text-emerald-700'
@@ -186,9 +178,7 @@ export default function ParentLedgerPage() {
         </div>
 
         {rows.length === 100 && (
-          <p className="mt-3 text-xs text-gray-500">
-            Showing the most recent 100 entries.
-          </p>
+          <p className="mt-3 text-xs text-gray-500">Showing the most recent 100 entries.</p>
         )}
       </div>
     </div>

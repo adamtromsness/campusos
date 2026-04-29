@@ -11,13 +11,7 @@ import {
   Min,
 } from 'class-validator';
 
-export var RECURRENCE_VALUES = [
-  'ONE_TIME',
-  'MONTHLY',
-  'QUARTERLY',
-  'SEMESTER',
-  'ANNUAL',
-] as const;
+export var RECURRENCE_VALUES = ['ONE_TIME', 'MONTHLY', 'QUARTERLY', 'SEMESTER', 'ANNUAL'] as const;
 export type Recurrence = (typeof RECURRENCE_VALUES)[number];
 
 export class FeeCategoryResponseDto {

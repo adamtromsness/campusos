@@ -14,14 +14,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export var INVOICE_STATUSES = [
-  'DRAFT',
-  'SENT',
-  'PARTIAL',
-  'PAID',
-  'OVERDUE',
-  'CANCELLED',
-] as const;
+export var INVOICE_STATUSES = ['DRAFT', 'SENT', 'PARTIAL', 'PAID', 'OVERDUE', 'CANCELLED'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
 export class InvoiceLineItemInputDto {

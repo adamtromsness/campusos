@@ -20,12 +20,7 @@ import {
   formatCurrency,
   formatDateTime,
 } from '@/lib/billing-format';
-import type {
-  PaymentDto,
-  PaymentMethod,
-  PaymentStatus,
-  RefundCategory,
-} from '@/lib/types';
+import type { PaymentDto, PaymentMethod, PaymentStatus, RefundCategory } from '@/lib/types';
 
 export default function BillingPaymentsPage() {
   const user = useAuthStore((s) => s.user);
@@ -133,7 +128,9 @@ export default function BillingPaymentsPage() {
             <tbody className="divide-y divide-gray-100">
               {rows.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 text-gray-600">{formatDateTime(p.paidAt ?? p.createdAt)}</td>
+                  <td className="px-4 py-2 text-gray-600">
+                    {formatDateTime(p.paidAt ?? p.createdAt)}
+                  </td>
                   <td className="px-4 py-2 text-gray-600">
                     <Link
                       href={`/billing/accounts/${p.familyAccountId}`}
@@ -183,9 +180,7 @@ export default function BillingPaymentsPage() {
         )}
       </div>
 
-      {refundTarget && (
-        <RefundModal payment={refundTarget} onClose={() => setRefundTarget(null)} />
-      )}
+      {refundTarget && <RefundModal payment={refundTarget} onClose={() => setRefundTarget(null)} />}
     </div>
   );
 }
@@ -229,9 +224,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-        active
-          ? 'bg-campus-700 text-white'
-          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        active ? 'bg-campus-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
       }`}
     >
       {label}

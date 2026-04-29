@@ -68,8 +68,7 @@ export default function PayInvoicePage() {
   }
 
   const inv = invoice.data;
-  const isPayable =
-    inv.balanceDue > 0 && inv.status !== 'DRAFT' && inv.status !== 'CANCELLED';
+  const isPayable = inv.balanceDue > 0 && inv.status !== 'DRAFT' && inv.status !== 'CANCELLED';
 
   if (!isPayable) {
     return (
@@ -96,8 +95,7 @@ export default function PayInvoicePage() {
   }
 
   const amount = Number(amountStr);
-  const amountValid =
-    !Number.isNaN(amount) && amount > 0 && amount <= inv.balanceDue + 0.001;
+  const amountValid = !Number.isNaN(amount) && amount > 0 && amount <= inv.balanceDue + 0.001;
   const methods = isAdmin
     ? (['CARD', 'BANK_TRANSFER', 'CASH', 'CHEQUE', 'WAIVER'] as PaymentMethod[])
     : PARENT_PAYMENT_METHODS;
@@ -143,9 +141,7 @@ export default function PayInvoicePage() {
               {inv.familyAccountNumber} — {inv.familyAccountHolderName}
             </p>
             {inv.dueDate && (
-              <p className="mt-0.5 text-xs text-gray-500">
-                Due {formatDateOnly(inv.dueDate)}
-              </p>
+              <p className="mt-0.5 text-xs text-gray-500">Due {formatDateOnly(inv.dueDate)}</p>
             )}
           </div>
           <span
@@ -171,10 +167,7 @@ export default function PayInvoicePage() {
         <h2 className="text-base font-semibold text-gray-900">Make a payment</h2>
 
         <div>
-          <label
-            htmlFor="amount"
-            className="block text-sm font-medium text-gray-700"
-          >
+          <label htmlFor="amount" className="block text-sm font-medium text-gray-700">
             Amount (USD)
           </label>
           <div className="mt-1 flex items-center gap-2">
@@ -224,14 +217,14 @@ export default function PayInvoicePage() {
           </div>
           {!isAdmin && method === 'BANK_TRANSFER' && (
             <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              For bank transfers, the payment is recorded immediately but funds usually arrive
-              in 1–3 business days. Your invoice status will reflect the payment right away.
+              For bank transfers, the payment is recorded immediately but funds usually arrive in
+              1–3 business days. Your invoice status will reflect the payment right away.
             </p>
           )}
           {method === 'CARD' && (
             <p className="mt-2 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
-              Card payments are processed in test mode. No real card is charged — the invoice
-              will be marked paid immediately.
+              Card payments are processed in test mode. No real card is charged — the invoice will
+              be marked paid immediately.
             </p>
           )}
         </div>

@@ -126,9 +126,7 @@ export class PaymentAccountWorker implements OnModuleInit {
     );
   }
 
-  private async createOrLinkAccount(
-    event: UnwrappedEvent<StudentEnrolledPayload>,
-  ): Promise<void> {
+  private async createOrLinkAccount(event: UnwrappedEvent<StudentEnrolledPayload>): Promise<void> {
     var p = event.payload;
     var schoolId = event.tenant.schoolId;
     var self = this;

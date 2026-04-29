@@ -5,10 +5,7 @@ import { RequirePermission } from '../auth/require-permission.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
 import { FamilyAccountService } from './family-account.service';
 import { LedgerService } from './ledger.service';
-import {
-  FamilyAccountResponseDto,
-  FamilyAccountStudentDto,
-} from './dto/family-account.dto';
+import { FamilyAccountResponseDto, FamilyAccountStudentDto } from './dto/family-account.dto';
 import { LedgerBalanceDto, LedgerEntryDto, ListLedgerQueryDto } from './dto/ledger.dto';
 
 interface AuthedRequest extends Request {

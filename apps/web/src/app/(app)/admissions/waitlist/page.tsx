@@ -7,11 +7,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
-import {
-  useEnrollmentPeriods,
-  useOfferFromWaitlist,
-  useWaitlist,
-} from '@/hooks/use-enrollment';
+import { useEnrollmentPeriods, useOfferFromWaitlist, useWaitlist } from '@/hooks/use-enrollment';
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
 import {
   WAITLIST_STATUS_LABELS,
@@ -234,8 +230,8 @@ function OfferModal({ entry, onClose }: { entry: WaitlistEntryDto; onClose: () =
       }
     >
       <p className="text-sm text-gray-700">
-        Promotes the waitlist entry to OFFERED, flips the application to ACCEPTED, and creates a
-        new offer row — all atomically.
+        Promotes the waitlist entry to OFFERED, flips the application to ACCEPTED, and creates a new
+        offer row — all atomically.
       </p>
       <label className="mt-4 block text-sm">
         <span className="text-gray-700">Response deadline</span>

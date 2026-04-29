@@ -133,10 +133,7 @@ export class FamilyAccountService {
     return accountRowToDto(row, students, balance.balance);
   }
 
-  async listStudents(
-    accountId: string,
-    actor: ResolvedActor,
-  ): Promise<FamilyAccountStudentDto[]> {
+  async listStudents(accountId: string, actor: ResolvedActor): Promise<FamilyAccountStudentDto[]> {
     // Re-use the row-scope check from getById.
     await this.getById(accountId, actor);
     var rows = await this.loadStudentsFor([accountId]);

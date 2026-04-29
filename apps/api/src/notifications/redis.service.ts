@@ -316,11 +316,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    * restart with no in-flight invalidate is bounded; long enough that
    * the balance + per-account ledger view share one round-trip.
    */
-  async setLedgerBalance(
-    accountId: string,
-    value: string,
-    ttlSeconds = 30,
-  ): Promise<void> {
+  async setLedgerBalance(accountId: string, value: string, ttlSeconds = 30): Promise<void> {
     if (!this.connected || !this.client) return;
     var key = 'ledger:balance:' + accountId;
     try {

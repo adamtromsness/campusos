@@ -141,7 +141,11 @@ export function useFamilyAccountLedger(
       'family-account',
       id,
       'ledger',
-      { limit: args.limit ?? null, before: args.before ?? null, referenceId: args.referenceId ?? null },
+      {
+        limit: args.limit ?? null,
+        before: args.before ?? null,
+        referenceId: args.referenceId ?? null,
+      },
     ],
     queryFn: () =>
       apiFetch<LedgerEntryDto[]>(`/api/v1/family-accounts/${id}/ledger${qs ? `?${qs}` : ''}`),
@@ -193,8 +197,7 @@ export function useCreateInvoice() {
 export function useSendInvoice(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      apiFetch<InvoiceDto>(`/api/v1/invoices/${id}/send`, { method: 'PATCH' }),
+    mutationFn: () => apiFetch<InvoiceDto>(`/api/v1/invoices/${id}/send`, { method: 'PATCH' }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['billing', 'invoices'] });
       void qc.invalidateQueries({ queryKey: ['billing', 'invoice', id] });
@@ -207,8 +210,7 @@ export function useSendInvoice(id: string) {
 export function useCancelInvoice(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      apiFetch<InvoiceDto>(`/api/v1/invoices/${id}/cancel`, { method: 'PATCH' }),
+    mutationFn: () => apiFetch<InvoiceDto>(`/api/v1/invoices/${id}/cancel`, { method: 'PATCH' }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['billing', 'invoices'] });
       void qc.invalidateQueries({ queryKey: ['billing', 'invoice', id] });

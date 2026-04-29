@@ -267,9 +267,7 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
                         Confidential
                       </span>
                     )}
-                    <span className="text-xs text-gray-400">
-                      {formatDateTime(n.createdAt)}
-                    </span>
+                    <span className="text-xs text-gray-400">{formatDateTime(n.createdAt)}</span>
                   </div>
                 </div>
                 <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">{n.noteText}</p>
@@ -380,7 +378,8 @@ function ReviewModal({
         {mode === 'ACCEPTED' &&
           'Accepting locks the row inside the transaction and recomputes capacity. You can issue an offer immediately afterwards.'}
         {mode === 'REJECTED' && 'Rejection is irreversible from this surface.'}
-        {mode === 'WAITLISTED' && 'A waitlist entry will be created at the next available position.'}
+        {mode === 'WAITLISTED' &&
+          'A waitlist entry will be created at the next available position.'}
         {mode === 'UNDER_REVIEW' && 'Move the application into the active review queue.'}
         {mode === 'WITHDRAWN' && 'Withdrawn applications no longer count against capacity.'}
       </p>
@@ -637,8 +636,9 @@ function OfferPanel({ offer, application }: { offer: OfferDto; application: Appl
 
       {application.status === 'ENROLLED' && (
         <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-          Student is now enrolled. <code className="rounded bg-white/50 px-1">enr.student.enrolled</code>{' '}
-          fired — the PaymentAccountWorker will create the family account.
+          Student is now enrolled.{' '}
+          <code className="rounded bg-white/50 px-1">enr.student.enrolled</code> fired — the
+          PaymentAccountWorker will create the family account.
         </p>
       )}
     </section>

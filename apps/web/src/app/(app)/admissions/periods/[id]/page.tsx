@@ -167,7 +167,9 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
               <tbody>
                 {p.capacitySummary.map((row) => (
                   <tr key={row.gradeLevel} className="border-t border-gray-100">
-                    <td className="px-4 py-2 font-semibold text-gray-900">Grade {row.gradeLevel}</td>
+                    <td className="px-4 py-2 font-semibold text-gray-900">
+                      Grade {row.gradeLevel}
+                    </td>
                     <td className="px-4 py-2 text-right">{row.totalPlaces}</td>
                     <td className="px-4 py-2 text-right">{row.reserved}</td>
                     <td className="px-4 py-2 text-right">{row.applicationsReceived}</td>

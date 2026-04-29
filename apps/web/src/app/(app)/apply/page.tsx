@@ -64,8 +64,8 @@ export default function ApplyLandingPage() {
         </div>
       ) : openPeriods.length === 0 ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          No enrollment periods are open right now. Check back soon, or contact the school if
-          you’re applying outside the standard window.
+          No enrollment periods are open right now. Check back soon, or contact the school if you’re
+          applying outside the standard window.
         </div>
       ) : (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -161,7 +161,9 @@ function ApplicationRow({
       {offer && offer.status === 'ISSUED' && (
         <div className="mt-3 flex flex-col gap-2 rounded-lg bg-sky-50 px-3 py-3 text-sm text-sky-900 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-semibold">Offer issued — respond {formatRelativeDeadline(offer.responseDeadline)}.</p>
+            <p className="font-semibold">
+              Offer issued — respond {formatRelativeDeadline(offer.responseDeadline)}.
+            </p>
             <p className="text-xs">
               {offer.offerType === 'CONDITIONAL' ? 'Conditional offer' : 'Unconditional offer'}
             </p>
@@ -177,8 +179,8 @@ function ApplicationRow({
 
       {offer && offer.status === 'ACCEPTED' && (
         <div className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-          You accepted the offer on {formatDateOnly(offer.familyRespondedAt)}. Welcome to the
-          school — a tuition invoice will be generated shortly.
+          You accepted the offer on {formatDateOnly(offer.familyRespondedAt)}. Welcome to the school
+          — a tuition invoice will be generated shortly.
         </div>
       )}
 

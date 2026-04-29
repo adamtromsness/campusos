@@ -14,11 +14,7 @@ import {
   useUpdateEnrollmentPeriod,
 } from '@/hooks/use-enrollment';
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
-import {
-  PERIOD_STATUS_LABELS,
-  PERIOD_STATUS_PILL,
-  formatDateOnly,
-} from '@/lib/admissions-format';
+import { PERIOD_STATUS_LABELS, PERIOD_STATUS_PILL, formatDateOnly } from '@/lib/admissions-format';
 import type { EnrollmentPeriodDto, EnrollmentPeriodStatus } from '@/lib/types';
 
 export default function AdmissionsPeriodsPage() {
@@ -185,7 +181,11 @@ function PeriodCard({ period }: { period: EnrollmentPeriodDto }) {
         <Stat label="Offers issued" value={totals.offers} />
         <Stat label="Accepted" value={totals.accepted} />
         <Stat label="Waitlisted" value={totals.waitlisted} />
-        <Stat label="Available" value={totals.available} tone={totals.available <= 0 ? 'amber' : 'normal'} />
+        <Stat
+          label="Available"
+          value={totals.available}
+          tone={totals.available <= 0 ? 'amber' : 'normal'}
+        />
       </div>
     </li>
   );

@@ -66,9 +66,7 @@ function planRowToDto(p: PlanRow, installments: InstallmentRow[]): PaymentPlanRe
     frequency: p.frequency as PlanFrequency,
     startDate: p.start_date,
     status: p.status as PlanStatus,
-    installments: installments
-      .filter((i) => i.plan_id === p.id)
-      .map(installmentRowToDto),
+    installments: installments.filter((i) => i.plan_id === p.id).map(installmentRowToDto),
     createdAt: p.created_at,
     updatedAt: p.updated_at,
   };
@@ -138,9 +136,7 @@ export class PaymentPlanService {
       var perInstallment = Number((totalAmount / body.installmentCount).toFixed(2));
       // Round-off correction: last installment absorbs any sub-cent residue
       // so SUM(installments.amount) === total_amount exactly.
-      var residue = Number(
-        (totalAmount - perInstallment * body.installmentCount).toFixed(2),
-      );
+      var residue = Number((totalAmount - perInstallment * body.installmentCount).toFixed(2));
 
       await tx.$executeRawUnsafe(
         'INSERT INTO pay_payment_plans (id, school_id, family_account_id, invoice_id, total_amount, installment_count, frequency, start_date, status, created_by) ' +

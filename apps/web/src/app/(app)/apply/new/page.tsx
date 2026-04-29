@@ -9,11 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { useCreateApplication, useEnrollmentPeriods } from '@/hooks/use-enrollment';
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
-import type {
-  AdmissionStreamDto,
-  AdmissionType,
-  EnrollmentPeriodDto,
-} from '@/lib/types';
+import type { AdmissionStreamDto, AdmissionType, EnrollmentPeriodDto } from '@/lib/types';
 
 interface ScreeningRow {
   questionKey: string;
@@ -351,9 +347,7 @@ export default function NewApplicationPage() {
           </button>
         </Section>
 
-        {error && (
-          <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>
-        )}
+        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>}
 
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Link

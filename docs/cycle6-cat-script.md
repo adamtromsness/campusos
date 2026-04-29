@@ -538,14 +538,14 @@ UI walkthrough: admin at `/billing/payments` sees the second $200 COMPLETED paym
 
 ## Scenario 12 — Permission denials (6 paths)
 
-| # | Scenario | Result |
-|---|----------|--------|
-| a | teacher `GET /family-accounts` | **403** (no `fin-001:read`) |
-| b | student `POST /invoices/{id}/pay` | **403 INSUFFICIENT_PERMISSIONS** required=`['fin-001:write']` (gate-tier) |
-| c | parent `POST /fee-categories` | **403 INSUFFICIENT_PERMISSIONS** required=`['fin-001:admin']` (gate-tier) |
-| d | parent `GET /refunds` | **403 Forbidden** "Only admins can list refunds" (service-layer admin-only) |
-| e | parent `PATCH /applications/{Aiden's}/status` | **403 INSUFFICIENT_PERMISSIONS** required=`['stu-003:admin']` (gate-tier — parent has stu-003:write but not admin) |
-| f | parent `POST /pay` with `paymentMethod:"CASH"` | **403 Forbidden** "Self-service parent payments accept CARD or BANK_TRANSFER only" (`PaymentService.pay`'s `assertSelfServiceMethod`) |
+| #   | Scenario                                       | Result                                                                                                                                |
+| --- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| a   | teacher `GET /family-accounts`                 | **403** (no `fin-001:read`)                                                                                                           |
+| b   | student `POST /invoices/{id}/pay`              | **403 INSUFFICIENT_PERMISSIONS** required=`['fin-001:write']` (gate-tier)                                                             |
+| c   | parent `POST /fee-categories`                  | **403 INSUFFICIENT_PERMISSIONS** required=`['fin-001:admin']` (gate-tier)                                                             |
+| d   | parent `GET /refunds`                          | **403 Forbidden** "Only admins can list refunds" (service-layer admin-only)                                                           |
+| e   | parent `PATCH /applications/{Aiden's}/status`  | **403 INSUFFICIENT_PERMISSIONS** required=`['stu-003:admin']` (gate-tier — parent has stu-003:write but not admin)                    |
+| f   | parent `POST /pay` with `paymentMethod:"CASH"` | **403 Forbidden** "Self-service parent payments accept CARD or BANK_TRANSFER only" (`PaymentService.pay`'s `assertSelfServiceMethod`) |
 
 Three permission tiers verified: gate-tier method-level (b, c, e), service-layer admin-only (d), and service-layer self-service rule (f). Plus the gate-tier no-permission case (a).
 

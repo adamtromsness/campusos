@@ -21,11 +21,7 @@ export class CapacitySummaryService {
    * and pass the tx client. We do not start our own transaction so the
    * recompute is atomic with the status flip that caused it.
    */
-  async recompute(
-    tx: any,
-    enrollmentPeriodId: string,
-    gradeLevel: string,
-  ): Promise<void> {
+  async recompute(tx: any, enrollmentPeriodId: string, gradeLevel: string): Promise<void> {
     var totals = (await tx.$queryRawUnsafe(
       'SELECT COALESCE(SUM(total_places), 0)::int AS total_places, COALESCE(SUM(reserved_places), 0)::int AS reserved ' +
         'FROM enr_intake_capacities WHERE enrollment_period_id = $1::uuid AND grade_level = $2',

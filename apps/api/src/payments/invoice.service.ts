@@ -110,10 +110,7 @@ export class InvoiceService {
     private readonly ledger: LedgerService,
   ) {}
 
-  async list(
-    query: ListInvoicesQueryDto,
-    actor: ResolvedActor,
-  ): Promise<InvoiceResponseDto[]> {
+  async list(query: ListInvoicesQueryDto, actor: ResolvedActor): Promise<InvoiceResponseDto[]> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var sql = SELECT_INVOICE_BASE + 'WHERE 1=1 ';
       var params: any[] = [];
@@ -138,9 +135,7 @@ export class InvoiceService {
       return client.$queryRawUnsafe<InvoiceRow[]>(sql, ...params);
     });
     if (rows.length === 0) return [];
-    var lineItems = await this.loadLineItems(
-      rows.map((r) => r.id),
-    );
+    var lineItems = await this.loadLineItems(rows.map((r) => r.id));
     return rows.map((r) => invoiceRowToDto(r, lineItems));
   }
 
@@ -185,7 +180,7 @@ export class InvoiceService {
     }
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       var accountRows = (await tx.$queryRawUnsafe(
-        "SELECT id, status FROM pay_family_accounts WHERE id = $1::uuid",
+        'SELECT id, status FROM pay_family_accounts WHERE id = $1::uuid',
         body.familyAccountId,
       )) as Array<{ id: string; status: string }>;
       if (accountRows.length === 0) {
@@ -313,9 +308,7 @@ export class InvoiceService {
         throw new BadRequestException('Invoice is already CANCELLED');
       }
       if (rows[0]!.status === 'PAID') {
-        throw new BadRequestException(
-          'Invoice is PAID; issue a refund instead of cancelling',
-        );
+        throw new BadRequestException('Invoice is PAID; issue a refund instead of cancelling');
       }
       await tx.$executeRawUnsafe(
         "UPDATE pay_invoices SET status = 'CANCELLED', updated_at = now() WHERE id = $1::uuid",
@@ -489,10 +482,7 @@ export class InvoiceService {
     });
   }
 
-  private async isAccountHolder(
-    familyAccountId: string,
-    personId: string,
-  ): Promise<boolean> {
+  private async isAccountHolder(familyAccountId: string, personId: string): Promise<boolean> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ holder: string }>>(
         'SELECT account_holder_id::text AS holder FROM pay_family_accounts WHERE id = $1::uuid',

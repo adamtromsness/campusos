@@ -102,10 +102,7 @@ export class OfferService {
 
   async getById(id: string, actor: ResolvedActor): Promise<OfferResponseDto> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<OfferRow[]>(
-        SELECT_OFFER_BASE + 'WHERE o.id = $1::uuid',
-        id,
-      );
+      return client.$queryRawUnsafe<OfferRow[]>(SELECT_OFFER_BASE + 'WHERE o.id = $1::uuid', id);
     });
     if (rows.length === 0) throw new NotFoundException('Offer ' + id + ' not found');
     var row = rows[0]!;
@@ -296,10 +293,7 @@ export class OfferService {
       throw new NotFoundException('Offer ' + id + ' not found');
     }
     if (!actor.isSchoolAdmin) {
-      if (
-        actor.personType !== 'GUARDIAN' ||
-        preflight.guardian_person_id !== actor.personId
-      ) {
+      if (actor.personType !== 'GUARDIAN' || preflight.guardian_person_id !== actor.personId) {
         throw new ForbiddenException('Only the owning guardian can respond to this offer');
       }
     }
@@ -360,22 +354,14 @@ export class OfferService {
           "UPDATE enr_applications SET status = 'ENROLLED', updated_at = now() WHERE id = $1::uuid",
           offer.application_id,
         );
-        await this.capacity.recompute(
-          tx,
-          offer.enrollment_period_id,
-          offer.applying_for_grade,
-        );
+        await this.capacity.recompute(tx, offer.enrollment_period_id, offer.applying_for_grade);
       } else if (body.familyResponse === 'DECLINED') {
         await tx.$executeRawUnsafe(
           "UPDATE enr_offers SET family_response = 'DECLINED', family_responded_at = $1::timestamptz, status = 'DECLINED', updated_at = now() WHERE id = $2::uuid",
           nowIso,
           id,
         );
-        await this.capacity.recompute(
-          tx,
-          offer.enrollment_period_id,
-          offer.applying_for_grade,
-        );
+        await this.capacity.recompute(tx, offer.enrollment_period_id, offer.applying_for_grade);
       } else {
         // DEFERRED: family_response set, status stays ISSUED so the schema
         // partial INDEX on response_deadline keeps tracking the deadline.

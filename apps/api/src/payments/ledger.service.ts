@@ -2,12 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { RedisService } from '../notifications/redis.service';
-import {
-  EntryType,
-  LedgerBalanceDto,
-  LedgerEntryDto,
-  ListLedgerQueryDto,
-} from './dto/ledger.dto';
+import { EntryType, LedgerBalanceDto, LedgerEntryDto, ListLedgerQueryDto } from './dto/ledger.dto';
 
 interface LedgerRow {
   id: string;
@@ -128,10 +123,7 @@ export class LedgerService {
    * Read-side: paginated entries newest-first. Keyset cursor on
    * `created_at` so the partition pruning kicks in.
    */
-  async listEntries(
-    familyAccountId: string,
-    query: ListLedgerQueryDto,
-  ): Promise<LedgerEntryDto[]> {
+  async listEntries(familyAccountId: string, query: ListLedgerQueryDto): Promise<LedgerEntryDto[]> {
     var limit = Math.min(query.limit ?? 50, 200);
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var sql =

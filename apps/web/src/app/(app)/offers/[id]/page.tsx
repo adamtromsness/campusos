@@ -92,8 +92,7 @@ export default function OfferResponsePage({ params }: { params: Promise<{ id: st
         familyResponse: mode as FamilyResponse,
         deferralTargetYearId: mode === 'DEFERRED' ? deferTargetYearId || undefined : undefined,
       });
-      const verb =
-        mode === 'ACCEPTED' ? 'accepted' : mode === 'DECLINED' ? 'declined' : 'deferred';
+      const verb = mode === 'ACCEPTED' ? 'accepted' : mode === 'DECLINED' ? 'declined' : 'deferred';
       toast(`Offer ${verb}.`, 'success');
       setMode(null);
       setDeferTargetYearId('');
@@ -130,9 +129,7 @@ export default function OfferResponsePage({ params }: { params: Promise<{ id: st
       ) : isOpen ? (
         <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
           <p className="font-semibold">Respond {formatRelativeDeadline(o.responseDeadline)}.</p>
-          <p className="mt-0.5 text-xs">
-            Deadline: {formatDateTime(o.responseDeadline)}
-          </p>
+          <p className="mt-0.5 text-xs">Deadline: {formatDateTime(o.responseDeadline)}</p>
         </div>
       ) : (
         <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
@@ -168,8 +165,10 @@ export default function OfferResponsePage({ params }: { params: Promise<{ id: st
             </ul>
           )}
           <p className="mt-3 text-xs text-amber-900">
-            {o.conditionsMet === true && 'The school has verified the conditions are met. You can accept the offer.'}
-            {o.conditionsMet === false && 'The school has not verified the conditions yet — please contact admissions.'}
+            {o.conditionsMet === true &&
+              'The school has verified the conditions are met. You can accept the offer.'}
+            {o.conditionsMet === false &&
+              'The school has not verified the conditions yet — please contact admissions.'}
             {o.conditionsMet === null &&
               'The school is reviewing the conditions. You can still decline or defer; accepting becomes available once conditions are verified.'}
           </p>
@@ -287,13 +286,7 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ConfirmationBanner({
-  studentName,
-  grade,
-}: {
-  studentName: string;
-  grade: string;
-}) {
+function ConfirmationBanner({ studentName, grade }: { studentName: string; grade: string }) {
   return (
     <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
       <p className="text-base font-semibold">🎉 Welcome!</p>

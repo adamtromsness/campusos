@@ -87,8 +87,7 @@ export default function ParentBillingDashboardPage() {
   }
 
   const currentBalance = balance.data?.balance ?? account.balance;
-  const balanceTone =
-    currentBalance > 0 ? 'rose' : currentBalance < 0 ? 'emerald' : 'normal';
+  const balanceTone = currentBalance > 0 ? 'rose' : currentBalance < 0 ? 'emerald' : 'normal';
   const allInvoices = invoices.data ?? [];
   const outstanding = allInvoices
     .filter((inv) => inv.balanceDue > 0 && inv.status !== 'CANCELLED')
@@ -116,20 +115,13 @@ export default function ParentBillingDashboardPage() {
 
       <section className="mt-4 rounded-card border border-gray-200 bg-white p-6 shadow-sm">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Stat
-            label="Current balance"
-            value={formatCurrency(currentBalance)}
-            tone={balanceTone}
-          />
+          <Stat label="Current balance" value={formatCurrency(currentBalance)} tone={balanceTone} />
           <Stat
             label="Outstanding invoices"
             value={String(outstanding.length)}
             tone={outstanding.length > 0 ? 'rose' : 'normal'}
           />
-          <Stat
-            label="Children on account"
-            value={String(account.students.length)}
-          />
+          <Stat label="Children on account" value={String(account.students.length)} />
         </div>
         {account.students.length > 0 && (
           <p className="mt-4 text-xs text-gray-500">
@@ -167,10 +159,7 @@ export default function ParentBillingDashboardPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
             Recent payments
           </h2>
-          <Link
-            href="/billing/payments"
-            className="text-sm text-campus-700 hover:text-campus-900"
-          >
+          <Link href="/billing/payments" className="text-sm text-campus-700 hover:text-campus-900">
             See all →
           </Link>
         </div>
@@ -240,9 +229,7 @@ function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceDto }) {
           >
             {invoice.title}
           </Link>
-          <p className="mt-0.5 text-xs text-gray-500">
-            Due {formatDateOnly(invoice.dueDate)}
-          </p>
+          <p className="mt-0.5 text-xs text-gray-500">Due {formatDateOnly(invoice.dueDate)}</p>
         </div>
         <span
           className={`inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -260,9 +247,7 @@ function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceDto }) {
         </div>
         <div>
           <p className="text-[10px] uppercase tracking-wide text-gray-500">Paid</p>
-          <p className="font-semibold text-emerald-700">
-            {formatCurrency(invoice.amountPaid)}
-          </p>
+          <p className="font-semibold text-emerald-700">{formatCurrency(invoice.amountPaid)}</p>
         </div>
         <div>
           <p className="text-[10px] uppercase tracking-wide text-gray-500">Balance due</p>

@@ -245,11 +245,7 @@ export class FeeScheduleService {
       setClauses.push('updated_at = now()');
       params.push(id);
       var result = await tx.$executeRawUnsafe(
-        'UPDATE pay_fee_schedules SET ' +
-          setClauses.join(', ') +
-          ' WHERE id = $' +
-          idx +
-          '::uuid',
+        'UPDATE pay_fee_schedules SET ' + setClauses.join(', ') + ' WHERE id = $' + idx + '::uuid',
         ...params,
       );
       if (Number(result) === 0) {

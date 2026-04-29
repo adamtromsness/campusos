@@ -6,12 +6,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
-import {
-  useCancelInvoice,
-  useInvoice,
-  usePayments,
-  useSendInvoice,
-} from '@/hooks/use-billing';
+import { useCancelInvoice, useInvoice, usePayments, useSendInvoice } from '@/hooks/use-billing';
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
 import {
   INVOICE_STATUS_LABELS,
@@ -64,8 +59,7 @@ export default function InvoiceDetailPage() {
   const inv = invoice.data;
   const canSend = inv.status === 'DRAFT';
   const canCancel = inv.status !== 'PAID' && inv.status !== 'CANCELLED';
-  const canPay =
-    inv.balanceDue > 0 && inv.status !== 'DRAFT' && inv.status !== 'CANCELLED';
+  const canPay = inv.balanceDue > 0 && inv.status !== 'DRAFT' && inv.status !== 'CANCELLED';
 
   async function onSend() {
     try {
@@ -88,10 +82,7 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <Link
-        href="/billing/invoices"
-        className="text-sm text-gray-500 hover:text-campus-700"
-      >
+      <Link href="/billing/invoices" className="text-sm text-gray-500 hover:text-campus-700">
         ← Invoices
       </Link>
       <div className="mt-3 rounded-card border border-gray-200 bg-white p-6 shadow-sm">
@@ -106,9 +97,7 @@ export default function InvoiceDetailPage() {
                 {inv.familyAccountNumber} — {inv.familyAccountHolderName}
               </Link>
             </p>
-            {inv.description && (
-              <p className="mt-3 text-sm text-gray-600">{inv.description}</p>
-            )}
+            {inv.description && <p className="mt-3 text-sm text-gray-600">{inv.description}</p>}
           </div>
           <div className="flex flex-col items-end gap-2">
             <span

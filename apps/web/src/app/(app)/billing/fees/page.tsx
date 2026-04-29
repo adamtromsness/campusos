@@ -17,17 +17,8 @@ import {
   useUpdateFeeSchedule,
 } from '@/hooks/use-billing';
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
-import {
-  RECURRENCE_LABELS,
-  RECURRENCE_OPTIONS,
-  formatCurrency,
-} from '@/lib/billing-format';
-import type {
-  FeeCategoryDto,
-  FeeScheduleDto,
-  FamilyAccountDto,
-  Recurrence,
-} from '@/lib/types';
+import { RECURRENCE_LABELS, RECURRENCE_OPTIONS, formatCurrency } from '@/lib/billing-format';
+import type { FeeCategoryDto, FeeScheduleDto, FamilyAccountDto, Recurrence } from '@/lib/types';
 
 export default function BillingFeesPage() {
   const user = useAuthStore((s) => s.user);
@@ -45,10 +36,7 @@ export default function BillingFeesPage() {
     return (
       <div className="mx-auto max-w-3xl">
         <PageHeader title="Billing — Fees" description="Billing access required." />
-        <EmptyState
-          title="Access required"
-          description="Ask a school admin for the Billing app."
-        />
+        <EmptyState title="Access required" description="Ask a school admin for the Billing app." />
       </div>
     );
   }
@@ -160,10 +148,7 @@ export default function BillingFeesPage() {
         />
       )}
       {editSchedule && (
-        <EditScheduleModal
-          schedule={editSchedule}
-          onClose={() => setEditScheduleId(null)}
-        />
+        <EditScheduleModal schedule={editSchedule} onClose={() => setEditScheduleId(null)} />
       )}
     </div>
   );

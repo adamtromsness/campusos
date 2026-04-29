@@ -1,13 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
-export var WAITLIST_STATUSES = [
-  'ACTIVE',
-  'OFFERED',
-  'ENROLLED',
-  'EXPIRED',
-  'WITHDRAWN',
-] as const;
+export var WAITLIST_STATUSES = ['ACTIVE', 'OFFERED', 'ENROLLED', 'EXPIRED', 'WITHDRAWN'] as const;
 export type WaitlistStatus = (typeof WAITLIST_STATUSES)[number];
 
 export class WaitlistEntryResponseDto {

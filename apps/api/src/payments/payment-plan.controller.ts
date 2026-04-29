@@ -22,8 +22,7 @@ export class PaymentPlanController {
   @Post('invoices/:id/payment-plan')
   @RequirePermission('fin-001:admin')
   @ApiOperation({
-    summary:
-      'Create a payment plan for an invoice (admin only). Auto-generates installment rows.',
+    summary: 'Create a payment plan for an invoice (admin only). Auto-generates installment rows.',
   })
   async create(
     @Param('id', ParseUUIDPipe) id: string,
@@ -37,9 +36,7 @@ export class PaymentPlanController {
   @Get('payment-plans/:id')
   @RequirePermission('fin-001:read')
   @ApiOperation({ summary: 'Get a payment plan with installments' })
-  async getById(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<PaymentPlanResponseDto> {
+  async getById(@Param('id', ParseUUIDPipe) id: string): Promise<PaymentPlanResponseDto> {
     return this.plans.getById(id);
   }
 }

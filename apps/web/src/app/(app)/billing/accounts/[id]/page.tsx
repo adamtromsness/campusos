@@ -76,9 +76,7 @@ export default function FamilyAccountDetailPage() {
       <div className="mt-3 rounded-card border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="font-display text-2xl text-campus-700">
-              {a.accountNumber}
-            </h1>
+            <h1 className="font-display text-2xl text-campus-700">{a.accountNumber}</h1>
             <p className="mt-1 text-sm font-medium text-gray-900">{a.accountHolderName}</p>
             {a.accountHolderEmail && (
               <p className="text-xs text-gray-500">{a.accountHolderEmail}</p>
@@ -134,9 +132,7 @@ export default function FamilyAccountDetailPage() {
       </div>
 
       <section className="mt-6 rounded-card border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
-          Invoices
-        </h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Invoices</h2>
         <div className="mt-3">
           {invoices.isLoading ? (
             <LoadingSpinner />
@@ -189,9 +185,7 @@ export default function FamilyAccountDetailPage() {
       </section>
 
       <section className="mt-6 rounded-card border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
-          Payments
-        </h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Payments</h2>
         <div className="mt-3">
           {payments.isLoading ? (
             <LoadingSpinner />
@@ -244,9 +238,7 @@ export default function FamilyAccountDetailPage() {
       </section>
 
       <section className="mt-6 rounded-card border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
-          Ledger
-        </h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Ledger</h2>
         <div className="mt-3">
           {ledger.isLoading ? (
             <LoadingSpinner />
