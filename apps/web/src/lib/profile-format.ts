@@ -126,7 +126,10 @@ export function profileCompleteness(profile: ProfileDto): number {
   return Math.round((totalScore / totalMax) * 100);
 }
 
-export function formatPhone(phone: string | null | undefined, type: PhoneType | null | undefined): string {
+export function formatPhone(
+  phone: string | null | undefined,
+  type: PhoneType | null | undefined,
+): string {
   if (!phone) return '';
   if (!type) return phone;
   return `${phone} (${PHONE_TYPE_LABELS[type]})`;

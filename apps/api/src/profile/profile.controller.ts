@@ -3,11 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ProfileService } from './profile.service';
-import {
-  ProfileResponseDto,
-  UpdateAdminProfileDto,
-  UpdateMyProfileDto,
-} from './dto/profile.dto';
+import { ProfileResponseDto, UpdateAdminProfileDto, UpdateMyProfileDto } from './dto/profile.dto';
 
 interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };
@@ -39,7 +35,9 @@ export class ProfileController {
   @Get('profile/:personId')
   @RequirePermission('usr-001:admin')
   @ApiOperation({ summary: 'Admin — read any person’s profile' })
-  async getProfile(@Param('personId', ParseUUIDPipe) personId: string): Promise<ProfileResponseDto> {
+  async getProfile(
+    @Param('personId', ParseUUIDPipe) personId: string,
+  ): Promise<ProfileResponseDto> {
     return this.profile.getProfile(personId);
   }
 

@@ -133,7 +133,11 @@ export function PersonalInfoTab({ profile, isAdminView }: Props) {
           />
         </Field>
         <Field label="Middle name">
-          <input className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500" value={middleName} onChange={(e) => setMiddleName(e.target.value)} />
+          <input
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500"
+            value={middleName}
+            onChange={(e) => setMiddleName(e.target.value)}
+          />
         </Field>
         <Field label={isAdminView ? 'Last name *' : 'Last name (read-only)'}>
           <input
@@ -144,7 +148,11 @@ export function PersonalInfoTab({ profile, isAdminView }: Props) {
           />
         </Field>
         <Field label="Suffix" hint="Jr, Sr, III, etc.">
-          <input className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500" value={suffix} onChange={(e) => setSuffix(e.target.value)} />
+          <input
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500"
+            value={suffix}
+            onChange={(e) => setSuffix(e.target.value)}
+          />
         </Field>
         <Field label="Preferred name" hint="What should we call you?">
           <input
@@ -187,7 +195,11 @@ export function PersonalInfoTab({ profile, isAdminView }: Props) {
           <PhoneTypeSelect value={phoneTypeSecondary} onChange={setPhoneTypeSecondary} />
         </Field>
         <Field label="Work phone">
-          <input className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500" value={workPhone} onChange={(e) => setWorkPhone(e.target.value)} />
+          <input
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500"
+            value={workPhone}
+            onChange={(e) => setWorkPhone(e.target.value)}
+          />
         </Field>
         <Field label="Personal email" hint="Distinct from your login email below">
           <input
@@ -247,7 +259,7 @@ export function HouseholdTab({ profile, isAdminView }: Props) {
   // read-only with a hint. The owning user can edit from /profile/me.
   const myHousehold = useMyHousehold(!isAdminView);
   const summary = profile.household;
-  const fullHousehold = isAdminView ? null : myHousehold.data ?? null;
+  const fullHousehold = isAdminView ? null : (myHousehold.data ?? null);
 
   if (isAdminView) {
     if (!summary) {
@@ -272,13 +284,10 @@ export function HouseholdTab({ profile, isAdminView }: Props) {
     );
   }
 
-  if (myHousehold.isLoading)
-    return <p className="text-sm text-gray-500">Loading household…</p>;
+  if (myHousehold.isLoading) return <p className="text-sm text-gray-500">Loading household…</p>;
   if (!fullHousehold)
     return (
-      <p className="text-sm text-gray-500">
-        You&apos;re not currently a member of a household.
-      </p>
+      <p className="text-sm text-gray-500">You&apos;re not currently a member of a household.</p>
     );
 
   return <HouseholdEditor household={fullHousehold} />;
@@ -501,11 +510,7 @@ function HouseholdEditor({ household }: { household: HouseholdDto }) {
         onSave={onSave}
       />
 
-      <AddMemberModal
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
-        householdId={household.id}
-      />
+      <AddMemberModal open={showAdd} onClose={() => setShowAdd(false)} householdId={household.id} />
     </div>
   );
 }
@@ -548,11 +553,7 @@ function MemberInlineActions({
         ))}
       </select>
       <label className="flex items-center gap-1 text-xs text-gray-600">
-        <input
-          type="checkbox"
-          checked={primary}
-          onChange={(e) => setPrimary(e.target.checked)}
-        />
+        <input type="checkbox" checked={primary} onChange={(e) => setPrimary(e.target.checked)} />
         Primary
       </label>
       <button
@@ -623,7 +624,11 @@ function AddMemberModal({
           </select>
         </Field>
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100" onClick={onClose}>
+          <button
+            type="button"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+            onClick={onClose}
+          >
             Cancel
           </button>
           <button
@@ -667,8 +672,7 @@ export function EmergencyContactTab({ profile, isAdminView }: Props) {
     setEmail(profile.emergencyContact?.email ?? '');
   }, [profile.emergencyContact]);
 
-  const supportedPersona =
-    profile.personType === 'STAFF' || profile.personType === 'STUDENT';
+  const supportedPersona = profile.personType === 'STAFF' || profile.personType === 'STUDENT';
   if (!supportedPersona) {
     return (
       <div className="rounded-card border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
@@ -711,11 +715,16 @@ export function EmergencyContactTab({ profile, isAdminView }: Props) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-600">
-        Whom should we contact in an emergency related to {profile.preferredName ?? profile.firstName}?
+        Whom should we contact in an emergency related to{' '}
+        {profile.preferredName ?? profile.firstName}?
       </p>
       <Section title="Contact">
         <Field label="Name *">
-          <input className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500" value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </Field>
         <Field label="Relationship">
           <input
@@ -725,7 +734,11 @@ export function EmergencyContactTab({ profile, isAdminView }: Props) {
           />
         </Field>
         <Field label="Phone">
-          <input className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <input
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
         </Field>
         {profile.personType === 'STAFF' && (
           <Field label="Email">
@@ -801,7 +814,11 @@ export function DemographicsTab({ profile, isAdminView }: Props) {
     <div className="space-y-4">
       <Section title="Demographics">
         <Field label="Date of birth (read-only)">
-          <input className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500" value={profile.dateOfBirth ?? ''} disabled />
+          <input
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500"
+            value={profile.dateOfBirth ?? ''}
+            disabled
+          />
         </Field>
         <Field
           label={isAdminView ? 'Gender' : 'Gender (admin only)'}
@@ -909,7 +926,11 @@ export function EmploymentTab({ profile, isAdminView }: Props) {
     <div className="space-y-4">
       <Section title="Employment">
         <Field label="Employer">
-          <input className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500" value={employer} onChange={(ev) => setEmployer(ev.target.value)} />
+          <input
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500"
+            value={employer}
+            onChange={(ev) => setEmployer(ev.target.value)}
+          />
         </Field>
         <Field label="Employer phone">
           <input
@@ -950,7 +971,11 @@ export function AccountTab({ profile }: Props) {
     <div className="space-y-6">
       <Section title="Login">
         <Field label="Login email" hint="Managed by your school's identity provider">
-          <input className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500" value={profile.loginEmail ?? ''} disabled />
+          <input
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500"
+            value={profile.loginEmail ?? ''}
+            disabled
+          />
         </Field>
         <Field label="Password">
           {keycloakUrl ? (
@@ -1031,7 +1056,11 @@ function PhoneTypeSelect({
   onChange: (v: PhoneType | '') => void;
 }) {
   return (
-    <select className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500" value={value} onChange={(e) => onChange(e.target.value as PhoneType | '')}>
+    <select
+      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500 disabled:bg-gray-50 disabled:text-gray-500"
+      value={value}
+      onChange={(e) => onChange(e.target.value as PhoneType | '')}
+    >
       <option value="">—</option>
       {PHONE_TYPES.map((t) => (
         <option key={t} value={t}>

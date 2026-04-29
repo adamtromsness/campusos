@@ -162,7 +162,12 @@ export class ProfileService {
         await this.upsertGuardianEmployment(tx, personId, dto);
       }
       if (dto.emergencyContact) {
-        await this.upsertEmergencyContact(tx, personId, personRow.person_type, dto.emergencyContact);
+        await this.upsertEmergencyContact(
+          tx,
+          personId,
+          personRow.person_type,
+          dto.emergencyContact,
+        );
       }
     });
 
@@ -233,7 +238,7 @@ export class ProfileService {
         'p.phone_type_primary, p.phone_type_secondary, ' +
         'p.preferred_language, p.personal_email, p.notes, ' +
         'p.profile_updated_at::text AS profile_updated_at, ' +
-        "COALESCE(p.person_type::text, NULL) AS person_type, " +
+        'COALESCE(p.person_type::text, NULL) AS person_type, ' +
         'pu.id::text AS account_id, pu.email AS login_email ' +
         'FROM platform.iam_person p LEFT JOIN platform.platform_users pu ON pu.person_id = p.id ' +
         'WHERE p.id = $1::uuid',
@@ -354,7 +359,9 @@ export class ProfileService {
       personId,
     );
     if (studentRows.length === 0) {
-      throw new BadRequestException('No sis_students row exists for this person; cannot edit demographics');
+      throw new BadRequestException(
+        'No sis_students row exists for this person; cannot edit demographics',
+      );
     }
     await tx.$executeRawUnsafe(
       'INSERT INTO sis_student_demographics (id, student_id, gender, ethnicity, primary_language, birth_country, citizenship, medical_alert_notes) ' +
@@ -369,12 +376,12 @@ export class ProfileService {
         '  updated_at = now()',
       randomUUID(),
       studentRows[0]!.id,
-      isAdmin ? dto.gender ?? null : null,
-      isAdmin ? dto.ethnicity ?? null : null,
+      isAdmin ? (dto.gender ?? null) : null,
+      isAdmin ? (dto.ethnicity ?? null) : null,
       dto.primaryLanguage ?? null,
-      isAdmin ? dto.birthCountry ?? null : null,
-      isAdmin ? dto.citizenship ?? null : null,
-      isAdmin ? dto.medicalAlertNotes ?? null : null,
+      isAdmin ? (dto.birthCountry ?? null) : null,
+      isAdmin ? (dto.citizenship ?? null) : null,
+      isAdmin ? (dto.medicalAlertNotes ?? null) : null,
     );
   }
 

@@ -474,10 +474,7 @@ export class HouseholdsService {
     );
   }
 
-  private async findMemberByPerson(
-    familyId: string,
-    personId: string,
-  ): Promise<MemberRow | null> {
+  private async findMemberByPerson(familyId: string, personId: string): Promise<MemberRow | null> {
     const rows = await this.prisma.$queryRawUnsafe<MemberRow[]>(
       'SELECT fm.id::text AS id, fm.family_id::text AS family_id, fm.person_id::text AS person_id, ' +
         'fm.member_role::text AS member_role, fm.is_primary_contact, fm.joined_at::text AS joined_at, ' +

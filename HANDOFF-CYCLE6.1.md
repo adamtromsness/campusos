@@ -20,36 +20,40 @@
 
 ## Step status
 
-| Step | Title                                                         | Status         |
-| ---- | ------------------------------------------------------------- | -------------- |
-| 1    | Platform Schema — iam_person + platform_families Extensions   | ✅ Done (2026-04-29) |
-| 2    | Tenant Schema — Demographics & Guardian Employment            | ✅ Done (2026-04-29) |
-| 3    | Permission Catalogue — usr-001                                | ✅ Done (2026-04-29) |
-| 4    | Seed Data — Household + Personal Fields + Demographics        | ✅ Done (2026-04-29) |
-| 5    | Profile NestJS Module                                         | ✅ Done (2026-04-29) |
-| 6    | Households NestJS Module                                      | ✅ Done (2026-04-29) |
-| 7    | Profile UI — Tabbed Page + Avatar Menu                        | ✅ Done (2026-04-29) |
-| 8    | Vertical Slice Acceptance Test                                | ⏳ Planned     |
+| Step | Title                                                       | Status               |
+| ---- | ----------------------------------------------------------- | -------------------- |
+| 1    | Platform Schema — iam_person + platform_families Extensions | ✅ Done (2026-04-29) |
+| 2    | Tenant Schema — Demographics & Guardian Employment          | ✅ Done (2026-04-29) |
+| 3    | Permission Catalogue — usr-001                              | ✅ Done (2026-04-29) |
+| 4    | Seed Data — Household + Personal Fields + Demographics      | ✅ Done (2026-04-29) |
+| 5    | Profile NestJS Module                                       | ✅ Done (2026-04-29) |
+| 6    | Households NestJS Module                                    | ✅ Done (2026-04-29) |
+| 7    | Profile UI — Tabbed Page + Avatar Menu                      | ✅ Done (2026-04-29) |
+| 8    | Vertical Slice Acceptance Test                              | ✅ Done (2026-04-29) |
 
 ## What Cycle 6.1 adds on top of Cycles 0–6
 
 **Platform schema (1 Prisma migration):**
+
 - `iam_person` gains 14 columns: `middle_name`, `preferred_name`, `suffix`, `previous_names TEXT[]`, `date_of_birth`, `primary_phone`, `secondary_phone`, `work_phone`, `phone_type_primary`, `phone_type_secondary`, `preferred_language` (default 'en'), `personal_email`, `notes`, `profile_updated_at`. All nullable.
-- `platform_families` gains 16 columns: `address_line1`, `address_line2`, `city`, `state`, `postal_code`, `country`, `home_phone`, `home_language` (default 'en'), `mailing_address_same` (default true), 6 mailing-* variants, `notes`. All nullable.
+- `platform_families` gains 16 columns: `address_line1`, `address_line2`, `city`, `state`, `postal_code`, `country`, `home_phone`, `home_language` (default 'en'), `mailing_address_same` (default true), 6 mailing-\* variants, `notes`. All nullable.
 - New `platform_family_members` table: `id`, `family_id FK(platform_families) ON DELETE CASCADE`, `person_id FK(iam_person) UNIQUE`, `role TEXT CHECK IN (HEAD_OF_HOUSEHOLD, SPOUSE, CHILD, GRANDPARENT, OTHER_GUARDIAN, SIBLING, OTHER)`, `is_primary_contact BOOLEAN DEFAULT false`, `joined_at`, `created_at`, `updated_at`. Partial UNIQUE INDEX `(family_id) WHERE is_primary_contact = true` so each household has at most one primary contact.
 
 **Tenant schema (1 SQL migration: `022_sis_student_demographics_and_guardian_employment.sql`):**
+
 - New `sis_student_demographics`: `id`, `student_id UUID FK(sis_students) ON DELETE CASCADE UNIQUE`, `gender`, `ethnicity`, `primary_language`, `birth_country`, `citizenship`, `medical_alert_notes`, `created_at`, `updated_at`. All non-FK columns nullable.
 - `sis_guardians` gains 4 columns: `employer`, `employer_phone`, `occupation`, `work_address`. All nullable.
 - Tenant base table count: **107** (was 106 after Cycle 6 Step 4).
 - Cross-schema FKs introduced: 0.
 
 **Permissions catalogue:**
+
 - New function `USR-001 (Profile Management)` with three tiers in `packages/database/data/permissions.json`. Catalogue total: **447** (was 444).
 - `usr-001:read` + `usr-001:write` granted to every seeded role (Teacher, Student, Parent, Staff, Counsellor, VP, School Admin, Platform Admin).
 - `usr-001:admin` granted to School Admin + Platform Admin only.
 
 **Seed (`seed-profile.ts`, idempotent, gated on Chen family `platform_family_members` row count):**
+
 - Chen Family `platform_families` row gets address (1234 Oak Street, Springfield, IL 62701), home_phone, home_language='en', mailing_address_same=true.
 - 2 new `platform_family_members` rows: David Chen (HEAD_OF_HOUSEHOLD, is_primary_contact=true), Maya Chen (CHILD).
 - Personal fields populated on all 5 seeded users: David (preferred_name='Dave', primary_phone, phone_type_primary='MOBILE', personal_email), Sarah Mitchell, James Rivera (work_phone copied from `hr_employees`), Linda Park, Marcus Hayes.
@@ -60,12 +64,14 @@
 **API surface (`apps/api/src/profile/` + `apps/api/src/households/`):**
 
 ProfileModule — 1 service + 1 controller + 4 endpoints:
+
 - `GET /profile/me` (`usr-001:read`) — composes iam_person + persona-specific row (demographics for STUDENT, guardian employment for GUARDIAN, employee profile for STAFF) + emergency contact (from `sis_emergency_contacts` or `hr_emergency_contacts` depending on persona) + household membership (the caller's `platform_family_members` row + the linked `platform_families`).
 - `PATCH /profile/me` (`usr-001:write`) — server-side ALLOW-LIST of editable personal fields (preferred_name, middle_name, suffix, previous_names, the three phones + types, preferred_language, personal_email, notes). Guardian-extras path adds `employer / employer_phone / occupation / work_address`. Student demographics path adds `primary_language` only. Cannot edit first_name, last_name, login email, or date_of_birth post-set (admin-only per ADR-055).
 - `GET /profile/:personId` (`iam-001:read`) — admin view of any person.
 - `PATCH /profile/:personId` (`iam-001:write`) — admin edit; full ALLOW-LIST including the identity fields.
 
 HouseholdsModule — 1 service + 1 controller + 5 endpoints:
+
 - `GET /households/my` (`usr-001:read`) — returns the caller's household + members; response includes `canEdit` boolean.
 - `PATCH /households/:id` (`usr-001:write` + service-layer `assertCanEditHousehold(id, actor)` — HEAD_OF_HOUSEHOLD or SPOUSE; admin override via `iam-001:write`).
 - `POST /households/:id/members` — same gate.
@@ -75,6 +81,7 @@ HouseholdsModule — 1 service + 1 controller + 5 endpoints:
 Kafka emit: `iam.household.member_changed` — no consumer this cycle, forward-compatible for a future M40 announcement worker.
 
 **Web surface (`apps/web/src/app/(app)/profile/`):**
+
 - `/profile` (own profile) and `/profile/[personId]` (admin) — tabbed view.
 - Tabs: Personal Info / My Household / Emergency Contact / Demographics (STUDENT only) or Employment (GUARDIAN only) / Account.
 - Avatar dropdown in `TopBar.tsx` gains a "My Profile" link above "Sign out", visible to every persona (everyone holds `usr-001:read` after Step 3).
@@ -116,7 +123,7 @@ Generated via `prisma migrate diff --script`, hand-augmented with the partial UN
 Changes:
 
 - **`platform.iam_person`** — added 12 columns: `middle_name`, `suffix`, `previous_names TEXT[]`, `primary_phone`, `secondary_phone`, `work_phone`, `phone_type_primary`, `phone_type_secondary`, `preferred_language` (default `'en'`), `personal_email`, `notes`, `profile_updated_at`. All nullable (or `NOT NULL DEFAULT 'en'` for language).
-- **`platform.platform_families`** — added 17 columns: `address_line1`, `address_line2`, `city`, `state`, `postal_code`, `country`, `home_phone`, `home_language` (default `'en'`), `mailing_address_same` (default `true`), 6 mailing-* variants, `notes`, `updated_at` (default `CURRENT_TIMESTAMP`). The plan said 16; 17 is the correct count once `updated_at` is included.
+- **`platform.platform_families`** — added 17 columns: `address_line1`, `address_line2`, `city`, `state`, `postal_code`, `country`, `home_phone`, `home_language` (default `'en'`), `mailing_address_same` (default `true`), 6 mailing-\* variants, `notes`, `updated_at` (default `CURRENT_TIMESTAMP`). The plan said 16; 17 is the correct count once `updated_at` is included.
 - **`platform.platform_family_members`** — added 2 columns (`joined_at`, `updated_at`), upgraded `person_id` to UNIQUE (was indexed, now uniquely indexed), upgraded the `family_id` FK to `ON DELETE CASCADE` (was no-action), added partial UNIQUE INDEX `platform_family_members_one_primary_per_family_uq ON (family_id) WHERE is_primary_contact = true`.
 - **`platform.MemberRole`** — added 5 enum values (HEAD_OF_HOUSEHOLD, SPOUSE, CHILD, GRANDPARENT, OTHER_GUARDIAN). Existing values preserved.
 - **`platform.iam_person`** CHECK constraints — `iam_person_phone_type_primary_chk` and `iam_person_phone_type_secondary_chk`, both shaped `(col IS NULL OR col IN ('MOBILE','HOME','WORK'))`.
@@ -125,29 +132,29 @@ Cross-schema FKs introduced: 0 (everything stays inside the `platform` schema).
 
 ### Verification (recorded 2026-04-29)
 
-| Check                                              | Expected | Got |
-|----------------------------------------------------|----------|-----|
-| `iam_person` total column count                    | 22       | 22  |
-| `iam_person` new column count                      | 12       | 12  |
-| `platform_families` total column count             | 20       | 20  |
-| `platform_families` new column count               | 17       | 17  |
-| `platform_family_members` new columns              | 2        | 2   |
-| `MemberRole` enum value count                      | 10       | 10  |
-| `iam_person` CHECK constraints                     | 2        | 2   |
-| Partial UNIQUE INDEX on `is_primary_contact=true`  | exists   | ✓   |
-| UNIQUE on `platform_family_members.person_id`      | exists   | ✓   |
-| Chen Family row preserved                          | 1        | 1   |
-| Chen Family member rows preserved                  | 2        | 2   |
+| Check                                             | Expected | Got |
+| ------------------------------------------------- | -------- | --- |
+| `iam_person` total column count                   | 22       | 22  |
+| `iam_person` new column count                     | 12       | 12  |
+| `platform_families` total column count            | 20       | 20  |
+| `platform_families` new column count              | 17       | 17  |
+| `platform_family_members` new columns             | 2        | 2   |
+| `MemberRole` enum value count                     | 10       | 10  |
+| `iam_person` CHECK constraints                    | 2        | 2   |
+| Partial UNIQUE INDEX on `is_primary_contact=true` | exists   | ✓   |
+| UNIQUE on `platform_family_members.person_id`     | exists   | ✓   |
+| Chen Family row preserved                         | 1        | 1   |
+| Chen Family member rows preserved                 | 2        | 2   |
 
 Constraint smoke (single transaction with savepoints, all rolled back):
 
-| #  | Test                                                        | Result        |
-|----|-------------------------------------------------------------|---------------|
-| 1  | `UPDATE iam_person SET phone_type_primary='LANDLINE'`       | rejected ✓ (CHECK fired) |
-| 2  | `UPDATE iam_person SET phone_type_primary='MOBILE'`         | accepted ✓    |
-| 3  | Two `is_primary_contact=true` rows in same family           | rejected ✓ (partial UNIQUE fired) |
-| 4  | Same `person_id` in second household                        | rejected ✓ (composite UNIQUE fired) |
-| 5  | `UPDATE member_role='HEAD_OF_HOUSEHOLD'`                    | accepted ✓    |
+| #   | Test                                                  | Result                              |
+| --- | ----------------------------------------------------- | ----------------------------------- |
+| 1   | `UPDATE iam_person SET phone_type_primary='LANDLINE'` | rejected ✓ (CHECK fired)            |
+| 2   | `UPDATE iam_person SET phone_type_primary='MOBILE'`   | accepted ✓                          |
+| 3   | Two `is_primary_contact=true` rows in same family     | rejected ✓ (partial UNIQUE fired)   |
+| 4   | Same `person_id` in second household                  | rejected ✓ (composite UNIQUE fired) |
+| 5   | `UPDATE member_role='HEAD_OF_HOUSEHOLD'`              | accepted ✓                          |
 
 Prisma client regenerated cleanly (`prisma generate --schema=prisma/platform/schema.prisma`). API builds clean (`pnpm --filter @campusos/api build`). No downstream code references the new columns yet — Step 5 (Profile module) is where they get read/written.
 
@@ -185,26 +192,26 @@ First provision attempt failed with the splitter cutting on a `;` inside the blo
 
 ### Verification (recorded 2026-04-29)
 
-| Check                                              | Expected | Got |
-|----------------------------------------------------|----------|-----|
-| Tenant logical base table count                    | 107      | 107 |
-| `sis_student_demographics` column count            | 10       | 10  |
-| `sis_guardians` column count                       | 13       | 13 (was 9 +4) |
-| `sis_student_demographics_student_id_fkey` `confdeltype` | `c` (CASCADE) | `c` ✓ |
-| `sis_student_demographics_student_id_uq` UNIQUE    | exists   | ✓   |
-| Migrations applied to `tenant_demo`                | 22       | 22  |
-| Migrations applied to `tenant_test`                | 22       | 22  |
-| Idempotent re-provision (column counts stable)     | yes      | yes ✓ |
+| Check                                                    | Expected      | Got           |
+| -------------------------------------------------------- | ------------- | ------------- |
+| Tenant logical base table count                          | 107           | 107           |
+| `sis_student_demographics` column count                  | 10            | 10            |
+| `sis_guardians` column count                             | 13            | 13 (was 9 +4) |
+| `sis_student_demographics_student_id_fkey` `confdeltype` | `c` (CASCADE) | `c` ✓         |
+| `sis_student_demographics_student_id_uq` UNIQUE          | exists        | ✓             |
+| Migrations applied to `tenant_demo`                      | 22            | 22            |
+| Migrations applied to `tenant_test`                      | 22            | 22            |
+| Idempotent re-provision (column counts stable)           | yes           | yes ✓         |
 
 Constraint smoke (single transaction with savepoints, all rolled back):
 
-| #  | Test                                                               | Result        |
-|----|--------------------------------------------------------------------|---------------|
-| A  | Happy-path INSERT with `gender='Female'`                           | accepted ✓    |
-| B  | UNIQUE(student_id) rejects 2nd row for same student                | rejected ✓    |
-| C  | FK rejects bogus student_id                                        | rejected ✓    |
-| D  | CASCADE declared (`pg_constraint.confdeltype='c'`)                 | confirmed ✓ via catalog (live test blocked by unrelated `cls_submissions` no-cascade FK on the seeded student — the catalog check is authoritative) |
-| E  | `sis_guardians` accepts employer / employer_phone / occupation / work_address | accepted ✓    |
+| #   | Test                                                                          | Result                                                                                                                                              |
+| --- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | Happy-path INSERT with `gender='Female'`                                      | accepted ✓                                                                                                                                          |
+| B   | UNIQUE(student_id) rejects 2nd row for same student                           | rejected ✓                                                                                                                                          |
+| C   | FK rejects bogus student_id                                                   | rejected ✓                                                                                                                                          |
+| D   | CASCADE declared (`pg_constraint.confdeltype='c'`)                            | confirmed ✓ via catalog (live test blocked by unrelated `cls_submissions` no-cascade FK on the seeded student — the catalog check is authoritative) |
+| E   | `sis_guardians` accepts employer / employer_phone / occupation / work_address | accepted ✓                                                                                                                                          |
 
 ### Notes for downstream steps
 
@@ -229,6 +236,7 @@ Constraint smoke (single transaction with savepoints, all rolled back):
 ### Verification (recorded 2026-04-29)
 
 `tsx src/seed-iam.ts` output:
+
 - Platform Admin: 3 permissions newly assigned (447 total)
 - School Admin: 3 newly added (out of 447 targeted)
 - Teacher: 2 newly added (36 targeted total — was 34 + 2)
@@ -238,27 +246,27 @@ Constraint smoke (single transaction with savepoints, all rolled back):
 
 `tsx src/build-cache.ts` output (per-account cache):
 
-| Account                          | Total | Δ vs Cycle 6 |
-|----------------------------------|-------|--------------|
-| admin@demo (Platform Admin)      | 447   | +3           |
-| principal@demo (School Admin)    | 447   | +3           |
-| teacher@demo                     | 36    | +2           |
-| student@demo                     | 17    | +2           |
-| parent@demo                      | 17    | +2           |
-| vp@demo                          | 16    | +2           |
-| counsellor@demo                  | 16    | +2           |
+| Account                       | Total | Δ vs Cycle 6 |
+| ----------------------------- | ----- | ------------ |
+| admin@demo (Platform Admin)   | 447   | +3           |
+| principal@demo (School Admin) | 447   | +3           |
+| teacher@demo                  | 36    | +2           |
+| student@demo                  | 17    | +2           |
+| parent@demo                   | 17    | +2           |
+| vp@demo                       | 16    | +2           |
+| counsellor@demo               | 16    | +2           |
 
 Per-persona USR codes verified live by querying `iam_effective_access_cache.permission_codes`:
 
-| Persona  | Codes |
-|----------|-------|
-| admin@   | usr-001:admin, usr-001:read, usr-001:write |
-| principal@ | usr-001:admin, usr-001:read, usr-001:write |
-| teacher@ | usr-001:read, usr-001:write |
-| parent@  | usr-001:read, usr-001:write |
-| student@ | usr-001:read, usr-001:write |
-| vp@      | usr-001:read, usr-001:write |
-| counsellor@ | usr-001:read, usr-001:write |
+| Persona     | Codes                                      |
+| ----------- | ------------------------------------------ |
+| admin@      | usr-001:admin, usr-001:read, usr-001:write |
+| principal@  | usr-001:admin, usr-001:read, usr-001:write |
+| teacher@    | usr-001:read, usr-001:write                |
+| parent@     | usr-001:read, usr-001:write                |
+| student@    | usr-001:read, usr-001:write                |
+| vp@         | usr-001:read, usr-001:write                |
+| counsellor@ | usr-001:read, usr-001:write                |
 
 ### Known cosmetic bug (not Step 3 scope)
 
@@ -291,6 +299,7 @@ E) **David Chen's `sis_guardians` employment** — schema-qualified raw `UPDATE`
 ### Verification (recorded 2026-04-29)
 
 `pnpm seed:profile` first run:
+
 - A) Chen Family address + home phone populated ✓
 - B) PARENT → HEAD_OF_HOUSEHOLD count=1, STUDENT → CHILD count=1 ✓
 - C) iam_person personal fields populated on 6 accounts ✓
@@ -301,18 +310,18 @@ Second run: `Chen Family already migrated to household roles. Skipping.` ✓
 
 Live read-back queries confirmed:
 
-| Check                                                          | Got |
-|----------------------------------------------------------------|-----|
-| Chen Family address row                                        | 1   |
-| Chen Family members with new role values                       | David HEAD_OF_HOUSEHOLD primary, Maya CHILD ✓ |
-| iam_person rows with `preferred_name` populated                | 6   |
-| iam_person rows with `phone_type_primary='MOBILE'`             | 6   |
-| iam_person rows with `personal_email` populated                | 5 (Maya intentionally null — students don't have a personal email yet) |
-| Maya `date_of_birth='2011-03-15'`                              | ✓   |
-| sis_student_demographics rows                                  | 15  |
-| Rows with `primary_language='English'`                         | 15  |
-| Rows with `gender` populated                                   | 1 (Maya only) |
-| sis_guardians rows with `employer` populated                   | 1 (David Chen) |
+| Check                                              | Got                                                                    |
+| -------------------------------------------------- | ---------------------------------------------------------------------- |
+| Chen Family address row                            | 1                                                                      |
+| Chen Family members with new role values           | David HEAD_OF_HOUSEHOLD primary, Maya CHILD ✓                          |
+| iam_person rows with `preferred_name` populated    | 6                                                                      |
+| iam_person rows with `phone_type_primary='MOBILE'` | 6                                                                      |
+| iam_person rows with `personal_email` populated    | 5 (Maya intentionally null — students don't have a personal email yet) |
+| Maya `date_of_birth='2011-03-15'`                  | ✓                                                                      |
+| sis_student_demographics rows                      | 15                                                                     |
+| Rows with `primary_language='English'`             | 15                                                                     |
+| Rows with `gender` populated                       | 1 (Maya only)                                                          |
+| sis_guardians rows with `employer` populated       | 1 (David Chen)                                                         |
 
 ### Notes for downstream steps
 
@@ -332,14 +341,15 @@ Live read-back queries confirmed:
 
 **4 endpoints**, all on the `ProfileController`:
 
-| Method | Path                       | Gate              | Notes |
-|--------|----------------------------|-------------------|-------|
-| GET    | `/profile/me`              | `usr-001:read`    | Compose-and-read for the calling person |
-| PATCH  | `/profile/me`              | `usr-001:write`   | Self-service, ALLOW-LIST excludes identity fields |
-| GET    | `/profile/:personId`       | `usr-001:admin`   | Admin override |
-| PATCH  | `/profile/:personId`       | `usr-001:admin`   | Admin override + identity fields editable |
+| Method | Path                 | Gate            | Notes                                             |
+| ------ | -------------------- | --------------- | ------------------------------------------------- |
+| GET    | `/profile/me`        | `usr-001:read`  | Compose-and-read for the calling person           |
+| PATCH  | `/profile/me`        | `usr-001:write` | Self-service, ALLOW-LIST excludes identity fields |
+| GET    | `/profile/:personId` | `usr-001:admin` | Admin override                                    |
+| PATCH  | `/profile/:personId` | `usr-001:admin` | Admin override + identity fields editable         |
 
 **ProfileService composition rule** — every `getProfile(personId)` call returns:
+
 - iam_person columns (name, preferred_name, phones, etc.)
 - Login email from `platform_users.email` (joined)
 - Household: the calling person's `platform_family_members` row (if any) + linked `platform_families.name`
@@ -348,6 +358,7 @@ Live read-back queries confirmed:
 - Emergency contact: dual-table resolution — `hr_emergency_contacts` keyed via `hr_employees.person_id` for STAFF, `sis_emergency_contacts` keyed via `sis_students.platform_student_id → platform_students.person_id` for STUDENT, `null` for everyone else
 
 **Transactional convention applied:**
+
 - Platform writes (`iam_person.update`) use a regular Prisma transaction implicitly via the platform PrismaClient.
 - Tenant writes (`sis_student_demographics`, `sis_guardians` employment, `sis_emergency_contacts`, `hr_emergency_contacts`) ALL run inside a single `executeInTenantTransaction` callback so they atomically commit or roll back together.
 - The two transactions are sequential, not nested — a failure in the tenant tx does not roll back the iam_person write. This is acceptable for self-service profile editing since each section is independent and the response is a fresh `getProfile` re-read after success.
@@ -362,16 +373,16 @@ First boot attempt failed with `ReferenceError: Cannot access 'UpdateEmergencyCo
 
 ### Live verification (recorded 2026-04-29, all on `tenant_demo`)
 
-| #  | Scenario                                                           | Result |
-|----|--------------------------------------------------------------------|--------|
-| S1 | David (parent) `GET /profile/me`                                  | 200 — full shape: GUARDIAN, household HEAD_OF_HOUSEHOLD primary, employment=Chen Engineering LLC, demographics=null, emergencyContact=null |
-| S2 | Maya (student) `GET /profile/me`                                  | 200 — STUDENT, demographics={gender:Female, primaryLanguage:English}, employment=null, household role=CHILD, dateOfBirth=2011-03-15 |
-| S3 | Jim (teacher) `GET /profile/me`                                   | 200 — STAFF, workPhone populated, household=null (Jim isn't in Chen Family), emergencyContact=null (no seed) |
-| S4 | David PATCH preferredName='Davey' + secondaryPhone with phoneTypeSecondary='HOME' | 200 — phone_type CHECK from Step 1 fired and passed; profileUpdatedAt bumped |
-| S5 | David PATCH `firstName` (admin-only)                              | 400 — ValidationPipe `forbidNonWhitelisted` rejects on the way in (cleaner than my service-layer check) |
-| S6 | Jim PATCH emergencyContact (lands in `hr_emergency_contacts`)     | 200 — response source='EMPLOYEE', live SQL confirms row in `hr_emergency_contacts` with `is_primary=true` |
-| S7 | Sarah (admin) PATCH Maya `firstName='Maya-Edited'` via `/profile/:personId` | 200 — admin path works on `usr-001:admin` |
-| S8 | David PATCH `/profile/:Sarah's personId`                          | 403 INSUFFICIENT_PERMISSIONS required: ['usr-001:admin'] |
+| #   | Scenario                                                                          | Result                                                                                                                                     |
+| --- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| S1  | David (parent) `GET /profile/me`                                                  | 200 — full shape: GUARDIAN, household HEAD_OF_HOUSEHOLD primary, employment=Chen Engineering LLC, demographics=null, emergencyContact=null |
+| S2  | Maya (student) `GET /profile/me`                                                  | 200 — STUDENT, demographics={gender:Female, primaryLanguage:English}, employment=null, household role=CHILD, dateOfBirth=2011-03-15        |
+| S3  | Jim (teacher) `GET /profile/me`                                                   | 200 — STAFF, workPhone populated, household=null (Jim isn't in Chen Family), emergencyContact=null (no seed)                               |
+| S4  | David PATCH preferredName='Davey' + secondaryPhone with phoneTypeSecondary='HOME' | 200 — phone_type CHECK from Step 1 fired and passed; profileUpdatedAt bumped                                                               |
+| S5  | David PATCH `firstName` (admin-only)                                              | 400 — ValidationPipe `forbidNonWhitelisted` rejects on the way in (cleaner than my service-layer check)                                    |
+| S6  | Jim PATCH emergencyContact (lands in `hr_emergency_contacts`)                     | 200 — response source='EMPLOYEE', live SQL confirms row in `hr_emergency_contacts` with `is_primary=true`                                  |
+| S7  | Sarah (admin) PATCH Maya `firstName='Maya-Edited'` via `/profile/:personId`       | 200 — admin path works on `usr-001:admin`                                                                                                  |
+| S8  | David PATCH `/profile/:Sarah's personId`                                          | 403 INSUFFICIENT_PERMISSIONS required: ['usr-001:admin']                                                                                   |
 
 Cleanup post-smoke: Sarah restored Maya's firstName, Jim's test emergency contact removed, David's secondaryPhone reset, all via the same endpoints. Tenant returns to seed state.
 
@@ -390,14 +401,14 @@ Cleanup post-smoke: Sarah restored Maya's firstName, Jim's test emergency contac
 
 ### What shipped — 6 endpoints (the plan said 5; added GET /households/:id for arbitrary-by-id reads with same row-scope as /my)
 
-| Method | Path                                          | Gate           |
-|--------|-----------------------------------------------|----------------|
-| GET    | `/households/my`                              | `usr-001:read` |
-| GET    | `/households/:id`                             | `usr-001:read` (row-scoped to member or admin) |
-| PATCH  | `/households/:id`                             | `usr-001:write` + `assertCanEditHousehold` |
-| POST   | `/households/:id/members`                     | `usr-001:write` + `assertCanEditHousehold` |
-| PATCH  | `/households/:id/members/:memberId`           | `usr-001:write` + `assertCanEditHousehold` |
-| DELETE | `/households/:id/members/:memberId`           | `usr-001:write` + `assertCanEditHousehold` |
+| Method | Path                                | Gate                                           |
+| ------ | ----------------------------------- | ---------------------------------------------- |
+| GET    | `/households/my`                    | `usr-001:read`                                 |
+| GET    | `/households/:id`                   | `usr-001:read` (row-scoped to member or admin) |
+| PATCH  | `/households/:id`                   | `usr-001:write` + `assertCanEditHousehold`     |
+| POST   | `/households/:id/members`           | `usr-001:write` + `assertCanEditHousehold`     |
+| PATCH  | `/households/:id/members/:memberId` | `usr-001:write` + `assertCanEditHousehold`     |
+| DELETE | `/households/:id/members/:memberId` | `usr-001:write` + `assertCanEditHousehold`     |
 
 `assertCanEditHousehold(familyId, actor)` — short-circuit returns true if `actor.isSchoolAdmin` OR caller has `usr-001:admin` in the current tenant scope chain. Otherwise reads `platform_family_members` for the (family, person) pair and accepts `HEAD_OF_HOUSEHOLD` or `SPOUSE`. Anything else 403s.
 
@@ -418,18 +429,18 @@ First build failed with `TS2345: Argument of type 'Omit<PrismaClient, ...>' is n
 
 ### Live verification (recorded 2026-04-29, all on `tenant_demo`, 10 scenarios)
 
-| #   | Scenario                                                                     | Result |
-|-----|------------------------------------------------------------------------------|--------|
+| #   | Scenario                                                                    | Result                                                                                                      |
+| --- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | S1  | David parent `GET /households/my`                                           | 200 — Chen Family, addressLine1='1234 Oak Street', `canEdit=true`, members=[David HEAD primary, Maya CHILD] |
-| S2  | Maya student `GET /households/my`                                           | 200 — same household, `canEdit=false`, role=CHILD |
-| S3  | Maya `PATCH /households/:id` shared address                                 | 403 "Only the head of household or spouse can edit shared household details" |
-| S4  | David `PATCH /households/:id` addressLine1                                  | 200 — addressLine1 updated |
-| S5  | David `POST /households/:id/members` add Sarah Mitchell as SPOUSE           | 200 — members=[David HEAD primary, Maya CHILD, Sarah SPOUSE] |
-| S6  | David `PATCH .../members/:Sarah` `isPrimaryContact=true`                    | 200 — Sarah is now sole primary; David's flag atomically cleared in same tx |
-| S7  | David `PATCH .../members/:David` change role to OTHER (last HEAD)           | 400 "Households must always have at least one head of household" |
-| S8  | David `DELETE .../members/:David` self-eviction                             | 400 "You cannot remove yourself from your household" |
-| S9  | David `DELETE .../members/:Sarah` cleanup the test SPOUSE                   | 200 — members=[Maya CHILD, David HEAD] |
-| S10 | Sarah admin `PATCH /households/:id` notes (admin override on usr-001:admin) | 200 — notes='Touched by admin' |
+| S2  | Maya student `GET /households/my`                                           | 200 — same household, `canEdit=false`, role=CHILD                                                           |
+| S3  | Maya `PATCH /households/:id` shared address                                 | 403 "Only the head of household or spouse can edit shared household details"                                |
+| S4  | David `PATCH /households/:id` addressLine1                                  | 200 — addressLine1 updated                                                                                  |
+| S5  | David `POST /households/:id/members` add Sarah Mitchell as SPOUSE           | 200 — members=[David HEAD primary, Maya CHILD, Sarah SPOUSE]                                                |
+| S6  | David `PATCH .../members/:Sarah` `isPrimaryContact=true`                    | 200 — Sarah is now sole primary; David's flag atomically cleared in same tx                                 |
+| S7  | David `PATCH .../members/:David` change role to OTHER (last HEAD)           | 400 "Households must always have at least one head of household"                                            |
+| S8  | David `DELETE .../members/:David` self-eviction                             | 400 "You cannot remove yourself from your household"                                                        |
+| S9  | David `DELETE .../members/:Sarah` cleanup the test SPOUSE                   | 200 — members=[Maya CHILD, David HEAD]                                                                      |
+| S10 | Sarah admin `PATCH /households/:id` notes (admin override on usr-001:admin) | 200 — notes='Touched by admin'                                                                              |
 
 Cleanup: David restored addressLine1 + cleared notes + reclaimed primary-contact flag. Final state matches Step 4 seed: address_line1='1234 Oak Street', David HEAD_OF_HOUSEHOLD primary, Maya CHILD.
 
@@ -437,11 +448,11 @@ Cleanup: David restored addressLine1 + cleared notes + reclaimed primary-contact
 
 4 events captured, full ADR-057 shape verified end-to-end:
 
-| Event | Action  | Payload highlights |
-|-------|---------|--------------------|
-| 1     | ADDED   | familyId, personId=Sarah's, role=SPOUSE, actorPersonId=David's |
-| 2     | UPDATED | memberId=Sarah's, isPrimaryContact=true (S6 promotion) |
-| 3     | REMOVED | memberId=Sarah's, personId=Sarah's (S9 cleanup) |
+| Event | Action  | Payload highlights                                                     |
+| ----- | ------- | ---------------------------------------------------------------------- |
+| 1     | ADDED   | familyId, personId=Sarah's, role=SPOUSE, actorPersonId=David's         |
+| 2     | UPDATED | memberId=Sarah's, isPrimaryContact=true (S6 promotion)                 |
+| 3     | REMOVED | memberId=Sarah's, personId=Sarah's (S9 cleanup)                        |
 | 4     | UPDATED | memberId=David's, isPrimaryContact=true (post-cleanup primary restore) |
 
 Every envelope has `event_type='iam.household.member_changed'`, `source_module='iam'`, `tenant_id` populated (= the school UUID), fresh `event_id` and `correlation_id` UUIDv7s, `event_version=1`, ISO `occurred_at` and `published_at` timestamps.
@@ -463,10 +474,12 @@ Every envelope has `event_type='iam.household.member_changed'`, `source_module='
 ### What shipped
 
 **2 routes** (sharing one component module):
+
 - `/profile` (own profile, persona-conditional tabs)
 - `/profile/[personId]` (admin view, identity fields editable, household tab read-only summary)
 
 **6 tabs total**, persona-conditional per `profileTabs(personType)`:
+
 - Personal Info — always
 - My Household — always (read-only when `canEdit=false` or admin viewing someone else)
 - Emergency Contact — always (renders an info banner for personas without a schema home — guardians, alumni, external)
@@ -480,14 +493,14 @@ Every envelope has `event_type='iam.household.member_changed'`, `source_module='
 
 ### New files
 
-| File                                                       | Purpose |
-|------------------------------------------------------------|---------|
-| `apps/web/src/lib/types.ts` (extended)                     | 13 new DTO/payload interfaces for profile + household |
-| `apps/web/src/lib/profile-format.ts`                       | `profileTabs(personType)`, `profileCompleteness(profile)`, `PHONE_TYPES`, `HOUSEHOLD_ROLES`, label maps, `formatPhone`, `formatPersonName` |
-| `apps/web/src/hooks/use-profile.ts`                        | 9 hooks: `useMyProfile`, `useProfile(personId)`, `useUpdateMyProfile`, `useUpdateProfile(personId)`, `useMyHousehold`, `useHousehold(id)`, `useUpdateHousehold(id)`, `useAddHouseholdMember(id)`, `useUpdateHouseholdMember(id, memberId)`, `useRemoveHouseholdMember(id)` |
-| `apps/web/src/components/profile/ProfileTabs.tsx`          | Six tab components + shared `Section`, `Field`, `PhoneTypeSelect`, `SaveBar` helpers + `HouseholdEditor` + `MemberInlineActions` + `AddMemberModal` |
-| `apps/web/src/app/(app)/profile/page.tsx`                  | Self-service tabbed shell (987 B chunk) |
-| `apps/web/src/app/(app)/profile/[personId]/page.tsx`       | Admin tabbed shell (1.23 kB chunk) |
+| File                                                 | Purpose                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web/src/lib/types.ts` (extended)               | 13 new DTO/payload interfaces for profile + household                                                                                                                                                                                                                      |
+| `apps/web/src/lib/profile-format.ts`                 | `profileTabs(personType)`, `profileCompleteness(profile)`, `PHONE_TYPES`, `HOUSEHOLD_ROLES`, label maps, `formatPhone`, `formatPersonName`                                                                                                                                 |
+| `apps/web/src/hooks/use-profile.ts`                  | 9 hooks: `useMyProfile`, `useProfile(personId)`, `useUpdateMyProfile`, `useUpdateProfile(personId)`, `useMyHousehold`, `useHousehold(id)`, `useUpdateHousehold(id)`, `useAddHouseholdMember(id)`, `useUpdateHouseholdMember(id, memberId)`, `useRemoveHouseholdMember(id)` |
+| `apps/web/src/components/profile/ProfileTabs.tsx`    | Six tab components + shared `Section`, `Field`, `PhoneTypeSelect`, `SaveBar` helpers + `HouseholdEditor` + `MemberInlineActions` + `AddMemberModal`                                                                                                                        |
+| `apps/web/src/app/(app)/profile/page.tsx`            | Self-service tabbed shell (987 B chunk)                                                                                                                                                                                                                                    |
+| `apps/web/src/app/(app)/profile/[personId]/page.tsx` | Admin tabbed shell (1.23 kB chunk)                                                                                                                                                                                                                                         |
 
 ### `profileCompleteness` formula
 
@@ -506,15 +519,15 @@ The first attempt used `className="input"`, `className="btn-primary"`, `classNam
 
 ### Verification (recorded 2026-04-29)
 
-| Check                                                             | Got |
-|-------------------------------------------------------------------|-----|
-| `pnpm --filter @campusos/web build` clean                         | ✓   |
-| `/profile` route bundle size                                      | 987 B (108 kB First Load JS), Static |
-| `/profile/[personId]` route bundle size                           | 1.23 kB (117 kB First Load JS), Dynamic |
-| API `GET /profile/me` (David parent)                              | personType=GUARDIAN, preferredName=Dave, household.role=HEAD_OF_HOUSEHOLD, employment populated |
-| API `GET /households/my` (David)                                  | canEdit=true, members=[David HEAD, Maya CHILD] |
-| API `GET /profile/me` (Maya student)                              | personType=STUDENT, demographics={gender:Female, primaryLanguage:English}, household.role=CHILD |
-| API `GET /households/my` (Maya)                                   | canEdit=false |
+| Check                                     | Got                                                                                             |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `pnpm --filter @campusos/web build` clean | ✓                                                                                               |
+| `/profile` route bundle size              | 987 B (108 kB First Load JS), Static                                                            |
+| `/profile/[personId]` route bundle size   | 1.23 kB (117 kB First Load JS), Dynamic                                                         |
+| API `GET /profile/me` (David parent)      | personType=GUARDIAN, preferredName=Dave, household.role=HEAD_OF_HOUSEHOLD, employment populated |
+| API `GET /households/my` (David)          | canEdit=true, members=[David HEAD, Maya CHILD]                                                  |
+| API `GET /profile/me` (Maya student)      | personType=STUDENT, demographics={gender:Female, primaryLanguage:English}, household.role=CHILD |
+| API `GET /households/my` (Maya)           | canEdit=false                                                                                   |
 
 ### Notes for downstream steps
 
@@ -528,13 +541,58 @@ The first attempt used `className="input"`, `className="btn-primary"`, `classNam
 
 ## Step 8 — Vertical Slice Acceptance Test
 
-**Status:** ⏳ Planned.
+**Status:** ✅ Done (2026-04-29). CAT script lives at `docs/cycle6.1-cat-script.md`.
 
-### Plan recap
-`docs/cycle6.1-cat-script.md` — 11 scenarios + schema preamble + cleanup. Mirrors the Cycle 1–6 CAT pattern. Reproducible against fresh-provisioned `tenant_demo`.
+### What shipped
 
-### Verification (TBD)
-Will record: all 11 scenarios pass, `iam.household.member_changed` envelope captured live with full ADR-057 shape, cleanup restores tenant to seed state, Cycle 6.1 ships clean to the post-cycle architecture review.
+`docs/cycle6.1-cat-script.md` is the reproducible vertical-slice CAT — schema preamble + 11 scenarios + cleanup, in the same format as `cycle1-cat-script.md` through `cycle6-cat-script.md`. Verified live against `tenant_demo` 2026-04-29 with the API + all Cycle 1–6 consumers running.
+
+### Verification (recorded 2026-04-29, all on `tenant_demo`)
+
+Schema preamble:
+
+| Check                                             | Got                        |
+| ------------------------------------------------- | -------------------------- |
+| `iam_person` total columns                        | 22                         |
+| `platform_families` total columns                 | 20                         |
+| `platform_family_members` new columns             | 2 (joined_at + updated_at) |
+| `MemberRole` enum total values                    | 10 (5 original + 5 new)    |
+| Partial UNIQUE index on `is_primary_contact=true` | present                    |
+| `sis_student_demographics` columns                | 10                         |
+| `sis_guardians` employment columns                | 4                          |
+| USR-001 permission rows (all tiers)               | 3                          |
+| Total permissions in catalog                      | 447                        |
+| Chen Family seed shape                            | populated                  |
+| `sis_student_demographics` seed rows              | 15                         |
+| `iam_person` rows w/ preferred_name (Step 4)      | 6                          |
+
+11 plan scenarios — all pass:
+
+| #   | Scenario                                                                   | Result                                                                                |
+| --- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| S1  | David parent `GET /profile/me`                                             | GUARDIAN composition with employment + HEAD_OF_HOUSEHOLD primary                      |
+| S2  | David PATCH preferredName + secondaryPhone phoneTypeSecondary='HOME'       | allow-list works; phone_type CHECK passes; profileUpdatedAt bumps                     |
+| S3  | David PATCH firstName                                                      | 400 by ValidationPipe `forbidNonWhitelisted`                                          |
+| S4  | David PATCH household address (HEAD_OF_HOUSEHOLD)                          | 200; locked-read concurrency in `prisma.$transaction`                                 |
+| S5  | Maya CHILD reads /households/my, PATCH refused                             | canEdit=false; 403 from `assertCanEditHousehold`                                      |
+| S6  | Maya PATCH primaryLanguage allowed, gender rejected                        | demographics split (self-service vs. admin-only) enforced                             |
+| S7  | Jim staff PATCH emergencyContact                                           | lands in `hr_emergency_contacts` with `is_primary=true`, response `source='EMPLOYEE'` |
+| S8  | Sarah admin PATCH Maya firstName via `/profile/:personId`                  | 200 on `usr-001:admin`                                                                |
+| S9  | David ADD Sarah → promote → demote-self refused → REMOVE → primary-restore | full lifecycle + 4 envelopes captured                                                 |
+| S10 | Permission denials sweep                                                   | parent 403, teacher 403, student 404 (row-scope)                                      |
+| S11 | Web build static prerender of `/profile`                                   | succeeds; both routes ship in production build                                        |
+
+4 Kafka envelopes captured live on `dev.iam.household.member_changed`, full ADR-057 shape (`source_module='iam'`, `tenant_id` populated, fresh UUIDv7 `event_id`/`correlation_id`, `event_version=1`). Payloads cover ADDED → UPDATED-promote → REMOVED → UPDATED-restore.
+
+Cleanup at end-of-run restores `tenant_demo` to post-Step-4 seed state.
+
+### Cycle 6.1 closeout
+
+Git tag pattern: `cycle6.1-complete` after this CAT commit lands and CI is green; `cycle6.1-approved` after the post-cycle architecture review verdict.
+
+Review documents prepared for the post-cycle review (Phase 2 polish review pipeline):
+
+- `REVIEW-CYCLE6.1-CHATGPT.md` — review prompt + verdict trail template (mirrors `REVIEW-CYCLE6-CHATGPT.md` shape).
 
 ---
 
