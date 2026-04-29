@@ -150,6 +150,17 @@ export class PaymentAccountWorker implements OnModuleInit {
             p.guardianPersonId,
         );
       } else {
+        // REVIEW-CYCLE6 fix 11: take a per-school advisory lock so two
+        // concurrent enrolments serialise on the MAX(account_number)
+        // lookup. Without this, both transactions can read the same MAX,
+        // both compute FA-1002, and one fails with raw 23505 on the
+        // UNIQUE(school_id, account_number) constraint. The lock auto-
+        // releases at COMMIT/ROLLBACK; the schema UNIQUE remains the
+        // belt-and-braces if a third tx slips through.
+        await tx.$executeRawUnsafe(
+          "SELECT pg_advisory_xact_lock(hashtext('pay_family_accounts:' || $1::text))",
+          schoolId,
+        );
         familyAccountId = generateId();
         var accountNumber = await self.nextAccountNumber(tx, schoolId);
         await tx.$executeRawUnsafe(

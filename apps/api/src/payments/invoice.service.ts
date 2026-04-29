@@ -89,13 +89,27 @@ function invoiceRowToDto(r: InvoiceRow, lineItems: LineItemRow[]): InvoiceRespon
   };
 }
 
-// Joins amount_paid as the running sum of completed payments for the invoice
-// so the balance-due is consistent with the ledger.
+// REVIEW-CYCLE6 fix 7: amount_paid nets out completed refunds so the
+// balance-due reflects the post-refund state. Otherwise a partial
+// refund leaves the invoice reading PAID with balance $0 even though
+// the ledger has restored owed money. Full refunds flip the parent
+// payment to REFUNDED (excluded from the COMPLETED-payment sum) and
+// land a COMPLETED refund row, so we include both COMPLETED and
+// REFUNDED payments in the inflow sum and subtract COMPLETED refunds
+// to net the post-refund position. The formula remains derivable from
+// the ledger — pay_invoices.amount_paid is not a denormalised column.
+var INVOICE_AMOUNT_PAID_SQL =
+  '(' +
+  "COALESCE((SELECT SUM(p.amount) FROM pay_payments p WHERE p.invoice_id = i.id AND p.status IN ('COMPLETED','REFUNDED')), 0) " +
+  "- COALESCE((SELECT SUM(r.amount) FROM pay_refunds r JOIN pay_payments p2 ON p2.id = r.payment_id WHERE p2.invoice_id = i.id AND r.status = 'COMPLETED'), 0) " +
+  ')';
+
 var SELECT_INVOICE_BASE =
   'SELECT i.id, i.school_id, i.family_account_id, fa.account_number AS family_account_number, ' +
   'ip.first_name AS family_account_holder_first, ip.last_name AS family_account_holder_last, ' +
   'i.title, i.description, i.total_amount::text, ' +
-  "(COALESCE((SELECT SUM(amount) FROM pay_payments p WHERE p.invoice_id = i.id AND p.status = 'COMPLETED'), 0))::text AS amount_paid, " +
+  INVOICE_AMOUNT_PAID_SQL +
+  '::text AS amount_paid, ' +
   "TO_CHAR(i.due_date, 'YYYY-MM-DD') AS due_date, " +
   'i.status, i.sent_at, i.notes, i.created_at, i.updated_at ' +
   'FROM pay_invoices i ' +
@@ -287,10 +301,16 @@ export class InvoiceService {
   /**
    * Admin cancels an invoice. Locks the row, flips status to CANCELLED.
    * If any payments are attached, the cancel still proceeds — the
-   * payments stay valid (pay_payments.invoice_id is no-cascade) — but
-   * the admin should issue a refund separately. The CHARGE ledger entry
-   * is NOT reversed; future ADJUSTMENT entries are the correction
-   * mechanism.
+   * payments stay valid (pay_payments.invoice_id is no-cascade); refunds
+   * are a separate admin action.
+   *
+   * REVIEW-CYCLE6 fix 6: cancelling a SENT or PARTIAL invoice must write
+   * a compensating ADJUSTMENT entry that nets out the outstanding
+   * balance contribution from this invoice (CHARGE total minus completed
+   * payments). Without it, the family balance stays inflated by the
+   * uncollected portion, even though the invoice is no longer valid.
+   * DRAFT invoices haven't written a CHARGE entry yet, so no adjustment
+   * is needed for them.
    */
   async cancel(id: string, actor: ResolvedActor): Promise<InvoiceResponseDto> {
     if (!actor.isSchoolAdmin) {
@@ -298,22 +318,52 @@ export class InvoiceService {
     }
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       var rows = (await tx.$queryRawUnsafe(
-        'SELECT id, status FROM pay_invoices WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id, family_account_id, total_amount::text, status FROM pay_invoices WHERE id = $1::uuid FOR UPDATE',
         id,
-      )) as Array<{ id: string; status: string }>;
+      )) as Array<{
+        id: string;
+        family_account_id: string;
+        total_amount: string;
+        status: string;
+      }>;
       if (rows.length === 0) {
         throw new NotFoundException('Invoice ' + id + ' not found');
       }
-      if (rows[0]!.status === 'CANCELLED') {
+      var inv = rows[0]!;
+      if (inv.status === 'CANCELLED') {
         throw new BadRequestException('Invoice is already CANCELLED');
       }
-      if (rows[0]!.status === 'PAID') {
+      if (inv.status === 'PAID') {
         throw new BadRequestException('Invoice is PAID; issue a refund instead of cancelling');
       }
       await tx.$executeRawUnsafe(
         "UPDATE pay_invoices SET status = 'CANCELLED', updated_at = now() WHERE id = $1::uuid",
         id,
       );
+      // Compensate the ledger for non-DRAFT invoices that already
+      // landed a CHARGE entry. The outstanding balance to neutralise
+      // is `total - SUM(completed payments)` — a partially-paid invoice
+      // only needs to back out the unpaid remainder.
+      if (inv.status !== 'DRAFT') {
+        var paidRows = (await tx.$queryRawUnsafe(
+          "SELECT COALESCE(SUM(amount), 0)::text AS paid FROM pay_payments WHERE invoice_id = $1::uuid AND status = 'COMPLETED'",
+          id,
+        )) as Array<{ paid: string }>;
+        var totalAmount = Number(inv.total_amount);
+        var completed = Number(paidRows[0]?.paid ?? '0');
+        var outstanding = Number((totalAmount - completed).toFixed(2));
+        if (outstanding > 0.001) {
+          await this.ledger.recordEntry(tx, {
+            familyAccountId: inv.family_account_id,
+            entryType: 'ADJUSTMENT',
+            amount: -outstanding,
+            referenceId: id,
+            description:
+              'ADJUSTMENT: invoice cancelled — reversing outstanding $' + outstanding.toFixed(2),
+            createdBy: actor.accountId,
+          });
+        }
+      }
     });
     return this.getById(id, actor);
   }
@@ -401,34 +451,42 @@ export class InvoiceService {
       grouped[pp.family_account_id]!.push(pp);
     }
 
+    // REVIEW-CYCLE6 fix 8: existence-check + INSERT happen in the SAME
+    // transaction, gated by a per-(family, fee_schedule) advisory lock.
+    // Two simultaneous bulk-generates targeting the same fee schedule
+    // serialise on the lock; the second tx re-reads the existence row,
+    // sees the first's invoice, and bumps `skipped`. Without the lock,
+    // both reads could miss and both INSERT, creating duplicate DRAFT
+    // invoices for the same family + schedule.
     var invoiceIds: string[] = [];
     var skipped = 0;
     var familyIds = Object.keys(grouped);
     for (var fi = 0; fi < familyIds.length; fi++) {
       var familyAccountId = familyIds[fi]!;
       var students = grouped[familyAccountId]!;
-      var existing = await this.tenantPrisma.executeInTenantContext(async (client) => {
-        return client.$queryRawUnsafe<Array<{ id: string }>>(
+      var unitPrice = Number(schedule.amount);
+      var totalAmount = Number((unitPrice * students.length).toFixed(2));
+      var newInvoiceId = generateId();
+      var inserted = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          "SELECT pg_advisory_xact_lock(hashtext('pay_invoices_generate:' || $1::text || ':' || $2::text))",
+          familyAccountId,
+          body.feeScheduleId,
+        );
+        var existingTx = (await tx.$queryRawUnsafe(
           'SELECT i.id FROM pay_invoices i ' +
             'JOIN pay_invoice_line_items li ON li.invoice_id = i.id ' +
             "WHERE i.family_account_id = $1::uuid AND li.fee_schedule_id = $2::uuid AND i.status <> 'CANCELLED' LIMIT 1",
           familyAccountId,
           body.feeScheduleId,
-        );
-      });
-      if (existing.length > 0) {
-        skipped++;
-        continue;
-      }
-
-      var invoiceId = generateId();
-      var unitPrice = Number(schedule.amount);
-      var totalAmount = Number((unitPrice * students.length).toFixed(2));
-      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        )) as Array<{ id: string }>;
+        if (existingTx.length > 0) {
+          return false;
+        }
         await tx.$executeRawUnsafe(
           'INSERT INTO pay_invoices (id, school_id, family_account_id, title, description, total_amount, due_date, status) ' +
             "VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::numeric, $7::date, 'DRAFT')",
-          invoiceId,
+          newInvoiceId,
           schoolId,
           familyAccountId,
           body.title ?? schedule.name,
@@ -442,7 +500,7 @@ export class InvoiceService {
             'INSERT INTO pay_invoice_line_items (id, invoice_id, fee_schedule_id, description, quantity, unit_price, total, sort_order) ' +
               'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::numeric, $6::numeric, $7::numeric, $8::int)',
             generateId(),
-            invoiceId,
+            newInvoiceId,
             body.feeScheduleId,
             schedule.name + ' — ' + st.first_name + ' ' + st.last_name,
             '1.00',
@@ -451,8 +509,13 @@ export class InvoiceService {
             sj,
           );
         }
+        return true;
       });
-      invoiceIds.push(invoiceId);
+      if (inserted) {
+        invoiceIds.push(newInvoiceId);
+      } else {
+        skipped++;
+      }
     }
 
     return {

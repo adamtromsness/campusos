@@ -20,8 +20,22 @@ export class CapacitySummaryService {
    * be inside an open tenant transaction (`executeInTenantTransaction`)
    * and pass the tx client. We do not start our own transaction so the
    * recompute is atomic with the status flip that caused it.
+   *
+   * REVIEW-CYCLE6 fix 9: take a per-(period, grade) advisory tx lock at
+   * the top of the recompute. Without it, two concurrent transitions
+   * touching the same (period, grade) — e.g. one ACCEPT and one
+   * WITHDRAW — could both read source counters before either's status
+   * write was visible, leading to a last-writer-wins UPSERT that
+   * undercounts. The lock pins the recompute to a single executor at a
+   * time per (period, grade) key; the schema's UNIQUE(period_id,
+   * grade_level) on enr_capacity_summary is the belt-and-braces.
    */
   async recompute(tx: any, enrollmentPeriodId: string, gradeLevel: string): Promise<void> {
+    await tx.$executeRawUnsafe(
+      "SELECT pg_advisory_xact_lock(hashtext('enr_capacity_summary:' || $1::text || ':' || $2::text))",
+      enrollmentPeriodId,
+      gradeLevel,
+    );
     var totals = (await tx.$queryRawUnsafe(
       'SELECT COALESCE(SUM(total_places), 0)::int AS total_places, COALESCE(SUM(reserved_places), 0)::int AS reserved ' +
         'FROM enr_intake_capacities WHERE enrollment_period_id = $1::uuid AND grade_level = $2',

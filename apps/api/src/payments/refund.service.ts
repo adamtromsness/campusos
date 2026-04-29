@@ -128,6 +128,23 @@ export class RefundService {
     var schoolId = getCurrentTenant().schoolId;
     var refundId = generateId();
     var snapshot = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-CYCLE6 fix 7: lock the parent invoice BEFORE the payment
+      // row so we acquire locks in the same order as PaymentService.pay
+      // (invoice → payment-write). Without this consistent ordering, a
+      // concurrent pay + refund on the same invoice can deadlock.
+      var paymentInvoiceRows = (await tx.$queryRawUnsafe(
+        'SELECT invoice_id::text AS invoice_id FROM pay_payments WHERE id = $1::uuid',
+        paymentId,
+      )) as Array<{ invoice_id: string }>;
+      if (paymentInvoiceRows.length === 0) {
+        throw new NotFoundException('Payment ' + paymentId + ' not found');
+      }
+      var invoiceIdForRefund = paymentInvoiceRows[0]!.invoice_id;
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM pay_invoices WHERE id = $1::uuid FOR UPDATE',
+        invoiceIdForRefund,
+      );
+
       var rows = (await tx.$queryRawUnsafe(
         'SELECT id, family_account_id, amount::text, status FROM pay_payments WHERE id = $1::uuid FOR UPDATE',
         paymentId,
@@ -204,6 +221,47 @@ export class RefundService {
           "UPDATE pay_payments SET status = 'REFUNDED', updated_at = now() WHERE id = $1::uuid",
           paymentId,
         );
+      }
+
+      // REVIEW-CYCLE6 fix 7: recompute the parent invoice's status using
+      // the same refund-aware paid formula as the read path. After a
+      // partial refund a previously PAID invoice should drop back to
+      // PARTIAL; after a refund that nets the invoice back to zero
+      // collected the status should drop to SENT. Status only flips
+      // when the invoice was already past DRAFT and is not CANCELLED.
+      var invStatusRows = (await tx.$queryRawUnsafe(
+        'SELECT id, total_amount::text, status, ' +
+          "(COALESCE((SELECT SUM(p.amount) FROM pay_payments p WHERE p.invoice_id = pay_invoices.id AND p.status IN ('COMPLETED','REFUNDED')), 0) " +
+          "- COALESCE((SELECT SUM(r.amount) FROM pay_refunds r JOIN pay_payments p2 ON p2.id = r.payment_id WHERE p2.invoice_id = pay_invoices.id AND r.status = 'COMPLETED'), 0))::text AS amount_paid " +
+          'FROM pay_invoices WHERE id = $1::uuid',
+        invoiceIdForRefund,
+      )) as Array<{
+        id: string;
+        total_amount: string;
+        status: string;
+        amount_paid: string;
+      }>;
+      if (invStatusRows.length > 0) {
+        var inv = invStatusRows[0]!;
+        if (inv.status !== 'DRAFT' && inv.status !== 'CANCELLED') {
+          var totalAmount = Number(inv.total_amount);
+          var netPaid = Number(inv.amount_paid);
+          var nextStatus: string;
+          if (netPaid >= totalAmount - 0.001) {
+            nextStatus = 'PAID';
+          } else if (netPaid > 0.001) {
+            nextStatus = 'PARTIAL';
+          } else {
+            nextStatus = 'SENT';
+          }
+          if (nextStatus !== inv.status) {
+            await tx.$executeRawUnsafe(
+              'UPDATE pay_invoices SET status = $1, updated_at = now() WHERE id = $2::uuid',
+              nextStatus,
+              invoiceIdForRefund,
+            );
+          }
+        }
       }
 
       return {

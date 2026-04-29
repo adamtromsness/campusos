@@ -162,9 +162,14 @@ export class PaymentService {
     }
 
     var snapshot = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-CYCLE6 fix 7: amount_paid nets out completed refunds so
+      // an over-pay check after a partial refund correctly compares
+      // against the restored balance-due. Mirrors the read-side formula
+      // in invoice.service.ts.
       var rows = (await tx.$queryRawUnsafe(
         'SELECT i.id, i.family_account_id, i.total_amount::text, i.status, ' +
-          "(COALESCE((SELECT SUM(amount) FROM pay_payments p WHERE p.invoice_id = i.id AND p.status = 'COMPLETED'), 0))::text AS amount_paid, " +
+          "(COALESCE((SELECT SUM(p.amount) FROM pay_payments p WHERE p.invoice_id = i.id AND p.status IN ('COMPLETED','REFUNDED')), 0) " +
+          "- COALESCE((SELECT SUM(r.amount) FROM pay_refunds r JOIN pay_payments p2 ON p2.id = r.payment_id WHERE p2.invoice_id = i.id AND r.status = 'COMPLETED'), 0))::text AS amount_paid, " +
           'fa.account_holder_id, fa.status AS account_status ' +
           'FROM pay_invoices i ' +
           'JOIN pay_family_accounts fa ON fa.id = i.family_account_id ' +

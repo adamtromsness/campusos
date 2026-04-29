@@ -6,12 +6,18 @@ import { runWithTenantContext, RequestContext, TenantInfo } from './tenant.conte
 /**
  * TenantResolverMiddleware
  *
- * Runs on every request. Extracts the tenant from:
- * 1. Subdomain (e.g. demo.campusos.com → school "demo")
- * 2. X-Tenant-ID header (for service-to-service calls only)
- * 3. localhost:4000 with X-Tenant-Subdomain header (for local dev)
+ * Runs on every request. Extracts the tenant from, in order:
+ * 1. The `X-Tenant-Subdomain` header (used by local dev + the web client,
+ *    which always sends `demo` regardless of the deployed hostname).
+ * 2. The hostname's first DNS segment (e.g. `demo.campusos.com` → `demo`)
+ *    when the request did not arrive via `localhost` / `127.0.0.1`.
  *
- * If resolution fails → 400 Bad Request. No fallback. No default.
+ * If neither yields a subdomain → 400 Bad Request. No fallback. No default.
+ *
+ * Note (REVIEW-CYCLE6 issue 12): the `X-Tenant-Subdomain` header is
+ * accepted in every environment — production currently relies on it from
+ * the web client. Tightening to dev/test-only is a Phase 2 hardening item
+ * once the production frontend can pin to subdomain routing.
  *
  * Architecture (Dev Plan Section 18, Layer 1):
  * - Resolved tenant stored in AsyncLocalStorage

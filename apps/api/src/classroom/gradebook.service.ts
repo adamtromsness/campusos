@@ -194,14 +194,19 @@ export class GradebookService {
 
   /**
    * Student / parent / teacher view of a single student's gradebook across
-   * all of their actively-enrolled classes for the resolved term.
+   * the actively-enrolled classes the caller is allowed to see for the
+   * resolved term.
    *
    * Authorisation:
-   *  - Admin → ok.
-   *  - Student → must be self.
-   *  - Guardian → must be linked via sis_student_guardians.
+   *  - Admin → all of the student's active classes.
+   *  - Student → must be self → all of own active classes.
+   *  - Guardian → must be linked via sis_student_guardians → all of the
+   *    linked child's active classes.
    *  - Teacher → must teach at least one class the student is enrolled in
-   *    (mirrors student.service visibility).
+   *    (mirrors student.service visibility) AND the response is filtered
+   *    to ONLY the classes that teacher is assigned to. A teacher who
+   *    teaches the student's Math but not Science only sees Math here.
+   *    (REVIEW-CYCLE6 fix 4 — previously returned all active classes.)
    */
   async getStudentGradebook(
     studentId: string,
@@ -233,7 +238,27 @@ export class GradebookService {
     }
     var stu = studentRows[0]!;
 
+    // STAFF callers (not admin) only see classes they actually teach.
+    // Filtering happens with an inner-join through sis_class_teachers
+    // bound to the actor's hr_employees.id.
+    var staffFilter =
+      !actor.isSchoolAdmin && actor.personType === 'STAFF' && actor.employeeId
+        ? actor.employeeId
+        : null;
+
     var classes = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      var sql =
+        'SELECT c.id AS class_id, c.section_code, co.code AS course_code, co.name AS course_name ' +
+        'FROM sis_enrollments e ' +
+        'JOIN sis_classes c ON c.id = e.class_id ' +
+        'LEFT JOIN sis_courses co ON co.id = c.course_id ' +
+        (staffFilter !== null
+          ? 'JOIN sis_class_teachers ct ON ct.class_id = c.id AND ct.teacher_employee_id = $2::uuid '
+          : '') +
+        "WHERE e.student_id = $1::uuid AND e.status = 'ACTIVE' " +
+        'ORDER BY c.section_code';
+      var params: any[] = [studentId];
+      if (staffFilter !== null) params.push(staffFilter);
       return client.$queryRawUnsafe<
         Array<{
           class_id: string;
@@ -241,15 +266,7 @@ export class GradebookService {
           course_code: string | null;
           course_name: string | null;
         }>
-      >(
-        'SELECT c.id AS class_id, c.section_code, co.code AS course_code, co.name AS course_name ' +
-          'FROM sis_enrollments e ' +
-          'JOIN sis_classes c ON c.id = e.class_id ' +
-          'LEFT JOIN sis_courses co ON co.id = c.course_id ' +
-          "WHERE e.student_id = $1::uuid AND e.status = 'ACTIVE' " +
-          'ORDER BY c.section_code',
-        studentId,
-      );
+      >(sql, ...params);
     });
 
     var snapshots: SnapshotRow[] = termId

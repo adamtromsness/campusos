@@ -1150,6 +1150,42 @@ Plan reference: Step 12 of `docs/campusos-cycle6-implementation-plan.html`.
 
 ---
 
+## Post-cycle architecture review (REVIEW-CYCLE6-CHATGPT)
+
+**Round 1 SHA under review:** `f7db6a5`. **Round 1 verdict:** REJECT pending 8 actionable fixes (BLOCKING + MAJOR mix). The reviewer flagged 9 critical/blocking + 7 majors. Triage outcome: **3 claims wrong** (1 ResolvedActor.employeeId, 2 Kafka consumer error swallowing, 5 StudentService visibility — all already correct in `f7db6a5`); **5 accepted DEVIATIONs** (13 consumer envelope tenant validation, 14 v11 platform endpoints, 15 ledger immutability triggers, 16 outbox pattern — Phase 2 punch list); **8 valid bugs fixed in Round 2**. See `REVIEW-CYCLE6-CHATGPT.md` for the full triage table + verification trail.
+
+### REVIEW-CYCLE6 fixes applied
+
+1. **Fix 3 (BLOCKING)** — `apps/api/src/attendance/attendance.controller.ts` + `attendance.service.ts`. `GET /classes/:id/attendance/:date` now resolves the actor and applies row scope (admin / class teacher → full roster; student → own row; parent → linked children's rows; else 404). Lazy `PRESENT/PRE_POPULATED` writes only fire for managers (admin / class teacher). Verified live with 6 scenarios — parent on Maya's class returns 1 row (was 8); parent passing `?period=1` triggers no writes; teacher passing `?period=1` correctly prepopulates 8 rows.
+2. **Fix 4 (BLOCKING)** — `apps/api/src/classroom/gradebook.service.ts::getStudentGradebook`. STAFF callers now see only the student's classes the teacher is assigned to via `sis_class_teachers`. Admin / student / parent paths unchanged. Verified live by stripping Rivera from 5 of 6 of his classes — view dropped from 4 classes to 1 (only Algebra 1).
+3. **Fix 6 (BLOCKING)** — `apps/api/src/payments/invoice.service.ts::cancel`. Cancelling a non-DRAFT invoice now writes a compensating `ADJUSTMENT` ledger entry equal to `-(total - sum(completed payments))` inside the same tx that flips status to CANCELLED. DRAFT invoices skip the adjustment because no CHARGE has been written yet. Verified live: Tech Fee SENT → cancel → balance drops from $400 → $0 + ADJUSTMENT entry visible in the ledger.
+4. **Fix 7 (BLOCKING)** — `invoice.service.ts` (read formula), `payment.service.ts` (overpay check), `refund.service.ts` (status reconcile after refund + invoice-first lock order). Shared `INVOICE_AMOUNT_PAID_SQL` now nets out completed refunds: `SUM(payments WHERE status IN (COMPLETED, REFUNDED)) - SUM(refunds WHERE status = COMPLETED, on payments for this invoice)`. `RefundService.issue` now locks the parent invoice **before** the payment row (matches `PaymentService.pay`'s lock order to avoid deadlock) and recomputes invoice status PAID ↔ PARTIAL ↔ SENT after each refund (DRAFT/CANCELLED never re-flip). Verified live: $400 pay → PAID → $50 refund → invoice now PARTIAL paid=350 balanceDue=50 → $50 pay against the restored balance → PAID again.
+5. **Fix 8 (BLOCKING)** — `invoice.service.ts::generateFromSchedule`. Existence check + INSERT now run inside one tenant tx, gated by a per-(family, fee_schedule) `pg_advisory_xact_lock`. Two simultaneous bulk-generates targeting the same fee schedule serialise on the lock; the second tx re-reads the existence row, sees the first's invoice, and bumps `skipped`. Verified live with 5 parallel calls → exactly 1 winner (`created=1`) + 4 losers (`skipped=1`).
+6. **Fix 9 (MAJOR)** — `apps/api/src/enrollment/capacity-summary.service.ts::recompute`. `pg_advisory_xact_lock` keyed on `(period_id, grade_level)` taken at the top of the recompute. Concurrent transitions for the same (period, grade) — e.g. one ACCEPT + one WITHDRAW arriving in parallel — now serialise; the schema's `UNIQUE(enrollment_period_id, grade_level)` is the belt-and-braces. Verified by build-artifact inspection + a happy-path transition test (Aiden SUBMITTED→UNDER_REVIEW correctly recomputed Grade 9 to `applications_received=3`).
+7. **Fix 10 (MAJOR)** — `apps/api/src/enrollment/offer.service.ts::issue`. Copy-paste bug: previously emitted `guardianPersonId: dto.familyResponse` (always `null` on a fresh ISSUED offer). Now reads `guardian_person_id` from the locked application snapshot returned by the inner transaction. Verified live by capturing the wire envelope on `dev.enr.offer.issued` after issuing a smoke offer for Aiden with David Chen as guardian — payload showed `"guardianPersonId":"019dc92d-088c-7442-abf6-0134867d2d92"` (David Chen's `iam_person.id`).
+8. **Fix 11 (MAJOR)** — `apps/api/src/payments/consumers/payment-account.consumer.ts::createOrLinkAccount`. Per-school `pg_advisory_xact_lock` keyed on `('pay_family_accounts:' || schoolId)` taken before computing `MAX(account_number)+1`. Two concurrent enrolment events for the same school serialise on the lock; the schema's `UNIQUE(school_id, account_number)` is the belt-and-braces. The name-based `sis_students` link the reviewer also flagged is the existing Phase 2 design (the future EnrollmentConfirmedWorker will materialise `sis_students` from `enr_applications` and re-emit) — accepted as DEVIATION. Verified by build-artifact inspection.
+9. **Fix 12 (MINOR)** — `apps/api/src/tenant/tenant-resolver.middleware.ts`. JSDoc rewritten to accurately describe the actual middleware behaviour (header-first `X-Tenant-Subdomain`, then hostname's first DNS segment) and noting the dev/test-only constraint as a Phase 2 hardening item.
+
+### Phase 2 punch list additions (from this review)
+
+- **MAJOR 13 — Consumer envelope tenant validation.** Already present from REVIEW-CYCLE5. Tracked.
+- **MAJOR 14 — Platform/internal v11 endpoints non-tenant permission mode.** Forward-looking; v11 endpoints don't exist yet.
+- **MAJOR 15 — Ledger immutability hardening.** Optional Phase 2: add `BEFORE UPDATE/DELETE` trigger to every `pay_ledger_entries` partition. ADR-010 currently relies on service-side discipline.
+- **MAJOR 16 — Transactional outbox for Kafka emit.** Already present from REVIEW-CYCLE5. Best-effort emit is currently acceptable because every Cycle 6 emit's downstream consumer is idempotent.
+- **MAJOR 11 carry-over — `sis_students` materialisation.** The future EnrollmentConfirmedWorker will materialise `sis_students` rows from `enr_applications` on enroll and re-emit `enr.student.enrolled`, at which point `PaymentAccountWorker` will idempotently insert the `pay_family_account_students` link. Tracked in Step 7 + Step 12 documentation.
+
+### Verification summary
+
+- API + web build clean. All 7 unit tests pass. Prettier clean.
+- 6 fixes verified live end-to-end on `tenant_demo` (3, 4, 6, 7, 8, 10) — every smoke produced the expected fix-induced behaviour AND the prior failure mode is unreachable.
+- 2 fixes verified by build-artifact inspection + happy-path sanity (9, 11).
+- 1 fix is doc-only (12).
+- All smoke residue cleaned up — `tenant_demo` is back to seed state.
+
+The fixes ship in a single commit. Re-review pending.
+
+---
+
 ## Quick reference — running the stack from a fresh clone
 
 ```bash

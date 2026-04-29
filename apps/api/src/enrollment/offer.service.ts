@@ -149,15 +149,17 @@ export class OfferService {
       throw new BadRequestException('responseDeadline must be after now');
     }
 
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    var appSnapshot = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       var rows = (await tx.$queryRawUnsafe(
-        'SELECT id, status, applying_for_grade, enrollment_period_id FROM enr_applications WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id, status, applying_for_grade, enrollment_period_id, guardian_person_id ' +
+          'FROM enr_applications WHERE id = $1::uuid FOR UPDATE',
         applicationId,
       )) as Array<{
         id: string;
         status: string;
         applying_for_grade: string;
         enrollment_period_id: string;
+        guardian_person_id: string | null;
       }>;
       if (rows.length === 0) {
         throw new NotFoundException('Application ' + applicationId + ' not found');
@@ -190,9 +192,13 @@ export class OfferService {
         body.responseDeadline,
       );
       await this.capacity.recompute(tx, app.enrollment_period_id, app.applying_for_grade);
+      return app;
     });
 
     var dto = await this.getById(offerId, actor);
+    // REVIEW-CYCLE6 fix 10: previously emitted `dto.familyResponse` as
+    // guardianPersonId (copy-paste bug). Read the application's
+    // guardian_person_id directly from the locked snapshot above.
     void this.kafka.emit({
       topic: 'enr.offer.issued',
       key: offerId,
@@ -202,7 +208,7 @@ export class OfferService {
         applicationId: applicationId,
         offerType: offerType,
         responseDeadline: body.responseDeadline,
-        guardianPersonId: dto.familyResponse,
+        guardianPersonId: appSnapshot.guardian_person_id,
         studentFirstName: dto.studentFirstName,
         studentLastName: dto.studentLastName,
         applyingForGrade: dto.applyingForGrade,

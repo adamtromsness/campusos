@@ -131,30 +131,153 @@ export class AttendanceService {
    * Read the class roster + attendance for (date, period?). For students who
    * have no attendance row yet, ensures a PRESENT/PRE_POPULATED row exists
    * (lazy pre-population — fires the first time a teacher opens the page).
+   *
+   * REVIEW-CYCLE6 fix 3: takes the resolved actor and enforces row scope
+   *  - admin / class teacher → see all attendance rows + lazy-prepopulate
+   *    when `period` is supplied
+   *  - student → only their own row, no prepopulate side-effect
+   *  - parent → only their linked children's rows, no prepopulate side-effect
+   *  - anyone else → 404 (collapsed from 403 to avoid id probing)
+   *
+   * The earlier signature (no actor, anyone with `att-001:read` could read
+   * any class and trigger writes) is removed — every consumer now passes
+   * the actor.
    */
   async getClassAttendance(
     classId: string,
     date: string,
-    period?: string,
+    period: string | undefined,
+    actor: ResolvedActor,
   ): Promise<AttendanceRecordDto[]> {
     var partitionKeys = await this.resolveClassPartitionKeys(classId);
+    var visible = await this.canReadClassAttendance(classId, actor);
+    if (!visible) {
+      throw new NotFoundException('Class ' + classId + ' not found');
+    }
 
-    if (period) {
+    var canWrite = await this.canWriteClassAttendance(classId, actor);
+    if (period && canWrite) {
+      // Only managers (admin or class teacher) can fire the lazy
+      // PRESENT/PRE_POPULATED writes. Students and parents reading a
+      // class period must never mutate state. (REVIEW-CYCLE6 fix 3.)
       await this.prePopulateClassPeriod(classId, date, period, partitionKeys);
     }
 
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<AttendanceRow[]>(
+      var sql =
         SELECT_ATTENDANCE_BASE +
-          'WHERE a.class_id = $1::uuid AND a.date = $2::date ' +
-          'AND ($3::text IS NULL OR a.period = $3::text) ' +
-          'ORDER BY a.period, ip.last_name, ip.first_name',
-        classId,
-        date,
-        period ?? null,
-      );
+        'WHERE a.class_id = $1::uuid AND a.date = $2::date ' +
+        'AND ($3::text IS NULL OR a.period = $3::text) ';
+      var params: any[] = [classId, date, period ?? null];
+      // Non-managers: filter the response to only the rows they are
+      // entitled to see — students see their own, parents see their
+      // linked children's. Managers (admin / class teacher) see all.
+      if (!canWrite) {
+        if (actor.personType === 'STUDENT') {
+          sql +=
+            'AND a.student_id IN (' +
+            'SELECT s.id FROM sis_students s ' +
+            'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            'WHERE ps.person_id = $4::uuid' +
+            ') ';
+          params.push(actor.personId);
+        } else if (actor.personType === 'GUARDIAN') {
+          sql +=
+            'AND a.student_id IN (' +
+            'SELECT sg.student_id FROM sis_student_guardians sg ' +
+            'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+            'WHERE g.person_id = $4::uuid' +
+            ') ';
+          params.push(actor.personId);
+        } else {
+          // Some unexpected persona slipped past canReadClassAttendance.
+          // Return zero rows defensively rather than the whole roster.
+          sql += 'AND FALSE ';
+        }
+      }
+      sql += 'ORDER BY a.period, ip.last_name, ip.first_name';
+      return client.$queryRawUnsafe<AttendanceRow[]>(sql, ...params);
     });
     return rows.map(rowToDto);
+  }
+
+  /**
+   * Whether the caller can READ class attendance:
+   *  - admin → yes (existence check)
+   *  - STAFF → only if they appear in sis_class_teachers for the class
+   *  - STUDENT → only if they have an active enrollment in the class
+   *  - GUARDIAN → only if a linked child has an active enrollment
+   *  - else → no
+   */
+  private async canReadClassAttendance(classId: string, actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) {
+      var exists = await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe<Array<{ ok: number }>>(
+          'SELECT 1 AS ok FROM sis_classes WHERE id = $1::uuid',
+          classId,
+        );
+      });
+      return exists.length > 0;
+    }
+    return this.tenantPrisma.executeInTenantContext(async (client) => {
+      switch (actor.personType) {
+        case 'STAFF': {
+          if (!actor.employeeId) return false;
+          var rows = await client.$queryRawUnsafe<Array<{ ok: number }>>(
+            'SELECT 1 AS ok FROM sis_class_teachers ' +
+              'WHERE class_id = $1::uuid AND teacher_employee_id = $2::uuid',
+            classId,
+            actor.employeeId,
+          );
+          return rows.length > 0;
+        }
+        case 'STUDENT': {
+          var rows2 = await client.$queryRawUnsafe<Array<{ ok: number }>>(
+            'SELECT 1 AS ok FROM sis_enrollments e ' +
+              'JOIN sis_students s ON s.id = e.student_id ' +
+              'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+              "WHERE e.class_id = $1::uuid AND e.status = 'ACTIVE' AND ps.person_id = $2::uuid",
+            classId,
+            actor.personId,
+          );
+          return rows2.length > 0;
+        }
+        case 'GUARDIAN': {
+          var rows3 = await client.$queryRawUnsafe<Array<{ ok: number }>>(
+            'SELECT 1 AS ok FROM sis_enrollments e ' +
+              'JOIN sis_student_guardians sg ON sg.student_id = e.student_id ' +
+              'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+              "WHERE e.class_id = $1::uuid AND e.status = 'ACTIVE' AND g.person_id = $2::uuid",
+            classId,
+            actor.personId,
+          );
+          return rows3.length > 0;
+        }
+        default:
+          return false;
+      }
+    });
+  }
+
+  /**
+   * Whether the caller is a manager of the class for attendance write
+   * purposes. Mirrors `assertCanWriteClassAttendance` but returns a
+   * boolean so the read path can decide whether to fire the lazy
+   * pre-population.
+   */
+  private async canWriteClassAttendance(classId: string, actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    if (actor.personType !== 'STAFF') return false;
+    if (!actor.employeeId) return false;
+    var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM sis_class_teachers ' +
+          'WHERE class_id = $1::uuid AND teacher_employee_id = $2::uuid',
+        classId,
+        actor.employeeId,
+      );
+    });
+    return rows.length > 0;
   }
 
   /**

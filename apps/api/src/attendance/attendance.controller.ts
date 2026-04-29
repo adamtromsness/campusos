@@ -52,14 +52,16 @@ export class AttendanceController {
   @RequirePermission('att-001:read')
   @ApiOperation({
     summary:
-      "Class roster + attendance for a date. Lazily pre-populates PRESENT/PRE_POPULATED rows when 'period' is supplied.",
+      "Class roster + attendance for a date. Row-scoped to the caller (admin / class teacher → all rows; student → own; parent → linked children; else 404). Lazily pre-populates PRESENT/PRE_POPULATED rows when 'period' is supplied AND the caller is a manager (admin or class teacher).",
   })
   async classAttendance(
     @Param('id', ParseUUIDPipe) classId: string,
     @Param('date') date: string,
     @Query() query: GetClassAttendanceQueryDto,
+    @Req() req: AuthedRequest,
   ): Promise<AttendanceRecordDto[]> {
-    return this.attendance.getClassAttendance(classId, date, query.period);
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.attendance.getClassAttendance(classId, date, query.period, actor);
   }
 
   @Patch('attendance/:id')
