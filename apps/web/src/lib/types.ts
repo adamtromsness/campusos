@@ -1460,3 +1460,288 @@ export interface ListWaitlistArgs {
 export interface OfferFromWaitlistPayload {
   responseDeadline: string;
 }
+
+// ── Cycle 6 — Payments / Billing ──────────────────────────
+
+export type Recurrence = 'ONE_TIME' | 'MONTHLY' | 'QUARTERLY' | 'SEMESTER' | 'ANNUAL';
+
+export interface FeeCategoryDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateFeeCategoryPayload {
+  name: string;
+  description?: string;
+}
+
+export interface FeeScheduleDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  academicYearName: string;
+  feeCategoryId: string;
+  feeCategoryName: string;
+  name: string;
+  description: string | null;
+  gradeLevel: string | null;
+  amount: number;
+  isRecurring: boolean;
+  recurrence: Recurrence;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateFeeSchedulePayload {
+  academicYearId: string;
+  feeCategoryId: string;
+  name: string;
+  description?: string;
+  gradeLevel?: string | null;
+  amount: number;
+  isRecurring?: boolean;
+  recurrence?: Recurrence;
+}
+
+export interface UpdateFeeSchedulePayload {
+  name?: string;
+  description?: string;
+  gradeLevel?: string | null;
+  amount?: number;
+  isRecurring?: boolean;
+  recurrence?: Recurrence;
+  isActive?: boolean;
+}
+
+export type FamilyAccountStatus = 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
+export type PaymentAuthPolicy = 'ACCOUNT_HOLDER_ONLY' | 'ANY_AUTHORISED';
+
+export interface FamilyAccountStudentDto {
+  studentId: string;
+  studentNumber: string;
+  firstName: string;
+  lastName: string;
+  gradeLevel: string;
+  addedAt: string;
+}
+
+export interface FamilyAccountDto {
+  id: string;
+  schoolId: string;
+  accountHolderId: string;
+  accountHolderName: string;
+  accountHolderEmail: string | null;
+  accountNumber: string;
+  status: FamilyAccountStatus;
+  paymentAuthorisationPolicy: PaymentAuthPolicy;
+  balance: number;
+  students: FamilyAccountStudentDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+
+export interface InvoiceLineItemDto {
+  id: string;
+  invoiceId: string;
+  feeScheduleId: string | null;
+  feeScheduleName: string | null;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  sortOrder: number;
+}
+
+export interface InvoiceLineItemInputDto {
+  feeScheduleId?: string;
+  description: string;
+  quantity?: number;
+  unitPrice: number;
+}
+
+export interface InvoiceDto {
+  id: string;
+  schoolId: string;
+  familyAccountId: string;
+  familyAccountNumber: string;
+  familyAccountHolderName: string;
+  title: string;
+  description: string | null;
+  totalAmount: number;
+  amountPaid: number;
+  balanceDue: number;
+  dueDate: string | null;
+  status: InvoiceStatus;
+  sentAt: string | null;
+  notes: string | null;
+  lineItems: InvoiceLineItemDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateInvoicePayload {
+  familyAccountId: string;
+  title: string;
+  description?: string;
+  dueDate?: string;
+  lineItems: InvoiceLineItemInputDto[];
+}
+
+export interface GenerateFromSchedulePayload {
+  feeScheduleId: string;
+  title?: string;
+  dueDate?: string;
+}
+
+export interface GenerateFromScheduleResponse {
+  feeScheduleId: string;
+  created: number;
+  skipped: number;
+  invoiceIds: string[];
+}
+
+export interface ListInvoicesArgs {
+  familyAccountId?: string;
+  status?: InvoiceStatus;
+}
+
+export type PaymentMethod = 'CARD' | 'BANK_TRANSFER' | 'CASH' | 'CHEQUE' | 'WAIVER';
+export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+
+export interface PaymentDto {
+  id: string;
+  schoolId: string;
+  invoiceId: string;
+  invoiceTitle: string;
+  familyAccountId: string;
+  familyAccountNumber: string;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  stripePaymentIntentId: string | null;
+  status: PaymentStatus;
+  paidAt: string | null;
+  receiptS3Key: string | null;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PayInvoicePayload {
+  amount: number;
+  paymentMethod?: PaymentMethod;
+  notes?: string;
+}
+
+export interface ListPaymentsArgs {
+  familyAccountId?: string;
+  invoiceId?: string;
+  status?: PaymentStatus;
+}
+
+export type EntryType = 'CHARGE' | 'PAYMENT' | 'REFUND' | 'CREDIT' | 'ADJUSTMENT';
+
+export interface LedgerEntryDto {
+  id: string;
+  familyAccountId: string;
+  entryType: EntryType;
+  amount: number;
+  referenceId: string | null;
+  description: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface LedgerBalanceDto {
+  familyAccountId: string;
+  balance: number;
+  cached: boolean;
+}
+
+export interface ListLedgerArgs {
+  limit?: number;
+  before?: string;
+  referenceId?: string;
+}
+
+export type RefundCategory =
+  | 'OVERPAYMENT'
+  | 'WITHDRAWAL'
+  | 'PROGRAMME_CANCELLED'
+  | 'ERROR_CORRECTION'
+  | 'GOODWILL'
+  | 'OTHER';
+export type RefundStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
+
+export interface RefundDto {
+  id: string;
+  schoolId: string;
+  paymentId: string;
+  familyAccountId: string;
+  amount: number;
+  refundCategory: RefundCategory;
+  reason: string;
+  stripeRefundId: string | null;
+  status: RefundStatus;
+  authorisedBy: string;
+  authorisedAt: string;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IssueRefundPayload {
+  amount: number;
+  refundCategory: RefundCategory;
+  reason: string;
+}
+
+export interface ListRefundsArgs {
+  familyAccountId?: string;
+  paymentId?: string;
+  status?: RefundStatus;
+}
+
+export type PlanFrequency = 'MONTHLY' | 'QUARTERLY';
+export type PlanStatus = 'ACTIVE' | 'COMPLETED' | 'DEFAULTED' | 'CANCELLED';
+export type InstallmentStatus = 'UPCOMING' | 'DUE' | 'PAID' | 'OVERDUE';
+
+export interface PaymentPlanInstallmentDto {
+  id: string;
+  planId: string;
+  installmentNumber: number;
+  amount: number;
+  dueDate: string;
+  status: InstallmentStatus;
+  paymentId: string | null;
+  paidAt: string | null;
+}
+
+export interface PaymentPlanDto {
+  id: string;
+  schoolId: string;
+  familyAccountId: string;
+  invoiceId: string;
+  totalAmount: number;
+  installmentCount: number;
+  frequency: PlanFrequency;
+  startDate: string;
+  status: PlanStatus;
+  installments: PaymentPlanInstallmentDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePaymentPlanPayload {
+  installmentCount: number;
+  frequency: PlanFrequency;
+  startDate: string;
+}

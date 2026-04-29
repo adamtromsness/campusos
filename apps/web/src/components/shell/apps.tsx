@@ -5,6 +5,7 @@ import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
 import {
   AcademicCapIcon,
   AttendanceIcon,
+  BanknotesIcon,
   CalendarIcon,
   ChatBubbleIcon,
   CheckCircleIcon,
@@ -25,7 +26,8 @@ export type AppKey =
   | 'schedule'
   | 'calendar'
   | 'admissions'
-  | 'apply';
+  | 'apply'
+  | 'billing';
 export type BadgeKey = 'messages' | 'announcements';
 
 export interface AppDef {
@@ -163,6 +165,17 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/apply',
       routePrefix: '/apply',
       icon: AcademicCapIcon,
+    });
+  }
+
+  if (hasAnyPermission(user, ['fin-001:write'])) {
+    apps.push({
+      key: 'billing',
+      label: 'Billing',
+      description: 'Fees, invoices, family accounts, and payments',
+      href: '/billing/accounts',
+      routePrefix: '/billing',
+      icon: BanknotesIcon,
     });
   }
 
