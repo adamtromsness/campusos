@@ -218,10 +218,11 @@ async function seedIam() {
         // Cycle 6 — Enrollment write so a parent can submit + track an
         // application (row-scoped to their own apps in ApplicationService).
         // Family Billing read for the parent billing dashboard, invoice list,
-        // and ledger view; the Pay Now action is gated by the same code at
-        // service layer with a row-scope check on family_account ownership.
+        // and ledger view; FIN-001:write so the parent can hit Pay Now —
+        // the row-scope check at the service layer (account_holder_id =
+        // actor.personId) keeps parents bound to their own family account.
         'STU-003': ['read', 'write'],
-        'FIN-001': ['read'],
+        'FIN-001': ['read', 'write'],
       },
     },
     {

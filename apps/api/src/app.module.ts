@@ -12,6 +12,7 @@ import { ClassroomModule } from './classroom/classroom.module';
 import { HrModule } from './hr/hr.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { EnrollmentModule } from './enrollment/enrollment.module';
+import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
@@ -53,6 +54,7 @@ var devOnlyControllers: Type<unknown>[] =
     HrModule,
     SchedulingModule,
     EnrollmentModule,
+    PaymentsModule,
     NotificationsModule,
     MessagingModule,
     AnnouncementsModule,

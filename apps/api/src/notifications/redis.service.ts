@@ -292,4 +292,57 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn('Redis SET failed (' + key + '): ' + (e?.message || e));
     }
   }
+
+  /**
+   * Read the cached ledger balance for a family account. Returns the
+   * stringified amount on hit, null on miss or when Redis is down.
+   * String preserves the NUMERIC(10,2) shape from PostgreSQL — service
+   * code wraps with Number() at the rendering boundary.
+   */
+  async getLedgerBalance(accountId: string): Promise<string | null> {
+    if (!this.connected || !this.client) return null;
+    var key = 'ledger:balance:' + accountId;
+    try {
+      return await this.client.get(key);
+    } catch (e: any) {
+      this.logger.warn('Redis GET failed (' + key + '): ' + (e?.message || e));
+      return null;
+    }
+  }
+
+  /**
+   * Cache a freshly-computed ledger balance. TTL=30s per the Cycle 6
+   * Step 7 plan — short enough that a stale balance after a server
+   * restart with no in-flight invalidate is bounded; long enough that
+   * the balance + per-account ledger view share one round-trip.
+   */
+  async setLedgerBalance(
+    accountId: string,
+    value: string,
+    ttlSeconds = 30,
+  ): Promise<void> {
+    if (!this.connected || !this.client) return;
+    var key = 'ledger:balance:' + accountId;
+    try {
+      await this.client.set(key, value, 'EX', ttlSeconds);
+    } catch (e: any) {
+      this.logger.warn('Redis SETEX failed (' + key + '): ' + (e?.message || e));
+    }
+  }
+
+  /**
+   * Invalidate the cached ledger balance — called by the LedgerService
+   * inside the same tx as every CHARGE / PAYMENT / REFUND write. The
+   * 30s TTL is the safety net if a delete races with a concurrent
+   * read.
+   */
+  async invalidateLedgerBalance(accountId: string): Promise<void> {
+    if (!this.connected || !this.client) return;
+    var key = 'ledger:balance:' + accountId;
+    try {
+      await this.client.del(key);
+    } catch (e: any) {
+      this.logger.warn('Redis DEL failed (' + key + '): ' + (e?.message || e));
+    }
+  }
 }
