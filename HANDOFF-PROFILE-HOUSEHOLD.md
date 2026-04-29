@@ -28,7 +28,7 @@
 | 4    | Seed Data — Household + Personal Fields + Demographics        | ✅ Done (2026-04-29) |
 | 5    | Profile NestJS Module                                         | ✅ Done (2026-04-29) |
 | 6    | Households NestJS Module                                      | ✅ Done (2026-04-29) |
-| 7    | Profile UI — Tabbed Page + Avatar Menu                        | ⏳ Planned     |
+| 7    | Profile UI — Tabbed Page + Avatar Menu                        | ✅ Done (2026-04-29) |
 | 8    | Vertical Slice Acceptance Test                                | ⏳ Planned     |
 
 ## What this mini-cycle adds on top of Cycles 0–6
@@ -458,13 +458,71 @@ Every envelope has `event_type='iam.household.member_changed'`, `source_module='
 
 ## Step 7 — Profile UI — Tabbed Page + Avatar Menu
 
-**Status:** ⏳ Planned.
+**Status:** ✅ Done (2026-04-29). Web build clean.
 
-### Plan recap
-2 routes (`/profile`, `/profile/[personId]`), 5 tabs each (persona-conditional), avatar dropdown integration, `useMyProfile` + 8 sibling hooks, `profileCompleteness` helper. No new launchpad tile.
+### What shipped
 
-### Verification (TBD)
-Web build clean (`pnpm --filter @campusos/web build`). In-browser smoke: every persona can open their profile from the avatar menu, edit allowed fields, see toast on save, see profile completeness move. Admin viewing another user's profile sees identity fields editable.
+**2 routes** (sharing one component module):
+- `/profile` (own profile, persona-conditional tabs)
+- `/profile/[personId]` (admin view, identity fields editable, household tab read-only summary)
+
+**6 tabs total**, persona-conditional per `profileTabs(personType)`:
+- Personal Info — always
+- My Household — always (read-only when `canEdit=false` or admin viewing someone else)
+- Emergency Contact — always (renders an info banner for personas without a schema home — guardians, alumni, external)
+- Demographics — STUDENT only
+- Employment — GUARDIAN only
+- Account — always (login email read-only, password change link to Keycloak, profile completeness bar)
+
+**Avatar dropdown** (`apps/web/src/components/shell/TopBar.tsx`) gains a "My Profile" link above "Sign out" for any user with `usr-001:read` (= every persona after Step 3). Behavior is consistent with the existing iOS-style menu.
+
+**No new launchpad tile** — profile is intentionally accessed only via the avatar menu, matching the design principle from `CLAUDE.md` ("Home page is a launchpad, not a dashboard").
+
+### New files
+
+| File                                                       | Purpose |
+|------------------------------------------------------------|---------|
+| `apps/web/src/lib/types.ts` (extended)                     | 13 new DTO/payload interfaces for profile + household |
+| `apps/web/src/lib/profile-format.ts`                       | `profileTabs(personType)`, `profileCompleteness(profile)`, `PHONE_TYPES`, `HOUSEHOLD_ROLES`, label maps, `formatPhone`, `formatPersonName` |
+| `apps/web/src/hooks/use-profile.ts`                        | 9 hooks: `useMyProfile`, `useProfile(personId)`, `useUpdateMyProfile`, `useUpdateProfile(personId)`, `useMyHousehold`, `useHousehold(id)`, `useUpdateHousehold(id)`, `useAddHouseholdMember(id)`, `useUpdateHouseholdMember(id, memberId)`, `useRemoveHouseholdMember(id)` |
+| `apps/web/src/components/profile/ProfileTabs.tsx`          | Six tab components + shared `Section`, `Field`, `PhoneTypeSelect`, `SaveBar` helpers + `HouseholdEditor` + `MemberInlineActions` + `AddMemberModal` |
+| `apps/web/src/app/(app)/profile/page.tsx`                  | Self-service tabbed shell (987 B chunk) |
+| `apps/web/src/app/(app)/profile/[personId]/page.tsx`       | Admin tabbed shell (1.23 kB chunk) |
+
+### `profileCompleteness` formula
+
+Required fields (weight 1.0): first_name, last_name, primary_phone, household role (when in a household).
+Recommended fields (weight 0.5): preferred_name, household indicator, emergency contact populated, employer (GUARDIAN), primary_language (STUDENT).
+
+Returned as a 0–100 integer percentage.
+
+### Tailwind shorthand cleanup during build
+
+The first attempt used `className="input"`, `className="btn-primary"`, `className="btn-secondary"` shortcuts that don't exist in the project's `globals.css`. Replaced with the explicit Tailwind class strings used elsewhere in the app (matching the `/apply/new` form precedent). All 4 shorthands swept; build clean on second pass.
+
+### TypeScript fix during build
+
+`HouseholdEditor` had an unused `const updateMember = useUpdateHouseholdMember;` alias left over from earlier shape exploration. Removed; build clean.
+
+### Verification (recorded 2026-04-29)
+
+| Check                                                             | Got |
+|-------------------------------------------------------------------|-----|
+| `pnpm --filter @campusos/web build` clean                         | ✓   |
+| `/profile` route bundle size                                      | 987 B (108 kB First Load JS), Static |
+| `/profile/[personId]` route bundle size                           | 1.23 kB (117 kB First Load JS), Dynamic |
+| API `GET /profile/me` (David parent)                              | personType=GUARDIAN, preferredName=Dave, household.role=HEAD_OF_HOUSEHOLD, employment populated |
+| API `GET /households/my` (David)                                  | canEdit=true, members=[David HEAD, Maya CHILD] |
+| API `GET /profile/me` (Maya student)                              | personType=STUDENT, demographics={gender:Female, primaryLanguage:English}, household.role=CHILD |
+| API `GET /households/my` (Maya)                                   | canEdit=false |
+
+### Notes for downstream steps
+
+- The Add-member modal currently asks for a raw person UUID. Future polish: a directory picker that filters out persons already in another household. Backend already 409s with a friendly message ("This person is already a member of a household") so the UX is graceful even without the picker.
+- The admin `Household` tab on `/profile/[personId]` shows a read-only summary, not the full household editor — there's no `GET /households/by-person/:personId` endpoint today. Admins who need to edit another household are expected to navigate via that household's owning member.
+- The `Demographics` tab on `/profile/me` for a STUDENT shows admin-only fields (gender, ethnicity, etc.) greyed out with a "Contact your administrator" hint. Self-service students can only edit `primaryLanguage`. Admin view at `/profile/[personId]` lets admins edit them all.
+- The Account tab's Keycloak password-change link only renders when `NEXT_PUBLIC_KEYCLOAK_URL` is set. In dev without it, the page renders an explanatory paragraph instead.
+- Browser smoke for the full interactive paths (clicking save, modal open/close, primary-contact promotion) is not in this handoff section — the API-level paths were verified end-to-end in Steps 5 + 6, and the production build of the web app verifies static prerender succeeds for `/profile`. The Step 8 CAT will exercise the UI in a real browser.
 
 ---
 

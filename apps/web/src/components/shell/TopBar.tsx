@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
@@ -55,13 +56,22 @@ export function TopBar({ user, onOpenMenu }: TopBarProps) {
                 <p className="text-sm font-medium text-gray-900">{user.displayName}</p>
                 <p className="mt-0.5 text-xs text-gray-500">{user.email}</p>
               </div>
+              {hasAnyPermission(user, ['usr-001:read']) && (
+                <Link
+                  href="/profile"
+                  onClick={() => setOpen(false)}
+                  className="block w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  My Profile
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => {
                   setOpen(false);
                   void logout();
                 }}
-                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
               >
                 <LogoutIcon className="h-4 w-4" />
                 Sign out

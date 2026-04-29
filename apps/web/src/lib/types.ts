@@ -1745,3 +1745,180 @@ export interface CreatePaymentPlanPayload {
   frequency: PlanFrequency;
   startDate: string;
 }
+
+// ── Profile & Household (Mini-Cycle) ────────────────────────
+
+export type PhoneType = 'MOBILE' | 'HOME' | 'WORK';
+
+export type HouseholdRole =
+  | 'HEAD_OF_HOUSEHOLD'
+  | 'SPOUSE'
+  | 'CHILD'
+  | 'GRANDPARENT'
+  | 'OTHER_GUARDIAN'
+  | 'SIBLING'
+  | 'OTHER';
+
+export interface StudentDemographicsDto {
+  gender: string | null;
+  ethnicity: string | null;
+  primaryLanguage: string | null;
+  birthCountry: string | null;
+  citizenship: string | null;
+  medicalAlertNotes: string | null;
+}
+
+export interface GuardianEmploymentDto {
+  employer: string | null;
+  employerPhone: string | null;
+  occupation: string | null;
+  workAddress: string | null;
+}
+
+export interface EmergencyContactDto {
+  id: string;
+  name: string;
+  relationship: string | null;
+  phone: string | null;
+  email: string | null;
+  source: 'STUDENT' | 'EMPLOYEE';
+}
+
+export interface HouseholdSummaryDto {
+  id: string;
+  name: string | null;
+  role: HouseholdRole;
+  isPrimaryContact: boolean;
+}
+
+export interface ProfileDto {
+  personId: string;
+  accountId: string | null;
+  personType: string | null;
+  firstName: string;
+  lastName: string;
+  middleName: string | null;
+  preferredName: string | null;
+  suffix: string | null;
+  previousNames: string[];
+  dateOfBirth: string | null;
+  loginEmail: string | null;
+  personalEmail: string | null;
+  primaryPhone: string | null;
+  phoneTypePrimary: PhoneType | null;
+  secondaryPhone: string | null;
+  phoneTypeSecondary: PhoneType | null;
+  workPhone: string | null;
+  preferredLanguage: string;
+  notes: string | null;
+  profileUpdatedAt: string | null;
+  household: HouseholdSummaryDto | null;
+  emergencyContact: EmergencyContactDto | null;
+  demographics: StudentDemographicsDto | null;
+  employment: GuardianEmploymentDto | null;
+}
+
+export interface UpdateEmergencyContactPayload {
+  name: string;
+  relationship?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  isPrimary?: boolean;
+}
+
+export interface UpdateProfilePayload {
+  middleName?: string | null;
+  preferredName?: string | null;
+  suffix?: string | null;
+  previousNames?: string[];
+  primaryPhone?: string | null;
+  phoneTypePrimary?: PhoneType | null;
+  secondaryPhone?: string | null;
+  phoneTypeSecondary?: PhoneType | null;
+  workPhone?: string | null;
+  personalEmail?: string | null;
+  preferredLanguage?: string;
+  notes?: string | null;
+  employer?: string | null;
+  employerPhone?: string | null;
+  occupation?: string | null;
+  workAddress?: string | null;
+  primaryLanguage?: string | null;
+  emergencyContact?: UpdateEmergencyContactPayload;
+}
+
+export interface UpdateAdminProfilePayload extends UpdateProfilePayload {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  ethnicity?: string | null;
+  birthCountry?: string | null;
+  citizenship?: string | null;
+  medicalAlertNotes?: string | null;
+}
+
+export interface HouseholdMemberDto {
+  id: string;
+  personId: string;
+  firstName: string;
+  lastName: string;
+  preferredName: string | null;
+  role: HouseholdRole;
+  isPrimaryContact: boolean;
+  joinedAt: string;
+}
+
+export interface HouseholdDto {
+  id: string;
+  name: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  country: string | null;
+  homePhone: string | null;
+  homeLanguage: string;
+  mailingAddressSame: boolean;
+  mailingLine1: string | null;
+  mailingLine2: string | null;
+  mailingCity: string | null;
+  mailingState: string | null;
+  mailingPostalCode: string | null;
+  mailingCountry: string | null;
+  notes: string | null;
+  members: HouseholdMemberDto[];
+  canEdit: boolean;
+}
+
+export interface UpdateHouseholdPayload {
+  name?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  homePhone?: string | null;
+  homeLanguage?: string;
+  mailingAddressSame?: boolean;
+  mailingLine1?: string | null;
+  mailingLine2?: string | null;
+  mailingCity?: string | null;
+  mailingState?: string | null;
+  mailingPostalCode?: string | null;
+  mailingCountry?: string | null;
+  notes?: string | null;
+}
+
+export interface AddHouseholdMemberPayload {
+  personId: string;
+  role: HouseholdRole;
+  isPrimaryContact?: boolean;
+}
+
+export interface UpdateHouseholdMemberPayload {
+  role?: HouseholdRole;
+  isPrimaryContact?: boolean;
+}
