@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CampusOS — Profile &amp; Household Mini-Cycle Implementation Plan</title>
+<title>CampusOS — Cycle 6.1 Implementation Plan</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
 :root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
@@ -65,15 +65,15 @@ p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
 
 <div class="container">
   <div class="hero">
-    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Mini-Cycle</div>
-    <h1>Profile &amp; Household Management<br>Mini-Cycle Implementation Plan</h1>
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Cycle 6.1</div>
+    <h1>Cycle 6.1: Profile &amp; Household<br>Implementation Plan</h1>
     <div class="sub">A cross-cutting self-service feature that lets every persona maintain their own personal profile and edit shared household details. Slots between Cycles 6 and 7 as a Phase 2 polish pass on identity data.</div>
-    <span class="version">April 2026 &middot; 8 Steps &middot; Extends platform.iam_person + platform.platform_families &middot; Reuses sis_emergency_contacts / hr_emergency_contacts</span>
+    <span class="version">Cycle 6.1 &middot; April 2026 &middot; 8 Steps &middot; Extends platform.iam_person + platform.platform_families &middot; Reuses sis_emergency_contacts / hr_emergency_contacts</span>
   </div>
 
   <h2 class="section-heading">Plan Overview</h2>
 
-  <p class="body-text">Cycles 1&ndash;6 stood up the academic, communications, HR, scheduling, and billing pipelines, but profile data has grown organically &mdash; <code>iam_person</code> still only carries first/last name + email, addresses live nowhere, and there is no parent-facing "edit my details" surface. This mini-cycle adds the missing self-service profile + household management layer without inventing new identity primitives.</p>
+  <p class="body-text">Cycles 1&ndash;6 stood up the academic, communications, HR, scheduling, and billing pipelines, but profile data has grown organically &mdash; <code>iam_person</code> still only carries first/last name + email, addresses live nowhere, and there is no parent-facing "edit my details" surface. Cycle 6.1 adds the missing self-service profile + household management layer without inventing new identity primitives.</p>
 
   <p class="body-text">The model splits cleanly into two halves. <strong>Personal fields</strong> (preferred name, mobile phone, personal email, language) hang off <code>platform.iam_person</code> &mdash; the canonical identity table per ADR-055. <strong>Shared household fields</strong> (address, home phone, mailing address) extend <code>platform.platform_families</code> &mdash; the existing platform-scoped families table that already groups David and Maya Chen. A new <code>platform.platform_family_members</code> link table adds a household role (HEAD_OF_HOUSEHOLD, SPOUSE, CHILD, etc.) so editing rights can be enforced. Emergency contacts continue to live in <code>sis_emergency_contacts</code> (non-employees) and <code>hr_emergency_contacts</code> (employees) &mdash; the profile UI just reads/writes those existing tables.</p>
 
@@ -313,10 +313,10 @@ p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
       <li><strong>Cleanup</strong> &mdash; restore <code>iam_person</code> changes via direct SQL UPDATE; reset Chen Family address back to seed shape; delete the test member-promote rows; reset <code>profile_updated_at</code> to NULL on touched rows so the next CAT run starts clean.</li>
     </ol>
 
-    <div class="produces">Produces &rarr; <code>docs/profile-household-cat-script.md</code>. Mini-cycle ships clean to the post-cycle architecture review.</div>
+    <div class="produces">Produces &rarr; <code>docs/cycle6.1-cat-script.md</code>. Cycle 6.1 ships clean to the post-cycle architecture review.</div>
   </div>
 
-  <h2 class="section-heading">Mini-Cycle Completion Criteria</h2>
+  <h2 class="section-heading">Cycle 6.1 Completion Criteria</h2>
 
   <div class="callout callout-ai">
     <div class="callout-title">Exit Checklist</div>
@@ -328,17 +328,17 @@ p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
       <li>API: ProfileModule (4 endpoints) + HouseholdsModule (5 endpoints) + 1 Kafka emit (<code>iam.household.member_changed</code>).</li>
       <li>UI: <code>/profile</code> + <code>/profile/:personId</code> (2 routes, 5 tabs each, persona-conditional). Avatar menu link. <code>useMyProfile</code> + 8 sibling hooks.</li>
       <li>Vertical slice CAT: 11 scenarios + cleanup, all pass. Live envelope capture on <code>dev.iam.household.member_changed</code>.</li>
-      <li><code>HANDOFF-PROFILE-HOUSEHOLD.md</code> and <code>CLAUDE.md</code> updated. CI green.</li>
+      <li><code>HANDOFF-CYCLE6.1.md</code> and <code>CLAUDE.md</code> updated. CI green.</li>
     </ol>
   </div>
 
   <div class="callout callout-thesis">
-    <div class="callout-title">Where this slots in the delivery plan</div>
-    <p style="font-size:15px;line-height:1.8;">This is a <em>mini-cycle</em>: smaller scope than Cycles 1&ndash;6, no new ERD module, no new Kafka pipeline, but it follows the same plan &rarr; steps &rarr; CAT &rarr; review pipeline. It slots between Cycle 6 (just APPROVED at <code>64993a8</code>) and Cycle 7 (Helpdesk &amp; cross-module hardening) as a Phase 2 polish pass on identity data. Cycle 7 stays untouched.</p>
+    <div class="callout-title">Where Cycle 6.1 slots in the delivery plan</div>
+    <p style="font-size:15px;line-height:1.8;"><em>Cycle 6.1</em> has smaller scope than Cycles 1&ndash;6, no new ERD module, and no new Kafka pipeline, but it follows the same plan &rarr; steps &rarr; CAT &rarr; review pipeline. It slots between Cycle 6 (APPROVED at <code>64993a8</code>) and Cycle 7 (Helpdesk &amp; cross-module hardening) as a Phase 2 polish pass on identity data. Git tags follow the pattern <code>cycle6.1-complete</code> and <code>cycle6.1-approved</code>. Cycle 7 stays untouched.</p>
   </div>
 
   <div class="doc-footer">
-    <p>CampusOS Profile &amp; Household Mini-Cycle &mdash; April 2026. Derived from: ERD v11 (M0 Platform Core &mdash; iam_person, platform_families, platform_family_members), Function Library (USR-001 new function), Architecture Review (ADR-055 iam_person canonical identity, ADR-001/020 soft cross-schema refs), CLAUDE.md schema discipline + locked-read concurrency conventions established in Cycles 4&ndash;6.</p>
+    <p>CampusOS Cycle 6.1 Implementation Plan &mdash; April 2026. Derived from: ERD v11 (M0 Platform Core &mdash; iam_person, platform_families, platform_family_members), Function Library (USR-001 new function), Architecture Review (ADR-055 iam_person canonical identity, ADR-001/020 soft cross-schema refs), CLAUDE.md schema discipline + locked-read concurrency conventions established in Cycles 4&ndash;6.</p>
   </div>
 </div>
 

@@ -1,6 +1,6 @@
-# Profile & Household Mini-Cycle Handoff
+# Cycle 6.1 Handoff — Profile & Household
 
-**Status:** Mini-cycle **IN PROGRESS — Step 1 done, 2026-04-29.** Plan doc lands at `docs/campusos-profile-household-plan.html` (approved). Slots between Cycle 6 (COMPLETE + APPROVED at `64993a8`) and Cycle 7 (Helpdesk) as a Phase 2 polish pass on identity data. Same plan → steps → CAT → review pipeline as Cycles 1–6.
+**Status:** Cycle 6.1 **IN PROGRESS — Steps 1–7 done, 2026-04-29.** Plan doc lands at `docs/campusos-cycle6.1-implementation-plan.html` (approved). Slots between Cycle 6 (COMPLETE + APPROVED at `64993a8`) and Cycle 7 (Helpdesk) as a Phase 2 polish pass on identity data. Same plan → steps → CAT → review pipeline as Cycles 1–6. Git tags follow the pattern `cycle6.1-complete` and `cycle6.1-approved`.
 
 **Transactional convention (clarification, 2026-04-29):** Household endpoints write exclusively to platform-schema tables (`platform_families`, `platform_family_members`) and so use a regular Prisma `$transaction` — they MUST NOT call `executeInTenantTransaction`, since the platform schema is shared and the tenant `search_path` would be irrelevant (or, worse, mask a real bug). Profile endpoints that write tenant-scoped tables (`sis_emergency_contacts`, `sis_student_demographics`, `sis_guardians` employment fields) DO use `executeInTenantContext` / `executeInTenantTransaction` per the existing pattern. The Profile service composes both: a single `PATCH /profile/me` call may write `iam_person` (platform tx) AND `sis_guardians` (tenant tx) AND `sis_emergency_contacts` (tenant tx) — these are separate transactions, executed in order, and a failure midway leaves a partial save (acceptable for profile self-service since each table is independent and the UI re-reads after save). The Households service is platform-only and uses the regular Prisma tx exclusively.
 
@@ -31,7 +31,7 @@
 | 7    | Profile UI — Tabbed Page + Avatar Menu                        | ✅ Done (2026-04-29) |
 | 8    | Vertical Slice Acceptance Test                                | ⏳ Planned     |
 
-## What this mini-cycle adds on top of Cycles 0–6
+## What Cycle 6.1 adds on top of Cycles 0–6
 
 **Platform schema (1 Prisma migration):**
 - `iam_person` gains 14 columns: `middle_name`, `preferred_name`, `suffix`, `previous_names TEXT[]`, `date_of_birth`, `primary_phone`, `secondary_phone`, `work_phone`, `phone_type_primary`, `phone_type_secondary`, `preferred_language` (default 'en'), `personal_email`, `notes`, `profile_updated_at`. All nullable.
@@ -83,10 +83,10 @@ Kafka emit: `iam.household.member_changed` — no consumer this cycle, forward-c
 - No new launchpad app tile (profile lives in the avatar menu).
 - DTOs added to `apps/web/src/lib/types.ts`: `IamPersonProfileDto`, `HouseholdDto`, `HouseholdMemberDto`, `HouseholdRole`, `PhoneType`, `StudentDemographicsDto`, `GuardianEmploymentDto`, `EmergencyContactDto`, payloads for each PATCH/POST.
 
-**Vertical slice CAT (`docs/profile-household-cat-script.md`):**
+**Vertical slice CAT (`docs/cycle6.1-cat-script.md`):**
 11 scenarios + schema preamble + cleanup. Covers: parent reads own profile, parent edits personal fields, parent cannot edit identity fields, parent edits household, child sees household read-only with `canEdit=false` and 403 on PATCH, student demographics self-service vs. admin-only field split, staff emergency contact resolved from `hr_emergency_contacts`, admin override of identity fields, last-head-of-household refusal, permission denials, in-browser UI smoke, cleanup that restores tenant_demo to seed state.
 
-## Out-of-scope decisions for this mini-cycle
+## Out-of-scope decisions for Cycle 6.1
 
 - **Multi-household membership** — the UNIQUE on `platform_family_members.person_id` enforces one household per person. Divorced-parent scenarios with two households are deferred; the current shape covers the dominant case (one household per person at any given time). Future work can drop the UNIQUE and add a `is_primary_residence` flag.
 - **Mailing-address validation** — no postal-service integration. Free-form text only. School admins are expected to verify on first invoice.
@@ -531,23 +531,25 @@ The first attempt used `className="input"`, `className="btn-primary"`, `classNam
 **Status:** ⏳ Planned.
 
 ### Plan recap
-`docs/profile-household-cat-script.md` — 11 scenarios + schema preamble + cleanup. Mirrors the Cycle 1–6 CAT pattern. Reproducible against fresh-provisioned `tenant_demo`.
+`docs/cycle6.1-cat-script.md` — 11 scenarios + schema preamble + cleanup. Mirrors the Cycle 1–6 CAT pattern. Reproducible against fresh-provisioned `tenant_demo`.
 
 ### Verification (TBD)
-Will record: all 11 scenarios pass, `iam.household.member_changed` envelope captured live with full ADR-057 shape, cleanup restores tenant to seed state, mini-cycle ships clean to the post-cycle architecture review.
+Will record: all 11 scenarios pass, `iam.household.member_changed` envelope captured live with full ADR-057 shape, cleanup restores tenant to seed state, Cycle 6.1 ships clean to the post-cycle architecture review.
 
 ---
 
 ## Notes for downstream cycles (Cycle 7+)
 
-- **Future EnrollmentConfirmedWorker** can create a `platform_families` + `platform_family_members` row automatically when an unaffiliated guardian's first student enrolls (`enr.student.enrolled` → check if guardian has a household → if not, create one with the guardian as HEAD_OF_HOUSEHOLD and the new student as CHILD). The plumbing is in place after this mini-cycle; the worker is a follow-on.
+- **Future EnrollmentConfirmedWorker** can create a `platform_families` + `platform_family_members` row automatically when an unaffiliated guardian's first student enrolls (`enr.student.enrolled` → check if guardian has a household → if not, create one with the guardian as HEAD_OF_HOUSEHOLD and the new student as CHILD). The plumbing is in place after Cycle 6.1; the worker is a follow-on.
 - **Future M40 household notification consumer** can subscribe to `iam.household.member_changed` and notify all other household members.
-- **Cycle 7 Helpdesk** does not depend on profile / household data, so this mini-cycle has no blocking implications for Cycle 7 sequencing.
+- **Cycle 7 Helpdesk** does not depend on profile / household data, so Cycle 6.1 has no blocking implications for Cycle 7 sequencing.
 - **The `previous_names TEXT[]` array** is a known smell — if a school operationally needs to track maiden / married name history with timestamps, the upgrade path is a new `iam_person_name_history` table; the existing array column survives as the most-recent denormalised snapshot.
 
 ## References
 
-- Plan: `docs/campusos-profile-household-plan.html`
+- Plan: `docs/campusos-cycle6.1-implementation-plan.html`
+- CAT script: `docs/cycle6.1-cat-script.md`
+- Git tag pattern: `cycle6.1-complete` (after Step 8) and `cycle6.1-approved` (after the post-cycle architecture review)
 - ADRs: ADR-055 (iam_person canonical identity), ADR-001 / ADR-020 (soft cross-schema refs), ADR-036 (scope inheritance for admin override)
 - Conventions: `CLAUDE.md` — locked-read concurrency for state-machine transitions, splitter `;`-in-string trap, idempotent seed gating, persona-aware row scope
-- Companion docs to update on completion: `CLAUDE.md` (Project Status + Architecture sections), `docs/index.html` (Design Hub link to the new plan)
+- Companion docs to update on completion: `CLAUDE.md` (Project Status + Architecture sections), `docs/index.html` (Design Hub link)
