@@ -64,6 +64,8 @@ export default function InvoiceDetailPage() {
   const inv = invoice.data;
   const canSend = inv.status === 'DRAFT';
   const canCancel = inv.status !== 'PAID' && inv.status !== 'CANCELLED';
+  const canPay =
+    inv.balanceDue > 0 && inv.status !== 'DRAFT' && inv.status !== 'CANCELLED';
 
   async function onSend() {
     try {
@@ -116,30 +118,36 @@ export default function InvoiceDetailPage() {
             >
               {INVOICE_STATUS_LABELS[inv.status]}
             </span>
-            {isAdmin && (
-              <div className="flex items-center gap-2">
-                {canSend && (
-                  <button
-                    type="button"
-                    onClick={onSend}
-                    disabled={send.isPending}
-                    className="rounded-lg bg-campus-700 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-campus-600 disabled:opacity-50"
-                  >
-                    {send.isPending ? 'Sending…' : 'Send invoice'}
-                  </button>
-                )}
-                {canCancel && (
-                  <button
-                    type="button"
-                    onClick={onCancel}
-                    disabled={cancel.isPending}
-                    className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50 disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {canPay && (
+                <Link
+                  href={`/billing/pay/${inv.id}`}
+                  className="rounded-lg bg-campus-700 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-campus-600"
+                >
+                  Pay now →
+                </Link>
+              )}
+              {isAdmin && canSend && (
+                <button
+                  type="button"
+                  onClick={onSend}
+                  disabled={send.isPending}
+                  className="rounded-lg border border-campus-300 bg-white px-3 py-1.5 text-sm font-medium text-campus-700 transition-colors hover:bg-campus-50 disabled:opacity-50"
+                >
+                  {send.isPending ? 'Sending…' : 'Send invoice'}
+                </button>
+              )}
+              {isAdmin && canCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  disabled={cancel.isPending}
+                  className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

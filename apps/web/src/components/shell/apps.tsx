@@ -172,8 +172,10 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
     apps.push({
       key: 'billing',
       label: 'Billing',
-      description: 'Fees, invoices, family accounts, and payments',
-      href: '/billing/accounts',
+      description: isGuardian
+        ? 'Your balance, invoices, and payments'
+        : 'Fees, invoices, family accounts, and payments',
+      href: isGuardian ? '/billing' : '/billing/accounts',
       routePrefix: '/billing',
       icon: BanknotesIcon,
     });
