@@ -23,7 +23,7 @@
 | Step | Title                                                         | Status         |
 | ---- | ------------------------------------------------------------- | -------------- |
 | 1    | Platform Schema — iam_person + platform_families Extensions   | ✅ Done (2026-04-29) |
-| 2    | Tenant Schema — Demographics & Guardian Employment            | ⏳ Planned     |
+| 2    | Tenant Schema — Demographics & Guardian Employment            | ✅ Done (2026-04-29) |
 | 3    | Permission Catalogue — usr-001                                | ⏳ Planned     |
 | 4    | Seed Data — Household + Personal Fields + Demographics        | ⏳ Planned     |
 | 5    | Profile NestJS Module                                         | ⏳ Planned     |
@@ -162,13 +162,56 @@ Prisma client regenerated cleanly (`prisma generate --schema=prisma/platform/sch
 
 ## Step 2 — Tenant Schema — Demographics & Guardian Employment
 
-**Status:** ⏳ Planned.
+**Status:** ✅ Done (2026-04-29). Migration `022_sis_student_demographics_and_guardian_employment.sql` applied cleanly to both `tenant_demo` and `tenant_test`.
 
-### Plan recap
-SQL migration `022_sis_student_demographics_and_guardian_employment.sql`. Creates `sis_student_demographics` with FK CASCADE to `sis_students`, adds 4 employment columns to `sis_guardians`. Splitter discipline: no `;` inside any string literal or COMMENT.
+### What actually shipped (vs. plan)
 
-### Verification (TBD)
-Will record: tenant base table count before (106) and after (107), idempotent re-provision returns 0 new applies on second run, CHECK constraints on the demographics table verified live with rollback.
+The plan called for `sis_student_demographics` (1 new table) and 4 new employment columns on `sis_guardians`. Investigation showed `sis_guardians.relationship_to_student` did NOT exist — the existing column is just `relationship` with a 5-value CHECK (PARENT/GUARDIAN/GRANDPARENT/FOSTER_PARENT/OTHER) which is the conceptual same field. Step 2 ships exactly what the plan asked for and does not duplicate `relationship`.
+
+The plan also called for "no CHECK constraints on the new columns" — Step 2 follows that. Demographics are free-form TEXT; the UI offers a curated list of suggestions but the column accepts any value. `medical_alert_notes` is a brief flag intended for roll-call / substitute views, not a full health record (M30 Health is the future home for that).
+
+### Migration `022_sis_student_demographics_and_guardian_employment.sql`
+
+7 statements in one file, all idempotent (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `CREATE UNIQUE INDEX IF NOT EXISTS`, plus 3 `COMMENT ON ...` annotations).
+
+- **`sis_student_demographics`** — `id UUID PK`, `student_id UUID NOT NULL FK(sis_students) ON DELETE CASCADE`, `gender TEXT`, `ethnicity TEXT`, `primary_language TEXT`, `birth_country TEXT`, `citizenship TEXT`, `medical_alert_notes TEXT`, `created_at`, `updated_at`. Non-FK fields nullable. UNIQUE INDEX `sis_student_demographics_student_id_uq` on `student_id` so each student has at most one demographics row.
+- **`sis_guardians`** — added 4 columns: `employer TEXT`, `employer_phone TEXT`, `occupation TEXT`, `work_address TEXT`. All nullable. The 5-value `relationship` CHECK + the existing `preferred_contact_method` CHECK survived the migration unchanged.
+
+Cross-schema FKs introduced: 0. Total intra-tenant FKs added: 1 (`sis_student_demographics.student_id → sis_students(id)` CASCADE).
+
+### Splitter `;`-in-string trap caught during this Step
+
+First provision attempt failed with the splitter cutting on a `;` inside the block-comment header (after `value)`). Per CLAUDE.md guidance: the provision splitter cuts on **every** semicolon regardless of quoting context, including inside `/* ... */` block comments. The header was rewritten to use periods + "and" instead of `;`. A Python audit script that strips block comments before counting `;` would miss this trap — block-comment text must be checked too. The fix-up landed before any tenant got partially-applied.
+
+### Verification (recorded 2026-04-29)
+
+| Check                                              | Expected | Got |
+|----------------------------------------------------|----------|-----|
+| Tenant logical base table count                    | 107      | 107 |
+| `sis_student_demographics` column count            | 10       | 10  |
+| `sis_guardians` column count                       | 13       | 13 (was 9 +4) |
+| `sis_student_demographics_student_id_fkey` `confdeltype` | `c` (CASCADE) | `c` ✓ |
+| `sis_student_demographics_student_id_uq` UNIQUE    | exists   | ✓   |
+| Migrations applied to `tenant_demo`                | 22       | 22  |
+| Migrations applied to `tenant_test`                | 22       | 22  |
+| Idempotent re-provision (column counts stable)     | yes      | yes ✓ |
+
+Constraint smoke (single transaction with savepoints, all rolled back):
+
+| #  | Test                                                               | Result        |
+|----|--------------------------------------------------------------------|---------------|
+| A  | Happy-path INSERT with `gender='Female'`                           | accepted ✓    |
+| B  | UNIQUE(student_id) rejects 2nd row for same student                | rejected ✓    |
+| C  | FK rejects bogus student_id                                        | rejected ✓    |
+| D  | CASCADE declared (`pg_constraint.confdeltype='c'`)                 | confirmed ✓ via catalog (live test blocked by unrelated `cls_submissions` no-cascade FK on the seeded student — the catalog check is authoritative) |
+| E  | `sis_guardians` accepts employer / employer_phone / occupation / work_address | accepted ✓    |
+
+### Notes for downstream steps
+
+- The Step 4 seed will populate `sis_student_demographics` with rows for the 15 seeded students (default `primary_language='English'`, plus Maya gets `gender='Female'`) and update David Chen's `sis_guardians` row with `employer='Chen Engineering LLC'`, `occupation='Mechanical Engineer'`, `employer_phone`.
+- The Step 5 ProfileService will read/write `sis_student_demographics` via `executeInTenantContext` (read) and `executeInTenantTransaction` (write), per the standard tenant-table pattern.
+- Curated dropdown values for `gender` / `ethnicity` are a UI-only concern (Step 7); the schema deliberately stays free-form so a school can use any vocabulary.
+- A future migration can add CHECK constraints once a school's preferred vocabulary is settled, without breaking existing rows (the column accepts any TEXT today).
 
 ---
 
