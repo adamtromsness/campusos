@@ -27,7 +27,7 @@
 | 3    | Permission Catalogue — usr-001                                | ✅ Done (2026-04-29) |
 | 4    | Seed Data — Household + Personal Fields + Demographics        | ✅ Done (2026-04-29) |
 | 5    | Profile NestJS Module                                         | ✅ Done (2026-04-29) |
-| 6    | Households NestJS Module                                      | ⏳ Planned     |
+| 6    | Households NestJS Module                                      | ✅ Done (2026-04-29) |
 | 7    | Profile UI — Tabbed Page + Avatar Menu                        | ⏳ Planned     |
 | 8    | Vertical Slice Acceptance Test                                | ⏳ Planned     |
 
@@ -386,13 +386,73 @@ Cleanup post-smoke: Sarah restored Maya's firstName, Jim's test emergency contac
 
 ## Step 6 — Households NestJS Module
 
-**Status:** ⏳ Planned.
+**Status:** ✅ Done (2026-04-29). Module lives at `apps/api/src/households/` and is wired into `AppModule` after `ProfileModule`.
 
-### Plan recap
-HouseholdsService + HouseholdsController + 5 endpoints. Service-layer `assertCanEditHousehold` enforces the HEAD_OF_HOUSEHOLD / SPOUSE rule (admin override via `iam-001:write`). Locked-read concurrency on every state-change. Kafka emit `iam.household.member_changed`.
+### What shipped — 6 endpoints (the plan said 5; added GET /households/:id for arbitrary-by-id reads with same row-scope as /my)
 
-### Verification (TBD)
-Will record: parent GET own household with `canEdit=true`, child GET household with `canEdit=false`, child PATCH 403, primary-contact promotion atomic in one tx, last-head-of-household refusal, envelope captured live.
+| Method | Path                                          | Gate           |
+|--------|-----------------------------------------------|----------------|
+| GET    | `/households/my`                              | `usr-001:read` |
+| GET    | `/households/:id`                             | `usr-001:read` (row-scoped to member or admin) |
+| PATCH  | `/households/:id`                             | `usr-001:write` + `assertCanEditHousehold` |
+| POST   | `/households/:id/members`                     | `usr-001:write` + `assertCanEditHousehold` |
+| PATCH  | `/households/:id/members/:memberId`           | `usr-001:write` + `assertCanEditHousehold` |
+| DELETE | `/households/:id/members/:memberId`           | `usr-001:write` + `assertCanEditHousehold` |
+
+`assertCanEditHousehold(familyId, actor)` — short-circuit returns true if `actor.isSchoolAdmin` OR caller has `usr-001:admin` in the current tenant scope chain. Otherwise reads `platform_family_members` for the (family, person) pair and accepts `HEAD_OF_HOUSEHOLD` or `SPOUSE`. Anything else 403s.
+
+### Transactional convention applied (per the front-matter clarification)
+
+Every state-change mutation opens a `prisma.$transaction(async (tx) => { ... })` — a regular Prisma platform transaction, NOT `executeInTenantTransaction`. The household tables live in the platform schema, so the tenant `search_path` is irrelevant for these writes. Inside the tx:
+
+1. `SELECT id FROM platform.platform_families WHERE id = $1::uuid FOR UPDATE` — locks the row so concurrent writers serialise.
+2. `assertCanEditHousehold(id, actor, tx)` — reads the caller's membership row inside the same transaction.
+3. The mutation itself (UPDATE / INSERT / DELETE).
+4. Atomic primary-contact promotion: when `isPrimaryContact=true` lands, an explicit `UPDATE ... SET is_primary_contact=false WHERE family_id=$1 AND is_primary_contact=true` runs FIRST in the same tx so the partial UNIQUE INDEX on `(family_id) WHERE is_primary_contact=true` (Step 1) never fires.
+
+After commit, `iam.household.member_changed` is emitted via `KafkaProducerService.emit({ topic, key=familyId, payload, sourceModule: 'iam' })` for member-side changes (ADDED / UPDATED / REMOVED). The PATCH on shared-household fields does NOT emit (no consumer needs to know about an address change yet).
+
+### TypeScript fix during build
+
+First build failed with `TS2345: Argument of type 'Omit<PrismaClient, ...>' is not assignable to parameter of type 'PrismaClient'`. The `tx` callback param of `$transaction` is `Prisma.TransactionClient`, not the full `PrismaClient`. Imported the right type and switched the helper signature.
+
+### Live verification (recorded 2026-04-29, all on `tenant_demo`, 10 scenarios)
+
+| #   | Scenario                                                                     | Result |
+|-----|------------------------------------------------------------------------------|--------|
+| S1  | David parent `GET /households/my`                                           | 200 — Chen Family, addressLine1='1234 Oak Street', `canEdit=true`, members=[David HEAD primary, Maya CHILD] |
+| S2  | Maya student `GET /households/my`                                           | 200 — same household, `canEdit=false`, role=CHILD |
+| S3  | Maya `PATCH /households/:id` shared address                                 | 403 "Only the head of household or spouse can edit shared household details" |
+| S4  | David `PATCH /households/:id` addressLine1                                  | 200 — addressLine1 updated |
+| S5  | David `POST /households/:id/members` add Sarah Mitchell as SPOUSE           | 200 — members=[David HEAD primary, Maya CHILD, Sarah SPOUSE] |
+| S6  | David `PATCH .../members/:Sarah` `isPrimaryContact=true`                    | 200 — Sarah is now sole primary; David's flag atomically cleared in same tx |
+| S7  | David `PATCH .../members/:David` change role to OTHER (last HEAD)           | 400 "Households must always have at least one head of household" |
+| S8  | David `DELETE .../members/:David` self-eviction                             | 400 "You cannot remove yourself from your household" |
+| S9  | David `DELETE .../members/:Sarah` cleanup the test SPOUSE                   | 200 — members=[Maya CHILD, David HEAD] |
+| S10 | Sarah admin `PATCH /households/:id` notes (admin override on usr-001:admin) | 200 — notes='Touched by admin' |
+
+Cleanup: David restored addressLine1 + cleared notes + reclaimed primary-contact flag. Final state matches Step 4 seed: address_line1='1234 Oak Street', David HEAD_OF_HOUSEHOLD primary, Maya CHILD.
+
+### Kafka envelopes captured live on `dev.iam.household.member_changed`
+
+4 events captured, full ADR-057 shape verified end-to-end:
+
+| Event | Action  | Payload highlights |
+|-------|---------|--------------------|
+| 1     | ADDED   | familyId, personId=Sarah's, role=SPOUSE, actorPersonId=David's |
+| 2     | UPDATED | memberId=Sarah's, isPrimaryContact=true (S6 promotion) |
+| 3     | REMOVED | memberId=Sarah's, personId=Sarah's (S9 cleanup) |
+| 4     | UPDATED | memberId=David's, isPrimaryContact=true (post-cleanup primary restore) |
+
+Every envelope has `event_type='iam.household.member_changed'`, `source_module='iam'`, `tenant_id` populated (= the school UUID), fresh `event_id` and `correlation_id` UUIDv7s, `event_version=1`, ISO `occurred_at` and `published_at` timestamps.
+
+### Notes for downstream steps
+
+- Step 7 (UI) will hit `GET /households/my` to drive the "My Household" tab. The `canEdit` field tells the UI whether to render edit controls or read-only view. Members list comes pre-sorted by `is_primary_contact DESC, last_name ASC` so the rendering is stable.
+- The Add-member modal in the UI needs a person picker. Since `platform_family_members.person_id` is UNIQUE, the picker should filter out persons already in another household. The backend will 409 with a friendly message ("This person is already a member of a household") if the UI misses one — see `addMember` translateConflict path.
+- Future M40 announcement consumer can subscribe to `iam.household.member_changed` and notify the household's other members on changes ("David added Sarah Mitchell as SPOUSE"). Topic + payload shape are forward-stable.
+- The cross-tenant edge case: a person's `platform_family_members` row is global (one household per person across all schools). If a parent moves their child between schools, the household survives the move. There's no "household split per school" — by design.
+- `GET /households/:id` returns 404 (not 403) if a non-member non-admin tries to read it, to avoid leaking the existence of arbitrary households. The `/my` path is the canonical way to find your own household.
 
 ---
 
