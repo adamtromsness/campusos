@@ -215,6 +215,13 @@ async function seedIam() {
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
         'SCH-003': ['read'],
+        // Cycle 6 — Enrollment write so a parent can submit + track an
+        // application (row-scoped to their own apps in ApplicationService).
+        // Family Billing read for the parent billing dashboard, invoice list,
+        // and ledger view; the Pay Now action is gated by the same code at
+        // service layer with a row-scope check on family_account ownership.
+        'STU-003': ['read', 'write'],
+        'FIN-001': ['read'],
       },
     },
     {
