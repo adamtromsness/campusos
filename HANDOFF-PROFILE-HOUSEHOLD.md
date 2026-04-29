@@ -26,7 +26,7 @@
 | 2    | Tenant Schema — Demographics & Guardian Employment            | ✅ Done (2026-04-29) |
 | 3    | Permission Catalogue — usr-001                                | ✅ Done (2026-04-29) |
 | 4    | Seed Data — Household + Personal Fields + Demographics        | ✅ Done (2026-04-29) |
-| 5    | Profile NestJS Module                                         | ⏳ Planned     |
+| 5    | Profile NestJS Module                                         | ✅ Done (2026-04-29) |
 | 6    | Households NestJS Module                                      | ⏳ Planned     |
 | 7    | Profile UI — Tabbed Page + Avatar Menu                        | ⏳ Planned     |
 | 8    | Vertical Slice Acceptance Test                                | ⏳ Planned     |
@@ -326,13 +326,61 @@ Live read-back queries confirmed:
 
 ## Step 5 — Profile NestJS Module
 
-**Status:** ⏳ Planned.
+**Status:** ✅ Done (2026-04-29). Module lives at `apps/api/src/profile/` and is wired into `AppModule` after `AnnouncementsModule`.
 
-### Plan recap
-ProfileService + ProfileController + 4 endpoints. Persona-aware response composition with the emergency-contact dual-table read/write logic. DTOs use class-validator with `@IsIn` for phone types and `@IsEmail` for personal_email.
+### What shipped
 
-### Verification (TBD)
-Live smoke against `tenant_demo` for each persona: parent / student / staff / admin GET own profile, parent can edit allowed fields, parent cannot edit identity fields, admin can edit identity fields via `/profile/:personId`, staff emergency contact resolves from `hr_emergency_contacts`.
+**4 endpoints**, all on the `ProfileController`:
+
+| Method | Path                       | Gate              | Notes |
+|--------|----------------------------|-------------------|-------|
+| GET    | `/profile/me`              | `usr-001:read`    | Compose-and-read for the calling person |
+| PATCH  | `/profile/me`              | `usr-001:write`   | Self-service, ALLOW-LIST excludes identity fields |
+| GET    | `/profile/:personId`       | `usr-001:admin`   | Admin override |
+| PATCH  | `/profile/:personId`       | `usr-001:admin`   | Admin override + identity fields editable |
+
+**ProfileService composition rule** — every `getProfile(personId)` call returns:
+- iam_person columns (name, preferred_name, phones, etc.)
+- Login email from `platform_users.email` (joined)
+- Household: the calling person's `platform_family_members` row (if any) + linked `platform_families.name`
+- Demographics: only when `personType='STUDENT'` — joined via `sis_students.platform_student_id → platform_students.person_id`
+- Employment: only when `personType='GUARDIAN'` — read from `sis_guardians WHERE person_id = $1`
+- Emergency contact: dual-table resolution — `hr_emergency_contacts` keyed via `hr_employees.person_id` for STAFF, `sis_emergency_contacts` keyed via `sis_students.platform_student_id → platform_students.person_id` for STUDENT, `null` for everyone else
+
+**Transactional convention applied:**
+- Platform writes (`iam_person.update`) use a regular Prisma transaction implicitly via the platform PrismaClient.
+- Tenant writes (`sis_student_demographics`, `sis_guardians` employment, `sis_emergency_contacts`, `hr_emergency_contacts`) ALL run inside a single `executeInTenantTransaction` callback so they atomically commit or roll back together.
+- The two transactions are sequential, not nested — a failure in the tenant tx does not roll back the iam_person write. This is acceptable for self-service profile editing since each section is independent and the response is a fresh `getProfile` re-read after success.
+
+### Permission code correction (caught during smoke)
+
+Plan + handoff originally said admin endpoints would gate on `iam-001:read` / `iam-001:write`. Live smoke caught that **`IAM-001` does NOT exist in the catalogue.** No `iam-*` codes have ever existed — identity admin functions live under `SYS-001 (Access Management)` and the new `USR-001 (Profile Management)`. Corrected: admin endpoints now gate on `usr-001:admin`, which Step 3 already granted exclusively to School Admin + Platform Admin via `everyFunction: ['read','write','admin']`. The original spec's reference to `iam-001` was wishful — the catalogue never had it.
+
+### Class-hoisting bug caught during build
+
+First boot attempt failed with `ReferenceError: Cannot access 'UpdateEmergencyContactDto' before initialization`. The DTO file declared `UpdateEmergencyContactDto` AFTER `UpdateMyProfileDto` even though `UpdateMyProfileDto` referenced it via `@ApiPropertyOptional({ type: () => UpdateEmergencyContactDto })`. TypeScript-emitted decorators evaluate eagerly at class-definition time, not lazily. Reordered so `UpdateEmergencyContactDto` is declared first; second build + boot clean.
+
+### Live verification (recorded 2026-04-29, all on `tenant_demo`)
+
+| #  | Scenario                                                           | Result |
+|----|--------------------------------------------------------------------|--------|
+| S1 | David (parent) `GET /profile/me`                                  | 200 — full shape: GUARDIAN, household HEAD_OF_HOUSEHOLD primary, employment=Chen Engineering LLC, demographics=null, emergencyContact=null |
+| S2 | Maya (student) `GET /profile/me`                                  | 200 — STUDENT, demographics={gender:Female, primaryLanguage:English}, employment=null, household role=CHILD, dateOfBirth=2011-03-15 |
+| S3 | Jim (teacher) `GET /profile/me`                                   | 200 — STAFF, workPhone populated, household=null (Jim isn't in Chen Family), emergencyContact=null (no seed) |
+| S4 | David PATCH preferredName='Davey' + secondaryPhone with phoneTypeSecondary='HOME' | 200 — phone_type CHECK from Step 1 fired and passed; profileUpdatedAt bumped |
+| S5 | David PATCH `firstName` (admin-only)                              | 400 — ValidationPipe `forbidNonWhitelisted` rejects on the way in (cleaner than my service-layer check) |
+| S6 | Jim PATCH emergencyContact (lands in `hr_emergency_contacts`)     | 200 — response source='EMPLOYEE', live SQL confirms row in `hr_emergency_contacts` with `is_primary=true` |
+| S7 | Sarah (admin) PATCH Maya `firstName='Maya-Edited'` via `/profile/:personId` | 200 — admin path works on `usr-001:admin` |
+| S8 | David PATCH `/profile/:Sarah's personId`                          | 403 INSUFFICIENT_PERMISSIONS required: ['usr-001:admin'] |
+
+Cleanup post-smoke: Sarah restored Maya's firstName, Jim's test emergency contact removed, David's secondaryPhone reset, all via the same endpoints. Tenant returns to seed state.
+
+### Notes for downstream steps
+
+- The Step 6 HouseholdsService can call `profile.getProfile(personId)` if it ever needs the composed shape; for now it'll have its own narrower household-only read path.
+- The Step 7 UI's `useMyProfile` hook will hit `GET /profile/me` and render its tabs against the composed DTO. The `personType` field at the top tells the UI which conditional tabs to render (Demographics for STUDENT, Employment for GUARDIAN).
+- The ValidationPipe's `forbidNonWhitelisted` mode means the client must NOT send `firstName` / `lastName` / `dateOfBirth` etc. on the self-service `PATCH /profile/me` path even if those fields end up null — the field shouldn't appear in the request body at all. The UI's update mutation should construct the payload with only the editable allow-list fields.
+- The dual-table emergency-contact gap (parents have no schema home for their own emergency contact) is documented in the front-matter and is intentionally Phase 2 polish. The UI's Emergency Contact tab will show "Not recorded — only school staff and students can set an emergency contact today" for GUARDIAN personas. This is a deliberate first-cut deferral.
 
 ---
 
