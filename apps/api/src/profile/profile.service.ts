@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -73,6 +74,24 @@ interface EmergencyContactRow {
   email: string | null;
 }
 
+/**
+ * Robust UNIQUE-violation detector for raw Prisma queries.
+ *
+ * Prisma's `$executeRawUnsafe` wraps the underlying Postgres error
+ * differently depending on driver version. We check three signals:
+ *  1. err.code === 'P2010' (raw query failed — Prisma 5+).
+ *  2. err.meta?.code === '23505' (Postgres SQLSTATE — most reliable).
+ *  3. /unique constraint/i.test(message) (final fallback).
+ *
+ * REVIEW-CYCLE6.1 MAJOR 7: was previously checking only (1) + (3).
+ */
+function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; meta?: { code?: string }; message?: string };
+  if (e.code === 'P2010') return true;
+  if (e.meta?.code === '23505') return true;
+  return /unique constraint/i.test(String(err));
+}
+
 @Injectable()
 export class ProfileService {
   constructor(
@@ -122,15 +141,57 @@ export class ProfileService {
   }
 
   /**
+   * GET /profile/:personId — admin override read. The endpoint guard
+   * requires `usr-001:admin` in the current tenant scope chain; this
+   * service-layer assert additionally verifies the target person
+   * belongs to the current tenant (REVIEW-CYCLE6.1 BLOCKING 1) so a
+   * school-admin from school A cannot read iam_person rows belonging
+   * to school B by guessing UUIDs.
+   */
+  async getAdminProfile(personId: string): Promise<ProfileResponseDto> {
+    await this.assertTargetInCurrentTenant(personId);
+    return this.getProfile(personId);
+  }
+
+  /**
    * PATCH /profile/:personId — admin override. Adds first_name,
    * last_name, date_of_birth, and the gender / ethnicity / etc.
-   * demographic fields to the allow-list.
+   * demographic fields to the allow-list. Tenant-scoped per the
+   * BLOCKING-1 fix above.
    */
   async updateAdminProfile(
     personId: string,
     dto: UpdateAdminProfileDto,
   ): Promise<ProfileResponseDto> {
+    await this.assertTargetInCurrentTenant(personId);
     return this.applyUpdate(personId, dto, { isAdmin: true });
+  }
+
+  /**
+   * Tenant-scope guard for admin profile endpoints. The target person
+   * must have at least one of: a sis_students row in the current
+   * tenant, a sis_guardians row, or an hr_employees row. If none of
+   * these exist, the target is not in this tenant and we 404 to avoid
+   * leaking the existence of platform-side iam_person rows.
+   *
+   * REVIEW-CYCLE6.1 BLOCKING 1 — closed by replacing the missing
+   * tenant-membership check.
+   */
+  private async assertTargetInCurrentTenant(personId: string): Promise<void> {
+    const rows = await this.tenant.executeInTenantContext(async (tx) => {
+      return tx.$queryRawUnsafe<{ found: number }[]>(
+        'SELECT 1 AS found WHERE ' +
+          'EXISTS (SELECT 1 FROM sis_students s ' +
+          '        JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+          '        WHERE ps.person_id = $1::uuid) ' +
+          'OR EXISTS (SELECT 1 FROM sis_guardians WHERE person_id = $1::uuid) ' +
+          'OR EXISTS (SELECT 1 FROM hr_employees WHERE person_id = $1::uuid) LIMIT 1',
+        personId,
+      );
+    });
+    if (rows.length === 0) {
+      throw new NotFoundException('Person not found');
+    }
   }
 
   // ── Internals ─────────────────────────────────────────────────────────
@@ -143,18 +204,28 @@ export class ProfileService {
     const personRow = await this.loadIamPerson(personId);
     if (!personRow) throw new NotFoundException('Person not found');
 
-    // Section 1 — iam_person (platform tx). Build the SET clause
-    // dynamically against the allow-list relevant to the caller.
+    // REVIEW-CYCLE6.1 MAJOR 6 — atomic profile write across schemas.
+    //
+    // The previous shape ran the iam_person UPDATE in its own platform
+    // tx then opened a separate tenant tx for the demographics +
+    // guardian + emergency-contact writes. If section 2 failed after
+    // section 1 had committed, the user saw a partial save while the
+    // UI happily showed "Saved!" — a confusing failure mode flagged
+    // in the architecture review.
+    //
+    // executeInTenantTransaction opens a Prisma $transaction on the
+    // platform PrismaClient and runs `SET LOCAL search_path TO
+    // tenant_X, platform, public` inside it. The same connection can
+    // therefore write platform.iam_person AND tenant_X.sis_* in a
+    // single atomic transaction. We move the iam_person.update inside
+    // that callback so both schemas commit together or roll back
+    // together.
     const personPatch = this.buildIamPersonPatch(dto, personRow, opts.isAdmin);
-    if (Object.keys(personPatch).length > 0) {
-      personPatch.profileUpdatedAt = new Date();
-      await this.platform.iamPerson.update({ where: { id: personId }, data: personPatch });
-    }
-
-    // Section 2 — tenant-side writes wrapped in one tenant tx so the
-    // demographics + guardian + emergency contact mutations either all
-    // commit together against the right schema or all roll back.
     await this.tenant.executeInTenantTransaction(async (tx) => {
+      if (Object.keys(personPatch).length > 0) {
+        personPatch.profileUpdatedAt = new Date();
+        await tx.iamPerson.update({ where: { id: personId }, data: personPatch });
+      }
       if (personRow.person_type === 'STUDENT') {
         await this.upsertDemographics(tx, personId, dto, opts.isAdmin);
       }
@@ -443,8 +514,14 @@ export class ProfileService {
     dto: UpdateEmergencyContactDto,
   ): Promise<void> {
     if (personType === 'STAFF') {
+      // REVIEW-CYCLE6.1 BLOCKING 3: lock the hr_employees parent row
+      // FOR UPDATE before reading/mutating any hr_emergency_contacts
+      // rows for that employee. Two concurrent PATCHes from the same
+      // staff user (race tabs, double-click) now serialize on this
+      // lock; the partial UNIQUE INDEX `(employee_id) WHERE is_primary
+      // = true` is the schema-side belt-and-braces.
       const empRows = await tx.$queryRawUnsafe<{ id: string }[]>(
-        'SELECT id::text AS id FROM hr_employees WHERE person_id = $1::uuid LIMIT 1',
+        'SELECT id::text AS id FROM hr_employees WHERE person_id = $1::uuid LIMIT 1 FOR UPDATE',
         personId,
       );
       if (empRows.length === 0) {
@@ -465,33 +542,46 @@ export class ProfileService {
         'SELECT id::text AS id FROM hr_emergency_contacts WHERE employee_id = $1::uuid ORDER BY sort_order ASC, created_at ASC LIMIT 1',
         employeeId,
       );
-      if (existing.length > 0) {
-        await tx.$executeRawUnsafe(
-          'UPDATE hr_emergency_contacts SET name = $1, relationship = $2, phone = $3, email = $4, is_primary = $5, updated_at = now() WHERE id = $6::uuid',
-          dto.name,
-          dto.relationship ?? null,
-          dto.phone ?? '',
-          dto.email ?? null,
-          isPrimary,
-          existing[0]!.id,
-        );
-      } else {
-        await tx.$executeRawUnsafe(
-          'INSERT INTO hr_emergency_contacts (id, employee_id, name, relationship, phone, email, is_primary) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7)',
-          randomUUID(),
-          employeeId,
-          dto.name,
-          dto.relationship ?? null,
-          dto.phone ?? '',
-          dto.email ?? null,
-          isPrimary,
-        );
+      try {
+        if (existing.length > 0) {
+          await tx.$executeRawUnsafe(
+            'UPDATE hr_emergency_contacts SET name = $1, relationship = $2, phone = $3, email = $4, is_primary = $5, updated_at = now() WHERE id = $6::uuid',
+            dto.name,
+            dto.relationship ?? null,
+            dto.phone ?? '',
+            dto.email ?? null,
+            isPrimary,
+            existing[0]!.id,
+          );
+        } else {
+          await tx.$executeRawUnsafe(
+            'INSERT INTO hr_emergency_contacts (id, employee_id, name, relationship, phone, email, is_primary) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7)',
+            randomUUID(),
+            employeeId,
+            dto.name,
+            dto.relationship ?? null,
+            dto.phone ?? '',
+            dto.email ?? null,
+            isPrimary,
+          );
+        }
+      } catch (err: unknown) {
+        // Schema-side fallback: if the FOR UPDATE lock somehow misses
+        // and the partial UNIQUE INDEX fires, surface a friendly 409.
+        if (isUniqueViolation(err)) {
+          throw new ConflictException(
+            'Another emergency contact change is in progress. Try again in a moment.',
+          );
+        }
+        throw err;
       }
       return;
     }
     if (personType === 'STUDENT') {
+      // Same locking discipline for STUDENT: lock the sis_students
+      // parent row before reading/mutating sis_emergency_contacts.
       const studentRows = await tx.$queryRawUnsafe<{ id: string }[]>(
-        'SELECT s.id::text AS id FROM sis_students s JOIN platform.platform_students ps ON ps.id = s.platform_student_id WHERE ps.person_id = $1::uuid LIMIT 1',
+        'SELECT s.id::text AS id FROM sis_students s JOIN platform.platform_students ps ON ps.id = s.platform_student_id WHERE ps.person_id = $1::uuid LIMIT 1 FOR UPDATE OF s',
         personId,
       );
       if (studentRows.length === 0) {

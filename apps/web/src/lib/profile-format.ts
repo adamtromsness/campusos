@@ -1,4 +1,4 @@
-import type { HouseholdRole, PhoneType, ProfileDto } from './types';
+import type { AnyHouseholdRole, HouseholdRole, PhoneType, ProfileDto } from './types';
 
 export const PHONE_TYPES: ReadonlyArray<PhoneType> = ['MOBILE', 'HOME', 'WORK'];
 
@@ -18,7 +18,9 @@ export const HOUSEHOLD_ROLES: ReadonlyArray<HouseholdRole> = [
   'OTHER',
 ];
 
-export const HOUSEHOLD_ROLE_LABELS: Record<HouseholdRole, string> = {
+// Covers all 10 DB enum values (the 7 active + 3 legacy) so a leaked
+// legacy row never renders as `undefined`. REVIEW-CYCLE6.1 MAJOR 5.
+export const HOUSEHOLD_ROLE_LABELS: Record<AnyHouseholdRole, string> = {
   HEAD_OF_HOUSEHOLD: 'Head of household',
   SPOUSE: 'Spouse',
   CHILD: 'Child',
@@ -26,6 +28,11 @@ export const HOUSEHOLD_ROLE_LABELS: Record<HouseholdRole, string> = {
   OTHER_GUARDIAN: 'Other guardian',
   SIBLING: 'Sibling',
   OTHER: 'Other',
+  // Legacy values — surfaced as "(legacy)" so admins can see they
+  // need migration to the modern household role taxonomy.
+  PARENT: 'Parent (legacy)',
+  GUARDIAN: 'Guardian (legacy)',
+  STUDENT: 'Student (legacy)',
 };
 
 export type ProfileTabKey =

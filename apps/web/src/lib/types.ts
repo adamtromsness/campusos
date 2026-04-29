@@ -1750,6 +1750,9 @@ export interface CreatePaymentPlanPayload {
 
 export type PhoneType = 'MOBILE' | 'HOME' | 'WORK';
 
+// The 7 active values used by the Cycle 6.1 UI. Legacy values
+// (LEGACY_MEMBER_ROLES below) survive in the database for backwards
+// compat with the cross-school sibling-detection scaffolding.
 export type HouseholdRole =
   | 'HEAD_OF_HOUSEHOLD'
   | 'SPOUSE'
@@ -1758,6 +1761,14 @@ export type HouseholdRole =
   | 'OTHER_GUARDIAN'
   | 'SIBLING'
   | 'OTHER';
+
+// Legacy MemberRole values that pre-date Cycle 6.1. The DB enum
+// retains them; UI label maps must cover them so a leaked legacy row
+// never renders as `undefined`. SIBLING + OTHER overlap with the
+// active set and are not duplicated here.
+export type LegacyHouseholdRole = 'PARENT' | 'GUARDIAN' | 'STUDENT';
+
+export type AnyHouseholdRole = HouseholdRole | LegacyHouseholdRole;
 
 export interface StudentDemographicsDto {
   gender: string | null;

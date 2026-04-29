@@ -34,11 +34,11 @@ export class ProfileController {
 
   @Get('profile/:personId')
   @RequirePermission('usr-001:admin')
-  @ApiOperation({ summary: 'Admin — read any person’s profile' })
+  @ApiOperation({ summary: 'Admin — read any person’s profile (tenant-scoped)' })
   async getProfile(
     @Param('personId', ParseUUIDPipe) personId: string,
   ): Promise<ProfileResponseDto> {
-    return this.profile.getProfile(personId);
+    return this.profile.getAdminProfile(personId);
   }
 
   @Patch('profile/:personId')

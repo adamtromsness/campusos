@@ -7,12 +7,13 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Prisma, PrismaClient } from '@prisma/client';
-
-type TxClient = Prisma.TransactionClient;
 import { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { TenantPrismaService } from '../tenant/tenant-prisma.service';
+
+type TxClient = Prisma.TransactionClient;
 import {
   AddHouseholdMemberDto,
   HouseholdDto,
@@ -58,6 +59,21 @@ interface MemberRow {
 const EDIT_ROLES: ReadonlyArray<HouseholdRole> = ['HEAD_OF_HOUSEHOLD', 'SPOUSE'];
 
 /**
+ * Robust UNIQUE-violation detector for raw Prisma queries (REVIEW-CYCLE6.1
+ * MAJOR 7). Prisma's $executeRawUnsafe wraps Postgres errors differently
+ * depending on driver version. Check three signals:
+ *   1. err.code === 'P2010' (raw query failed — Prisma 5+).
+ *   2. err.meta?.code === '23505' (Postgres SQLSTATE — most reliable).
+ *   3. /unique constraint/i.test(message) (final fallback).
+ */
+function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; meta?: { code?: string } };
+  if (e.code === 'P2010') return true;
+  if (e.meta?.code === '23505') return true;
+  return /unique constraint/i.test(String(err));
+}
+
+/**
  * HouseholdsService — Profile and Household Mini-Cycle Step 6.
  *
  * All writes target platform-schema tables (platform_families,
@@ -85,6 +101,7 @@ export class HouseholdsService {
     private readonly prisma: PrismaClient,
     private readonly perms: PermissionCheckService,
     private readonly kafka: KafkaProducerService,
+    private readonly tenant: TenantPrismaService,
   ) {}
 
   /** GET /households/my — composed read for the calling actor. */
@@ -105,7 +122,7 @@ export class HouseholdsService {
     const familyRow = await this.loadFamilyById(id);
     if (!familyRow) throw new NotFoundException('Household not found');
     const isMember = await this.findMemberByPerson(id, actor.personId);
-    if (!isMember && !(await this.hasAdmin(actor))) {
+    if (!isMember && !(await this.hasAdmin(actor, id))) {
       throw new NotFoundException('Household not found');
     }
     const members = await this.loadMembers(id);
@@ -216,7 +233,7 @@ export class HouseholdsService {
           isPrimary,
         );
       } catch (err: unknown) {
-        if ((err as { code?: string }).code === 'P2010' || /unique constraint/i.test(String(err))) {
+        if (isUniqueViolation(err)) {
           throw new ConflictException(
             'This person is already a member of a household. Remove them from the existing household first.',
           );
@@ -361,7 +378,7 @@ export class HouseholdsService {
       );
       if (member.length === 0) throw new NotFoundException('Household member not found');
 
-      const isAdmin = await this.hasAdmin(actor);
+      const isAdmin = await this.hasAdmin(actor, id);
       if (member[0]!.person_id === actor.personId && !isAdmin) {
         throw new BadRequestException(
           'You cannot remove yourself from your household. Ask another head of household, or contact an administrator.',
@@ -403,19 +420,33 @@ export class HouseholdsService {
 
   // ── Internals ─────────────────────────────────────────────────────────
 
+  /**
+   * Edit gate, in priority order:
+   *   1. Tenant-scoped admin (REVIEW-CYCLE6.1 BLOCKING 2) → allowed.
+   *   2. Member with HEAD_OF_HOUSEHOLD or SPOUSE role → allowed.
+   *   3. Member with any other role → 403 (the user knows this is
+   *      their household; they get the helpful "head/spouse only"
+   *      message).
+   *   4. Not a member AND not a tenant admin → 404 (don't leak the
+   *      existence of households that aren't affiliated with the
+   *      caller's tenant, matching the BLOCKING-2 intent).
+   */
   private async assertCanEditHousehold(
     familyId: string,
     actor: ResolvedActor,
     tx: TxClient,
   ): Promise<void> {
-    if (await this.hasAdmin(actor)) return;
+    if (await this.hasAdmin(actor, familyId)) return;
     const rows = await tx.$queryRawUnsafe<{ member_role: string }[]>(
       'SELECT member_role::text AS member_role FROM platform.platform_family_members WHERE family_id = $1::uuid AND person_id = $2::uuid LIMIT 1',
       familyId,
       actor.personId,
     );
     const role = rows[0]?.member_role as HouseholdRole | undefined;
-    if (!role || !EDIT_ROLES.includes(role)) {
+    if (!role) {
+      throw new NotFoundException('Household not found');
+    }
+    if (!EDIT_ROLES.includes(role)) {
       throw new ForbiddenException(
         'Only the head of household or spouse can edit shared household details. Contact an administrator if this is wrong.',
       );
@@ -423,16 +454,60 @@ export class HouseholdsService {
   }
 
   private async canEdit(familyId: string, actor: ResolvedActor): Promise<boolean> {
-    if (await this.hasAdmin(actor)) return true;
+    if (await this.hasAdmin(actor, familyId)) return true;
     const member = await this.findMemberByPerson(familyId, actor.personId);
     if (!member) return false;
     return EDIT_ROLES.includes(member.member_role as HouseholdRole);
   }
 
-  private async hasAdmin(actor: ResolvedActor): Promise<boolean> {
-    if (actor.isSchoolAdmin) return true;
-    const tenant = getCurrentTenant();
-    return this.perms.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, ['usr-001:admin']);
+  /**
+   * "Has admin override on this household" combines two conditions:
+   *   1. The actor holds `usr-001:admin` (or `sch-001:admin`) in the
+   *      current tenant scope chain.
+   *   2. The household is affiliated with the current tenant — at
+   *      least one member has a sis_students / sis_guardians /
+   *      hr_employees row here. REVIEW-CYCLE6.1 BLOCKING 2 — closes
+   *      the cross-tenant admin override hole. Platform_families is
+   *      cross-school by design (sibling detection), so the admin
+   *      authority must be tenant-scoped on top.
+   *
+   * Without (2), a school admin from school A could read or mutate
+   * a household whose members are entirely at school B by guessing
+   * the platform_families UUID.
+   */
+  private async hasAdmin(actor: ResolvedActor, familyId: string): Promise<boolean> {
+    const hasPermission =
+      actor.isSchoolAdmin ||
+      (await this.perms.hasAnyPermissionInTenant(actor.accountId, getCurrentTenant().schoolId, [
+        'usr-001:admin',
+      ]));
+    if (!hasPermission) return false;
+    return this.householdAffiliatedWithCurrentTenant(familyId);
+  }
+
+  /**
+   * A household is "affiliated with the current tenant" if at least
+   * one member has a sis_students, sis_guardians, or hr_employees
+   * row in the calling tenant. Platform_families crosses school
+   * boundaries by design (sibling detection); admins act per-tenant.
+   */
+  private async householdAffiliatedWithCurrentTenant(familyId: string): Promise<boolean> {
+    const rows = await this.tenant.executeInTenantContext(async (tx) => {
+      return tx.$queryRawUnsafe<{ found: number }[]>(
+        'SELECT 1 AS found WHERE EXISTS (' +
+          '  SELECT 1 FROM platform.platform_family_members fm ' +
+          '  WHERE fm.family_id = $1::uuid AND (' +
+          '    EXISTS (SELECT 1 FROM sis_students s ' +
+          '            JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+          '            WHERE ps.person_id = fm.person_id) ' +
+          '    OR EXISTS (SELECT 1 FROM sis_guardians WHERE person_id = fm.person_id) ' +
+          '    OR EXISTS (SELECT 1 FROM hr_employees WHERE person_id = fm.person_id)' +
+          '  )' +
+          ') LIMIT 1',
+        familyId,
+      );
+    });
+    return rows.length > 0;
   }
 
   private async loadFamilyForPerson(personId: string): Promise<FamilyRow | null> {

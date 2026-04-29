@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -102,11 +103,15 @@ export class UpdateMyProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) preferredName?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20) suffix?: string | null;
 
+  // REVIEW-CYCLE6.1 MAJOR 4: also enforce min-length 1 per element so
+  // previousNames=[''] doesn't persist a junk empty-string row.
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(20)
   @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(100, { each: true })
   previousNames?: string[];
 
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) primaryPhone?: string | null;
