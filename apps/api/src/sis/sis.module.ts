@@ -6,6 +6,7 @@ import { ClassService } from './class.service';
 import { FamilyService } from './family.service';
 import { StudentController } from './student.controller';
 import { ClassController } from './class.controller';
+import { AcademicYearController } from './academic-year.controller';
 
 /**
  * SIS Module — Student Information System (M20 SIS Core)
@@ -22,7 +23,7 @@ import { ClassController } from './class.controller';
 @Module({
   imports: [TenantModule, IamModule],
   providers: [StudentService, ClassService, FamilyService],
-  controllers: [StudentController, ClassController],
+  controllers: [StudentController, ClassController, AcademicYearController],
   exports: [StudentService, ClassService, FamilyService],
 })
 export class SisModule {}

@@ -1187,3 +1187,276 @@ export interface ListSubstitutionsArgs {
   fromDate?: string;
   toDate?: string;
 }
+
+// ── Cycle 6: Enrollment (M81) ─────────────────────────────────
+
+export interface AcademicYearDto {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+}
+
+export type EnrollmentPeriodStatus = 'UPCOMING' | 'OPEN' | 'CLOSED';
+
+export interface IntakeCapacityDto {
+  id: string;
+  enrollmentPeriodId: string;
+  streamId: string | null;
+  gradeLevel: string;
+  totalPlaces: number;
+  reservedPlaces: number;
+}
+
+export interface AdmissionStreamDto {
+  id: string;
+  enrollmentPeriodId: string;
+  name: string;
+  gradeLevel: string | null;
+  opensAt: string | null;
+  closesAt: string | null;
+  isActive: boolean;
+}
+
+export interface CapacitySummaryRowDto {
+  gradeLevel: string;
+  totalPlaces: number;
+  reserved: number;
+  applicationsReceived: number;
+  offersIssued: number;
+  offersAccepted: number;
+  waitlisted: number;
+  available: number;
+}
+
+export interface EnrollmentPeriodDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  academicYearName: string;
+  name: string;
+  opensAt: string;
+  closesAt: string;
+  status: EnrollmentPeriodStatus;
+  allowsMidYearApplications: boolean;
+  streams: AdmissionStreamDto[];
+  capacities: IntakeCapacityDto[];
+  capacitySummary: CapacitySummaryRowDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEnrollmentPeriodPayload {
+  academicYearId: string;
+  name: string;
+  opensAt: string;
+  closesAt: string;
+  allowsMidYearApplications?: boolean;
+}
+
+export interface UpdateEnrollmentPeriodPayload {
+  name?: string;
+  opensAt?: string;
+  closesAt?: string;
+  status?: EnrollmentPeriodStatus;
+  allowsMidYearApplications?: boolean;
+}
+
+export interface CreateAdmissionStreamPayload {
+  name: string;
+  gradeLevel?: string | null;
+  opensAt?: string;
+  closesAt?: string;
+  isActive?: boolean;
+}
+
+export interface CreateIntakeCapacityPayload {
+  streamId?: string | null;
+  gradeLevel: string;
+  totalPlaces: number;
+  reservedPlaces?: number;
+}
+
+export type ApplicationStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'WAITLISTED'
+  | 'WITHDRAWN'
+  | 'ENROLLED';
+
+export type AdminTransitionTarget =
+  | 'UNDER_REVIEW'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'WAITLISTED'
+  | 'WITHDRAWN';
+
+export type AdmissionType = 'NEW_STUDENT' | 'TRANSFER' | 'MID_YEAR_ADMISSION';
+
+export type ApplicationNoteType =
+  | 'INTERVIEW_NOTES'
+  | 'ASSESSMENT_RESULT'
+  | 'STAFF_OBSERVATION'
+  | 'REFERENCE_CHECK'
+  | 'VISIT_NOTES'
+  | 'GENERAL';
+
+export interface ScreeningResponseDto {
+  questionKey: string;
+  responseValue: unknown;
+}
+
+export interface ApplicationDocumentDto {
+  id: string;
+  documentType: string;
+  s3Key: string;
+  fileName: string | null;
+  contentType: string | null;
+  fileSizeBytes: number | null;
+  uploadedAt: string;
+}
+
+export interface ApplicationNoteDto {
+  id: string;
+  noteType: ApplicationNoteType;
+  noteText: string;
+  isConfidential: boolean;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface ApplicationDto {
+  id: string;
+  schoolId: string;
+  enrollmentPeriodId: string;
+  enrollmentPeriodName: string;
+  streamId: string | null;
+  streamName: string | null;
+  studentFirstName: string;
+  studentLastName: string;
+  studentDateOfBirth: string;
+  applyingForGrade: string;
+  guardianPersonId: string | null;
+  guardianEmail: string;
+  guardianPhone: string | null;
+  admissionType: AdmissionType;
+  status: ApplicationStatus;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  screening: ScreeningResponseDto[];
+  documents: ApplicationDocumentDto[];
+  notes: ApplicationNoteDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateApplicationPayload {
+  enrollmentPeriodId: string;
+  streamId?: string | null;
+  studentFirstName: string;
+  studentLastName: string;
+  studentDateOfBirth: string;
+  applyingForGrade: string;
+  guardianEmail: string;
+  guardianPhone?: string;
+  admissionType?: AdmissionType;
+  screening?: { questionKey: string; responseValue: unknown }[];
+}
+
+export interface UpdateApplicationStatusPayload {
+  status: AdminTransitionTarget;
+  reviewNote?: string;
+}
+
+export interface CreateApplicationNotePayload {
+  noteType?: ApplicationNoteType;
+  noteText: string;
+  isConfidential?: boolean;
+}
+
+export interface ListApplicationsArgs {
+  enrollmentPeriodId?: string;
+  status?: ApplicationStatus;
+  applyingForGrade?: string;
+}
+
+export type OfferType = 'UNCONDITIONAL' | 'CONDITIONAL';
+
+export type OfferStatus =
+  | 'ISSUED'
+  | 'ACCEPTED'
+  | 'DECLINED'
+  | 'EXPIRED'
+  | 'WITHDRAWN'
+  | 'CONDITIONS_NOT_MET';
+
+export type FamilyResponse = 'ACCEPTED' | 'DECLINED' | 'DEFERRED';
+
+export interface OfferDto {
+  id: string;
+  schoolId: string;
+  applicationId: string;
+  studentFirstName: string;
+  studentLastName: string;
+  applyingForGrade: string;
+  offerType: OfferType;
+  offerConditions: string[] | null;
+  conditionsMet: boolean | null;
+  offerLetterS3Key: string | null;
+  issuedAt: string;
+  responseDeadline: string;
+  familyResponse: FamilyResponse | null;
+  familyRespondedAt: string | null;
+  deferralTargetYearId: string | null;
+  status: OfferStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateOfferPayload {
+  offerType?: OfferType;
+  offerConditions?: string[];
+  offerLetterS3Key?: string;
+  responseDeadline: string;
+}
+
+export interface UpdateOfferConditionsMetPayload {
+  conditionsMet: boolean;
+}
+
+export interface RespondToOfferPayload {
+  familyResponse: FamilyResponse;
+  deferralTargetYearId?: string;
+}
+
+export type WaitlistStatus = 'ACTIVE' | 'OFFERED' | 'ENROLLED' | 'EXPIRED' | 'WITHDRAWN';
+
+export interface WaitlistEntryDto {
+  id: string;
+  schoolId: string;
+  enrollmentPeriodId: string;
+  applicationId: string;
+  studentFirstName: string;
+  studentLastName: string;
+  gradeLevel: string;
+  priorityScore: number;
+  position: number;
+  status: WaitlistStatus;
+  addedAt: string;
+  offeredAt: string | null;
+}
+
+export interface ListWaitlistArgs {
+  enrollmentPeriodId?: string;
+  gradeLevel?: string;
+  status?: WaitlistStatus;
+}
+
+export interface OfferFromWaitlistPayload {
+  responseDeadline: string;
+}

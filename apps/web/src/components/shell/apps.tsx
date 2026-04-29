@@ -3,6 +3,7 @@
 import { type ReactNode } from 'react';
 import { hasAnyPermission, type AuthUser } from '@/lib/auth-store';
 import {
+  AcademicCapIcon,
   AttendanceIcon,
   CalendarIcon,
   ChatBubbleIcon,
@@ -22,7 +23,8 @@ export type AppKey =
   | 'leave'
   | 'compliance'
   | 'schedule'
-  | 'calendar';
+  | 'calendar'
+  | 'admissions';
 export type BadgeKey = 'messages' | 'announcements';
 
 export interface AppDef {
@@ -140,6 +142,17 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'Holidays, PD days, and school events',
       href: '/calendar',
       icon: CalendarIcon,
+    });
+  }
+
+  if (hasAnyPermission(user, ['stu-003:admin'])) {
+    apps.push({
+      key: 'admissions',
+      label: 'Admissions',
+      description: 'Enrollment periods, applications, offers, and waitlist',
+      href: '/admissions/applications',
+      routePrefix: '/admissions',
+      icon: AcademicCapIcon,
     });
   }
 
