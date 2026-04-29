@@ -138,16 +138,28 @@ model EventConsumerIdempotency {
 // ADR-055: if the column identifies WHO a person IS → FK(iam_person)
 // ADR-036: person can exist without a platform_users account
 model IamPerson {
-  id             String     @id @db.Uuid
-  firstName      String     @map("first_name")
-  lastName       String     @map("last_name")
-  preferredName  String?    @map("preferred_name")
-  dateOfBirth    DateTime?  @map("date_of_birth") @db.Date
-  nationalIdHash String?    @map("national_id_hash")
-  personType     PersonType @map("person_type")
-  isActive       Boolean    @default(true) @map("is_active")
-  mergedIntoId   String?    @map("merged_into_id") @db.Uuid
-  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  id                  String     @id @db.Uuid
+  firstName           String     @map("first_name")
+  lastName            String     @map("last_name")
+  middleName          String?    @map("middle_name")
+  preferredName       String?    @map("preferred_name")
+  suffix              String?
+  previousNames       String[]   @map("previous_names")
+  dateOfBirth         DateTime?  @map("date_of_birth") @db.Date
+  primaryPhone        String?    @map("primary_phone")
+  secondaryPhone      String?    @map("secondary_phone")
+  workPhone           String?    @map("work_phone")
+  phoneTypePrimary    String?    @map("phone_type_primary")
+  phoneTypeSecondary  String?    @map("phone_type_secondary")
+  preferredLanguage   String     @default("en") @map("preferred_language")
+  personalEmail       String?    @map("personal_email")
+  notes               String?
+  profileUpdatedAt    DateTime?  @map("profile_updated_at") @db.Timestamptz()
+  nationalIdHash      String?    @map("national_id_hash")
+  personType          PersonType @map("person_type")
+  isActive            Boolean    @default(true) @map("is_active")
+  mergedIntoId        String?    @map("merged_into_id") @db.Uuid
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz()
 
   // Relations
   mergedInto     IamPerson?  @relation("PersonMerge", fields: [mergedIntoId], references: [id])
@@ -245,9 +257,26 @@ model PlatformStudent {
 // Enables cross-school sibling detection (tenant schemas cannot JOIN).
 // Synced by FamilyMemberSyncWorker from sis_family_members events.
 model PlatformFamily {
-  id        String   @id @db.Uuid
-  name      String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id                  String   @id @db.Uuid
+  name                String?
+  addressLine1        String?  @map("address_line1")
+  addressLine2        String?  @map("address_line2")
+  city                String?
+  state               String?
+  postalCode          String?  @map("postal_code")
+  country             String?
+  homePhone           String?  @map("home_phone")
+  homeLanguage        String   @default("en") @map("home_language")
+  mailingAddressSame  Boolean  @default(true) @map("mailing_address_same")
+  mailingLine1        String?  @map("mailing_line1")
+  mailingLine2        String?  @map("mailing_line2")
+  mailingCity         String?  @map("mailing_city")
+  mailingState        String?  @map("mailing_state")
+  mailingPostalCode   String?  @map("mailing_postal_code")
+  mailingCountry      String?  @map("mailing_country")
+  notes               String?
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   members FamilyMember[]
 
@@ -256,19 +285,25 @@ model PlatformFamily {
 }
 
 // ── Family Members ───────────────────────────────────────────
+// One row per (household, person). person_id is UNIQUE — a person belongs
+// to at most one household. role drives the household-edit gate
+// (HEAD_OF_HOUSEHOLD or SPOUSE can edit shared fields per HouseholdsService).
+// Partial UNIQUE INDEX on (family_id) WHERE is_primary_contact = true is
+// declared via raw SQL in the migration; Prisma can't express it natively.
 model FamilyMember {
   id              String     @id @db.Uuid
   familyId        String     @map("family_id") @db.Uuid
-  personId        String     @map("person_id") @db.Uuid
+  personId        String     @unique @map("person_id") @db.Uuid
   memberRole      MemberRole @map("member_role")
   isPrimaryContact Boolean   @default(false) @map("is_primary_contact")
+  joinedAt        DateTime   @default(now()) @map("joined_at") @db.Timestamptz()
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
-  family PlatformFamily @relation(fields: [familyId], references: [id])
+  family PlatformFamily @relation(fields: [familyId], references: [id], onDelete: Cascade)
   person IamPerson      @relation(fields: [personId], references: [id])
 
   @@unique([familyId, personId])
-  @@index([personId])
   @@map("platform_family_members")
   @@schema("platform")
 }
@@ -279,6 +314,11 @@ enum MemberRole {
   STUDENT
   SIBLING
   OTHER
+  HEAD_OF_HOUSEHOLD
+  SPOUSE
+  CHILD
+  GRANDPARENT
+  OTHER_GUARDIAN
 
   @@schema("platform")
 }

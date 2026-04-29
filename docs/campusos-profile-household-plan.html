@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Profile &amp; Household Mini-Cycle Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
+.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
+.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
+.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
+.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
+.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
+.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}
+.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}
+.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
+.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
+.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
+.step-title{font-size:19px;font-weight:700;color:var(--accent)}
+.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
+.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
+.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.step .depends{font-size:12px;color:var(--text-light);margin-top:6px}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
+.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
+.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
+.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Mini-Cycle</div>
+    <h1>Profile &amp; Household Management<br>Mini-Cycle Implementation Plan</h1>
+    <div class="sub">A cross-cutting self-service feature that lets every persona maintain their own personal profile and edit shared household details. Slots between Cycles 6 and 7 as a Phase 2 polish pass on identity data.</div>
+    <span class="version">April 2026 &middot; 8 Steps &middot; Extends platform.iam_person + platform.platform_families &middot; Reuses sis_emergency_contacts / hr_emergency_contacts</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycles 1&ndash;6 stood up the academic, communications, HR, scheduling, and billing pipelines, but profile data has grown organically &mdash; <code>iam_person</code> still only carries first/last name + email, addresses live nowhere, and there is no parent-facing "edit my details" surface. This mini-cycle adds the missing self-service profile + household management layer without inventing new identity primitives.</p>
+
+  <p class="body-text">The model splits cleanly into two halves. <strong>Personal fields</strong> (preferred name, mobile phone, personal email, language) hang off <code>platform.iam_person</code> &mdash; the canonical identity table per ADR-055. <strong>Shared household fields</strong> (address, home phone, mailing address) extend <code>platform.platform_families</code> &mdash; the existing platform-scoped families table that already groups David and Maya Chen. A new <code>platform.platform_family_members</code> link table adds a household role (HEAD_OF_HOUSEHOLD, SPOUSE, CHILD, etc.) so editing rights can be enforced. Emergency contacts continue to live in <code>sis_emergency_contacts</code> (non-employees) and <code>hr_emergency_contacts</code> (employees) &mdash; the profile UI just reads/writes those existing tables.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">David Chen logs in &rarr; clicks his avatar &rarr; "My Profile" &rarr; updates his preferred name to "Dave" and his mobile phone &rarr; switches to the "My Household" tab &rarr; edits the shared address to "1234 Oak Street" &rarr; saves &rarr; success toast. Maya Chen logs in &rarr; sees the same household address (read-only, role=CHILD) &rarr; opens her own profile &rarr; views demographics tab with date_of_birth pre-filled. James Rivera logs in &rarr; profile page reads from his <code>hr_emergency_contacts</code> row, not <code>sis_emergency_contacts</code>. An admin opens <code>/profile/{Maya's personId}</code> and edits Maya's first_name (the one field self-service cannot touch).</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope:</strong> Personal fields on <code>iam_person</code> (preferred name, middle name, suffix, previous names, DOB, three phone numbers + types, language, personal email, notes, profile_updated_at). Household fields on existing <code>platform_families</code> (address, home phone, home language, mailing address). New <code>platform_family_members</code> link table with role enum. New <code>sis_student_demographics</code>. Guardian employment fields on existing <code>sis_guardians</code>. <code>usr-001</code> permission code for self-service profile read/write. Profile NestJS module + Households NestJS module. Profile UI with tabs (Personal / Household / Emergency / Demographics or Employment / Account). Avatar menu link.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Multi-household membership (a person can only belong to one household this cycle &mdash; UNIQUE on <code>platform_family_members.person_id</code>). Mailing-address validation against postal services. Profile photo upload. Account-level password change UI (the page just deep-links to Keycloak). Multi-language UI (<code>preferred_language</code> is stored but the app remains English-only). Audit trail for name changes (the <code>previous_names</code> array is a simple TEXT[] this cycle &mdash; a proper history table is future work).</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">Schema Discipline (ADR-055, ADR-001/020)</div>
+    <p style="font-size:15px;line-height:1.8;"><code>iam_person</code> remains the canonical identity table. New columns are additive and nullable so existing seed data keeps loading. <code>platform_family_members.person_id</code> is a real DB-enforced FK because both sides are in the platform schema. The tenant-side <code>sis_student_demographics.student_id &rarr; sis_students(id)</code> is a real intra-tenant FK. No cross-schema FKs are introduced.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:34%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Platform Schema &mdash; iam_person + platform_families Extensions</td><td>Schema</td><td>Prisma migration: 14 new <code>iam_person</code> columns; 8 new household columns on <code>platform_families</code>; new <code>platform_family_members</code> table with role enum</td></tr>
+    <tr><td><strong>2</strong></td><td>Tenant Schema &mdash; Demographics &amp; Guardian Employment</td><td>Schema</td><td>SQL migration: <code>sis_student_demographics</code> + 4 new columns on <code>sis_guardians</code></td></tr>
+    <tr><td><strong>3</strong></td><td>Permission Catalogue &mdash; usr-001</td><td>Seed</td><td><code>usr-001:read</code> + <code>usr-001:write</code> added to <code>permissions.json</code> + every seeded role; effective access cache rebuilt</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Household + Personal Fields + Demographics</td><td>Seed</td><td>Chen Family household with David (HEAD_OF_HOUSEHOLD) + Maya (CHILD); shared address populated; Maya's demographics + David's guardian employment + personal fields on all 5 test users</td></tr>
+    <tr><td><strong>5</strong></td><td>Profile NestJS Module</td><td>Code</td><td>ProfileService + ProfileController. <code>GET/PATCH /profile/me</code>, <code>GET/PATCH /profile/:personId</code>. Persona-aware response composition. Reads/writes <code>sis_emergency_contacts</code> for non-employees, <code>hr_emergency_contacts</code> for employees</td></tr>
+    <tr><td><strong>6</strong></td><td>Households NestJS Module</td><td>Code</td><td>HouseholdService + HouseholdController. <code>GET /households/my</code>, <code>PATCH /households/:id</code>, member CRUD. Role-based edit gate (HEAD_OF_HOUSEHOLD or SPOUSE), admin override on <code>iam-001:write</code>. Emits <code>iam.household.member_changed</code></td></tr>
+    <tr><td><strong>7</strong></td><td>Profile UI &mdash; Tabbed Page + Avatar Menu</td><td>UI</td><td><code>/profile</code> route with 5 tabs (Personal / Household / Emergency / Demographics or Employment / Account); per-tab save with toast; profile completeness bar; avatar dropdown gains "My Profile" link for every persona</td></tr>
+    <tr><td><strong>8</strong></td><td>Vertical Slice Acceptance Test</td><td>Test</td><td><code>docs/profile-household-cat-script.md</code> &mdash; reproducible end-to-end walkthrough across all 4 personas + admin override + role-based household edit + emergency-contact reuse + permission denials</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Platform Schema &mdash; iam_person + platform_families Extensions</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>One Prisma migration on the platform schema covers all three platform-side changes: new personal columns on <code>iam_person</code>, new household columns on the existing <code>platform_families</code>, and the new <code>platform_family_members</code> link table. Every new column is nullable (or has a sensible default) so existing rows keep loading.</p>
+
+    <div class="detail-heading">Changes (one Prisma migration)</div>
+    <ol class="detail-list">
+      <li><strong>Extend <code>platform.iam_person</code></strong> &mdash; add 14 columns: <code>middle_name TEXT</code>, <code>preferred_name TEXT</code>, <code>suffix TEXT</code>, <code>previous_names TEXT[]</code>, <code>date_of_birth DATE</code>, <code>primary_phone TEXT</code>, <code>secondary_phone TEXT</code>, <code>work_phone TEXT</code>, <code>phone_type_primary TEXT CHECK IN ('MOBILE','HOME','WORK')</code>, <code>phone_type_secondary TEXT CHECK IN ('MOBILE','HOME','WORK')</code>, <code>preferred_language TEXT DEFAULT 'en'</code>, <code>personal_email TEXT</code>, <code>notes TEXT</code>, <code>profile_updated_at TIMESTAMPTZ</code>. All nullable. The <code>email</code> column on <code>platform_users</code> remains the login email and is unchanged.</li>
+      <li><strong>Extend <code>platform.platform_families</code></strong> &mdash; add 11 columns: <code>address_line1 TEXT</code>, <code>address_line2 TEXT</code>, <code>city TEXT</code>, <code>state TEXT</code>, <code>postal_code TEXT</code>, <code>country TEXT</code>, <code>home_phone TEXT</code>, <code>home_language TEXT DEFAULT 'en'</code>, <code>mailing_address_same BOOLEAN DEFAULT true</code>, plus mailing variants <code>mailing_line1 / mailing_line2 / mailing_city / mailing_state / mailing_postal_code / mailing_country</code> (all nullable, only consulted when <code>mailing_address_same=false</code>). One <code>notes TEXT</code> column for free-form household notes.</li>
+      <li><strong>New <code>platform.platform_family_members</code></strong> &mdash; <code>id UUID PK</code>, <code>family_id UUID FK(platform_families) ON DELETE CASCADE</code>, <code>person_id UUID FK(iam_person) UNIQUE</code> (one household per person this cycle), <code>role TEXT NOT NULL CHECK IN ('HEAD_OF_HOUSEHOLD','SPOUSE','CHILD','GRANDPARENT','OTHER_GUARDIAN','SIBLING','OTHER')</code>, <code>is_primary_contact BOOLEAN DEFAULT false</code>, <code>joined_at TIMESTAMPTZ DEFAULT now()</code>, <code>created_at / updated_at</code>. UNIQUE(family_id, person_id) (belt-and-braces on top of the per-person UNIQUE). Partial UNIQUE INDEX on <code>(family_id) WHERE is_primary_contact = true</code> so each household has at most one primary contact.</li>
+    </ol>
+
+    <div class="detail-heading">Migration shape</div>
+    <p>Prisma migration is the right tool here because both <code>iam_person</code> and <code>platform_families</code> already live in the Prisma platform schema. Add the columns to <code>schema.prisma</code>, run <code>prisma migrate dev</code> against <code>campusos_dev</code>, commit the generated SQL. The migration is purely additive &mdash; no data backfill needed, no breaking enum/constraint changes.</p>
+
+    <div class="produces">Produces &rarr; 1 Prisma migration. <code>iam_person</code> grows from N to N+14 columns; <code>platform_families</code> grows by 16 columns; new <code>platform_family_members</code> table. Platform table count grows by 1.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Tenant Schema &mdash; Demographics &amp; Guardian Employment</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>One tenant SQL migration adds the per-student demographics table and four employment columns to the existing <code>sis_guardians</code> table. Migration number follows the running sequence (currently 022 after Cycle 6 Step 4's 021).</p>
+
+    <div class="detail-heading">Tables (1 new + 1 extended)</div>
+    <ol class="detail-list">
+      <li><strong>sis_student_demographics</strong> (NEW) &mdash; <code>id UUID PK</code>, <code>student_id UUID FK(sis_students) ON DELETE CASCADE</code>, <code>gender TEXT</code> nullable, <code>ethnicity TEXT</code> nullable, <code>primary_language TEXT</code> nullable, <code>birth_country TEXT</code> nullable, <code>citizenship TEXT</code> nullable, <code>medical_alert_notes TEXT</code> nullable (a brief flag like "EpiPen in nurse's office"; not a full health record &mdash; that lives in M30 Health). UNIQUE(student_id) so each student has at most one demographics row. <code>created_at / updated_at TIMESTAMPTZ</code>.</li>
+      <li><strong>sis_guardians</strong> (EXTEND) &mdash; add 4 columns: <code>employer TEXT</code>, <code>employer_phone TEXT</code>, <code>occupation TEXT</code>, <code>work_address TEXT</code>. All nullable. <code>relationship_to_student</code> already exists from Cycle 1 &mdash; verify in the migration and skip if present.</li>
+    </ol>
+
+    <div class="detail-heading">Migration discipline</div>
+    <p>Use <code>CREATE TABLE IF NOT EXISTS</code> + <code>ADD COLUMN IF NOT EXISTS</code> per the Cycle 1+ idempotency convention. No <code>;</code> inside any string literal or COMMENT block (the splitter cuts on every semicolon regardless of quoting context &mdash; tripped multiple times in Cycles 4&ndash;6). Pre-flight every migration with the existing Python audit script.</p>
+
+    <div class="produces">Produces &rarr; 1 SQL migration <code>022_sis_student_demographics_and_guardian_employment.sql</code>. Tenant base table count: 107 (was 106 after Cycle 6 Step 4).</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Permission Catalogue &mdash; usr-001</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <p>One new function <code>USR-001 (Profile Management)</code> with three tiers (read/write/admin) joins the 444-permission catalogue. Self-service is the design intent &mdash; every persona holds <code>usr-001:read</code> and <code>usr-001:write</code> for their own profile. The endpoint-level row-scope check (<code>actor.personId === requestedPersonId</code>) is the actual access gate; admins bypass via <code>iam-001:write</code>.</p>
+
+    <div class="detail-heading">Changes</div>
+    <ol class="detail-list">
+      <li><strong><code>packages/database/data/permissions.json</code></strong> &mdash; add <code>usr-001:read</code>, <code>usr-001:write</code>, <code>usr-001:admin</code> entries. Function name "Profile Management". Description "Self-service profile and household editing". The existing <code>seed-iam.ts</code> reconciler picks them up automatically.</li>
+      <li><strong><code>seed-iam.ts</code> role-permission map</strong> &mdash; grant <code>usr-001:read</code> + <code>usr-001:write</code> to Teacher, Student, Parent, Staff, Counsellor, VP, School Admin, Platform Admin (every seeded role). Grant <code>usr-001:admin</code> to School Admin + Platform Admin only.</li>
+      <li><strong>Cache rebuild</strong> &mdash; <code>tsx src/build-cache.ts</code> after the seed update. Each persona's effective-access cache row count grows by 2; admins by 3.</li>
+    </ol>
+
+    <div class="detail-heading">Why a fresh function code</div>
+    <p>The existing <code>iam-001</code> permission is already in use for admin-only person CRUD (creating accounts, editing names). Reusing it for self-service profile editing would force every parent / student to hold <code>iam-001:read</code>, leaking name-change capability. A separate <code>usr-001</code> code keeps self-service distinct from admin person management. <code>iam-001:write</code> remains the admin override for editing fields the user themself cannot change (first_name, last_name).</p>
+
+    <div class="produces">Produces &rarr; 3 new permission codes (catalogue total 447). Updated effective access cache. No code changes &mdash; the new codes wire into <code>@RequirePermission</code> calls in Steps 5&ndash;6.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Seed Data &mdash; Household + Personal Fields + Demographics</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <p>Populate the new fields against the existing demo tenant so the UI lights up with realistic shapes immediately. Idempotent, gated on first-row-of-each-block so re-runs after schema changes are safe.</p>
+
+    <div class="detail-heading">What gets seeded</div>
+    <ol class="detail-list">
+      <li><strong>Chen Family household</strong> &mdash; UPDATE the existing <code>platform_families</code> row for the Chen family to populate: <code>address_line1='1234 Oak Street'</code>, <code>city='Springfield'</code>, <code>state='IL'</code>, <code>postal_code='62701'</code>, <code>country='US'</code>, <code>home_phone='(217) 555-0123'</code>, <code>home_language='en'</code>, <code>mailing_address_same=true</code>.</li>
+      <li><strong>platform_family_members</strong> &mdash; INSERT 2 rows: David Chen (role=HEAD_OF_HOUSEHOLD, is_primary_contact=true), Maya Chen (role=CHILD).</li>
+      <li><strong>iam_person personal fields</strong> &mdash; UPDATE all 5 seeded persons: David Chen (preferred_name='Dave', primary_phone, phone_type_primary='MOBILE', personal_email), Sarah Mitchell (preferred_name, phones), James Rivera (work_phone copied from <code>hr_employees</code> if present, primary_phone), Linda Park, Marcus Hayes (basic personal fields). Maya Chen gets <code>date_of_birth='2011-03-15'</code> + <code>primary_phone</code>.</li>
+      <li><strong>sis_student_demographics</strong> &mdash; INSERT 1 row for Maya Chen: <code>gender='Female'</code>, <code>primary_language='English'</code>. Other seeded students (the 14 from Cycle 1 SIS seed) get demographic rows with just <code>primary_language='English'</code>; admin can fill the rest in via the UI.</li>
+      <li><strong>sis_guardians employment</strong> &mdash; UPDATE David Chen's guardian row: <code>employer='Chen Engineering LLC'</code>, <code>occupation='Mechanical Engineer'</code>, <code>employer_phone='(217) 555-0177'</code>.</li>
+      <li><strong>seed-iam.ts</strong> &mdash; the Step 3 role-permission grants land here too (already covered by the JSON reconciliation; this step just runs <code>build-cache.ts</code>).</li>
+    </ol>
+
+    <div class="detail-heading">Deciding where to put it</div>
+    <p>A new <code>seed-profile.ts</code> file lives in <code>packages/database/src/</code> with a <code>seed:profile</code> npm script, mirroring the existing <code>seed:enrollment</code> and <code>seed:payments</code> shape. It runs against <code>tenant_demo</code> only (test stays empty). Idempotency gate: skip if the Chen family <code>platform_family_members</code> row already exists.</p>
+
+    <div class="produces">Produces &rarr; 1 new seed script. Demo tenant has a fully-populated household, 5 personal-field-rich users, demographics for the 15 seeded students, and David's guardian employment populated.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Profile NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>The self-service profile API. One service + one controller + 4 endpoints. Persona-aware response composition: every <code>GET /profile</code> returns the iam_person fields plus the persona-specific data (demographics for STUDENT, guardian employment for GUARDIAN, employee profile for STAFF) plus the relevant emergency contact row.</p>
+
+    <div class="detail-heading">Service &amp; endpoints</div>
+    <ol class="detail-list">
+      <li><strong>GET /profile/me</strong> &mdash; gated on <code>usr-001:read</code>. Resolves <code>actor.personId</code> from <code>ActorContextService.resolveActor(...)</code> and returns the full profile shape: iam_person columns + (if STUDENT) <code>sis_student_demographics</code> row + (if GUARDIAN) <code>sis_guardians</code> employment columns + (if STAFF) <code>hr_employees</code> primary position + emergency contact (read from <code>sis_emergency_contacts</code> by default; <code>hr_emergency_contacts</code> when <code>actor.employeeId</code> is non-null) + household membership (the caller's <code>platform_family_members</code> row + the linked <code>platform_families</code>).</li>
+      <li><strong>PATCH /profile/me</strong> &mdash; gated on <code>usr-001:write</code>. Accepts a partial payload of personal fields. Server-side ALLOW-LIST: <code>preferred_name</code>, <code>middle_name</code>, <code>suffix</code>, <code>previous_names</code>, <code>primary_phone</code>, <code>secondary_phone</code>, <code>work_phone</code>, <code>phone_type_primary</code>, <code>phone_type_secondary</code>, <code>preferred_language</code>, <code>personal_email</code>, <code>notes</code>. Cannot change <code>first_name</code>, <code>last_name</code>, <code>email</code> (login), or <code>date_of_birth</code> after initial set (admin-only per ADR-055). Guardian-extras path: if persona is GUARDIAN, also accepts <code>employer / employer_phone / occupation / work_address</code>. Student demographics path: if persona is STUDENT, accepts <code>primary_language</code> only (other demographics are admin-only). Updates <code>profile_updated_at</code>. Phone type CHECK constraints from Step 1 are the schema-side belt-and-braces.</li>
+      <li><strong>GET /profile/:personId</strong> &mdash; admin view, gated on <code>iam-001:read</code>. Returns the same shape as <code>/profile/me</code> but for an arbitrary person. School admins see anyone in their school; platform admins see anyone.</li>
+      <li><strong>PATCH /profile/:personId</strong> &mdash; admin edit, gated on <code>iam-001:write</code>. Full ALLOW-LIST including <code>first_name</code>, <code>last_name</code>, <code>date_of_birth</code> (the fields self-service cannot touch). Logs an audit row in the future <code>iam_admin_access_log</code> &mdash; deferred this cycle, for now just sets <code>profile_updated_at</code>.</li>
+    </ol>
+
+    <div class="detail-heading">Emergency-contact branching</div>
+    <p>The profile response embeds an optional <code>emergencyContact</code> object. Resolution rule: if <code>actor.employeeId</code> is non-null (or for admin-view-of-someone-else, if the target person has an <code>hr_employees</code> row), read from <code>hr_emergency_contacts WHERE employee_id = …</code>. Otherwise read from <code>sis_emergency_contacts WHERE person_id = …</code>. PATCH writes back to the same source. No data is duplicated. The UI is unaware of which table is being used.</p>
+
+    <div class="detail-heading">Validation</div>
+    <p>DTOs use <code>class-validator</code> with <code>@IsIn</code> on the phone type enum (kept in sync with the SQL CHECK constraints). <code>@IsEmail</code> on <code>personal_email</code>. <code>@IsISO8601()</code> on <code>date_of_birth</code> (admin path only). String length caps on free-form fields (notes 2000 chars, name fields 100 chars). Required-field check is endpoint-policy not schema-policy &mdash; the schema keeps everything nullable for backward compat with existing rows; the PATCH endpoint refuses to clear <code>primary_phone</code> only on persons whose row already has one populated (no breakage of old rows, but you can't delete a phone you've already added through the UI).</p>
+
+    <div class="produces">Produces &rarr; ProfileModule with 1 service + 1 controller + 4 endpoints. Mounts under <code>AppModule</code> after IamModule.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Households NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>Household read + edit, with role-based gating that's enforced at the service layer rather than via IAM permission codes. The trick: household editing is not a tenant-scoped admin function &mdash; it's family self-service, so the gate is "are you HEAD_OF_HOUSEHOLD or SPOUSE in this household" (or admin via <code>iam-001:write</code>).</p>
+
+    <div class="detail-heading">Service &amp; endpoints</div>
+    <ol class="detail-list">
+      <li><strong>GET /households/my</strong> &mdash; gated on <code>usr-001:read</code>. Resolves <code>actor.personId</code>, looks up <code>platform_family_members</code> for that person, returns the household with all members (each member shape: name from <code>iam_person</code>, role, is_primary_contact, joined_at). Students/children get the same payload but <code>canEdit=false</code> in the response so the UI hides edit controls.</li>
+      <li><strong>PATCH /households/:id</strong> &mdash; gated on <code>usr-001:write</code> + service-layer <code>assertCanEditHousehold(id, actor)</code> check. Updates the shared fields: <code>address_line1 / line2 / city / state / postal_code / country / home_phone / home_language / mailing_address_same / mailing_*</code>. Refuses with 403 if the actor is neither HEAD_OF_HOUSEHOLD nor SPOUSE in this household and lacks <code>iam-001:write</code>.</li>
+      <li><strong>POST /households/:id/members</strong> &mdash; same gate as PATCH. Adds a person to the household. Validates the person isn't already in another household (UNIQUE on <code>person_id</code> would 23505 anyway; this check is for the friendlier 409 response).</li>
+      <li><strong>PATCH /households/:id/members/:memberId</strong> &mdash; same gate. Updates role or <code>is_primary_contact</code>. Promoting a new primary contact atomically clears the old one in the same tx (the partial UNIQUE INDEX from Step 1 is the schema-side belt-and-braces).</li>
+      <li><strong>DELETE /households/:id/members/:memberId</strong> &mdash; same gate. Refuses if the member being removed is the last HEAD_OF_HOUSEHOLD (loud 400 with the message "Households must always have at least one head of household. Promote another member first."). Cannot remove the calling user themself unless they have <code>iam-001:write</code> &mdash; this avoids accidental self-eviction.</li>
+    </ol>
+
+    <div class="detail-heading">Locked-read concurrency</div>
+    <p>Every PATCH/POST/DELETE wraps the read-then-write in <code>executeInTenantTransaction</code> (or for platform-only writes, a regular Prisma transaction) with a <code>SELECT &hellip; FOR UPDATE</code> on the household row. Two concurrent &ldquo;promote me to primary contact&rdquo; clicks have to serialise; the partial UNIQUE INDEX on <code>(family_id) WHERE is_primary_contact = true</code> is the schema-side fallback. This pattern is the Cycles 4&ndash;6 review carry-over: every state-machine transition must lock the row inside the transaction.</p>
+
+    <div class="detail-heading">Kafka emit</div>
+    <p>Member changes (add / remove / role change / primary-contact flip) emit <code>iam.household.member_changed</code> via <code>KafkaProducerService.emit({sourceModule:'iam'})</code>. No consumer in this cycle &mdash; the topic is forward-compatible for a future M40 announcement that fans out a "your household member changed" notification.</p>
+
+    <div class="produces">Produces &rarr; HouseholdsModule with 1 service + 1 controller + 5 endpoints + 1 Kafka emit. Mounts under <code>AppModule</code> alongside ProfileModule.</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Profile UI &mdash; Tabbed Page + Avatar Menu</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>One new route at <code>/profile</code> with five tabs, plus the avatar dropdown integration. No new app tile on the launchpad &mdash; the profile is intentionally accessed only via the avatar menu, matching iOS / SaaS convention and keeping the launchpad clean.</p>
+
+    <div class="detail-heading">Routes &amp; tabs</div>
+    <ol class="detail-list">
+      <li><strong>/profile</strong> &mdash; client-side tabbed view. Tabs are persona-conditional (Demographics shows only for STUDENT; Employment shows only for GUARDIAN; Account is visible to everyone).
+        <ul style="margin-top:8px;margin-left:20px;font-size:14px;line-height:1.9;">
+          <li><strong>Personal Info</strong> &mdash; Name section (first/last read-only with a "Contact admin to change" hint, middle, suffix, preferred name, previous names as a chip list). Contact section (primary phone required *, secondary, work, each with type selector). Personal email. Language preference dropdown. Notes textarea. Per-field validation with inline error text. Save button at the bottom of the tab.</li>
+          <li><strong>My Household</strong> &mdash; Household name + shared address + home phone + home language + mailing address (toggle "same as home"). Member list with name + role badge + primary-contact star. <code>canEdit</code> from the API drives whether the form is editable or read-only. Add-member modal (HEAD/SPOUSE only) with person picker + role dropdown. Per-member role dropdown.</li>
+          <li><strong>Emergency Contact</strong> &mdash; Name + phone + relationship. Single record per person. PATCH writes through to <code>sis_emergency_contacts</code> or <code>hr_emergency_contacts</code> depending on persona; the UI is unaware.</li>
+          <li><strong>Demographics</strong> (STUDENT only) &mdash; date_of_birth (read-only after set), gender, ethnicity, primary_language, birth_country, citizenship, medical_alert_notes. Self-service can edit primary_language; the rest are admin-only (greyed out with "Admin only" hint). Admin viewing this same tab via <code>/profile/:personId</code> sees them all editable.</li>
+          <li><strong>Employment</strong> (GUARDIAN only) &mdash; employer, employer_phone, occupation, work_address.</li>
+          <li><strong>Account</strong> &mdash; Login email (read-only). Password change link that deep-links to Keycloak (<code>{KEYCLOAK_URL}/realms/{realm}/account</code>). Profile completeness percentage bar.</li>
+        </ul>
+      </li>
+      <li><strong>/profile/:personId</strong> &mdash; admin view of any person's profile. Same tab layout but: the Personal tab's first/last are editable (one extra "Identity (admin only)" sub-section); the Demographics tab's full row is editable.</li>
+      <li><strong>Avatar dropdown</strong> &mdash; <code>apps/web/src/components/shell/TopBar.tsx</code> avatar menu gains a "My Profile" link above the existing "Sign out" item. Visible to every persona that holds <code>usr-001:read</code> (which is everyone after Step 3).</li>
+    </ol>
+
+    <div class="detail-heading">Profile completeness formula</div>
+    <p>Completeness = (filled required fields + filled recommended fields) / (all required + all recommended). Required (weight 1): first_name, last_name, primary_phone, household role (if a member of one). Recommended (weight 0.5): preferred_name, address (any line1), emergency contact name+phone, employment (if GUARDIAN), demographics primary_language (if STUDENT). The formula lives in a single helper <code>profileCompleteness(profile, persona)</code> in <code>apps/web/src/lib/profile-format.ts</code> so it's testable in isolation.</p>
+
+    <div class="detail-heading">React Query hooks</div>
+    <p>New <code>apps/web/src/hooks/use-profile.ts</code> with <code>useMyProfile</code>, <code>useProfile(personId)</code>, <code>useUpdateMyProfile</code>, <code>useUpdateProfile(personId)</code>, <code>useMyHousehold</code>, <code>useUpdateHousehold(id)</code>, <code>useAddHouseholdMember(id)</code>, <code>useUpdateHouseholdMember(id, memberId)</code>, <code>useRemoveHouseholdMember(id, memberId)</code>. 30s staleTime on reads, mutation invalidations cover <code>['profile', 'me']</code> + <code>['household', 'mine']</code>.</p>
+
+    <div class="detail-heading">UI design discipline</div>
+    <p>Follows the existing principles: clean layout, no clutter, save button per tab with toast feedback, required fields marked with <code>*</code>, validation errors inline. No new icons needed &mdash; the avatar menu uses the existing <code>UserCircleIcon</code>. Match the typographic hierarchy of <code>/staff/[id]</code> (Cycle 4) which already does tabbed person detail.</p>
+
+    <div class="produces">Produces &rarr; 2 new routes (/profile, /profile/:personId), 1 hooks file, 1 helper module, avatar menu link. No new app tile.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Vertical Slice Acceptance Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <p>End-to-end CAT script lands at <code>docs/profile-household-cat-script.md</code>, mirroring the Cycle 1&ndash;6 CAT pattern. Reproducible against a fresh-provisioned <code>tenant_demo</code> with cleanup at the end so the next run starts clean.</p>
+
+    <div class="detail-heading">Test scenarios</div>
+    <ol class="detail-list">
+      <li><strong>Schema preamble</strong> &mdash; verify 14 new columns on <code>iam_person</code>, 16 new columns on <code>platform_families</code>, <code>platform_family_members</code> table exists with 2 seeded rows for the Chen family, <code>sis_student_demographics</code> table exists with 15 seeded rows, <code>sis_guardians</code> has 4 new employment columns, 3 new permission codes (<code>usr-001:*</code>) live in the cache.</li>
+      <li><strong>S1 &mdash; Parent reads own profile</strong> &mdash; David Chen <code>GET /profile/me</code> returns 200 with personal fields + Chen Family household + David's <code>sis_emergency_contacts</code> row + David's guardian employment.</li>
+      <li><strong>S2 &mdash; Parent edits own personal fields</strong> &mdash; David <code>PATCH /profile/me</code> with <code>{preferred_name:'Dave-Edit', primary_phone:'(217) 555-9999'}</code> &rarr; 200 + <code>profile_updated_at</code> bumps. <code>GET /profile/me</code> reflects the changes.</li>
+      <li><strong>S3 &mdash; Parent cannot change first/last name</strong> &mdash; David <code>PATCH /profile/me</code> with <code>{first_name:'Davey'}</code> &rarr; 400 with the field-level validation error "first_name is admin-only".</li>
+      <li><strong>S4 &mdash; Parent edits household</strong> &mdash; David <code>GET /households/my</code> returns the Chen Family with <code>canEdit=true</code>. <code>PATCH /households/{id}</code> with new address &rarr; 200. <code>iam.household.member_changed</code> envelope captured live on <code>dev.iam.household.member_changed</code>.</li>
+      <li><strong>S5 &mdash; Child sees household read-only</strong> &mdash; Maya <code>GET /households/my</code> returns the Chen Family with <code>canEdit=false</code>. Maya <code>PATCH /households/{id}</code> &rarr; 403 ("Only the head of household or spouse can edit shared details").</li>
+      <li><strong>S6 &mdash; Student demographics</strong> &mdash; Maya <code>GET /profile/me</code> returns her demographics row inline. Maya <code>PATCH /profile/me</code> with <code>{primary_language:'Mandarin'}</code> &rarr; 200. Maya <code>PATCH /profile/me</code> with <code>{gender:'Other'}</code> &rarr; 400 (admin-only).</li>
+      <li><strong>S7 &mdash; Staff emergency contact reads from hr_emergency_contacts</strong> &mdash; James Rivera <code>GET /profile/me</code> returns an <code>emergencyContact</code> sourced from <code>hr_emergency_contacts</code> (verified by capturing the SQL log line or by deleting the matching <code>sis_emergency_contacts</code> row pre-call and confirming the response still has the contact). <code>PATCH /profile/me</code> updates the same <code>hr_emergency_contacts</code> row.</li>
+      <li><strong>S8 &mdash; Admin override</strong> &mdash; Sarah Mitchell <code>PATCH /profile/{Maya's personId}</code> with <code>{first_name:'Maya-Edit'}</code> &rarr; 200. Maya's next <code>GET /profile/me</code> reflects the change. Sarah <code>PATCH /profile/{David's personId}/demographics</code> would 404 (David has no demographics row &mdash; he's a guardian).</li>
+      <li><strong>S9 &mdash; Last-head-of-household refusal</strong> &mdash; admin <code>DELETE /households/{Chen}/members/{David}</code> &rarr; 400 ("Households must always have at least one head of household"). Promote Maya to HEAD_OF_HOUSEHOLD first, then the delete succeeds (and the partial UNIQUE INDEX on <code>is_primary_contact</code> auto-clears David's flag).</li>
+      <li><strong>S10 &mdash; Permission denials</strong> &mdash; teacher with no <code>usr-001:read</code> on a fresh test account &rarr; 403 (sanity check that the gate is wired). Parent <code>PATCH /profile/{Sarah's personId}</code> &rarr; 403 (no <code>iam-001:write</code>). Student <code>PATCH /households/{Park's household}</code> &rarr; 404 because the row-scope filter doesn't return the unrelated household.</li>
+      <li><strong>S11 &mdash; UI smoke</strong> &mdash; in a real browser: David logs in, opens avatar menu, clicks "My Profile", lands on Personal Info tab, switches to Household tab, edits address, saves, sees toast. Switches to Emergency tab, edits contact, saves. Profile completeness bar moves from N% to N+M%. Maya logs in, opens her profile, sees demographics tab, language is editable, gender is greyed out.</li>
+      <li><strong>Cleanup</strong> &mdash; restore <code>iam_person</code> changes via direct SQL UPDATE; reset Chen Family address back to seed shape; delete the test member-promote rows; reset <code>profile_updated_at</code> to NULL on touched rows so the next CAT run starts clean.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; <code>docs/profile-household-cat-script.md</code>. Mini-cycle ships clean to the post-cycle architecture review.</div>
+  </div>
+
+  <h2 class="section-heading">Mini-Cycle Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Platform schema: 1 Prisma migration. <code>iam_person</code> +14 columns; <code>platform_families</code> +16 columns; new <code>platform_family_members</code> table.</li>
+      <li>Tenant schema: 1 SQL migration. New <code>sis_student_demographics</code> + 4 new columns on <code>sis_guardians</code>. Tenant base table count: 107.</li>
+      <li>Permissions: <code>usr-001:read/write/admin</code> in catalogue (447 total). All seeded roles updated. Effective access cache rebuilt.</li>
+      <li>Seed: Chen Family household populated; 2 <code>platform_family_members</code> rows; personal fields on 5 users; demographics for 15 students; David's guardian employment.</li>
+      <li>API: ProfileModule (4 endpoints) + HouseholdsModule (5 endpoints) + 1 Kafka emit (<code>iam.household.member_changed</code>).</li>
+      <li>UI: <code>/profile</code> + <code>/profile/:personId</code> (2 routes, 5 tabs each, persona-conditional). Avatar menu link. <code>useMyProfile</code> + 8 sibling hooks.</li>
+      <li>Vertical slice CAT: 11 scenarios + cleanup, all pass. Live envelope capture on <code>dev.iam.household.member_changed</code>.</li>
+      <li><code>HANDOFF-PROFILE-HOUSEHOLD.md</code> and <code>CLAUDE.md</code> updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Where this slots in the delivery plan</div>
+    <p style="font-size:15px;line-height:1.8;">This is a <em>mini-cycle</em>: smaller scope than Cycles 1&ndash;6, no new ERD module, no new Kafka pipeline, but it follows the same plan &rarr; steps &rarr; CAT &rarr; review pipeline. It slots between Cycle 6 (just APPROVED at <code>64993a8</code>) and Cycle 7 (Helpdesk &amp; cross-module hardening) as a Phase 2 polish pass on identity data. Cycle 7 stays untouched.</p>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Profile &amp; Household Mini-Cycle &mdash; April 2026. Derived from: ERD v11 (M0 Platform Core &mdash; iam_person, platform_families, platform_family_members), Function Library (USR-001 new function), Architecture Review (ADR-055 iam_person canonical identity, ADR-001/020 soft cross-schema refs), CLAUDE.md schema discipline + locked-read concurrency conventions established in Cycles 4&ndash;6.</p>
+  </div>
+</div>
+
+</body>
+</html>
