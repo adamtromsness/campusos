@@ -2112,3 +2112,102 @@ export interface AcknowledgementDto {
 export interface DisputeAcknowledgementPayload {
   reason: string;
 }
+
+// ── Cycle 7 Approval Workflows ────────────────────────────────────
+
+export type ApprovalRequestStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'WITHDRAWN';
+
+export type ApprovalStepStatus = 'AWAITING' | 'APPROVED' | 'REJECTED' | 'SKIPPED';
+
+export type ApproverType = 'SPECIFIC_USER' | 'ROLE' | 'MANAGER' | 'DEPARTMENT_HEAD';
+
+export interface ApprovalStepDto {
+  id: string;
+  requestId: string;
+  stepOrder: number;
+  approverId: string;
+  approverName: string | null;
+  status: ApprovalStepStatus;
+  actionedAt: string | null;
+  comments: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApprovalCommentDto {
+  id: string;
+  requestId: string;
+  authorId: string;
+  authorName: string | null;
+  body: string;
+  isRequesterVisible: boolean;
+  createdAt: string;
+}
+
+export interface ApprovalRequestDto {
+  id: string;
+  schoolId: string;
+  templateId: string;
+  templateName: string;
+  requesterId: string;
+  requesterName: string | null;
+  requestType: string;
+  referenceId: string | null;
+  referenceTable: string | null;
+  status: ApprovalRequestStatus;
+  submittedAt: string;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  steps: ApprovalStepDto[];
+  comments: ApprovalCommentDto[];
+}
+
+export interface SubmitApprovalPayload {
+  requestType: string;
+  referenceId?: string;
+  referenceTable?: string;
+  requesterAccountId?: string;
+}
+
+export interface ReviewStepPayload {
+  comments?: string;
+}
+
+export interface CreateApprovalCommentPayload {
+  body: string;
+  isRequesterVisible?: boolean;
+}
+
+export interface ListApprovalsArgs {
+  status?: ApprovalRequestStatus;
+  requestType?: string;
+  mine?: boolean;
+}
+
+export interface WorkflowTemplateStepDto {
+  id: string;
+  stepOrder: number;
+  approverType: ApproverType;
+  approverRef: string | null;
+  isParallel: boolean;
+  timeoutHours: number | null;
+  escalationTargetId: string | null;
+}
+
+export interface WorkflowTemplateDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  requestType: string;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  steps: WorkflowTemplateStepDto[];
+}

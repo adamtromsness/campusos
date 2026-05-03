@@ -12,6 +12,7 @@ import {
   ChecklistIcon,
   ChildrenIcon,
   ClassesIcon,
+  GavelIcon,
   MegaphoneIcon,
   PeopleIcon,
 } from './icons';
@@ -22,6 +23,7 @@ export type AppKey =
   | 'messages'
   | 'announcements'
   | 'tasks'
+  | 'approvals'
   | 'staff'
   | 'leave'
   | 'compliance'
@@ -30,7 +32,7 @@ export type AppKey =
   | 'admissions'
   | 'apply'
   | 'billing';
-export type BadgeKey = 'messages' | 'announcements' | 'tasks';
+export type BadgeKey = 'messages' | 'announcements' | 'tasks' | 'approvals';
 
 export interface AppDef {
   key: AppKey;
@@ -95,6 +97,15 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/tasks',
       icon: ChecklistIcon,
       badgeKey: 'tasks',
+    });
+    apps.push({
+      key: 'approvals',
+      label: 'Approvals',
+      description: 'Review requests + my submissions',
+      href: '/approvals',
+      routePrefix: '/approvals',
+      icon: GavelIcon,
+      badgeKey: 'approvals',
     });
   }
 

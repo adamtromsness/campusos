@@ -4,6 +4,8 @@ import { IamModule } from '../iam/iam.module';
 import { KafkaModule } from '../kafka/kafka.module';
 import { WorkflowEngineService } from './workflow-engine.service';
 import { WorkflowController } from './workflow.controller';
+import { WorkflowTemplateService } from './workflow-template.service';
+import { WorkflowTemplateController } from './workflow-template.controller';
 
 /**
  * Workflows Module — M2 Approval Workflows (Cycle 7 Step 6).
@@ -42,8 +44,8 @@ import { WorkflowController } from './workflow.controller';
  */
 @Module({
   imports: [TenantModule, IamModule, KafkaModule],
-  providers: [WorkflowEngineService],
-  controllers: [WorkflowController],
-  exports: [WorkflowEngineService],
+  providers: [WorkflowEngineService, WorkflowTemplateService],
+  controllers: [WorkflowController, WorkflowTemplateController],
+  exports: [WorkflowEngineService, WorkflowTemplateService],
 })
 export class WorkflowsModule {}

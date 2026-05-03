@@ -197,6 +197,18 @@ export function BanknotesIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function GavelIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 21v-3M3 18h18M5.25 18l1.5-7.5M18.75 18l-1.5-7.5M9 10.5h6M8 6.75l4-3 4 3-4 3-4-3Z"
+      />
+    </svg>
+  );
+}
+
 export function ChecklistIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...base} {...props}>

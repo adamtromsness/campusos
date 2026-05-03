@@ -1,6 +1,6 @@
 # Cycle 7 Handoff — Tasks & Approval Workflows
 
-**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 done. Schemas + seed + permissions + workers + APIs + leave migration all live. **Step 8 ships the Tasks UI** — new `Tasks` launchpad tile gated on `ops-001:read` (every persona) with badge counting TODO + IN_PROGRESS rows due ≤ today; 3 routes (`/tasks` category-grouped to-do list, `/tasks/new` manual create, `/tasks/[id]` detail with status transitions + acknowledgement flow + dispute Modal). Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
+**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 done. Schemas + seed + permissions + workers + APIs + UI surfaces all live. **Step 9 ships the Approvals UI** — new `Approvals` launchpad tile gated on `ops-001:read` with badge counting AWAITING steps where I'm the assigned approver, 4 routes (`/approvals` queue, `/approvals/[id]` detail with step timeline + comments + Approve/Reject Modals + Withdraw, `/approvals/my-requests` requester view, `/admin/workflows` admin-only read-only template list); 2 small new backend endpoints `GET /workflow-templates` + `GET /workflow-templates/:id` admin-gated to back the templates page. Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
 
 **Branch:** `main`  
 **Plan reference:** `docs/campusos-cycle7-implementation-plan.html`  
@@ -22,7 +22,7 @@ This document tracks the Cycle 7 build — the M1 Task Management module (6 tabl
 | 6    | Workflow Engine — Multi-Step Approval                  | **DONE**          |
 | 7    | Leave Approval Migration to Workflow Engine            | **DONE**          |
 | 8    | Tasks UI — To-Do List + Acknowledgements               | **DONE**          |
-| 9    | Approvals UI — Admin Queue + Workflow Config           | pending           |
+| 9    | Approvals UI — Admin Queue + Workflow Config           | **DONE**          |
 | 10   | Vertical Slice Integration Test                        | pending           |
 
 ---
@@ -628,6 +628,70 @@ Build is clean — no compiler errors after fixing two trivial issues caught dur
 - Per-task comment thread. The schema doesn't model task-level comments at all today (the parent-side approval flow does via `wsk_approval_comments`); a future cycle could add `tsk_task_comments` if the to-do surface grows that direction.
 - Document-link preview for ACKNOWLEDGEMENT tasks. The schema's `body_s3_key` is read but currently rendered as "A document is attached. Download links land in a future cycle." — actual signed-URL generation is Phase 3 ops.
 - The plan calls for a `staleTime` 30s poll on the badge — implemented. No active polling beyond the refetch-on-focus that the React Query default plus the `staleTime: 30_000` on `useTasks` provides; if a user leaves the tab open and walks away, the badge updates next focus.
+
+---
+
+## Step 9 — Approvals UI — Admin Queue + Workflow Config
+
+**Status:** DONE. The approval-management surface for both approvers and requesters. Approvers see the queue of requests waiting on them; requesters track their own submissions; admins view (read-only) the workflow templates that drive the chains.
+
+**Backend additions (small, since Step 6 already shipped the request-path API):**
+
+- `apps/api/src/workflows/workflow-template.service.ts` — `WorkflowTemplateService` with `list(actor)` + `getById(id, actor)`. Both admin-only (throws ForbiddenException for non-`isSchoolAdmin`). Joins `wsk_workflow_templates` with `wsk_workflow_steps` and inlines the steps array on each row.
+- `apps/api/src/workflows/workflow-template.controller.ts` — 2 new endpoints under `/workflow-templates`:
+  - `GET /workflow-templates` — admin: list every template + steps for the tenant. Gated `ops-001:admin`.
+  - `GET /workflow-templates/:id` — admin: fetch one. Gated `ops-001:admin`.
+- `apps/api/src/workflows/workflows.module.ts` — wires the new service + controller; exports the service for future cycle template-edit work.
+
+Total approval endpoint count: **9** (7 from Step 6 + 2 new templates). No write paths for templates this cycle — editing UI deferred to a future cycle.
+
+**Frontend additions:**
+
+- `apps/web/src/lib/types.ts` — adds `ApprovalRequestDto`, `ApprovalStepDto`, `ApprovalCommentDto`, `WorkflowTemplateDto`, `WorkflowTemplateStepDto`, `SubmitApprovalPayload`, `ReviewStepPayload`, `CreateApprovalCommentPayload`, `ListApprovalsArgs`, plus 3 union types (`ApprovalRequestStatus`, `ApprovalStepStatus`, `ApproverType`). All shapes match the Step 6 backend DTOs verbatim.
+- `apps/web/src/lib/approvals-format.ts` — label maps + per-status pill class maps for both request status and step status; `APPROVER_TYPE_LABELS`; `formatStepPosition(steps, total)` returning "Step N of M" for queue/list rendering.
+- `apps/web/src/hooks/use-approvals.ts` — 9 hooks: `useApprovals(args)`, `useApproval(id)`, `useSubmitApproval`, `useApproveStep(reqId, stepId)`, `useRejectStep(reqId, stepId)`, `useAddApprovalComment(reqId)`, `useWithdrawApproval(reqId)`, `useWorkflowTemplates`, `useWorkflowTemplate(id)`. All write hooks invalidate the `['approvals']` key family.
+- `apps/web/src/hooks/use-app-badges.ts` — extends `AppBadges` with `approvals: number`. Computes client-side from cached `useApprovals({status: 'PENDING'})` filtered to AWAITING steps where `approverId === user.id`. Gated on `ops-001:read` so non-eligible users don't 403.
+- `apps/web/src/components/shell/icons.tsx` — new `GavelIcon` (a small gavel + base + sound block).
+- `apps/web/src/components/shell/apps.tsx` — Approvals tile registered alongside Tasks (both gated on `ops-001:read`), uses the new `GavelIcon`, `badgeKey: 'approvals'`, `routePrefix: '/approvals'` so the tile stays lit on `/approvals/[id]` and `/approvals/my-requests`. New `AppKey` value `'approvals'`, new `BadgeKey` value `'approvals'`.
+
+**4 new routes:**
+
+| Route | What it renders |
+| ----- | --------------- |
+| `/approvals` | "My approvals" queue — filters the cached PENDING list to rows where I have an AWAITING step. Each row card shows request type + reference table (mono) + status pill, requester name + submitted date, and the step-position phrase ("Step 1 of 2") + template name. Click routes to detail. Header "My requests →" link. Empty state when nothing waits on me. |
+| `/approvals/my-requests` | Requester view — filters the `?mine=true` list to my submissions. Same row card but adds `resolvedAt` when terminal. Header "← My approvals" back link. |
+| `/approvals/[id]` | Detail — title chip strip (status / template / reference). Requester + submitted + resolved cards. Withdraw button when I'm the requester and status=PENDING. **Step timeline** as an ordered list with each step's status pill, approver name, actioned timestamp, italic comments. AWAITING steps where I'm the approver (or admin) get inline Approve/Reject buttons that open a Modal capturing optional reviewer comments before POSTing. **Comment thread** below — internal-only comments rendered with amber background + "Internal" chip; visibility model matches the backend (admins/approvers see all, requesters see public-only). New comment form at the bottom with an "Internal only" checkbox shown to non-requesters. |
+| `/admin/workflows` | Admin-only read-only template list. 3 cards (per the seed): Leave Request Approval (LEAVE_REQUEST, 2 steps), Absence Request Review (ABSENCE_REQUEST, 1 step), Child Link Approval (CHILD_LINK_REQUEST, 1 step). Each card: name + request_type + Active/Inactive pill + ordered steps showing approver_type label + approver_ref + timeout. Amber banner explains editing is deferred. |
+
+**Build sizes** (`pnpm --filter @campusos/web build`):
+
+- `/approvals` — 3.57 kB / 113 kB First Load JS
+- `/approvals/[id]` — 5.89 kB / 115 kB
+- `/approvals/my-requests` — 3.49 kB / 112 kB
+- `/admin/workflows` — 3.65 kB / 104 kB
+
+Build clean — no errors after the standard pattern (PageHeader.description being string-only is now well-known).
+
+**Live verification on `tenant_demo` (Step 9 smoke, 10 scenarios all pass):**
+
+1. **A1** Sarah (admin) `GET /workflow-templates` returns 3 rows: ABSENCE_REQUEST (1 step, ROLE='SCHOOL_ADMIN', 24h timeout); CHILD_LINK_REQUEST (1 step, ROLE='SCHOOL_ADMIN', 72h); LEAVE_REQUEST (2 steps, DEPARTMENT_HEAD with null ref, then ROLE='SCHOOL_ADMIN', both 48h). All `is_active=true`.
+2. **A2** Sarah `GET /workflow-templates/:id` for the LEAVE_REQUEST template returns the same shape with steps inlined.
+3. **A3** Jim (teacher, non-admin) `GET /workflow-templates` returns **403** ("Only admins can view workflow templates").
+4. **A4** Jim submits a new LEAVE_REQUEST approval against an existing leave id — the workflow engine creates the request with Step 1 awaiting `admin@` (DEPARTMENT_HEAD fallback to first school admin alphabetically).
+5. **A5** Sarah's `/approvals?status=PENDING` queue includes the row with `requesterName='James Rivera'` and the AWAITING step approver showing as Platform Admin.
+6. **A6** Jim's `/approvals?mine=true` shows 2 rows: the new PENDING + the historical APPROVED audit from the Step 3 seed.
+7. **A7** David (parent, no role on this approval) `GET /approvals/:id` returns **404** (row scope keeps him out — neither requester nor approver).
+8. **A8** Sarah posts a comment with `isRequesterVisible:false`.
+9. **A9** Jim (the requester) GETs the request and sees **0 comments** — visibility filter works.
+10. **A10** Sarah GETs the request and sees **1 comment** (admin override).
+
+**Cleanup:** the smoke approval request + step + comment (CASCADE drops aren't needed — DELETE the rows directly with the no-cascade FK between escalations and steps still NO ACTION). Tenant returns to post-Step-3 seed state — 1 historical audit row + 2 historical steps.
+
+**Out of scope this step (deferred per the plan):**
+
+- **Workflow template editor.** The plan called for "add/remove/reorder steps, set approver type per step, set timeout hours, create new templates." Schema is ready (Step 2) but the request-path API for CRUD doesn't exist yet — would need `POST /workflow-templates`, `PATCH /workflow-templates/:id`, the step CRUD endpoints, plus the UI for the form. Punted because the seeded 3 templates cover the MVP and template editing is admin power-user territory; landing this needs a coherent UX that also covers reorder + approver-picker. Documented in the amber banner on `/admin/workflows`.
+- **Sidebar navigation entry-point** to "My requests". The launchpad tile currently routes to the queue (`/approvals`); my-requests is reachable via the header button on the queue page or by direct URL. A future Sidebar revamp could add it as a sub-route.
+- **Approver row scope** — the badge counts "AWAITING with approverId === me" and the queue page filters the same way, but the backend's `/approvals` endpoint with `status=PENDING` returns every PENDING row I can see (which includes my own submissions if I'm both requester + approver — admins acting as approvers on their own requests). Client-side filtering is fine for the demo but a future API tightening could add a server-side `?role=approver|requester` filter for cleaner separation.
 
 ---
 
