@@ -1,6 +1,6 @@
 # Cycle 7 Handoff — Tasks & Approval Workflows
 
-**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 + 6 + 7 done. Schemas land cleanly; demo seeded; OPS-001 grants; TaskWorker live; tasks request-path API live; WorkflowEngineService live; **Step 7 migrates leave approval onto the workflow engine** — `LeaveService.submit()` also calls `workflowEngine.submit()` (graceful fallback when no `LEAVE_REQUEST` template exists); approve/reject extracted into `approveInternal`/`rejectInternal` helpers; new `LeaveApprovalConsumer` listens on `approval.request.resolved` filtered by `requestType='LEAVE_REQUEST'` and applies the internal helpers; existing `PATCH /leave-requests/:id/approve|reject` direct-admin path preserved; full end-to-end smoke verified live (Rivera submits → workflow engine creates 2-step request → admin approves both steps → leave row flips PENDING→APPROVED with balance shift + reviewed_at populated → existing `hr.leave.approved` + `hr.leave.coverage_needed` chain fires unchanged → CoverageConsumer creates 6 coverage rows). Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
+**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 done. Schemas + seed + permissions + workers + APIs + leave migration all live. **Step 8 ships the Tasks UI** — new `Tasks` launchpad tile gated on `ops-001:read` (every persona) with badge counting TODO + IN_PROGRESS rows due ≤ today; 3 routes (`/tasks` category-grouped to-do list, `/tasks/new` manual create, `/tasks/[id]` detail with status transitions + acknowledgement flow + dispute Modal). Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
 
 **Branch:** `main`  
 **Plan reference:** `docs/campusos-cycle7-implementation-plan.html`  
@@ -21,7 +21,7 @@ This document tracks the Cycle 7 build — the M1 Task Management module (6 tabl
 | 5    | Task NestJS Module — CRUD + Acknowledgements           | **DONE**          |
 | 6    | Workflow Engine — Multi-Step Approval                  | **DONE**          |
 | 7    | Leave Approval Migration to Workflow Engine            | **DONE**          |
-| 8    | Tasks UI — To-Do List + Acknowledgements               | pending           |
+| 8    | Tasks UI — To-Do List + Acknowledgements               | **DONE**          |
 | 9    | Approvals UI — Admin Queue + Workflow Config           | pending           |
 | 10   | Vertical Slice Integration Test                        | pending           |
 
@@ -583,6 +583,51 @@ Both bugs surfaced as runaway "leave id NULL" loops because the smoke had `until
 - Engine-emitted requester notifications. The workflow engine emits `approval.step.awaiting` and `approval.request.resolved` but doesn't yet bridge into `NotificationQueueService.enqueue()`. Cycle 3's existing `LeaveNotificationConsumer` covers the notification UX for the leave path; a future consumer or Step 4 auto-task rule on these new topics would generalise it.
 - Final-approver id in the resolved payload. Currently `reviewed_by` on the leave row is set to the requester's account id (the only user-id the resolved payload carries). Future cycles can extend `approval.request.resolved` with the final-approver id so the audit trail is fully accurate.
 - Migrating `RoomChangeRequestService` (Cycle 5) and `ChildLinkRequestService` (Cycle 6.1) onto the workflow engine. Both modules work fine with their current hardcoded patterns; the engine is now ready to absorb them when the team chooses to.
+
+---
+
+## Step 8 — Tasks UI — To-Do List + Acknowledgements
+
+**Status:** DONE. The first surface of M1 Task Management on the web. Every persona gets a Tasks app tile with a badge for due-today work; 3 routes cover the to-do list, manual creation, and the per-task detail with the acknowledgement flow.
+
+**Files:**
+
+- `apps/web/src/lib/types.ts` — adds `TaskDto`, `CreateTaskPayload`, `UpdateTaskPayload`, `ListTasksArgs`, `AcknowledgementDto`, `DisputeAcknowledgementPayload`, plus the union types `TaskPriority`, `TaskStatus`, `TaskCategory`, `TaskSource`, `AcknowledgementStatus`, `AcknowledgementSourceType`. All shapes match the Step 5 backend DTOs verbatim.
+- `apps/web/src/lib/tasks-format.ts` — formatting helpers + label/pill maps (`TASK_CATEGORY_LABELS`, `TASK_PRIORITY_PILL`, `TASK_STATUS_PILL`, `ACKNOWLEDGEMENT_SOURCE_LABELS`, `TASK_CATEGORY_ACCENT` border colour for the list grouping). Plus three logic helpers: `isTaskOverdue(dueAt, status)` (true when open + past due), `formatRelativeDue(dueAt)` (e.g. "Due tomorrow", "Overdue 3 days"), and `isTaskBadgeWorthy(status, dueAt)` (TODO/IN_PROGRESS with `dueAt <= today` — the badge filter).
+- `apps/web/src/hooks/use-tasks.ts` — 9 React Query hooks: `useTasks(args)` (refetch on focus, 30s stale), `useAssignedTasks`, `useTask(id)`, `useCreateTask`, `useUpdateTask(id)`, `useAcknowledgements(enabled, all)`, `useAcknowledgement(id)`, `useAcknowledge(id)` (invalidates `tasks` + `acknowledgements` because the cascade-DONE-flip changes both query sets), `useDispute(id)` (same).
+- `apps/web/src/hooks/use-app-badges.ts` — extends `AppBadges` with `tasks: number`. The Tasks badge counts client-side from the cached `useTasks({})` list using `isTaskBadgeWorthy`. Gated on `ops-001:read` so a STUDENT without it doesn't 403 on `/tasks`.
+- `apps/web/src/components/shell/icons.tsx` — new `ChecklistIcon` (a circle-checkmark + horizontal lines).
+- `apps/web/src/components/shell/apps.tsx` — Tasks tile registered between Children and Messages, gated on `ops-001:read` (every persona qualifies after Step 3), with `badgeKey: 'tasks'`. New `AppKey` value `'tasks'`, new `BadgeKey` value `'tasks'`.
+
+**3 routes under `/tasks`:**
+
+| Route | What it renders |
+| ----- | --------------- |
+| `/tasks` | Category-grouped to-do list (ACADEMIC / PERSONAL / ADMINISTRATIVE / ACKNOWLEDGEMENT) with each section collapsible and showing the row count. Filter chips: Open (default) / All / Done. Per-row: round checkbox button (quick mark-DONE), title, optional description, priority pill (LOW gray / NORMAL sky / HIGH amber / URGENT rose), status pill, due-relative phrase ("Due tomorrow" / "Overdue 3 days" — overdue rendered in rose). Inside each section, sort is overdue-first then ascending due_at then created_at desc. Empty state for first-time users. "Add task" button in the page header routing to `/tasks/new`. |
+| `/tasks/new` | Manual task form. Fields: title (required, ≤ 200 chars), description (≤ 2000 chars), category dropdown (ACKNOWLEDGEMENT hidden — that flow is worker-only), priority dropdown, optional `datetime-local` due input, admin-only "Assign to" UUID field for the delegation pattern. Submit POSTs and navigates back to `/tasks`. |
+| `/tasks/[id]` | Detail view. Header chips for status / priority / category / source. Description + due card showing relative phrase + owner + creator (when delegated) + auto-source ref id (for AUTO/SYSTEM). For ACKNOWLEDGEMENT category: rose-tinted panel with the ack title + source-type label + expiry; "I acknowledge" button (emerald) and "Dispute" button (when `requiresDisputeOption=true`) opening a Modal with a 1–2000 char reason. Status panel hidden once the linked ack is settled (since the ack endpoint cascades the task DONE). For non-ack tasks: Start (TODO→IN_PROGRESS) / Mark done / Re-open (DONE→TODO) / Cancel — all driven by PATCH calls to `/tasks/:id`. |
+
+**Build sizes** (`pnpm --filter @campusos/web build`):
+
+- `/tasks` 7.94 kB / 114 kB First Load JS
+- `/tasks/[id]` 9.24 kB / 115 kB First Load
+- `/tasks/new` 7.66 kB / 105 kB First Load
+
+Build is clean — no compiler errors after fixing two trivial issues caught during the first build attempt: an unused `useRouter` import on the detail page, and `PageHeader.description` accepting only `string` (rendered chips via JSX expected — refactored to render the chip strip below the header instead of inside it).
+
+**Live verification on `tenant_demo` (UI-driven backend smoke, all green):**
+
+- **U1** Maya `GET /tasks` returns her 4 seeded tasks (3 ACADEMIC tied to Cycle 2 assignments + 1 PERSONAL "Study for Biology test"), each with the priority + status + due_at the UI renders as chips and relative-phrases. The list page groups them under "Academic" (3) and "Personal" (1) with category-coloured left borders.
+- **U2** Maya `POST /tasks` with title + PERSONAL category + due 2026-05-04 lands a row with the expected DTO shape — the form on `/tasks/new` builds the same payload.
+- **U3** Status round-trip TODO → IN_PROGRESS → DONE → TODO via the PATCH endpoint the detail page hooks call: `completedAt` correctly null on IN_PROGRESS, set on DONE, cleared on the re-open back to TODO. The multi-column `completed_chk` from the schema is satisfied at every step (the service handles the lockstep so the UI doesn't surface it).
+- **U4** Smoke residue cleaned — but the cleanup also surfaced **2 leftover AUTO tasks from the Step 7 leave-approval smoke** that the `hr.leave.approved` rule's TaskWorker reaction had created (one per school admin: admin@ + principal@). The Step 7 smoke cleanup didn't remove those because the tasks were created downstream of the leave-approved emit, not directly by the workflow engine. Documented for the Step 10 CAT cleanup script — when a leave-approval test runs, the cleanup must DELETE the rule-generated AUTO tasks too. Tenant returned to the post-Step-3 seed state (5 tasks, 0 acks).
+
+**Out of scope this step (deferred):**
+
+- Directory picker for the admin "Assign to" field — currently a UUID input. Punted to whenever a school directory picker lands more broadly (the same UX gap exists on Cycle 6's manual-billing / fee-schedule flows).
+- Per-task comment thread. The schema doesn't model task-level comments at all today (the parent-side approval flow does via `wsk_approval_comments`); a future cycle could add `tsk_task_comments` if the to-do surface grows that direction.
+- Document-link preview for ACKNOWLEDGEMENT tasks. The schema's `body_s3_key` is read but currently rendered as "A document is attached. Download links land in a future cycle." — actual signed-URL generation is Phase 3 ops.
+- The plan calls for a `staleTime` 30s poll on the badge — implemented. No active polling beyond the refetch-on-focus that the React Query default plus the `staleTime: 30_000` on `useTasks` provides; if a user leaves the tab open and walks away, the badge updates next focus.
 
 ---
 

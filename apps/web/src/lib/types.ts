@@ -2016,3 +2016,99 @@ export interface SubmitAddNewChildPayload {
 export interface ReviewLinkRequestPayload {
   reviewerNotes?: string;
 }
+
+// ── Cycle 7 Tasks + Acknowledgements ─────────────────────────────────
+
+export type TaskPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+export type TaskCategory =
+  | 'ACADEMIC'
+  | 'PERSONAL'
+  | 'ADMINISTRATIVE'
+  | 'ACKNOWLEDGEMENT';
+export type TaskSource = 'MANUAL' | 'AUTO' | 'SYSTEM';
+
+export interface TaskDto {
+  id: string;
+  schoolId: string;
+  ownerId: string;
+  ownerName: string | null;
+  title: string;
+  description: string | null;
+  source: TaskSource;
+  sourceRefId: string | null;
+  priority: TaskPriority;
+  status: TaskStatus;
+  dueAt: string | null;
+  taskCategory: TaskCategory;
+  acknowledgementId: string | null;
+  createdForId: string | null;
+  createdForName: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTaskPayload {
+  title: string;
+  description?: string;
+  priority?: TaskPriority;
+  taskCategory?: TaskCategory;
+  dueAt?: string;
+  assigneeAccountId?: string;
+}
+
+export interface UpdateTaskPayload {
+  status?: TaskStatus;
+  title?: string;
+  description?: string | null;
+  priority?: TaskPriority;
+  dueAt?: string | null;
+}
+
+export interface ListTasksArgs {
+  status?: TaskStatus;
+  taskCategory?: TaskCategory;
+  priority?: TaskPriority;
+  dueAfter?: string;
+  dueBefore?: string;
+  includeCompleted?: boolean;
+  limit?: number;
+}
+
+export type AcknowledgementStatus =
+  | 'PENDING'
+  | 'ACKNOWLEDGED'
+  | 'ACKNOWLEDGED_WITH_DISPUTE'
+  | 'EXPIRED';
+
+export type AcknowledgementSourceType =
+  | 'ANNOUNCEMENT'
+  | 'DISCIPLINE_RECORD'
+  | 'POLICY_DOCUMENT'
+  | 'SIGNED_FORM'
+  | 'CONSENT_REQUEST'
+  | 'CUSTOM';
+
+export interface AcknowledgementDto {
+  id: string;
+  schoolId: string;
+  subjectId: string;
+  sourceType: AcknowledgementSourceType;
+  sourceRefId: string;
+  sourceTable: string;
+  title: string;
+  bodyS3Key: string | null;
+  requiresDisputeOption: boolean;
+  status: AcknowledgementStatus;
+  acknowledgedAt: string | null;
+  disputeReason: string | null;
+  createdBy: string;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DisputeAcknowledgementPayload {
+  reason: string;
+}

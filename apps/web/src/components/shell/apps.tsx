@@ -9,6 +9,7 @@ import {
   CalendarIcon,
   ChatBubbleIcon,
   CheckCircleIcon,
+  ChecklistIcon,
   ChildrenIcon,
   ClassesIcon,
   MegaphoneIcon,
@@ -20,6 +21,7 @@ export type AppKey =
   | 'children'
   | 'messages'
   | 'announcements'
+  | 'tasks'
   | 'staff'
   | 'leave'
   | 'compliance'
@@ -28,7 +30,7 @@ export type AppKey =
   | 'admissions'
   | 'apply'
   | 'billing';
-export type BadgeKey = 'messages' | 'announcements';
+export type BadgeKey = 'messages' | 'announcements' | 'tasks';
 
 export interface AppDef {
   key: AppKey;
@@ -82,6 +84,17 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'Attendance, grades, and absence requests',
       href: '/children',
       icon: ChildrenIcon,
+    });
+  }
+
+  if (hasAnyPermission(user, ['ops-001:read'])) {
+    apps.push({
+      key: 'tasks',
+      label: 'Tasks',
+      description: 'Your to-do list',
+      href: '/tasks',
+      icon: ChecklistIcon,
+      badgeKey: 'tasks',
     });
   }
 
