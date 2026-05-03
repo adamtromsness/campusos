@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 8 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
+.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
+.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
+.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
+.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
+.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
+.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}
+.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}
+.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
+.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
+.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
+.step-title{font-size:19px;font-weight:700;color:var(--accent)}
+.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
+.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
+.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
+.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
+.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
+.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 3 &middot; Wave 1 Final</div>
+    <h1>Cycle 8: Service Tickets<br>Implementation Plan</h1>
+    <div class="sub">Shared reactive ticketing for IT, facilities, and HR support. SLA tracking, vendor management, problem linking, and a knowledge base. The last module of Wave 1 &mdash; completes the Core Operations platform.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M60 Service Tickets (13 tables &mdash; 10 core in scope)</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 8 builds the M60 Service Tickets module &mdash; a shared reactive ticketing engine that IT, facilities, and HR support all use. This is NOT a facilities management system (that's M65, a future cycle). M60 handles reactive requests: "my projector is broken," "Room 204 needs a new light bulb," "I can't log in." The module integrates with Cycle 7's Task Worker (ticket assignment creates a task on the assignee's to-do list) and the Approval Workflows engine (ticket escalation can route through an approval chain).</p>
+
+  <p class="body-text">The ERD defines 13 M60 tables. This cycle implements the 10 core tables that deliver the ticket lifecycle. The remaining 3 (tkt_ticket_asset_links, tkt_vendor_updates, tkt_knowledge_articles) are deferred because they depend on M62 IT Infrastructure (asset registry) and vendor portal access, neither of which exists yet.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Teacher submits a ticket: "Projector not working in Room 101" under IT &rarr; Hardware &rarr; auto-assigned to the IT admin based on subcategory rules &rarr; SLA clock starts (4h response / 24h resolution for HIGH priority) &rarr; IT admin sees the ticket in their queue, adds an internal comment ("Ordered replacement lamp") &rarr; reassigns to facilities vendor &rarr; vendor reference recorded &rarr; admin resolves the ticket &rarr; requester gets a notification &rarr; ticket auto-closes after 48h if requester doesn't reopen &rarr; SLA metrics show response and resolution times on the admin dashboard.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope:</strong> tkt_categories (hierarchical), tkt_subcategories (with auto-assignment rules), tkt_sla_policies (per category + priority), tkt_vendors (external vendor registry), tkt_tickets (full lifecycle with SLA tracking), tkt_ticket_comments (public + internal), tkt_ticket_attachments, tkt_ticket_tags, tkt_ticket_activity (immutable audit log), tkt_problems + tkt_problem_tickets (root-cause grouping). Functions IT-001, FAC-001.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> tkt_ticket_asset_links (requires M62 tech_assets &mdash; IT Infrastructure cycle). tkt_vendor_updates (requires platform_vendor_accounts &mdash; vendor portal). tkt_knowledge_articles (knowledge base &mdash; future polish). SLA breach cron worker (schema ready, cron deferred to ops). Ticket auto-close after 48h in RESOLVED state (documented, deferred). Email-to-ticket inbound (Phase 3 ops). CSAT survey on ticket close (Phase 3 ops).</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">Integration with Cycles 4&ndash;7</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>Task Worker (Cycle 7):</strong> When a ticket is assigned, the system emits <code>tkt.ticket.assigned</code>. A new auto-task rule (seeded in Step 3) translates this into a TODO task on the assignee's to-do list: "Resolve ticket: Projector not working in Room 101 &mdash; SLA: 24h." When the ticket is resolved, the task auto-completes.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Notifications (Cycle 3):</strong> Ticket lifecycle events (submitted, assigned, commented, resolved, closed) fire Kafka events that the notification pipeline consumes to inform the requester and assignee.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Rooms (Cycle 5):</strong> Tickets can reference a <code>sch_rooms</code> location via a soft <code>location_id</code> column, so "Room 101 projector" links to the scheduling room for context.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>HR Employees (Cycle 4):</strong> Internal assignees reference <code>hr_employees</code>. Vendor assignees reference <code>tkt_vendors</code>. A ticket is assigned to one or the other, never both (CHECK constraint).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:34%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Ticket Schema &mdash; Categories, SLA, Vendors</td><td>Schema</td><td>tkt_categories, tkt_subcategories, tkt_sla_policies, tkt_vendors</td></tr>
+    <tr><td><strong>2</strong></td><td>Ticket Schema &mdash; Tickets, Comments, Activity</td><td>Schema</td><td>tkt_tickets, tkt_ticket_comments, tkt_ticket_attachments, tkt_ticket_tags, tkt_ticket_activity, tkt_problems, tkt_problem_tickets</td></tr>
+    <tr><td><strong>3</strong></td><td>Seed Data &mdash; Categories, SLA, Vendors, Sample Tickets</td><td>Seed</td><td>Category tree, SLA matrix, 2 vendors, 5 sample tickets across IT + facilities, auto-task rule for tkt.ticket.assigned</td></tr>
+    <tr><td><strong>4</strong></td><td>Ticket NestJS Module &mdash; Core CRUD + Lifecycle</td><td>Code</td><td>TicketService, CategoryService, SlaService, VendorService. Submit, assign, reassign, resolve, close, cancel. SLA clock tracking.</td></tr>
+    <tr><td><strong>5</strong></td><td>Ticket NestJS Module &mdash; Comments, Activity, Problems</td><td>Code</td><td>CommentService, ActivityService, ProblemService. Public + internal comments, immutable activity log, problem root-cause grouping.</td></tr>
+    <tr><td><strong>6</strong></td><td>Ticket Notification Consumer</td><td>Code</td><td>TicketNotificationConsumer for ticket lifecycle events. Auto-task integration via tkt.ticket.assigned rule.</td></tr>
+    <tr><td><strong>7</strong></td><td>Helpdesk UI &mdash; Submit + My Tickets</td><td>UI</td><td>"Helpdesk" app tile, ticket submission form, my tickets list, ticket detail with comment thread</td></tr>
+    <tr><td><strong>8</strong></td><td>Helpdesk Admin UI &mdash; Queue + Dashboard</td><td>UI</td><td>Admin ticket queue with filters, assignment modal, SLA dashboard, category + vendor management</td></tr>
+    <tr><td><strong>9</strong></td><td>Problem Management UI</td><td>UI</td><td>Problem list, create problem from tickets, link tickets, resolve problem (batch-resolves linked tickets)</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Submit &rarr; auto-assign &rarr; SLA clock &rarr; comment &rarr; resolve &rarr; notification &rarr; task auto-complete &rarr; SLA metrics</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Ticket Schema &mdash; Categories, SLA, Vendors</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The configuration layer: what kinds of tickets exist, how fast they should be resolved, and who can fix them externally.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>tkt_categories</strong> &mdash; Hierarchical ticket categories. <code>school_id</code>, <code>name TEXT NOT NULL</code>, <code>parent_category_id FK(tkt_categories)</code> nullable (top-level when null), <code>icon TEXT</code> nullable, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name). Examples: IT (parent) &rarr; Hardware, Software, Network, Account Access. Facilities &rarr; Electrical, Plumbing, HVAC, Cleaning. HR Support &rarr; Payroll, Benefits.</li>
+      <li><strong>tkt_subcategories</strong> &mdash; Leaf-level classification with auto-assignment rules. <code>category_id FK</code>, <code>name TEXT NOT NULL</code>, <code>default_assignee_id UUID FK(hr_employees)</code> nullable (auto-assign when set), <code>auto_assign_to_role TEXT</code> nullable (fallback: resolve via IAM role like the workflow engine). UNIQUE(category_id, name).</li>
+      <li><strong>tkt_sla_policies</strong> &mdash; Per-(category, priority) SLA targets. <code>school_id</code>, <code>category_id FK</code>, <code>priority</code> ENUM(LOW, MEDIUM, HIGH, CRITICAL), <code>response_hours INT NOT NULL</code>, <code>resolution_hours INT NOT NULL</code>. UNIQUE(school_id, category_id, priority). The SLA clock starts at ticket creation; <code>first_response_at</code> on <code>tkt_tickets</code> records when an assignee first responds; <code>resolved_at</code> records resolution. SLA breach = <code>now() - created_at > resolution_hours</code>.</li>
+      <li><strong>tkt_vendors</strong> &mdash; External vendor registry. <code>school_id</code>, <code>vendor_name TEXT NOT NULL</code>, <code>vendor_type</code> ENUM(IT_REPAIR, FACILITIES_MAINTENANCE, CLEANING, ELECTRICAL, PLUMBING, HVAC, SECURITY, GROUNDS, OTHER), <code>contact_name TEXT</code>, <code>contact_email TEXT</code>, <code>contact_phone TEXT</code>, <code>website TEXT</code>, <code>is_preferred BOOLEAN DEFAULT false</code>, <code>notes TEXT</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, vendor_name).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>028_tkt_categories_sla_vendors.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Ticket Schema &mdash; Tickets, Comments, Activity</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The operational layer: the ticket itself, its comment thread, attachment storage, tags, immutable activity log, and the problem management tables for root-cause grouping.</p>
+
+    <div class="detail-heading">Tables (7)</div>
+    <ol class="detail-list">
+      <li><strong>tkt_tickets</strong> &mdash; <code>school_id</code>, <code>category_id FK</code>, <code>subcategory_id FK</code> nullable, <code>requester_id UUID</code> (soft to platform_users), <code>assignee_id UUID FK(hr_employees)</code> nullable, <code>vendor_id UUID FK(tkt_vendors)</code> nullable, <code>vendor_reference TEXT</code> nullable, <code>vendor_assigned_at TIMESTAMPTZ</code> nullable, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>priority</code> ENUM(LOW, MEDIUM, HIGH, CRITICAL) DEFAULT 'MEDIUM', <code>status</code> ENUM(OPEN, IN_PROGRESS, VENDOR_ASSIGNED, PENDING_REQUESTER, RESOLVED, CLOSED, CANCELLED), <code>sla_policy_id FK</code> nullable, <code>location_id UUID</code> nullable (soft to sch_rooms), <code>first_response_at TIMESTAMPTZ</code>, <code>resolved_at TIMESTAMPTZ</code>, <code>closed_at TIMESTAMPTZ</code>. CHECK: NOT (assignee_id IS NOT NULL AND vendor_id IS NOT NULL) &mdash; internal OR vendor, never both. INDEX(school_id, status, created_at DESC). INDEX(assignee_id, status). INDEX(vendor_id, status).</li>
+      <li><strong>tkt_ticket_comments</strong> &mdash; <code>ticket_id FK</code>, <code>author_id UUID</code> (soft to platform_users), <code>body TEXT NOT NULL</code>, <code>is_internal BOOLEAN DEFAULT false</code> (internal = staff-only, hidden from requester), <code>created_at TIMESTAMPTZ</code>. INDEX(ticket_id, created_at ASC).</li>
+      <li><strong>tkt_ticket_attachments</strong> &mdash; <code>ticket_id FK</code>, <code>s3_key TEXT NOT NULL</code>, <code>filename TEXT</code>, <code>uploaded_by UUID</code> (soft), <code>uploaded_at TIMESTAMPTZ</code>.</li>
+      <li><strong>tkt_ticket_tags</strong> &mdash; <code>ticket_id FK</code>, <code>tag TEXT NOT NULL</code>. UNIQUE(ticket_id, tag). Free-form tags for filtering.</li>
+      <li><strong>tkt_ticket_activity</strong> &mdash; IMMUTABLE audit log. <code>ticket_id FK</code>, <code>actor_id UUID</code> (soft), <code>activity_type</code> ENUM(STATUS_CHANGE, REASSIGNMENT, COMMENT, ATTACHMENT, ESCALATION, VENDOR_ASSIGNMENT, SLA_BREACH), <code>metadata JSONB</code> (captures before/after for status changes, assignee changes, etc.), <code>created_at TIMESTAMPTZ</code>. INDEX(ticket_id, created_at ASC). No UPDATE, no DELETE.</li>
+      <li><strong>tkt_problems</strong> &mdash; Root-cause grouping for related tickets. <code>school_id</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT NOT NULL</code>, <code>category_id FK</code>, <code>status</code> ENUM(OPEN, INVESTIGATING, KNOWN_ERROR, RESOLVED), <code>root_cause TEXT</code> nullable (set when KNOWN_ERROR or RESOLVED), <code>resolution TEXT</code> nullable, <code>workaround TEXT</code> nullable, <code>assigned_to_id UUID FK(hr_employees)</code> nullable, <code>vendor_id UUID FK(tkt_vendors)</code> nullable, <code>created_by UUID</code> (soft), <code>resolved_at TIMESTAMPTZ</code>. INDEX(school_id, status). On RESOLVED: batch-update all linked tickets still OPEN/IN_PROGRESS to RESOLVED.</li>
+      <li><strong>tkt_problem_tickets</strong> &mdash; Link table. <code>problem_id FK</code>, <code>ticket_id FK</code>. UNIQUE(problem_id, ticket_id). INDEX(ticket_id).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 7 new tables. Migration: <code>029_tkt_tickets_and_activity.sql</code>. Total Cycle 8 tables: 11 (ERD says 13; tkt_ticket_asset_links + tkt_vendor_updates deferred).</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Seed Data &mdash; Categories, SLA, Vendors, Sample Tickets</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>Categories (6):</strong> IT (parent) with subcategories Hardware, Software, Network, Account Access. Facilities (parent) with subcategories Electrical, Plumbing, HVAC, Cleaning, Furniture. HR Support (parent) with subcategories Payroll Question, Benefits Question.</li>
+      <li><strong>Subcategory auto-assignment:</strong> IT &rarr; Hardware has <code>default_assignee_id</code> = admin@ (as IT admin stand-in). Facilities &rarr; Electrical has <code>auto_assign_to_role = 'SCHOOL_ADMIN'</code>.</li>
+      <li><strong>SLA policies (12):</strong> For each of IT + Facilities + HR Support, 4 priority levels: CRITICAL (1h response / 4h resolution), HIGH (2h / 8h), MEDIUM (4h / 24h), LOW (8h / 72h).</li>
+      <li><strong>Vendors (2):</strong> "Springfield IT Solutions" (IT_REPAIR, preferred), "Lincoln Maintenance Co" (FACILITIES_MAINTENANCE).</li>
+      <li><strong>Sample tickets (5):</strong> (1) "Projector not working in Room 101" IT/Hardware, HIGH, OPEN, assigned to admin. (2) "Leaking faucet in staff bathroom" Facilities/Plumbing, MEDIUM, IN_PROGRESS, assigned to admin. (3) "Can't access gradebook" IT/Software, HIGH, RESOLVED, first_response_at + resolved_at populated. (4) "Light out in hallway B" Facilities/Electrical, LOW, VENDOR_ASSIGNED to Lincoln Maintenance. (5) "Payroll date question" HR Support/Payroll, LOW, CLOSED.</li>
+      <li><strong>Sample comments (3):</strong> Public comment on ticket 1 from requester, internal comment on ticket 2 from admin, resolution comment on ticket 3.</li>
+      <li><strong>Activity log entries (8):</strong> STATUS_CHANGE entries for each ticket transition, REASSIGNMENT for ticket 4's vendor assignment.</li>
+      <li><strong>Sample problem (1):</strong> "Network switch failure in Building A" linking tickets 1 and 3, status=INVESTIGATING.</li>
+      <li><strong>Auto-task rule:</strong> Add <code>tkt.ticket.assigned</code> to <code>tsk_auto_task_rules</code> &mdash; creates an ADMINISTRATIVE task on the assignee: "Resolve ticket: {ticket_title} &mdash; SLA: {resolution_hours}h", priority=HIGH, due_offset = resolution_hours from the SLA policy.</li>
+      <li><strong>Permission updates:</strong> Add IT-001 (Helpdesk Tickets) read/write to Teacher/Staff. Add IT-001:admin + FAC-001:admin to School Admin/Platform Admin. Rebuild cache.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Populated ticketing system with realistic demo data.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Ticket NestJS Module &mdash; Core CRUD + Lifecycle</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>The ticket lifecycle API. Submit, assign, reassign, escalate to vendor, resolve, close, cancel. SLA clock is computed, not stored &mdash; the service calculates breach status from <code>created_at + sla_policy.resolution_hours</code> vs <code>now()</code>.</p>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>TicketService</strong> &mdash; <code>POST /tickets</code> (submit &mdash; auto-assigns if subcategory has default_assignee_id or auto_assign_to_role; auto-links SLA policy by category + priority; emits <code>tkt.ticket.submitted</code>). <code>GET /tickets</code> (requester: own, assignee: assigned, admin: all; filters: status, priority, category, assignee, vendor, dateRange). <code>GET /tickets/:id</code>. <code>PATCH /tickets/:id/assign</code> (admin assigns to internal employee; clears vendor; records first_response_at if first assignment; emits <code>tkt.ticket.assigned</code>). <code>PATCH /tickets/:id/assign-vendor</code> (admin assigns to vendor; clears internal assignee; records vendor_reference + vendor_assigned_at; status &rarr; VENDOR_ASSIGNED). <code>PATCH /tickets/:id/resolve</code> (assignee or admin; sets resolved_at; emits <code>tkt.ticket.resolved</code>). <code>PATCH /tickets/:id/close</code> (admin or requester; sets closed_at). <code>PATCH /tickets/:id/reopen</code> (requester reopens a RESOLVED ticket; clears resolved_at). <code>PATCH /tickets/:id/cancel</code> (requester or admin). All lifecycle transitions use SELECT FOR UPDATE inside executeInTenantTransaction per the convention.</li>
+      <li><strong>CategoryService</strong> &mdash; <code>GET /ticket-categories</code> (tree with subcategories), <code>POST /ticket-categories</code> (admin), <code>PATCH /ticket-categories/:id</code> (admin). <code>POST /ticket-subcategories</code>, <code>PATCH /ticket-subcategories/:id</code>.</li>
+      <li><strong>SlaService</strong> &mdash; <code>GET /ticket-sla</code> (full SLA matrix for the school), <code>POST /ticket-sla</code> (admin creates/updates). <code>computeSlaBreach(ticket)</code> internal helper returning <code>{isResponseBreached, isResolutionBreached, responseRemaining, resolutionRemaining}</code>.</li>
+      <li><strong>VendorService</strong> &mdash; <code>GET /ticket-vendors</code>, <code>POST /ticket-vendors</code> (admin), <code>PATCH /ticket-vendors/:id</code> (admin).</li>
+    </ol>
+
+    <div class="detail-heading">SLA Clock</div>
+    <p>SLA is computed, not stored as a countdown. <code>response_breached = first_response_at IS NULL AND (now() - created_at) > response_hours</code>. <code>resolution_breached = resolved_at IS NULL AND (now() - created_at) > resolution_hours</code>. The admin dashboard shows these computed values. A future SLA breach cron can emit <code>tkt.sla.breached</code> for alerting.</p>
+
+    <div class="produces">Produces &rarr; TicketModule with 4 services, ~18 endpoints + 3 Kafka events.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Ticket NestJS Module &mdash; Comments, Activity, Problems</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>CommentService</strong> &mdash; <code>GET /tickets/:id/comments</code> (requester sees public only; staff sees all; <code>is_internal</code> filtered server-side). <code>POST /tickets/:id/comments</code> (staff can set <code>is_internal=true</code>; requesters always public). Records first_response_at on the ticket if this is the first staff comment. Emits <code>tkt.ticket.commented</code>. Creates an activity log entry.</li>
+      <li><strong>ActivityService</strong> &mdash; <code>GET /tickets/:id/activity</code> (immutable timeline &mdash; read-only). All lifecycle events auto-create activity rows via a private <code>recordActivity()</code> helper called from TicketService and CommentService. No direct write endpoint.</li>
+      <li><strong>ProblemService</strong> &mdash; <code>GET /problems</code> (admin), <code>GET /problems/:id</code> (with linked tickets), <code>POST /problems</code> (admin creates from one or more ticket IDs), <code>PATCH /problems/:id</code> (update status, root_cause, resolution, workaround), <code>POST /problems/:id/link</code> (link additional tickets), <code>PATCH /problems/:id/resolve</code> (batch-resolves all linked tickets still OPEN/IN_PROGRESS &mdash; each ticket gets a RESOLVED status + resolved_at + activity log entry + <code>tkt.ticket.resolved</code> emit).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 3 more services, ~10 endpoints. Total ticket endpoints: ~28.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Ticket Notification Consumer</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>Connects the ticket lifecycle to the Cycle 3 notification pipeline and the Cycle 7 task engine.</p>
+
+    <div class="detail-heading">Components</div>
+    <ol class="detail-list">
+      <li><strong>TicketNotificationConsumer</strong> &mdash; Kafka consumer on <code>tkt.ticket.submitted</code>, <code>tkt.ticket.assigned</code>, <code>tkt.ticket.commented</code>, <code>tkt.ticket.resolved</code>. On submitted: notifies school admins (same pattern as absence-request notification). On assigned: notifies the assignee. On commented (public): notifies the requester. On resolved: notifies the requester with "Your ticket has been resolved."</li>
+      <li><strong>Auto-task rule integration:</strong> The <code>tkt.ticket.assigned</code> rule from Step 3 feeds the existing Task Worker (Cycle 7). When a ticket is assigned, the worker creates a TODO task on the assignee's list. When the ticket is resolved, the service emits <code>tkt.ticket.resolved</code> &mdash; a new auto-task condition on this topic marks the linked task DONE (via source_ref_id matching).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 1 Kafka consumer + auto-task rule wiring.</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Helpdesk UI &mdash; Submit + My Tickets</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>The staff-facing ticket submission and tracking interface. A new "Helpdesk" app tile on the home page for anyone with <code>it-001:read</code> or <code>fac-001:read</code>.</p>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Submit Ticket</strong> <code>/helpdesk/new</code> &mdash; category picker (hierarchical dropdown: IT &rarr; Hardware), subcategory, title (required), description (rich text), priority selector (default MEDIUM), optional location dropdown (populated from sch_rooms), optional file attachments. Submit creates the ticket and navigates to the detail page.</li>
+      <li><strong>My Tickets</strong> <code>/helpdesk</code> &mdash; list of tickets the user submitted OR is assigned to. Filter chips: Open / In Progress / Resolved / All. Each row: ticket number, title, category, priority pill, status pill, SLA indicator (green/amber/red based on time remaining), assigned to, created date. Sort by created_at desc.</li>
+      <li><strong>Ticket Detail</strong> <code>/helpdesk/:id</code> &mdash; header with title, priority, status, SLA countdown, assigned to, category/subcategory, location. Comment thread (public comments for everyone, internal comments for staff only with amber "Internal" badge). Reply input with internal toggle for staff. Requester sees Reopen button on RESOLVED tickets, Cancel button on OPEN. Activity timeline at the bottom showing all status changes and reassignments.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; "Helpdesk" app tile, ticket submission, my tickets, ticket detail.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Helpdesk Admin UI &mdash; Queue + Dashboard</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>The IT/facilities admin's operational command center.</p>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Admin Ticket Queue</strong> <code>/helpdesk/admin</code> &mdash; all tickets in the school. Multi-filter: status, priority, category, assignee, vendor, date range, SLA status (breached/at risk/healthy). Bulk actions: assign, change priority, close. Per-row: assign button opens a modal with employee picker (from hr_employees) or vendor picker (from tkt_vendors with preferred vendors first). SLA indicator on each row.</li>
+      <li><strong>SLA Dashboard</strong> <code>/helpdesk/admin/sla</code> &mdash; overview stats: open tickets by priority, average response time, average resolution time, SLA compliance % (tickets resolved within SLA / total resolved). Breakdown by category. Breached tickets highlighted red at the top. Time-series chart of ticket volume + resolution rate (computed from activity log).</li>
+      <li><strong>Category Management</strong> <code>/helpdesk/admin/categories</code> &mdash; tree view of categories with subcategories. Add/edit/deactivate. Auto-assignment rule editor per subcategory (employee picker or role selector). Admin only (it-001:admin or fac-001:admin).</li>
+      <li><strong>Vendor Management</strong> <code>/helpdesk/admin/vendors</code> &mdash; list of vendors with type, contact, preferred badge. Add/edit/deactivate. Admin only.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Admin queue, SLA dashboard, category management, vendor management.</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Problem Management UI</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>Root-cause analysis for related tickets. An admin groups multiple tickets under a single problem, documents the root cause, and resolves them in batch.</p>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Problems List</strong> <code>/helpdesk/admin/problems</code> &mdash; all problems with status, linked ticket count, assigned to. Filter by status.</li>
+      <li><strong>Problem Detail</strong> <code>/helpdesk/admin/problems/:id</code> &mdash; title, description, category, status timeline (OPEN &rarr; INVESTIGATING &rarr; KNOWN_ERROR &rarr; RESOLVED). Root cause + resolution + workaround fields (editable). Linked tickets list with status. "Link more tickets" button (ticket search modal). "Resolve problem" button &mdash; sets root_cause + resolution (required), batch-resolves all linked open tickets, emits per-ticket events.</li>
+      <li><strong>Create from ticket</strong> &mdash; on the ticket detail page, admin sees "Create problem from this ticket" button that pre-populates the problem with the ticket's category and links it.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Problem management for root-cause grouping + batch resolution.</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Submit ticket:</strong> Teacher submits "Projector broken in Room 101" under IT/Hardware, HIGH priority. Verify auto-assigned to admin (subcategory default_assignee_id). Verify SLA policy linked (2h response / 8h resolution). Verify <code>tkt.ticket.submitted</code> event fires. Verify admin notification.</li>
+      <li><strong>Auto-task creation:</strong> Verify Task Worker creates a TODO task on admin's list: "Resolve ticket: Projector broken &mdash; SLA: 8h".</li>
+      <li><strong>First response:</strong> Admin adds a comment "Checking the lamp." Verify first_response_at populated. Verify requester notification. Verify activity log entry.</li>
+      <li><strong>Internal comment:</strong> Admin adds internal comment "Need to order a replacement." Verify requester does NOT see it. Verify other staff can see it.</li>
+      <li><strong>Vendor assignment:</strong> Admin assigns to Springfield IT Solutions with vendor_reference "WO-2026-0451". Verify status &rarr; VENDOR_ASSIGNED. Verify internal assignee cleared.</li>
+      <li><strong>Resolve:</strong> Admin resolves with "Lamp replaced, projector working." Verify resolved_at populated. Verify requester notification. Verify linked task auto-completes.</li>
+      <li><strong>SLA metrics:</strong> Check that the resolved ticket's response time and resolution time are computed correctly from the timestamps.</li>
+      <li><strong>Problem grouping:</strong> Create a problem "Network switch failure" linking 2 tickets. Resolve the problem with root_cause. Verify both linked tickets batch-resolve.</li>
+      <li><strong>Reopen:</strong> Requester reopens a RESOLVED ticket. Verify resolved_at cleared. Verify status &rarr; OPEN.</li>
+      <li><strong>Permission denials:</strong> Student cannot submit tickets (no it-001:write). Parent cannot see ticket admin queue. Teacher cannot manage categories or vendors.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Verified ticket lifecycle. SLA tracking. Task integration. Problem management.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 8 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 11 new tables (4 config + 7 operational). Total tenant tables: ~131.</li>
+      <li>Ticket API: ~28 endpoints with full lifecycle, comments, activity, problems.</li>
+      <li>SLA tracking: computed from timestamps, displayed on dashboard.</li>
+      <li>Integration: Task Worker creates TODO tasks on assignment, auto-completes on resolution.</li>
+      <li>Notifications: submitted &rarr; admin, assigned &rarr; assignee, commented &rarr; requester, resolved &rarr; requester.</li>
+      <li>Admin UI: ticket queue, SLA dashboard, category tree editor, vendor management, problem management.</li>
+      <li>Staff UI: submit ticket, my tickets, ticket detail with comments + activity.</li>
+      <li>Vertical slice: submit &rarr; auto-assign &rarr; SLA &rarr; comment &rarr; vendor &rarr; resolve &rarr; notification &rarr; task complete.</li>
+      <li>HANDOFF-CYCLE8.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Wave 1 Complete</div>
+    <p style="font-size:15px;line-height:1.8;">After Cycle 8, CampusOS has a complete core operational platform: SIS, classroom, grading, communications, HR, scheduling, enrollment, payments, profiles, tasks, approval workflows, and service tickets. Every domain module is connected via Kafka events. Every approval flow routes through the configurable workflow engine. Every persona has a to-do list. The platform is ready for Wave 2: Student Services (Behaviour, Health, Counselling, Library, Athletics &amp; Clubs).</p>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 8 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M60 Service Tickets, 13 tables &mdash; 10 core in scope), Function Library (IT-001, FAC-001), Architecture Review (ADR-033 M60/M65 scope boundary), Development Plan (Wave 1 final cycle).</p>
+  </div>
+</div>
+
+</body>
+</html>
