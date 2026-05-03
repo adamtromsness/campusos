@@ -19,6 +19,7 @@ import { AnnouncementsModule } from './announcements/announcements.module';
 import { ProfileModule } from './profile/profile.module';
 import { HouseholdsModule } from './households/households.module';
 import { TasksModule } from './tasks/tasks.module';
+import { WorkflowsModule } from './workflows/workflows.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -64,6 +65,7 @@ var devOnlyControllers: Type<unknown>[] =
     ProfileModule,
     HouseholdsModule,
     TasksModule,
+    WorkflowsModule,
   ],
   controllers: devOnlyControllers,
   providers: [

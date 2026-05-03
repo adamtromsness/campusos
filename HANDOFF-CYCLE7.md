@@ -1,6 +1,6 @@
 # Cycle 7 Handoff — Tasks & Approval Workflows
 
-**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 done. Schemas land cleanly; demo seeded with 8 rules + 3 templates + 5 sample tasks + 1 historical audit; OPS-001 grants on the four non-admin personas; TaskWorker live and verified end-to-end; **Step 5 ships the request-path API** — TaskService (5 endpoints) + AcknowledgementService (4 endpoints) wired into TasksModule; row-scope on `owner_id` OR `created_for_id`; status transitions handle `completed_chk` lockstep; acknowledge/dispute cascade DONE-flips onto linked tasks in one tx; `task.completed` and `student.acknowledgement.completed` ADR-057 envelopes captured live on the wire. Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
+**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 + 6 done. Schemas land cleanly; demo seeded with 8 rules + 3 templates + 5 sample tasks + 1 historical audit; OPS-001 grants on the four non-admin personas; TaskWorker live; Step 5 ships the request-path API; **Step 6 ships the WorkflowEngineService** — sole writer to `wsk_approval_requests` and `wsk_approval_steps` per ADR-012, 7 endpoints under `/approvals`, multi-step sequential approval with FOR-UPDATE locking, dynamic approver resolution (SPECIFIC_USER / ROLE via iam_role_assignment / MANAGER + DEPARTMENT_HEAD fall back to school admin), `approval.step.awaiting` and `approval.request.resolved` envelopes captured live. Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
 
 **Branch:** `main`  
 **Plan reference:** `docs/campusos-cycle7-implementation-plan.html`  
@@ -19,7 +19,7 @@ This document tracks the Cycle 7 build — the M1 Task Management module (6 tabl
 | 3    | Seed Data — Auto-Task Rules + Workflow Templates       | **DONE**          |
 | 4    | Task Worker — Kafka Consumer + Auto-Task Engine        | **DONE**          |
 | 5    | Task NestJS Module — CRUD + Acknowledgements           | **DONE**          |
-| 6    | Workflow Engine — Multi-Step Approval                  | pending           |
+| 6    | Workflow Engine — Multi-Step Approval                  | **DONE**          |
 | 7    | Leave Approval Migration to Workflow Engine            | pending           |
 | 8    | Tasks UI — To-Do List + Acknowledgements               | pending           |
 | 9    | Approvals UI — Admin Queue + Workflow Config           | pending           |
@@ -432,6 +432,101 @@ The first ack-smoke run keyed `subject_id` to the principal's `iam_person.id` in
 - Bulk task admin operations (`ops-001:admin` tier).
 - Task tags (`tsk_task_tags` was deferred at the schema level per the plan; the API would land alongside).
 - Receipt of `task.completed` events anywhere — the emit lands but no consumer wires it through to a notification yet (similar pattern to Cycle 5's `sch.coverage.assigned` documented carry-over).
+
+---
+
+## Step 6 — Workflow Engine — Multi-Step Approval
+
+**Status:** DONE. The keystone of M2 Approval Workflows ships. WorkflowEngineService is the **sole writer to `wsk_approval_requests` and `wsk_approval_steps` per ADR-012** — source modules submit via the REST endpoint (or call `submit()` programmatically in Step 7's `LeaveService` migration) and listen on `approval.request.resolved` to apply the approved action.
+
+**Files:**
+
+- `apps/api/src/workflows/dto/workflow.dto.ts` — DTOs + the 3 enum constants (REQUEST_STATUSES, STEP_STATUSES, APPROVER_TYPES). Validation on `requestType` (1–64 chars), `referenceId`/`referenceTable` paired-or-null, comments (max 2000 chars), `body` (1–2000 chars on comments).
+- `apps/api/src/workflows/workflow-engine.service.ts` — the engine. `submit()`, `advanceStep()`, `withdraw()`, `addComment()`, `list()`, `getById()`, plus the private `resolveApprover()` and the exported `roleTokenToName()` helper.
+- `apps/api/src/workflows/workflow.controller.ts` — 7 endpoints under `/approvals`.
+- `apps/api/src/workflows/workflows.module.ts` — wires the service + controller; imports TenantModule + IamModule + KafkaModule; exports the service so Step 7's `LeaveService` can inject it.
+- `apps/api/src/app.module.ts` — adds WorkflowsModule between TasksModule and the global guards.
+
+**7 endpoints:**
+
+| Verb | Path | Permission | Notes |
+| ---- | ---- | ---------- | ----- |
+| POST | `/approvals` | `ops-001:write` | Submit a new approval request. Engine selects the active workflow template by `request_type`, creates the request row + Step 1 with a resolved approver, all in one tx. Emits `approval.step.awaiting` (a future notification consumer or task-rule will turn this into a task on the approver's list). |
+| GET  | `/approvals` | `ops-001:read` | List with row scope: admin sees all (or `?mine=true` for own as requester); non-admin sees `requester_id = me OR EXISTS approver_id = me on any step`. Filters: `status`, `requestType`. |
+| GET  | `/approvals/:id` | `ops-001:read` | Full detail: request + step history + comments. Non-admin row scope: requester or any current/past approver. 404 on no access. |
+| POST | `/approvals/:id/steps/:stepId/approve` | `ops-001:write` | Step approval. Locks step + request rows FOR UPDATE inside the tx. Validates step status is AWAITING. Activates the next step or resolves the request as APPROVED. Emits `approval.step.awaiting` for the next step or `approval.request.resolved` on terminal. |
+| POST | `/approvals/:id/steps/:stepId/reject` | `ops-001:write` | Same lock pattern. Marks the step REJECTED, marks every still-AWAITING step SKIPPED, resolves the request as REJECTED, emits `approval.request.resolved` with `status='REJECTED'`. |
+| POST | `/approvals/:id/comments` | `ops-001:write` | Append a comment. `isRequesterVisible` defaults true; false marks it approver-internal-only. |
+| POST | `/approvals/:id/withdraw` | `ops-001:write` | Requester pulls back a still-PENDING request. Marks every AWAITING step SKIPPED + status=WITHDRAWN. **Does NOT emit `approval.request.resolved`** — the requester pulled back, source modules shouldn't act on it. |
+
+**Approver resolution (`resolveApprover`):**
+
+The engine picks **one** account_id per step (sequential mode this cycle):
+
+- **SPECIFIC_USER** — `approver_ref` is a `platform_users.id` UUID. Returns it directly after a `LIMIT 1` existence check.
+- **ROLE** — `approver_ref` is a role token like `'SCHOOL_ADMIN'`. The engine maps token → IAM role name via the new exported `roleTokenToName()` helper (matches Cycle 3's `roleNameToToken` convention but inverted) and queries `platform.iam_role_assignment + roles + iam_scope + iam_scope_type` for the first ACTIVE assignment with `r.name = $token` AND `(SCHOOL scope on this school OR PLATFORM scope)`. Excludes the requester so a self-approving template doesn't self-resolve.
+- **MANAGER** and **DEPARTMENT_HEAD** — both fall back to the first school admin (`'sch-001:admin' = ANY(eac.permission_codes)` on the school + platform scope chain) since the proper hr_employees / sis_departments traversal is **deferred per the plan**. The fallback is logged at `LOG` level so a reviewer reading boot logs can see the deferral firing. The `ORDER BY 1 LIMIT 1` clause is deterministic — the smallest UUID wins.
+
+**Submit flow (`submit()`):**
+
+Inside `executeInTenantTransaction`:
+
+1. Look up the active workflow template by `(school_id, request_type)`. Reject 400 if none configured.
+2. Load all template steps ordered by `step_order ASC`. Reject 400 if zero steps.
+3. Resolve the Step 1 approver via `resolveApprover()`. Reject 400 if no resolution.
+4. INSERT `wsk_approval_requests` with `status='PENDING'`, `submitted_at=now()`. Schema's `resolved_chk` allows null `resolved_at` for PENDING.
+5. INSERT `wsk_approval_steps` for Step 1 with `status='AWAITING'`, no `actioned_at` (allowed by `actioned_chk`).
+
+Outside the tx: emit `approval.step.awaiting` so future consumers can react. Returns the full DTO.
+
+**Advance flow (`advanceStep()`):**
+
+Inside `executeInTenantTransaction`:
+
+1. `SELECT … FOR UPDATE` on `wsk_approval_steps WHERE id=$1 AND request_id=$2` — locks the step row so two parallel approvers serialise.
+2. `SELECT … FOR UPDATE` on `wsk_approval_requests` — locks the parent.
+3. Validate step is AWAITING + caller is approver (or admin).
+4. UPDATE the step with `status=$decision`, `actioned_at=now()`, `comments=$comment`.
+5. On REJECTED: SKIP every remaining AWAITING step, UPDATE request to `status='REJECTED'`, `resolved_at=now()`. Emit `approval.request.resolved` with `status='REJECTED'`.
+6. On APPROVED: query for the next template step. If none → resolve as APPROVED + emit. If one exists → resolve its approver + INSERT the new AWAITING step row + emit `approval.step.awaiting`.
+
+The Kafka emit happens **outside the tx** (committed first) so a broker hiccup doesn't roll back the user's action.
+
+**Comment visibility model:**
+
+- Admins see every comment.
+- Approvers (current or past on any step) see every comment — they need internal context to collaborate.
+- The requester sees only `is_requester_visible = true` rows.
+
+The query uses an EXISTS clause keyed on `wsk_approval_steps.approver_id = $actor.accountId` so an internal-only comment is filtered for the requester but visible to fellow approvers.
+
+**Live verification on `tenant_demo` (Step 6 smoke, 12 scenarios all pass):**
+
+1. Rivera POSTs `/approvals` with `requestType='LEAVE_REQUEST'` and a leave id from the Cycle 4 seed → engine creates request + Step 1 with approver=admin@ (the first school admin alphabetically since DEPARTMENT_HEAD falls back to school admin).
+2. Rivera GET own → visible (requester scope).
+3. David GET → 404 (not requester, not approver, not admin).
+4. SQL inspection confirms Step 1 approver = `admin@demo.campusos.dev` (Platform Admin holds sch-001:admin via `everyFunction`).
+5. David POST `.../approve` → 403 "You are not the assigned approver for this step".
+6. Sarah (admin) POST `.../approve` Step 1 → succeeds via admin override; Step 2 activates with approver=Sarah Mitchell (ROLE='SCHOOL_ADMIN' resolves Sarah). Request status remains PENDING.
+7. Re-approve Step 1 → 400 "Only AWAITING steps can be approved; this one is APPROVED".
+8. Sarah adds an admin-internal comment (`isRequesterVisible:false`).
+9. Rivera GET → sees 0 comments (filtered out by visibility model).
+10. Sarah GET → sees 1 comment (admin override).
+11. Sarah POST `.../approve` Step 2 → request resolves to APPROVED, both steps APPROVED, `resolved_at` populated.
+12. `dev.approval.request.resolved` envelope captured on the wire with full ADR-057 shape — `event_type='approval.request.resolved'`, `source_module='workflows'`, payload `{requestId, requestType:'LEAVE_REQUEST', referenceId, referenceTable:'hr_leave_requests', requesterId, status:'APPROVED'}`.
+
+**Smoke residue cleaned.** The smoke approval request was deleted (CASCADE drops its steps + comments). Tenant returns to the post-Step-3 seed state — 1 historical approval request (Cycle 4 audit) + 2 historical steps.
+
+**Two issues caught and fixed during the smoke:**
+
+1. **Stale node process holding port 4000.** A leftover process from the Step 5 smoke owned :4000 even though I'd `kill`'d its parent shell. New `node main.js` spawns failed with `EADDRINUSE` and the curl was hitting the old binary that didn't have the new routes. Resolved by `kill -9 $(lsof -ti :4000)` then restart.
+2. **`SELECT DISTINCT … ORDER BY` SQL bug** in the school-admin fallback path. PostgreSQL requires ORDER BY columns to appear in the SELECT list when using DISTINCT. Switched the ORDER BY to positional `ORDER BY 1` (referencing the single SELECT column). Migration not needed — pure service code fix.
+
+**Out of scope this step (deferred per the plan):**
+
+- Parallel approval steps (`is_parallel=true`) — the column ships forward-compatible from Step 2 but the engine is sequential-only. Adding parallel mode requires reworking `advanceStep` to keep multiple AWAITING steps active simultaneously and resolve once any of them rejects (or all approve).
+- Proper `MANAGER` / `DEPARTMENT_HEAD` resolution — currently both fall back to the first school admin. The proper traversal needs `hr_employees.supervisor_id` and `sis_departments.head_id` columns that aren't populated in the demo seed. Documented in `resolveApprover` JSDoc + a runtime LOG line so the deferral is visible.
+- Escalation timeout worker — the schema (Step 2) has `wsk_workflow_escalations` ready and the step's `timeout_hours` carries the deadline, but no cron sweeps + escalates yet. Phase 2 hardening.
 
 ---
 
