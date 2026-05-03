@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 7 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
+.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
+.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
+.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
+.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
+.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
+.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}
+.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}
+.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
+.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
+.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
+.step-title{font-size:19px;font-weight:700;color:var(--accent)}
+.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
+.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
+.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.step .depends{font-size:12px;color:var(--text-light);margin-top:6px}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
+.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
+.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
+.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 3 &middot; Wave 1</div>
+    <h1>Cycle 7: Tasks &amp; Approval Workflows<br>Implementation Plan</h1>
+    <div class="sub">Cross-cutting infrastructure that every module uses. A unified task system with auto-task rules driven by Kafka events, plus a configurable multi-step approval engine. Generalizes the hardcoded approval patterns from leave (Cycle 4), room changes (Cycle 5), and child-link requests (Cycle 6.1).</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M1 Task Management (6 tables) + M2 Approval Workflows (7 tables)</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 7 spans two tightly-coupled ERD modules: M1 (Task Management) and M2 (Approval Workflows). Together they provide the "to-do list" and "submit &rarr; approve &rarr; execute" patterns that every other module consumes. The Task Worker (ADR-011) is the sole writer to <code>tsk_tasks</code> &mdash; domain modules emit Kafka events and auto-task rules translate them into actionable tasks. The Workflow Engine (ADR-012) is the sole writer to <code>wsk_approval_requests</code> and <code>wsk_approval_steps</code> &mdash; source modules submit via REST and listen on <code>approval.request.resolved</code>.</p>
+
+  <p class="body-text">This cycle is architecturally significant because it <strong>retroactively connects</strong> Cycles 1&ndash;6. After it ships: a teacher publishing an assignment auto-creates a "Complete: Chapter 5 Homework" task on every enrolled student's to-do list. A leave request flows through a configurable multi-step approval chain. An absence request submitted by a parent routes to the right admin based on workflow templates. The existing hardcoded approve/reject patterns in LeaveService, RoomChangeRequestService, and ChildLinkRequestService become consumers of the generalized engine.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Teacher publishes an assignment &rarr; Task Worker consumes <code>cls.assignment.posted</code> &rarr; auto-task rule creates a TODO task on every enrolled student's to-do list &rarr; student opens their "Tasks" app and sees "Complete: Chapter 5 Homework &mdash; due Fri 3pm" &rarr; student marks it DONE &rarr; task moves to completed. Separately: teacher submits a leave request &rarr; WorkflowEngineService creates a multi-step approval request (department head &rarr; principal) &rarr; department head approves step 1 &rarr; step 2 activates for principal &rarr; principal approves &rarr; <code>approval.request.resolved</code> fires &rarr; LeaveService consumes it and approves the leave &rarr; coverage_needed flows as before.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (M1 Tasks):</strong> tsk_tasks (RANGE-partitioned monthly), tsk_tasks_archive, tsk_auto_task_rules, tsk_auto_task_conditions, tsk_auto_task_actions, tsk_acknowledgements. Task Worker Kafka consumer. Auto-task rules for ASSIGNMENT_POSTED, LEAVE_APPROVED, ABSENCE_REQUEST_SUBMITTED, GRADE_POSTED. Student/parent "Tasks" app tile. Acknowledgement workflow. Functions SYS-001 (core).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (M2 Workflows):</strong> wsk_workflow_templates, wsk_workflow_steps, wsk_approval_requests, wsk_approval_steps, wsk_approval_comments, wsk_workflow_escalations. WorkflowEngineService. Approval submission API. Multi-step sequential approval. Leave approval migration to workflow engine. Admin workflow configuration UI.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> wsk_request_form_definitions + wsk_request_form_responses (dynamic form builder for approval request payloads &mdash; future cycle). Parallel approval steps (<code>is_parallel=true</code> &mdash; schema supports it, engine deferred). Escalation timeout worker (schema + escalation table ready, cron deferred). Task archiver nightly job (tsk_tasks &rarr; tsk_tasks_archive, deferred to ops). Auto-task rules for modules not yet built (INCIDENT_DECLARED, CHECKOUT_OVERDUE, BUS_NO_SHOW_DETECTED, etc.). tsk_task_tags (schema created, API deferred). Migrating room change requests and child-link requests to the workflow engine (documented as future work &mdash; they work fine with their current hardcoded patterns).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:34%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Task Schema &mdash; Tasks, Archive, Auto-Rules</td><td>Schema</td><td>tsk_tasks (RANGE monthly), tsk_tasks_archive, tsk_auto_task_rules, tsk_auto_task_conditions, tsk_auto_task_actions, tsk_acknowledgements</td></tr>
+    <tr><td><strong>2</strong></td><td>Workflow Schema &mdash; Templates, Requests, Steps</td><td>Schema</td><td>wsk_workflow_templates, wsk_workflow_steps, wsk_approval_requests, wsk_approval_steps, wsk_approval_comments, wsk_workflow_escalations</td></tr>
+    <tr><td><strong>3</strong></td><td>Seed Data &mdash; Auto-Task Rules + Workflow Templates</td><td>Seed</td><td>8 auto-task rules for existing events, 3 workflow templates (leave, absence, child-link), sample tasks, sample approval request</td></tr>
+    <tr><td><strong>4</strong></td><td>Task Worker &mdash; Kafka Consumer + Auto-Task Engine</td><td>Code</td><td>TaskWorker (sole writer per ADR-011), auto-task rule evaluator, idempotent task creation via UNIQUE + Redis SET NX</td></tr>
+    <tr><td><strong>5</strong></td><td>Task NestJS Module &mdash; CRUD + Acknowledgements</td><td>Code</td><td>TaskService, AcknowledgementService, TaskController. Manual task CRUD, status transitions, acknowledgement workflow</td></tr>
+    <tr><td><strong>6</strong></td><td>Workflow Engine &mdash; Multi-Step Approval</td><td>Code</td><td>WorkflowEngineService (sole writer per ADR-012), approval submission API, step advancement, resolution emit</td></tr>
+    <tr><td><strong>7</strong></td><td>Leave Approval Migration to Workflow Engine</td><td>Code</td><td>LeaveService consumes approval.request.resolved instead of hardcoded approve/reject. Backward-compatible fallback.</td></tr>
+    <tr><td><strong>8</strong></td><td>Tasks UI &mdash; To-Do List + Acknowledgements</td><td>UI</td><td>"Tasks" app tile, to-do list with filters, task detail, acknowledgement flow, manual task creation</td></tr>
+    <tr><td><strong>9</strong></td><td>Approvals UI &mdash; Admin Queue + Workflow Config</td><td>UI</td><td>"Approvals" app tile, pending approval queue, approval detail with step history, workflow template editor</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Assignment posted &rarr; student task created &rarr; leave request &rarr; multi-step approval &rarr; resolved &rarr; coverage flows</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Task Schema &mdash; Tasks, Archive, Auto-Rules</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The M1 Task Management tables. <code>tsk_tasks</code> is RANGE-partitioned monthly (matching the <code>msg_messages</code> pattern from Cycle 3). The Task Worker (ADR-011) is the sole writer &mdash; no domain module writes tasks directly.</p>
+
+    <div class="detail-heading">Tables (6)</div>
+    <ol class="detail-list">
+      <li><strong>tsk_tasks</strong> &mdash; RANGE(created_at) monthly, 24-month window (2025-08 &rarr; 2027-08). Composite PK <code>(id, created_at)</code>. <code>school_id UUID</code>, <code>owner_id UUID FK(platform_users)</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>source</code> ENUM(MANUAL, AUTO, SYSTEM), <code>source_ref_id UUID</code>, <code>priority</code> ENUM(LOW, NORMAL, HIGH, URGENT), <code>status</code> ENUM(TODO, IN_PROGRESS, DONE, CANCELLED), <code>due_at TIMESTAMPTZ</code>, <code>task_category</code> ENUM(ACADEMIC, PERSONAL, ADMINISTRATIVE, ACKNOWLEDGEMENT), <code>acknowledgement_id UUID FK(tsk_acknowledgements)</code> nullable, <code>created_for_id UUID FK(platform_users)</code> nullable. UNIQUE(owner_id, source, source_ref_id) WHERE source != 'MANUAL' &mdash; auto-task deduplication. INDEX(owner_id, status, due_at) on active partitions.</li>
+      <li><strong>tsk_tasks_archive</strong> &mdash; RANGE(created_at) annual partition. Same schema as tsk_tasks. No FK back. Background archiver moves DONE/CANCELLED rows older than 30 days. INDEX(owner_id, completed_at DESC). Deferred: the archiver job itself; schema-only this cycle.</li>
+      <li><strong>tsk_auto_task_rules</strong> &mdash; <code>school_id UUID</code>, <code>trigger_event_type TEXT NOT NULL</code> (maps to Kafka topic via the Task Worker), <code>target_role TEXT</code>, <code>title_template TEXT</code> (supports <code>{student_name}</code>, <code>{assignment_title}</code>, <code>{class_name}</code> placeholders), <code>description_template TEXT</code>, <code>priority</code> ENUM, <code>due_offset_hours INT</code>, <code>task_category</code> ENUM, <code>is_active BOOLEAN</code>, <code>is_system BOOLEAN DEFAULT true</code>. UNIQUE(school_id, trigger_event_type) for system rules. Schools can deactivate but not delete system rules.</li>
+      <li><strong>tsk_auto_task_conditions</strong> &mdash; <code>rule_id FK</code>, <code>field_path TEXT</code>, <code>operator</code> ENUM(EQUALS, NOT_EQUALS, IN, NOT_IN, GT, LT, EXISTS), <code>value JSONB</code>. Optional conditions on the event payload that must all be true for the rule to fire. Example: only create a task for ASSIGNMENT_POSTED when <code>payload.isPublished = true</code>.</li>
+      <li><strong>tsk_auto_task_actions</strong> &mdash; <code>rule_id FK</code>, <code>action_type</code> ENUM(CREATE_TASK, CREATE_ACKNOWLEDGEMENT, SEND_NOTIFICATION), <code>action_config JSONB</code>. Most rules have one CREATE_TASK action; acknowledgement rules have CREATE_TASK + CREATE_ACKNOWLEDGEMENT. Extensible for future actions.</li>
+      <li><strong>tsk_acknowledgements</strong> &mdash; <code>school_id UUID</code>, <code>subject_id UUID FK(platform_users)</code> (the person who must acknowledge), <code>source_type</code> ENUM(ANNOUNCEMENT, DISCIPLINE_RECORD, POLICY_DOCUMENT, SIGNED_FORM, CONSENT_REQUEST, CUSTOM), <code>source_ref_id UUID</code>, <code>source_table TEXT</code>, <code>title TEXT NOT NULL</code>, <code>body_s3_key TEXT</code> nullable, <code>requires_dispute_option BOOLEAN DEFAULT false</code>, <code>status</code> ENUM(PENDING, ACKNOWLEDGED, ACKNOWLEDGED_WITH_DISPUTE, EXPIRED), <code>acknowledged_at TIMESTAMPTZ</code>, <code>dispute_reason TEXT</code>, <code>created_by UUID FK(platform_users)</code>, <code>expires_at TIMESTAMPTZ</code>. INDEX(subject_id, status). INDEX(source_type, source_ref_id). On INSERT: Task Worker creates a <code>tsk_tasks</code> row with <code>task_category=ACKNOWLEDGEMENT</code>.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 6 new tables + 24 monthly partitions on tsk_tasks + annual partitions on tsk_tasks_archive. Migration: <code>024_tsk_tasks_and_auto_rules.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Workflow Schema &mdash; Templates, Requests, Steps</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The M2 Approval Workflows tables. WorkflowEngineService (ADR-012) is the sole writer to <code>wsk_approval_requests</code> and <code>wsk_approval_steps</code>. Source modules submit via the REST API and listen on <code>approval.request.resolved</code>.</p>
+
+    <div class="detail-heading">Tables (6)</div>
+    <ol class="detail-list">
+      <li><strong>wsk_workflow_templates</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>request_type TEXT NOT NULL</code> (e.g. 'LEAVE_REQUEST', 'ABSENCE_REQUEST', 'CHILD_LINK_REQUEST', 'ROOM_CHANGE_REQUEST', 'CUSTOM'), <code>description TEXT</code>, <code>is_active BOOLEAN</code>. UNIQUE(school_id, request_type). Each school can have one active template per request type.</li>
+      <li><strong>wsk_workflow_steps</strong> &mdash; <code>template_id FK</code>, <code>step_order INT</code>, <code>approver_type</code> ENUM(SPECIFIC_USER, ROLE, MANAGER, DEPARTMENT_HEAD), <code>approver_ref TEXT</code> (user ID for SPECIFIC_USER, role name for ROLE, null for MANAGER/DEPARTMENT_HEAD &mdash; resolved dynamically), <code>is_parallel BOOLEAN DEFAULT false</code> (deferred &mdash; always sequential this cycle), <code>timeout_hours INT</code> nullable, <code>escalation_target_id UUID FK(platform_users)</code> nullable. INDEX(template_id, step_order).</li>
+      <li><strong>wsk_approval_requests</strong> &mdash; <code>school_id UUID</code>, <code>template_id UUID FK</code>, <code>requester_id UUID FK(platform_users)</code>, <code>request_type TEXT</code>, <code>reference_id UUID</code> (the domain entity being approved &mdash; e.g. <code>hr_leave_requests.id</code>), <code>reference_table TEXT</code>, <code>status</code> ENUM(PENDING, APPROVED, REJECTED, CANCELLED, WITHDRAWN), <code>submitted_at TIMESTAMPTZ</code>. INDEX(school_id, status, request_type) WHERE status NOT IN ('APPROVED','REJECTED','CANCELLED','WITHDRAWN'). INDEX(requester_id, created_at DESC).</li>
+      <li><strong>wsk_approval_steps</strong> &mdash; <code>request_id FK</code>, <code>step_order INT</code>, <code>approver_id UUID FK(platform_users)</code>, <code>status</code> ENUM(AWAITING, APPROVED, REJECTED, SKIPPED), <code>actioned_at TIMESTAMPTZ</code>, <code>comments TEXT</code>. INDEX(approver_id, status) WHERE status='AWAITING' &mdash; approver's pending queue.</li>
+      <li><strong>wsk_approval_comments</strong> &mdash; <code>request_id FK</code>, <code>author_id UUID FK</code>, <code>body TEXT NOT NULL</code>, <code>is_requester_visible BOOLEAN DEFAULT true</code>, <code>created_at TIMESTAMPTZ</code>. INDEX(request_id, created_at).</li>
+      <li><strong>wsk_workflow_escalations</strong> &mdash; IMMUTABLE. <code>request_id FK</code>, <code>step_id FK</code>, <code>original_approver_id UUID FK</code>, <code>escalated_to_id UUID FK</code>, <code>escalation_reason TEXT DEFAULT 'Approval step timed out'</code>, <code>hours_overdue NUMERIC(5,1)</code>, <code>escalated_at TIMESTAMPTZ</code>, <code>resolved_at TIMESTAMPTZ</code>, <code>resolved_by UUID FK</code>. INDEX(escalated_to_id, resolved_at) WHERE resolved_at IS NULL. Schema-only this cycle; escalation timeout worker deferred.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 6 new tables. Migration: <code>025_wsk_approval_workflows.sql</code>. Total Cycle 7 tables: 12.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Seed Data &mdash; Auto-Task Rules + Workflow Templates</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <p>Seed the rules and templates that drive the auto-task and approval engines. These are system-level configuration data seeded at provisioning.</p>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>Auto-task rules (8):</strong> ASSIGNMENT_POSTED &rarr; creates ACADEMIC task on enrolled students ("Complete: {assignment_title} &mdash; due {due_date}"), GRADE_POSTED &rarr; creates ACADEMIC task on student ("Review grade: {assignment_title} in {class_name}"), LEAVE_APPROVED &rarr; creates ADMINISTRATIVE task on school admins ("Leave approved: {employee_name} &mdash; arrange coverage for {dates}"), ABSENCE_REQUEST_SUBMITTED &rarr; creates ADMINISTRATIVE task on school admins ("Absence request: {student_name} on {date}"), GRADE_RETURNED &rarr; creates ACADEMIC task on student ("Review feedback: {assignment_title}"), ANNOUNCEMENT_REQUIRES_ACKNOWLEDGEMENT &rarr; creates ACKNOWLEDGEMENT task, CONSENT_REQUESTED &rarr; creates ACKNOWLEDGEMENT task on guardian, INFO_UPDATE_REQUESTED &rarr; creates ADMINISTRATIVE task ("Update your profile information"). Each with appropriate priority and due_offset_hours.</li>
+      <li><strong>Auto-task conditions:</strong> ASSIGNMENT_POSTED fires only when <code>payload.isPublished = true</code>. GRADE_POSTED fires only when <code>payload.isPublished = true</code>.</li>
+      <li><strong>Workflow templates (3):</strong> (1) "Leave Request Approval" (request_type=LEAVE_REQUEST) with 2 steps: Step 1 = DEPARTMENT_HEAD, Step 2 = ROLE "SCHOOL_ADMIN". (2) "Absence Request Review" (request_type=ABSENCE_REQUEST) with 1 step: ROLE "SCHOOL_ADMIN". (3) "Child Link Approval" (request_type=CHILD_LINK_REQUEST) with 1 step: ROLE "SCHOOL_ADMIN".</li>
+      <li><strong>Sample tasks (5):</strong> 3 ACADEMIC tasks for Maya (assignments from Cycle 2 seed), 1 PERSONAL task for Maya ("Study for Biology test"), 1 ADMINISTRATIVE task for David Chen ("Update emergency contact information").</li>
+      <li><strong>Sample approval request (1):</strong> Rivera's existing APPROVED sick leave request wrapped in a wsk_approval_requests row with 2 completed steps (department head + principal both APPROVED), showing the historical audit trail.</li>
+      <li><strong>Permission updates:</strong> Add SYS-001 (Task Management) read/write to Teacher/Student/Parent/Staff. Add SYS-001:admin to School Admin/Platform Admin. Rebuild cache.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 8 auto-task rules, 3 workflow templates, 5 sample tasks, 1 sample approval. Permission catalogue grows to ~450.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Task Worker &mdash; Kafka Consumer + Auto-Task Engine</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>The Task Worker (ADR-011) is the sole writer to <code>tsk_tasks</code>. It subscribes to every Kafka topic that has an active auto-task rule and translates events into tasks. No domain module writes tasks directly.</p>
+
+    <div class="detail-heading">Architecture</div>
+    <ol class="detail-list">
+      <li><strong>TaskWorker</strong> Kafka consumer &mdash; on startup, queries <code>tsk_auto_task_rules</code> across all active tenants and subscribes to the union of <code>trigger_event_type</code> topics (env-prefixed via <code>prefixedTopic</code>). Consumer group: <code>task-worker</code>. Uses the standard <code>unwrapEnvelope</code> + <code>processWithIdempotency</code> pattern.</li>
+      <li><strong>Rule evaluation</strong> &mdash; for each inbound event, the worker resolves the tenant, queries active rules matching <code>trigger_event_type</code>, evaluates <code>tsk_auto_task_conditions</code> against the event payload (all conditions must match), then for each passing rule executes the <code>tsk_auto_task_actions</code>.</li>
+      <li><strong>Task creation</strong> &mdash; CREATE_TASK action resolves the target owner(s): for ASSIGNMENT_POSTED that's every enrolled student in the class; for LEAVE_APPROVED that's school admins; for ABSENCE_REQUEST_SUBMITTED that's school admins. Resolves template placeholders ({student_name}, {assignment_title}, etc.) from the event payload. INSERT into <code>tsk_tasks</code> with <code>source='AUTO'</code> and <code>source_ref_id=event.payload.referenceId</code>. Deduplication: UNIQUE(owner_id, source, source_ref_id) + Redis SET NX on <code>tsk:auto:{owner_id}:{source_ref_id}</code>.</li>
+      <li><strong>Acknowledgement creation</strong> &mdash; CREATE_ACKNOWLEDGEMENT action inserts a <code>tsk_acknowledgements</code> row, then the companion CREATE_TASK action creates the task with <code>task_category=ACKNOWLEDGEMENT</code> and <code>acknowledgement_id</code> linking back.</li>
+      <li><strong>Kafka events emitted:</strong> <code>task.created</code> on every task INSERT. <code>task.completed</code> when status transitions to DONE. <code>student.acknowledgement.completed</code> when an acknowledgement is ACKNOWLEDGED or ACKNOWLEDGED_WITH_DISPUTE.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; TaskWorker Kafka consumer (sole writer to tsk_tasks). Subscribes to all active auto-task trigger topics. Emits task.created, task.completed, student.acknowledgement.completed.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Task NestJS Module &mdash; CRUD + Acknowledgements</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>The request-path API for tasks. The Task Worker creates auto-tasks; this module lets users create manual tasks, manage status, and complete acknowledgements.</p>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>TaskService</strong> &mdash; <code>GET /tasks</code> (own tasks, filterable by status/category/priority/due date), <code>GET /tasks/:id</code>, <code>POST /tasks</code> (manual task creation &mdash; source=MANUAL), <code>PATCH /tasks/:id</code> (status transitions: TODO &rarr; IN_PROGRESS &rarr; DONE, or CANCELLED at any point), <code>GET /tasks/assigned</code> (tasks created_for the caller by others). All <code>@RequirePermission('sys-001:read')</code> or <code>'sys-001:write'</code>.</li>
+      <li><strong>AcknowledgementService</strong> &mdash; <code>GET /acknowledgements</code> (own pending acknowledgements), <code>POST /acknowledgements/:id/acknowledge</code> (marks ACKNOWLEDGED, transitions the linked task to DONE, emits <code>student.acknowledgement.completed</code>), <code>POST /acknowledgements/:id/dispute</code> (requires dispute_reason, marks ACKNOWLEDGED_WITH_DISPUTE). <code>@RequirePermission('sys-001:write')</code>.</li>
+      <li><strong>Row-level auth:</strong> users see only their own tasks (owner_id or created_for_id = actor.accountId). Admins see all tasks in the tenant. Teachers can see tasks they created for students (created_for_id set, owner_id = teacher's accountId).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; TaskModule with TaskService, AcknowledgementService. ~8 endpoints.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Workflow Engine &mdash; Multi-Step Approval</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>The WorkflowEngineService (ADR-012) &mdash; the sole writer to <code>wsk_approval_requests</code> and <code>wsk_approval_steps</code>. Source modules submit approval requests via REST; the engine handles step sequencing, approver resolution, and resolution notification.</p>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>WorkflowEngineService</strong> &mdash; <code>submit(requestType, referenceId, referenceTable, requesterId)</code>: looks up the active <code>wsk_workflow_templates</code> for the request type, creates a <code>wsk_approval_requests</code> row with status=PENDING, resolves the Step 1 approver (by approver_type: SPECIFIC_USER = direct, ROLE = query IAM for role holders, MANAGER = requester's supervisor from hr_employees, DEPARTMENT_HEAD = department head from sis_departments/hr_positions), creates the first <code>wsk_approval_steps</code> row with status=AWAITING. Emits <code>approval.step.awaiting</code> (notification consumer creates a task for the approver).</li>
+      <li><strong>advanceStep(requestId, stepId, decision, comments, actorId)</strong> &mdash; SELECT FOR UPDATE on the step row. Validates step.status=AWAITING and step.approver_id=actorId (or admin override). On APPROVED: advances to next step or resolves the request. On REJECTED: resolves the request as REJECTED, skips remaining steps. Emits <code>approval.request.resolved</code> with the final status + reference_id so the source module can act.</li>
+      <li><strong>Approver resolution</strong> &mdash; resolves dynamically per step: ROLE queries <code>iam_effective_access_cache</code> for accounts holding the role in the school's scope chain. MANAGER queries <code>hr_employees</code> for the requester's supervisor (deferred &mdash; falls back to school admin if no supervisor set). DEPARTMENT_HEAD queries the employee's department head (deferred &mdash; falls back to school admin).</li>
+      <li><strong>API endpoints:</strong> <code>POST /approvals</code> (source module submits &mdash; or internal service call), <code>GET /approvals</code> (admin: all pending, requester: own), <code>GET /approvals/:id</code> (with step history + comments), <code>POST /approvals/:id/steps/:stepId/approve</code>, <code>POST /approvals/:id/steps/:stepId/reject</code>, <code>POST /approvals/:id/comments</code>, <code>POST /approvals/:id/withdraw</code> (requester cancels). All <code>@RequirePermission('sys-001:read')</code> or <code>'sys-001:write'</code>.</li>
+    </ol>
+
+    <div class="detail-heading">Resolution Contract</div>
+    <p>When all steps are APPROVED, the request status flips to APPROVED and a Kafka event <code>approval.request.resolved</code> fires with payload <code>{ requestType, referenceId, referenceTable, status: 'APPROVED', requesterId }</code>. On any step REJECTED, the request immediately resolves as REJECTED. Source modules consume this event to execute the approved action (e.g. LeaveService approves the leave, ChildLinkRequestService activates the link).</p>
+
+    <div class="produces">Produces &rarr; WorkflowEngineService with approval submission, step advancement, resolution. ~7 endpoints + 2 Kafka events (approval.step.awaiting, approval.request.resolved).</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Leave Approval Migration to Workflow Engine</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>Migrate the Cycle 4 leave approval from its hardcoded approve/reject pattern to the generalized workflow engine. This is the proof that the engine works for real domain workflows.</p>
+
+    <div class="detail-heading">Changes</div>
+    <ol class="detail-list">
+      <li><strong>LeaveService.submit()</strong> &mdash; after creating the hr_leave_requests row (status=PENDING, pending balance incremented), calls <code>WorkflowEngineService.submit('LEAVE_REQUEST', leaveRequestId, 'hr_leave_requests', actor.accountId)</code>. The workflow template defines the approval chain (department head &rarr; principal per the seed).</li>
+      <li><strong>LeaveApprovalConsumer</strong> &mdash; new Kafka consumer on <code>approval.request.resolved</code>, filtered by <code>requestType='LEAVE_REQUEST'</code>. On APPROVED: calls the existing <code>LeaveService.approveInternal(referenceId)</code> which does the balance mutation + status flip + coverage_needed emit. On REJECTED: calls <code>LeaveService.rejectInternal(referenceId)</code>.</li>
+      <li><strong>Backward compatibility:</strong> the existing <code>PATCH /leave-requests/:id/approve</code> and <code>/reject</code> endpoints stay in place for admin override (bypassing the workflow). They're marked as "direct admin action" in the audit trail. Schools without a LEAVE_REQUEST workflow template fall back to the direct pattern.</li>
+      <li><strong>Remove hardcoded routing:</strong> the previous <code>LeaveNotificationConsumer</code> that notified the requester on approve/reject is replaced by the workflow engine's <code>approval.request.resolved</code> notification (the engine emits a notification to the requester automatically).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Leave approval flows through the workflow engine. Multi-step approval chain configurable per school. Direct admin override preserved.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Tasks UI &mdash; To-Do List + Acknowledgements</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>A new "Tasks" app tile on the home page. Every persona gets a to-do list.</p>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Task List</strong> <code>/tasks</code> &mdash; grouped by category (ACADEMIC, PERSONAL, ADMINISTRATIVE, ACKNOWLEDGEMENT). Each group collapsible. Sort by due date (overdue first, then soonest). Filter chips: All / Todo / In Progress / Done. Priority badge (color-coded). Overdue tasks flagged red. "Add Task" button for manual task creation.</li>
+      <li><strong>Task Detail</strong> <code>/tasks/:id</code> &mdash; title, description, due date, priority, source (shows "Auto-created from: Chapter 5 Homework" for auto-tasks), status transition buttons (Start / Complete / Cancel). For ACKNOWLEDGEMENT tasks: shows the acknowledgement prompt, optional document link, "I Acknowledge" button, and "Dispute" button (when <code>requires_dispute_option=true</code>) with a reason text field.</li>
+      <li><strong>Create Task</strong> <code>/tasks/new</code> &mdash; form with title, description, due date, priority, category. Optional: assign to another user (teachers can create tasks for students). <code>created_for_id</code> set when assigned to someone else.</li>
+      <li><strong>Badge count:</strong> Tasks app tile badge shows count of TODO + IN_PROGRESS tasks with due_at &le; today (overdue or due today).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; "Tasks" app tile, task list with category grouping, task detail with acknowledgement flow, manual task creation.</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Approvals UI &mdash; Admin Queue + Workflow Config</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <p>The approval management interface. Teachers and admins who are approvers see pending items; admins can configure workflow templates.</p>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>My Approvals</strong> <code>/approvals</code> &mdash; list of approval requests where the caller is the current-step approver (status=AWAITING). Each shows: request type, requester name, submitted date, step position ("Step 2 of 3"). Click to review.</li>
+      <li><strong>Approval Detail</strong> <code>/approvals/:id</code> &mdash; request summary (type, requester, reference entity detail), step timeline showing each step's status (AWAITING / APPROVED / REJECTED / SKIPPED) with approver name and timestamp. Comment thread (public or requester-hidden). Approve / Reject buttons with comment field. Shows the full audit trail.</li>
+      <li><strong>My Requests</strong> <code>/approvals/my-requests</code> &mdash; list of approval requests the caller submitted, with current status and which step it's on.</li>
+      <li><strong>Workflow Configuration</strong> <code>/admin/workflows</code> (admin only) &mdash; list of workflow templates. Click to edit: add/remove/reorder steps, set approver type per step (specific user picker, role dropdown, or manager/department-head auto-resolve), set timeout hours. Create new templates for custom request types.</li>
+      <li><strong>Badge count:</strong> "Approvals" tile badge shows count of AWAITING steps where the caller is the approver.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; "Approvals" app tile (for users with pending items), approval queue, detail with step timeline, workflow configuration.</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <p>End-to-end proof that the task and approval engines work across the existing modules.</p>
+
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Auto-task from assignment:</strong> Teacher publishes an assignment in Period 1 Algebra. Verify <code>cls.assignment.posted</code> (or equivalent) event fires. Verify TaskWorker creates a TODO task on Maya's task list with title matching the template. Verify <code>task.created</code> event fires.</li>
+      <li><strong>Student completes task:</strong> Maya opens Tasks, sees the assignment task. Marks it DONE. Verify status transitions correctly. Verify <code>task.completed</code> event fires.</li>
+      <li><strong>Manual task creation:</strong> Teacher creates a task for Maya: "Prepare for oral presentation". Verify it appears in Maya's task list with <code>created_for_id</code> set.</li>
+      <li><strong>Leave through workflow engine:</strong> Rivera submits a leave request. Verify WorkflowEngineService creates a wsk_approval_requests row with 2 steps. Verify Step 1 approver (department head &mdash; resolved dynamically) receives an AWAITING step + notification.</li>
+      <li><strong>Step 1 approval:</strong> Department head approves Step 1. Verify step status &rarr; APPROVED. Verify Step 2 activates for the principal.</li>
+      <li><strong>Step 2 approval:</strong> Principal approves Step 2. Verify request status &rarr; APPROVED. Verify <code>approval.request.resolved</code> fires. Verify LeaveApprovalConsumer processes it. Verify leave request status &rarr; APPROVED. Verify balance updates. Verify coverage_needed fires.</li>
+      <li><strong>Rejection test:</strong> Submit another leave request. Step 1 approver rejects. Verify request immediately REJECTED (Step 2 is SKIPPED). Verify leave request stays PENDING (pending balance not consumed).</li>
+      <li><strong>Withdrawal:</strong> Submit a leave request. Requester withdraws before any step is actioned. Verify request WITHDRAWN. Verify leave request reverts to CANCELLED.</li>
+      <li><strong>Acknowledgement:</strong> Admin creates an acknowledgement for Maya (source_type=POLICY_DOCUMENT). Verify TaskWorker creates an ACKNOWLEDGEMENT task. Maya acknowledges. Verify <code>student.acknowledgement.completed</code> event fires.</li>
+      <li><strong>Permission denials:</strong> Student cannot approve workflow steps. Parent cannot see other users' tasks. Teacher cannot configure workflows.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Verified task + approval workflow vertical slice. Auto-task creation from existing events. Multi-step approval with leave integration.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 7 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 12 new tables (6 task + 6 workflow). tsk_tasks RANGE-partitioned monthly.</li>
+      <li>Task Worker: sole writer to tsk_tasks (ADR-011). Subscribes to all auto-task trigger topics. 8 seeded rules.</li>
+      <li>Workflow Engine: sole writer to wsk_approval_requests/steps (ADR-012). Multi-step sequential approval. 3 seeded templates.</li>
+      <li>Leave approval migrated from hardcoded to workflow engine. Backward-compatible admin override.</li>
+      <li>Task API: ~8 endpoints. Manual CRUD, status transitions, acknowledgements.</li>
+      <li>Approval API: ~7 endpoints. Submit, step advancement, comments, withdrawal.</li>
+      <li>Tasks UI: to-do list with category grouping, task detail, acknowledgement flow, manual creation.</li>
+      <li>Approvals UI: pending queue, detail with step timeline, workflow configuration.</li>
+      <li>Vertical slice: assignment &rarr; auto-task &rarr; student sees it. Leave &rarr; multi-step approval &rarr; resolved &rarr; coverage flows.</li>
+      <li>HANDOFF-CYCLE7.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">After Cycle 7, CampusOS has a generalized task engine and approval workflow that every future module can consume. Leave approvals flow through configurable multi-step chains. Students have a to-do list that auto-populates from teacher actions. The next cycle (Cycle 8: Service Tickets) builds IT helpdesk and facilities ticketing on top of the workflow engine, completing Wave 1.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 7 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M1 Task Management 6 tables, M2 Approval Workflows 7 tables), Function Library (SYS-001), Architecture Review (ADR-011 Task Worker sole writer, ADR-012 WorkflowEngineService sole writer, ADR-025 auto-task rules, ADR-026 task archiving).</p>
+  </div>
+</div>
+
+</body>
+</html>
