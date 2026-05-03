@@ -1,6 +1,6 @@
 # Cycle 7 Handoff — Tasks & Approval Workflows
 
-**Status:** Cycle 7 **IN PROGRESS** — Step 1 done (commit pending in this push). Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
+**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 done (schemas land cleanly on `tenant_demo` + `tenant_test`). Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
 
 **Branch:** `main`  
 **Plan reference:** `docs/campusos-cycle7-implementation-plan.html`  
@@ -15,7 +15,7 @@ This document tracks the Cycle 7 build — the M1 Task Management module (6 tabl
 | Step | Title                                                  | Status            |
 | ---- | ------------------------------------------------------ | ----------------- |
 | 1    | Task Schema — Tasks, Archive, Auto-Rules               | **DONE**          |
-| 2    | Workflow Schema — Templates, Requests, Steps           | pending           |
+| 2    | Workflow Schema — Templates, Requests, Steps           | **DONE**          |
 | 3    | Seed Data — Auto-Task Rules + Workflow Templates       | pending           |
 | 4    | Task Worker — Kafka Consumer + Auto-Task Engine        | pending           |
 | 5    | Task NestJS Module — CRUD + Acknowledgements           | pending           |
@@ -105,6 +105,77 @@ Sanity counts (filtered to `tenant_demo`):
 - The Step 4 Task Worker becomes the sole writer to `tsk_tasks` (ADR-011); Step 1 has no service code yet.
 - The archiver job (background sweep moving DONE/CANCELLED rows from `tsk_tasks` to `tsk_tasks_archive` after 30 days) is deferred to ops — schema is ready in Step 1, the cron is not.
 - `tsk_task_tags` from the ERD is intentionally not included (deferred per the plan's "What's In / What's Deferred" callout).
+
+---
+
+## Step 2 — Workflow Schema — Templates, Requests, Steps
+
+**Status:** DONE. Migration applied cleanly to `tenant_demo` and `tenant_test` on 2026-05-03. Idempotent re-provision verified. Splitter-clean — proper state-machine audit (block-comments + line-comments + single-quoted-string awareness with `''` escape handling) confirmed zero `;` outside the legitimate statement terminators on the first attempt.
+
+**Migration:** `packages/database/prisma/tenant/migrations/027_wsk_approval_workflows.sql`.
+
+**Tables (6):**
+
+1. **`wsk_workflow_templates`** — per-(school, request_type) approval chain definition. UNIQUE INDEX on `(school_id, request_type)` so each school has one active template per request type. `is_active` toggle for soft-deactivation. `request_type` is free-form TEXT — schools can author custom workflow types without a schema migration. The seed (Step 3) ships templates for LEAVE_REQUEST + ABSENCE_REQUEST + CHILD_LINK_REQUEST.
+
+2. **`wsk_workflow_steps`** — ordered approval steps belonging to a template. `step_order` INT > 0 CHECK (no zero step). `approver_type` 4-value CHECK SPECIFIC_USER / ROLE / MANAGER / DEPARTMENT_HEAD. **Multi-column `approver_shape_chk`** enforces SPECIFIC_USER and ROLE ⇒ `approver_ref IS NOT NULL`, and MANAGER and DEPARTMENT_HEAD ⇒ `approver_ref IS NULL` (those two resolve dynamically from `hr_employees` + `sis_departments` at runtime). `is_parallel BOOLEAN DEFAULT false` ships now but the engine is sequential-only this cycle — column is forward-compatible per the plan. `timeout_hours INT` nullable with `> 0` CHECK when set. `escalation_target_id` is a soft FK to `platform.platform_users` for the future timeout sweeper. UNIQUE INDEX on `(template_id, step_order)` so two steps in the same template can't share a position. CASCADE on the template FK.
+
+3. **`wsk_approval_requests`** — one row per submission. Status lifecycle PENDING → APPROVED / REJECTED / CANCELLED / WITHDRAWN (4 terminal states). **Multi-column `resolved_chk`** keeps `resolved_at` in lockstep with status — PENDING ⇒ NULL, every terminal status ⇒ NOT NULL. **Multi-column `reference_shape_chk`** enforces `reference_id` and `reference_table` are both set or both null (so a polymorphic ref is never half-populated). The `reference_id` + `reference_table` pair is the soft polymorphic ref to the originating domain row (e.g. `hr_leave_requests.id` + `'hr_leave_requests'`). Both columns are nullable to support CUSTOM workflows without a domain row. **Three indexes:** partial INDEX `(school_id, status, request_type) WHERE status NOT IN ('APPROVED', 'REJECTED', 'CANCELLED', 'WITHDRAWN')` for the admin "active queue" hot path; INDEX `(requester_id, created_at DESC)` for "my requests"; partial INDEX `(reference_table, reference_id) WHERE reference_id IS NOT NULL` for reverse-lookup from a domain row to its approval request. FK `template_id → wsk_workflow_templates(id)` is **NO ACTION** (refuses to delete a template that has historical requests against it — audit trail wins).
+
+4. **`wsk_approval_steps`** — one row per active or completed step on a request. `step_order INT > 0` CHECK. Status lifecycle AWAITING → APPROVED / REJECTED / SKIPPED. **Multi-column `actioned_chk`** enforces AWAITING ⇒ `actioned_at IS NULL`, APPROVED / REJECTED ⇒ `actioned_at IS NOT NULL`, and SKIPPED has no constraint on `actioned_at` (a skipped step was never actioned by anyone, so leaving the timestamp NULL is the correct shape). UNIQUE INDEX on `(request_id, step_order)` so two steps on the same request can't share a position. Partial INDEX `(approver_id, status) WHERE status='AWAITING'` is the approver's pending-queue hot path. CASCADE on the request FK. `approver_id NOT NULL` — the engine resolves the approver at step activation; ROLE-typed steps store one resolved user even if many holders exist (the engine picks one for sequential mode).
+
+5. **`wsk_approval_comments`** — append-only thread on a request. `is_requester_visible BOOLEAN DEFAULT true` distinguishes public comments from approver-internal-only notes. INDEX `(request_id, created_at)` for the chronological thread render. CASCADE on the request FK.
+
+6. **`wsk_workflow_escalations`** — append-mostly audit. One row per escalation. `original_approver_id` + `escalated_to_id` + `hours_overdue NUMERIC(5,1)` + `escalated_at` are set at INSERT. `resolved_at` + `resolved_by` are settable once when the escalation is acted on; **multi-column `resolved_chk`** keeps both fields all-set or all-null together. `hours_overdue >= 0` CHECK. Partial INDEX `(escalated_to_id, resolved_at) WHERE resolved_at IS NULL` for the escalation-recipient's queue. FKs to `wsk_approval_requests(id)` and `wsk_approval_steps(id)` are NO ACTION — the audit row outlives the request being audited. **Schema-only this cycle.** The escalation timeout worker is deferred per the plan.
+
+**Migration discipline:**
+
+- Block-comment header (no `--` line comments at file head).
+- No semicolons inside any string literal, default expression, COMMENT, or CHECK predicate.
+- `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` for idempotency.
+
+**Tenant logical base table count after Step 2:** 114 + 6 = **120**.
+
+**FK summary:** 6 new intra-tenant DB-enforced FKs:
+
+- `wsk_workflow_steps.template_id → wsk_workflow_templates(id) ON DELETE CASCADE`
+- `wsk_approval_requests.template_id → wsk_workflow_templates(id)` (NO ACTION — refuses delete when historical requests exist)
+- `wsk_approval_steps.request_id → wsk_approval_requests(id) ON DELETE CASCADE`
+- `wsk_approval_comments.request_id → wsk_approval_requests(id) ON DELETE CASCADE`
+- `wsk_workflow_escalations.request_id → wsk_approval_requests(id)` (NO ACTION)
+- `wsk_workflow_escalations.step_id → wsk_approval_steps(id)` (NO ACTION)
+
+0 cross-schema FKs.
+
+**Smoke results (live on `tenant_demo`, single BEGIN…ROLLBACK with savepoints, 23 assertions, all green):**
+
+1. Happy path — 7 inserts across all 5 mutable tables (1 template + 3 steps + 1 request + 1 step + 1 comment) succeed.
+2. `wsk_workflow_steps_order_chk` rejects `step_order=0`.
+3. `wsk_workflow_steps_timeout_chk` rejects `timeout_hours=0`.
+4. `wsk_workflow_steps_approver_type_chk` rejects approver_type='BOGUS'.
+5. `wsk_workflow_steps_approver_shape_chk` rejects SPECIFIC_USER without `approver_ref`.
+6. `wsk_workflow_steps_approver_shape_chk` rejects MANAGER with `approver_ref` set.
+7. `wsk_workflow_steps_template_order_uq` rejects duplicate `(template, step_order)`.
+8. `wsk_workflow_templates_school_type_uq` rejects duplicate `(school, request_type)`.
+9. `wsk_approval_requests_status_chk` rejects status='BOGUS'.
+10. `wsk_approval_requests_resolved_chk` rejects PENDING with `resolved_at` set.
+11. `wsk_approval_requests_resolved_chk` rejects APPROVED without `resolved_at`.
+12. `wsk_approval_requests_reference_shape_chk` rejects only `reference_id` set without `reference_table` (or vice versa).
+13. `wsk_approval_steps_status_chk` rejects step status='BOGUS'.
+14. `wsk_approval_steps_actioned_chk` rejects AWAITING with `actioned_at` set.
+15. `wsk_approval_steps_actioned_chk` rejects APPROVED without `actioned_at`.
+16. SKIPPED without `actioned_at` is **accepted** — confirms the SKIPPED branch of `actioned_chk` permits null timestamps.
+17. `wsk_approval_steps_request_order_uq` rejects duplicate `(request, step_order)`.
+18. CASCADE behavior verified: deleting the template (after first deleting the related approval requests) drops its 2 remaining steps; the 2 steps were visible right before the delete and 0 after.
+19. NO ACTION FK fires when attempting to delete a template that still has approval requests against it (`foreign_key_violation`).
+20. CASCADE on `wsk_approval_requests` delete drops the linked step + comment (both counts 0 after the delete).
+21. `wsk_workflow_escalations_hours_chk` rejects `hours_overdue=-1.0`.
+22. `wsk_workflow_escalations_resolved_chk` rejects an escalation with `resolved_at` set but `resolved_by` null.
+23. Happy-path escalation insert succeeds with both `resolved_at` and `resolved_by` left null (the open-escalation shape).
+
+**Sanity:** 6 logical wsk_* base tables in `tenant_demo` (`information_schema.tables` filter on `wsk\_%` returns exactly 6 — none of these tables are partitioned, so the count matches the logical-table count directly).
+
+**Splitter audit:** A naive single-line regex found false positives because COMMENT strings span multiple lines; switched to a state-machine audit that handles block comments, line comments, and `''` escape sequences inside single-quoted strings. The state-machine audit reports zero `;` outside legitimate statement terminators. Migration applied first try with no rewrite — second cycle in a row to clear the splitter trap on first attempt.
 
 ---
 
