@@ -4,6 +4,10 @@ import { IamModule } from '../iam/iam.module';
 import { KafkaModule } from '../kafka/kafka.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TaskWorker } from './task.worker';
+import { TaskService } from './task.service';
+import { AcknowledgementService } from './acknowledgement.service';
+import { TaskController } from './task.controller';
+import { AcknowledgementController } from './acknowledgement.controller';
 
 /**
  * Tasks Module — M1 Task Management (Cycle 7).
@@ -33,7 +37,8 @@ import { TaskWorker } from './task.worker';
  */
 @Module({
   imports: [TenantModule, IamModule, KafkaModule, NotificationsModule],
-  providers: [TaskWorker],
-  exports: [],
+  providers: [TaskWorker, TaskService, AcknowledgementService],
+  controllers: [TaskController, AcknowledgementController],
+  exports: [TaskService, AcknowledgementService],
 })
 export class TasksModule {}

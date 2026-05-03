@@ -1,6 +1,6 @@
 # Cycle 7 Handoff — Tasks & Approval Workflows
 
-**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 done (schemas land cleanly; demo seeded with 8 rules + 3 templates + 5 sample tasks + 1 historical audit; OPS-001 grants on the four non-admin personas; **TaskWorker live and verified end-to-end on `tenant_demo`** — teacher publishes an assignment → `cls.assignment.posted` fires → worker resolves Maya as the only ACTIVE-enrolled student → 1 auto-task lands with rendered title; re-publish triggers Redis SET NX dedup hit and the task count stays at 1). Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
+**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 done. Schemas land cleanly; demo seeded with 8 rules + 3 templates + 5 sample tasks + 1 historical audit; OPS-001 grants on the four non-admin personas; TaskWorker live and verified end-to-end; **Step 5 ships the request-path API** — TaskService (5 endpoints) + AcknowledgementService (4 endpoints) wired into TasksModule; row-scope on `owner_id` OR `created_for_id`; status transitions handle `completed_chk` lockstep; acknowledge/dispute cascade DONE-flips onto linked tasks in one tx; `task.completed` and `student.acknowledgement.completed` ADR-057 envelopes captured live on the wire. Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
 
 **Branch:** `main`  
 **Plan reference:** `docs/campusos-cycle7-implementation-plan.html`  
@@ -18,7 +18,7 @@ This document tracks the Cycle 7 build — the M1 Task Management module (6 tabl
 | 2    | Workflow Schema — Templates, Requests, Steps           | **DONE**          |
 | 3    | Seed Data — Auto-Task Rules + Workflow Templates       | **DONE**          |
 | 4    | Task Worker — Kafka Consumer + Auto-Task Engine        | **DONE**          |
-| 5    | Task NestJS Module — CRUD + Acknowledgements           | pending           |
+| 5    | Task NestJS Module — CRUD + Acknowledgements           | **DONE**          |
 | 6    | Workflow Engine — Multi-Step Approval                  | pending           |
 | 7    | Leave Approval Migration to Workflow Engine            | pending           |
 | 8    | Tasks UI — To-Do List + Acknowledgements               | pending           |
@@ -321,6 +321,117 @@ The schema-level partial INDEX on `(owner_id, source, source_ref_id) WHERE sourc
 - The `cls.grade.returned` topic has no producer yet — the rule is in place for when the grade-return flow ships.
 - Runtime rule-add (without worker restart) — the seed-only convention covers this for now; a notify-on-rule-change channel would be a Phase 2 hardening.
 - The dev-cluster topic-creation race documented in Cycles 3+5 strikes again. A startup pre-create-topics step or a "warmup emit" sweep would harden first-boot. Documented as known issue.
+
+---
+
+## Step 5 — Task NestJS Module — CRUD + Acknowledgements
+
+**Status:** DONE. The request-path API on top of the Step 1 schema. TasksModule grows two services + two controllers; TaskWorker stays the sole writer to AUTO/SYSTEM rows but TaskService now owns MANUAL creation, status transitions, and the row-scope read paths.
+
+**Files:**
+
+- `apps/api/src/tasks/dto/task.dto.ts` — DTOs and the four enum constants (TASK_PRIORITIES, TASK_STATUSES, TASK_CATEGORIES, TASK_SOURCES; ACK_STATUSES, ACK_SOURCE_TYPES). All enum values are `IsIn`-validated against the same arrays the schema CHECK constraints use, so a future enum addition lands in one place.
+- `apps/api/src/tasks/task.service.ts` — TaskService.
+- `apps/api/src/tasks/acknowledgement.service.ts` — AcknowledgementService.
+- `apps/api/src/tasks/task.controller.ts` + `apps/api/src/tasks/acknowledgement.controller.ts` — 9 endpoints total.
+- `apps/api/src/tasks/tasks.module.ts` — adds TaskService + AcknowledgementService to providers, both controllers to the controllers list, and exports the services for consumers in later cycles.
+
+**9 new endpoints (5 tasks + 4 acks):**
+
+| Verb | Path | Permission | Notes |
+| ---- | ---- | ---------- | ----- |
+| GET    | `/tasks` | `ops-001:read` | Default scope: `owner_id = actor` OR `created_for_id = actor` (admin sees all). Filters: `status`, `taskCategory`, `priority`, `dueAfter`, `dueBefore`, `includeCompleted` (default false — TODO/IN_PROGRESS only). Sorted by due date NULLS LAST, then priority urgency. Default limit 100 / max 200. |
+| GET    | `/tasks/assigned` | `ops-001:read` | "Tasks delegated to me by another user" — `created_for_id = actor` AND `owner_id != actor`. The inbox of work others have asked me to do. |
+| GET    | `/tasks/:id` | `ops-001:read` | Row-scope: caller must be owner OR creator OR admin; otherwise 404 (no leak). |
+| POST   | `/tasks` | `ops-001:write` | Creates a MANUAL task. `assigneeAccountId` (optional) lands the task on someone else's list with `created_for_id = caller` — admin-only this cycle (non-admin delegation rejected with 403). ACKNOWLEDGEMENT-category tasks rejected for non-admins (those flow through the worker). Emits `task.created`. |
+| PATCH  | `/tasks/:id` | `ops-001:write` | Status transitions + retitle + reschedule. Service handles the multi-column `completed_chk` lockstep — TODO/IN_PROGRESS clear `completed_at`, DONE/CANCELLED set it via `COALESCE(completed_at, now())` so a re-DONE doesn't bump the timestamp. Emits `task.completed` only on the first DONE transition. |
+| GET    | `/acknowledgements` | `ops-001:read` | Default: own pending (`subject_id = actor.personId AND status = 'PENDING'`). Admins can pass `?all=true` for the tenant-wide history. |
+| GET    | `/acknowledgements/:id` | `ops-001:read` | Row-scope: caller's `personId` must equal `subject_id`, or admin. 404 on mismatch. |
+| POST   | `/acknowledgements/:id/acknowledge` | `ops-001:write` | Flips PENDING → ACKNOWLEDGED, sets `acknowledged_at = now()`, **DONE-cascades every linked `tsk_tasks` row in the same transaction**. Emits `student.acknowledgement.completed`. |
+| POST   | `/acknowledgements/:id/dispute` | `ops-001:write` | Same as acknowledge but flips to ACKNOWLEDGED_WITH_DISPUTE with a required `reason` (1–2000 chars; class-validator rejects empty). Linked tasks still flip to DONE. |
+
+**Row-scope contract:**
+
+- **Tasks:** caller can see/edit a task when `owner_id = actor.accountId` OR `created_for_id = actor.accountId`. Admins (`actor.isSchoolAdmin`) bypass. Non-matching rows return 404 (not 403) so an attacker can't probe ids.
+- **Acknowledgements:** caller can see/act on an ack when `subject_id = actor.personId`. Admins bypass. Non-matching rows return 404.
+
+**Convention adopted (clarifying the schema):**
+
+- `owner_id` — the person whose to-do list the task lands on (the assignee in everyday terms).
+- `created_for_id` — set when one user creates a task on behalf of another. The task lives on `owner_id`'s list; `created_for_id` carries the original creator. The `/tasks/assigned` endpoint queries `WHERE created_for_id = me AND owner_id != me` — the "I delegated this and it lives on someone else's list" view.
+- AUTO tasks (worker writes): `owner_id = the assignee`, `created_for_id = NULL`. The Step 4 worker already follows this convention.
+- MANUAL self-task: `owner_id = me, created_for_id = NULL`.
+- MANUAL delegation: `owner_id = assignee, created_for_id = me` (admin-only this cycle).
+
+The plan's row-auth note "Teachers can see tasks they created for students (created_for_id set, owner_id = teacher's accountId)" reads as if the task lives on the teacher's list; the schema and the to-do list mental model are clearer with the convention above. Documented here so a reviewer can see the deliberate divergence.
+
+**Status-transition multi-column CHECK handling:**
+
+The schema's `tsk_tasks_completed_chk` requires:
+- TODO / IN_PROGRESS ⇒ `completed_at IS NULL`
+- DONE / CANCELLED ⇒ `completed_at IS NOT NULL`
+
+The service handles the lockstep so callers don't have to: when the PATCH lands `status=DONE` or `CANCELLED`, the same UPDATE sets `completed_at = COALESCE(completed_at, now())` (so re-DONE doesn't bump the timestamp); when status flips back to TODO/IN_PROGRESS, `completed_at = NULL` clears in the same UPDATE. Re-opening a DONE task is allowed — the schema doesn't prohibit it and users sometimes mark something done then realise they're not actually done.
+
+**Acknowledge / dispute tx model:**
+
+Both flows use `executeInTenantTransaction` and lock the ack row with `SELECT … FOR UPDATE` so two parallel acknowledgements serialise. Inside the same tx:
+
+1. Validate caller is the subject (`actor.personId = subject_id`) or admin.
+2. Validate status is currently PENDING; reject 400 otherwise.
+3. UPDATE `tsk_acknowledgements` — flip status, set `acknowledged_at = now()`, set `dispute_reason` (null on acknowledge, non-null on dispute).
+4. UPDATE `tsk_tasks` — flip every linked row (`acknowledgement_id = $1`) that is not already DONE or CANCELLED to status='DONE' + `completed_at = now()`. Multi-column `completed_chk` is satisfied by the same UPDATE setting both columns.
+
+The Kafka emit happens **outside** the tx — the row is committed before the network call so a transient broker hiccup doesn't roll back the user's action.
+
+**Live verification on `tenant_demo` (Step 5 smoke, 23 scenarios all pass):**
+
+Tasks (S1–S14):
+
+1. Maya `GET /tasks` returns her 4 open tasks (3 ACADEMIC + 1 PERSONAL — DONE/CANCELLED filtered by default).
+2. Maya `GET /tasks?status=DONE` returns 0.
+3. David `GET /tasks` returns his 1 ADMINISTRATIVE row.
+4. Maya `POST /tasks` creates a manual PERSONAL task — emits `task.created`.
+5. PATCH TODO → IN_PROGRESS leaves `completed_at` NULL.
+6. PATCH IN_PROGRESS → DONE auto-sets `completed_at` and emits `task.completed`.
+7. PATCH DONE → TODO clears `completed_at` to NULL (re-open path).
+8. Sarah (admin) `GET /tasks` returns all 6 tenant-wide rows.
+9. David `GET /tasks/{Maya's id}` returns 404 (row scope, no leak).
+10. Maya delegates with `assigneeAccountId` → 403 (`Only admins can create tasks on behalf of another user this cycle`).
+11. Sarah delegates a task to David — succeeds.
+12. David's list now includes the delegation with `createdForName='Sarah Mitchell'`.
+13. Sarah's `/tasks/assigned` shows the delegation with `ownerName='David Chen'`.
+14. No-auth `GET /tasks` returns 401.
+
+Acknowledgements (A1–A9):
+
+15. Maya `GET /acknowledgements` returns her 2 pending acks (seeded directly via SQL since no producer exists yet for `msg.announcement.requires_acknowledgement` / `sis.consent.requested`).
+16. Maya `POST /acknowledgements/:id/acknowledge` flips status ACKNOWLEDGED + sets `acknowledged_at`.
+17. Linked task confirmed DONE with `completed_at` set (cascade verified).
+18. Re-acknowledge correctly 400's with "Only PENDING acknowledgements can be acknowledged".
+19. Maya disputes the second ack with a reason — flips to ACKNOWLEDGED_WITH_DISPUTE + records `dispute_reason`.
+20. Empty-reason dispute → 400 from class-validator (1–2000 char range enforced).
+21. David's `GET /acknowledgements` returns 0 (different subject).
+22. David's GET on Maya's ack id returns 404 (row scope).
+23. Sarah (`?all=true`) sees both tenant-wide acks with their final statuses.
+
+**Wire envelopes captured live (ADR-057 shape):**
+
+- `dev.task.completed` — `{event_id, event_type, source_module:'tasks', tenant_id, correlation_id, payload:{taskId, ownerId, title, taskCategory, source:'MANUAL', sourceRefId:null, completedAt}}`.
+- `dev.student.acknowledgement.completed` — `{... source_module:'tasks' ..., payload:{acknowledgementId, subjectId, status:'ACKNOWLEDGED_WITH_DISPUTE', sourceType:'DISCIPLINE_RECORD', sourceRefId, disputeReason}}`.
+
+Smoke residue cleaned (3 manual tasks + 4 ack-tasks + 2 acks deleted) — tenant returns to the post-Step-3 seed state (5 sample tasks, 0 acks).
+
+**Bug caught and fixed during the smoke:**
+
+The first ack-smoke run keyed `subject_id` to the principal's `iam_person.id` instead of Maya's (the SQL JOIN reused the same `pu` row for both `subject_id` and `created_by`). Maya's GET returned 0 acks even though the rows existed. Re-seeded the test acks with the correct `subject_id` lookup keyed via Maya's `platform_users.email` and the smoke ran clean. The service's row-scope check correctly returned 0 / 404 — the bug was test-data only, not a service-layer issue.
+
+**Out of scope this step (deferred):**
+
+- Teachers delegating tasks to students they teach (this cycle restricts delegation to admins; future iteration can open it up using the `sis_class_teachers` row-scope pattern from Cycle 2).
+- Bulk task admin operations (`ops-001:admin` tier).
+- Task tags (`tsk_task_tags` was deferred at the schema level per the plan; the API would land alongside).
+- Receipt of `task.completed` events anywhere — the emit lands but no consumer wires it through to a notification yet (similar pattern to Cycle 5's `sch.coverage.assigned` documented carry-over).
 
 ---
 
