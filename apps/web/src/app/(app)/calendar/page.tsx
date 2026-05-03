@@ -8,10 +8,12 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/components/ui/cn';
 import {
+  useCalendarEventRsvpSummary,
   useCalendarEvents,
   useCreateCalendarEvent,
   useDayOverrides,
   useDeleteCalendarEvent,
+  useSetCalendarEventRsvp,
   useUpdateCalendarEvent,
 } from '@/hooks/use-scheduling';
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
@@ -23,6 +25,7 @@ import {
 } from '@/lib/scheduling-format';
 import type {
   CalendarEventDto,
+  CalendarEventRsvpResponse,
   CalendarEventType,
   CreateCalendarEventPayload,
   DayOverrideDto,
@@ -85,11 +88,22 @@ const MONTH_NAMES = [
 export default function CalendarPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = !!user && hasAnyPermission(user, ['sch-003:admin', 'sch-001:admin']);
+  const isGuardian = user?.personType === 'GUARDIAN';
 
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getUTCFullYear());
   const [viewMonth, setViewMonth] = useState(today.getUTCMonth());
   const [includeDrafts, setIncludeDrafts] = useState(false);
+  const [myKidsOnly, setMyKidsOnly] = useState(false);
+  // The school-selector placeholder for multi-school families. CampusOS still
+  // serves one tenant per request, so the dropdown lists this school only.
+  // When the platform rolls out true cross-tenant aggregation the option set
+  // expands without changing the calendar grid wiring.
+  // Placeholder option list — cross-tenant aggregation is Phase 3, but the
+  // dropdown is rendered now so the multi-school UX is ready. With one tenant
+  // per request, the only entry is the current school.
+  const schoolOptions = useMemo(() => [{ id: 'current', label: 'This school' }], []);
+  const [selectedSchool, setSelectedSchool] = useState<string>('current');
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventDto | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
@@ -109,6 +123,7 @@ export default function CalendarPage() {
       fromDate: rangeStart,
       toDate: rangeEnd,
       includeDrafts: isAdmin && includeDrafts,
+      myKidsOnly: isGuardian && myKidsOnly,
     },
     !!user,
   );
@@ -201,17 +216,44 @@ export default function CalendarPage() {
           </button>
         </div>
 
-        {isAdmin && (
-          <label className="inline-flex items-center gap-2 text-sm text-gray-600">
-            <input
-              type="checkbox"
-              checked={includeDrafts}
-              onChange={(e) => setIncludeDrafts(e.target.checked)}
-              className="rounded border-gray-300 text-campus-600 focus:ring-campus-500"
-            />
-            Show drafts
-          </label>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {schoolOptions.length > 1 ? (
+            <select
+              value={selectedSchool}
+              onChange={(e) => setSelectedSchool(e.target.value)}
+              className="rounded-lg border border-gray-300 px-2 py-1 text-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500"
+              aria-label="School filter"
+            >
+              {schoolOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {isGuardian && (
+            <label className="inline-flex items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={myKidsOnly}
+                onChange={(e) => setMyKidsOnly(e.target.checked)}
+                className="rounded border-gray-300 text-campus-600 focus:ring-campus-500"
+              />
+              My children only
+            </label>
+          )}
+          {isAdmin && (
+            <label className="inline-flex items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={includeDrafts}
+                onChange={(e) => setIncludeDrafts(e.target.checked)}
+                className="rounded border-gray-300 text-campus-600 focus:ring-campus-500"
+              />
+              Show drafts
+            </label>
+          )}
+        </div>
       </div>
 
       {events.isLoading ? (
@@ -330,9 +372,27 @@ function EventDetailModal({
 }) {
   const update = useUpdateCalendarEvent(event?.id ?? '');
   const del = useDeleteCalendarEvent();
+  const setRsvp = useSetCalendarEventRsvp(event?.id ?? '');
+  const rsvpSummary = useCalendarEventRsvpSummary(event?.id ?? null, !!event && event.isPublished);
   const { toast } = useToast();
 
   if (!event) return null;
+
+  async function respond(response: CalendarEventRsvpResponse) {
+    try {
+      await setRsvp.mutateAsync({ response });
+      toast(
+        response === 'GOING'
+          ? 'Marked going'
+          : response === 'TENTATIVE'
+            ? 'Marked tentative'
+            : 'Marked not going',
+        'success',
+      );
+    } catch (e: any) {
+      toast(e?.message || 'Could not save your response', 'error');
+    }
+  }
 
   async function publish() {
     try {
@@ -400,6 +460,48 @@ function EventDetailModal({
         {event.createdByName && (
           <p className="text-xs text-gray-500">Author: {event.createdByName}</p>
         )}
+
+        {event.isPublished && (
+          <div className="border-t border-gray-100 pt-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+              Will you attend?
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(['GOING', 'TENTATIVE', 'NOT_GOING'] as const).map((r) => {
+                const active = rsvpSummary.data?.myResponse === r;
+                const label =
+                  r === 'GOING' ? 'Going' : r === 'TENTATIVE' ? 'Tentative' : 'Not going';
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => respond(r)}
+                    disabled={setRsvp.isPending}
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50',
+                      active
+                        ? r === 'GOING'
+                          ? 'border-emerald-500 bg-emerald-100 text-emerald-800'
+                          : r === 'TENTATIVE'
+                            ? 'border-amber-500 bg-amber-100 text-amber-800'
+                            : 'border-gray-500 bg-gray-200 text-gray-800'
+                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {rsvpSummary.data && (
+              <p className="mt-2 text-xs text-gray-500">
+                {rsvpSummary.data.going} going · {rsvpSummary.data.tentative} tentative ·{' '}
+                {rsvpSummary.data.notGoing} not going
+              </p>
+            )}
+          </div>
+        )}
+
         {isAdmin && (
           <div className="flex items-center gap-2 border-t border-gray-100 pt-3">
             {!event.isPublished && (

@@ -93,8 +93,13 @@ export class CalendarService {
   async list(
     query: ListCalendarEventsQueryDto,
     actor: ResolvedActor,
+    options?: { myKidsPersonIds?: string[] | null },
   ): Promise<CalendarEventResponseDto[]> {
     var includeDrafts = actor.isSchoolAdmin && query.includeDrafts === true;
+    // myKidsOnly is only meaningful when a non-empty person-id set has been
+    // resolved by the controller. An empty array would correctly return zero
+    // rows; null disables the filter entirely.
+    var personIds = options?.myKidsPersonIds ?? null;
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<EventRow[]>(
         SELECT_EVENT_BASE +
@@ -102,11 +107,16 @@ export class CalendarService {
           'AND ($2::date IS NULL OR e.end_date >= $2::date) ' +
           'AND ($3::date IS NULL OR e.start_date <= $3::date) ' +
           'AND ($4::text IS NULL OR e.event_type = $4::text) ' +
+          'AND ($5::uuid[] IS NULL OR EXISTS (' +
+          'SELECT 1 FROM sch_calendar_event_rsvps r ' +
+          "WHERE r.calendar_event_id = e.id AND r.response IN ('GOING', 'TENTATIVE') " +
+          'AND r.person_id = ANY($5::uuid[]))) ' +
           'ORDER BY e.start_date, e.start_time NULLS FIRST, e.created_at',
         includeDrafts,
         query.fromDate ?? null,
         query.toDate ?? null,
         query.eventType ?? null,
+        personIds,
       );
     });
     return rows.map(rowToDto);

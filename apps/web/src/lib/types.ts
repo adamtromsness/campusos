@@ -1088,6 +1088,29 @@ export interface ListCalendarEventsArgs {
   toDate?: string;
   eventType?: CalendarEventType;
   includeDrafts?: boolean;
+  myKidsOnly?: boolean;
+}
+
+export type CalendarEventRsvpResponse = 'GOING' | 'TENTATIVE' | 'NOT_GOING';
+
+export interface CalendarEventRsvpDto {
+  id: string;
+  calendarEventId: string;
+  personId: string;
+  personName: string | null;
+  response: CalendarEventRsvpResponse;
+  respondedAt: string;
+}
+
+export interface CalendarEventRsvpSummaryDto {
+  going: number;
+  tentative: number;
+  notGoing: number;
+  myResponse: CalendarEventRsvpResponse | null;
+}
+
+export interface SetCalendarEventRsvpPayload {
+  response: CalendarEventRsvpResponse;
 }
 
 export interface DayOverrideDto {

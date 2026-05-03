@@ -191,6 +191,43 @@ export class ListCalendarEventsQueryDto {
   })
   @IsBoolean()
   includeDrafts?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Parent only — restrict to events where the parent or their linked children have a GOING / TENTATIVE RSVP.',
+  })
+  @IsOptional()
+  @Transform(function (params: { value: unknown }) {
+    if (typeof params.value === 'boolean') return params.value;
+    if (typeof params.value === 'string') return params.value === 'true';
+    return false;
+  })
+  @IsBoolean()
+  myKidsOnly?: boolean;
+}
+
+export class SetCalendarEventRsvpDto {
+  @ApiProperty({ enum: ['GOING', 'TENTATIVE', 'NOT_GOING'] })
+  @IsIn(['GOING', 'TENTATIVE', 'NOT_GOING'])
+  response!: 'GOING' | 'TENTATIVE' | 'NOT_GOING';
+}
+
+export class CalendarEventRsvpResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() calendarEventId!: string;
+  @ApiProperty() personId!: string;
+  @ApiPropertyOptional({ nullable: true }) personName!: string | null;
+  @ApiProperty({ enum: ['GOING', 'TENTATIVE', 'NOT_GOING'] })
+  response!: 'GOING' | 'TENTATIVE' | 'NOT_GOING';
+  @ApiProperty() respondedAt!: string;
+}
+
+export class CalendarEventRsvpSummaryResponseDto {
+  @ApiProperty() going!: number;
+  @ApiProperty() tentative!: number;
+  @ApiProperty() notGoing!: number;
+  @ApiPropertyOptional({ nullable: true, enum: ['GOING', 'TENTATIVE', 'NOT_GOING'] })
+  myResponse!: 'GOING' | 'TENTATIVE' | 'NOT_GOING' | null;
 }
 
 export class DayOverrideResponseDto {

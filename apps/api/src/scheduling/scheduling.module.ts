@@ -9,6 +9,7 @@ import { RoomService } from './room.service';
 import { RoomBookingService } from './room-booking.service';
 import { RoomChangeRequestService } from './room-change-request.service';
 import { CalendarService } from './calendar.service';
+import { CalendarRsvpService } from './calendar-rsvp.service';
 import { DayOverrideService } from './day-override.service';
 import { CoverageService } from './coverage.service';
 import { SubstitutionService } from './substitution.service';
@@ -68,6 +69,7 @@ import { SubstitutionController } from './substitution.controller';
     RoomBookingService,
     RoomChangeRequestService,
     CalendarService,
+    CalendarRsvpService,
     DayOverrideService,
     CoverageService,
     SubstitutionService,
@@ -90,6 +92,7 @@ import { SubstitutionController } from './substitution.controller';
     RoomBookingService,
     RoomChangeRequestService,
     CalendarService,
+    CalendarRsvpService,
     DayOverrideService,
     CoverageService,
     SubstitutionService,

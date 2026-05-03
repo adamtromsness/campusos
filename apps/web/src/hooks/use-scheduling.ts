@@ -7,6 +7,8 @@ import type {
   BellScheduleDto,
   CalendarDayResolutionDto,
   CalendarEventDto,
+  CalendarEventRsvpDto,
+  CalendarEventRsvpSummaryDto,
   CancelCoveragePayload,
   CancelRoomBookingPayload,
   CoverageRequestDto,
@@ -30,6 +32,7 @@ import type {
   RoomBookingDto,
   RoomChangeRequestDto,
   RoomDto,
+  SetCalendarEventRsvpPayload,
   SubstitutionDto,
   TimetableSlotDto,
   UpdateBellSchedulePayload,
@@ -406,6 +409,7 @@ export function useCalendarEvents(args: ListCalendarEventsArgs = {}, enabled = t
   if (args.toDate) params.set('toDate', args.toDate);
   if (args.eventType) params.set('eventType', args.eventType);
   if (args.includeDrafts) params.set('includeDrafts', 'true');
+  if (args.myKidsOnly) params.set('myKidsOnly', 'true');
   const qs = params.toString();
   return useQuery({
     queryKey: [
@@ -417,6 +421,7 @@ export function useCalendarEvents(args: ListCalendarEventsArgs = {}, enabled = t
         toDate: args.toDate ?? null,
         eventType: args.eventType ?? null,
         includeDrafts: !!args.includeDrafts,
+        myKidsOnly: !!args.myKidsOnly,
       },
     ],
     queryFn: () => apiFetch<CalendarEventDto[]>(`/api/v1/calendar${qs ? `?${qs}` : ''}`),
@@ -625,5 +630,41 @@ export function useSubstitutionsForTeacher(
         `/api/v1/substitutions/teacher/${employeeId}${qs ? `?${qs}` : ''}`,
       ),
     enabled: enabled && typeof employeeId === 'string' && employeeId.length > 0,
+  });
+}
+
+// ── Calendar event RSVPs ──────────────────────────────────────────
+
+export function useCalendarEventRsvpSummary(id: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['scheduling', 'calendar', 'rsvp-summary', id],
+    queryFn: () =>
+      apiFetch<CalendarEventRsvpSummaryDto>(`/api/v1/calendar/${id}/rsvp-summary`),
+    enabled: enabled && typeof id === 'string' && id.length > 0,
+  });
+}
+
+export function useCalendarEventRsvps(id: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['scheduling', 'calendar', 'rsvps', id],
+    queryFn: () => apiFetch<CalendarEventRsvpDto[]>(`/api/v1/calendar/${id}/rsvps`),
+    enabled: enabled && typeof id === 'string' && id.length > 0,
+  });
+}
+
+export function useSetCalendarEventRsvp(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SetCalendarEventRsvpPayload) =>
+      apiFetch<CalendarEventRsvpDto>(`/api/v1/calendar/${id}/rsvp`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'calendar', 'rsvp-summary', id] });
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'calendar', 'rsvps', id] });
+      // myKidsOnly filter relies on RSVP rows, so refresh the events list too.
+      void qc.invalidateQueries({ queryKey: ['scheduling', 'calendar', 'events'] });
+    },
   });
 }
