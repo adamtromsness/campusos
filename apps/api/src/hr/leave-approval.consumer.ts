@@ -39,7 +39,7 @@ interface ResolvedPayload {
   referenceId: string | null;
   referenceTable: string | null;
   requesterId: string;
-  status: 'APPROVED' | 'REJECTED';
+  status: 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
   approverAccountId?: string;
 }
 
@@ -85,7 +85,7 @@ export class LeaveApprovalConsumer implements OnModuleInit {
       );
       return;
     }
-    if (p.status !== 'APPROVED' && p.status !== 'REJECTED') {
+    if (p.status !== 'APPROVED' && p.status !== 'REJECTED' && p.status !== 'WITHDRAWN') {
       this.logger.warn(
         '[' +
           CONSUMER_GROUP +
@@ -126,10 +126,17 @@ export class LeaveApprovalConsumer implements OnModuleInit {
         this.logger.log(
           '[' + CONSUMER_GROUP + '] APPROVED leave ' + referenceId + ' via workflow engine',
         );
-      } else {
+      } else if (p.status === 'REJECTED') {
         await this.leave.rejectInternal(referenceId, null, reviewerAccountId);
         this.logger.log(
           '[' + CONSUMER_GROUP + '] REJECTED leave ' + referenceId + ' via workflow engine',
+        );
+      } else {
+        // WITHDRAWN — requester pulled the approval back, cascade-cancel
+        // the leave row so balance + status stay consistent.
+        await this.leave.cancelInternal(referenceId, reviewerAccountId);
+        this.logger.log(
+          '[' + CONSUMER_GROUP + '] CANCELLED leave ' + referenceId + ' via workflow withdraw',
         );
       }
     } catch (e: any) {

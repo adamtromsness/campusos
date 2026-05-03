@@ -457,11 +457,14 @@ export class WorkflowEngineService {
 
   /**
    * Requester-only — withdraws a still-PENDING request. Skips every
-   * AWAITING step. Does NOT emit approval.request.resolved (the source
-   * module shouldn't act on a withdrawn request — it's the requester's
-   * own decision to pull back).
+   * AWAITING step. Emits approval.request.resolved with
+   * status='WITHDRAWN' so source-module consumers can cascade the
+   * domain row (e.g. LeaveApprovalConsumer routes WITHDRAWN to
+   * LeaveService.cancelInternal so the leave row flips to CANCELLED).
    */
   async withdraw(requestId: string, actor: ResolvedActor): Promise<ApprovalRequestResponseDto> {
+    const tenant = getCurrentTenant();
+    let resolvedRow: RequestRow | null = null;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<Array<{ requester_id: string; status: string }>>(
         'SELECT requester_id::text AS requester_id, status FROM wsk_approval_requests ' +
@@ -488,7 +491,30 @@ export class WorkflowEngineService {
           'WHERE id = $1::uuid',
         requestId,
       );
+      const detail = await tx.$queryRawUnsafe<RequestRow[]>(
+        SELECT_REQUEST_BASE + 'WHERE r.id = $1::uuid',
+        requestId,
+      );
+      if (detail.length > 0) resolvedRow = detail[0]!;
     });
+    if (resolvedRow !== null) {
+      const r = resolvedRow as RequestRow;
+      void this.kafka.emit({
+        topic: 'approval.request.resolved',
+        key: requestId,
+        sourceModule: 'workflows',
+        payload: {
+          requestId,
+          requestType: r.request_type,
+          referenceId: r.reference_id,
+          referenceTable: r.reference_table,
+          requesterId: r.requester_id,
+          status: 'WITHDRAWN',
+        },
+        tenantId: tenant.schoolId,
+        tenantSubdomain: tenant.subdomain,
+      });
+    }
     return this.getById(requestId, actor);
   }
 

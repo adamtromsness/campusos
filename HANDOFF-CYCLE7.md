@@ -1,6 +1,6 @@
 # Cycle 7 Handoff — Tasks & Approval Workflows
 
-**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 done. Schemas + seed + permissions + workers + APIs + UI surfaces all live. **Step 9 ships the Approvals UI** — new `Approvals` launchpad tile gated on `ops-001:read` with badge counting AWAITING steps where I'm the assigned approver, 4 routes (`/approvals` queue, `/approvals/[id]` detail with step timeline + comments + Approve/Reject Modals + Withdraw, `/approvals/my-requests` requester view, `/admin/workflows` admin-only read-only template list); 2 small new backend endpoints `GET /workflow-templates` + `GET /workflow-templates/:id` admin-gated to back the templates page. Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
+**Status:** Cycle 7 **COMPLETE** (all 10 steps done; awaiting post-cycle architecture review). Schemas + seed + permissions + workers + APIs + UI surfaces + leave migration + CAT all ship. **Step 10 closes the Step 7 deferred WITHDRAWN-cascade gap** — `WorkflowEngineService.withdraw()` now emits `approval.request.resolved` with `status='WITHDRAWN'`, `LeaveApprovalConsumer` routes it to a new `LeaveService.cancelInternal` (extracted from `cancel()` like the approve/reject pair from Step 7), the leave row cascade-flips to CANCELLED + pending balance reverts. Plus `docs/cycle7-cat-script.md` walks the 10 plan scenarios end-to-end, all passing live on `tenant_demo`. Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
 
 **Branch:** `main`  
 **Plan reference:** `docs/campusos-cycle7-implementation-plan.html`  
@@ -23,7 +23,7 @@ This document tracks the Cycle 7 build — the M1 Task Management module (6 tabl
 | 7    | Leave Approval Migration to Workflow Engine            | **DONE**          |
 | 8    | Tasks UI — To-Do List + Acknowledgements               | **DONE**          |
 | 9    | Approvals UI — Admin Queue + Workflow Config           | **DONE**          |
-| 10   | Vertical Slice Integration Test                        | pending           |
+| 10   | Vertical Slice Integration Test                        | **DONE**          |
 
 ---
 
@@ -692,6 +692,37 @@ Build clean — no errors after the standard pattern (PageHeader.description bei
 - **Workflow template editor.** The plan called for "add/remove/reorder steps, set approver type per step, set timeout hours, create new templates." Schema is ready (Step 2) but the request-path API for CRUD doesn't exist yet — would need `POST /workflow-templates`, `PATCH /workflow-templates/:id`, the step CRUD endpoints, plus the UI for the form. Punted because the seeded 3 templates cover the MVP and template editing is admin power-user territory; landing this needs a coherent UX that also covers reorder + approver-picker. Documented in the amber banner on `/admin/workflows`.
 - **Sidebar navigation entry-point** to "My requests". The launchpad tile currently routes to the queue (`/approvals`); my-requests is reachable via the header button on the queue page or by direct URL. A future Sidebar revamp could add it as a sub-route.
 - **Approver row scope** — the badge counts "AWAITING with approverId === me" and the queue page filters the same way, but the backend's `/approvals` endpoint with `status=PENDING` returns every PENDING row I can see (which includes my own submissions if I'm both requester + approver — admins acting as approvers on their own requests). Client-side filtering is fine for the demo but a future API tightening could add a server-side `?role=approver|requester` filter for cleaner separation.
+
+---
+
+## Step 10 — Vertical Slice Integration Test
+
+**Status:** DONE. The cycle's exit deliverable. Two pieces ship together: a small backend fix that closes the Step 7 WITHDRAWN-cascade carry-over so the CAT can walk every plan scenario, plus the CAT script itself.
+
+**Backend close-out fix (3 small edits):**
+
+- `apps/api/src/workflows/workflow-engine.service.ts` — `withdraw()` now emits `approval.request.resolved` with `status='WITHDRAWN'` after the tx commits. Step 7 explicitly **didn't** emit on WITHDRAWN ("the requester pulled back, source modules shouldn't act on it") but the plan's CAT calls for WITHDRAWN to cascade-cancel the leave row, so the closure aligns with the cycle's stated intent. Source modules can still ignore WITHDRAWN if they want — they just need to add `else if (p.status === 'WITHDRAWN') {...}` to their consumer.
+- `apps/api/src/hr/leave.service.ts` — extracts a new public `cancelInternal(id, accountId)` from `cancel()`, mirroring the Step 7 `approveInternal` / `rejectInternal` pattern. The public `cancel()` still gates on owner-or-admin; the internal helper bypasses for the consumer-driven path. Uses `loadByIdNoAuth` for the post-flip read.
+- `apps/api/src/hr/leave-approval.consumer.ts` — `ResolvedPayload.status` widens to include `'WITHDRAWN'`; the routing switch adds `if (p.status === 'WITHDRAWN') await leave.cancelInternal(...)` with the same documented "already terminal — drop" race-loss handling as the APPROVED/REJECTED paths.
+
+Smoke verified live on `tenant_demo` in 7 steps (W1–W7 in the Step 10 commit log): pre-state `pending=0 used=2`, Rivera submits 1-day Sick leave, approval row created with Step 1 AWAITING + balance bumps `pending=1`, Rivera withdraws via `POST /approvals/:id/withdraw`, approval flips to WITHDRAWN with `resolvedAt` set, **LeaveApprovalConsumer fires within 1 second** and the leave row flips to CANCELLED, post-state `pending=0 used=2` (back to seed). Smoke residue cleaned.
+
+**CAT script:** `docs/cycle7-cat-script.md` ships as the cycle's exit deliverable. Schema preamble (5 checks: 33 tsk_* base+leaf tables / 6 wsk_* tables / 24 monthly tsk_tasks partition leaves / 8 seeded auto-task rules / 3 active workflow templates) + 10 keystone scenarios:
+
+1. **Auto-task from assignment** — Teacher publishes → `cls.assignment.posted` → TaskWorker creates `Complete: …` row on Maya's list within ~3s. `task.created` envelope captured.
+2. **Student completes task** — Maya PATCHes status=DONE → status flips, `completed_at` populated, `task.completed` envelope captured.
+3. **Manual task delegation** — Sarah (admin) creates a task `assigneeAccountId=Maya` → row lives on Maya's list with `createdForName=Sarah Mitchell`.
+4. **Leave through workflow engine** — Rivera submits → `WorkflowEngineService.submit()` creates approval request with Step 1 AWAITING (DEPARTMENT_HEAD falls back to first school admin alphabetically, which is `admin@`).
+5. **Step 1 approval activates Step 2** — Sarah approves Step 1 via admin override → Step 2 activates with approver=Sarah Mitchell (ROLE='SCHOOL_ADMIN' resolves her). Request stays PENDING.
+6. **Step 2 approval resolves + cascades** — Sarah approves Step 2 → request status=APPROVED + `resolved_at` populated → `approval.request.resolved` envelope fires → LeaveApprovalConsumer cascades within ~1s → leave row flips PENDING→APPROVED + balance shifts pending=0/used=2 → pending=0/used=3 → existing Cycle 4-5 chain still works → CoverageConsumer creates **6 OPEN coverage rows** (one per Rivera class on the leave date).
+7. **Rejection path** — Sarah rejects Step 1 → request immediately REJECTED + leave reverts to REJECTED + pending balance reverts. Note: in sequential mode the next step is never instantiated, so `wsk_approval_steps` for the rejected request has only 1 row (status=REJECTED) — the plan's "Step 2 SKIPPED" wording applies only when parallel mode is enabled.
+8. **Withdrawal path** (Step 10 close-out fix) — Rivera withdraws via `POST /approvals/:id/withdraw` → approval flips to WITHDRAWN + emit fires → consumer cascade-cancels the leave → leave flips to CANCELLED + pending balance reverts.
+9. **Acknowledgement** — admin SQL-inserts a POLICY_DOCUMENT ack + linked ACKNOWLEDGEMENT-category task; Maya hits `POST /acknowledgements/:id/acknowledge` → ack flips to ACKNOWLEDGED with `acknowledged_at` set + cascade-DONE-flips the linked task in the same tx → `student.acknowledgement.completed` envelope captured. (Public ack-creation API is deferred — the worker creates them automatically off Kafka events that don't have producers yet, so the CAT inserts directly to exercise the request-path acknowledge endpoint.)
+10. **Permission denials** — 4 paths: student approving an already-APPROVED step → 400 ("Only AWAITING steps can be approved"); parent reading another user's task → 404 (row scope); teacher reading workflow templates → 403 (`ops-001:admin` required); non-admin attempting delegation via `assigneeAccountId` → 403 ("Only admins can create tasks on behalf of another user this cycle").
+
+Each scenario shows the expected DB state + Kafka envelope (where applicable). Cleanup script restores `tenant_demo` to the post-Step-3 seed state — drops all smoke leave rows + their cascading approval/step/coverage rows, drops the smoke task + delegated task + acknowledgement, restores Rivera's Sick balance to `pending=0 used=2`, drops the LEAVE_APPROVED auto-tasks the Cycle 7 Step 8 cleanup discovery surfaced (the `hr.leave.approved` rule's TaskWorker reaction creates one task per school admin — Step 7's cleanup script didn't drop them), and clears the Redis dedup keys for the auto-task path so a re-run doesn't hit the per-(owner, source_ref_id) gate.
+
+**Cycle 7 ships clean to the post-cycle architecture review.** Tagged `cycle7-complete` after this commit.
 
 ---
 

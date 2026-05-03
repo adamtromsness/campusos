@@ -503,6 +503,20 @@ export class LeaveService {
         'Only the owning employee or an admin can cancel this leave request',
       );
     }
+    return this.cancelInternal(id, actor.accountId);
+  }
+
+  /**
+   * Apply cancel side effects WITHOUT the ownership gate. Used by both
+   * the public cancel() (after admin/owner check) and the
+   * LeaveApprovalConsumer when the workflow engine emits
+   * approval.request.resolved with status=WITHDRAWN — the requester
+   * pulled the approval back, the leave row should follow.
+   */
+  async cancelInternal(
+    id: string,
+    cancellerAccountId: string,
+  ): Promise<LeaveRequestResponseDto> {
     var academicYearId = await this.requireCurrentAcademicYearId();
     var locked = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       var row = await this.lockAndValidate(tx, id, null);
@@ -528,7 +542,7 @@ export class LeaveService {
       );
       return row;
     });
-    var dto = await this.getById(id, actor);
+    var dto = await this.loadByIdNoAuth(id);
     void this.kafka.emit({
       topic: 'hr.leave.cancelled',
       key: id,
@@ -543,7 +557,7 @@ export class LeaveService {
         endDate: dto.endDate,
         daysRequested: dto.daysRequested,
         previousStatus: locked.status,
-        cancelledBy: actor.accountId,
+        cancelledBy: cancellerAccountId,
         status: 'CANCELLED',
       },
     });
