@@ -1,521 +1,873 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CampusOS — Phase 2 Testing Checklist</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
-:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
-.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
-.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
-.hero h1{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
-.hero .sub{font-size:16px;color:var(--text-light);font-style:italic;max-width:700px}
-h2{font-family:'DM Serif Display',serif;font-size:24px;color:var(--accent);font-weight:400;margin:40px 0 16px;padding-top:20px;border-top:1px solid var(--border)}
-h3{font-size:16px;font-weight:700;color:var(--accent);margin:24px 0 8px}
-p{font-size:14px;line-height:1.8;margin-bottom:12px}
-.persona-tag{display:inline-block;font-size:12px;padding:3px 10px;border-radius:5px;font-weight:600;margin-bottom:12px}
-.tag-teacher{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
-.tag-parent{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
-.tag-student{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
-.tag-admin{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
-.tag-all{background:#f0f0f0;color:#555;border:1px solid #ccc}
-.test-item{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin:10px 0}
-.test-item .test-id{font-size:12px;color:var(--accent-mid);font-weight:600;margin-bottom:4px}
-.test-item .test-action{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
-.test-item .test-expect{font-size:13px;color:var(--text-light);margin-bottom:8px}
-.test-item .notes-area{width:100%;min-height:60px;border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:'DM Sans',sans-serif;font-size:13px;resize:vertical}
-.section-intro{font-size:14px;color:var(--text);margin-bottom:16px;padding:12px 16px;background:var(--accent-light);border-radius:8px}
-.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light)}
-@media print{.notes-area{border:1px solid #999;min-height:80px}}
-</style>
-</head>
-<body>
-<div class="container">
-
-<div class="hero">
-<h1>Phase 2 Testing Checklist</h1>
-<div class="sub">Walk through every workflow as each persona. For each item, note what works, what doesn't, and what feels wrong. Screenshots encouraged. This document becomes the input for the UI Design Guide.</div>
-</div>
-
-<p><strong>How to test:</strong> Start the app (<code>docker compose up -d</code>, then <code>npx nest start --watch</code> in apps/api, then <code>npx next dev</code> in apps/web). Open <code>http://localhost:3000</code>. Log in as each persona using the email shown below. Test on desktop first, then try your phone (same URL if on the same network, or use browser DevTools mobile view).</p>
-
-<!-- ═══════════════════════════════════════════════════ -->
-<h2>1. Login & Home Page (All Personas)</h2>
-<!-- ═══════════════════════════════════════════════════ -->
-
-<div class="section-intro">Log in as each user below. The home page should be a clean Google-style launchpad with greeting, search bar, and app grid. Test each persona separately.</div>
-
-<div class="test-item">
-<div class="test-id">T-001 · Teacher Login</div>
-<div class="test-action">Log in as teacher@demo.campusos.dev</div>
-<div class="test-expect">Expect: "Good morning/afternoon, James" greeting. App grid shows: Classes, Messages, Announcements. CampusOS logo in sans-serif. No clutter — just the launchpad.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-002 · Parent Login</div>
-<div class="test-action">Log in as parent@demo.campusos.dev</div>
-<div class="test-expect">Expect: "Good morning/afternoon, David" greeting. App grid shows: My Children, Messages, Announcements.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-003 · Student Login</div>
-<div class="test-action">Log in as student@demo.campusos.dev</div>
-<div class="test-expect">Expect: "Good morning/afternoon, Maya" greeting. App grid shows: My Classes, Messages, Announcements.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-004 · Admin Login</div>
-<div class="test-action">Log in as admin@demo.campusos.dev</div>
-<div class="test-expect">Expect: Greeting for the admin user. App grid shows all available apps. Admin should see everything.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-005 · Home Page Design</div>
-<div class="test-action">Review the home page layout and feel across all personas</div>
-<div class="test-expect">Is it clean and uncluttered? Does it feel like a launchpad? Is the CampusOS logo in sans-serif? Does the search bar look right? Are the app cards well-spaced?</div>
-<textarea class="notes-area" placeholder="Your notes on the overall home page design..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-006 · Sidebar Navigation</div>
-<div class="test-action">Check the sidebar for each persona</div>
-<div class="test-expect">Sidebar should show the same apps as the home grid. Does it collapse on mobile? Do all links work (no 404s)? Are badge counts visible for Messages and Announcements?</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-007 · Notification Bell</div>
-<div class="test-action">Check the notification bell in the top bar for each persona</div>
-<div class="test-expect">Bell icon should show a badge count if there are unread notifications. Click it — does the dropdown appear? Are notifications listed with correct types? Do the links go to the right place?</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<!-- ═══════════════════════════════════════════════════ -->
-<h2>2. Teacher Workflows</h2>
-<!-- ═══════════════════════════════════════════════════ -->
-<span class="persona-tag tag-teacher">Teacher — teacher@demo.campusos.dev</span>
-
-<h3>2A. Classes & Attendance</h3>
-
-<div class="test-item">
-<div class="test-id">T-010 · View Classes</div>
-<div class="test-action">Click "Classes" from the home grid or sidebar</div>
-<div class="test-expect">See a list/grid of the teacher's assigned classes (should be 6 classes). Each should show class name, section, period.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-011 · Take Attendance</div>
-<div class="test-action">Click a class → go to the Attendance tab → mark a student tardy or absent → submit</div>
-<div class="test-expect">See student roster with attendance status. Tap a student to change status (Present → Tardy → Absent). Add a note. Submit the attendance. Should see a success confirmation.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-012 · Attendance Submitted State</div>
-<div class="test-action">After submitting, go back to the class and look at attendance again</div>
-<div class="test-expect">The attendance should show as submitted/confirmed. Can you edit it after submitting? Should you be able to?</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<h3>2B. Assignments</h3>
-
-<div class="test-item">
-<div class="test-id">T-020 · View Assignments</div>
-<div class="test-action">Click a class → go to the Assignments tab</div>
-<div class="test-expect">See a list of assignments for this class with title, type, due date, points, submission count.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-021 · Create Assignment</div>
-<div class="test-action">Click "Create Assignment" → fill in title, type, due date, points → save</div>
-<div class="test-expect">Form should have: title, type dropdown, category dropdown, instructions, due date picker, max points, extra credit toggle. Should save and appear in the list.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-022 · Edit Assignment</div>
-<div class="test-action">Click an existing assignment → edit it → save</div>
-<div class="test-expect">Can you change the title, due date, points? Does it save correctly?</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-023 · Category Weights</div>
-<div class="test-action">Open the category weight manager for a class</div>
-<div class="test-expect">Should see categories (Homework, Assessments, Participation) with weights that sum to 100%. Can you adjust them? Does validation work?</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<h3>2C. Grading</h3>
-
-<div class="test-item">
-<div class="test-id">T-030 · Gradebook View</div>
-<div class="test-action">Click a class → go to the Gradebook tab</div>
-<div class="test-expect">Spreadsheet-style grid: students as rows, assignments as columns. Cells should show grades with color coding. Right column shows current average.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-031 · Enter a Grade</div>
-<div class="test-action">Click a cell in the gradebook → enter a grade → save</div>
-<div class="test-expect">Inline grade entry. Does it save? Does the average update? Is the color coding correct?</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-032 · Publish Grades</div>
-<div class="test-action">Publish a grade (individual or batch "Publish All")</div>
-<div class="test-expect">Published grades should become visible to students/parents. Unpublished grades should be hidden from them. Does the publish button work?</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-033 · Submission Review</div>
-<div class="test-action">Go to an assignment → click "Submissions" → review a student's submission</div>
-<div class="test-expect">See a list of submissions with status. Click one to see the student's work. Enter grade + feedback. Save.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-034 · Progress Notes</div>
-<div class="test-action">From the gradebook, open a student's progress note → write a note → save</div>
-<div class="test-expect">Note should save. Toggle "Visible to parent" on. This should later show up on the parent's view.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<h3>2D. Teacher Messaging</h3>
-
-<div class="test-item">
-<div class="test-id">T-040 · View Inbox</div>
-<div class="test-action">Click "Messages" from sidebar or home</div>
-<div class="test-expect">See a list of message threads. Each shows participants, subject, preview, timestamp, unread badge.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-041 · Read a Thread</div>
-<div class="test-action">Click a thread to open it</div>
-<div class="test-expect">Messages displayed in chronological order. Own messages styled differently from others. Unread badge should clear after opening.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-042 · Compose New Message</div>
-<div class="test-action">Click "Compose" → select thread type → pick recipient → write message → send</div>
-<div class="test-expect">Thread type picker, recipient search, subject, body. Send should create the thread and navigate to it.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-043 · Reply to a Message</div>
-<div class="test-action">Open an existing thread → type a reply → send</div>
-<div class="test-expect">Reply appears in the thread. The other participant should see an unread badge when they log in.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<h3>2E. Teacher Announcements</h3>
-
-<div class="test-item">
-<div class="test-id">T-050 · View Announcements</div>
-<div class="test-action">Click "Announcements" from sidebar or home</div>
-<div class="test-expect">List of announcements. Each shows title, audience badge, timestamp, read/unread state.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-051 · Create Announcement</div>
-<div class="test-action">Click "Create" → fill in title, body, audience type → publish</div>
-<div class="test-expect">Audience picker (All School, Class, Year Group, Role). On publish, the announcement should appear in the feed. Stats should be visible to the author.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<!-- ═══════════════════════════════════════════════════ -->
-<h2>3. Parent Workflows</h2>
-<!-- ═══════════════════════════════════════════════════ -->
-<span class="persona-tag tag-parent">Parent — parent@demo.campusos.dev</span>
-
-<div class="test-item">
-<div class="test-id">T-060 · View Children</div>
-<div class="test-action">Click "My Children" from the home grid</div>
-<div class="test-expect">See Maya Chen's card with grade level, attendance summary, and current grades.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-061 · Child Attendance</div>
-<div class="test-action">Click Maya → view attendance</div>
-<div class="test-expect">Calendar view showing attendance history. Green/amber/red for present/tardy/absent. Click a day for detail.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-062 · Submit Absence Request</div>
-<div class="test-action">Click "Report Absence" → fill in date, reason → submit</div>
-<div class="test-expect">Form with date picker, reason dropdown, text field. Should submit and show as pending.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-063 · View Grades</div>
-<div class="test-action">Click Maya → view grades</div>
-<div class="test-expect">Per-class averages. Click a class to see per-assignment breakdown with grades and feedback.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-064 · Progress Notes</div>
-<div class="test-action">Check if teacher progress notes are visible on Maya's grade view</div>
-<div class="test-expect">If the teacher wrote a parent-visible note, it should appear here with the teacher's name, effort rating, and text.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-065 · Parent Messages</div>
-<div class="test-action">Go to Messages → read and reply to the teacher's thread</div>
-<div class="test-expect">See the conversation with the teacher. Reply should go through content moderation. Badge should clear after reading.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-066 · Parent Announcements</div>
-<div class="test-action">Go to Announcements</div>
-<div class="test-expect">See school-wide and parent-targeted announcements. Should NOT see teacher/admin-only drafts. Mark as read should work.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-067 · Parent Notifications</div>
-<div class="test-action">Check the notification bell and /notifications page</div>
-<div class="test-expect">Should see notifications for: tardy marks, published grades, new messages, announcements. Each should link to the right place when clicked.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<!-- ═══════════════════════════════════════════════════ -->
-<h2>4. Student Workflows</h2>
-<!-- ═══════════════════════════════════════════════════ -->
-<span class="persona-tag tag-student">Student — student@demo.campusos.dev</span>
-
-<div class="test-item">
-<div class="test-id">T-070 · View My Classes</div>
-<div class="test-action">Click "My Classes" from the home grid</div>
-<div class="test-expect">See enrolled classes with current averages.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-071 · View Assignments</div>
-<div class="test-action">Go to Assignments (sidebar or within a class)</div>
-<div class="test-expect">See upcoming assignments across all classes. Overdue assignments should be flagged. Filter by class should work.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-072 · Submit Assignment</div>
-<div class="test-action">Click an assignment → write response → submit</div>
-<div class="test-expect">Text area for response. Submit button. Should show as "Submitted" after. If already graded, should show grade and feedback.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-073 · View Grades</div>
-<div class="test-action">Go to Grades → click a class for detail</div>
-<div class="test-expect">See per-class averages and per-assignment grades. Only published grades should be visible (no draft grades).</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-074 · Student Messages</div>
-<div class="test-action">Go to Messages</div>
-<div class="test-expect">Should see threads the student participates in. Try composing — student should NOT be able to create a TEACHER_PARENT thread (wrong role).</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-075 · Student Announcements</div>
-<div class="test-action">Go to Announcements</div>
-<div class="test-expect">Should see school-wide and student-targeted announcements. Should NOT be able to create announcements (no com-002:write).</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<!-- ═══════════════════════════════════════════════════ -->
-<h2>5. Admin Workflows</h2>
-<!-- ═══════════════════════════════════════════════════ -->
-<span class="persona-tag tag-admin">Admin — admin@demo.campusos.dev</span>
-
-<div class="test-item">
-<div class="test-id">T-080 · Admin Home</div>
-<div class="test-action">Log in as admin → review the home page</div>
-<div class="test-expect">Should see all apps. Admin should have the broadest access.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-081 · Admin Classes View</div>
-<div class="test-action">Click Classes</div>
-<div class="test-expect">Should see ALL classes in the school (not just assigned). Admin can view any class's attendance, assignments, gradebook.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-082 · Admin Announcements</div>
-<div class="test-action">Create and publish a school-wide announcement</div>
-<div class="test-expect">Should be able to create, publish, and view stats. Should see read count and delivery metrics.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-083 · Admin Messages</div>
-<div class="test-action">Go to Messages → try viewing a thread you're not a participant in</div>
-<div class="test-expect">Admin should see the thread in read-only mode with a "read-only" banner. This should be logged for FERPA audit.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<!-- ═══════════════════════════════════════════════════ -->
-<h2>6. Cross-Persona Flows</h2>
-<!-- ═══════════════════════════════════════════════════ -->
-<span class="persona-tag tag-all">Multiple Personas</span>
-
-<div class="test-item">
-<div class="test-id">T-090 · Tardy Notification Flow</div>
-<div class="test-action">As teacher: mark Maya tardy → As parent: check notification bell</div>
-<div class="test-expect">Parent should see a notification about Maya being marked tardy. Clicking it should go to the attendance detail. (May need to wait 30-60 seconds for Kafka + worker.)</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-091 · Grade Publish Notification</div>
-<div class="test-action">As teacher: grade and publish an assignment → As parent: check notifications → As student: check notifications</div>
-<div class="test-expect">Both parent and student should receive a grade notification. Clicking should go to the gradebook.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-092 · Message Exchange</div>
-<div class="test-action">As teacher: send message to parent → As parent: read and reply → As teacher: see the reply</div>
-<div class="test-expect">Full round-trip messaging. Unread badges should appear and clear correctly on both sides.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-093 · Content Moderation</div>
-<div class="test-action">As any user: try sending a message with a blocked keyword</div>
-<div class="test-expect">Message should be rejected with a policy violation message. No detail about which keyword triggered it.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-094 · Announcement Reach</div>
-<div class="test-action">As admin: create an ALL_SCHOOL announcement → Check as teacher, parent, student</div>
-<div class="test-expect">All three personas should see the announcement. Mark-as-read should work for each. Admin stats should show read count increasing.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<!-- ═══════════════════════════════════════════════════ -->
-<h2>7. Permission Denials</h2>
-<!-- ═══════════════════════════════════════════════════ -->
-<span class="persona-tag tag-all">Security Checks</span>
-
-<div class="test-item">
-<div class="test-id">T-100 · Student Cannot Grade</div>
-<div class="test-action">As student: try to access the gradebook grid or grade entry for any class</div>
-<div class="test-expect">Should be denied — student can only see their own grades, not the full gradebook.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-101 · Parent Cannot Submit Assignments</div>
-<div class="test-action">As parent: try to access the assignment submission form</div>
-<div class="test-expect">Should be denied or not visible.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-102 · Student Cannot Create Announcements</div>
-<div class="test-action">As student: go to Announcements → look for a "Create" button</div>
-<div class="test-expect">Create button should not be visible. If you navigate to /announcements/new directly, should see a permission error.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-103 · Parent Cannot See Other Students</div>
-<div class="test-action">As parent: try to access a student record that isn't Maya</div>
-<div class="test-expect">Should be denied. Parent should only see their linked children.</div>
-<textarea class="notes-area" placeholder="Your notes..."></textarea>
-</div>
-
-<!-- ═══════════════════════════════════════════════════ -->
-<h2>8. Design & UX Review</h2>
-<!-- ═══════════════════════════════════════════════════ -->
-
-<div class="test-item">
-<div class="test-id">T-110 · Overall Design Feel</div>
-<div class="test-action">Step back and evaluate the overall look and feel</div>
-<div class="test-expect">Does it feel professional? Approachable? Clean? Would a teacher want to use this every day? Would a parent feel comfortable?</div>
-<textarea class="notes-area" placeholder="Your overall design impressions..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-111 · Color Palette</div>
-<div class="test-action">Look at the colors throughout the app</div>
-<div class="test-expect">Are the colors consistent? Does the blue/campus palette feel right? Are status colors (green/amber/red) clear?</div>
-<textarea class="notes-area" placeholder="Your notes on colors..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-112 · Typography</div>
-<div class="test-action">Look at the text throughout — headings, body, labels, buttons</div>
-<div class="test-expect">Is it readable? Is the hierarchy clear (what's a heading vs body vs label)? Font sizes appropriate?</div>
-<textarea class="notes-area" placeholder="Your notes on typography..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-113 · Spacing & Density</div>
-<div class="test-action">Look at the whitespace, padding, margins throughout</div>
-<div class="test-expect">Too cramped? Too spacious? Does each screen feel balanced? Are cards, tables, and lists well-spaced?</div>
-<textarea class="notes-area" placeholder="Your notes on spacing..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-114 · Mobile Experience</div>
-<div class="test-action">Open the app on your phone or use browser DevTools mobile view</div>
-<div class="test-expect">Does the sidebar collapse? Can you navigate? Can a parent check attendance at school pickup? Can a teacher take attendance on a tablet?</div>
-<textarea class="notes-area" placeholder="Your notes on mobile..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-115 · Empty States</div>
-<div class="test-action">Look for any screens that show no data — empty inbox, no assignments, etc.</div>
-<div class="test-expect">Empty states should have a friendly message and an icon, not a blank screen or an error.</div>
-<textarea class="notes-area" placeholder="Your notes on empty states..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-116 · Loading States</div>
-<div class="test-action">Watch for loading indicators when pages load</div>
-<div class="test-expect">Is there a spinner or skeleton? Or does the page just flash/jump? Does anything feel slow?</div>
-<textarea class="notes-area" placeholder="Your notes on loading..."></textarea>
-</div>
-
-<div class="test-item">
-<div class="test-id">T-117 · Error Handling</div>
-<div class="test-action">Try things that should fail — wrong data, missing fields, etc.</div>
-<div class="test-expect">Are error messages clear and helpful? Do they appear in the right place? No raw error codes or stack traces visible to the user?</div>
-<textarea class="notes-area" placeholder="Your notes on errors..."></textarea>
-</div>
-
-<div class="doc-footer">
-<p>CampusOS Phase 2 Testing Checklist — April 2026. Cover every item, take screenshots of issues, and bring your notes back for the UI Design Guide session.</p>
-</div>
-
-</div>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CampusOS — Phase 2 Testing Checklist</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+      :root {
+        --accent: #1a3a5c;
+        --accent-light: #e8f0f8;
+        --accent-mid: #3d7ab5;
+        --text: #2c2c2c;
+        --text-light: #6b7280;
+        --bg: #fafbfc;
+        --white: #ffffff;
+        --border: #e2e6ea;
+        --green: #28a745;
+        --green-bg: #eef7ee;
+        --amber: #e5a919;
+        --amber-bg: #fef9ec;
+        --blue: #3d7ab5;
+        --blue-bg: #e8f0f8;
+        --purple: #8b4fc6;
+        --purple-bg: #f4ecfb;
+        --red: #dc3545;
+        --red-bg: #fdeaea;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 40px 40px 120px;
+      }
+      .hero {
+        padding: 60px 0 40px;
+        border-bottom: 2px solid var(--accent);
+        margin-bottom: 48px;
+      }
+      .hero h1 {
+        font-family: 'DM Serif Display', serif;
+        font-size: 36px;
+        color: var(--accent);
+        line-height: 1.15;
+        margin-bottom: 12px;
+        font-weight: 400;
+      }
+      .hero .sub {
+        font-size: 16px;
+        color: var(--text-light);
+        font-style: italic;
+        max-width: 700px;
+      }
+      h2 {
+        font-family: 'DM Serif Display', serif;
+        font-size: 24px;
+        color: var(--accent);
+        font-weight: 400;
+        margin: 40px 0 16px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+      }
+      h3 {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--accent);
+        margin: 24px 0 8px;
+      }
+      p {
+        font-size: 14px;
+        line-height: 1.8;
+        margin-bottom: 12px;
+      }
+      .persona-tag {
+        display: inline-block;
+        font-size: 12px;
+        padding: 3px 10px;
+        border-radius: 5px;
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+      .tag-teacher {
+        background: var(--blue-bg);
+        color: var(--blue);
+        border: 1px solid #b5d4f4;
+      }
+      .tag-parent {
+        background: var(--green-bg);
+        color: #2d7a2d;
+        border: 1px solid #b7deb7;
+      }
+      .tag-student {
+        background: var(--purple-bg);
+        color: var(--purple);
+        border: 1px solid #d4b8e8;
+      }
+      .tag-admin {
+        background: var(--amber-bg);
+        color: #9a7b1a;
+        border: 1px solid #e5d5a0;
+      }
+      .tag-all {
+        background: #f0f0f0;
+        color: #555;
+        border: 1px solid #ccc;
+      }
+      .test-item {
+        background: var(--white);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px 20px;
+        margin: 10px 0;
+      }
+      .test-item .test-id {
+        font-size: 12px;
+        color: var(--accent-mid);
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .test-item .test-action {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 4px;
+      }
+      .test-item .test-expect {
+        font-size: 13px;
+        color: var(--text-light);
+        margin-bottom: 8px;
+      }
+      .test-item .notes-area {
+        width: 100%;
+        min-height: 60px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 13px;
+        resize: vertical;
+      }
+      .section-intro {
+        font-size: 14px;
+        color: var(--text);
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        background: var(--accent-light);
+        border-radius: 8px;
+      }
+      .doc-footer {
+        margin-top: 56px;
+        padding-top: 20px;
+        border-top: 2px solid var(--accent);
+        font-size: 13px;
+        color: var(--text-light);
+      }
+      @media print {
+        .notes-area {
+          border: 1px solid #999;
+          min-height: 80px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="hero">
+        <h1>Phase 2 Testing Checklist</h1>
+        <div class="sub">
+          Walk through every workflow as each persona. For each item, note what works, what doesn't,
+          and what feels wrong. Screenshots encouraged. This document becomes the input for the UI
+          Design Guide.
+        </div>
+      </div>
+
+      <p>
+        <strong>How to test:</strong> Start the app (<code>docker compose up -d</code>, then
+        <code>npx nest start --watch</code> in apps/api, then <code>npx next dev</code> in
+        apps/web). Open <code>http://localhost:3000</code>. Log in as each persona using the email
+        shown below. Test on desktop first, then try your phone (same URL if on the same network, or
+        use browser DevTools mobile view).
+      </p>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <h2>1. Login & Home Page (All Personas)</h2>
+      <!-- ═══════════════════════════════════════════════════ -->
+
+      <div class="section-intro">
+        Log in as each user below. The home page should be a clean Google-style launchpad with
+        greeting, search bar, and app grid. Test each persona separately.
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-001 · Teacher Login</div>
+        <div class="test-action">Log in as teacher@demo.campusos.dev</div>
+        <div class="test-expect">
+          Expect: "Good morning/afternoon, James" greeting. App grid shows: Classes, Messages,
+          Announcements. CampusOS logo in sans-serif. No clutter — just the launchpad.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-002 · Parent Login</div>
+        <div class="test-action">Log in as parent@demo.campusos.dev</div>
+        <div class="test-expect">
+          Expect: "Good morning/afternoon, David" greeting. App grid shows: My Children, Messages,
+          Announcements.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-003 · Student Login</div>
+        <div class="test-action">Log in as student@demo.campusos.dev</div>
+        <div class="test-expect">
+          Expect: "Good morning/afternoon, Maya" greeting. App grid shows: My Classes, Messages,
+          Announcements.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-004 · Admin Login</div>
+        <div class="test-action">Log in as admin@demo.campusos.dev</div>
+        <div class="test-expect">
+          Expect: Greeting for the admin user. App grid shows all available apps. Admin should see
+          everything.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-005 · Home Page Design</div>
+        <div class="test-action">Review the home page layout and feel across all personas</div>
+        <div class="test-expect">
+          Is it clean and uncluttered? Does it feel like a launchpad? Is the CampusOS logo in
+          sans-serif? Does the search bar look right? Are the app cards well-spaced?
+        </div>
+        <textarea
+          class="notes-area"
+          placeholder="Your notes on the overall home page design..."
+        ></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-006 · Sidebar Navigation</div>
+        <div class="test-action">Check the sidebar for each persona</div>
+        <div class="test-expect">
+          Sidebar should show the same apps as the home grid. Does it collapse on mobile? Do all
+          links work (no 404s)? Are badge counts visible for Messages and Announcements?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-007 · Notification Bell</div>
+        <div class="test-action">Check the notification bell in the top bar for each persona</div>
+        <div class="test-expect">
+          Bell icon should show a badge count if there are unread notifications. Click it — does the
+          dropdown appear? Are notifications listed with correct types? Do the links go to the right
+          place?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <h2>2. Teacher Workflows</h2>
+      <!-- ═══════════════════════════════════════════════════ -->
+      <span class="persona-tag tag-teacher">Teacher — teacher@demo.campusos.dev</span>
+
+      <h3>2A. Classes & Attendance</h3>
+
+      <div class="test-item">
+        <div class="test-id">T-010 · View Classes</div>
+        <div class="test-action">Click "Classes" from the home grid or sidebar</div>
+        <div class="test-expect">
+          See a list/grid of the teacher's assigned classes (should be 6 classes). Each should show
+          class name, section, period.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-011 · Take Attendance</div>
+        <div class="test-action">
+          Click a class → go to the Attendance tab → mark a student tardy or absent → submit
+        </div>
+        <div class="test-expect">
+          See student roster with attendance status. Tap a student to change status (Present → Tardy
+          → Absent). Add a note. Submit the attendance. Should see a success confirmation.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-012 · Attendance Submitted State</div>
+        <div class="test-action">
+          After submitting, go back to the class and look at attendance again
+        </div>
+        <div class="test-expect">
+          The attendance should show as submitted/confirmed. Can you edit it after submitting?
+          Should you be able to?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <h3>2B. Assignments</h3>
+
+      <div class="test-item">
+        <div class="test-id">T-020 · View Assignments</div>
+        <div class="test-action">Click a class → go to the Assignments tab</div>
+        <div class="test-expect">
+          See a list of assignments for this class with title, type, due date, points, submission
+          count.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-021 · Create Assignment</div>
+        <div class="test-action">
+          Click "Create Assignment" → fill in title, type, due date, points → save
+        </div>
+        <div class="test-expect">
+          Form should have: title, type dropdown, category dropdown, instructions, due date picker,
+          max points, extra credit toggle. Should save and appear in the list.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-022 · Edit Assignment</div>
+        <div class="test-action">Click an existing assignment → edit it → save</div>
+        <div class="test-expect">
+          Can you change the title, due date, points? Does it save correctly?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-023 · Category Weights</div>
+        <div class="test-action">Open the category weight manager for a class</div>
+        <div class="test-expect">
+          Should see categories (Homework, Assessments, Participation) with weights that sum to
+          100%. Can you adjust them? Does validation work?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <h3>2C. Grading</h3>
+
+      <div class="test-item">
+        <div class="test-id">T-030 · Gradebook View</div>
+        <div class="test-action">Click a class → go to the Gradebook tab</div>
+        <div class="test-expect">
+          Spreadsheet-style grid: students as rows, assignments as columns. Cells should show grades
+          with color coding. Right column shows current average.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-031 · Enter a Grade</div>
+        <div class="test-action">Click a cell in the gradebook → enter a grade → save</div>
+        <div class="test-expect">
+          Inline grade entry. Does it save? Does the average update? Is the color coding correct?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-032 · Publish Grades</div>
+        <div class="test-action">Publish a grade (individual or batch "Publish All")</div>
+        <div class="test-expect">
+          Published grades should become visible to students/parents. Unpublished grades should be
+          hidden from them. Does the publish button work?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-033 · Submission Review</div>
+        <div class="test-action">
+          Go to an assignment → click "Submissions" → review a student's submission
+        </div>
+        <div class="test-expect">
+          See a list of submissions with status. Click one to see the student's work. Enter grade +
+          feedback. Save.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-034 · Progress Notes</div>
+        <div class="test-action">
+          From the gradebook, open a student's progress note → write a note → save
+        </div>
+        <div class="test-expect">
+          Note should save. Toggle "Visible to parent" on. This should later show up on the parent's
+          view.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <h3>2D. Teacher Messaging</h3>
+
+      <div class="test-item">
+        <div class="test-id">T-040 · View Inbox</div>
+        <div class="test-action">Click "Messages" from sidebar or home</div>
+        <div class="test-expect">
+          See a list of message threads. Each shows participants, subject, preview, timestamp,
+          unread badge.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-041 · Read a Thread</div>
+        <div class="test-action">Click a thread to open it</div>
+        <div class="test-expect">
+          Messages displayed in chronological order. Own messages styled differently from others.
+          Unread badge should clear after opening.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-042 · Compose New Message</div>
+        <div class="test-action">
+          Click "Compose" → select thread type → pick recipient → write message → send
+        </div>
+        <div class="test-expect">
+          Thread type picker, recipient search, subject, body. Send should create the thread and
+          navigate to it.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-043 · Reply to a Message</div>
+        <div class="test-action">Open an existing thread → type a reply → send</div>
+        <div class="test-expect">
+          Reply appears in the thread. The other participant should see an unread badge when they
+          log in.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <h3>2E. Teacher Announcements</h3>
+
+      <div class="test-item">
+        <div class="test-id">T-050 · View Announcements</div>
+        <div class="test-action">Click "Announcements" from sidebar or home</div>
+        <div class="test-expect">
+          List of announcements. Each shows title, audience badge, timestamp, read/unread state.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-051 · Create Announcement</div>
+        <div class="test-action">Click "Create" → fill in title, body, audience type → publish</div>
+        <div class="test-expect">
+          Audience picker (All School, Class, Year Group, Role). On publish, the announcement should
+          appear in the feed. Stats should be visible to the author.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <h2>3. Parent Workflows</h2>
+      <!-- ═══════════════════════════════════════════════════ -->
+      <span class="persona-tag tag-parent">Parent — parent@demo.campusos.dev</span>
+
+      <div class="test-item">
+        <div class="test-id">T-060 · View Children</div>
+        <div class="test-action">Click "My Children" from the home grid</div>
+        <div class="test-expect">
+          See Maya Chen's card with grade level, attendance summary, and current grades.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-061 · Child Attendance</div>
+        <div class="test-action">Click Maya → view attendance</div>
+        <div class="test-expect">
+          Calendar view showing attendance history. Green/amber/red for present/tardy/absent. Click
+          a day for detail.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-062 · Submit Absence Request</div>
+        <div class="test-action">Click "Report Absence" → fill in date, reason → submit</div>
+        <div class="test-expect">
+          Form with date picker, reason dropdown, text field. Should submit and show as pending.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-063 · View Grades</div>
+        <div class="test-action">Click Maya → view grades</div>
+        <div class="test-expect">
+          Per-class averages. Click a class to see per-assignment breakdown with grades and
+          feedback.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-064 · Progress Notes</div>
+        <div class="test-action">
+          Check if teacher progress notes are visible on Maya's grade view
+        </div>
+        <div class="test-expect">
+          If the teacher wrote a parent-visible note, it should appear here with the teacher's name,
+          effort rating, and text.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-065 · Parent Messages</div>
+        <div class="test-action">Go to Messages → read and reply to the teacher's thread</div>
+        <div class="test-expect">
+          See the conversation with the teacher. Reply should go through content moderation. Badge
+          should clear after reading.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-066 · Parent Announcements</div>
+        <div class="test-action">Go to Announcements</div>
+        <div class="test-expect">
+          See school-wide and parent-targeted announcements. Should NOT see teacher/admin-only
+          drafts. Mark as read should work.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-067 · Parent Notifications</div>
+        <div class="test-action">Check the notification bell and /notifications page</div>
+        <div class="test-expect">
+          Should see notifications for: tardy marks, published grades, new messages, announcements.
+          Each should link to the right place when clicked.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <h2>4. Student Workflows</h2>
+      <!-- ═══════════════════════════════════════════════════ -->
+      <span class="persona-tag tag-student">Student — student@demo.campusos.dev</span>
+
+      <div class="test-item">
+        <div class="test-id">T-070 · View My Classes</div>
+        <div class="test-action">Click "My Classes" from the home grid</div>
+        <div class="test-expect">See enrolled classes with current averages.</div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-071 · View Assignments</div>
+        <div class="test-action">Go to Assignments (sidebar or within a class)</div>
+        <div class="test-expect">
+          See upcoming assignments across all classes. Overdue assignments should be flagged. Filter
+          by class should work.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-072 · Submit Assignment</div>
+        <div class="test-action">Click an assignment → write response → submit</div>
+        <div class="test-expect">
+          Text area for response. Submit button. Should show as "Submitted" after. If already
+          graded, should show grade and feedback.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-073 · View Grades</div>
+        <div class="test-action">Go to Grades → click a class for detail</div>
+        <div class="test-expect">
+          See per-class averages and per-assignment grades. Only published grades should be visible
+          (no draft grades).
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-074 · Student Messages</div>
+        <div class="test-action">Go to Messages</div>
+        <div class="test-expect">
+          Should see threads the student participates in. Try composing — student should NOT be able
+          to create a TEACHER_PARENT thread (wrong role).
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-075 · Student Announcements</div>
+        <div class="test-action">Go to Announcements</div>
+        <div class="test-expect">
+          Should see school-wide and student-targeted announcements. Should NOT be able to create
+          announcements (no com-002:write).
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <h2>5. Admin Workflows</h2>
+      <!-- ═══════════════════════════════════════════════════ -->
+      <span class="persona-tag tag-admin">Admin — admin@demo.campusos.dev</span>
+
+      <div class="test-item">
+        <div class="test-id">T-080 · Admin Home</div>
+        <div class="test-action">Log in as admin → review the home page</div>
+        <div class="test-expect">Should see all apps. Admin should have the broadest access.</div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-081 · Admin Classes View</div>
+        <div class="test-action">Click Classes</div>
+        <div class="test-expect">
+          Should see ALL classes in the school (not just assigned). Admin can view any class's
+          attendance, assignments, gradebook.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-082 · Admin Announcements</div>
+        <div class="test-action">Create and publish a school-wide announcement</div>
+        <div class="test-expect">
+          Should be able to create, publish, and view stats. Should see read count and delivery
+          metrics.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-083 · Admin Messages</div>
+        <div class="test-action">
+          Go to Messages → try viewing a thread you're not a participant in
+        </div>
+        <div class="test-expect">
+          Admin should see the thread in read-only mode with a "read-only" banner. This should be
+          logged for FERPA audit.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <h2>6. Cross-Persona Flows</h2>
+      <!-- ═══════════════════════════════════════════════════ -->
+      <span class="persona-tag tag-all">Multiple Personas</span>
+
+      <div class="test-item">
+        <div class="test-id">T-090 · Tardy Notification Flow</div>
+        <div class="test-action">
+          As teacher: mark Maya tardy → As parent: check notification bell
+        </div>
+        <div class="test-expect">
+          Parent should see a notification about Maya being marked tardy. Clicking it should go to
+          the attendance detail. (May need to wait 30-60 seconds for Kafka + worker.)
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-091 · Grade Publish Notification</div>
+        <div class="test-action">
+          As teacher: grade and publish an assignment → As parent: check notifications → As student:
+          check notifications
+        </div>
+        <div class="test-expect">
+          Both parent and student should receive a grade notification. Clicking should go to the
+          gradebook.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-092 · Message Exchange</div>
+        <div class="test-action">
+          As teacher: send message to parent → As parent: read and reply → As teacher: see the reply
+        </div>
+        <div class="test-expect">
+          Full round-trip messaging. Unread badges should appear and clear correctly on both sides.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-093 · Content Moderation</div>
+        <div class="test-action">As any user: try sending a message with a blocked keyword</div>
+        <div class="test-expect">
+          Message should be rejected with a policy violation message. No detail about which keyword
+          triggered it.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-094 · Announcement Reach</div>
+        <div class="test-action">
+          As admin: create an ALL_SCHOOL announcement → Check as teacher, parent, student
+        </div>
+        <div class="test-expect">
+          All three personas should see the announcement. Mark-as-read should work for each. Admin
+          stats should show read count increasing.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <h2>7. Permission Denials</h2>
+      <!-- ═══════════════════════════════════════════════════ -->
+      <span class="persona-tag tag-all">Security Checks</span>
+
+      <div class="test-item">
+        <div class="test-id">T-100 · Student Cannot Grade</div>
+        <div class="test-action">
+          As student: try to access the gradebook grid or grade entry for any class
+        </div>
+        <div class="test-expect">
+          Should be denied — student can only see their own grades, not the full gradebook.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-101 · Parent Cannot Submit Assignments</div>
+        <div class="test-action">As parent: try to access the assignment submission form</div>
+        <div class="test-expect">Should be denied or not visible.</div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-102 · Student Cannot Create Announcements</div>
+        <div class="test-action">As student: go to Announcements → look for a "Create" button</div>
+        <div class="test-expect">
+          Create button should not be visible. If you navigate to /announcements/new directly,
+          should see a permission error.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-103 · Parent Cannot See Other Students</div>
+        <div class="test-action">As parent: try to access a student record that isn't Maya</div>
+        <div class="test-expect">
+          Should be denied. Parent should only see their linked children.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes..."></textarea>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════ -->
+      <h2>8. Design & UX Review</h2>
+      <!-- ═══════════════════════════════════════════════════ -->
+
+      <div class="test-item">
+        <div class="test-id">T-110 · Overall Design Feel</div>
+        <div class="test-action">Step back and evaluate the overall look and feel</div>
+        <div class="test-expect">
+          Does it feel professional? Approachable? Clean? Would a teacher want to use this every
+          day? Would a parent feel comfortable?
+        </div>
+        <textarea class="notes-area" placeholder="Your overall design impressions..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-111 · Color Palette</div>
+        <div class="test-action">Look at the colors throughout the app</div>
+        <div class="test-expect">
+          Are the colors consistent? Does the blue/campus palette feel right? Are status colors
+          (green/amber/red) clear?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes on colors..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-112 · Typography</div>
+        <div class="test-action">Look at the text throughout — headings, body, labels, buttons</div>
+        <div class="test-expect">
+          Is it readable? Is the hierarchy clear (what's a heading vs body vs label)? Font sizes
+          appropriate?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes on typography..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-113 · Spacing & Density</div>
+        <div class="test-action">Look at the whitespace, padding, margins throughout</div>
+        <div class="test-expect">
+          Too cramped? Too spacious? Does each screen feel balanced? Are cards, tables, and lists
+          well-spaced?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes on spacing..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-114 · Mobile Experience</div>
+        <div class="test-action">
+          Open the app on your phone or use browser DevTools mobile view
+        </div>
+        <div class="test-expect">
+          Does the sidebar collapse? Can you navigate? Can a parent check attendance at school
+          pickup? Can a teacher take attendance on a tablet?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes on mobile..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-115 · Empty States</div>
+        <div class="test-action">
+          Look for any screens that show no data — empty inbox, no assignments, etc.
+        </div>
+        <div class="test-expect">
+          Empty states should have a friendly message and an icon, not a blank screen or an error.
+        </div>
+        <textarea class="notes-area" placeholder="Your notes on empty states..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-116 · Loading States</div>
+        <div class="test-action">Watch for loading indicators when pages load</div>
+        <div class="test-expect">
+          Is there a spinner or skeleton? Or does the page just flash/jump? Does anything feel slow?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes on loading..."></textarea>
+      </div>
+
+      <div class="test-item">
+        <div class="test-id">T-117 · Error Handling</div>
+        <div class="test-action">
+          Try things that should fail — wrong data, missing fields, etc.
+        </div>
+        <div class="test-expect">
+          Are error messages clear and helpful? Do they appear in the right place? No raw error
+          codes or stack traces visible to the user?
+        </div>
+        <textarea class="notes-area" placeholder="Your notes on errors..."></textarea>
+      </div>
+
+      <div class="doc-footer">
+        <p>
+          CampusOS Phase 2 Testing Checklist — April 2026. Cover every item, take screenshots of
+          issues, and bring your notes back for the UI Design Guide session.
+        </p>
+      </div>
+    </div>
+  </body>
 </html>

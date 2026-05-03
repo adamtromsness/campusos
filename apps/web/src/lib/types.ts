@@ -2021,11 +2021,7 @@ export interface ReviewLinkRequestPayload {
 
 export type TaskPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
-export type TaskCategory =
-  | 'ACADEMIC'
-  | 'PERSONAL'
-  | 'ADMINISTRATIVE'
-  | 'ACKNOWLEDGEMENT';
+export type TaskCategory = 'ACADEMIC' | 'PERSONAL' | 'ADMINISTRATIVE' | 'ACKNOWLEDGEMENT';
 export type TaskSource = 'MANUAL' | 'AUTO' | 'SYSTEM';
 
 export interface TaskDto {
@@ -2115,12 +2111,7 @@ export interface DisputeAcknowledgementPayload {
 
 // ── Cycle 7 Approval Workflows ────────────────────────────────────
 
-export type ApprovalRequestStatus =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'CANCELLED'
-  | 'WITHDRAWN';
+export type ApprovalRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'WITHDRAWN';
 
 export type ApprovalStepStatus = 'AWAITING' | 'APPROVED' | 'REJECTED' | 'SKIPPED';
 

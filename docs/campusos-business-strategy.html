@@ -1,466 +1,1639 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CampusOS — Business Strategy &amp; Go-to-Market Plan v2.0</title>
-  <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
-:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--note-bg:#fef9ec;--note-border:#e5a919;--privacy-bg:#eef7ee;--privacy-border:#3a9e3a;--how-bg:#e8f0f8;--how-border:#3d7ab5;--ai-bg:#f4ecfb;--ai-border:#8b4fc6;--shadow:0 1px 3px rgba(0,0,0,0.06);--shadow-md:0 4px 12px rgba(0,0,0,0.08)}
-*{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;font-size:16px;-webkit-font-smoothing:antialiased}
-.page-wrapper{display:flex;min-height:100vh}
-.sidebar{width:300px;min-width:300px;background:var(--white);border-right:1px solid var(--border);position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100;padding:0}
-.sidebar-header{padding:24px 20px 16px;border-bottom:1px solid var(--border);background:var(--accent);color:white}
-.sidebar-header h2{font-family:'DM Serif Display',serif;font-size:18px;font-weight:400;margin-bottom:2px}
-.sidebar-header .subtitle{font-size:12px;opacity:0.75;font-weight:400}
-.sidebar-header .home-link{display:inline-block;margin-top:10px;font-size:12px;color:rgba(255,255,255,0.7);text-decoration:none;border:1px solid rgba(255,255,255,0.3);padding:3px 10px;border-radius:4px;transition:all 0.2s}
-.sidebar-header .home-link:hover{color:white;border-color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.1)}
-.toc-list{list-style:none;padding:12px 0}
-.toc-list li a{display:block;padding:6px 20px;font-size:13px;color:var(--text-light);text-decoration:none;transition:all 0.15s;border-left:3px solid transparent}
-.toc-list li a:hover{color:var(--accent);background:var(--accent-light);border-left-color:var(--accent-mid)}
-.toc-list li a .toc-num{display:inline-block;width:24px;font-weight:600;color:var(--accent-mid);font-size:12px}
-.main-content{margin-left:300px;flex:1;max-width:800px;padding:0 48px 120px}
-.title-section{padding:80px 0 48px;border-bottom:2px solid var(--accent);margin-bottom:48px}
-.title-section .brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
-.title-section h1{font-family:'DM Serif Display',serif;font-size:42px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
-.title-section .subtitle{font-size:17px;color:var(--text-light);font-style:italic;margin-bottom:16px;max-width:580px}
-.title-section .version{font-size:13px;color:var(--accent-mid);font-weight:600}
-.about-box{background:var(--accent-light);border:1px solid var(--accent-mid);border-radius:8px;padding:28px 32px;margin-bottom:48px}
-.about-box h3{font-size:16px;font-weight:700;margin-bottom:12px;color:var(--accent)}
-.about-box p{font-size:14px;line-height:1.7;margin-bottom:8px;color:var(--text)}
-.about-box p:last-child{margin-bottom:0}
-.section-heading{font-family:'DM Serif Display',serif;font-size:28px;color:var(--accent);font-weight:400;margin:64px 0 20px;padding-top:24px;border-top:1px solid var(--border);scroll-margin-top:24px}
-.section-heading:first-of-type{border-top:none;margin-top:0}
-.sub-heading{font-size:19px;font-weight:700;color:var(--text);margin:32px 0 12px}
-.body-text{margin-bottom:16px;line-height:1.75}
-.bullet-list{list-style:none;padding:0;margin:0 0 16px}
-.bullet-list li{padding:4px 0 4px 20px;position:relative;line-height:1.7}
-.bullet-list li::before{content:'';position:absolute;left:0;top:13px;width:6px;height:6px;border-radius:50%;background:var(--accent-mid)}
-.bullet-list li strong{font-weight:600}
-.callout{border-radius:8px;padding:20px 24px;margin:20px 0;border-left:4px solid}
-.callout-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px}
-.callout p{font-size:15px;margin-bottom:8px}
-.callout p:last-child{margin-bottom:0}
-.callout-note{background:var(--note-bg);border-color:var(--note-border)}
-.callout-note .callout-title{color:#9a7b1a}
-.callout-how{background:var(--how-bg);border-color:var(--how-border)}
-.callout-how .callout-title{color:var(--accent-mid)}
-.callout-privacy{background:var(--privacy-bg);border-color:var(--privacy-border)}
-.callout-privacy .callout-title{color:#2d7a2d}
-.callout-ai{background:var(--ai-bg);border-color:var(--ai-border)}
-.callout-ai .callout-title{color:#7040a8}
-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
-th{background:#d5e8f0;padding:8px 12px;border:1px solid #ccc;text-align:left;font-weight:600;font-size:13px}
-td{padding:8px 12px;border:1px solid #ddd;vertical-align:top;line-height:1.6}
-td strong{color:var(--accent)}
-.doc-footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--border);font-size:13px;color:var(--text-light);font-style:italic}
-@media(max-width:1024px){.sidebar{width:260px;min-width:260px}.main-content{margin-left:260px;padding:0 32px 80px}}
-@media(max-width:768px){.sidebar{position:fixed;width:100%;height:auto;max-height:60px;overflow:hidden;transition:max-height 0.3s ease;border-right:none;border-bottom:1px solid var(--border)}.sidebar.open{max-height:80vh;overflow-y:auto}.sidebar-header{padding:14px 20px;cursor:pointer}.sidebar-header h2{font-size:15px}.sidebar-header .subtitle,.sidebar-header .home-link{display:none}.sidebar-header::after{content:'\25BC';float:right;font-size:12px;opacity:0.7}.main-content{margin-left:0;padding:80px 20px 60px;max-width:100%}.title-section{padding-top:24px}.title-section h1{font-size:32px}}
-@media print{.sidebar{display:none}.main-content{margin-left:0;max-width:100%;padding:0}.callout{break-inside:avoid}.section-heading{break-after:avoid}}
-</style>
-</head>
-<body>
-<div style="background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <a href="index.html" style="font-weight:600;color:white;font-size:15px;text-decoration:none;">CampusOS</a>
-  <span style="color:rgba(255,255,255,0.3);">|</span>
-  <a href="index.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">Design Hub</a>
-  <a href="campusos-erd-v11.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">ERD v11</a>
-  <a href="campusos-architecture-review-v10.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">Architecture</a>
-  <a href="campusos-function-library-v11.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">Functions</a>
-  <a href="campusos-business-strategy.html" style="color:white;font-weight:600;text-decoration:none;font-size:13px;">Business Strategy</a>
-  <a href="campusos-erd-v11.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">ERD v11</a>
-  <a href="campusos-dev-deployment-plan.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px;">Dev Plan</a>
-</div>
-  <div class="page-wrapper">
-    <nav class="sidebar" id="sidebar">
-      <div class="sidebar-header" onclick="this.parentElement.classList.toggle('open')">
-        <h2>CampusOS</h2>
-        <div class="subtitle">Business Strategy &amp; GTM Plan v2.0</div>
-        <a href="index.html" class="home-link">&larr; Design Hub</a>
-      </div>
-      <ul class="toc-list">
-        <li><a href="#section-1"><span class="toc-num">1</span>Executive Summary</a></li>
-        <li><a href="#section-2"><span class="toc-num">2</span>Key Decisions (Locked)</a></li>
-        <li><a href="#section-3"><span class="toc-num">3</span>Pricing Model</a></li>
-        <li><a href="#section-4"><span class="toc-num">4</span>Team &amp; Hiring Sequence</a></li>
-        <li><a href="#section-5"><span class="toc-num">5</span>Implementation Strategy</a></li>
-        <li><a href="#section-6"><span class="toc-num">6</span>Go-to-Market</a></li>
-        <li><a href="#section-7"><span class="toc-num">7</span>Onboarding (90-Day Journey)</a></li>
-        <li><a href="#section-8"><span class="toc-num">8</span>Support &amp; Customer Success</a></li>
-        <li><a href="#section-9"><span class="toc-num">9</span>Community Exchange</a></li>
-        <li><a href="#section-10"><span class="toc-num">10</span>Scaling Playbook</a></li>
-        <li><a href="#section-11"><span class="toc-num">11</span>Competitive Positioning</a></li>
-        <li><a href="#section-12"><span class="toc-num">12</span>Metrics &amp; Milestones</a></li>
-        <li><a href="#section-13"><span class="toc-num">13</span>Risk Register</a></li>
-        <li><a href="#section-14"><span class="toc-num">14</span>Open Questions</a></li>
-        <li><a href="#section-15"><span class="toc-num">15</span>Architecture Changes Required</a></li>
-      </ul>
-    </nav>
-    <main class="main-content">
-      <div class="title-section">
-        <div class="brand">CampusOS</div>
-        <h1>Business Strategy &amp; Go-to-Market Plan</h1>
-        <div class="subtitle">Pricing, team structure, go-to-market, onboarding, support, community marketplace, and scaling &mdash; the business counterpart to the frozen architecture</div>
-        <div class="version">Version 2.1 &middot; March 2026 &middot; 15 Sections &middot; All Key Decisions Locked &middot; Amendments Complete</div>
-      </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CampusOS — Business Strategy &amp; Go-to-Market Plan v2.0</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+      :root {
+        --accent: #1a3a5c;
+        --accent-light: #e8f0f8;
+        --accent-mid: #3d7ab5;
+        --text: #2c2c2c;
+        --text-light: #6b7280;
+        --bg: #fafbfc;
+        --white: #ffffff;
+        --border: #e2e6ea;
+        --note-bg: #fef9ec;
+        --note-border: #e5a919;
+        --privacy-bg: #eef7ee;
+        --privacy-border: #3a9e3a;
+        --how-bg: #e8f0f8;
+        --how-border: #3d7ab5;
+        --ai-bg: #f4ecfb;
+        --ai-border: #8b4fc6;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.7;
+        font-size: 16px;
+        -webkit-font-smoothing: antialiased;
+      }
+      .page-wrapper {
+        display: flex;
+        min-height: 100vh;
+      }
+      .sidebar {
+        width: 300px;
+        min-width: 300px;
+        background: var(--white);
+        border-right: 1px solid var(--border);
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        overflow-y: auto;
+        z-index: 100;
+        padding: 0;
+      }
+      .sidebar-header {
+        padding: 24px 20px 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--accent);
+        color: white;
+      }
+      .sidebar-header h2 {
+        font-family: 'DM Serif Display', serif;
+        font-size: 18px;
+        font-weight: 400;
+        margin-bottom: 2px;
+      }
+      .sidebar-header .subtitle {
+        font-size: 12px;
+        opacity: 0.75;
+        font-weight: 400;
+      }
+      .sidebar-header .home-link {
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.7);
+        text-decoration: none;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        padding: 3px 10px;
+        border-radius: 4px;
+        transition: all 0.2s;
+      }
+      .sidebar-header .home-link:hover {
+        color: white;
+        border-color: rgba(255, 255, 255, 0.6);
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .toc-list {
+        list-style: none;
+        padding: 12px 0;
+      }
+      .toc-list li a {
+        display: block;
+        padding: 6px 20px;
+        font-size: 13px;
+        color: var(--text-light);
+        text-decoration: none;
+        transition: all 0.15s;
+        border-left: 3px solid transparent;
+      }
+      .toc-list li a:hover {
+        color: var(--accent);
+        background: var(--accent-light);
+        border-left-color: var(--accent-mid);
+      }
+      .toc-list li a .toc-num {
+        display: inline-block;
+        width: 24px;
+        font-weight: 600;
+        color: var(--accent-mid);
+        font-size: 12px;
+      }
+      .main-content {
+        margin-left: 300px;
+        flex: 1;
+        max-width: 800px;
+        padding: 0 48px 120px;
+      }
+      .title-section {
+        padding: 80px 0 48px;
+        border-bottom: 2px solid var(--accent);
+        margin-bottom: 48px;
+      }
+      .title-section .brand {
+        font-family: 'DM Serif Display', serif;
+        font-size: 14px;
+        color: var(--accent-mid);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      .title-section h1 {
+        font-family: 'DM Serif Display', serif;
+        font-size: 42px;
+        color: var(--accent);
+        line-height: 1.15;
+        margin-bottom: 12px;
+        font-weight: 400;
+      }
+      .title-section .subtitle {
+        font-size: 17px;
+        color: var(--text-light);
+        font-style: italic;
+        margin-bottom: 16px;
+        max-width: 580px;
+      }
+      .title-section .version {
+        font-size: 13px;
+        color: var(--accent-mid);
+        font-weight: 600;
+      }
+      .about-box {
+        background: var(--accent-light);
+        border: 1px solid var(--accent-mid);
+        border-radius: 8px;
+        padding: 28px 32px;
+        margin-bottom: 48px;
+      }
+      .about-box h3 {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 12px;
+        color: var(--accent);
+      }
+      .about-box p {
+        font-size: 14px;
+        line-height: 1.7;
+        margin-bottom: 8px;
+        color: var(--text);
+      }
+      .about-box p:last-child {
+        margin-bottom: 0;
+      }
+      .section-heading {
+        font-family: 'DM Serif Display', serif;
+        font-size: 28px;
+        color: var(--accent);
+        font-weight: 400;
+        margin: 64px 0 20px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        scroll-margin-top: 24px;
+      }
+      .section-heading:first-of-type {
+        border-top: none;
+        margin-top: 0;
+      }
+      .sub-heading {
+        font-size: 19px;
+        font-weight: 700;
+        color: var(--text);
+        margin: 32px 0 12px;
+      }
+      .body-text {
+        margin-bottom: 16px;
+        line-height: 1.75;
+      }
+      .bullet-list {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 16px;
+      }
+      .bullet-list li {
+        padding: 4px 0 4px 20px;
+        position: relative;
+        line-height: 1.7;
+      }
+      .bullet-list li::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 13px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent-mid);
+      }
+      .bullet-list li strong {
+        font-weight: 600;
+      }
+      .callout {
+        border-radius: 8px;
+        padding: 20px 24px;
+        margin: 20px 0;
+        border-left: 4px solid;
+      }
+      .callout-title {
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+      }
+      .callout p {
+        font-size: 15px;
+        margin-bottom: 8px;
+      }
+      .callout p:last-child {
+        margin-bottom: 0;
+      }
+      .callout-note {
+        background: var(--note-bg);
+        border-color: var(--note-border);
+      }
+      .callout-note .callout-title {
+        color: #9a7b1a;
+      }
+      .callout-how {
+        background: var(--how-bg);
+        border-color: var(--how-border);
+      }
+      .callout-how .callout-title {
+        color: var(--accent-mid);
+      }
+      .callout-privacy {
+        background: var(--privacy-bg);
+        border-color: var(--privacy-border);
+      }
+      .callout-privacy .callout-title {
+        color: #2d7a2d;
+      }
+      .callout-ai {
+        background: var(--ai-bg);
+        border-color: var(--ai-border);
+      }
+      .callout-ai .callout-title {
+        color: #7040a8;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 12px 0;
+        font-size: 14px;
+      }
+      th {
+        background: #d5e8f0;
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        text-align: left;
+        font-weight: 600;
+        font-size: 13px;
+      }
+      td {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        vertical-align: top;
+        line-height: 1.6;
+      }
+      td strong {
+        color: var(--accent);
+      }
+      .doc-footer {
+        margin-top: 64px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--text-light);
+        font-style: italic;
+      }
+      @media (max-width: 1024px) {
+        .sidebar {
+          width: 260px;
+          min-width: 260px;
+        }
+        .main-content {
+          margin-left: 260px;
+          padding: 0 32px 80px;
+        }
+      }
+      @media (max-width: 768px) {
+        .sidebar {
+          position: fixed;
+          width: 100%;
+          height: auto;
+          max-height: 60px;
+          overflow: hidden;
+          transition: max-height 0.3s ease;
+          border-right: none;
+          border-bottom: 1px solid var(--border);
+        }
+        .sidebar.open {
+          max-height: 80vh;
+          overflow-y: auto;
+        }
+        .sidebar-header {
+          padding: 14px 20px;
+          cursor: pointer;
+        }
+        .sidebar-header h2 {
+          font-size: 15px;
+        }
+        .sidebar-header .subtitle,
+        .sidebar-header .home-link {
+          display: none;
+        }
+        .sidebar-header::after {
+          content: '\25BC';
+          float: right;
+          font-size: 12px;
+          opacity: 0.7;
+        }
+        .main-content {
+          margin-left: 0;
+          padding: 80px 20px 60px;
+          max-width: 100%;
+        }
+        .title-section {
+          padding-top: 24px;
+        }
+        .title-section h1 {
+          font-size: 32px;
+        }
+      }
+      @media print {
+        .sidebar {
+          display: none;
+        }
+        .main-content {
+          margin-left: 0;
+          max-width: 100%;
+          padding: 0;
+        }
+        .callout {
+          break-inside: avoid;
+        }
+        .section-heading {
+          break-after: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      style="
+        background: #1a5276;
+        padding: 10px 40px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        flex-wrap: wrap;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      "
+    >
+      <a
+        href="index.html"
+        style="font-weight: 600; color: white; font-size: 15px; text-decoration: none"
+        >CampusOS</a
+      >
+      <span style="color: rgba(255, 255, 255, 0.3)">|</span>
+      <a
+        href="index.html"
+        style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 13px"
+        >Design Hub</a
+      >
+      <a
+        href="campusos-erd-v11.html"
+        style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 13px"
+        >ERD v11</a
+      >
+      <a
+        href="campusos-architecture-review-v10.html"
+        style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 13px"
+        >Architecture</a
+      >
+      <a
+        href="campusos-function-library-v11.html"
+        style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 13px"
+        >Functions</a
+      >
+      <a
+        href="campusos-business-strategy.html"
+        style="color: white; font-weight: 600; text-decoration: none; font-size: 13px"
+        >Business Strategy</a
+      >
+      <a
+        href="campusos-erd-v11.html"
+        style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 13px"
+        >ERD v11</a
+      >
+      <a
+        href="campusos-dev-deployment-plan.html"
+        style="color: rgba(255, 255, 255, 0.85); text-decoration: none; font-size: 13px"
+        >Dev Plan</a
+      >
+    </div>
+    <div class="page-wrapper">
+      <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header" onclick="this.parentElement.classList.toggle('open')">
+          <h2>CampusOS</h2>
+          <div class="subtitle">Business Strategy &amp; GTM Plan v2.0</div>
+          <a href="index.html" class="home-link">&larr; Design Hub</a>
+        </div>
+        <ul class="toc-list">
+          <li>
+            <a href="#section-1"><span class="toc-num">1</span>Executive Summary</a>
+          </li>
+          <li>
+            <a href="#section-2"><span class="toc-num">2</span>Key Decisions (Locked)</a>
+          </li>
+          <li>
+            <a href="#section-3"><span class="toc-num">3</span>Pricing Model</a>
+          </li>
+          <li>
+            <a href="#section-4"><span class="toc-num">4</span>Team &amp; Hiring Sequence</a>
+          </li>
+          <li>
+            <a href="#section-5"><span class="toc-num">5</span>Implementation Strategy</a>
+          </li>
+          <li>
+            <a href="#section-6"><span class="toc-num">6</span>Go-to-Market</a>
+          </li>
+          <li>
+            <a href="#section-7"><span class="toc-num">7</span>Onboarding (90-Day Journey)</a>
+          </li>
+          <li>
+            <a href="#section-8"><span class="toc-num">8</span>Support &amp; Customer Success</a>
+          </li>
+          <li>
+            <a href="#section-9"><span class="toc-num">9</span>Community Exchange</a>
+          </li>
+          <li>
+            <a href="#section-10"><span class="toc-num">10</span>Scaling Playbook</a>
+          </li>
+          <li>
+            <a href="#section-11"><span class="toc-num">11</span>Competitive Positioning</a>
+          </li>
+          <li>
+            <a href="#section-12"><span class="toc-num">12</span>Metrics &amp; Milestones</a>
+          </li>
+          <li>
+            <a href="#section-13"><span class="toc-num">13</span>Risk Register</a>
+          </li>
+          <li>
+            <a href="#section-14"><span class="toc-num">14</span>Open Questions</a>
+          </li>
+          <li>
+            <a href="#section-15"><span class="toc-num">15</span>Architecture Changes Required</a>
+          </li>
+        </ul>
+      </nav>
+      <main class="main-content">
+        <div class="title-section">
+          <div class="brand">CampusOS</div>
+          <h1>Business Strategy &amp; Go-to-Market Plan</h1>
+          <div class="subtitle">
+            Pricing, team structure, go-to-market, onboarding, support, community marketplace, and
+            scaling &mdash; the business counterpart to the frozen architecture
+          </div>
+          <div class="version">
+            Version 2.1 &middot; March 2026 &middot; 15 Sections &middot; All Key Decisions Locked
+            &middot; Amendments Complete
+          </div>
+        </div>
 
-      <div class="about-box">
-        <h3>About This Document</h3>
-        <p>This document defines the complete business strategy for CampusOS. It pairs with the frozen technical documents (ERD v10, Architecture Review, Function Library, Dev &amp; Deployment Plan) as the business counterpart &mdash; the architecture tells you <em>what</em> to build, this tells you <em>how to sell, support, and grow it</em>.</p>
-        <p>All key decisions documented in Section 2 have been discussed, debated, and locked. The pricing model uses flat monthly fees by size band with all features included. The community exchange supports 6 listing types with a 20/10/70 three-way revenue split for content and 5% platform fee for surplus assets. The team structure follows a lean/bootstrap approach leveraging the AI development pipeline. The CTO role is titled Chief Information Officer (CIO). Parents can browse, buy, and participate in forums but cannot create listings.</p>
-        <p>14 core business sections plus a 15th section summarising the completed architecture amendments (v10.1 and v10.2). Platform total: 840 tables, 38 modules, 76 ADRs.</p>
-      </div>
+        <div class="about-box">
+          <h3>About This Document</h3>
+          <p>
+            This document defines the complete business strategy for CampusOS. It pairs with the
+            frozen technical documents (ERD v10, Architecture Review, Function Library, Dev &amp;
+            Deployment Plan) as the business counterpart &mdash; the architecture tells you
+            <em>what</em> to build, this tells you <em>how to sell, support, and grow it</em>.
+          </p>
+          <p>
+            All key decisions documented in Section 2 have been discussed, debated, and locked. The
+            pricing model uses flat monthly fees by size band with all features included. The
+            community exchange supports 6 listing types with a 20/10/70 three-way revenue split for
+            content and 5% platform fee for surplus assets. The team structure follows a
+            lean/bootstrap approach leveraging the AI development pipeline. The CTO role is titled
+            Chief Information Officer (CIO). Parents can browse, buy, and participate in forums but
+            cannot create listings.
+          </p>
+          <p>
+            14 core business sections plus a 15th section summarising the completed architecture
+            amendments (v10.1 and v10.2). Platform total: 840 tables, 38 modules, 76 ADRs.
+          </p>
+        </div>
 
-      <!-- ═══════════════════ 1. EXECUTIVE SUMMARY ═══════════════════ -->
-      <h2 class="section-heading" id="section-1">1. Executive Summary</h2>
-      <p class="body-text">CampusOS is a cloud-native, multi-tenant School Operating System designed to unify every operational domain of a K&ndash;12 school into a single platform. The architecture is complete: 803 tables across 36 modules, governed by 70 Architecture Decision Records, with a clear 5-wave delivery plan.</p>
-      <p class="body-text">The core thesis: schools currently run on 8&ndash;15 disconnected software systems. Each has its own login, data silo, and contract. CampusOS replaces all of them with one platform sharing a single identity model, permission system, and source of truth.</p>
-      <p class="body-text">The development pipeline is AI-driven: Claude writes all application code, ChatGPT reviews it, and a human accepts it. This allows a team of 4&ndash;5 people to build what would traditionally require 35&ndash;45. The lean/bootstrap approach is the chosen path &mdash; the AI pipeline makes this viable for a platform of this scope.</p>
+        <!-- ═══════════════════ 1. EXECUTIVE SUMMARY ═══════════════════ -->
+        <h2 class="section-heading" id="section-1">1. Executive Summary</h2>
+        <p class="body-text">
+          CampusOS is a cloud-native, multi-tenant School Operating System designed to unify every
+          operational domain of a K&ndash;12 school into a single platform. The architecture is
+          complete: 803 tables across 36 modules, governed by 70 Architecture Decision Records, with
+          a clear 5-wave delivery plan.
+        </p>
+        <p class="body-text">
+          The core thesis: schools currently run on 8&ndash;15 disconnected software systems. Each
+          has its own login, data silo, and contract. CampusOS replaces all of them with one
+          platform sharing a single identity model, permission system, and source of truth.
+        </p>
+        <p class="body-text">
+          The development pipeline is AI-driven: Claude writes all application code, ChatGPT reviews
+          it, and a human accepts it. This allows a team of 4&ndash;5 people to build what would
+          traditionally require 35&ndash;45. The lean/bootstrap approach is the chosen path &mdash;
+          the AI pipeline makes this viable for a platform of this scope.
+        </p>
 
-      <!-- ═══════════════════ 2. KEY DECISIONS ═══════════════════ -->
-      <h2 class="section-heading" id="section-2">2. Key Business Decisions (Locked)</h2>
-      <p class="body-text">The following decisions were made during the business strategy planning process and are now locked as the baseline for execution.</p>
-      <table>
-        <tr><th style="width:30%">Decision</th><th>Resolution</th></tr>
-        <tr><td><strong>Pricing model</strong></td><td>Flat monthly fee by size band. All features included at every tier. No feature gating. Monthly billing with 15% discount for annual prepayment.</td></tr>
-        <tr><td><strong>Size bands</strong></td><td>Micro (1&ndash;150), Small (151&ndash;500), Standard (501&ndash;1,500), Large (1,501&ndash;3,000), XL (3,001&ndash;5,000). Custom pricing for 5,001+ at $2/student/month floor.</td></tr>
-        <tr><td><strong>Marketplace split</strong></td><td>Content: CampusOS 20% / School 10% / Creator 70% (applies to teachers AND students). Surplus assets: CampusOS 5% / Selling school 95%.</td></tr>
-        <tr><td><strong>Quality bar</strong></td><td>Content must link to verified source (cls_submissions, pfl_portfolio_items, etc.). Requires role-appropriate reviewer then building admin approval via M2 Approval Workflows.</td></tr>
-        <tr><td><strong>Community access</strong></td><td>Marketplace browsing open to external visitors. Import, forums, and purchasing require CampusOS account. Surplus asset visibility is per-listing (school chooses: CampusOS-only, open browse, or fully open).</td></tr>
-        <tr><td><strong>Parent access</strong></td><td>Parents can browse, buy, comment, rate, and participate in parent forums. Parents cannot create listings. Asset purchases are personal transactions.</td></tr>
-        <tr><td><strong>Student revenue</strong></td><td>Students earn the same 20/10/70 split as teachers. Requires parental consent for minors. Published portfolio items link to pfl_ module.</td></tr>
-        <tr><td><strong>CTO &rarr; CIO title</strong></td><td>Chief Information Officer. Reflects scope: information systems, architecture, AI pipeline, infrastructure, compliance.</td></tr>
-        <tr><td><strong>Funding approach</strong></td><td>Lean/bootstrap. AI pipeline makes this viable. Total first 18 months: $700K&ndash;$900K at the lean end.</td></tr>
-        <tr><td><strong>Support included</strong></td><td>Standard support (email, 24h SLA) included in all plans. Priority and Premium as paid add-ons.</td></tr>
-        <tr><td><strong>Data migration</strong></td><td>Included in onboarding. Pre-built import templates for top 6 SIS platforms. Never charged separately.</td></tr>
-      </table>
+        <!-- ═══════════════════ 2. KEY DECISIONS ═══════════════════ -->
+        <h2 class="section-heading" id="section-2">2. Key Business Decisions (Locked)</h2>
+        <p class="body-text">
+          The following decisions were made during the business strategy planning process and are
+          now locked as the baseline for execution.
+        </p>
+        <table>
+          <tr>
+            <th style="width: 30%">Decision</th>
+            <th>Resolution</th>
+          </tr>
+          <tr>
+            <td><strong>Pricing model</strong></td>
+            <td>
+              Flat monthly fee by size band. All features included at every tier. No feature gating.
+              Monthly billing with 15% discount for annual prepayment.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Size bands</strong></td>
+            <td>
+              Micro (1&ndash;150), Small (151&ndash;500), Standard (501&ndash;1,500), Large
+              (1,501&ndash;3,000), XL (3,001&ndash;5,000). Custom pricing for 5,001+ at
+              $2/student/month floor.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Marketplace split</strong></td>
+            <td>
+              Content: CampusOS 20% / School 10% / Creator 70% (applies to teachers AND students).
+              Surplus assets: CampusOS 5% / Selling school 95%.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Quality bar</strong></td>
+            <td>
+              Content must link to verified source (cls_submissions, pfl_portfolio_items, etc.).
+              Requires role-appropriate reviewer then building admin approval via M2 Approval
+              Workflows.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Community access</strong></td>
+            <td>
+              Marketplace browsing open to external visitors. Import, forums, and purchasing require
+              CampusOS account. Surplus asset visibility is per-listing (school chooses:
+              CampusOS-only, open browse, or fully open).
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Parent access</strong></td>
+            <td>
+              Parents can browse, buy, comment, rate, and participate in parent forums. Parents
+              cannot create listings. Asset purchases are personal transactions.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Student revenue</strong></td>
+            <td>
+              Students earn the same 20/10/70 split as teachers. Requires parental consent for
+              minors. Published portfolio items link to pfl_ module.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>CTO &rarr; CIO title</strong></td>
+            <td>
+              Chief Information Officer. Reflects scope: information systems, architecture, AI
+              pipeline, infrastructure, compliance.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Funding approach</strong></td>
+            <td>
+              Lean/bootstrap. AI pipeline makes this viable. Total first 18 months:
+              $700K&ndash;$900K at the lean end.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Support included</strong></td>
+            <td>
+              Standard support (email, 24h SLA) included in all plans. Priority and Premium as paid
+              add-ons.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Data migration</strong></td>
+            <td>
+              Included in onboarding. Pre-built import templates for top 6 SIS platforms. Never
+              charged separately.
+            </td>
+          </tr>
+        </table>
 
-      <!-- ═══════════════════ 3. PRICING ═══════════════════ -->
-      <h2 class="section-heading" id="section-3">3. Pricing Model</h2>
-      <h3 class="sub-heading">3.1 Pricing Philosophy</h3>
-      <ul class="bullet-list">
-        <li><strong>All features included.</strong> Every school gets every module. No feature gating. The platform is an operating system &mdash; you don&rsquo;t buy it in pieces.</li>
-        <li><strong>Flat fee by size band.</strong> Not per-student. A 50-student Montessori has the same operational complexity as a 150-student school. Per-student ignores non-student value (fleet, facilities, IT, events).</li>
-        <li><strong>Monthly billing, annual discount.</strong> 15% off for annual prepayment. Monthly lowers the barrier; discount incentivises commitment and improves cash flow.</li>
-      </ul>
-      <h3 class="sub-heading">3.2 Pricing Bands</h3>
-      <table>
-        <tr><th>Band</th><th>Size</th><th>Monthly Fee</th><th>Annual (15% off)</th><th>Eff. $/student/mo</th></tr>
-        <tr><td><strong>Micro</strong></td><td>1&ndash;150 students</td><td>$499/mo</td><td>$5,090/yr</td><td>$3.33&ndash;$499</td></tr>
-        <tr><td><strong>Small</strong></td><td>151&ndash;500 students</td><td>$999/mo</td><td>$10,190/yr</td><td>$2.00&ndash;$6.62</td></tr>
-        <tr><td><strong>Standard</strong></td><td>501&ndash;1,500 students</td><td>$2,499/mo</td><td>$25,490/yr</td><td>$1.67&ndash;$4.99</td></tr>
-        <tr><td><strong>Large</strong></td><td>1,501&ndash;3,000 students</td><td>$4,999/mo</td><td>$50,990/yr</td><td>$1.67&ndash;$3.33</td></tr>
-        <tr><td><strong>XL</strong></td><td>3,001&ndash;5,000 students</td><td>$7,999/mo</td><td>$81,590/yr</td><td>$1.60&ndash;$2.67</td></tr>
-        <tr><td><strong>Custom</strong></td><td>5,001+ students</td><td>Negotiated</td><td>Floor: $2/student/mo</td><td>Custom</td></tr>
-      </table>
-      <h3 class="sub-heading">3.3 Custom Tier Examples</h3>
-      <table>
-        <tr><th>Organisation</th><th>Students</th><th>Monthly Fee</th><th>Annual (15% off)</th></tr>
-        <tr><td>Mid-size district</td><td>10,000</td><td>$20,000/mo</td><td>$204,000/yr</td></tr>
-        <tr><td>Large district</td><td>50,000</td><td>$100,000/mo</td><td>$1,020,000/yr</td></tr>
-        <tr><td>Major metro district</td><td>200,000</td><td>$400,000/mo</td><td>$4,080,000/yr</td></tr>
-      </table>
-      <h3 class="sub-heading">3.4 Additional Revenue Streams</h3>
-      <ul class="bullet-list">
-        <li><strong>Payment processing (1.8% margin):</strong> Tuition, lunch, field trips, store, fundraising via Stripe Connect (ADR-003).</li>
-        <li><strong>AI token usage:</strong> Base included. Heavy usage metered as add-on.</li>
-        <li><strong>Professional services:</strong> Complex data migration, custom reports, integration dev, training workshops.</li>
-        <li><strong>Marketplace commission (20%):</strong> Three-way split: 20% CampusOS, 10% school, 70% teacher.</li>
-        <li><strong>Athletic streaming/ticketing:</strong> Via Video Processing Service and ath_game_streams (ADR-068).</li>
-        <li><strong>Support tier upgrades:</strong> Priority (+$200&ndash;400/mo) and Premium (+$500&ndash;1,000/mo).</li>
-      </ul>
-      <h3 class="sub-heading">3.5 Always Included (Never Charged)</h3>
-      <ul class="bullet-list">
-        <li>Data migration from supported SIS platforms</li>
-        <li>Standard support (email, 24h SLA)</li>
-        <li>All platform updates and new wave releases</li>
-        <li>FERPA, GDPR, COPPA compliance tooling (DPO suite)</li>
-        <li>Parent and student mobile access</li>
-        <li>API access for approved integrations</li>
-      </ul>
+        <!-- ═══════════════════ 3. PRICING ═══════════════════ -->
+        <h2 class="section-heading" id="section-3">3. Pricing Model</h2>
+        <h3 class="sub-heading">3.1 Pricing Philosophy</h3>
+        <ul class="bullet-list">
+          <li>
+            <strong>All features included.</strong> Every school gets every module. No feature
+            gating. The platform is an operating system &mdash; you don&rsquo;t buy it in pieces.
+          </li>
+          <li>
+            <strong>Flat fee by size band.</strong> Not per-student. A 50-student Montessori has the
+            same operational complexity as a 150-student school. Per-student ignores non-student
+            value (fleet, facilities, IT, events).
+          </li>
+          <li>
+            <strong>Monthly billing, annual discount.</strong> 15% off for annual prepayment.
+            Monthly lowers the barrier; discount incentivises commitment and improves cash flow.
+          </li>
+        </ul>
+        <h3 class="sub-heading">3.2 Pricing Bands</h3>
+        <table>
+          <tr>
+            <th>Band</th>
+            <th>Size</th>
+            <th>Monthly Fee</th>
+            <th>Annual (15% off)</th>
+            <th>Eff. $/student/mo</th>
+          </tr>
+          <tr>
+            <td><strong>Micro</strong></td>
+            <td>1&ndash;150 students</td>
+            <td>$499/mo</td>
+            <td>$5,090/yr</td>
+            <td>$3.33&ndash;$499</td>
+          </tr>
+          <tr>
+            <td><strong>Small</strong></td>
+            <td>151&ndash;500 students</td>
+            <td>$999/mo</td>
+            <td>$10,190/yr</td>
+            <td>$2.00&ndash;$6.62</td>
+          </tr>
+          <tr>
+            <td><strong>Standard</strong></td>
+            <td>501&ndash;1,500 students</td>
+            <td>$2,499/mo</td>
+            <td>$25,490/yr</td>
+            <td>$1.67&ndash;$4.99</td>
+          </tr>
+          <tr>
+            <td><strong>Large</strong></td>
+            <td>1,501&ndash;3,000 students</td>
+            <td>$4,999/mo</td>
+            <td>$50,990/yr</td>
+            <td>$1.67&ndash;$3.33</td>
+          </tr>
+          <tr>
+            <td><strong>XL</strong></td>
+            <td>3,001&ndash;5,000 students</td>
+            <td>$7,999/mo</td>
+            <td>$81,590/yr</td>
+            <td>$1.60&ndash;$2.67</td>
+          </tr>
+          <tr>
+            <td><strong>Custom</strong></td>
+            <td>5,001+ students</td>
+            <td>Negotiated</td>
+            <td>Floor: $2/student/mo</td>
+            <td>Custom</td>
+          </tr>
+        </table>
+        <h3 class="sub-heading">3.3 Custom Tier Examples</h3>
+        <table>
+          <tr>
+            <th>Organisation</th>
+            <th>Students</th>
+            <th>Monthly Fee</th>
+            <th>Annual (15% off)</th>
+          </tr>
+          <tr>
+            <td>Mid-size district</td>
+            <td>10,000</td>
+            <td>$20,000/mo</td>
+            <td>$204,000/yr</td>
+          </tr>
+          <tr>
+            <td>Large district</td>
+            <td>50,000</td>
+            <td>$100,000/mo</td>
+            <td>$1,020,000/yr</td>
+          </tr>
+          <tr>
+            <td>Major metro district</td>
+            <td>200,000</td>
+            <td>$400,000/mo</td>
+            <td>$4,080,000/yr</td>
+          </tr>
+        </table>
+        <h3 class="sub-heading">3.4 Additional Revenue Streams</h3>
+        <ul class="bullet-list">
+          <li>
+            <strong>Payment processing (1.8% margin):</strong> Tuition, lunch, field trips, store,
+            fundraising via Stripe Connect (ADR-003).
+          </li>
+          <li><strong>AI token usage:</strong> Base included. Heavy usage metered as add-on.</li>
+          <li>
+            <strong>Professional services:</strong> Complex data migration, custom reports,
+            integration dev, training workshops.
+          </li>
+          <li>
+            <strong>Marketplace commission (20%):</strong> Three-way split: 20% CampusOS, 10%
+            school, 70% teacher.
+          </li>
+          <li>
+            <strong>Athletic streaming/ticketing:</strong> Via Video Processing Service and
+            ath_game_streams (ADR-068).
+          </li>
+          <li>
+            <strong>Support tier upgrades:</strong> Priority (+$200&ndash;400/mo) and Premium
+            (+$500&ndash;1,000/mo).
+          </li>
+        </ul>
+        <h3 class="sub-heading">3.5 Always Included (Never Charged)</h3>
+        <ul class="bullet-list">
+          <li>Data migration from supported SIS platforms</li>
+          <li>Standard support (email, 24h SLA)</li>
+          <li>All platform updates and new wave releases</li>
+          <li>FERPA, GDPR, COPPA compliance tooling (DPO suite)</li>
+          <li>Parent and student mobile access</li>
+          <li>API access for approved integrations</li>
+        </ul>
 
-      <!-- ═══════════════════ 4. TEAM ═══════════════════ -->
-      <h2 class="section-heading" id="section-4">4. Founding Team &amp; Hiring Sequence</h2>
-      <div class="callout callout-ai">
-        <div class="callout-title">AI Leverage Model</div>
-        <p>CampusOS uses a two-AI, one-human development pipeline. Claude writes all code. ChatGPT reviews. A human (the CIO) accepts. This inverts the hiring curve: engineering stays lean while customer-facing roles grow faster. At Month 18, ~11 people build what traditionally requires 35&ndash;45. The ~4x leverage applies to engineering; customer-facing roles remain similar.</p>
-      </div>
-      <h3 class="sub-heading">Phase 0: Architecture &amp; Pilot Sourcing (Months 0&ndash;3)</h3>
-      <p class="body-text"><strong>2 people + 2 AI agents. Burn: $15&ndash;25K/month.</strong></p>
-      <table>
-        <tr><th>Role</th><th>Type</th><th>Responsibilities</th></tr>
-        <tr><td><strong>CEO / Domain Lead</strong></td><td>Founder</td><td>School relationships, pilot sourcing, fundraising, product vision. Must have K&ndash;12 network or edtech credibility.</td></tr>
-        <tr><td><strong>CIO / Technical Lead</strong></td><td>Founder</td><td>Owns frozen architecture. Manages AI dev pipeline. Validates every build cycle. AWS, Terraform, CI/CD.</td></tr>
-        <tr><td><strong>Claude</strong></td><td>AI Agent</td><td>Writes all application code, migrations, unit tests, API endpoints per Wave 1 build sequence.</td></tr>
-        <tr><td><strong>ChatGPT</strong></td><td>AI Agent</td><td>Code review, architectural validation, security analysis against frozen design docs.</td></tr>
-      </table>
-      <h3 class="sub-heading">Phase 1: Wave 1 Build + First Pilot (Months 3&ndash;9)</h3>
-      <p class="body-text"><strong>4 people. Burn: $35&ndash;50K/month.</strong> Add Implementation Lead (first school-facing hire; data migration, training, onboarding) and contract UI/UX Designer (design system, WCAG 2.1 AA, mobile patterns).</p>
-      <h3 class="sub-heading">Phase 2: Pilot Live + First Revenue (Months 9&ndash;15)</h3>
-      <p class="body-text"><strong>7 people. Burn: $65&ndash;90K/month.</strong> Add Senior Full-Stack Engineer (first human engineer, Wave 2 domain ownership), Customer Success Manager (pilot relationships, training, knowledge base), DevOps/SRE (production reliability, on-call, cost governance).</p>
-      <h3 class="sub-heading">Phase 3: Growth + First Sales (Months 15&ndash;24)</h3>
-      <p class="body-text"><strong>11 people. Burn: $120&ndash;170K/month.</strong> Add Head of Sales (conference circuit, pipeline), second engineer (service domain owner), second CSM (1:10 ratio), contract content/marketing.</p>
-      <h3 class="sub-heading">Phase 4: Scaling Org (Months 24&ndash;36)</h3>
-      <p class="body-text"><strong>18 people. Burn: $200&ndash;300K/month.</strong> Add Head of Product, 3rd+4th engineers, 2 regional sales reps, Community Manager (marketplace launch), 3rd CSM + support lead.</p>
+        <!-- ═══════════════════ 4. TEAM ═══════════════════ -->
+        <h2 class="section-heading" id="section-4">4. Founding Team &amp; Hiring Sequence</h2>
+        <div class="callout callout-ai">
+          <div class="callout-title">AI Leverage Model</div>
+          <p>
+            CampusOS uses a two-AI, one-human development pipeline. Claude writes all code. ChatGPT
+            reviews. A human (the CIO) accepts. This inverts the hiring curve: engineering stays
+            lean while customer-facing roles grow faster. At Month 18, ~11 people build what
+            traditionally requires 35&ndash;45. The ~4x leverage applies to engineering;
+            customer-facing roles remain similar.
+          </p>
+        </div>
+        <h3 class="sub-heading">Phase 0: Architecture &amp; Pilot Sourcing (Months 0&ndash;3)</h3>
+        <p class="body-text"><strong>2 people + 2 AI agents. Burn: $15&ndash;25K/month.</strong></p>
+        <table>
+          <tr>
+            <th>Role</th>
+            <th>Type</th>
+            <th>Responsibilities</th>
+          </tr>
+          <tr>
+            <td><strong>CEO / Domain Lead</strong></td>
+            <td>Founder</td>
+            <td>
+              School relationships, pilot sourcing, fundraising, product vision. Must have
+              K&ndash;12 network or edtech credibility.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>CIO / Technical Lead</strong></td>
+            <td>Founder</td>
+            <td>
+              Owns frozen architecture. Manages AI dev pipeline. Validates every build cycle. AWS,
+              Terraform, CI/CD.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Claude</strong></td>
+            <td>AI Agent</td>
+            <td>
+              Writes all application code, migrations, unit tests, API endpoints per Wave 1 build
+              sequence.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>ChatGPT</strong></td>
+            <td>AI Agent</td>
+            <td>
+              Code review, architectural validation, security analysis against frozen design docs.
+            </td>
+          </tr>
+        </table>
+        <h3 class="sub-heading">Phase 1: Wave 1 Build + First Pilot (Months 3&ndash;9)</h3>
+        <p class="body-text">
+          <strong>4 people. Burn: $35&ndash;50K/month.</strong> Add Implementation Lead (first
+          school-facing hire; data migration, training, onboarding) and contract UI/UX Designer
+          (design system, WCAG 2.1 AA, mobile patterns).
+        </p>
+        <h3 class="sub-heading">Phase 2: Pilot Live + First Revenue (Months 9&ndash;15)</h3>
+        <p class="body-text">
+          <strong>7 people. Burn: $65&ndash;90K/month.</strong> Add Senior Full-Stack Engineer
+          (first human engineer, Wave 2 domain ownership), Customer Success Manager (pilot
+          relationships, training, knowledge base), DevOps/SRE (production reliability, on-call,
+          cost governance).
+        </p>
+        <h3 class="sub-heading">Phase 3: Growth + First Sales (Months 15&ndash;24)</h3>
+        <p class="body-text">
+          <strong>11 people. Burn: $120&ndash;170K/month.</strong> Add Head of Sales (conference
+          circuit, pipeline), second engineer (service domain owner), second CSM (1:10 ratio),
+          contract content/marketing.
+        </p>
+        <h3 class="sub-heading">Phase 4: Scaling Org (Months 24&ndash;36)</h3>
+        <p class="body-text">
+          <strong>18 people. Burn: $200&ndash;300K/month.</strong> Add Head of Product, 3rd+4th
+          engineers, 2 regional sales reps, Community Manager (marketplace launch), 3rd CSM +
+          support lead.
+        </p>
 
-      <!-- ═══════════════════ 5. IMPLEMENTATION ═══════════════════ -->
-      <h2 class="section-heading" id="section-5">5. Implementation Strategy</h2>
-      <h3 class="sub-heading">5.1 Pilot School Strategy</h3>
-      <p class="body-text">2&ndash;3 pilot schools commit as design partners before production code ships. <strong>Ideal profile:</strong> independent or charter, 200&ndash;1,000 students, currently using 5+ disconnected systems, tech-forward leadership, US-based for Wave 1, well-connected leader who generates referrals.</p>
-      <div class="callout callout-how">
-        <div class="callout-title">Pilot Terms</div>
-        <p>Free for Year 1. In exchange: weekly feedback, user journey validation, permission to publish case study, commitment to paid contract at 25% discount for Year 2. School must name a champion as primary liaison.</p>
-      </div>
-      <h3 class="sub-heading">5.2 Wave-to-Business Milestones</h3>
-      <table>
-        <tr><th>Wave</th><th>Technical Scope</th><th>Business Milestone</th><th>Revenue</th></tr>
-        <tr><td><strong>Foundation + W1</strong></td><td>Platform Core, SIS, Classroom, HR, Comms, Enrolment/Payments, Tickets, Tasks, Calendar</td><td>Pilot schools live</td><td>$0 (pilot)</td></tr>
-        <tr><td><strong>Wave 2</strong></td><td>Scheduling, Procurement, Groups, Health, Transport, IT, Behaviour</td><td>First paid customers</td><td>10&ndash;20 schools</td></tr>
-        <tr><td><strong>Wave 3</strong></td><td>Clubs, Athletics, Food, Facilities, Publications, Alumni, Library</td><td>Marketplace launch. Districts.</td><td>$1&ndash;2M ARR</td></tr>
-        <tr><td><strong>Wave 4</strong></td><td>Finance &amp; GL, Advanced Reporting, Multi-Region</td><td>Enterprise. International.</td><td>$3&ndash;5M ARR</td></tr>
-        <tr><td><strong>Wave 5</strong></td><td>Full Procurement, Analytics, AI Expansion</td><td>Market leader</td><td>$5&ndash;10M ARR</td></tr>
-      </table>
+        <!-- ═══════════════════ 5. IMPLEMENTATION ═══════════════════ -->
+        <h2 class="section-heading" id="section-5">5. Implementation Strategy</h2>
+        <h3 class="sub-heading">5.1 Pilot School Strategy</h3>
+        <p class="body-text">
+          2&ndash;3 pilot schools commit as design partners before production code ships.
+          <strong>Ideal profile:</strong> independent or charter, 200&ndash;1,000 students,
+          currently using 5+ disconnected systems, tech-forward leadership, US-based for Wave 1,
+          well-connected leader who generates referrals.
+        </p>
+        <div class="callout callout-how">
+          <div class="callout-title">Pilot Terms</div>
+          <p>
+            Free for Year 1. In exchange: weekly feedback, user journey validation, permission to
+            publish case study, commitment to paid contract at 25% discount for Year 2. School must
+            name a champion as primary liaison.
+          </p>
+        </div>
+        <h3 class="sub-heading">5.2 Wave-to-Business Milestones</h3>
+        <table>
+          <tr>
+            <th>Wave</th>
+            <th>Technical Scope</th>
+            <th>Business Milestone</th>
+            <th>Revenue</th>
+          </tr>
+          <tr>
+            <td><strong>Foundation + W1</strong></td>
+            <td>
+              Platform Core, SIS, Classroom, HR, Comms, Enrolment/Payments, Tickets, Tasks, Calendar
+            </td>
+            <td>Pilot schools live</td>
+            <td>$0 (pilot)</td>
+          </tr>
+          <tr>
+            <td><strong>Wave 2</strong></td>
+            <td>Scheduling, Procurement, Groups, Health, Transport, IT, Behaviour</td>
+            <td>First paid customers</td>
+            <td>10&ndash;20 schools</td>
+          </tr>
+          <tr>
+            <td><strong>Wave 3</strong></td>
+            <td>Clubs, Athletics, Food, Facilities, Publications, Alumni, Library</td>
+            <td>Marketplace launch. Districts.</td>
+            <td>$1&ndash;2M ARR</td>
+          </tr>
+          <tr>
+            <td><strong>Wave 4</strong></td>
+            <td>Finance &amp; GL, Advanced Reporting, Multi-Region</td>
+            <td>Enterprise. International.</td>
+            <td>$3&ndash;5M ARR</td>
+          </tr>
+          <tr>
+            <td><strong>Wave 5</strong></td>
+            <td>Full Procurement, Analytics, AI Expansion</td>
+            <td>Market leader</td>
+            <td>$5&ndash;10M ARR</td>
+          </tr>
+        </table>
 
-      <!-- ═══════════════════ 6. GTM ═══════════════════ -->
-      <h2 class="section-heading" id="section-6">6. Go-to-Market &amp; First Customers</h2>
-      <h3 class="sub-heading">6.1 School Buying Calendar</h3>
-      <div class="callout callout-note">
-        <div class="callout-title">Timing Is Everything</div>
-        <p><strong>Nov&ndash;Feb:</strong> Seed and nurture. Conference circuit. &bull; <strong>Mar&ndash;May:</strong> Close deals &mdash; schools building next year&rsquo;s budget. &bull; <strong>Jun&ndash;Jul:</strong> Implementation window &mdash; schools empty, staff available. &bull; <strong>Aug:</strong> Target go-live. Hypercare. &bull; <strong>Sep&ndash;Oct:</strong> Dead zone for sales. Nurture and collect case studies.</p>
-      </div>
-      <h3 class="sub-heading">6.2 GTM Channels (Lean/Bootstrap)</h3>
-      <ul class="bullet-list">
-        <li><strong>Channel 1 &mdash; Founder-led outreach ($0):</strong> Personal network. 20-minute demo. Ask for design partnership. Target: 2&ndash;3 pilot schools.</li>
-        <li><strong>Channel 2 &mdash; Conferences ($2&ndash;8K/event):</strong> Attend, don&rsquo;t exhibit. Apply to speak. Bring pilot admin to co-present. 3&ndash;4 events Year 1: FETC, TCEA, CoSN, ISTE.</li>
-        <li><strong>Channel 3 &mdash; Referral engine ($0):</strong> &ldquo;Refer a school, get a month free.&rdquo; Athletic network as natural referral. Customer advisory board of 5&ndash;10 leaders.</li>
-        <li><strong>Channel 4 &mdash; Content marketing ($1&ndash;3K/mo):</strong> CEO blog, pilot case study, edtech podcasts. Open marketplace drives SEO long-term.</li>
-        <li><strong>Channel 5 &mdash; Strategic partnerships:</strong> NAIS, ISC, PEPPM, TIPS/TAPS, CMOs (one deal = 5&ndash;50 schools), IT consultancies as resellers.</li>
-        <li><strong>Channel 6 &mdash; Open marketplace as funnel ($0 marginal):</strong> Teacher discovers content via Google, previews but can&rsquo;t import without account. Bottom-up complements top-down.</li>
-      </ul>
-      <h3 class="sub-heading">6.3 First 20 Customers</h3>
-      <table>
-        <tr><th>Source</th><th>Schools</th><th>Notes</th></tr>
-        <tr><td>Pilot schools (free Y1)</td><td>2&ndash;3</td><td>CEO personal network</td></tr>
-        <tr><td>Conference leads</td><td>5&ndash;8</td><td>FETC, ISTE, state events</td></tr>
-        <tr><td>Referrals from pilots</td><td>4&ndash;6</td><td>Peer recommendations</td></tr>
-        <tr><td>Inbound / word of mouth</td><td>3&ndash;5</td><td>Blog, podcasts, case studies</td></tr>
-      </table>
-      <p class="body-text"><strong>Year 1 GTM budget:</strong> ~$57K ($4.7K/month). Conferences ~$18K, content ~$18K, travel ~$12K, memberships ~$5K, demo hosting ~$4K.</p>
+        <!-- ═══════════════════ 6. GTM ═══════════════════ -->
+        <h2 class="section-heading" id="section-6">6. Go-to-Market &amp; First Customers</h2>
+        <h3 class="sub-heading">6.1 School Buying Calendar</h3>
+        <div class="callout callout-note">
+          <div class="callout-title">Timing Is Everything</div>
+          <p>
+            <strong>Nov&ndash;Feb:</strong> Seed and nurture. Conference circuit. &bull;
+            <strong>Mar&ndash;May:</strong> Close deals &mdash; schools building next year&rsquo;s
+            budget. &bull; <strong>Jun&ndash;Jul:</strong> Implementation window &mdash; schools
+            empty, staff available. &bull; <strong>Aug:</strong> Target go-live. Hypercare. &bull;
+            <strong>Sep&ndash;Oct:</strong> Dead zone for sales. Nurture and collect case studies.
+          </p>
+        </div>
+        <h3 class="sub-heading">6.2 GTM Channels (Lean/Bootstrap)</h3>
+        <ul class="bullet-list">
+          <li>
+            <strong>Channel 1 &mdash; Founder-led outreach ($0):</strong> Personal network.
+            20-minute demo. Ask for design partnership. Target: 2&ndash;3 pilot schools.
+          </li>
+          <li>
+            <strong>Channel 2 &mdash; Conferences ($2&ndash;8K/event):</strong> Attend, don&rsquo;t
+            exhibit. Apply to speak. Bring pilot admin to co-present. 3&ndash;4 events Year 1: FETC,
+            TCEA, CoSN, ISTE.
+          </li>
+          <li>
+            <strong>Channel 3 &mdash; Referral engine ($0):</strong> &ldquo;Refer a school, get a
+            month free.&rdquo; Athletic network as natural referral. Customer advisory board of
+            5&ndash;10 leaders.
+          </li>
+          <li>
+            <strong>Channel 4 &mdash; Content marketing ($1&ndash;3K/mo):</strong> CEO blog, pilot
+            case study, edtech podcasts. Open marketplace drives SEO long-term.
+          </li>
+          <li>
+            <strong>Channel 5 &mdash; Strategic partnerships:</strong> NAIS, ISC, PEPPM, TIPS/TAPS,
+            CMOs (one deal = 5&ndash;50 schools), IT consultancies as resellers.
+          </li>
+          <li>
+            <strong>Channel 6 &mdash; Open marketplace as funnel ($0 marginal):</strong> Teacher
+            discovers content via Google, previews but can&rsquo;t import without account. Bottom-up
+            complements top-down.
+          </li>
+        </ul>
+        <h3 class="sub-heading">6.3 First 20 Customers</h3>
+        <table>
+          <tr>
+            <th>Source</th>
+            <th>Schools</th>
+            <th>Notes</th>
+          </tr>
+          <tr>
+            <td>Pilot schools (free Y1)</td>
+            <td>2&ndash;3</td>
+            <td>CEO personal network</td>
+          </tr>
+          <tr>
+            <td>Conference leads</td>
+            <td>5&ndash;8</td>
+            <td>FETC, ISTE, state events</td>
+          </tr>
+          <tr>
+            <td>Referrals from pilots</td>
+            <td>4&ndash;6</td>
+            <td>Peer recommendations</td>
+          </tr>
+          <tr>
+            <td>Inbound / word of mouth</td>
+            <td>3&ndash;5</td>
+            <td>Blog, podcasts, case studies</td>
+          </tr>
+        </table>
+        <p class="body-text">
+          <strong>Year 1 GTM budget:</strong> ~$57K ($4.7K/month). Conferences ~$18K, content ~$18K,
+          travel ~$12K, memberships ~$5K, demo hosting ~$4K.
+        </p>
 
-      <!-- ═══════════════════ 7. ONBOARDING ═══════════════════ -->
-      <h2 class="section-heading" id="section-7">7. Customer Onboarding (90-Day Journey)</h2>
-      <p class="body-text">The first 90 days determine whether a school stays for 10 years or churns at renewal. Every phase has a quality gate &mdash; the school does not advance until it is met.</p>
-      <table>
-        <tr><th>Phase</th><th>Weeks</th><th>Activities</th><th>Quality Gate</th></tr>
-        <tr><td><strong>Discovery</strong></td><td>1&ndash;2</td><td>Map current systems. Inventory data. Identify school champion. Document pain points.</td><td>Data migration plan signed off</td></tr>
-        <tr><td><strong>Data Migration</strong></td><td>2&ndash;4</td><td>Export from existing SIS. Import pipeline with templates. Validation report. Parallel run.</td><td>100% active records imported and validated</td></tr>
-        <tr><td><strong>Configuration</strong></td><td>3&ndash;5</td><td>School structure, grading, attendance rules, permissions, comms, payments, calendar.</td><td>Admin can independently configure</td></tr>
-        <tr><td><strong>Training</strong></td><td>4&ndash;6</td><td>Admins 4&ndash;6h, teachers 2&ndash;3h, support staff 1&ndash;2h, parents 30min video.</td><td>80%+ staff trained</td></tr>
-        <tr><td><strong>Go-Live</strong></td><td>6&ndash;8</td><td>Old system read-only. CampusOS is SOR. Hypercare: same-day response, daily check-ins.</td><td>5 consecutive days, no critical issues</td></tr>
-        <tr><td><strong>Stabilisation</strong></td><td>8&ndash;12</td><td>Adoption dashboards. Second-wave training. Enable more modules. NPS. Case study.</td><td>DAU &gt;80%, NPS &gt;40</td></tr>
-      </table>
-      <div class="callout callout-privacy">
-        <div class="callout-title">Deployment Freeze</div>
-        <p>No code deployments for the first 3 weeks of the academic year. All summer updates ship by late July. Platform enters freeze until mid-September. Back-to-school is peak load &mdash; attendance, scheduling, enrolment, payments all at maximum volume.</p>
-      </div>
-      <h3 class="sub-heading">Onboarding Capacity</h3>
-      <p class="body-text">One implementation person can onboard 3&ndash;4 schools concurrently. Year 1 capacity (1 lead): 6&ndash;8 schools. Year 2 (1 lead + 2 CSMs): 15&ndash;20. Year 3+ (team of 4&ndash;5): 30&ndash;40 new schools/year. Self-service wizard for Micro/Small bands targeted by Year 3.</p>
+        <!-- ═══════════════════ 7. ONBOARDING ═══════════════════ -->
+        <h2 class="section-heading" id="section-7">7. Customer Onboarding (90-Day Journey)</h2>
+        <p class="body-text">
+          The first 90 days determine whether a school stays for 10 years or churns at renewal.
+          Every phase has a quality gate &mdash; the school does not advance until it is met.
+        </p>
+        <table>
+          <tr>
+            <th>Phase</th>
+            <th>Weeks</th>
+            <th>Activities</th>
+            <th>Quality Gate</th>
+          </tr>
+          <tr>
+            <td><strong>Discovery</strong></td>
+            <td>1&ndash;2</td>
+            <td>
+              Map current systems. Inventory data. Identify school champion. Document pain points.
+            </td>
+            <td>Data migration plan signed off</td>
+          </tr>
+          <tr>
+            <td><strong>Data Migration</strong></td>
+            <td>2&ndash;4</td>
+            <td>
+              Export from existing SIS. Import pipeline with templates. Validation report. Parallel
+              run.
+            </td>
+            <td>100% active records imported and validated</td>
+          </tr>
+          <tr>
+            <td><strong>Configuration</strong></td>
+            <td>3&ndash;5</td>
+            <td>
+              School structure, grading, attendance rules, permissions, comms, payments, calendar.
+            </td>
+            <td>Admin can independently configure</td>
+          </tr>
+          <tr>
+            <td><strong>Training</strong></td>
+            <td>4&ndash;6</td>
+            <td>
+              Admins 4&ndash;6h, teachers 2&ndash;3h, support staff 1&ndash;2h, parents 30min video.
+            </td>
+            <td>80%+ staff trained</td>
+          </tr>
+          <tr>
+            <td><strong>Go-Live</strong></td>
+            <td>6&ndash;8</td>
+            <td>
+              Old system read-only. CampusOS is SOR. Hypercare: same-day response, daily check-ins.
+            </td>
+            <td>5 consecutive days, no critical issues</td>
+          </tr>
+          <tr>
+            <td><strong>Stabilisation</strong></td>
+            <td>8&ndash;12</td>
+            <td>
+              Adoption dashboards. Second-wave training. Enable more modules. NPS. Case study.
+            </td>
+            <td>DAU &gt;80%, NPS &gt;40</td>
+          </tr>
+        </table>
+        <div class="callout callout-privacy">
+          <div class="callout-title">Deployment Freeze</div>
+          <p>
+            No code deployments for the first 3 weeks of the academic year. All summer updates ship
+            by late July. Platform enters freeze until mid-September. Back-to-school is peak load
+            &mdash; attendance, scheduling, enrolment, payments all at maximum volume.
+          </p>
+        </div>
+        <h3 class="sub-heading">Onboarding Capacity</h3>
+        <p class="body-text">
+          One implementation person can onboard 3&ndash;4 schools concurrently. Year 1 capacity (1
+          lead): 6&ndash;8 schools. Year 2 (1 lead + 2 CSMs): 15&ndash;20. Year 3+ (team of
+          4&ndash;5): 30&ndash;40 new schools/year. Self-service wizard for Micro/Small bands
+          targeted by Year 3.
+        </p>
 
-      <!-- ═══════════════════ 8. SUPPORT ═══════════════════ -->
-      <h2 class="section-heading" id="section-8">8. Support Tiers &amp; Customer Success</h2>
-      <table>
-        <tr><th></th><th>Standard</th><th>Priority</th><th>Premium</th></tr>
-        <tr><td><strong>Price</strong></td><td>Included</td><td>+$200&ndash;400/mo</td><td>+$500&ndash;1,000/mo</td></tr>
-        <tr><td><strong>Response SLA</strong></td><td>24 hours</td><td>4 hours</td><td>1 hour</td></tr>
-        <tr><td><strong>Channels</strong></td><td>Email, in-app ticket</td><td>Email, chat, phone</td><td>All + dedicated Slack</td></tr>
-        <tr><td><strong>Hours</strong></td><td>Mon&ndash;Fri 7a&ndash;6p</td><td>Mon&ndash;Fri 6a&ndash;9p</td><td>Extended + emergency</td></tr>
-        <tr><td><strong>CSM ratio</strong></td><td>1:30</td><td>1:15</td><td>1:5</td></tr>
-        <tr><td><strong>QBR</strong></td><td>No</td><td>Quarterly</td><td>Monthly</td></tr>
-      </table>
-      <h3 class="sub-heading">Escalation Path</h3>
-      <ul class="bullet-list">
-        <li><strong>Tier 1 &mdash; Self-service + AI:</strong> In-app help, knowledge base, AI assistant understanding school config. Resolves 60&ndash;70%.</li>
-        <li><strong>Tier 2 &mdash; CSM via M60 Tickets:</strong> Configuration issues, workflow guidance. SLA tracked in-platform.</li>
-        <li><strong>Tier 3 &mdash; Engineering:</strong> Bugs, performance, data integrity. CIO owns resolution.</li>
-        <li><strong>P1 Emergency:</strong> CIO paged. 30-minute response. All hands. Incident report within 24h. Proactive notification.</li>
-      </ul>
-      <h3 class="sub-heading">Annual Rhythm</h3>
-      <ul class="bullet-list">
-        <li><strong>Summer (Jun&ndash;Jul):</strong> Major updates. Year-end rollover. Onboarding. Training refresh.</li>
-        <li><strong>Back-to-school (Aug&ndash;Sep):</strong> Hypercare. Extended hours. No deployments first 3 weeks.</li>
-        <li><strong>Steady state (Oct&ndash;May):</strong> Bi-weekly releases. QBRs. Module adoption campaigns.</li>
-        <li><strong>Renewal (Mar&ndash;May):</strong> Proactive outreach 90 days out. Usage reports. Expansion conversations.</li>
-      </ul>
+        <!-- ═══════════════════ 8. SUPPORT ═══════════════════ -->
+        <h2 class="section-heading" id="section-8">8. Support Tiers &amp; Customer Success</h2>
+        <table>
+          <tr>
+            <th></th>
+            <th>Standard</th>
+            <th>Priority</th>
+            <th>Premium</th>
+          </tr>
+          <tr>
+            <td><strong>Price</strong></td>
+            <td>Included</td>
+            <td>+$200&ndash;400/mo</td>
+            <td>+$500&ndash;1,000/mo</td>
+          </tr>
+          <tr>
+            <td><strong>Response SLA</strong></td>
+            <td>24 hours</td>
+            <td>4 hours</td>
+            <td>1 hour</td>
+          </tr>
+          <tr>
+            <td><strong>Channels</strong></td>
+            <td>Email, in-app ticket</td>
+            <td>Email, chat, phone</td>
+            <td>All + dedicated Slack</td>
+          </tr>
+          <tr>
+            <td><strong>Hours</strong></td>
+            <td>Mon&ndash;Fri 7a&ndash;6p</td>
+            <td>Mon&ndash;Fri 6a&ndash;9p</td>
+            <td>Extended + emergency</td>
+          </tr>
+          <tr>
+            <td><strong>CSM ratio</strong></td>
+            <td>1:30</td>
+            <td>1:15</td>
+            <td>1:5</td>
+          </tr>
+          <tr>
+            <td><strong>QBR</strong></td>
+            <td>No</td>
+            <td>Quarterly</td>
+            <td>Monthly</td>
+          </tr>
+        </table>
+        <h3 class="sub-heading">Escalation Path</h3>
+        <ul class="bullet-list">
+          <li>
+            <strong>Tier 1 &mdash; Self-service + AI:</strong> In-app help, knowledge base, AI
+            assistant understanding school config. Resolves 60&ndash;70%.
+          </li>
+          <li>
+            <strong>Tier 2 &mdash; CSM via M60 Tickets:</strong> Configuration issues, workflow
+            guidance. SLA tracked in-platform.
+          </li>
+          <li>
+            <strong>Tier 3 &mdash; Engineering:</strong> Bugs, performance, data integrity. CIO owns
+            resolution.
+          </li>
+          <li>
+            <strong>P1 Emergency:</strong> CIO paged. 30-minute response. All hands. Incident report
+            within 24h. Proactive notification.
+          </li>
+        </ul>
+        <h3 class="sub-heading">Annual Rhythm</h3>
+        <ul class="bullet-list">
+          <li>
+            <strong>Summer (Jun&ndash;Jul):</strong> Major updates. Year-end rollover. Onboarding.
+            Training refresh.
+          </li>
+          <li>
+            <strong>Back-to-school (Aug&ndash;Sep):</strong> Hypercare. Extended hours. No
+            deployments first 3 weeks.
+          </li>
+          <li>
+            <strong>Steady state (Oct&ndash;May):</strong> Bi-weekly releases. QBRs. Module adoption
+            campaigns.
+          </li>
+          <li>
+            <strong>Renewal (Mar&ndash;May):</strong> Proactive outreach 90 days out. Usage reports.
+            Expansion conversations.
+          </li>
+        </ul>
 
-      <!-- ═══════════════════ 9. COMMUNITY ═══════════════════ -->
-      <h2 class="section-heading" id="section-9">9. Community Exchange</h2>
-      <p class="body-text">The CampusOS Community Exchange is the long-term moat. It goes far beyond a teacher content store &mdash; it is a unified school community where all users (teachers, students, staff, admins, and parents) share content, trade surplus assets, troubleshoot together, and build public profiles.</p>
-      <h3 class="sub-heading">9.1 Six Listing Types</h3>
-      <table>
-        <tr><th>Type</th><th>Creator</th><th>Commercial Model</th><th>Architecture Source</th></tr>
-        <tr><td><strong>Educational content</strong></td><td>Teachers</td><td>Free or paid. 20/10/70 split.</td><td>cls_lessons, cls_assignments, cur_units</td></tr>
-        <tr><td><strong>Student portfolio</strong></td><td>Students</td><td>Free or paid. 20/10/70 split. Parental consent required.</td><td>pfl_portfolio_items, pfl_achievements</td></tr>
-        <tr><td><strong>Field trips</strong></td><td>Teachers, staff</td><td>Free only (engagement/feedback).</td><td>ext_field_trips</td></tr>
-        <tr><td><strong>Surplus assets</strong></td><td>School (via staff)</td><td>School-to-school or personal sale. 5% platform fee.</td><td>tech_, lib_, fac_, ath_ inventories</td></tr>
-        <tr><td><strong>Book redistribution</strong></td><td>School (via librarian)</td><td>Free or nominal price. 5% if priced.</td><td>lib_catalogue_items</td></tr>
-        <tr><td><strong>Knowledge posts</strong></td><td>Any user</td><td>Free only (troubleshooting/recommendations).</td><td>Original content</td></tr>
-      </table>
-      <h3 class="sub-heading">9.2 Community Features</h3>
-      <ul class="bullet-list">
-        <li><strong>Universal profiles:</strong> Every community participant gets a public profile showing school, role, and for students, grade. Privacy controls let users choose what to display.</li>
-        <li><strong>5-star ratings and reviews:</strong> On all listing types. Verified-purchase ratings weighted higher.</li>
-        <li><strong>Threaded comments:</strong> On all listings and forum threads. Moderated. Helpful voting.</li>
-        <li><strong>Top contributors:</strong> Reputation scoring from listings, ratings, helpful comments, forum activity. Leaderboards by school, subject, region.</li>
-        <li><strong>Watch lists:</strong> Schools post what they need. Auto-notification when matching surplus appears.</li>
-        <li><strong>Unified search:</strong> Single search bar returns results from all listing types, forums, and knowledge posts. Weighted by relevance, rating, recency.</li>
-        <li><strong>Surplus asset visibility:</strong> Per-listing choice: CampusOS-only, open browse, or fully open. Schools control who sees their listings.</li>
-      </ul>
-      <h3 class="sub-heading">9.3 Revenue Model</h3>
-      <div class="callout callout-how">
-        <div class="callout-title">Revenue Splits</div>
-        <p><strong>Content (educational + student portfolio):</strong> CampusOS 20% &middot; School 10% &middot; Creator 70%. Students earn the same split as teachers, with parental consent.</p>
-        <p><strong>Surplus assets &amp; books:</strong> CampusOS 5% &middot; Selling school 95%. Parents can buy as individual purchasers.</p>
-        <p><strong>Field trips &amp; knowledge posts:</strong> Free only. No revenue split. Community value and engagement.</p>
-      </div>
-      <h3 class="sub-heading">9.4 Parent Access</h3>
-      <p class="body-text">Parents can browse all marketplace listings, buy educational content and surplus assets, participate in parent-filtered forums, comment, rate, and vote. Parents cannot create listings. Asset purchases by parents are personal transactions, not through school accounts. Parent forum categories include back-to-school prep, homework support, recommended reading, and school event coordination.</p>
-      <h3 class="sub-heading">9.5 Quality Enforcement</h3>
-      <ul class="bullet-list">
-        <li><strong>Gate 1 &mdash; Verified source:</strong> Educational content must have cls_submissions. Portfolio items must link to pfl_portfolio_items. Assets must link to source inventory. Verified automatically.</li>
-        <li><strong>Gate 2 &mdash; Role-appropriate reviewer:</strong> Teachers: dept head. Students: assigning teacher. Staff: department head. Librarians: head librarian. Via M2 Approval Workflows.</li>
-        <li><strong>Gate 3 &mdash; Building admin/business manager:</strong> IP review, brand alignment, pricing. Final gate before listing goes live.</li>
-      </ul>
-      <h3 class="sub-heading">9.6 Launch Sequence</h3>
-      <ul class="bullet-list">
-        <li><strong>Wave 2:</strong> Athletic network (opportunistic). Cross-school forums (including parent forums). Universal profiles. Reputation system.</li>
-        <li><strong>Wave 3:</strong> Full marketplace with all 6 listing types. Surplus asset exchange. Watch lists. Unified search. Parent purchasing.</li>
-        <li><strong>Wave 3+:</strong> Benchmarking (50+ schools). Professional Development. Knowledge base maturation.</li>
-      </ul>
+        <!-- ═══════════════════ 9. COMMUNITY ═══════════════════ -->
+        <h2 class="section-heading" id="section-9">9. Community Exchange</h2>
+        <p class="body-text">
+          The CampusOS Community Exchange is the long-term moat. It goes far beyond a teacher
+          content store &mdash; it is a unified school community where all users (teachers,
+          students, staff, admins, and parents) share content, trade surplus assets, troubleshoot
+          together, and build public profiles.
+        </p>
+        <h3 class="sub-heading">9.1 Six Listing Types</h3>
+        <table>
+          <tr>
+            <th>Type</th>
+            <th>Creator</th>
+            <th>Commercial Model</th>
+            <th>Architecture Source</th>
+          </tr>
+          <tr>
+            <td><strong>Educational content</strong></td>
+            <td>Teachers</td>
+            <td>Free or paid. 20/10/70 split.</td>
+            <td>cls_lessons, cls_assignments, cur_units</td>
+          </tr>
+          <tr>
+            <td><strong>Student portfolio</strong></td>
+            <td>Students</td>
+            <td>Free or paid. 20/10/70 split. Parental consent required.</td>
+            <td>pfl_portfolio_items, pfl_achievements</td>
+          </tr>
+          <tr>
+            <td><strong>Field trips</strong></td>
+            <td>Teachers, staff</td>
+            <td>Free only (engagement/feedback).</td>
+            <td>ext_field_trips</td>
+          </tr>
+          <tr>
+            <td><strong>Surplus assets</strong></td>
+            <td>School (via staff)</td>
+            <td>School-to-school or personal sale. 5% platform fee.</td>
+            <td>tech_, lib_, fac_, ath_ inventories</td>
+          </tr>
+          <tr>
+            <td><strong>Book redistribution</strong></td>
+            <td>School (via librarian)</td>
+            <td>Free or nominal price. 5% if priced.</td>
+            <td>lib_catalogue_items</td>
+          </tr>
+          <tr>
+            <td><strong>Knowledge posts</strong></td>
+            <td>Any user</td>
+            <td>Free only (troubleshooting/recommendations).</td>
+            <td>Original content</td>
+          </tr>
+        </table>
+        <h3 class="sub-heading">9.2 Community Features</h3>
+        <ul class="bullet-list">
+          <li>
+            <strong>Universal profiles:</strong> Every community participant gets a public profile
+            showing school, role, and for students, grade. Privacy controls let users choose what to
+            display.
+          </li>
+          <li>
+            <strong>5-star ratings and reviews:</strong> On all listing types. Verified-purchase
+            ratings weighted higher.
+          </li>
+          <li>
+            <strong>Threaded comments:</strong> On all listings and forum threads. Moderated.
+            Helpful voting.
+          </li>
+          <li>
+            <strong>Top contributors:</strong> Reputation scoring from listings, ratings, helpful
+            comments, forum activity. Leaderboards by school, subject, region.
+          </li>
+          <li>
+            <strong>Watch lists:</strong> Schools post what they need. Auto-notification when
+            matching surplus appears.
+          </li>
+          <li>
+            <strong>Unified search:</strong> Single search bar returns results from all listing
+            types, forums, and knowledge posts. Weighted by relevance, rating, recency.
+          </li>
+          <li>
+            <strong>Surplus asset visibility:</strong> Per-listing choice: CampusOS-only, open
+            browse, or fully open. Schools control who sees their listings.
+          </li>
+        </ul>
+        <h3 class="sub-heading">9.3 Revenue Model</h3>
+        <div class="callout callout-how">
+          <div class="callout-title">Revenue Splits</div>
+          <p>
+            <strong>Content (educational + student portfolio):</strong> CampusOS 20% &middot; School
+            10% &middot; Creator 70%. Students earn the same split as teachers, with parental
+            consent.
+          </p>
+          <p>
+            <strong>Surplus assets &amp; books:</strong> CampusOS 5% &middot; Selling school 95%.
+            Parents can buy as individual purchasers.
+          </p>
+          <p>
+            <strong>Field trips &amp; knowledge posts:</strong> Free only. No revenue split.
+            Community value and engagement.
+          </p>
+        </div>
+        <h3 class="sub-heading">9.4 Parent Access</h3>
+        <p class="body-text">
+          Parents can browse all marketplace listings, buy educational content and surplus assets,
+          participate in parent-filtered forums, comment, rate, and vote. Parents cannot create
+          listings. Asset purchases by parents are personal transactions, not through school
+          accounts. Parent forum categories include back-to-school prep, homework support,
+          recommended reading, and school event coordination.
+        </p>
+        <h3 class="sub-heading">9.5 Quality Enforcement</h3>
+        <ul class="bullet-list">
+          <li>
+            <strong>Gate 1 &mdash; Verified source:</strong> Educational content must have
+            cls_submissions. Portfolio items must link to pfl_portfolio_items. Assets must link to
+            source inventory. Verified automatically.
+          </li>
+          <li>
+            <strong>Gate 2 &mdash; Role-appropriate reviewer:</strong> Teachers: dept head.
+            Students: assigning teacher. Staff: department head. Librarians: head librarian. Via M2
+            Approval Workflows.
+          </li>
+          <li>
+            <strong>Gate 3 &mdash; Building admin/business manager:</strong> IP review, brand
+            alignment, pricing. Final gate before listing goes live.
+          </li>
+        </ul>
+        <h3 class="sub-heading">9.6 Launch Sequence</h3>
+        <ul class="bullet-list">
+          <li>
+            <strong>Wave 2:</strong> Athletic network (opportunistic). Cross-school forums
+            (including parent forums). Universal profiles. Reputation system.
+          </li>
+          <li>
+            <strong>Wave 3:</strong> Full marketplace with all 6 listing types. Surplus asset
+            exchange. Watch lists. Unified search. Parent purchasing.
+          </li>
+          <li>
+            <strong>Wave 3+:</strong> Benchmarking (50+ schools). Professional Development.
+            Knowledge base maturation.
+          </li>
+        </ul>
 
-      <!-- ═══════════════════ 10. SCALING ═══════════════════ -->
-      <h2 class="section-heading" id="section-10">10. Rapid Scaling Playbook</h2>
-      <table>
-        <tr><th>Axis</th><th>Strategy</th><th>Infrastructure</th></tr>
-        <tr><td><strong>More schools</strong></td><td>Replicate playbook. Self-service wizard for Micro/Small.</td><td>Schema-per-tenant. Auto provisioning. Tenant tiers.</td></tr>
-        <tr><td><strong>Larger orgs</strong></td><td>District sales. Multi-school deployment. Central dashboard.</td><td>Organisation entity. District IAM. rpt_district_summary.</td></tr>
-        <tr><td><strong>International</strong></td><td>UK independents first (iSAMS migration). International schools. UK state.</td><td>Multi-region (W4+). GDPR built in. home_region routing.</td></tr>
-        <tr><td><strong>Feature depth</strong></td><td>Each wave opens new buyer personas (CFO, AD, Facilities).</td><td>Modular monolith. Feature flags per tenant.</td></tr>
-        <tr><td><strong>Network effects</strong></td><td>More schools &rarr; content &rarr; value &rarr; lower churn &rarr; more schools.</td><td>Platform community tables. Marketplace. Benchmarking.</td></tr>
-      </table>
-      <h3 class="sub-heading">Market Segments</h3>
-      <table>
-        <tr><th>Segment</th><th>Size (US)</th><th>Entry Strategy</th><th>Key Buyer</th></tr>
-        <tr><td><strong>Independent</strong></td><td>~34,000</td><td>Direct sales. Conferences. Referral.</td><td>Head of School / Business Mgr</td></tr>
-        <tr><td><strong>Charter</strong></td><td>~7,800</td><td>CMO partnerships. Network deals.</td><td>CMO CTO / Ops Director</td></tr>
-        <tr><td><strong>Small Districts</strong></td><td>~10,000</td><td>Purchasing cooperatives.</td><td>Superintendent / Tech Director</td></tr>
-        <tr><td><strong>UK Independent</strong></td><td>~2,500</td><td>iSAMS migration. BETT. ISC.</td><td>Bursar / Head</td></tr>
-        <tr><td><strong>International</strong></td><td>~13,000</td><td>IB/CIS network. Regional hubs.</td><td>Director / Business Manager</td></tr>
-      </table>
+        <!-- ═══════════════════ 10. SCALING ═══════════════════ -->
+        <h2 class="section-heading" id="section-10">10. Rapid Scaling Playbook</h2>
+        <table>
+          <tr>
+            <th>Axis</th>
+            <th>Strategy</th>
+            <th>Infrastructure</th>
+          </tr>
+          <tr>
+            <td><strong>More schools</strong></td>
+            <td>Replicate playbook. Self-service wizard for Micro/Small.</td>
+            <td>Schema-per-tenant. Auto provisioning. Tenant tiers.</td>
+          </tr>
+          <tr>
+            <td><strong>Larger orgs</strong></td>
+            <td>District sales. Multi-school deployment. Central dashboard.</td>
+            <td>Organisation entity. District IAM. rpt_district_summary.</td>
+          </tr>
+          <tr>
+            <td><strong>International</strong></td>
+            <td>UK independents first (iSAMS migration). International schools. UK state.</td>
+            <td>Multi-region (W4+). GDPR built in. home_region routing.</td>
+          </tr>
+          <tr>
+            <td><strong>Feature depth</strong></td>
+            <td>Each wave opens new buyer personas (CFO, AD, Facilities).</td>
+            <td>Modular monolith. Feature flags per tenant.</td>
+          </tr>
+          <tr>
+            <td><strong>Network effects</strong></td>
+            <td>
+              More schools &rarr; content &rarr; value &rarr; lower churn &rarr; more schools.
+            </td>
+            <td>Platform community tables. Marketplace. Benchmarking.</td>
+          </tr>
+        </table>
+        <h3 class="sub-heading">Market Segments</h3>
+        <table>
+          <tr>
+            <th>Segment</th>
+            <th>Size (US)</th>
+            <th>Entry Strategy</th>
+            <th>Key Buyer</th>
+          </tr>
+          <tr>
+            <td><strong>Independent</strong></td>
+            <td>~34,000</td>
+            <td>Direct sales. Conferences. Referral.</td>
+            <td>Head of School / Business Mgr</td>
+          </tr>
+          <tr>
+            <td><strong>Charter</strong></td>
+            <td>~7,800</td>
+            <td>CMO partnerships. Network deals.</td>
+            <td>CMO CTO / Ops Director</td>
+          </tr>
+          <tr>
+            <td><strong>Small Districts</strong></td>
+            <td>~10,000</td>
+            <td>Purchasing cooperatives.</td>
+            <td>Superintendent / Tech Director</td>
+          </tr>
+          <tr>
+            <td><strong>UK Independent</strong></td>
+            <td>~2,500</td>
+            <td>iSAMS migration. BETT. ISC.</td>
+            <td>Bursar / Head</td>
+          </tr>
+          <tr>
+            <td><strong>International</strong></td>
+            <td>~13,000</td>
+            <td>IB/CIS network. Regional hubs.</td>
+            <td>Director / Business Manager</td>
+          </tr>
+        </table>
 
-      <!-- ═══════════════════ 11. COMPETITIVE ═══════════════════ -->
-      <h2 class="section-heading" id="section-11">11. Competitive Positioning</h2>
-      <table>
-        <tr><th>Competitor</th><th>What They Do</th><th>What They Don&rsquo;t</th><th>CampusOS Advantage</th></tr>
-        <tr><td><strong>PowerSchool</strong></td><td>SIS + some LMS + some HR</td><td>No unified facilities, food, athletics, community</td><td>Single data model. No integration tax.</td></tr>
-        <tr><td><strong>Infinite Campus</strong></td><td>Strong SIS. State reporting.</td><td>Limited beyond SIS. No modern tools.</td><td>Full lifecycle. Parent app. AI.</td></tr>
-        <tr><td><strong>iSAMS</strong></td><td>UK independent SIS</td><td>No HR, facilities, athletics</td><td>Direct migration. 10x scope.</td></tr>
-        <tr><td><strong>Veracross</strong></td><td>Closest to unified (independents)</td><td>Smaller scope. No AI.</td><td>Broader. Modern. Community.</td></tr>
-        <tr><td><strong>Google Classroom</strong></td><td>Free LMS. Ubiquitous.</td><td>Not a school OS</td><td>CampusOS is the OS.</td></tr>
-      </table>
-      <div class="callout callout-how">
-        <div class="callout-title">Positioning Statement</div>
-        <p>CampusOS is the operating system for schools &mdash; one platform that replaces every disconnected system your school runs today. One login, one data model, one bill.</p>
-      </div>
+        <!-- ═══════════════════ 11. COMPETITIVE ═══════════════════ -->
+        <h2 class="section-heading" id="section-11">11. Competitive Positioning</h2>
+        <table>
+          <tr>
+            <th>Competitor</th>
+            <th>What They Do</th>
+            <th>What They Don&rsquo;t</th>
+            <th>CampusOS Advantage</th>
+          </tr>
+          <tr>
+            <td><strong>PowerSchool</strong></td>
+            <td>SIS + some LMS + some HR</td>
+            <td>No unified facilities, food, athletics, community</td>
+            <td>Single data model. No integration tax.</td>
+          </tr>
+          <tr>
+            <td><strong>Infinite Campus</strong></td>
+            <td>Strong SIS. State reporting.</td>
+            <td>Limited beyond SIS. No modern tools.</td>
+            <td>Full lifecycle. Parent app. AI.</td>
+          </tr>
+          <tr>
+            <td><strong>iSAMS</strong></td>
+            <td>UK independent SIS</td>
+            <td>No HR, facilities, athletics</td>
+            <td>Direct migration. 10x scope.</td>
+          </tr>
+          <tr>
+            <td><strong>Veracross</strong></td>
+            <td>Closest to unified (independents)</td>
+            <td>Smaller scope. No AI.</td>
+            <td>Broader. Modern. Community.</td>
+          </tr>
+          <tr>
+            <td><strong>Google Classroom</strong></td>
+            <td>Free LMS. Ubiquitous.</td>
+            <td>Not a school OS</td>
+            <td>CampusOS is the OS.</td>
+          </tr>
+        </table>
+        <div class="callout callout-how">
+          <div class="callout-title">Positioning Statement</div>
+          <p>
+            CampusOS is the operating system for schools &mdash; one platform that replaces every
+            disconnected system your school runs today. One login, one data model, one bill.
+          </p>
+        </div>
 
-      <!-- ═══════════════════ 12. METRICS ═══════════════════ -->
-      <h2 class="section-heading" id="section-12">12. Key Metrics &amp; Milestones</h2>
-      <table>
-        <tr><th>Year</th><th>Business Milestone</th><th>Key Metric</th></tr>
-        <tr><td><strong>Year 1</strong></td><td>Wave 1 complete. 2&ndash;3 pilots. First paid customer.</td><td>PMF &gt;40%. Daily usage.</td></tr>
-        <tr><td><strong>Year 2</strong></td><td>Wave 2. 20&ndash;50 schools. First district. Forums.</td><td>$200K&ndash;$500K ARR. NRR &gt;110%.</td></tr>
-        <tr><td><strong>Year 3</strong></td><td>Wave 3. 100+ schools. Marketplace. International.</td><td>$1&ndash;2M ARR. NRR &gt;120%.</td></tr>
-        <tr><td><strong>Year 4</strong></td><td>Wave 4. Enterprise. Multi-region.</td><td>$3&ndash;5M ARR. 5+ districts.</td></tr>
-        <tr><td><strong>Year 5</strong></td><td>Market leader. Series A/B or profitable.</td><td>$5&ndash;10M ARR. 500+ schools.</td></tr>
-      </table>
-      <h3 class="sub-heading">Metrics That Matter</h3>
-      <ul class="bullet-list">
-        <li><strong>DAU:</strong> 80%+ of licensed users active every school day.</li>
-        <li><strong>Module Adoption:</strong> Average active modules per school.</li>
-        <li><strong>Net Revenue Retention:</strong> Target 120%+.</li>
-        <li><strong>Time to Value:</strong> &lt;45 days from contract to daily use.</li>
-        <li><strong>Gross Margin:</strong> 75%+ (SaaS standard).</li>
-        <li><strong>NPS:</strong> &gt;50 from administrators.</li>
-      </ul>
+        <!-- ═══════════════════ 12. METRICS ═══════════════════ -->
+        <h2 class="section-heading" id="section-12">12. Key Metrics &amp; Milestones</h2>
+        <table>
+          <tr>
+            <th>Year</th>
+            <th>Business Milestone</th>
+            <th>Key Metric</th>
+          </tr>
+          <tr>
+            <td><strong>Year 1</strong></td>
+            <td>Wave 1 complete. 2&ndash;3 pilots. First paid customer.</td>
+            <td>PMF &gt;40%. Daily usage.</td>
+          </tr>
+          <tr>
+            <td><strong>Year 2</strong></td>
+            <td>Wave 2. 20&ndash;50 schools. First district. Forums.</td>
+            <td>$200K&ndash;$500K ARR. NRR &gt;110%.</td>
+          </tr>
+          <tr>
+            <td><strong>Year 3</strong></td>
+            <td>Wave 3. 100+ schools. Marketplace. International.</td>
+            <td>$1&ndash;2M ARR. NRR &gt;120%.</td>
+          </tr>
+          <tr>
+            <td><strong>Year 4</strong></td>
+            <td>Wave 4. Enterprise. Multi-region.</td>
+            <td>$3&ndash;5M ARR. 5+ districts.</td>
+          </tr>
+          <tr>
+            <td><strong>Year 5</strong></td>
+            <td>Market leader. Series A/B or profitable.</td>
+            <td>$5&ndash;10M ARR. 500+ schools.</td>
+          </tr>
+        </table>
+        <h3 class="sub-heading">Metrics That Matter</h3>
+        <ul class="bullet-list">
+          <li><strong>DAU:</strong> 80%+ of licensed users active every school day.</li>
+          <li><strong>Module Adoption:</strong> Average active modules per school.</li>
+          <li><strong>Net Revenue Retention:</strong> Target 120%+.</li>
+          <li><strong>Time to Value:</strong> &lt;45 days from contract to daily use.</li>
+          <li><strong>Gross Margin:</strong> 75%+ (SaaS standard).</li>
+          <li><strong>NPS:</strong> &gt;50 from administrators.</li>
+        </ul>
 
-      <!-- ═══════════════════ 13. RISK ═══════════════════ -->
-      <h2 class="section-heading" id="section-13">13. Risk Register &amp; Mitigations</h2>
-      <table>
-        <tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr>
-        <tr><td><strong>Slow sales cycles</strong></td><td>High</td><td>Start 12 months early. Align to budget cycles. Athletic trojan horse.</td></tr>
-        <tr><td><strong>Migration failures</strong></td><td>High</td><td>Pre-built templates. Validation pipeline. 48h rollback. Parallel run.</td></tr>
-        <tr><td><strong>Compliance breach</strong></td><td>Critical</td><td>FERPA/GDPR/COPPA in architecture. DPO suite. SOC 2 Type II by Year 2.</td></tr>
-        <tr><td><strong>AI pipeline risk</strong></td><td>Medium</td><td>CIO validates every cycle. Human engineers Phase 2. Architecture = safety net.</td></tr>
-        <tr><td><strong>Competitor response</strong></td><td>Medium</td><td>Unified architecture &ne; acqui-hire bolt-ons. Community moat.</td></tr>
-        <tr><td><strong>Budget constraints</strong></td><td>Medium</td><td>Replaces 8&ndash;15 contracts. Total cost lower. ROI calculator.</td></tr>
-        <tr><td><strong>Reliability at scale</strong></td><td>High</td><td>SLA tiers. Noisy-neighbour detection. DR (RTO &lt;15 min). 99.9% SLA.</td></tr>
-        <tr><td><strong>Onboarding capacity</strong></td><td>Medium</td><td>Hire capacity before selling beyond it. Self-service wizard Year 3.</td></tr>
-      </table>
+        <!-- ═══════════════════ 13. RISK ═══════════════════ -->
+        <h2 class="section-heading" id="section-13">13. Risk Register &amp; Mitigations</h2>
+        <table>
+          <tr>
+            <th>Risk</th>
+            <th>Severity</th>
+            <th>Mitigation</th>
+          </tr>
+          <tr>
+            <td><strong>Slow sales cycles</strong></td>
+            <td>High</td>
+            <td>Start 12 months early. Align to budget cycles. Athletic trojan horse.</td>
+          </tr>
+          <tr>
+            <td><strong>Migration failures</strong></td>
+            <td>High</td>
+            <td>Pre-built templates. Validation pipeline. 48h rollback. Parallel run.</td>
+          </tr>
+          <tr>
+            <td><strong>Compliance breach</strong></td>
+            <td>Critical</td>
+            <td>FERPA/GDPR/COPPA in architecture. DPO suite. SOC 2 Type II by Year 2.</td>
+          </tr>
+          <tr>
+            <td><strong>AI pipeline risk</strong></td>
+            <td>Medium</td>
+            <td>CIO validates every cycle. Human engineers Phase 2. Architecture = safety net.</td>
+          </tr>
+          <tr>
+            <td><strong>Competitor response</strong></td>
+            <td>Medium</td>
+            <td>Unified architecture &ne; acqui-hire bolt-ons. Community moat.</td>
+          </tr>
+          <tr>
+            <td><strong>Budget constraints</strong></td>
+            <td>Medium</td>
+            <td>Replaces 8&ndash;15 contracts. Total cost lower. ROI calculator.</td>
+          </tr>
+          <tr>
+            <td><strong>Reliability at scale</strong></td>
+            <td>High</td>
+            <td>SLA tiers. Noisy-neighbour detection. DR (RTO &lt;15 min). 99.9% SLA.</td>
+          </tr>
+          <tr>
+            <td><strong>Onboarding capacity</strong></td>
+            <td>Medium</td>
+            <td>Hire capacity before selling beyond it. Self-service wizard Year 3.</td>
+          </tr>
+        </table>
 
-      <!-- ═══════════════════ 14. OPEN QUESTIONS ═══════════════════ -->
-      <h2 class="section-heading" id="section-14">14. Open Questions</h2>
-      <ul class="bullet-list">
-        <li><strong>Geographic starting market:</strong> US independent? Charter? UK? Determines AWS region and conference circuit.</li>
-        <li><strong>Pricing validation:</strong> Band prices need validation with real buyers.</li>
-        <li><strong>Build vs. partner:</strong> Payroll, background checks, advanced financial reporting.</li>
-        <li><strong>Company structure:</strong> US corp? UK limited? Both?</li>
-        <li><strong>Brand and naming:</strong> Is &lsquo;CampusOS&rsquo; right? Trademark availability?</li>
-        <li><strong>Advisory board:</strong> Which school leaders, investors, and former administrators?</li>
-        <li><strong>Free tier timing:</strong> Recommended Wave 2. Need paying customers first.</li>
-      </ul>
+        <!-- ═══════════════════ 14. OPEN QUESTIONS ═══════════════════ -->
+        <h2 class="section-heading" id="section-14">14. Open Questions</h2>
+        <ul class="bullet-list">
+          <li>
+            <strong>Geographic starting market:</strong> US independent? Charter? UK? Determines AWS
+            region and conference circuit.
+          </li>
+          <li>
+            <strong>Pricing validation:</strong> Band prices need validation with real buyers.
+          </li>
+          <li>
+            <strong>Build vs. partner:</strong> Payroll, background checks, advanced financial
+            reporting.
+          </li>
+          <li><strong>Company structure:</strong> US corp? UK limited? Both?</li>
+          <li>
+            <strong>Brand and naming:</strong> Is &lsquo;CampusOS&rsquo; right? Trademark
+            availability?
+          </li>
+          <li>
+            <strong>Advisory board:</strong> Which school leaders, investors, and former
+            administrators?
+          </li>
+          <li>
+            <strong>Free tier timing:</strong> Recommended Wave 2. Need paying customers first.
+          </li>
+        </ul>
 
-      <!-- ═══════════════════ 15. ARCHITECTURE CHANGES ═══════════════════ -->
-      <h2 class="section-heading" id="section-15">15. Architecture Changes &mdash; Completed</h2>
-      <p class="body-text">The business strategy decisions in this document required additions to the CampusOS architecture. These have been designed and documented in two amendments. All changes are platform-schema only &mdash; the frozen ERD v10 (803 tables, 36 modules) is unmodified.</p>
+        <!-- ═══════════════════ 15. ARCHITECTURE CHANGES ═══════════════════ -->
+        <h2 class="section-heading" id="section-15">15. Architecture Changes &mdash; Completed</h2>
+        <p class="body-text">
+          The business strategy decisions in this document required additions to the CampusOS
+          architecture. These have been designed and documented in two amendments. All changes are
+          platform-schema only &mdash; the frozen ERD v10 (803 tables, 36 modules) is unmodified.
+        </p>
 
-      <h3 class="sub-heading">15.1 Amendment v10.1 &mdash; CRM, Internal Ops, Pricing</h3>
-      <p class="body-text">17 new platform-schema tables. 4 new ADRs (071&ndash;074). Pre-Wave 1 (required before first customer).</p>
-      <ul class="bullet-list">
-        <li><strong>M90 Customer &amp; Subscriptions (9 tables, crm_):</strong> Accounts, subscriptions, invoices, contacts, interactions, onboarding progress, health scores, renewal pipeline. ADR-071.</li>
-        <li><strong>M91 Internal Operations (5 tables, ops_):</strong> CampusOS employees, permissions, account assignments, internal tickets, tenant access grants with 4-hour auto-expiry and full audit trail for FERPA/GDPR. ADR-072.</li>
-        <li><strong>Pricing Infrastructure (3 tables):</strong> Pricing bands, pricing history, support tier definitions. Links to crm_subscriptions.</li>
-      </ul>
-      <p class="body-text">See <a href="campusos-erd-v11.html">ERD v11 (Platform Business Schema)</a> for full table definitions.</p>
+        <h3 class="sub-heading">15.1 Amendment v10.1 &mdash; CRM, Internal Ops, Pricing</h3>
+        <p class="body-text">
+          17 new platform-schema tables. 4 new ADRs (071&ndash;074). Pre-Wave 1 (required before
+          first customer).
+        </p>
+        <ul class="bullet-list">
+          <li>
+            <strong>M90 Customer &amp; Subscriptions (9 tables, crm_):</strong> Accounts,
+            subscriptions, invoices, contacts, interactions, onboarding progress, health scores,
+            renewal pipeline. ADR-071.
+          </li>
+          <li>
+            <strong>M91 Internal Operations (5 tables, ops_):</strong> CampusOS employees,
+            permissions, account assignments, internal tickets, tenant access grants with 4-hour
+            auto-expiry and full audit trail for FERPA/GDPR. ADR-072.
+          </li>
+          <li>
+            <strong>Pricing Infrastructure (3 tables):</strong> Pricing bands, pricing history,
+            support tier definitions. Links to crm_subscriptions.
+          </li>
+        </ul>
+        <p class="body-text">
+          See <a href="campusos-erd-v11.html">ERD v11 (Platform Business Schema)</a> for full table
+          definitions.
+        </p>
 
-      <h3 class="sub-heading">15.2 Amendment v10.2 &mdash; Community Exchange</h3>
-      <p class="body-text">10 new tables, 4 modified. 2 new ADRs (075&ndash;076). Supersedes v10.1 Sections 5&ndash;6.</p>
-      <ul class="bullet-list">
-        <li><strong>Polymorphic listings:</strong> 6 listing types (educational, student portfolio, field trips, surplus assets, books, knowledge). Per-listing visibility control for assets.</li>
-        <li><strong>Universal profiles:</strong> All user types including parents. Privacy controls. Reputation scoring.</li>
-        <li><strong>Comments, ratings, helpful votes:</strong> Threaded comments on all content. 5-star ratings. Helpful voting for forum/knowledge ranking.</li>
-        <li><strong>Reputation and leaderboards:</strong> Points system. Top contributors by school, subject, region.</li>
-        <li><strong>Watch lists:</strong> Schools post needs. Auto-notification on matching surplus listings.</li>
-        <li><strong>Asset exchange:</strong> School-to-school and parent-to-school transactions. Condition reports. Dispute resolution.</li>
-        <li><strong>Unified search:</strong> PostgreSQL tsvector index across all content types. ADR-076.</li>
-        <li><strong>Parent access:</strong> Browse, buy, comment, rate, forums. Cannot create listings.</li>
-      </ul>
-      <p class="body-text">See <a href="campusos-erd-v11.html">ERD v11 (Community Exchange)</a> for full table definitions.</p>
+        <h3 class="sub-heading">15.2 Amendment v10.2 &mdash; Community Exchange</h3>
+        <p class="body-text">
+          10 new tables, 4 modified. 2 new ADRs (075&ndash;076). Supersedes v10.1 Sections
+          5&ndash;6.
+        </p>
+        <ul class="bullet-list">
+          <li>
+            <strong>Polymorphic listings:</strong> 6 listing types (educational, student portfolio,
+            field trips, surplus assets, books, knowledge). Per-listing visibility control for
+            assets.
+          </li>
+          <li>
+            <strong>Universal profiles:</strong> All user types including parents. Privacy controls.
+            Reputation scoring.
+          </li>
+          <li>
+            <strong>Comments, ratings, helpful votes:</strong> Threaded comments on all content.
+            5-star ratings. Helpful voting for forum/knowledge ranking.
+          </li>
+          <li>
+            <strong>Reputation and leaderboards:</strong> Points system. Top contributors by school,
+            subject, region.
+          </li>
+          <li>
+            <strong>Watch lists:</strong> Schools post needs. Auto-notification on matching surplus
+            listings.
+          </li>
+          <li>
+            <strong>Asset exchange:</strong> School-to-school and parent-to-school transactions.
+            Condition reports. Dispute resolution.
+          </li>
+          <li>
+            <strong>Unified search:</strong> PostgreSQL tsvector index across all content types.
+            ADR-076.
+          </li>
+          <li>
+            <strong>Parent access:</strong> Browse, buy, comment, rate, forums. Cannot create
+            listings.
+          </li>
+        </ul>
+        <p class="body-text">
+          See <a href="campusos-erd-v11.html">ERD v11 (Community Exchange)</a> for full table
+          definitions.
+        </p>
 
-      <h3 class="sub-heading">15.3 Cumulative Platform Status</h3>
-      <div class="callout callout-note">
-        <div class="callout-title">Architecture Totals</div>
-        <p><strong>ERD v10 (frozen):</strong> 803 tables, 36 modules, 70 ADRs.</p>
-        <p><strong>+ v10.1:</strong> +17 tables, +2 modules (M90, M91), +4 ADRs (071&ndash;074).</p>
-        <p><strong>+ v10.2:</strong> +10 new tables, 4 redesigned, +2 ADRs (075&ndash;076).</p>
-        <p><strong>Platform total: 840 tables, 38 modules, 76 ADRs, ~60 Kafka topics.</strong></p>
-        <p>No tenant-schema tables modified. All additions are platform-schema only. Wave 1 build can proceed.</p>
-      </div>
+        <h3 class="sub-heading">15.3 Cumulative Platform Status</h3>
+        <div class="callout callout-note">
+          <div class="callout-title">Architecture Totals</div>
+          <p><strong>ERD v10 (frozen):</strong> 803 tables, 36 modules, 70 ADRs.</p>
+          <p>
+            <strong>+ v10.1:</strong> +17 tables, +2 modules (M90, M91), +4 ADRs (071&ndash;074).
+          </p>
+          <p><strong>+ v10.2:</strong> +10 new tables, 4 redesigned, +2 ADRs (075&ndash;076).</p>
+          <p><strong>Platform total: 840 tables, 38 modules, 76 ADRs, ~60 Kafka topics.</strong></p>
+          <p>
+            No tenant-schema tables modified. All additions are platform-schema only. Wave 1 build
+            can proceed.
+          </p>
+        </div>
 
-      <div class="doc-footer">
-        <p>CampusOS Business Strategy v2.1 &mdash; March 2026. Incorporates community exchange expansion and parent access model. Architecture amendments v10.1 and v10.2 are complete. Platform is ready for Wave 1 Cycle 0.</p>
-      </div>
-    </main>
-  </div>
-</body>
+        <div class="doc-footer">
+          <p>
+            CampusOS Business Strategy v2.1 &mdash; March 2026. Incorporates community exchange
+            expansion and parent access model. Architecture amendments v10.1 and v10.2 are complete.
+            Platform is ready for Wave 1 Cycle 0.
+          </p>
+        </div>
+      </main>
+    </div>
+  </body>
 </html>

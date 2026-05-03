@@ -19,7 +19,12 @@ export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export const TASK_STATUSES = ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
-export const TASK_CATEGORIES = ['ACADEMIC', 'PERSONAL', 'ADMINISTRATIVE', 'ACKNOWLEDGEMENT'] as const;
+export const TASK_CATEGORIES = [
+  'ACADEMIC',
+  'PERSONAL',
+  'ADMINISTRATIVE',
+  'ACKNOWLEDGEMENT',
+] as const;
 export type TaskCategory = (typeof TASK_CATEGORIES)[number];
 
 export const TASK_SOURCES = ['MANUAL', 'AUTO', 'SYSTEM'] as const;

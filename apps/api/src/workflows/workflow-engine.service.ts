@@ -129,10 +129,10 @@ const SELECT_REQUEST_BASE =
   'r.requester_id::text AS requester_id, ' +
   'rp.first_name AS requester_first_name, rp.last_name AS requester_last_name, ' +
   'r.request_type, r.reference_id::text AS reference_id, r.reference_table, r.status, ' +
-  "TO_CHAR(r.submitted_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS submitted_at, " +
-  "TO_CHAR(r.resolved_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS resolved_at, " +
-  "TO_CHAR(r.created_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS created_at, " +
-  "TO_CHAR(r.updated_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS updated_at " +
+  'TO_CHAR(r.submitted_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS submitted_at, ' +
+  'TO_CHAR(r.resolved_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS resolved_at, ' +
+  'TO_CHAR(r.created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
+  'TO_CHAR(r.updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
   'FROM wsk_approval_requests r ' +
   'JOIN wsk_workflow_templates t ON t.id = r.template_id ' +
   'LEFT JOIN platform.platform_users rpu ON rpu.id = r.requester_id ' +
@@ -143,10 +143,10 @@ const SELECT_STEP_BASE =
   's.approver_id::text AS approver_id, ' +
   'ap.first_name AS approver_first_name, ap.last_name AS approver_last_name, ' +
   's.status, ' +
-  "TO_CHAR(s.actioned_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS actioned_at, " +
+  'TO_CHAR(s.actioned_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS actioned_at, ' +
   's.comments, ' +
-  "TO_CHAR(s.created_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS created_at, " +
-  "TO_CHAR(s.updated_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS updated_at " +
+  'TO_CHAR(s.created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
+  'TO_CHAR(s.updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
   'FROM wsk_approval_steps s ' +
   'LEFT JOIN platform.platform_users apu ON apu.id = s.approver_id ' +
   'LEFT JOIN platform.iam_person ap ON ap.id = apu.person_id ';
@@ -156,7 +156,7 @@ const SELECT_COMMENT_BASE =
   'c.author_id::text AS author_id, ' +
   'cp.first_name AS author_first_name, cp.last_name AS author_last_name, ' +
   'c.body, c.is_requester_visible, ' +
-  "TO_CHAR(c.created_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS created_at " +
+  'TO_CHAR(c.created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at ' +
   'FROM wsk_approval_comments c ' +
   'LEFT JOIN platform.platform_users cpu ON cpu.id = c.author_id ' +
   'LEFT JOIN platform.iam_person cp ON cp.id = cpu.person_id ';
@@ -182,10 +182,7 @@ export class WorkflowEngineService {
    * — the source module gets a 400 with a clear message rather than a
    * silent no-op.
    */
-  async submit(
-    body: SubmitApprovalDto,
-    actor: ResolvedActor,
-  ): Promise<ApprovalRequestResponseDto> {
+  async submit(body: SubmitApprovalDto, actor: ResolvedActor): Promise<ApprovalRequestResponseDto> {
     const tenant = getCurrentTenant();
     const requesterId =
       body.requesterAccountId && actor.isSchoolAdmin ? body.requesterAccountId : actor.accountId;
@@ -257,7 +254,7 @@ export class WorkflowEngineService {
       const stepId = generateId();
       await tx.$executeRawUnsafe(
         'INSERT INTO wsk_approval_steps ' +
-          "(id, request_id, step_order, approver_id, status) " +
+          '(id, request_id, step_order, approver_id, status) ' +
           "VALUES ($1::uuid, $2::uuid, $3, $4::uuid, 'AWAITING')",
         stepId,
         requestId,
@@ -405,7 +402,7 @@ export class WorkflowEngineService {
           const nextStepId = generateId();
           await tx.$executeRawUnsafe(
             'INSERT INTO wsk_approval_steps ' +
-              "(id, request_id, step_order, approver_id, status) " +
+              '(id, request_id, step_order, approver_id, status) ' +
               "VALUES ($1::uuid, $2::uuid, $3, $4::uuid, 'AWAITING')",
             nextStepId,
             requestId,
@@ -791,4 +788,3 @@ export function roleTokenToName(token: string): string {
     .map((part) => (part.length === 0 ? part : part[0]!.toUpperCase() + part.slice(1)))
     .join(' ');
 }
-

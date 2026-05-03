@@ -34,20 +34,12 @@ function toRadians(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
-function haversineMiles(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
+function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const dLat = toRadians(lat2 - lat1);
   const dLng = toRadians(lng2 - lng1);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return EARTH_RADIUS_MILES * c;
 }
@@ -109,7 +101,7 @@ export class EnrollmentSearchService {
         async (client) => {
           const rows = await client.$queryRawUnsafe<PeriodRow[]>(
             'SELECT p.id, p.name, ' +
-              "TO_CHAR(p.closes_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS closes_at " +
+              'TO_CHAR(p.closes_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS closes_at ' +
               'FROM enr_enrollment_periods p ' +
               "WHERE p.school_id = $1::uuid AND p.status = 'OPEN' " +
               'AND p.allows_public_search = true ' +

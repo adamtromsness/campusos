@@ -65,15 +65,20 @@ export class WorkflowTemplateService {
     const templates = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<TemplateRow[]>(
         'SELECT id::text AS id, school_id::text AS school_id, name, request_type, description, is_active, ' +
-          "TO_CHAR(created_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS created_at, " +
-          "TO_CHAR(updated_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS updated_at " +
+          'TO_CHAR(created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
+          'TO_CHAR(updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
           'FROM wsk_workflow_templates WHERE school_id = $1::uuid ORDER BY name',
         tenant.schoolId,
       );
     });
     if (templates.length === 0) return [];
     const steps = await this.loadSteps(templates.map((t) => t.id));
-    return templates.map((t) => rowToDto(t, steps.filter((s) => s.template_id === t.id)));
+    return templates.map((t) =>
+      rowToDto(
+        t,
+        steps.filter((s) => s.template_id === t.id),
+      ),
+    );
   }
 
   async getById(id: string, actor: ResolvedActor): Promise<WorkflowTemplateDto> {
@@ -83,8 +88,8 @@ export class WorkflowTemplateService {
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<TemplateRow[]>(
         'SELECT id::text AS id, school_id::text AS school_id, name, request_type, description, is_active, ' +
-          "TO_CHAR(created_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS created_at, " +
-          "TO_CHAR(updated_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS updated_at " +
+          'TO_CHAR(created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
+          'TO_CHAR(updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
           'FROM wsk_workflow_templates WHERE id = $1::uuid',
         id,
       );

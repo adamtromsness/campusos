@@ -93,7 +93,8 @@ export function useUpdateTask(id: string) {
 export function useAcknowledgements(enabled = true, all = false) {
   return useQuery({
     queryKey: ['acknowledgements', { all }],
-    queryFn: () => apiFetch<AcknowledgementDto[]>('/api/v1/acknowledgements' + (all ? '?all=true' : '')),
+    queryFn: () =>
+      apiFetch<AcknowledgementDto[]>('/api/v1/acknowledgements' + (all ? '?all=true' : '')),
     enabled,
   });
 }

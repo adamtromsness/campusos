@@ -3,10 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Public } from '../auth/public.decorator';
-import {
-  EnrollmentSearchResultDto,
-  EnrollmentSearchService,
-} from './enrollment-search.service';
+import { EnrollmentSearchResultDto, EnrollmentSearchService } from './enrollment-search.service';
 
 class EnrollmentSearchQueryDto {
   @Type(() => Number)

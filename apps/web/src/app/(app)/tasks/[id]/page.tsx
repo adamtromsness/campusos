@@ -37,7 +37,10 @@ export default function TaskDetailPage() {
   const canTasks = !!user && hasAnyPermission(user, ['ops-001:read']);
 
   const task = useTask(id, canTasks);
-  const ack = useAcknowledgement(task.data?.acknowledgementId ?? null, !!task.data?.acknowledgementId);
+  const ack = useAcknowledgement(
+    task.data?.acknowledgementId ?? null,
+    !!task.data?.acknowledgementId,
+  );
   const update = useUpdateTask(id ?? '');
   const acknowledge = useAcknowledge(task.data?.acknowledgementId ?? '');
   const dispute = useDispute(task.data?.acknowledgementId ?? '');
@@ -65,7 +68,10 @@ export default function TaskDetailPage() {
     return (
       <div className="mx-auto max-w-3xl">
         <PageHeader title="Task" />
-        <EmptyState title="Task not found" description="It may have been deleted or you don't have access." />
+        <EmptyState
+          title="Task not found"
+          description="It may have been deleted or you don't have access."
+        />
       </div>
     );
   }
@@ -181,7 +187,8 @@ export default function TaskDetailPage() {
               <p className="mt-2 text-sm text-rose-900">{ackData.title}</p>
               <p className="mt-1 text-xs text-rose-700">
                 {ACKNOWLEDGEMENT_SOURCE_LABELS[ackData.sourceType]}
-                {ackData.expiresAt && ' · expires ' + new Date(ackData.expiresAt).toLocaleDateString()}
+                {ackData.expiresAt &&
+                  ' · expires ' + new Date(ackData.expiresAt).toLocaleDateString()}
               </p>
               {ackData.bodyS3Key && (
                 <p className="mt-2 text-xs text-rose-700">
@@ -227,9 +234,7 @@ export default function TaskDetailPage() {
 
       {!ackSettled && (
         <section className="rounded-card border border-gray-200 bg-white p-6 shadow-card">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
-            Status
-          </h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Status</h2>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {t.status !== 'IN_PROGRESS' && t.status !== 'DONE' && t.status !== 'CANCELLED' && (
               <button

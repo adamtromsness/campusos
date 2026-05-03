@@ -1,425 +1,1323 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CampusOS — Cycle 6 Implementation Plan</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
-:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
-.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
-.topbar .brand{font-weight:600;color:white;font-size:15px}
-.topbar .sep{color:rgba(255,255,255,0.3)}
-.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
-.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
-.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
-.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
-.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
-.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
-h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
-h2.section-heading:first-of-type{border-top:none;margin-top:0}
-p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
-.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
-.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
-.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
-.callout-thesis .callout-title{color:var(--accent)}
-.callout-ai{background:#f0f7f0;border-color:var(--green)}
-.callout-ai .callout-title{color:#2d7a2d}
-.callout-note{background:var(--amber-bg);border-color:var(--amber)}
-.callout-note .callout-title{color:#9a7b1a}
-.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
-.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
-.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
-.step-title{font-size:19px;font-weight:700;color:var(--accent)}
-.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
-.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
-.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
-.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
-.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
-.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
-.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
-.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
-.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
-.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
-.step .depends{font-size:12px;color:var(--text-light);margin-top:6px}
-.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
-.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
-.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
-.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
-.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
-@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
-</style>
-</head>
-<body>
-
-<div class="topbar">
-  <a href="../index.html" class="brand">CampusOS</a>
-  <span class="sep">|</span>
-  <a href="../index.html">Design Hub</a>
-  <a href="campusos-erd-v11.html">ERD v11</a>
-</div>
-
-<div class="container">
-  <div class="hero">
-    <div class="hero-brand">CampusOS &middot; Phase 3 &middot; Wave 1 Final</div>
-    <h1>Cycle 6: Enrollment &amp; Payments<br>Implementation Plan</h1>
-    <div class="sub">The admissions pipeline and family billing engine. A family applies, gets an offer, accepts, enrolls, receives an invoice, and pays &mdash; all within CampusOS. Completes the full parent journey from first contact to first tuition payment.</div>
-    <span class="version">April 2026 &middot; 12 Steps &middot; ERD v11 &middot; M81 Enrollment + M84 Payments (Core Subset)</span>
-  </div>
-
-  <h2 class="section-heading">Plan Overview</h2>
-
-  <p class="body-text">Cycle 6 spans two ERD modules: M81 (Enrollment) and M84 (Payments &amp; Billing). The ERD defines 62 tables across these modules plus M83 (Finance/GL). This cycle implements the ~22 core tables that deliver the enrollment-to-payment pipeline. The GL, financial aid, lunch accounts, discount rules, and advanced billing features are deferred to later cycles.</p>
-
-  <p class="body-text">The architecture follows the ERD's hard boundary: M81 Enrollment never writes to pay_ tables. The <code>EnrollmentConfirmedWorker</code> emits <code>enr.student.enrolled</code>, and the <code>PaymentAccountWorker</code> consumes it to create the family account. This event-driven decoupling means enrollment and payments can evolve independently.</p>
-
-  <div class="callout callout-thesis">
-    <div class="callout-title">Vertical Slice Deliverable</div>
-    <p style="font-size:15px;line-height:1.8;">Admin opens an enrollment period for Fall 2026 &rarr; parent submits an application for a new student &rarr; admin reviews the application &rarr; admin issues an offer &rarr; parent accepts the offer &rarr; <code>enr.student.enrolled</code> fires &rarr; PaymentAccountWorker creates the family account and links the student &rarr; admin generates a tuition invoice from the fee schedule &rarr; parent views the invoice on their dashboard &rarr; parent pays via Stripe (stubbed) &rarr; payment recorded &rarr; ledger entry created &rarr; invoice status updates to PAID &rarr; parent sees receipt.</p>
-  </div>
-
-  <div class="callout callout-note">
-    <div class="callout-title">What's In / What's Deferred</div>
-    <p style="font-size:15px;line-height:1.8;"><strong>In scope (M81 Enrollment):</strong> enr_enrollment_periods, enr_admission_streams, enr_intake_capacities, enr_capacity_summary, enr_applications, enr_application_screening_responses, enr_application_documents, enr_application_notes, enr_offers, enr_waitlist_entries. Functions STU-003 (core), STU-004 (withdrawal initiation only).</p>
-    <p style="font-size:15px;line-height:1.8;"><strong>In scope (M84 Payments):</strong> pay_family_accounts, pay_family_account_students, pay_fee_categories, pay_fee_schedules, pay_invoices, pay_invoice_line_items, pay_payments, pay_ledger_entries, pay_refunds, pay_stripe_accounts, pay_payment_plans, pay_payment_plan_installments. Function FIN-001 (core).</p>
-    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> enr_tour_slots/bookings (campus tours). enr_reenrollment_windows (re-enrollment). enr_withdrawal_checklists (full withdrawal workflow &mdash; STU-004 advanced). pay_financial_aid_applications/awards (FIN-002). pay_lunch_accounts/transactions (food service billing &mdash; Cycle 15). pay_discount_rules, pay_late_payment_policies, pay_auto_invoice_rules (advanced billing automation). pay_credit_notes, pay_payment_reversals, pay_debt_writeoffs (advanced AR). pay_family_account_access, pay_payment_authorisation_requests (co-payer). pay_payment_allocations (multi-invoice payments). pay_ledger_balance_checkpoints (performance optimization). pay_invoice_generation_runs (batch invoicing). All of M83 Finance/GL (fin_ tables &mdash; separate cycle).</p>
-  </div>
-
-  <div class="callout callout-note">
-    <div class="callout-title">Stripe Integration (ADR-003)</div>
-    <p style="font-size:15px;line-height:1.8;">Stripe Connect is the payment gateway. Each school gets a Stripe managed account (<code>pay_stripe_accounts</code>). Payment intents are created server-side; the frontend uses Stripe.js Elements for PCI-compliant card capture. In Cycle 6, the Stripe integration is <strong>stubbed</strong> &mdash; the <code>pay_stripe_accounts</code> table and the <code>PaymentService</code> accept Stripe references but don't make actual Stripe API calls. A development-mode flag lets the payment flow complete with a mock charge. Real Stripe wiring is a Phase 3 ops task once the billing workflow is validated.</p>
-  </div>
-
-  <table class="spec-table">
-    <tr><th style="width:8%">Step</th><th style="width:34%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
-    <tr><td><strong>1</strong></td><td>Enrollment Schema &mdash; Periods &amp; Applications</td><td>Schema</td><td>enr_enrollment_periods, enr_admission_streams, enr_intake_capacities, enr_capacity_summary, enr_applications, enr_application_screening_responses, enr_application_documents, enr_application_notes</td></tr>
-    <tr><td><strong>2</strong></td><td>Enrollment Schema &mdash; Offers &amp; Waitlist</td><td>Schema</td><td>enr_offers, enr_waitlist_entries</td></tr>
-    <tr><td><strong>3</strong></td><td>Payments Schema &mdash; Family Accounts &amp; Fees</td><td>Schema</td><td>pay_family_accounts, pay_family_account_students, pay_fee_categories, pay_fee_schedules, pay_stripe_accounts</td></tr>
-    <tr><td><strong>4</strong></td><td>Payments Schema &mdash; Invoices, Payments &amp; Ledger</td><td>Schema</td><td>pay_invoices, pay_invoice_line_items, pay_payments, pay_ledger_entries (RANGE-partitioned annually), pay_refunds, pay_payment_plans, pay_payment_plan_installments</td></tr>
-    <tr><td><strong>5</strong></td><td>Seed Data &mdash; Enrollment &amp; Payments</td><td>Seed</td><td>Enrollment period, applications, offers, fee schedules, family accounts, invoices, sample payments</td></tr>
-    <tr><td><strong>6</strong></td><td>Enrollment NestJS Module</td><td>Code</td><td>EnrollmentPeriodService, ApplicationService, OfferService, WaitlistService, Kafka events</td></tr>
-    <tr><td><strong>7</strong></td><td>Payments NestJS Module</td><td>Code</td><td>FamilyAccountService, InvoiceService, PaymentService (Stripe stubbed), LedgerService, PaymentAccountWorker</td></tr>
-    <tr><td><strong>8</strong></td><td>Enrollment Admin UI</td><td>UI</td><td>Enrollment periods, application pipeline, application review, offer management, waitlist</td></tr>
-    <tr><td><strong>9</strong></td><td>Parent Application &amp; Enrollment UI</td><td>UI</td><td>Application form, application status tracker, offer response, enrollment confirmation</td></tr>
-    <tr><td><strong>10</strong></td><td>Billing Admin UI</td><td>UI</td><td>Fee schedule management, invoice generation, payment tracking, family account overview</td></tr>
-    <tr><td><strong>11</strong></td><td>Parent Billing UI</td><td>UI</td><td>Invoice list, payment form (Stripe Elements stubbed), payment history, balance view</td></tr>
-    <tr><td><strong>12</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>End-to-end: apply &rarr; offer &rarr; accept &rarr; enrolled &rarr; invoice &rarr; pay &rarr; ledger balanced</td></tr>
-  </table>
-
-  <h2 class="section-heading">Step-by-Step Build Plan</h2>
-
-  <!-- ── STEP 1 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">01</span>
-      <span class="step-title">Enrollment Schema &mdash; Periods &amp; Applications</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CampusOS — Cycle 6 Implementation Plan</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+      :root {
+        --accent: #1a3a5c;
+        --accent-light: #e8f0f8;
+        --accent-mid: #3d7ab5;
+        --text: #2c2c2c;
+        --text-light: #6b7280;
+        --bg: #fafbfc;
+        --white: #ffffff;
+        --border: #e2e6ea;
+        --green: #28a745;
+        --green-bg: #eef7ee;
+        --amber: #e5a919;
+        --amber-bg: #fef9ec;
+        --blue: #3d7ab5;
+        --blue-bg: #e8f0f8;
+        --purple: #8b4fc6;
+        --purple-bg: #f4ecfb;
+        --red: #dc3545;
+        --red-bg: #fdeaea;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+      .topbar {
+        background: #1a5276;
+        padding: 10px 40px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+      .topbar a {
+        color: rgba(255, 255, 255, 0.85);
+        text-decoration: none;
+        font-size: 13px;
+      }
+      .topbar .brand {
+        font-weight: 600;
+        color: white;
+        font-size: 15px;
+      }
+      .topbar .sep {
+        color: rgba(255, 255, 255, 0.3);
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 40px 40px 120px;
+      }
+      .hero {
+        padding: 60px 0 40px;
+        border-bottom: 2px solid var(--accent);
+        margin-bottom: 48px;
+      }
+      .hero-brand {
+        font-family: 'DM Serif Display', serif;
+        font-size: 14px;
+        color: var(--accent-mid);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      .hero h1 {
+        font-family: 'DM Serif Display', serif;
+        font-size: 40px;
+        color: var(--accent);
+        line-height: 1.15;
+        margin-bottom: 12px;
+        font-weight: 400;
+      }
+      .hero .sub {
+        font-size: 18px;
+        color: var(--text-light);
+        font-style: italic;
+        max-width: 700px;
+        margin-bottom: 16px;
+      }
+      .hero .version {
+        font-size: 13px;
+        color: var(--accent-mid);
+        font-weight: 600;
+        background: var(--accent-light);
+        display: inline-block;
+        padding: 4px 14px;
+        border-radius: 6px;
+      }
+      h2.section-heading {
+        font-family: 'DM Serif Display', serif;
+        font-size: 26px;
+        color: var(--accent);
+        font-weight: 400;
+        margin: 48px 0 16px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+      }
+      h2.section-heading:first-of-type {
+        border-top: none;
+        margin-top: 0;
+      }
+      p.body-text {
+        font-size: 15px;
+        line-height: 1.8;
+        margin-bottom: 16px;
+        color: var(--text);
+      }
+      .callout {
+        border-radius: 10px;
+        padding: 20px 24px;
+        margin: 20px 0 24px;
+        border-left: 5px solid;
+      }
+      .callout-title {
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+      .callout-thesis {
+        background: var(--accent-light);
+        border-color: var(--accent-mid);
+      }
+      .callout-thesis .callout-title {
+        color: var(--accent);
+      }
+      .callout-ai {
+        background: #f0f7f0;
+        border-color: var(--green);
+      }
+      .callout-ai .callout-title {
+        color: #2d7a2d;
+      }
+      .callout-note {
+        background: var(--amber-bg);
+        border-color: var(--amber);
+      }
+      .callout-note .callout-title {
+        color: #9a7b1a;
+      }
+      .step {
+        background: var(--white);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 28px 32px;
+        margin: 20px 0;
+        position: relative;
+      }
+      .step-header {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        margin-bottom: 12px;
+      }
+      .step-num {
+        font-family: 'DM Serif Display', serif;
+        font-size: 36px;
+        color: var(--accent-mid);
+        line-height: 1;
+        opacity: 0.4;
+      }
+      .step-title {
+        font-size: 19px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      .step-meta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+      .step-tag {
+        font-size: 11px;
+        padding: 3px 10px;
+        border-radius: 5px;
+        font-weight: 600;
+      }
+      .tag-schema {
+        background: var(--green-bg);
+        color: #2d7a2d;
+        border: 1px solid #b7deb7;
+      }
+      .tag-code {
+        background: var(--blue-bg);
+        color: var(--blue);
+        border: 1px solid #b5d4f4;
+      }
+      .tag-ui {
+        background: var(--purple-bg);
+        color: var(--purple);
+        border: 1px solid #d4b8e8;
+      }
+      .tag-seed {
+        background: var(--amber-bg);
+        color: #9a7b1a;
+        border: 1px solid #e5d5a0;
+      }
+      .tag-test {
+        background: var(--red-bg);
+        color: var(--red);
+        border: 1px solid #f5c6cb;
+      }
+      .step p {
+        font-size: 14px;
+        line-height: 1.8;
+        color: var(--text);
+        margin-bottom: 10px;
+      }
+      .step .detail-heading {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--accent);
+        margin: 16px 0 6px;
+      }
+      .step .detail-list {
+        font-size: 14px;
+        line-height: 2;
+        color: var(--text);
+        padding-left: 20px;
+        margin-bottom: 10px;
+      }
+      .step .produces {
+        font-size: 13px;
+        color: var(--accent-mid);
+        font-weight: 600;
+        margin-top: 14px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+      }
+      .step .depends {
+        font-size: 12px;
+        color: var(--text-light);
+        margin-top: 6px;
+      }
+      .spec-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0 24px;
+        font-size: 13px;
+      }
+      .spec-table th {
+        background: #d5e8f0;
+        padding: 10px 14px;
+        border: 1px solid #ccc;
+        text-align: left;
+        font-weight: 600;
+        color: var(--accent);
+      }
+      .spec-table td {
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .spec-table code {
+        font-size: 12px;
+        background: #f0f0f0;
+        padding: 1px 5px;
+        border-radius: 3px;
+      }
+      .doc-footer {
+        margin-top: 56px;
+        padding-top: 20px;
+        border-top: 2px solid var(--accent);
+        font-size: 13px;
+        color: var(--text-light);
+        line-height: 1.8;
+      }
+      @media (max-width: 768px) {
+        .hero h1 {
+          font-size: 30px;
+        }
+        .container {
+          padding: 20px 20px 60px;
+        }
+        .step {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <a href="../index.html" class="brand">CampusOS</a>
+      <span class="sep">|</span>
+      <a href="../index.html">Design Hub</a>
+      <a href="campusos-erd-v11.html">ERD v11</a>
     </div>
-    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
-    <p>The enrollment pipeline: when the school accepts applications, what intake streams exist, capacity per grade, and the application itself with screening responses and documents.</p>
 
-    <div class="detail-heading">Tables (8)</div>
-    <ol class="detail-list">
-      <li><strong>enr_enrollment_periods</strong> &mdash; <code>school_id</code>, <code>academic_year_id FK(sis_academic_years)</code>, <code>name TEXT</code>, <code>opens_at TIMESTAMPTZ</code>, <code>closes_at TIMESTAMPTZ</code>, <code>status</code> ENUM(UPCOMING, OPEN, CLOSED), <code>allows_mid_year_applications BOOLEAN DEFAULT false</code>. INDEX(school_id, status).</li>
-      <li><strong>enr_admission_streams</strong> &mdash; Named parallel intake streams within an enrollment period (Standard Intake, Music Scholarship, SEND Specialist). <code>enrollment_period_id FK</code>, <code>name TEXT</code>, <code>grade_level TEXT</code> nullable, <code>opens_at TIMESTAMPTZ</code>, <code>closes_at TIMESTAMPTZ</code>, <code>is_active BOOLEAN</code>. UNIQUE(enrollment_period_id, name).</li>
-      <li><strong>enr_intake_capacities</strong> &mdash; Places available per grade per period. <code>enrollment_period_id FK</code>, <code>stream_id FK</code> nullable, <code>grade_level TEXT NOT NULL</code>, <code>total_places INT</code>, <code>reserved_places INT DEFAULT 0</code>. UNIQUE(enrollment_period_id, COALESCE(stream_id, nilUUID), grade_level).</li>
-      <li><strong>enr_capacity_summary</strong> &mdash; Materialized capacity dashboard. Updated on every application status change. <code>enrollment_period_id FK</code>, <code>grade_level TEXT</code>, <code>total_places INT</code>, <code>reserved INT</code>, <code>applications_received INT</code>, <code>offers_issued INT</code>, <code>offers_accepted INT</code>, <code>waitlisted INT</code>, <code>available INT</code> (computed). UNIQUE(enrollment_period_id, grade_level).</li>
-      <li><strong>enr_applications</strong> &mdash; <code>school_id</code>, <code>enrollment_period_id FK</code>, <code>stream_id FK</code> nullable, <code>student_first_name TEXT</code>, <code>student_last_name TEXT</code>, <code>student_date_of_birth DATE</code>, <code>applying_for_grade TEXT</code>, <code>guardian_person_id UUID</code> (soft to iam_person), <code>guardian_email TEXT</code>, <code>guardian_phone TEXT</code>, <code>admission_type</code> ENUM(NEW_STUDENT, TRANSFER, MID_YEAR_ADMISSION), <code>status</code> ENUM(DRAFT, SUBMITTED, UNDER_REVIEW, ACCEPTED, REJECTED, WAITLISTED, WITHDRAWN, ENROLLED), <code>submitted_at TIMESTAMPTZ</code>, <code>reviewed_by UUID</code> (soft), <code>reviewed_at TIMESTAMPTZ</code>. INDEX(school_id, enrollment_period_id, status).</li>
-      <li><strong>enr_application_screening_responses</strong> &mdash; <code>application_id FK</code>, <code>question_key TEXT</code>, <code>response_value JSONB</code>. UNIQUE(application_id, question_key). Flexible schema for school-configured screening questions.</li>
-      <li><strong>enr_application_documents</strong> &mdash; <code>application_id FK</code>, <code>document_type TEXT</code>, <code>s3_key TEXT NOT NULL</code>, <code>uploaded_at TIMESTAMPTZ</code>. Signed S3 URLs only.</li>
-      <li><strong>enr_application_notes</strong> &mdash; <code>application_id FK</code>, <code>note_type</code> ENUM(INTERVIEW_NOTES, ASSESSMENT_RESULT, STAFF_OBSERVATION, REFERENCE_CHECK, VISIT_NOTES, GENERAL), <code>note_text TEXT NOT NULL</code>, <code>is_confidential BOOLEAN DEFAULT false</code>, <code>created_by UUID</code> (soft). INDEX(application_id, created_at DESC).</li>
-    </ol>
+    <div class="container">
+      <div class="hero">
+        <div class="hero-brand">CampusOS &middot; Phase 3 &middot; Wave 1 Final</div>
+        <h1>Cycle 6: Enrollment &amp; Payments<br />Implementation Plan</h1>
+        <div class="sub">
+          The admissions pipeline and family billing engine. A family applies, gets an offer,
+          accepts, enrolls, receives an invoice, and pays &mdash; all within CampusOS. Completes the
+          full parent journey from first contact to first tuition payment.
+        </div>
+        <span class="version"
+          >April 2026 &middot; 12 Steps &middot; ERD v11 &middot; M81 Enrollment + M84 Payments
+          (Core Subset)</span
+        >
+      </div>
 
-    <div class="produces">Produces &rarr; 8 new tables. Migration: <code>018_enr_enrollment_and_applications.sql</code>.</div>
-  </div>
+      <h2 class="section-heading">Plan Overview</h2>
 
-  <!-- ── STEP 2 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">02</span>
-      <span class="step-title">Enrollment Schema &mdash; Offers &amp; Waitlist</span>
+      <p class="body-text">
+        Cycle 6 spans two ERD modules: M81 (Enrollment) and M84 (Payments &amp; Billing). The ERD
+        defines 62 tables across these modules plus M83 (Finance/GL). This cycle implements the ~22
+        core tables that deliver the enrollment-to-payment pipeline. The GL, financial aid, lunch
+        accounts, discount rules, and advanced billing features are deferred to later cycles.
+      </p>
+
+      <p class="body-text">
+        The architecture follows the ERD's hard boundary: M81 Enrollment never writes to pay_
+        tables. The <code>EnrollmentConfirmedWorker</code> emits <code>enr.student.enrolled</code>,
+        and the <code>PaymentAccountWorker</code> consumes it to create the family account. This
+        event-driven decoupling means enrollment and payments can evolve independently.
+      </p>
+
+      <div class="callout callout-thesis">
+        <div class="callout-title">Vertical Slice Deliverable</div>
+        <p style="font-size: 15px; line-height: 1.8">
+          Admin opens an enrollment period for Fall 2026 &rarr; parent submits an application for a
+          new student &rarr; admin reviews the application &rarr; admin issues an offer &rarr;
+          parent accepts the offer &rarr; <code>enr.student.enrolled</code> fires &rarr;
+          PaymentAccountWorker creates the family account and links the student &rarr; admin
+          generates a tuition invoice from the fee schedule &rarr; parent views the invoice on their
+          dashboard &rarr; parent pays via Stripe (stubbed) &rarr; payment recorded &rarr; ledger
+          entry created &rarr; invoice status updates to PAID &rarr; parent sees receipt.
+        </p>
+      </div>
+
+      <div class="callout callout-note">
+        <div class="callout-title">What's In / What's Deferred</div>
+        <p style="font-size: 15px; line-height: 1.8">
+          <strong>In scope (M81 Enrollment):</strong> enr_enrollment_periods, enr_admission_streams,
+          enr_intake_capacities, enr_capacity_summary, enr_applications,
+          enr_application_screening_responses, enr_application_documents, enr_application_notes,
+          enr_offers, enr_waitlist_entries. Functions STU-003 (core), STU-004 (withdrawal initiation
+          only).
+        </p>
+        <p style="font-size: 15px; line-height: 1.8">
+          <strong>In scope (M84 Payments):</strong> pay_family_accounts,
+          pay_family_account_students, pay_fee_categories, pay_fee_schedules, pay_invoices,
+          pay_invoice_line_items, pay_payments, pay_ledger_entries, pay_refunds,
+          pay_stripe_accounts, pay_payment_plans, pay_payment_plan_installments. Function FIN-001
+          (core).
+        </p>
+        <p style="font-size: 15px; line-height: 1.8">
+          <strong>Deferred:</strong> enr_tour_slots/bookings (campus tours).
+          enr_reenrollment_windows (re-enrollment). enr_withdrawal_checklists (full withdrawal
+          workflow &mdash; STU-004 advanced). pay_financial_aid_applications/awards (FIN-002).
+          pay_lunch_accounts/transactions (food service billing &mdash; Cycle 15).
+          pay_discount_rules, pay_late_payment_policies, pay_auto_invoice_rules (advanced billing
+          automation). pay_credit_notes, pay_payment_reversals, pay_debt_writeoffs (advanced AR).
+          pay_family_account_access, pay_payment_authorisation_requests (co-payer).
+          pay_payment_allocations (multi-invoice payments). pay_ledger_balance_checkpoints
+          (performance optimization). pay_invoice_generation_runs (batch invoicing). All of M83
+          Finance/GL (fin_ tables &mdash; separate cycle).
+        </p>
+      </div>
+
+      <div class="callout callout-note">
+        <div class="callout-title">Stripe Integration (ADR-003)</div>
+        <p style="font-size: 15px; line-height: 1.8">
+          Stripe Connect is the payment gateway. Each school gets a Stripe managed account
+          (<code>pay_stripe_accounts</code>). Payment intents are created server-side; the frontend
+          uses Stripe.js Elements for PCI-compliant card capture. In Cycle 6, the Stripe integration
+          is <strong>stubbed</strong> &mdash; the <code>pay_stripe_accounts</code> table and the
+          <code>PaymentService</code> accept Stripe references but don't make actual Stripe API
+          calls. A development-mode flag lets the payment flow complete with a mock charge. Real
+          Stripe wiring is a Phase 3 ops task once the billing workflow is validated.
+        </p>
+      </div>
+
+      <table class="spec-table">
+        <tr>
+          <th style="width: 8%">Step</th>
+          <th style="width: 34%">Deliverable</th>
+          <th style="width: 13%">Type</th>
+          <th>Key Outputs</th>
+        </tr>
+        <tr>
+          <td><strong>1</strong></td>
+          <td>Enrollment Schema &mdash; Periods &amp; Applications</td>
+          <td>Schema</td>
+          <td>
+            enr_enrollment_periods, enr_admission_streams, enr_intake_capacities,
+            enr_capacity_summary, enr_applications, enr_application_screening_responses,
+            enr_application_documents, enr_application_notes
+          </td>
+        </tr>
+        <tr>
+          <td><strong>2</strong></td>
+          <td>Enrollment Schema &mdash; Offers &amp; Waitlist</td>
+          <td>Schema</td>
+          <td>enr_offers, enr_waitlist_entries</td>
+        </tr>
+        <tr>
+          <td><strong>3</strong></td>
+          <td>Payments Schema &mdash; Family Accounts &amp; Fees</td>
+          <td>Schema</td>
+          <td>
+            pay_family_accounts, pay_family_account_students, pay_fee_categories, pay_fee_schedules,
+            pay_stripe_accounts
+          </td>
+        </tr>
+        <tr>
+          <td><strong>4</strong></td>
+          <td>Payments Schema &mdash; Invoices, Payments &amp; Ledger</td>
+          <td>Schema</td>
+          <td>
+            pay_invoices, pay_invoice_line_items, pay_payments, pay_ledger_entries
+            (RANGE-partitioned annually), pay_refunds, pay_payment_plans,
+            pay_payment_plan_installments
+          </td>
+        </tr>
+        <tr>
+          <td><strong>5</strong></td>
+          <td>Seed Data &mdash; Enrollment &amp; Payments</td>
+          <td>Seed</td>
+          <td>
+            Enrollment period, applications, offers, fee schedules, family accounts, invoices,
+            sample payments
+          </td>
+        </tr>
+        <tr>
+          <td><strong>6</strong></td>
+          <td>Enrollment NestJS Module</td>
+          <td>Code</td>
+          <td>
+            EnrollmentPeriodService, ApplicationService, OfferService, WaitlistService, Kafka events
+          </td>
+        </tr>
+        <tr>
+          <td><strong>7</strong></td>
+          <td>Payments NestJS Module</td>
+          <td>Code</td>
+          <td>
+            FamilyAccountService, InvoiceService, PaymentService (Stripe stubbed), LedgerService,
+            PaymentAccountWorker
+          </td>
+        </tr>
+        <tr>
+          <td><strong>8</strong></td>
+          <td>Enrollment Admin UI</td>
+          <td>UI</td>
+          <td>
+            Enrollment periods, application pipeline, application review, offer management, waitlist
+          </td>
+        </tr>
+        <tr>
+          <td><strong>9</strong></td>
+          <td>Parent Application &amp; Enrollment UI</td>
+          <td>UI</td>
+          <td>
+            Application form, application status tracker, offer response, enrollment confirmation
+          </td>
+        </tr>
+        <tr>
+          <td><strong>10</strong></td>
+          <td>Billing Admin UI</td>
+          <td>UI</td>
+          <td>
+            Fee schedule management, invoice generation, payment tracking, family account overview
+          </td>
+        </tr>
+        <tr>
+          <td><strong>11</strong></td>
+          <td>Parent Billing UI</td>
+          <td>UI</td>
+          <td>
+            Invoice list, payment form (Stripe Elements stubbed), payment history, balance view
+          </td>
+        </tr>
+        <tr>
+          <td><strong>12</strong></td>
+          <td>Vertical Slice Integration Test</td>
+          <td>Test</td>
+          <td>
+            End-to-end: apply &rarr; offer &rarr; accept &rarr; enrolled &rarr; invoice &rarr; pay
+            &rarr; ledger balanced
+          </td>
+        </tr>
+      </table>
+
+      <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+      <!-- ── STEP 1 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">01</span>
+          <span class="step-title">Enrollment Schema &mdash; Periods &amp; Applications</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+        <p>
+          The enrollment pipeline: when the school accepts applications, what intake streams exist,
+          capacity per grade, and the application itself with screening responses and documents.
+        </p>
+
+        <div class="detail-heading">Tables (8)</div>
+        <ol class="detail-list">
+          <li>
+            <strong>enr_enrollment_periods</strong> &mdash; <code>school_id</code>,
+            <code>academic_year_id FK(sis_academic_years)</code>, <code>name TEXT</code>,
+            <code>opens_at TIMESTAMPTZ</code>, <code>closes_at TIMESTAMPTZ</code>,
+            <code>status</code> ENUM(UPCOMING, OPEN, CLOSED),
+            <code>allows_mid_year_applications BOOLEAN DEFAULT false</code>. INDEX(school_id,
+            status).
+          </li>
+          <li>
+            <strong>enr_admission_streams</strong> &mdash; Named parallel intake streams within an
+            enrollment period (Standard Intake, Music Scholarship, SEND Specialist).
+            <code>enrollment_period_id FK</code>, <code>name TEXT</code>,
+            <code>grade_level TEXT</code> nullable, <code>opens_at TIMESTAMPTZ</code>,
+            <code>closes_at TIMESTAMPTZ</code>, <code>is_active BOOLEAN</code>.
+            UNIQUE(enrollment_period_id, name).
+          </li>
+          <li>
+            <strong>enr_intake_capacities</strong> &mdash; Places available per grade per period.
+            <code>enrollment_period_id FK</code>, <code>stream_id FK</code> nullable,
+            <code>grade_level TEXT NOT NULL</code>, <code>total_places INT</code>,
+            <code>reserved_places INT DEFAULT 0</code>. UNIQUE(enrollment_period_id,
+            COALESCE(stream_id, nilUUID), grade_level).
+          </li>
+          <li>
+            <strong>enr_capacity_summary</strong> &mdash; Materialized capacity dashboard. Updated
+            on every application status change. <code>enrollment_period_id FK</code>,
+            <code>grade_level TEXT</code>, <code>total_places INT</code>, <code>reserved INT</code>,
+            <code>applications_received INT</code>, <code>offers_issued INT</code>,
+            <code>offers_accepted INT</code>, <code>waitlisted INT</code>,
+            <code>available INT</code> (computed). UNIQUE(enrollment_period_id, grade_level).
+          </li>
+          <li>
+            <strong>enr_applications</strong> &mdash; <code>school_id</code>,
+            <code>enrollment_period_id FK</code>, <code>stream_id FK</code> nullable,
+            <code>student_first_name TEXT</code>, <code>student_last_name TEXT</code>,
+            <code>student_date_of_birth DATE</code>, <code>applying_for_grade TEXT</code>,
+            <code>guardian_person_id UUID</code> (soft to iam_person),
+            <code>guardian_email TEXT</code>, <code>guardian_phone TEXT</code>,
+            <code>admission_type</code> ENUM(NEW_STUDENT, TRANSFER, MID_YEAR_ADMISSION),
+            <code>status</code> ENUM(DRAFT, SUBMITTED, UNDER_REVIEW, ACCEPTED, REJECTED, WAITLISTED,
+            WITHDRAWN, ENROLLED), <code>submitted_at TIMESTAMPTZ</code>,
+            <code>reviewed_by UUID</code> (soft), <code>reviewed_at TIMESTAMPTZ</code>.
+            INDEX(school_id, enrollment_period_id, status).
+          </li>
+          <li>
+            <strong>enr_application_screening_responses</strong> &mdash;
+            <code>application_id FK</code>, <code>question_key TEXT</code>,
+            <code>response_value JSONB</code>. UNIQUE(application_id, question_key). Flexible schema
+            for school-configured screening questions.
+          </li>
+          <li>
+            <strong>enr_application_documents</strong> &mdash; <code>application_id FK</code>,
+            <code>document_type TEXT</code>, <code>s3_key TEXT NOT NULL</code>,
+            <code>uploaded_at TIMESTAMPTZ</code>. Signed S3 URLs only.
+          </li>
+          <li>
+            <strong>enr_application_notes</strong> &mdash; <code>application_id FK</code>,
+            <code>note_type</code> ENUM(INTERVIEW_NOTES, ASSESSMENT_RESULT, STAFF_OBSERVATION,
+            REFERENCE_CHECK, VISIT_NOTES, GENERAL), <code>note_text TEXT NOT NULL</code>,
+            <code>is_confidential BOOLEAN DEFAULT false</code>, <code>created_by UUID</code> (soft).
+            INDEX(application_id, created_at DESC).
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; 8 new tables. Migration:
+          <code>018_enr_enrollment_and_applications.sql</code>.
+        </div>
+      </div>
+
+      <!-- ── STEP 2 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">02</span>
+          <span class="step-title">Enrollment Schema &mdash; Offers &amp; Waitlist</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+        <p>
+          The offer lifecycle and waitlist management. Offers are separate from application status
+          &mdash; they model the offer lifecycle independently.
+        </p>
+
+        <div class="detail-heading">Tables (2)</div>
+        <ol class="detail-list">
+          <li>
+            <strong>enr_offers</strong> &mdash; UNIQUE(<code>application_id</code>).
+            <code>school_id</code>, <code>offer_type</code> ENUM(UNCONDITIONAL, CONDITIONAL),
+            <code>offer_conditions TEXT[]</code> nullable,
+            <code>conditions_met BOOLEAN</code> nullable, <code>offer_letter_s3_key TEXT</code>,
+            <code>issued_at TIMESTAMPTZ NOT NULL</code>,
+            <code>response_deadline TIMESTAMPTZ NOT NULL</code>,
+            <code>family_response</code> ENUM(ACCEPTED, DECLINED, DEFERRED) nullable,
+            <code>family_responded_at TIMESTAMPTZ</code>,
+            <code>deferral_target_year_id FK(sis_academic_years)</code> nullable,
+            <code>status</code> ENUM(ISSUED, ACCEPTED, DECLINED, EXPIRED, WITHDRAWN,
+            CONDITIONS_NOT_MET) DEFAULT 'ISSUED'. INDEX(school_id, status). INDEX(response_deadline)
+            WHERE status='ISSUED' for expiry sweep.
+          </li>
+          <li>
+            <strong>enr_waitlist_entries</strong> &mdash; <code>school_id</code>,
+            <code>enrollment_period_id FK</code>, <code>application_id FK</code>,
+            <code>grade_level TEXT NOT NULL</code>, <code>priority_score NUMERIC(5,2)</code>,
+            <code>position INT</code>, <code>status</code> ENUM(ACTIVE, OFFERED, ENROLLED, EXPIRED,
+            WITHDRAWN), <code>added_at TIMESTAMPTZ</code>, <code>offered_at TIMESTAMPTZ</code>.
+            UNIQUE(enrollment_period_id, application_id). INDEX(school_id, enrollment_period_id,
+            grade_level, position).
+          </li>
+        </ol>
+
+        <div class="detail-heading">Offer Lifecycle</div>
+        <p>
+          Application ACCEPTED &rarr; admin creates an offer (ISSUED) with a response deadline
+          &rarr; parent receives notification &rarr; parent ACCEPTS/DECLINES/DEFERS &rarr; on
+          ACCEPT: application status &rarr; ENROLLED + Kafka event
+          <code>enr.student.enrolled</code> fires &rarr; SIS worker creates the student records +
+          PaymentAccountWorker creates the family account. On DECLINED: offer status &rarr;
+          DECLINED, next waitlisted applicant may be offered. EXPIRED: a sweep job checks offers
+          past <code>response_deadline</code> and marks them EXPIRED.
+        </p>
+
+        <div class="produces">
+          Produces &rarr; 2 new tables. Migration: <code>019_enr_offers_and_waitlist.sql</code>.
+          Total enrollment tables: 10.
+        </div>
+      </div>
+
+      <!-- ── STEP 3 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">03</span>
+          <span class="step-title">Payments Schema &mdash; Family Accounts &amp; Fees</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+        <p>
+          The billing foundation: family accounts that aggregate charges across students, fee
+          categories and schedules that define what the school charges, and the Stripe Connect
+          account for payment processing.
+        </p>
+
+        <div class="detail-heading">Tables (5)</div>
+        <ol class="detail-list">
+          <li>
+            <strong>pay_family_accounts</strong> &mdash; <code>school_id</code>,
+            <code>account_holder_id UUID</code> (soft to iam_person &mdash; the primary guardian),
+            <code>account_number TEXT</code>, <code>status</code> ENUM(ACTIVE, SUSPENDED, CLOSED),
+            <code>payment_authorisation_policy</code> ENUM(ACCOUNT_HOLDER_ONLY, ANY_AUTHORISED)
+            DEFAULT 'ACCOUNT_HOLDER_ONLY'. UNIQUE(school_id, account_holder_id). Created
+            automatically by the PaymentAccountWorker when a student enrolls.
+          </li>
+          <li>
+            <strong>pay_family_account_students</strong> &mdash; UNIQUE(<code
+              >family_account_id, student_id</code
+            >). Links students to family accounts for billing.
+            <code>student_id FK(sis_students)</code>, <code>added_by UUID</code> (soft),
+            <code>added_at TIMESTAMPTZ</code>.
+          </li>
+          <li>
+            <strong>pay_fee_categories</strong> &mdash; <code>school_id</code>,
+            <code>name TEXT NOT NULL</code> (e.g. "Tuition", "Registration", "Activity Fee",
+            "Technology Fee"), <code>is_active BOOLEAN</code>. UNIQUE(school_id, name).
+          </li>
+          <li>
+            <strong>pay_fee_schedules</strong> &mdash; <code>school_id</code>,
+            <code>academic_year_id FK</code>, <code>name TEXT</code>,
+            <code>fee_category_id FK</code>, <code>grade_level TEXT</code> nullable (null = all
+            grades), <code>amount NUMERIC(10,2) NOT NULL</code>, <code>is_recurring BOOLEAN</code>,
+            <code>recurrence</code> ENUM(ONE_TIME, MONTHLY, QUARTERLY, SEMESTER, ANNUAL) DEFAULT
+            'ANNUAL'. UNIQUE(school_id, academic_year_id, name).
+          </li>
+          <li>
+            <strong>pay_stripe_accounts</strong> &mdash; <code>school_id UUID UNIQUE</code>,
+            <code>stripe_account_id TEXT NOT NULL UNIQUE</code>,
+            <code>onboarding_complete BOOLEAN</code>, <code>created_at TIMESTAMPTZ</code>. Stripe
+            Connect managed account per school. Stubbed in Cycle 6.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; 5 new tables. Migration:
+          <code>020_pay_family_accounts_and_fees.sql</code>.
+        </div>
+      </div>
+
+      <!-- ── STEP 4 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">04</span>
+          <span class="step-title">Payments Schema &mdash; Invoices, Payments &amp; Ledger</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+        <p>
+          The billing engine: invoices with line items, payments with Stripe references, an
+          immutable ledger, refunds, and payment plans for installment billing.
+        </p>
+
+        <div class="detail-heading">Tables (7)</div>
+        <ol class="detail-list">
+          <li>
+            <strong>pay_invoices</strong> &mdash; <code>school_id</code>,
+            <code>family_account_id FK</code>, <code>title TEXT NOT NULL</code>,
+            <code>total_amount NUMERIC(10,2)</code>, <code>due_date DATE</code>,
+            <code>status</code> ENUM(DRAFT, SENT, PARTIAL, PAID, OVERDUE, CANCELLED),
+            <code>sent_at TIMESTAMPTZ</code>. INDEX(school_id, status). INDEX(family_account_id,
+            due_date).
+          </li>
+          <li>
+            <strong>pay_invoice_line_items</strong> &mdash; <code>invoice_id FK</code>,
+            <code>description TEXT NOT NULL</code>, <code>quantity NUMERIC(6,2) DEFAULT 1</code>,
+            <code>unit_price NUMERIC(10,2)</code>, <code>total NUMERIC(10,2)</code>,
+            <code>fee_schedule_id FK</code> nullable. INDEX(invoice_id).
+          </li>
+          <li>
+            <strong>pay_payments</strong> &mdash; <code>invoice_id FK</code>,
+            <code>family_account_id FK</code>, <code>amount NUMERIC(10,2) NOT NULL</code>,
+            <code>payment_method</code> ENUM(CARD, BANK_TRANSFER, CASH, CHEQUE, WAIVER),
+            <code>stripe_payment_intent_id TEXT</code>, <code>status</code> ENUM(PENDING, COMPLETED,
+            FAILED, REFUNDED), <code>paid_at TIMESTAMPTZ</code>, <code>receipt_s3_key TEXT</code>.
+            INDEX(family_account_id, paid_at DESC).
+          </li>
+          <li>
+            <strong>pay_ledger_entries</strong> &mdash; IMMUTABLE (no UPDATE or DELETE).
+            <code>family_account_id FK</code>, <code>entry_type</code> ENUM(CHARGE, PAYMENT, REFUND,
+            CREDIT, ADJUSTMENT), <code>amount NUMERIC(10,2) NOT NULL</code>,
+            <code>reference_id UUID</code>, <code>description TEXT</code>,
+            <code>created_at TIMESTAMPTZ</code>. INDEX(family_account_id, created_at DESC). BRIN on
+            created_at. RANGE partitioned by created_at annually (2025&ndash;2030). Balance =
+            SUM(amount) WHERE family_account_id=$1, cached in Redis
+            <code>ledger:balance:{id}</code> TTL=30s.
+          </li>
+          <li>
+            <strong>pay_refunds</strong> &mdash; <code>payment_id FK</code>,
+            <code>family_account_id FK</code>, <code>amount NUMERIC(10,2) NOT NULL</code>,
+            <code>refund_category</code> ENUM(OVERPAYMENT, WITHDRAWAL, PROGRAMME_CANCELLED,
+            ERROR_CORRECTION, GOODWILL, OTHER), <code>reason TEXT NOT NULL</code>,
+            <code>stripe_refund_id TEXT</code>, <code>status</code> ENUM(PENDING, COMPLETED,
+            FAILED), <code>authorised_by UUID</code> (soft), <code>authorised_at TIMESTAMPTZ</code>.
+            INDEX(family_account_id, created_at DESC).
+          </li>
+          <li>
+            <strong>pay_payment_plans</strong> &mdash; <code>family_account_id FK</code>,
+            <code>invoice_id FK</code>, <code>total_amount NUMERIC(10,2)</code>,
+            <code>installment_count INT</code>, <code>frequency</code> ENUM(MONTHLY, QUARTERLY),
+            <code>start_date DATE</code>, <code>status</code> ENUM(ACTIVE, COMPLETED, DEFAULTED,
+            CANCELLED). UNIQUE(invoice_id). Auto-generates installment rows on creation.
+          </li>
+          <li>
+            <strong>pay_payment_plan_installments</strong> &mdash; <code>plan_id FK</code>,
+            <code>installment_number INT</code>, <code>amount NUMERIC(10,2)</code>,
+            <code>due_date DATE</code>, <code>status</code> ENUM(UPCOMING, DUE, PAID, OVERDUE),
+            <code>payment_id FK</code> nullable (links to the payment that covered this
+            installment). UNIQUE(plan_id, installment_number). INDEX(due_date, status).
+          </li>
+        </ol>
+
+        <div class="detail-heading">Ledger Integrity</div>
+        <p>
+          <code>pay_ledger_entries</code> is IMMUTABLE &mdash; no UPDATE, no DELETE. Every financial
+          action (invoice sent, payment received, refund issued) creates a new ledger entry. Balance
+          is always derivable from SUM(amount). Corrections use ADJUSTMENT entries, never mutations.
+          This is the accounting foundation that M83 Finance/GL will consume via Kafka events in a
+          future cycle.
+        </p>
+
+        <div class="produces">
+          Produces &rarr; 7 new tables. Migration:
+          <code>021_pay_invoices_payments_ledger.sql</code>. Total payment tables: 12. Total Cycle 6
+          tables: 22.
+        </div>
+      </div>
+
+      <!-- ── STEP 5 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">05</span>
+          <span class="step-title">Seed Data &mdash; Enrollment &amp; Payments</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+        <p>
+          Populate the enrollment and payment modules with realistic demo data that shows the full
+          lifecycle.
+        </p>
+
+        <div class="detail-heading">What Gets Seeded</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Enrollment period:</strong> "Fall 2026 Admissions" for the current academic
+            year. Status=OPEN. Opens April 1, closes June 30.
+          </li>
+          <li>
+            <strong>Admission streams:</strong> "Standard Intake" and "Music Scholarship" streams.
+          </li>
+          <li>
+            <strong>Intake capacities:</strong> Grade 9: 120 places (10 reserved). Grade 10: 110
+            places.
+          </li>
+          <li>
+            <strong>Applications:</strong> 3 sample applications &mdash; (1) a new student
+            application (SUBMITTED, pending review), (2) an application that was ACCEPTED and has an
+            offer ISSUED, (3) Maya Chen's original application marked ENROLLED (historical &mdash;
+            shows the completed pipeline).
+          </li>
+          <li>
+            <strong>Offers:</strong> 1 offer ISSUED for application #2 with a 14-day response
+            deadline. 1 historical ACCEPTED offer for Maya's application.
+          </li>
+          <li><strong>Waitlist:</strong> 1 ACTIVE waitlist entry for a full grade level.</li>
+          <li>
+            <strong>Fee categories:</strong> Tuition, Registration Fee, Technology Fee, Activity
+            Fee.
+          </li>
+          <li>
+            <strong>Fee schedules:</strong> Grade 9 Annual Tuition ($12,000), Grade 10 Annual
+            Tuition ($12,500), Registration Fee ($500 one-time), Technology Fee ($400 annual).
+          </li>
+          <li>
+            <strong>Stripe account:</strong> Demo school Stripe account (stub:
+            <code>acct_demo_lincoln</code>, onboarding_complete=true).
+          </li>
+          <li>
+            <strong>Family accounts:</strong> David Chen's family account (ACTIVE, linked to Maya).
+            Account number auto-generated.
+          </li>
+          <li>
+            <strong>Invoices:</strong> 2 invoices for the Chen family &mdash; (1) "Fall 2026
+            Tuition" ($12,000, status=PAID), (2) "Technology Fee 2026" ($400, status=SENT, due in 30
+            days).
+          </li>
+          <li>
+            <strong>Payments:</strong> 1 completed payment for the tuition invoice ($12,000, CARD,
+            paid_at last month). Mock Stripe payment intent ID.
+          </li>
+          <li>
+            <strong>Ledger entries:</strong> 3 entries &mdash; CHARGE $12,000 (tuition invoice),
+            PAYMENT $12,000 (tuition payment), CHARGE $400 (tech fee invoice). Balance should be
+            $400 (outstanding tech fee).
+          </li>
+          <li>
+            <strong>Permission updates:</strong> Add STU-003 (Enrollment) read/write to admin roles.
+            Add FIN-001 (Family Billing) read to Parent. Add FIN-001 write to admin roles. Rebuild
+            cache.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Populated enrollment pipeline and billing system. Family account with
+          balance, invoices, and payment history.
+        </div>
+      </div>
+
+      <!-- ── STEP 6 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">06</span>
+          <span class="step-title">Enrollment NestJS Module</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+        <p>
+          The admissions pipeline API. Application submission, review, offer management, and
+          enrollment confirmation.
+        </p>
+
+        <div class="detail-heading">Services &amp; Endpoints</div>
+        <ol class="detail-list">
+          <li>
+            <strong>EnrollmentPeriodService</strong> &mdash; <code>GET /enrollment-periods</code>,
+            <code>GET /enrollment-periods/:id</code> (with streams + capacities),
+            <code>POST /enrollment-periods</code>,
+            <code>PATCH /enrollment-periods/:id</code> (open/close). Admin only for writes
+            (<code>stu-003:admin</code>).
+          </li>
+          <li>
+            <strong>ApplicationService</strong> &mdash; <code>POST /applications</code> (parent
+            submits &mdash; validates period is OPEN), <code>GET /applications</code> (admin: all,
+            parent: own), <code>GET /applications/:id</code>,
+            <code>PATCH /applications/:id</code> (admin reviews &mdash; status transitions),
+            <code>POST /applications/:id/notes</code> (admin adds review notes). Kafka:
+            <code>enr.application.submitted</code>, <code>enr.application.status_changed</code>.
+          </li>
+          <li>
+            <strong>OfferService</strong> &mdash; <code>POST /applications/:id/offer</code> (admin
+            issues offer), <code>PATCH /offers/:id/respond</code> (parent accepts/declines/defers),
+            <code>GET /offers</code> (admin: all, parent: own). On ACCEPT: application status &rarr;
+            ENROLLED, emits <code>enr.student.enrolled</code> with student info + guardian info +
+            grade level. The <code>EnrollmentConfirmedWorker</code> consumes this to create
+            <code>sis_students</code> + <code>sis_enrollments</code> +
+            <code>sis_guardians</code> records if they don't exist (idempotent).
+          </li>
+          <li>
+            <strong>WaitlistService</strong> &mdash; <code>GET /waitlist</code> (by period + grade),
+            <code>PATCH /waitlist/:id/offer</code> (admin moves waitlisted applicant to offer
+            stage). Auto-manages position ordering.
+          </li>
+          <li>
+            <strong>CapacitySummaryService</strong> &mdash; Recomputes
+            <code>enr_capacity_summary</code> on every application/offer status change. Called
+            internally, not via endpoint. Idempotent UPSERT.
+          </li>
+        </ol>
+
+        <div class="detail-heading">Row-Level Authorization</div>
+        <p>
+          Parents can only see their own applications (matched via
+          <code>guardian_person_id = actor.personId</code>). Admins see all applications in the
+          enrollment period. Teachers do not have enrollment access. Students cannot submit
+          applications (parents do).
+        </p>
+
+        <div class="produces">
+          Produces &rarr; EnrollmentModule with 5 services, ~14 endpoints + 3 Kafka events.
+        </div>
+      </div>
+
+      <!-- ── STEP 7 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">07</span>
+          <span class="step-title">Payments NestJS Module</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+        <p>
+          The billing engine: family accounts, invoice generation, payment processing (Stripe
+          stubbed), and the immutable ledger.
+        </p>
+
+        <div class="detail-heading">Services &amp; Endpoints</div>
+        <ol class="detail-list">
+          <li>
+            <strong>FamilyAccountService</strong> &mdash; <code>GET /family-accounts</code> (admin:
+            all, parent: own), <code>GET /family-accounts/:id</code> (with balance from ledger),
+            <code>GET /family-accounts/:id/students</code>. Admin can manually create accounts;
+            normally created by PaymentAccountWorker.
+          </li>
+          <li>
+            <strong>FeeScheduleService</strong> &mdash; <code>GET /fee-schedules</code>,
+            <code>POST /fee-schedules</code>, <code>PATCH /fee-schedules/:id</code>,
+            <code>GET /fee-categories</code>, <code>POST /fee-categories</code>. Admin only
+            (<code>fin-001:admin</code>).
+          </li>
+          <li>
+            <strong>InvoiceService</strong> &mdash; <code>POST /invoices</code> (admin creates from
+            fee schedule or ad hoc), <code>GET /invoices</code> (admin: all, parent: own family),
+            <code>GET /invoices/:id</code> (with line items),
+            <code>PATCH /invoices/:id/send</code> (status DRAFT &rarr; SENT, emits
+            <code>pay.invoice.created</code>, creates CHARGE ledger entry),
+            <code>PATCH /invoices/:id/cancel</code>.
+            <code>POST /invoices/generate-from-schedule</code> (bulk: create invoices for all
+            enrolled families from a fee schedule).
+          </li>
+          <li>
+            <strong>PaymentService</strong> &mdash; <code>POST /invoices/:id/pay</code> (creates
+            payment intent &mdash; Stripe stubbed in dev mode, marks COMPLETED immediately with mock
+            intent ID), <code>GET /payments</code> (parent: own, admin: all),
+            <code>GET /payments/:id</code>. On COMPLETED: creates PAYMENT ledger entry, updates
+            invoice status (PARTIAL or PAID based on running total vs total_amount). Emits
+            <code>pay.payment.received</code>.
+          </li>
+          <li>
+            <strong>LedgerService</strong> &mdash;
+            <code>GET /family-accounts/:id/ledger</code> (paginated, newest first),
+            <code>GET /family-accounts/:id/balance</code> (SUM with Redis cache). Read-only &mdash;
+            entries are created by other services, never directly. Balance = SUM(amount) cached in
+            Redis <code>ledger:balance:{accountId}</code> TTL=30s, invalidated on write.
+          </li>
+          <li>
+            <strong>RefundService</strong> &mdash; <code>POST /payments/:id/refund</code> (admin
+            authorizes), <code>GET /refunds</code>. Creates REFUND ledger entry. Emits
+            <code>pay.refund.issued</code>.
+          </li>
+          <li>
+            <strong>PaymentPlanService</strong> &mdash;
+            <code>POST /invoices/:id/payment-plan</code> (creates plan + auto-generates installment
+            rows), <code>GET /payment-plans/:id</code> (with installments). Installments link to
+            payments when paid.
+          </li>
+          <li>
+            <strong>PaymentAccountWorker</strong> &mdash; Kafka consumer on
+            <code>enr.student.enrolled</code>. Creates <code>pay_family_accounts</code> row (if not
+            exists for the guardian) + <code>pay_family_account_students</code> link. Uses
+            claim-after-success idempotency.
+          </li>
+        </ol>
+
+        <div class="detail-heading">Ledger Immutability</div>
+        <p>
+          <code>pay_ledger_entries</code> has no UPDATE or DELETE service methods. Every financial
+          action creates a new row. CHARGE entries have positive amounts. PAYMENT entries have
+          negative amounts (reduce balance). REFUND entries have positive amounts (increase balance
+          back). Balance = SUM(amount) should equal the outstanding amount across all invoices. A
+          future nightly reconciliation job can verify this invariant.
+        </p>
+
+        <div class="produces">
+          Produces &rarr; PaymentsModule with 7 services + 1 Kafka consumer, ~18 endpoints + 3 Kafka
+          events.
+        </div>
+      </div>
+
+      <!-- ── STEP 8 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">08</span>
+          <span class="step-title">Enrollment Admin UI</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+        <p>
+          The admissions office interface. A new "Admissions" app tile for users with
+          <code>stu-003:write</code>.
+        </p>
+
+        <div class="detail-heading">Pages</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Enrollment Periods</strong> <code>/admissions/periods</code> &mdash; list of
+            enrollment periods with status badges. Create new period form. Open/close toggle.
+          </li>
+          <li>
+            <strong>Application Pipeline</strong> <code>/admissions/applications</code> &mdash;
+            kanban-style or table view of applications grouped by status (SUBMITTED &rarr;
+            UNDER_REVIEW &rarr; ACCEPTED &rarr; ENROLLED). Filter by grade, stream, status. Click to
+            review.
+          </li>
+          <li>
+            <strong>Application Review</strong> <code>/admissions/applications/:id</code> &mdash;
+            full application detail with student info, screening responses, documents, and admin
+            notes. Status transition buttons (Accept, Reject, Waitlist). Issue offer button. Notes
+            timeline.
+          </li>
+          <li>
+            <strong>Capacity Dashboard</strong> &mdash; integrated into the period detail. Shows
+            per-grade: total places, reserved, applications, offers issued, offers accepted,
+            available. Color-coded when nearing capacity.
+          </li>
+          <li>
+            <strong>Waitlist</strong> <code>/admissions/waitlist</code> &mdash; ordered list by
+            grade. Admin can offer a spot to the next waitlisted applicant.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Admissions app tile, enrollment period management, application pipeline,
+          review interface, capacity dashboard, waitlist.
+        </div>
+      </div>
+
+      <!-- ── STEP 9 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">09</span>
+          <span class="step-title">Parent Application &amp; Enrollment UI</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+        <p>
+          The parent-facing admissions experience. A new "Apply" tile or link for parents viewing
+          open enrollment periods.
+        </p>
+
+        <div class="detail-heading">Pages</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Application Form</strong> <code>/apply</code> &mdash; multi-step form: student
+            demographics (name, DOB, grade), guardian contact info, admission stream selection (if
+            multiple), screening questions (rendered from the school's configured questions),
+            document uploads (birth certificate, previous records, etc.). Save as draft, submit when
+            complete.
+          </li>
+          <li>
+            <strong>Application Status Tracker</strong> <code>/applications</code> &mdash; parent's
+            view of their submitted applications. Status badge, timeline of status changes, any
+            admin notes marked as non-confidential.
+          </li>
+          <li>
+            <strong>Offer Response</strong> <code>/offers/:id</code> &mdash; when an offer is
+            issued, the parent sees: offer details, conditions (if conditional), response deadline
+            countdown, Accept/Decline/Defer buttons. Accept triggers the enrollment confirmation
+            flow.
+          </li>
+          <li>
+            <strong>Enrollment Confirmation</strong> &mdash; after accepting, a confirmation page
+            with next steps: "Welcome to Lincoln Elementary! Your child has been enrolled in Grade 9
+            for Fall 2026. A tuition invoice will be generated shortly."
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Parent-facing application form, status tracker, offer response, enrollment
+          confirmation.
+        </div>
+      </div>
+
+      <!-- ── STEP 10 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">10</span>
+          <span class="step-title">Billing Admin UI</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+        <p>
+          The finance office interface. A new "Billing" app tile for users with
+          <code>fin-001:write</code>.
+        </p>
+
+        <div class="detail-heading">Pages</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Fee Schedule Management</strong> <code>/billing/fees</code> &mdash; list of fee
+            categories and schedules. Create/edit fees by academic year, grade, category. Shows
+            which families would be affected by a new fee.
+          </li>
+          <li>
+            <strong>Invoice Management</strong> <code>/billing/invoices</code> &mdash; list of all
+            invoices with filters (status, family, date range). Bulk generate from fee schedule.
+            Send invoices. View payment status per invoice.
+          </li>
+          <li>
+            <strong>Family Account Overview</strong> <code>/billing/accounts</code> &mdash; list of
+            family accounts with current balances. Click to see: linked students, invoice history,
+            payment history, ledger entries. Outstanding balance highlighted.
+          </li>
+          <li>
+            <strong>Payment Tracking</strong> <code>/billing/payments</code> &mdash; list of recent
+            payments. Filter by status, method, date. Refund button on completed payments (admin
+            authorized).
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Billing app tile, fee management, invoice management, family account
+          overview, payment tracking.
+        </div>
+      </div>
+
+      <!-- ── STEP 11 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">11</span>
+          <span class="step-title">Parent Billing UI</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+        <p>
+          The parent's billing dashboard. Integrated into the existing parent home page as a
+          "Billing" app tile.
+        </p>
+
+        <div class="detail-heading">Pages</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Billing Dashboard</strong> <code>/billing</code> (parent view) &mdash; current
+            balance (prominent), outstanding invoices list, recent payments. "Pay Now" button on
+            unpaid invoices.
+          </li>
+          <li>
+            <strong>Invoice Detail</strong> <code>/billing/invoices/:id</code> &mdash; line items,
+            due date, status, payment history for this invoice. "Pay" button opens payment flow.
+            Payment plan option if available.
+          </li>
+          <li>
+            <strong>Payment Flow</strong> <code>/billing/pay/:invoiceId</code> &mdash; amount input
+            (default: full amount, can enter partial), payment method selection. In dev mode: mock
+            payment completes immediately. In production: Stripe Elements card form (PCI compliant
+            &mdash; card data never touches CampusOS servers). Confirmation page with receipt.
+          </li>
+          <li>
+            <strong>Payment History</strong> <code>/billing/payments</code> (parent view) &mdash;
+            list of all payments made by this family. Download receipt link.
+          </li>
+          <li>
+            <strong>Ledger View</strong> <code>/billing/ledger</code> &mdash; full transaction
+            history: charges, payments, refunds, credits. Running balance column.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Parent billing dashboard, invoice detail, payment flow (stubbed), payment
+          history, ledger view.
+        </div>
+      </div>
+
+      <!-- ── STEP 12 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">12</span>
+          <span class="step-title">Vertical Slice Integration Test</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+        <p>The full enrollment-to-payment pipeline, proving the complete parent journey works.</p>
+
+        <div class="detail-heading">Test Script</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Open enrollment:</strong> Admin creates an enrollment period for Fall 2026.
+            Verify it appears as OPEN.
+          </li>
+          <li>
+            <strong>Parent applies:</strong> Parent submits an application for a new student (new
+            guardian, not David Chen). Verify application status = SUBMITTED. Verify capacity
+            summary updates.
+          </li>
+          <li>
+            <strong>Admin reviews:</strong> Admin views the application, adds a note, changes status
+            to UNDER_REVIEW then ACCEPTED.
+          </li>
+          <li>
+            <strong>Admin issues offer:</strong> Admin creates an UNCONDITIONAL offer with a 14-day
+            deadline. Verify parent receives notification.
+          </li>
+          <li>
+            <strong>Parent accepts:</strong> Parent responds ACCEPTED. Verify application status
+            &rarr; ENROLLED. Verify <code>enr.student.enrolled</code> Kafka event fires.
+          </li>
+          <li>
+            <strong>Student records created:</strong> Verify <code>sis_students</code>,
+            <code>sis_enrollments</code>, and <code>sis_guardians</code> records were created by the
+            EnrollmentConfirmedWorker (or equivalent).
+          </li>
+          <li>
+            <strong>Family account created:</strong> Verify PaymentAccountWorker consumed
+            <code>enr.student.enrolled</code> and created <code>pay_family_accounts</code> +
+            <code>pay_family_account_students</code> link.
+          </li>
+          <li>
+            <strong>Invoice generated:</strong> Admin generates a tuition invoice from the fee
+            schedule for the new family. Verify invoice with correct line items. Admin sends the
+            invoice. Verify CHARGE ledger entry.
+          </li>
+          <li>
+            <strong>Parent pays:</strong> Parent views the invoice on their billing dashboard.
+            Clicks Pay. Enters amount (full). Stubbed payment completes. Verify PAYMENT ledger
+            entry. Verify invoice status &rarr; PAID. Verify
+            <code>pay.payment.received</code> event.
+          </li>
+          <li>
+            <strong>Balance check:</strong> Verify family account balance = $0 (all paid). Verify
+            ledger entries sum to 0.
+          </li>
+          <li>
+            <strong>Partial payment test:</strong> Using the existing Chen family's $400 tech fee
+            invoice: parent pays $200. Verify invoice status &rarr; PARTIAL. Pay remaining $200.
+            Verify &rarr; PAID.
+          </li>
+          <li>
+            <strong>Permission denials:</strong> Teacher cannot access admissions. Student cannot
+            submit applications. Parent cannot see other families' invoices. Teacher cannot issue
+            refunds.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Verified enrollment-to-payment pipeline. Complete parent journey from
+          application to paid invoice.
+        </div>
+      </div>
+
+      <h2 class="section-heading">Cycle 6 Completion Criteria</h2>
+
+      <div class="callout callout-ai">
+        <div class="callout-title">Exit Checklist</div>
+        <ol style="font-size: 15px; line-height: 2.2; padding-left: 20px">
+          <li>
+            Tenant schema: ~22 new tables (10 enrollment + 12 payment). Total tenant tables: ~95+.
+          </li>
+          <li>Enrollment API: ~14 endpoints. Application lifecycle, offer management, waitlist.</li>
+          <li>
+            Payments API: ~18 endpoints. Invoice generation, payment processing (stubbed), ledger.
+          </li>
+          <li>Kafka: 6+ new events. PaymentAccountWorker consumes enr.student.enrolled.</li>
+          <li>
+            Admin UI: Admissions pipeline (periods, applications, offers, waitlist, capacity).
+            Billing (fees, invoices, accounts, payments).
+          </li>
+          <li>
+            Parent UI: Application form, status tracker, offer response. Billing dashboard, invoice
+            detail, payment flow (stubbed), ledger.
+          </li>
+          <li>
+            Vertical slice: apply &rarr; offer &rarr; accept &rarr; enrolled &rarr; invoice &rarr;
+            pay &rarr; ledger balanced.
+          </li>
+          <li>HANDOFF-CYCLE6.md and CLAUDE.md updated. CI green.</li>
+        </ol>
+      </div>
+
+      <div class="callout callout-thesis">
+        <div class="callout-title">Testing Pause Recommended After Cycle 6</div>
+        <p style="font-size: 15px; line-height: 1.8">
+          Cycle 6 completes the full parent journey: enroll &rarr; pay &rarr; attend &rarr; see
+          grades &rarr; get notified &rarr; message teacher &rarr; see calendar. This is the moment
+          to pause and thoroughly test the entire product from the parent's perspective before
+          building internal operational modules (workflows, tickets) in Cycles 7&ndash;8. The Phase
+          2 testing checklist should be executed here.
+        </p>
+      </div>
+
+      <div class="doc-footer">
+        <p>
+          CampusOS Cycle 6 Implementation Plan &mdash; April 2026. Derived from: ERD v11 (M81
+          Enrollment 30+ tables, M84 Payments 30+ tables &mdash; 22 core in scope), Function Library
+          (STU-003, STU-004, FIN-001), Architecture Review (ADR-003 Stripe Connect, ADR-048 ledger
+          partitioning, ADR-009 write-then-read routing), Development &amp; Deployment Plan (Section
+          13, Cycle 5 / original numbering).
+        </p>
+      </div>
     </div>
-    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
-    <p>The offer lifecycle and waitlist management. Offers are separate from application status &mdash; they model the offer lifecycle independently.</p>
-
-    <div class="detail-heading">Tables (2)</div>
-    <ol class="detail-list">
-      <li><strong>enr_offers</strong> &mdash; UNIQUE(<code>application_id</code>). <code>school_id</code>, <code>offer_type</code> ENUM(UNCONDITIONAL, CONDITIONAL), <code>offer_conditions TEXT[]</code> nullable, <code>conditions_met BOOLEAN</code> nullable, <code>offer_letter_s3_key TEXT</code>, <code>issued_at TIMESTAMPTZ NOT NULL</code>, <code>response_deadline TIMESTAMPTZ NOT NULL</code>, <code>family_response</code> ENUM(ACCEPTED, DECLINED, DEFERRED) nullable, <code>family_responded_at TIMESTAMPTZ</code>, <code>deferral_target_year_id FK(sis_academic_years)</code> nullable, <code>status</code> ENUM(ISSUED, ACCEPTED, DECLINED, EXPIRED, WITHDRAWN, CONDITIONS_NOT_MET) DEFAULT 'ISSUED'. INDEX(school_id, status). INDEX(response_deadline) WHERE status='ISSUED' for expiry sweep.</li>
-      <li><strong>enr_waitlist_entries</strong> &mdash; <code>school_id</code>, <code>enrollment_period_id FK</code>, <code>application_id FK</code>, <code>grade_level TEXT NOT NULL</code>, <code>priority_score NUMERIC(5,2)</code>, <code>position INT</code>, <code>status</code> ENUM(ACTIVE, OFFERED, ENROLLED, EXPIRED, WITHDRAWN), <code>added_at TIMESTAMPTZ</code>, <code>offered_at TIMESTAMPTZ</code>. UNIQUE(enrollment_period_id, application_id). INDEX(school_id, enrollment_period_id, grade_level, position).</li>
-    </ol>
-
-    <div class="detail-heading">Offer Lifecycle</div>
-    <p>Application ACCEPTED &rarr; admin creates an offer (ISSUED) with a response deadline &rarr; parent receives notification &rarr; parent ACCEPTS/DECLINES/DEFERS &rarr; on ACCEPT: application status &rarr; ENROLLED + Kafka event <code>enr.student.enrolled</code> fires &rarr; SIS worker creates the student records + PaymentAccountWorker creates the family account. On DECLINED: offer status &rarr; DECLINED, next waitlisted applicant may be offered. EXPIRED: a sweep job checks offers past <code>response_deadline</code> and marks them EXPIRED.</p>
-
-    <div class="produces">Produces &rarr; 2 new tables. Migration: <code>019_enr_offers_and_waitlist.sql</code>. Total enrollment tables: 10.</div>
-  </div>
-
-  <!-- ── STEP 3 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">03</span>
-      <span class="step-title">Payments Schema &mdash; Family Accounts &amp; Fees</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
-    <p>The billing foundation: family accounts that aggregate charges across students, fee categories and schedules that define what the school charges, and the Stripe Connect account for payment processing.</p>
-
-    <div class="detail-heading">Tables (5)</div>
-    <ol class="detail-list">
-      <li><strong>pay_family_accounts</strong> &mdash; <code>school_id</code>, <code>account_holder_id UUID</code> (soft to iam_person &mdash; the primary guardian), <code>account_number TEXT</code>, <code>status</code> ENUM(ACTIVE, SUSPENDED, CLOSED), <code>payment_authorisation_policy</code> ENUM(ACCOUNT_HOLDER_ONLY, ANY_AUTHORISED) DEFAULT 'ACCOUNT_HOLDER_ONLY'. UNIQUE(school_id, account_holder_id). Created automatically by the PaymentAccountWorker when a student enrolls.</li>
-      <li><strong>pay_family_account_students</strong> &mdash; UNIQUE(<code>family_account_id, student_id</code>). Links students to family accounts for billing. <code>student_id FK(sis_students)</code>, <code>added_by UUID</code> (soft), <code>added_at TIMESTAMPTZ</code>.</li>
-      <li><strong>pay_fee_categories</strong> &mdash; <code>school_id</code>, <code>name TEXT NOT NULL</code> (e.g. "Tuition", "Registration", "Activity Fee", "Technology Fee"), <code>is_active BOOLEAN</code>. UNIQUE(school_id, name).</li>
-      <li><strong>pay_fee_schedules</strong> &mdash; <code>school_id</code>, <code>academic_year_id FK</code>, <code>name TEXT</code>, <code>fee_category_id FK</code>, <code>grade_level TEXT</code> nullable (null = all grades), <code>amount NUMERIC(10,2) NOT NULL</code>, <code>is_recurring BOOLEAN</code>, <code>recurrence</code> ENUM(ONE_TIME, MONTHLY, QUARTERLY, SEMESTER, ANNUAL) DEFAULT 'ANNUAL'. UNIQUE(school_id, academic_year_id, name).</li>
-      <li><strong>pay_stripe_accounts</strong> &mdash; <code>school_id UUID UNIQUE</code>, <code>stripe_account_id TEXT NOT NULL UNIQUE</code>, <code>onboarding_complete BOOLEAN</code>, <code>created_at TIMESTAMPTZ</code>. Stripe Connect managed account per school. Stubbed in Cycle 6.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; 5 new tables. Migration: <code>020_pay_family_accounts_and_fees.sql</code>.</div>
-  </div>
-
-  <!-- ── STEP 4 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">04</span>
-      <span class="step-title">Payments Schema &mdash; Invoices, Payments &amp; Ledger</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
-    <p>The billing engine: invoices with line items, payments with Stripe references, an immutable ledger, refunds, and payment plans for installment billing.</p>
-
-    <div class="detail-heading">Tables (7)</div>
-    <ol class="detail-list">
-      <li><strong>pay_invoices</strong> &mdash; <code>school_id</code>, <code>family_account_id FK</code>, <code>title TEXT NOT NULL</code>, <code>total_amount NUMERIC(10,2)</code>, <code>due_date DATE</code>, <code>status</code> ENUM(DRAFT, SENT, PARTIAL, PAID, OVERDUE, CANCELLED), <code>sent_at TIMESTAMPTZ</code>. INDEX(school_id, status). INDEX(family_account_id, due_date).</li>
-      <li><strong>pay_invoice_line_items</strong> &mdash; <code>invoice_id FK</code>, <code>description TEXT NOT NULL</code>, <code>quantity NUMERIC(6,2) DEFAULT 1</code>, <code>unit_price NUMERIC(10,2)</code>, <code>total NUMERIC(10,2)</code>, <code>fee_schedule_id FK</code> nullable. INDEX(invoice_id).</li>
-      <li><strong>pay_payments</strong> &mdash; <code>invoice_id FK</code>, <code>family_account_id FK</code>, <code>amount NUMERIC(10,2) NOT NULL</code>, <code>payment_method</code> ENUM(CARD, BANK_TRANSFER, CASH, CHEQUE, WAIVER), <code>stripe_payment_intent_id TEXT</code>, <code>status</code> ENUM(PENDING, COMPLETED, FAILED, REFUNDED), <code>paid_at TIMESTAMPTZ</code>, <code>receipt_s3_key TEXT</code>. INDEX(family_account_id, paid_at DESC).</li>
-      <li><strong>pay_ledger_entries</strong> &mdash; IMMUTABLE (no UPDATE or DELETE). <code>family_account_id FK</code>, <code>entry_type</code> ENUM(CHARGE, PAYMENT, REFUND, CREDIT, ADJUSTMENT), <code>amount NUMERIC(10,2) NOT NULL</code>, <code>reference_id UUID</code>, <code>description TEXT</code>, <code>created_at TIMESTAMPTZ</code>. INDEX(family_account_id, created_at DESC). BRIN on created_at. RANGE partitioned by created_at annually (2025&ndash;2030). Balance = SUM(amount) WHERE family_account_id=$1, cached in Redis <code>ledger:balance:{id}</code> TTL=30s.</li>
-      <li><strong>pay_refunds</strong> &mdash; <code>payment_id FK</code>, <code>family_account_id FK</code>, <code>amount NUMERIC(10,2) NOT NULL</code>, <code>refund_category</code> ENUM(OVERPAYMENT, WITHDRAWAL, PROGRAMME_CANCELLED, ERROR_CORRECTION, GOODWILL, OTHER), <code>reason TEXT NOT NULL</code>, <code>stripe_refund_id TEXT</code>, <code>status</code> ENUM(PENDING, COMPLETED, FAILED), <code>authorised_by UUID</code> (soft), <code>authorised_at TIMESTAMPTZ</code>. INDEX(family_account_id, created_at DESC).</li>
-      <li><strong>pay_payment_plans</strong> &mdash; <code>family_account_id FK</code>, <code>invoice_id FK</code>, <code>total_amount NUMERIC(10,2)</code>, <code>installment_count INT</code>, <code>frequency</code> ENUM(MONTHLY, QUARTERLY), <code>start_date DATE</code>, <code>status</code> ENUM(ACTIVE, COMPLETED, DEFAULTED, CANCELLED). UNIQUE(invoice_id). Auto-generates installment rows on creation.</li>
-      <li><strong>pay_payment_plan_installments</strong> &mdash; <code>plan_id FK</code>, <code>installment_number INT</code>, <code>amount NUMERIC(10,2)</code>, <code>due_date DATE</code>, <code>status</code> ENUM(UPCOMING, DUE, PAID, OVERDUE), <code>payment_id FK</code> nullable (links to the payment that covered this installment). UNIQUE(plan_id, installment_number). INDEX(due_date, status).</li>
-    </ol>
-
-    <div class="detail-heading">Ledger Integrity</div>
-    <p><code>pay_ledger_entries</code> is IMMUTABLE &mdash; no UPDATE, no DELETE. Every financial action (invoice sent, payment received, refund issued) creates a new ledger entry. Balance is always derivable from SUM(amount). Corrections use ADJUSTMENT entries, never mutations. This is the accounting foundation that M83 Finance/GL will consume via Kafka events in a future cycle.</p>
-
-    <div class="produces">Produces &rarr; 7 new tables. Migration: <code>021_pay_invoices_payments_ledger.sql</code>. Total payment tables: 12. Total Cycle 6 tables: 22.</div>
-  </div>
-
-  <!-- ── STEP 5 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">05</span>
-      <span class="step-title">Seed Data &mdash; Enrollment &amp; Payments</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
-    <p>Populate the enrollment and payment modules with realistic demo data that shows the full lifecycle.</p>
-
-    <div class="detail-heading">What Gets Seeded</div>
-    <ol class="detail-list">
-      <li><strong>Enrollment period:</strong> "Fall 2026 Admissions" for the current academic year. Status=OPEN. Opens April 1, closes June 30.</li>
-      <li><strong>Admission streams:</strong> "Standard Intake" and "Music Scholarship" streams.</li>
-      <li><strong>Intake capacities:</strong> Grade 9: 120 places (10 reserved). Grade 10: 110 places.</li>
-      <li><strong>Applications:</strong> 3 sample applications &mdash; (1) a new student application (SUBMITTED, pending review), (2) an application that was ACCEPTED and has an offer ISSUED, (3) Maya Chen's original application marked ENROLLED (historical &mdash; shows the completed pipeline).</li>
-      <li><strong>Offers:</strong> 1 offer ISSUED for application #2 with a 14-day response deadline. 1 historical ACCEPTED offer for Maya's application.</li>
-      <li><strong>Waitlist:</strong> 1 ACTIVE waitlist entry for a full grade level.</li>
-      <li><strong>Fee categories:</strong> Tuition, Registration Fee, Technology Fee, Activity Fee.</li>
-      <li><strong>Fee schedules:</strong> Grade 9 Annual Tuition ($12,000), Grade 10 Annual Tuition ($12,500), Registration Fee ($500 one-time), Technology Fee ($400 annual).</li>
-      <li><strong>Stripe account:</strong> Demo school Stripe account (stub: <code>acct_demo_lincoln</code>, onboarding_complete=true).</li>
-      <li><strong>Family accounts:</strong> David Chen's family account (ACTIVE, linked to Maya). Account number auto-generated.</li>
-      <li><strong>Invoices:</strong> 2 invoices for the Chen family &mdash; (1) "Fall 2026 Tuition" ($12,000, status=PAID), (2) "Technology Fee 2026" ($400, status=SENT, due in 30 days).</li>
-      <li><strong>Payments:</strong> 1 completed payment for the tuition invoice ($12,000, CARD, paid_at last month). Mock Stripe payment intent ID.</li>
-      <li><strong>Ledger entries:</strong> 3 entries &mdash; CHARGE $12,000 (tuition invoice), PAYMENT $12,000 (tuition payment), CHARGE $400 (tech fee invoice). Balance should be $400 (outstanding tech fee).</li>
-      <li><strong>Permission updates:</strong> Add STU-003 (Enrollment) read/write to admin roles. Add FIN-001 (Family Billing) read to Parent. Add FIN-001 write to admin roles. Rebuild cache.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Populated enrollment pipeline and billing system. Family account with balance, invoices, and payment history.</div>
-  </div>
-
-  <!-- ── STEP 6 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">06</span>
-      <span class="step-title">Enrollment NestJS Module</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
-    <p>The admissions pipeline API. Application submission, review, offer management, and enrollment confirmation.</p>
-
-    <div class="detail-heading">Services &amp; Endpoints</div>
-    <ol class="detail-list">
-      <li><strong>EnrollmentPeriodService</strong> &mdash; <code>GET /enrollment-periods</code>, <code>GET /enrollment-periods/:id</code> (with streams + capacities), <code>POST /enrollment-periods</code>, <code>PATCH /enrollment-periods/:id</code> (open/close). Admin only for writes (<code>stu-003:admin</code>).</li>
-      <li><strong>ApplicationService</strong> &mdash; <code>POST /applications</code> (parent submits &mdash; validates period is OPEN), <code>GET /applications</code> (admin: all, parent: own), <code>GET /applications/:id</code>, <code>PATCH /applications/:id</code> (admin reviews &mdash; status transitions), <code>POST /applications/:id/notes</code> (admin adds review notes). Kafka: <code>enr.application.submitted</code>, <code>enr.application.status_changed</code>.</li>
-      <li><strong>OfferService</strong> &mdash; <code>POST /applications/:id/offer</code> (admin issues offer), <code>PATCH /offers/:id/respond</code> (parent accepts/declines/defers), <code>GET /offers</code> (admin: all, parent: own). On ACCEPT: application status &rarr; ENROLLED, emits <code>enr.student.enrolled</code> with student info + guardian info + grade level. The <code>EnrollmentConfirmedWorker</code> consumes this to create <code>sis_students</code> + <code>sis_enrollments</code> + <code>sis_guardians</code> records if they don't exist (idempotent).</li>
-      <li><strong>WaitlistService</strong> &mdash; <code>GET /waitlist</code> (by period + grade), <code>PATCH /waitlist/:id/offer</code> (admin moves waitlisted applicant to offer stage). Auto-manages position ordering.</li>
-      <li><strong>CapacitySummaryService</strong> &mdash; Recomputes <code>enr_capacity_summary</code> on every application/offer status change. Called internally, not via endpoint. Idempotent UPSERT.</li>
-    </ol>
-
-    <div class="detail-heading">Row-Level Authorization</div>
-    <p>Parents can only see their own applications (matched via <code>guardian_person_id = actor.personId</code>). Admins see all applications in the enrollment period. Teachers do not have enrollment access. Students cannot submit applications (parents do).</p>
-
-    <div class="produces">Produces &rarr; EnrollmentModule with 5 services, ~14 endpoints + 3 Kafka events.</div>
-  </div>
-
-  <!-- ── STEP 7 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">07</span>
-      <span class="step-title">Payments NestJS Module</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
-    <p>The billing engine: family accounts, invoice generation, payment processing (Stripe stubbed), and the immutable ledger.</p>
-
-    <div class="detail-heading">Services &amp; Endpoints</div>
-    <ol class="detail-list">
-      <li><strong>FamilyAccountService</strong> &mdash; <code>GET /family-accounts</code> (admin: all, parent: own), <code>GET /family-accounts/:id</code> (with balance from ledger), <code>GET /family-accounts/:id/students</code>. Admin can manually create accounts; normally created by PaymentAccountWorker.</li>
-      <li><strong>FeeScheduleService</strong> &mdash; <code>GET /fee-schedules</code>, <code>POST /fee-schedules</code>, <code>PATCH /fee-schedules/:id</code>, <code>GET /fee-categories</code>, <code>POST /fee-categories</code>. Admin only (<code>fin-001:admin</code>).</li>
-      <li><strong>InvoiceService</strong> &mdash; <code>POST /invoices</code> (admin creates from fee schedule or ad hoc), <code>GET /invoices</code> (admin: all, parent: own family), <code>GET /invoices/:id</code> (with line items), <code>PATCH /invoices/:id/send</code> (status DRAFT &rarr; SENT, emits <code>pay.invoice.created</code>, creates CHARGE ledger entry), <code>PATCH /invoices/:id/cancel</code>. <code>POST /invoices/generate-from-schedule</code> (bulk: create invoices for all enrolled families from a fee schedule).</li>
-      <li><strong>PaymentService</strong> &mdash; <code>POST /invoices/:id/pay</code> (creates payment intent &mdash; Stripe stubbed in dev mode, marks COMPLETED immediately with mock intent ID), <code>GET /payments</code> (parent: own, admin: all), <code>GET /payments/:id</code>. On COMPLETED: creates PAYMENT ledger entry, updates invoice status (PARTIAL or PAID based on running total vs total_amount). Emits <code>pay.payment.received</code>.</li>
-      <li><strong>LedgerService</strong> &mdash; <code>GET /family-accounts/:id/ledger</code> (paginated, newest first), <code>GET /family-accounts/:id/balance</code> (SUM with Redis cache). Read-only &mdash; entries are created by other services, never directly. Balance = SUM(amount) cached in Redis <code>ledger:balance:{accountId}</code> TTL=30s, invalidated on write.</li>
-      <li><strong>RefundService</strong> &mdash; <code>POST /payments/:id/refund</code> (admin authorizes), <code>GET /refunds</code>. Creates REFUND ledger entry. Emits <code>pay.refund.issued</code>.</li>
-      <li><strong>PaymentPlanService</strong> &mdash; <code>POST /invoices/:id/payment-plan</code> (creates plan + auto-generates installment rows), <code>GET /payment-plans/:id</code> (with installments). Installments link to payments when paid.</li>
-      <li><strong>PaymentAccountWorker</strong> &mdash; Kafka consumer on <code>enr.student.enrolled</code>. Creates <code>pay_family_accounts</code> row (if not exists for the guardian) + <code>pay_family_account_students</code> link. Uses claim-after-success idempotency.</li>
-    </ol>
-
-    <div class="detail-heading">Ledger Immutability</div>
-    <p><code>pay_ledger_entries</code> has no UPDATE or DELETE service methods. Every financial action creates a new row. CHARGE entries have positive amounts. PAYMENT entries have negative amounts (reduce balance). REFUND entries have positive amounts (increase balance back). Balance = SUM(amount) should equal the outstanding amount across all invoices. A future nightly reconciliation job can verify this invariant.</p>
-
-    <div class="produces">Produces &rarr; PaymentsModule with 7 services + 1 Kafka consumer, ~18 endpoints + 3 Kafka events.</div>
-  </div>
-
-  <!-- ── STEP 8 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">08</span>
-      <span class="step-title">Enrollment Admin UI</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
-    <p>The admissions office interface. A new "Admissions" app tile for users with <code>stu-003:write</code>.</p>
-
-    <div class="detail-heading">Pages</div>
-    <ol class="detail-list">
-      <li><strong>Enrollment Periods</strong> <code>/admissions/periods</code> &mdash; list of enrollment periods with status badges. Create new period form. Open/close toggle.</li>
-      <li><strong>Application Pipeline</strong> <code>/admissions/applications</code> &mdash; kanban-style or table view of applications grouped by status (SUBMITTED &rarr; UNDER_REVIEW &rarr; ACCEPTED &rarr; ENROLLED). Filter by grade, stream, status. Click to review.</li>
-      <li><strong>Application Review</strong> <code>/admissions/applications/:id</code> &mdash; full application detail with student info, screening responses, documents, and admin notes. Status transition buttons (Accept, Reject, Waitlist). Issue offer button. Notes timeline.</li>
-      <li><strong>Capacity Dashboard</strong> &mdash; integrated into the period detail. Shows per-grade: total places, reserved, applications, offers issued, offers accepted, available. Color-coded when nearing capacity.</li>
-      <li><strong>Waitlist</strong> <code>/admissions/waitlist</code> &mdash; ordered list by grade. Admin can offer a spot to the next waitlisted applicant.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Admissions app tile, enrollment period management, application pipeline, review interface, capacity dashboard, waitlist.</div>
-  </div>
-
-  <!-- ── STEP 9 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">09</span>
-      <span class="step-title">Parent Application &amp; Enrollment UI</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
-    <p>The parent-facing admissions experience. A new "Apply" tile or link for parents viewing open enrollment periods.</p>
-
-    <div class="detail-heading">Pages</div>
-    <ol class="detail-list">
-      <li><strong>Application Form</strong> <code>/apply</code> &mdash; multi-step form: student demographics (name, DOB, grade), guardian contact info, admission stream selection (if multiple), screening questions (rendered from the school's configured questions), document uploads (birth certificate, previous records, etc.). Save as draft, submit when complete.</li>
-      <li><strong>Application Status Tracker</strong> <code>/applications</code> &mdash; parent's view of their submitted applications. Status badge, timeline of status changes, any admin notes marked as non-confidential.</li>
-      <li><strong>Offer Response</strong> <code>/offers/:id</code> &mdash; when an offer is issued, the parent sees: offer details, conditions (if conditional), response deadline countdown, Accept/Decline/Defer buttons. Accept triggers the enrollment confirmation flow.</li>
-      <li><strong>Enrollment Confirmation</strong> &mdash; after accepting, a confirmation page with next steps: "Welcome to Lincoln Elementary! Your child has been enrolled in Grade 9 for Fall 2026. A tuition invoice will be generated shortly."</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Parent-facing application form, status tracker, offer response, enrollment confirmation.</div>
-  </div>
-
-  <!-- ── STEP 10 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">10</span>
-      <span class="step-title">Billing Admin UI</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
-    <p>The finance office interface. A new "Billing" app tile for users with <code>fin-001:write</code>.</p>
-
-    <div class="detail-heading">Pages</div>
-    <ol class="detail-list">
-      <li><strong>Fee Schedule Management</strong> <code>/billing/fees</code> &mdash; list of fee categories and schedules. Create/edit fees by academic year, grade, category. Shows which families would be affected by a new fee.</li>
-      <li><strong>Invoice Management</strong> <code>/billing/invoices</code> &mdash; list of all invoices with filters (status, family, date range). Bulk generate from fee schedule. Send invoices. View payment status per invoice.</li>
-      <li><strong>Family Account Overview</strong> <code>/billing/accounts</code> &mdash; list of family accounts with current balances. Click to see: linked students, invoice history, payment history, ledger entries. Outstanding balance highlighted.</li>
-      <li><strong>Payment Tracking</strong> <code>/billing/payments</code> &mdash; list of recent payments. Filter by status, method, date. Refund button on completed payments (admin authorized).</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Billing app tile, fee management, invoice management, family account overview, payment tracking.</div>
-  </div>
-
-  <!-- ── STEP 11 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">11</span>
-      <span class="step-title">Parent Billing UI</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
-    <p>The parent's billing dashboard. Integrated into the existing parent home page as a "Billing" app tile.</p>
-
-    <div class="detail-heading">Pages</div>
-    <ol class="detail-list">
-      <li><strong>Billing Dashboard</strong> <code>/billing</code> (parent view) &mdash; current balance (prominent), outstanding invoices list, recent payments. "Pay Now" button on unpaid invoices.</li>
-      <li><strong>Invoice Detail</strong> <code>/billing/invoices/:id</code> &mdash; line items, due date, status, payment history for this invoice. "Pay" button opens payment flow. Payment plan option if available.</li>
-      <li><strong>Payment Flow</strong> <code>/billing/pay/:invoiceId</code> &mdash; amount input (default: full amount, can enter partial), payment method selection. In dev mode: mock payment completes immediately. In production: Stripe Elements card form (PCI compliant &mdash; card data never touches CampusOS servers). Confirmation page with receipt.</li>
-      <li><strong>Payment History</strong> <code>/billing/payments</code> (parent view) &mdash; list of all payments made by this family. Download receipt link.</li>
-      <li><strong>Ledger View</strong> <code>/billing/ledger</code> &mdash; full transaction history: charges, payments, refunds, credits. Running balance column.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Parent billing dashboard, invoice detail, payment flow (stubbed), payment history, ledger view.</div>
-  </div>
-
-  <!-- ── STEP 12 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">12</span>
-      <span class="step-title">Vertical Slice Integration Test</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
-    <p>The full enrollment-to-payment pipeline, proving the complete parent journey works.</p>
-
-    <div class="detail-heading">Test Script</div>
-    <ol class="detail-list">
-      <li><strong>Open enrollment:</strong> Admin creates an enrollment period for Fall 2026. Verify it appears as OPEN.</li>
-      <li><strong>Parent applies:</strong> Parent submits an application for a new student (new guardian, not David Chen). Verify application status = SUBMITTED. Verify capacity summary updates.</li>
-      <li><strong>Admin reviews:</strong> Admin views the application, adds a note, changes status to UNDER_REVIEW then ACCEPTED.</li>
-      <li><strong>Admin issues offer:</strong> Admin creates an UNCONDITIONAL offer with a 14-day deadline. Verify parent receives notification.</li>
-      <li><strong>Parent accepts:</strong> Parent responds ACCEPTED. Verify application status &rarr; ENROLLED. Verify <code>enr.student.enrolled</code> Kafka event fires.</li>
-      <li><strong>Student records created:</strong> Verify <code>sis_students</code>, <code>sis_enrollments</code>, and <code>sis_guardians</code> records were created by the EnrollmentConfirmedWorker (or equivalent).</li>
-      <li><strong>Family account created:</strong> Verify PaymentAccountWorker consumed <code>enr.student.enrolled</code> and created <code>pay_family_accounts</code> + <code>pay_family_account_students</code> link.</li>
-      <li><strong>Invoice generated:</strong> Admin generates a tuition invoice from the fee schedule for the new family. Verify invoice with correct line items. Admin sends the invoice. Verify CHARGE ledger entry.</li>
-      <li><strong>Parent pays:</strong> Parent views the invoice on their billing dashboard. Clicks Pay. Enters amount (full). Stubbed payment completes. Verify PAYMENT ledger entry. Verify invoice status &rarr; PAID. Verify <code>pay.payment.received</code> event.</li>
-      <li><strong>Balance check:</strong> Verify family account balance = $0 (all paid). Verify ledger entries sum to 0.</li>
-      <li><strong>Partial payment test:</strong> Using the existing Chen family's $400 tech fee invoice: parent pays $200. Verify invoice status &rarr; PARTIAL. Pay remaining $200. Verify &rarr; PAID.</li>
-      <li><strong>Permission denials:</strong> Teacher cannot access admissions. Student cannot submit applications. Parent cannot see other families' invoices. Teacher cannot issue refunds.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Verified enrollment-to-payment pipeline. Complete parent journey from application to paid invoice.</div>
-  </div>
-
-  <h2 class="section-heading">Cycle 6 Completion Criteria</h2>
-
-  <div class="callout callout-ai">
-    <div class="callout-title">Exit Checklist</div>
-    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
-      <li>Tenant schema: ~22 new tables (10 enrollment + 12 payment). Total tenant tables: ~95+.</li>
-      <li>Enrollment API: ~14 endpoints. Application lifecycle, offer management, waitlist.</li>
-      <li>Payments API: ~18 endpoints. Invoice generation, payment processing (stubbed), ledger.</li>
-      <li>Kafka: 6+ new events. PaymentAccountWorker consumes enr.student.enrolled.</li>
-      <li>Admin UI: Admissions pipeline (periods, applications, offers, waitlist, capacity). Billing (fees, invoices, accounts, payments).</li>
-      <li>Parent UI: Application form, status tracker, offer response. Billing dashboard, invoice detail, payment flow (stubbed), ledger.</li>
-      <li>Vertical slice: apply &rarr; offer &rarr; accept &rarr; enrolled &rarr; invoice &rarr; pay &rarr; ledger balanced.</li>
-      <li>HANDOFF-CYCLE6.md and CLAUDE.md updated. CI green.</li>
-    </ol>
-  </div>
-
-  <div class="callout callout-thesis">
-    <div class="callout-title">Testing Pause Recommended After Cycle 6</div>
-    <p style="font-size:15px;line-height:1.8;">Cycle 6 completes the full parent journey: enroll &rarr; pay &rarr; attend &rarr; see grades &rarr; get notified &rarr; message teacher &rarr; see calendar. This is the moment to pause and thoroughly test the entire product from the parent's perspective before building internal operational modules (workflows, tickets) in Cycles 7&ndash;8. The Phase 2 testing checklist should be executed here.</p>
-  </div>
-
-  <div class="doc-footer">
-    <p>CampusOS Cycle 6 Implementation Plan &mdash; April 2026. Derived from: ERD v11 (M81 Enrollment 30+ tables, M84 Payments 30+ tables &mdash; 22 core in scope), Function Library (STU-003, STU-004, FIN-001), Architecture Review (ADR-003 Stripe Connect, ADR-048 ledger partitioning, ADR-009 write-then-read routing), Development &amp; Deployment Plan (Section 13, Cycle 5 / original numbering).</p>
-  </div>
-</div>
-
-</body>
+  </body>
 </html>

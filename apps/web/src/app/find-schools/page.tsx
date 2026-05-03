@@ -185,9 +185,7 @@ function SearchResults({
             <h2 className="text-base font-semibold text-gray-900">{r.schoolName}</h2>
             <span className="text-xs text-gray-500">{r.distanceMiles} mi</span>
           </div>
-          {r.schoolFullAddress && (
-            <p className="text-sm text-gray-600">{r.schoolFullAddress}</p>
-          )}
+          {r.schoolFullAddress && <p className="text-sm text-gray-600">{r.schoolFullAddress}</p>}
           <p className="mt-2 text-sm text-gray-700">
             <span className="font-medium">{r.periodName}</span>
             {r.acceptingGrades.length > 0 && (

@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
@@ -53,11 +58,11 @@ const SELECT_ACK_BASE =
   'SELECT a.id::text AS id, a.school_id::text AS school_id, a.subject_id::text AS subject_id, ' +
   'a.source_type, a.source_ref_id::text AS source_ref_id, a.source_table, a.title, a.body_s3_key, ' +
   'a.requires_dispute_option, a.status, ' +
-  "TO_CHAR(a.acknowledged_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS acknowledged_at, " +
+  'TO_CHAR(a.acknowledged_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS acknowledged_at, ' +
   'a.dispute_reason, a.created_by::text AS created_by, ' +
-  "TO_CHAR(a.expires_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS expires_at, " +
-  "TO_CHAR(a.created_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS created_at, " +
-  "TO_CHAR(a.updated_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS updated_at " +
+  'TO_CHAR(a.expires_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS expires_at, ' +
+  'TO_CHAR(a.created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
+  'TO_CHAR(a.updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
   'FROM tsk_acknowledgements a ';
 
 @Injectable()
@@ -102,10 +107,7 @@ export class AcknowledgementService {
    * for the same acknowledgement_id in the same transaction. Emits
    * student.acknowledgement.completed once on success.
    */
-  async acknowledge(
-    id: string,
-    actor: ResolvedActor,
-  ): Promise<AcknowledgementResponseDto> {
+  async acknowledge(id: string, actor: ResolvedActor): Promise<AcknowledgementResponseDto> {
     return this.complete(id, 'ACKNOWLEDGED', null, actor);
   }
 
@@ -215,9 +217,10 @@ export class AcknowledgementService {
       throw new ForbiddenException('Only admins can list every acknowledgement');
     }
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<AckRow[]>(SELECT_ACK_BASE + 'ORDER BY a.created_at DESC LIMIT 200');
+      return client.$queryRawUnsafe<AckRow[]>(
+        SELECT_ACK_BASE + 'ORDER BY a.created_at DESC LIMIT 200',
+      );
     });
     return rows.map(rowToDto);
   }
 }
-

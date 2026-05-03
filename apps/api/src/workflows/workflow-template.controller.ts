@@ -3,10 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
-import {
-  WorkflowTemplateDto,
-  WorkflowTemplateService,
-} from './workflow-template.service';
+import { WorkflowTemplateDto, WorkflowTemplateService } from './workflow-template.service';
 
 interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };

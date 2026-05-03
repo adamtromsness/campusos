@@ -59,9 +59,15 @@ export default function NewTaskPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title="New task" description="Manual tasks land on your own list. Admins can delegate." />
+      <PageHeader
+        title="New task"
+        description="Manual tasks land on your own list. Admins can delegate."
+      />
 
-      <form onSubmit={submit} className="space-y-4 rounded-card border border-gray-200 bg-white p-6 shadow-card">
+      <form
+        onSubmit={submit}
+        className="space-y-4 rounded-card border border-gray-200 bg-white p-6 shadow-card"
+      >
         <label className="block text-sm">
           <span className="font-medium text-gray-700">Title</span>
           <input

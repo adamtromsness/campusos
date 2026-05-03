@@ -12,18 +12,18 @@ This document tracks the Cycle 7 build — the M1 Task Management module (6 tabl
 
 ## Step status
 
-| Step | Title                                                  | Status            |
-| ---- | ------------------------------------------------------ | ----------------- |
-| 1    | Task Schema — Tasks, Archive, Auto-Rules               | **DONE**          |
-| 2    | Workflow Schema — Templates, Requests, Steps           | **DONE**          |
-| 3    | Seed Data — Auto-Task Rules + Workflow Templates       | **DONE**          |
-| 4    | Task Worker — Kafka Consumer + Auto-Task Engine        | **DONE**          |
-| 5    | Task NestJS Module — CRUD + Acknowledgements           | **DONE**          |
-| 6    | Workflow Engine — Multi-Step Approval                  | **DONE**          |
-| 7    | Leave Approval Migration to Workflow Engine            | **DONE**          |
-| 8    | Tasks UI — To-Do List + Acknowledgements               | **DONE**          |
-| 9    | Approvals UI — Admin Queue + Workflow Config           | **DONE**          |
-| 10   | Vertical Slice Integration Test                        | **DONE**          |
+| Step | Title                                            | Status   |
+| ---- | ------------------------------------------------ | -------- |
+| 1    | Task Schema — Tasks, Archive, Auto-Rules         | **DONE** |
+| 2    | Workflow Schema — Templates, Requests, Steps     | **DONE** |
+| 3    | Seed Data — Auto-Task Rules + Workflow Templates | **DONE** |
+| 4    | Task Worker — Kafka Consumer + Auto-Task Engine  | **DONE** |
+| 5    | Task NestJS Module — CRUD + Acknowledgements     | **DONE** |
+| 6    | Workflow Engine — Multi-Step Approval            | **DONE** |
+| 7    | Leave Approval Migration to Workflow Engine      | **DONE** |
+| 8    | Tasks UI — To-Do List + Acknowledgements         | **DONE** |
+| 9    | Approvals UI — Admin Queue + Workflow Config     | **DONE** |
+| 10   | Vertical Slice Integration Test                  | **DONE** |
 
 ---
 
@@ -173,7 +173,7 @@ Sanity counts (filtered to `tenant_demo`):
 22. `wsk_workflow_escalations_resolved_chk` rejects an escalation with `resolved_at` set but `resolved_by` null.
 23. Happy-path escalation insert succeeds with both `resolved_at` and `resolved_by` left null (the open-escalation shape).
 
-**Sanity:** 6 logical wsk_* base tables in `tenant_demo` (`information_schema.tables` filter on `wsk\_%` returns exactly 6 — none of these tables are partitioned, so the count matches the logical-table count directly).
+**Sanity:** 6 logical wsk\_\* base tables in `tenant_demo` (`information_schema.tables` filter on `wsk\_%` returns exactly 6 — none of these tables are partitioned, so the count matches the logical-table count directly).
 
 **Splitter audit:** A naive single-line regex found false positives because COMMENT strings span multiple lines; switched to a state-machine audit that handles block comments, line comments, and `''` escape sequences inside single-quoted strings. The state-machine audit reports zero `;` outside legitimate statement terminators. Migration applied first try with no rewrite — second cycle in a row to clear the splitter trap on first attempt.
 
@@ -185,12 +185,12 @@ Sanity counts (filtered to `tenant_demo`):
 
 **Permission grants:**
 
-| Persona | Perms before | Perms after | Delta |
-| ------- | -----------: | ----------: | ----- |
-| Teacher | 36 | 38 | +`OPS-001:read+write` |
-| Parent  | 17 | 19 | +`OPS-001:read+write` |
-| Student | 17 | 19 | +`OPS-001:read+write` |
-| Staff   | 16 | 18 | +`OPS-001:read+write` |
+| Persona | Perms before | Perms after | Delta                 |
+| ------- | -----------: | ----------: | --------------------- |
+| Teacher |           36 |          38 | +`OPS-001:read+write` |
+| Parent  |           17 |          19 | +`OPS-001:read+write` |
+| Student |           17 |          19 | +`OPS-001:read+write` |
+| Staff   |           16 |          18 | +`OPS-001:read+write` |
 
 School Admin and Platform Admin already hold `OPS-001:admin` via the `everyFunction: ['read','write','admin']` catalogue grant — no change needed there. Catalogue total stays at **447 functions × 3 tiers = 1341 permission codes** (no new entries; OPS-001 was already in `permissions.json` waiting for Cycle 7 to use it).
 
@@ -198,16 +198,16 @@ School Admin and Platform Admin already hold `OPS-001:admin` via the `everyFunct
 
 1. **8 auto-task rules** (all `is_system=true, is_active=true`):
 
-   | Trigger event | Target role | Priority | Due offset | Category | Actions |
-   | ------------- | ----------- | -------- | ---------- | -------- | ------- |
-   | `cls.assignment.posted` | STUDENT | NORMAL | 0h | ACADEMIC | CREATE_TASK |
-   | `cls.grade.published` | STUDENT | LOW | 168h (7d) | ACADEMIC | CREATE_TASK |
-   | `cls.grade.returned` | STUDENT | LOW | 168h | ACADEMIC | CREATE_TASK |
-   | `hr.leave.approved` | SCHOOL_ADMIN | HIGH | 24h | ADMINISTRATIVE | CREATE_TASK |
-   | `att.absence.requested` | SCHOOL_ADMIN | NORMAL | 24h | ADMINISTRATIVE | CREATE_TASK |
-   | `msg.announcement.requires_acknowledgement` | (per-recipient) | NORMAL | 72h | ACKNOWLEDGEMENT | CREATE_ACKNOWLEDGEMENT, CREATE_TASK |
-   | `sis.consent.requested` | GUARDIAN | HIGH | 168h | ACKNOWLEDGEMENT | CREATE_ACKNOWLEDGEMENT, CREATE_TASK |
-   | `sys.profile.update_requested` | (per-recipient) | NORMAL | 168h | ADMINISTRATIVE | CREATE_TASK |
+   | Trigger event                               | Target role     | Priority | Due offset | Category        | Actions                             |
+   | ------------------------------------------- | --------------- | -------- | ---------- | --------------- | ----------------------------------- |
+   | `cls.assignment.posted`                     | STUDENT         | NORMAL   | 0h         | ACADEMIC        | CREATE_TASK                         |
+   | `cls.grade.published`                       | STUDENT         | LOW      | 168h (7d)  | ACADEMIC        | CREATE_TASK                         |
+   | `cls.grade.returned`                        | STUDENT         | LOW      | 168h       | ACADEMIC        | CREATE_TASK                         |
+   | `hr.leave.approved`                         | SCHOOL_ADMIN    | HIGH     | 24h        | ADMINISTRATIVE  | CREATE_TASK                         |
+   | `att.absence.requested`                     | SCHOOL_ADMIN    | NORMAL   | 24h        | ADMINISTRATIVE  | CREATE_TASK                         |
+   | `msg.announcement.requires_acknowledgement` | (per-recipient) | NORMAL   | 72h        | ACKNOWLEDGEMENT | CREATE_ACKNOWLEDGEMENT, CREATE_TASK |
+   | `sis.consent.requested`                     | GUARDIAN        | HIGH     | 168h       | ACKNOWLEDGEMENT | CREATE_ACKNOWLEDGEMENT, CREATE_TASK |
+   | `sys.profile.update_requested`              | (per-recipient) | NORMAL   | 168h       | ADMINISTRATIVE  | CREATE_TASK                         |
 
    Total actions: 10 (6 single-action rules × 1 + 2 dual-action acknowledgement rules × 2).
 
@@ -338,17 +338,17 @@ The schema-level partial INDEX on `(owner_id, source, source_ref_id) WHERE sourc
 
 **9 new endpoints (5 tasks + 4 acks):**
 
-| Verb | Path | Permission | Notes |
-| ---- | ---- | ---------- | ----- |
-| GET    | `/tasks` | `ops-001:read` | Default scope: `owner_id = actor` OR `created_for_id = actor` (admin sees all). Filters: `status`, `taskCategory`, `priority`, `dueAfter`, `dueBefore`, `includeCompleted` (default false — TODO/IN_PROGRESS only). Sorted by due date NULLS LAST, then priority urgency. Default limit 100 / max 200. |
-| GET    | `/tasks/assigned` | `ops-001:read` | "Tasks delegated to me by another user" — `created_for_id = actor` AND `owner_id != actor`. The inbox of work others have asked me to do. |
-| GET    | `/tasks/:id` | `ops-001:read` | Row-scope: caller must be owner OR creator OR admin; otherwise 404 (no leak). |
-| POST   | `/tasks` | `ops-001:write` | Creates a MANUAL task. `assigneeAccountId` (optional) lands the task on someone else's list with `created_for_id = caller` — admin-only this cycle (non-admin delegation rejected with 403). ACKNOWLEDGEMENT-category tasks rejected for non-admins (those flow through the worker). Emits `task.created`. |
-| PATCH  | `/tasks/:id` | `ops-001:write` | Status transitions + retitle + reschedule. Service handles the multi-column `completed_chk` lockstep — TODO/IN_PROGRESS clear `completed_at`, DONE/CANCELLED set it via `COALESCE(completed_at, now())` so a re-DONE doesn't bump the timestamp. Emits `task.completed` only on the first DONE transition. |
-| GET    | `/acknowledgements` | `ops-001:read` | Default: own pending (`subject_id = actor.personId AND status = 'PENDING'`). Admins can pass `?all=true` for the tenant-wide history. |
-| GET    | `/acknowledgements/:id` | `ops-001:read` | Row-scope: caller's `personId` must equal `subject_id`, or admin. 404 on mismatch. |
-| POST   | `/acknowledgements/:id/acknowledge` | `ops-001:write` | Flips PENDING → ACKNOWLEDGED, sets `acknowledged_at = now()`, **DONE-cascades every linked `tsk_tasks` row in the same transaction**. Emits `student.acknowledgement.completed`. |
-| POST   | `/acknowledgements/:id/dispute` | `ops-001:write` | Same as acknowledge but flips to ACKNOWLEDGED_WITH_DISPUTE with a required `reason` (1–2000 chars; class-validator rejects empty). Linked tasks still flip to DONE. |
+| Verb  | Path                                | Permission      | Notes                                                                                                                                                                                                                                                                                                      |
+| ----- | ----------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET   | `/tasks`                            | `ops-001:read`  | Default scope: `owner_id = actor` OR `created_for_id = actor` (admin sees all). Filters: `status`, `taskCategory`, `priority`, `dueAfter`, `dueBefore`, `includeCompleted` (default false — TODO/IN_PROGRESS only). Sorted by due date NULLS LAST, then priority urgency. Default limit 100 / max 200.     |
+| GET   | `/tasks/assigned`                   | `ops-001:read`  | "Tasks delegated to me by another user" — `created_for_id = actor` AND `owner_id != actor`. The inbox of work others have asked me to do.                                                                                                                                                                  |
+| GET   | `/tasks/:id`                        | `ops-001:read`  | Row-scope: caller must be owner OR creator OR admin; otherwise 404 (no leak).                                                                                                                                                                                                                              |
+| POST  | `/tasks`                            | `ops-001:write` | Creates a MANUAL task. `assigneeAccountId` (optional) lands the task on someone else's list with `created_for_id = caller` — admin-only this cycle (non-admin delegation rejected with 403). ACKNOWLEDGEMENT-category tasks rejected for non-admins (those flow through the worker). Emits `task.created`. |
+| PATCH | `/tasks/:id`                        | `ops-001:write` | Status transitions + retitle + reschedule. Service handles the multi-column `completed_chk` lockstep — TODO/IN_PROGRESS clear `completed_at`, DONE/CANCELLED set it via `COALESCE(completed_at, now())` so a re-DONE doesn't bump the timestamp. Emits `task.completed` only on the first DONE transition. |
+| GET   | `/acknowledgements`                 | `ops-001:read`  | Default: own pending (`subject_id = actor.personId AND status = 'PENDING'`). Admins can pass `?all=true` for the tenant-wide history.                                                                                                                                                                      |
+| GET   | `/acknowledgements/:id`             | `ops-001:read`  | Row-scope: caller's `personId` must equal `subject_id`, or admin. 404 on mismatch.                                                                                                                                                                                                                         |
+| POST  | `/acknowledgements/:id/acknowledge` | `ops-001:write` | Flips PENDING → ACKNOWLEDGED, sets `acknowledged_at = now()`, **DONE-cascades every linked `tsk_tasks` row in the same transaction**. Emits `student.acknowledgement.completed`.                                                                                                                           |
+| POST  | `/acknowledgements/:id/dispute`     | `ops-001:write` | Same as acknowledge but flips to ACKNOWLEDGED_WITH_DISPUTE with a required `reason` (1–2000 chars; class-validator rejects empty). Linked tasks still flip to DONE.                                                                                                                                        |
 
 **Row-scope contract:**
 
@@ -368,6 +368,7 @@ The plan's row-auth note "Teachers can see tasks they created for students (crea
 **Status-transition multi-column CHECK handling:**
 
 The schema's `tsk_tasks_completed_chk` requires:
+
 - TODO / IN_PROGRESS ⇒ `completed_at IS NULL`
 - DONE / CANCELLED ⇒ `completed_at IS NOT NULL`
 
@@ -449,15 +450,15 @@ The first ack-smoke run keyed `subject_id` to the principal's `iam_person.id` in
 
 **7 endpoints:**
 
-| Verb | Path | Permission | Notes |
-| ---- | ---- | ---------- | ----- |
-| POST | `/approvals` | `ops-001:write` | Submit a new approval request. Engine selects the active workflow template by `request_type`, creates the request row + Step 1 with a resolved approver, all in one tx. Emits `approval.step.awaiting` (a future notification consumer or task-rule will turn this into a task on the approver's list). |
-| GET  | `/approvals` | `ops-001:read` | List with row scope: admin sees all (or `?mine=true` for own as requester); non-admin sees `requester_id = me OR EXISTS approver_id = me on any step`. Filters: `status`, `requestType`. |
-| GET  | `/approvals/:id` | `ops-001:read` | Full detail: request + step history + comments. Non-admin row scope: requester or any current/past approver. 404 on no access. |
-| POST | `/approvals/:id/steps/:stepId/approve` | `ops-001:write` | Step approval. Locks step + request rows FOR UPDATE inside the tx. Validates step status is AWAITING. Activates the next step or resolves the request as APPROVED. Emits `approval.step.awaiting` for the next step or `approval.request.resolved` on terminal. |
-| POST | `/approvals/:id/steps/:stepId/reject` | `ops-001:write` | Same lock pattern. Marks the step REJECTED, marks every still-AWAITING step SKIPPED, resolves the request as REJECTED, emits `approval.request.resolved` with `status='REJECTED'`. |
-| POST | `/approvals/:id/comments` | `ops-001:write` | Append a comment. `isRequesterVisible` defaults true; false marks it approver-internal-only. |
-| POST | `/approvals/:id/withdraw` | `ops-001:write` | Requester pulls back a still-PENDING request. Marks every AWAITING step SKIPPED + status=WITHDRAWN. **Does NOT emit `approval.request.resolved`** — the requester pulled back, source modules shouldn't act on it. |
+| Verb | Path                                   | Permission      | Notes                                                                                                                                                                                                                                                                                                   |
+| ---- | -------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST | `/approvals`                           | `ops-001:write` | Submit a new approval request. Engine selects the active workflow template by `request_type`, creates the request row + Step 1 with a resolved approver, all in one tx. Emits `approval.step.awaiting` (a future notification consumer or task-rule will turn this into a task on the approver's list). |
+| GET  | `/approvals`                           | `ops-001:read`  | List with row scope: admin sees all (or `?mine=true` for own as requester); non-admin sees `requester_id = me OR EXISTS approver_id = me on any step`. Filters: `status`, `requestType`.                                                                                                                |
+| GET  | `/approvals/:id`                       | `ops-001:read`  | Full detail: request + step history + comments. Non-admin row scope: requester or any current/past approver. 404 on no access.                                                                                                                                                                          |
+| POST | `/approvals/:id/steps/:stepId/approve` | `ops-001:write` | Step approval. Locks step + request rows FOR UPDATE inside the tx. Validates step status is AWAITING. Activates the next step or resolves the request as APPROVED. Emits `approval.step.awaiting` for the next step or `approval.request.resolved` on terminal.                                         |
+| POST | `/approvals/:id/steps/:stepId/reject`  | `ops-001:write` | Same lock pattern. Marks the step REJECTED, marks every still-AWAITING step SKIPPED, resolves the request as REJECTED, emits `approval.request.resolved` with `status='REJECTED'`.                                                                                                                      |
+| POST | `/approvals/:id/comments`              | `ops-001:write` | Append a comment. `isRequesterVisible` defaults true; false marks it approver-internal-only.                                                                                                                                                                                                            |
+| POST | `/approvals/:id/withdraw`              | `ops-001:write` | Requester pulls back a still-PENDING request. Marks every AWAITING step SKIPPED + status=WITHDRAWN. **Does NOT emit `approval.request.resolved`** — the requester pulled back, source modules shouldn't act on it.                                                                                      |
 
 **Approver resolution (`resolveApprover`):**
 
@@ -601,10 +602,10 @@ Both bugs surfaced as runaway "leave id NULL" loops because the smoke had `until
 
 **3 routes under `/tasks`:**
 
-| Route | What it renders |
-| ----- | --------------- |
-| `/tasks` | Category-grouped to-do list (ACADEMIC / PERSONAL / ADMINISTRATIVE / ACKNOWLEDGEMENT) with each section collapsible and showing the row count. Filter chips: Open (default) / All / Done. Per-row: round checkbox button (quick mark-DONE), title, optional description, priority pill (LOW gray / NORMAL sky / HIGH amber / URGENT rose), status pill, due-relative phrase ("Due tomorrow" / "Overdue 3 days" — overdue rendered in rose). Inside each section, sort is overdue-first then ascending due_at then created_at desc. Empty state for first-time users. "Add task" button in the page header routing to `/tasks/new`. |
-| `/tasks/new` | Manual task form. Fields: title (required, ≤ 200 chars), description (≤ 2000 chars), category dropdown (ACKNOWLEDGEMENT hidden — that flow is worker-only), priority dropdown, optional `datetime-local` due input, admin-only "Assign to" UUID field for the delegation pattern. Submit POSTs and navigates back to `/tasks`. |
+| Route         | What it renders                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/tasks`      | Category-grouped to-do list (ACADEMIC / PERSONAL / ADMINISTRATIVE / ACKNOWLEDGEMENT) with each section collapsible and showing the row count. Filter chips: Open (default) / All / Done. Per-row: round checkbox button (quick mark-DONE), title, optional description, priority pill (LOW gray / NORMAL sky / HIGH amber / URGENT rose), status pill, due-relative phrase ("Due tomorrow" / "Overdue 3 days" — overdue rendered in rose). Inside each section, sort is overdue-first then ascending due_at then created_at desc. Empty state for first-time users. "Add task" button in the page header routing to `/tasks/new`.                                            |
+| `/tasks/new`  | Manual task form. Fields: title (required, ≤ 200 chars), description (≤ 2000 chars), category dropdown (ACKNOWLEDGEMENT hidden — that flow is worker-only), priority dropdown, optional `datetime-local` due input, admin-only "Assign to" UUID field for the delegation pattern. Submit POSTs and navigates back to `/tasks`.                                                                                                                                                                                                                                                                                                                                               |
 | `/tasks/[id]` | Detail view. Header chips for status / priority / category / source. Description + due card showing relative phrase + owner + creator (when delegated) + auto-source ref id (for AUTO/SYSTEM). For ACKNOWLEDGEMENT category: rose-tinted panel with the ack title + source-type label + expiry; "I acknowledge" button (emerald) and "Dispute" button (when `requiresDisputeOption=true`) opening a Modal with a 1–2000 char reason. Status panel hidden once the linked ack is settled (since the ack endpoint cascades the task DONE). For non-ack tasks: Start (TODO→IN_PROGRESS) / Mark done / Re-open (DONE→TODO) / Cancel — all driven by PATCH calls to `/tasks/:id`. |
 
 **Build sizes** (`pnpm --filter @campusos/web build`):
@@ -656,12 +657,12 @@ Total approval endpoint count: **9** (7 from Step 6 + 2 new templates). No write
 
 **4 new routes:**
 
-| Route | What it renders |
-| ----- | --------------- |
-| `/approvals` | "My approvals" queue — filters the cached PENDING list to rows where I have an AWAITING step. Each row card shows request type + reference table (mono) + status pill, requester name + submitted date, and the step-position phrase ("Step 1 of 2") + template name. Click routes to detail. Header "My requests →" link. Empty state when nothing waits on me. |
-| `/approvals/my-requests` | Requester view — filters the `?mine=true` list to my submissions. Same row card but adds `resolvedAt` when terminal. Header "← My approvals" back link. |
-| `/approvals/[id]` | Detail — title chip strip (status / template / reference). Requester + submitted + resolved cards. Withdraw button when I'm the requester and status=PENDING. **Step timeline** as an ordered list with each step's status pill, approver name, actioned timestamp, italic comments. AWAITING steps where I'm the approver (or admin) get inline Approve/Reject buttons that open a Modal capturing optional reviewer comments before POSTing. **Comment thread** below — internal-only comments rendered with amber background + "Internal" chip; visibility model matches the backend (admins/approvers see all, requesters see public-only). New comment form at the bottom with an "Internal only" checkbox shown to non-requesters. |
-| `/admin/workflows` | Admin-only read-only template list. 3 cards (per the seed): Leave Request Approval (LEAVE_REQUEST, 2 steps), Absence Request Review (ABSENCE_REQUEST, 1 step), Child Link Approval (CHILD_LINK_REQUEST, 1 step). Each card: name + request_type + Active/Inactive pill + ordered steps showing approver_type label + approver_ref + timeout. Amber banner explains editing is deferred. |
+| Route                    | What it renders                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/approvals`             | "My approvals" queue — filters the cached PENDING list to rows where I have an AWAITING step. Each row card shows request type + reference table (mono) + status pill, requester name + submitted date, and the step-position phrase ("Step 1 of 2") + template name. Click routes to detail. Header "My requests →" link. Empty state when nothing waits on me.                                                                                                                                                                                                                                                                                                                                                                         |
+| `/approvals/my-requests` | Requester view — filters the `?mine=true` list to my submissions. Same row card but adds `resolvedAt` when terminal. Header "← My approvals" back link.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `/approvals/[id]`        | Detail — title chip strip (status / template / reference). Requester + submitted + resolved cards. Withdraw button when I'm the requester and status=PENDING. **Step timeline** as an ordered list with each step's status pill, approver name, actioned timestamp, italic comments. AWAITING steps where I'm the approver (or admin) get inline Approve/Reject buttons that open a Modal capturing optional reviewer comments before POSTing. **Comment thread** below — internal-only comments rendered with amber background + "Internal" chip; visibility model matches the backend (admins/approvers see all, requesters see public-only). New comment form at the bottom with an "Internal only" checkbox shown to non-requesters. |
+| `/admin/workflows`       | Admin-only read-only template list. 3 cards (per the seed): Leave Request Approval (LEAVE_REQUEST, 2 steps), Absence Request Review (ABSENCE_REQUEST, 1 step), Child Link Approval (CHILD_LINK_REQUEST, 1 step). Each card: name + request_type + Active/Inactive pill + ordered steps showing approver_type label + approver_ref + timeout. Amber banner explains editing is deferred.                                                                                                                                                                                                                                                                                                                                                  |
 
 **Build sizes** (`pnpm --filter @campusos/web build`):
 
@@ -707,7 +708,7 @@ Build clean — no errors after the standard pattern (PageHeader.description bei
 
 Smoke verified live on `tenant_demo` in 7 steps (W1–W7 in the Step 10 commit log): pre-state `pending=0 used=2`, Rivera submits 1-day Sick leave, approval row created with Step 1 AWAITING + balance bumps `pending=1`, Rivera withdraws via `POST /approvals/:id/withdraw`, approval flips to WITHDRAWN with `resolvedAt` set, **LeaveApprovalConsumer fires within 1 second** and the leave row flips to CANCELLED, post-state `pending=0 used=2` (back to seed). Smoke residue cleaned.
 
-**CAT script:** `docs/cycle7-cat-script.md` ships as the cycle's exit deliverable. Schema preamble (5 checks: 33 tsk_* base+leaf tables / 6 wsk_* tables / 24 monthly tsk_tasks partition leaves / 8 seeded auto-task rules / 3 active workflow templates) + 10 keystone scenarios:
+**CAT script:** `docs/cycle7-cat-script.md` ships as the cycle's exit deliverable. Schema preamble (5 checks: 33 tsk*\* base+leaf tables / 6 wsk*\* tables / 24 monthly tsk_tasks partition leaves / 8 seeded auto-task rules / 3 active workflow templates) + 10 keystone scenarios:
 
 1. **Auto-task from assignment** — Teacher publishes → `cls.assignment.posted` → TaskWorker creates `Complete: …` row on Maya's list within ~3s. `task.created` envelope captured.
 2. **Student completes task** — Maya PATCHes status=DONE → status flips, `completed_at` populated, `task.completed` envelope captured.

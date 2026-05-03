@@ -406,9 +406,7 @@ export class ChildLinkRequestService {
             id: personId,
             firstName: req.new_child_first_name!,
             lastName: req.new_child_last_name!,
-            dateOfBirth: req.new_child_date_of_birth
-              ? new Date(req.new_child_date_of_birth)
-              : null,
+            dateOfBirth: req.new_child_date_of_birth ? new Date(req.new_child_date_of_birth) : null,
             personType: 'STUDENT',
             isActive: true,
           },
@@ -419,9 +417,7 @@ export class ChildLinkRequestService {
             personId,
             firstName: req.new_child_first_name!,
             lastName: req.new_child_last_name!,
-            dateOfBirth: req.new_child_date_of_birth
-              ? new Date(req.new_child_date_of_birth)
-              : null,
+            dateOfBirth: req.new_child_date_of_birth ? new Date(req.new_child_date_of_birth) : null,
             isActive: true,
             dataSubjectIsSelf: false,
           },

@@ -86,8 +86,7 @@ export class SubmitApprovalDto {
   referenceTable?: string;
 
   @ApiPropertyOptional({
-    description:
-      'Optional override — admin only. Defaults to the calling user when omitted.',
+    description: 'Optional override — admin only. Defaults to the calling user when omitted.',
   })
   @IsOptional()
   @IsUUID()

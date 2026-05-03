@@ -303,8 +303,8 @@ function AddChildModal({ open, onClose }: { open: boolean; onClose: () => void }
             </div>
           ) : (search.data ?? []).length === 0 ? (
             <p className="rounded-lg bg-gray-50 p-3 text-gray-700">
-              No matching student record found. You can request to add this child as a new
-              student — the school office will review your request before it becomes active.
+              No matching student record found. You can request to add this child as a new student —
+              the school office will review your request before it becomes active.
             </p>
           ) : (
             <>
@@ -343,8 +343,8 @@ function AddChildModal({ open, onClose }: { open: boolean; onClose: () => void }
       {step === 'ADD_NEW' && (
         <div className="space-y-3 text-sm">
           <p className="text-gray-600">
-            New-child request — please provide the child&rsquo;s details. The school office
-            will review and confirm.
+            New-child request — please provide the child&rsquo;s details. The school office will
+            review and confirm.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">

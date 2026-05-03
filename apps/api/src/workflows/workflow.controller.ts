@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Post,
-  Query,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
@@ -93,8 +84,7 @@ export class WorkflowController {
   @Post(':id/steps/:stepId/reject')
   @RequirePermission('ops-001:write')
   @ApiOperation({
-    summary:
-      'Reject an awaiting step. Resolves the request as REJECTED and skips remaining steps.',
+    summary: 'Reject an awaiting step. Resolves the request as REJECTED and skips remaining steps.',
   })
   async reject(
     @Param('id', ParseUUIDPipe) id: string,
@@ -115,12 +105,7 @@ export class WorkflowController {
     @Req() req: AuthedRequest,
   ): Promise<ApprovalCommentResponseDto> {
     const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
-    return this.engine.addComment(
-      id,
-      body.body,
-      body.isRequesterVisible !== false,
-      actor,
-    );
+    return this.engine.addComment(id, body.body, body.isRequesterVisible !== false, actor);
   }
 
   @Post(':id/withdraw')

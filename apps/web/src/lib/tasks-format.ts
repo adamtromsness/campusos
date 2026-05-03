@@ -114,10 +114,7 @@ export function formatRelativeDue(dueAt: string | null): string | null {
  * Returns true when the task counts toward the "Tasks" badge — TODO or
  * IN_PROGRESS with `due_at <= today` (overdue or due today).
  */
-export function isTaskBadgeWorthy(
-  status: TaskStatus,
-  dueAt: string | null,
-): boolean {
+export function isTaskBadgeWorthy(status: TaskStatus, dueAt: string | null): boolean {
   if (status !== 'TODO' && status !== 'IN_PROGRESS') return false;
   if (!dueAt) return false;
   const due = new Date(dueAt);

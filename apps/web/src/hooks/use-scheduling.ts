@@ -638,8 +638,7 @@ export function useSubstitutionsForTeacher(
 export function useCalendarEventRsvpSummary(id: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['scheduling', 'calendar', 'rsvp-summary', id],
-    queryFn: () =>
-      apiFetch<CalendarEventRsvpSummaryDto>(`/api/v1/calendar/${id}/rsvp-summary`),
+    queryFn: () => apiFetch<CalendarEventRsvpSummaryDto>(`/api/v1/calendar/${id}/rsvp-summary`),
     enabled: enabled && typeof id === 'string' && id.length > 0,
   });
 }

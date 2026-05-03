@@ -1,418 +1,1191 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CampusOS — Cycle 3 Implementation Plan</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
-:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
-.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
-.topbar .brand{font-weight:600;color:white;font-size:15px}
-.topbar .sep{color:rgba(255,255,255,0.3)}
-.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
-.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
-.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
-.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
-.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
-.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
-h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
-h2.section-heading:first-of-type{border-top:none;margin-top:0}
-p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
-.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
-.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
-.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
-.callout-thesis .callout-title{color:var(--accent)}
-.callout-ai{background:#f0f7f0;border-color:var(--green)}
-.callout-ai .callout-title{color:#2d7a2d}
-.callout-note{background:var(--amber-bg);border-color:var(--amber)}
-.callout-note .callout-title{color:#9a7b1a}
-.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
-.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
-.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
-.step-title{font-size:19px;font-weight:700;color:var(--accent)}
-.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
-.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
-.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
-.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
-.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
-.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
-.tag-infra{background:#f0e6f6;color:#6b21a8;border:1px solid #d4a8e8}
-.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
-.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
-.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
-.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
-.step .depends{font-size:12px;color:var(--text-light);margin-top:6px}
-.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
-.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
-.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
-.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
-.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
-@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
-</style>
-</head>
-<body>
-
-<div class="topbar">
-  <a href="../index.html" class="brand">CampusOS</a>
-  <span class="sep">|</span>
-  <a href="../index.html">Design Hub</a>
-  <a href="campusos-erd-v11.html">ERD v11</a>
-</div>
-
-<div class="container">
-  <div class="hero">
-    <div class="hero-brand">CampusOS &middot; Wave 1 &middot; Final Core Cycle</div>
-    <h1>Cycle 3: Communications<br>Implementation Plan</h1>
-    <div class="sub">The cycle that closes the loop &mdash; events from attendance and grading finally reach parents and teachers as real notifications. Plus direct messaging, announcements, and content moderation. After this, CampusOS enters Phase 2: Test &amp; Refine.</div>
-    <span class="version">April 2026 &middot; 11 Steps &middot; ERD v11 &middot; M40 Communications</span>
-  </div>
-
-  <h2 class="section-heading">Plan Overview</h2>
-
-  <p class="body-text">Cycle 3 is the final core cycle before the test-and-refine phase. It serves two purposes: first, it adds the M40 Communications module (messaging, announcements, notifications); second, it connects every Kafka event from Cycles 1 and 2 to actual user-facing notifications. When this cycle is complete, a parent no longer needs to manually check the dashboard to see that Maya was marked tardy &mdash; they receive an in-app notification, and the infrastructure for email and push is in place.</p>
-
-  <div class="callout callout-thesis">
-    <div class="callout-title">Vertical Slice Deliverable</div>
-    <p style="font-size:15px;line-height:1.8;">Teacher marks Maya tardy in Period 1 &rarr; Kafka event fires &rarr; notification consumer picks it up &rarr; in-app notification appears on David Chen's parent dashboard with a badge count &rarr; David clicks the notification &rarr; he sees the attendance detail. Separately: James Rivera sends David a direct message about Maya's progress &rarr; David sees it in his inbox &rarr; David replies &rarr; the reply goes through content moderation &rarr; James sees the reply in his inbox.</p>
-  </div>
-
-  <div class="callout callout-note">
-    <div class="callout-title">What's In / What's Deferred</div>
-    <p style="font-size:15px;line-height:1.8;"><strong>In scope:</strong> ADR-057 event envelope (carried from Cycle 2). Notification pipeline (queue, preferences, log, consumers for all Cycle 1+2 events). In-app messaging (threads, messages, read tracking, Redis unread counters). Announcements with audience fan-out. Three-tier content moderation (platform + district + building). In-app notification bell with badge count. Functions COM-001 through COM-004.</p>
-    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to later cycles:</strong> Emergency alerts (msg_emergency_alerts &mdash; requires dedicated always-on service per Architecture Review). Communication groups with dynamic membership. Digest batching (daily/weekly email summaries). Translation requests (AI pipeline). Retention policies and archival jobs. Actual email/SMS/push provider integration (Sendgrid, Twilio, FCM) &mdash; the queue and log are built, but delivery is stubbed for now. These tables are created in the migration for schema completeness.</p>
-  </div>
-
-  <table class="spec-table">
-    <tr><th style="width:8%">Step</th><th style="width:34%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
-    <tr><td><strong>0</strong></td><td>ADR-057 Event Envelope</td><td>Infra</td><td>Canonical envelope in KafkaProducerService, env-prefixed topics, migrate existing producers</td></tr>
-    <tr><td><strong>1</strong></td><td>Communications Schema &mdash; Messaging</td><td>Schema</td><td>msg_thread_types, msg_threads, msg_thread_participants, msg_messages, msg_message_attachments, msg_message_reads</td></tr>
-    <tr><td><strong>2</strong></td><td>Communications Schema &mdash; Notifications &amp; Announcements</td><td>Schema</td><td>msg_notification_queue, msg_notification_preferences, msg_notification_log, msg_announcements, msg_announcement_audiences, msg_announcement_reads, msg_alert_types</td></tr>
-    <tr><td><strong>3</strong></td><td>Communications Schema &mdash; Moderation &amp; Support</td><td>Schema</td><td>msg_moderation_policies, msg_moderation_log, msg_tags, msg_user_tags, msg_user_blocks, msg_admin_access_log, platform_push_tokens, platform_dlq_messages</td></tr>
-    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Messaging &amp; Notifications</td><td>Seed</td><td>Thread types, sample threads, notification preferences, moderation policies, announcements</td></tr>
-    <tr><td><strong>5</strong></td><td>Notification Pipeline &mdash; Consumers &amp; Queue</td><td>Code</td><td>NotificationConsumer for Cycle 1+2 events, NotificationQueueService, NotificationDeliveryWorker (in-app + stub for email/push)</td></tr>
-    <tr><td><strong>6</strong></td><td>Messaging NestJS Module</td><td>Code</td><td>ThreadService, MessageService, UnreadCountService (Redis), content moderation interceptor</td></tr>
-    <tr><td><strong>7</strong></td><td>Announcements NestJS Module</td><td>Code</td><td>AnnouncementService, AudienceFanOutWorker, AnnouncementController</td></tr>
-    <tr><td><strong>8</strong></td><td>Notification Bell &amp; Inbox UI</td><td>UI</td><td>Notification bell with badge count, notification dropdown/page, mark-as-read, link to source</td></tr>
-    <tr><td><strong>9</strong></td><td>Messaging UI</td><td>UI</td><td>Inbox, thread view, compose message, reply, attachment upload, unread indicators</td></tr>
-    <tr><td><strong>10</strong></td><td>Announcements UI</td><td>UI</td><td>Announcement feed, create announcement (admin), audience selector, read tracking</td></tr>
-    <tr><td><strong>11</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>End-to-end: tardy &rarr; notification appears &rarr; teacher messages parent &rarr; moderation &rarr; reply</td></tr>
-  </table>
-
-  <h2 class="section-heading">Step-by-Step Build Plan</h2>
-
-  <!-- ── STEP 0 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">00</span>
-      <span class="step-title">ADR-057 Event Envelope (Carry-Over)</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CampusOS — Cycle 3 Implementation Plan</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+      :root {
+        --accent: #1a3a5c;
+        --accent-light: #e8f0f8;
+        --accent-mid: #3d7ab5;
+        --text: #2c2c2c;
+        --text-light: #6b7280;
+        --bg: #fafbfc;
+        --white: #ffffff;
+        --border: #e2e6ea;
+        --green: #28a745;
+        --green-bg: #eef7ee;
+        --amber: #e5a919;
+        --amber-bg: #fef9ec;
+        --blue: #3d7ab5;
+        --blue-bg: #e8f0f8;
+        --purple: #8b4fc6;
+        --purple-bg: #f4ecfb;
+        --red: #dc3545;
+        --red-bg: #fdeaea;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+      .topbar {
+        background: #1a5276;
+        padding: 10px 40px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+      .topbar a {
+        color: rgba(255, 255, 255, 0.85);
+        text-decoration: none;
+        font-size: 13px;
+      }
+      .topbar .brand {
+        font-weight: 600;
+        color: white;
+        font-size: 15px;
+      }
+      .topbar .sep {
+        color: rgba(255, 255, 255, 0.3);
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 40px 40px 120px;
+      }
+      .hero {
+        padding: 60px 0 40px;
+        border-bottom: 2px solid var(--accent);
+        margin-bottom: 48px;
+      }
+      .hero-brand {
+        font-family: 'DM Serif Display', serif;
+        font-size: 14px;
+        color: var(--accent-mid);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      .hero h1 {
+        font-family: 'DM Serif Display', serif;
+        font-size: 40px;
+        color: var(--accent);
+        line-height: 1.15;
+        margin-bottom: 12px;
+        font-weight: 400;
+      }
+      .hero .sub {
+        font-size: 18px;
+        color: var(--text-light);
+        font-style: italic;
+        max-width: 700px;
+        margin-bottom: 16px;
+      }
+      .hero .version {
+        font-size: 13px;
+        color: var(--accent-mid);
+        font-weight: 600;
+        background: var(--accent-light);
+        display: inline-block;
+        padding: 4px 14px;
+        border-radius: 6px;
+      }
+      h2.section-heading {
+        font-family: 'DM Serif Display', serif;
+        font-size: 26px;
+        color: var(--accent);
+        font-weight: 400;
+        margin: 48px 0 16px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+      }
+      h2.section-heading:first-of-type {
+        border-top: none;
+        margin-top: 0;
+      }
+      p.body-text {
+        font-size: 15px;
+        line-height: 1.8;
+        margin-bottom: 16px;
+        color: var(--text);
+      }
+      .callout {
+        border-radius: 10px;
+        padding: 20px 24px;
+        margin: 20px 0 24px;
+        border-left: 5px solid;
+      }
+      .callout-title {
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+      .callout-thesis {
+        background: var(--accent-light);
+        border-color: var(--accent-mid);
+      }
+      .callout-thesis .callout-title {
+        color: var(--accent);
+      }
+      .callout-ai {
+        background: #f0f7f0;
+        border-color: var(--green);
+      }
+      .callout-ai .callout-title {
+        color: #2d7a2d;
+      }
+      .callout-note {
+        background: var(--amber-bg);
+        border-color: var(--amber);
+      }
+      .callout-note .callout-title {
+        color: #9a7b1a;
+      }
+      .step {
+        background: var(--white);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 28px 32px;
+        margin: 20px 0;
+        position: relative;
+      }
+      .step-header {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        margin-bottom: 12px;
+      }
+      .step-num {
+        font-family: 'DM Serif Display', serif;
+        font-size: 36px;
+        color: var(--accent-mid);
+        line-height: 1;
+        opacity: 0.4;
+      }
+      .step-title {
+        font-size: 19px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      .step-meta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+      .step-tag {
+        font-size: 11px;
+        padding: 3px 10px;
+        border-radius: 5px;
+        font-weight: 600;
+      }
+      .tag-schema {
+        background: var(--green-bg);
+        color: #2d7a2d;
+        border: 1px solid #b7deb7;
+      }
+      .tag-code {
+        background: var(--blue-bg);
+        color: var(--blue);
+        border: 1px solid #b5d4f4;
+      }
+      .tag-ui {
+        background: var(--purple-bg);
+        color: var(--purple);
+        border: 1px solid #d4b8e8;
+      }
+      .tag-seed {
+        background: var(--amber-bg);
+        color: #9a7b1a;
+        border: 1px solid #e5d5a0;
+      }
+      .tag-test {
+        background: var(--red-bg);
+        color: var(--red);
+        border: 1px solid #f5c6cb;
+      }
+      .tag-infra {
+        background: #f0e6f6;
+        color: #6b21a8;
+        border: 1px solid #d4a8e8;
+      }
+      .step p {
+        font-size: 14px;
+        line-height: 1.8;
+        color: var(--text);
+        margin-bottom: 10px;
+      }
+      .step .detail-heading {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--accent);
+        margin: 16px 0 6px;
+      }
+      .step .detail-list {
+        font-size: 14px;
+        line-height: 2;
+        color: var(--text);
+        padding-left: 20px;
+        margin-bottom: 10px;
+      }
+      .step .produces {
+        font-size: 13px;
+        color: var(--accent-mid);
+        font-weight: 600;
+        margin-top: 14px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+      }
+      .step .depends {
+        font-size: 12px;
+        color: var(--text-light);
+        margin-top: 6px;
+      }
+      .spec-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0 24px;
+        font-size: 13px;
+      }
+      .spec-table th {
+        background: #d5e8f0;
+        padding: 10px 14px;
+        border: 1px solid #ccc;
+        text-align: left;
+        font-weight: 600;
+        color: var(--accent);
+      }
+      .spec-table td {
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .spec-table code {
+        font-size: 12px;
+        background: #f0f0f0;
+        padding: 1px 5px;
+        border-radius: 3px;
+      }
+      .doc-footer {
+        margin-top: 56px;
+        padding-top: 20px;
+        border-top: 2px solid var(--accent);
+        font-size: 13px;
+        color: var(--text-light);
+        line-height: 1.8;
+      }
+      @media (max-width: 768px) {
+        .hero h1 {
+          font-size: 30px;
+        }
+        .container {
+          padding: 20px 20px 60px;
+        }
+        .step {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <a href="../index.html" class="brand">CampusOS</a>
+      <span class="sep">|</span>
+      <a href="../index.html">Design Hub</a>
+      <a href="campusos-erd-v11.html">ERD v11</a>
     </div>
-    <div class="step-meta"><span class="step-tag tag-infra">Infrastructure</span></div>
-    <p>Implement the canonical Kafka event envelope before adding new consumers. This was deferred from Cycle 2 and is now a prerequisite &mdash; Cycle 3 adds multiple consumers that depend on a consistent event format.</p>
 
-    <div class="detail-heading">Envelope Schema</div>
-    <ol class="detail-list">
-      <li><strong>event_id</strong> &mdash; UUIDv7, unique per event. Already emitted as a header; moves into the envelope body.</li>
-      <li><strong>event_type</strong> &mdash; string matching the topic name (e.g. <code>att.student.marked_tardy</code>).</li>
-      <li><strong>event_version</strong> &mdash; integer, starts at 1. Increment on breaking payload changes.</li>
-      <li><strong>occurred_at</strong> &mdash; ISO timestamp of when the domain event happened.</li>
-      <li><strong>published_at</strong> &mdash; ISO timestamp of when the event was published to Kafka.</li>
-      <li><strong>tenant_id</strong> &mdash; school UUID. Already in headers; moves into envelope.</li>
-      <li><strong>source_module</strong> &mdash; string (e.g. <code>attendance</code>, <code>classroom</code>, <code>communications</code>).</li>
-      <li><strong>correlation_id</strong> &mdash; UUIDv7 for request tracing. Propagated from the HTTP request context.</li>
-      <li><strong>payload</strong> &mdash; the domain-specific event data (what is currently the entire message body).</li>
-    </ol>
+    <div class="container">
+      <div class="hero">
+        <div class="hero-brand">CampusOS &middot; Wave 1 &middot; Final Core Cycle</div>
+        <h1>Cycle 3: Communications<br />Implementation Plan</h1>
+        <div class="sub">
+          The cycle that closes the loop &mdash; events from attendance and grading finally reach
+          parents and teachers as real notifications. Plus direct messaging, announcements, and
+          content moderation. After this, CampusOS enters Phase 2: Test &amp; Refine.
+        </div>
+        <span class="version"
+          >April 2026 &middot; 11 Steps &middot; ERD v11 &middot; M40 Communications</span
+        >
+      </div>
 
-    <div class="detail-heading">Topic Naming</div>
-    <p>Topics follow <code>{env}.{domain}.{entity}.{verb}</code>. In dev: <code>dev.att.student.marked_tardy</code>. The env prefix is set via environment variable. All existing topic references in Cycle 1 and 2 producers/consumers are updated.</p>
+      <h2 class="section-heading">Plan Overview</h2>
 
-    <div class="detail-heading">Migration</div>
-    <p>Refactor <code>KafkaProducerService.emit()</code> to accept domain payload and auto-wrap in the envelope. Update the Cycle 2 gradebook snapshot worker to read from the envelope's <code>payload</code> field. Update all Cycle 1 attendance event emitters. Backward compatibility: consumers that read headers continue to work during the migration.</p>
+      <p class="body-text">
+        Cycle 3 is the final core cycle before the test-and-refine phase. It serves two purposes:
+        first, it adds the M40 Communications module (messaging, announcements, notifications);
+        second, it connects every Kafka event from Cycles 1 and 2 to actual user-facing
+        notifications. When this cycle is complete, a parent no longer needs to manually check the
+        dashboard to see that Maya was marked tardy &mdash; they receive an in-app notification, and
+        the infrastructure for email and push is in place.
+      </p>
 
-    <div class="produces">Produces &rarr; Canonical event envelope. All existing producers migrated. Gradebook worker updated. Foundation for all Cycle 3 consumers.</div>
-  </div>
+      <div class="callout callout-thesis">
+        <div class="callout-title">Vertical Slice Deliverable</div>
+        <p style="font-size: 15px; line-height: 1.8">
+          Teacher marks Maya tardy in Period 1 &rarr; Kafka event fires &rarr; notification consumer
+          picks it up &rarr; in-app notification appears on David Chen's parent dashboard with a
+          badge count &rarr; David clicks the notification &rarr; he sees the attendance detail.
+          Separately: James Rivera sends David a direct message about Maya's progress &rarr; David
+          sees it in his inbox &rarr; David replies &rarr; the reply goes through content moderation
+          &rarr; James sees the reply in his inbox.
+        </p>
+      </div>
 
-  <!-- ── STEP 1 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">01</span>
-      <span class="step-title">Communications Schema &mdash; Messaging</span>
+      <div class="callout callout-note">
+        <div class="callout-title">What's In / What's Deferred</div>
+        <p style="font-size: 15px; line-height: 1.8">
+          <strong>In scope:</strong> ADR-057 event envelope (carried from Cycle 2). Notification
+          pipeline (queue, preferences, log, consumers for all Cycle 1+2 events). In-app messaging
+          (threads, messages, read tracking, Redis unread counters). Announcements with audience
+          fan-out. Three-tier content moderation (platform + district + building). In-app
+          notification bell with badge count. Functions COM-001 through COM-004.
+        </p>
+        <p style="font-size: 15px; line-height: 1.8">
+          <strong>Deferred to later cycles:</strong> Emergency alerts (msg_emergency_alerts &mdash;
+          requires dedicated always-on service per Architecture Review). Communication groups with
+          dynamic membership. Digest batching (daily/weekly email summaries). Translation requests
+          (AI pipeline). Retention policies and archival jobs. Actual email/SMS/push provider
+          integration (Sendgrid, Twilio, FCM) &mdash; the queue and log are built, but delivery is
+          stubbed for now. These tables are created in the migration for schema completeness.
+        </p>
+      </div>
+
+      <table class="spec-table">
+        <tr>
+          <th style="width: 8%">Step</th>
+          <th style="width: 34%">Deliverable</th>
+          <th style="width: 13%">Type</th>
+          <th>Key Outputs</th>
+        </tr>
+        <tr>
+          <td><strong>0</strong></td>
+          <td>ADR-057 Event Envelope</td>
+          <td>Infra</td>
+          <td>
+            Canonical envelope in KafkaProducerService, env-prefixed topics, migrate existing
+            producers
+          </td>
+        </tr>
+        <tr>
+          <td><strong>1</strong></td>
+          <td>Communications Schema &mdash; Messaging</td>
+          <td>Schema</td>
+          <td>
+            msg_thread_types, msg_threads, msg_thread_participants, msg_messages,
+            msg_message_attachments, msg_message_reads
+          </td>
+        </tr>
+        <tr>
+          <td><strong>2</strong></td>
+          <td>Communications Schema &mdash; Notifications &amp; Announcements</td>
+          <td>Schema</td>
+          <td>
+            msg_notification_queue, msg_notification_preferences, msg_notification_log,
+            msg_announcements, msg_announcement_audiences, msg_announcement_reads, msg_alert_types
+          </td>
+        </tr>
+        <tr>
+          <td><strong>3</strong></td>
+          <td>Communications Schema &mdash; Moderation &amp; Support</td>
+          <td>Schema</td>
+          <td>
+            msg_moderation_policies, msg_moderation_log, msg_tags, msg_user_tags, msg_user_blocks,
+            msg_admin_access_log, platform_push_tokens, platform_dlq_messages
+          </td>
+        </tr>
+        <tr>
+          <td><strong>4</strong></td>
+          <td>Seed Data &mdash; Messaging &amp; Notifications</td>
+          <td>Seed</td>
+          <td>
+            Thread types, sample threads, notification preferences, moderation policies,
+            announcements
+          </td>
+        </tr>
+        <tr>
+          <td><strong>5</strong></td>
+          <td>Notification Pipeline &mdash; Consumers &amp; Queue</td>
+          <td>Code</td>
+          <td>
+            NotificationConsumer for Cycle 1+2 events, NotificationQueueService,
+            NotificationDeliveryWorker (in-app + stub for email/push)
+          </td>
+        </tr>
+        <tr>
+          <td><strong>6</strong></td>
+          <td>Messaging NestJS Module</td>
+          <td>Code</td>
+          <td>
+            ThreadService, MessageService, UnreadCountService (Redis), content moderation
+            interceptor
+          </td>
+        </tr>
+        <tr>
+          <td><strong>7</strong></td>
+          <td>Announcements NestJS Module</td>
+          <td>Code</td>
+          <td>AnnouncementService, AudienceFanOutWorker, AnnouncementController</td>
+        </tr>
+        <tr>
+          <td><strong>8</strong></td>
+          <td>Notification Bell &amp; Inbox UI</td>
+          <td>UI</td>
+          <td>
+            Notification bell with badge count, notification dropdown/page, mark-as-read, link to
+            source
+          </td>
+        </tr>
+        <tr>
+          <td><strong>9</strong></td>
+          <td>Messaging UI</td>
+          <td>UI</td>
+          <td>Inbox, thread view, compose message, reply, attachment upload, unread indicators</td>
+        </tr>
+        <tr>
+          <td><strong>10</strong></td>
+          <td>Announcements UI</td>
+          <td>UI</td>
+          <td>Announcement feed, create announcement (admin), audience selector, read tracking</td>
+        </tr>
+        <tr>
+          <td><strong>11</strong></td>
+          <td>Vertical Slice Integration Test</td>
+          <td>Test</td>
+          <td>
+            End-to-end: tardy &rarr; notification appears &rarr; teacher messages parent &rarr;
+            moderation &rarr; reply
+          </td>
+        </tr>
+      </table>
+
+      <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+      <!-- ── STEP 0 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">00</span>
+          <span class="step-title">ADR-057 Event Envelope (Carry-Over)</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-infra">Infrastructure</span></div>
+        <p>
+          Implement the canonical Kafka event envelope before adding new consumers. This was
+          deferred from Cycle 2 and is now a prerequisite &mdash; Cycle 3 adds multiple consumers
+          that depend on a consistent event format.
+        </p>
+
+        <div class="detail-heading">Envelope Schema</div>
+        <ol class="detail-list">
+          <li>
+            <strong>event_id</strong> &mdash; UUIDv7, unique per event. Already emitted as a header;
+            moves into the envelope body.
+          </li>
+          <li>
+            <strong>event_type</strong> &mdash; string matching the topic name (e.g.
+            <code>att.student.marked_tardy</code>).
+          </li>
+          <li>
+            <strong>event_version</strong> &mdash; integer, starts at 1. Increment on breaking
+            payload changes.
+          </li>
+          <li>
+            <strong>occurred_at</strong> &mdash; ISO timestamp of when the domain event happened.
+          </li>
+          <li>
+            <strong>published_at</strong> &mdash; ISO timestamp of when the event was published to
+            Kafka.
+          </li>
+          <li>
+            <strong>tenant_id</strong> &mdash; school UUID. Already in headers; moves into envelope.
+          </li>
+          <li>
+            <strong>source_module</strong> &mdash; string (e.g. <code>attendance</code>,
+            <code>classroom</code>, <code>communications</code>).
+          </li>
+          <li>
+            <strong>correlation_id</strong> &mdash; UUIDv7 for request tracing. Propagated from the
+            HTTP request context.
+          </li>
+          <li>
+            <strong>payload</strong> &mdash; the domain-specific event data (what is currently the
+            entire message body).
+          </li>
+        </ol>
+
+        <div class="detail-heading">Topic Naming</div>
+        <p>
+          Topics follow <code>{env}.{domain}.{entity}.{verb}</code>. In dev:
+          <code>dev.att.student.marked_tardy</code>. The env prefix is set via environment variable.
+          All existing topic references in Cycle 1 and 2 producers/consumers are updated.
+        </p>
+
+        <div class="detail-heading">Migration</div>
+        <p>
+          Refactor <code>KafkaProducerService.emit()</code> to accept domain payload and auto-wrap
+          in the envelope. Update the Cycle 2 gradebook snapshot worker to read from the envelope's
+          <code>payload</code> field. Update all Cycle 1 attendance event emitters. Backward
+          compatibility: consumers that read headers continue to work during the migration.
+        </p>
+
+        <div class="produces">
+          Produces &rarr; Canonical event envelope. All existing producers migrated. Gradebook
+          worker updated. Foundation for all Cycle 3 consumers.
+        </div>
+      </div>
+
+      <!-- ── STEP 1 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">01</span>
+          <span class="step-title">Communications Schema &mdash; Messaging</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+        <p>
+          The core messaging tables. Threads are partitioned by school (HASH 64 buckets per ADR-047)
+          for inbox performance at scale. Messages are RANGE-partitioned by created_at monthly for
+          retention management.
+        </p>
+
+        <div class="detail-heading">Tables (6)</div>
+        <ol class="detail-list">
+          <li>
+            <strong>msg_thread_types</strong> &mdash; school_id, name, allowed_participant_roles
+            TEXT[], is_system. UNIQUE(school_id, name). Examples: TEACHER_PARENT, CLASS_DISCUSSION,
+            ADMIN_STAFF.
+          </li>
+          <li>
+            <strong>msg_threads</strong> &mdash; HASH(school_id) with 64 buckets (ADR-047).
+            school_id, thread_type_id FK, subject, created_by FK(platform_users), is_archived.
+            Partition pruning eliminates 63/64 partitions on inbox queries.
+          </li>
+          <li>
+            <strong>msg_thread_participants</strong> &mdash; UNIQUE(thread_id, platform_user_id).
+            role ENUM(OWNER,PARTICIPANT,OBSERVER), joined_at, left_at. Determines who can read/write
+            in a thread.
+          </li>
+          <li>
+            <strong>msg_messages</strong> &mdash; RANGE(created_at) monthly via pg_partman, 24-month
+            retention. thread_id, sender_id FK, body TEXT, is_edited, is_deleted (soft delete).
+            school_id denormalised for partition-pruned queries. INDEX(thread_id, created_at DESC).
+          </li>
+          <li>
+            <strong>msg_message_attachments</strong> &mdash; message_id FK, file_name, s3_key,
+            content_type, file_size_bytes. Signed S3 URLs with 15-60 min expiry.
+          </li>
+          <li>
+            <strong>msg_message_reads</strong> &mdash; UNIQUE(message_id, reader_id). read_at
+            TIMESTAMPTZ. Unread count pattern: Redis HASH key
+            <code>inbox:{user_id}:{thread_id}</code> stores count, incremented on
+            msg.message.posted, cleared on thread open. Badge total = SUM of Redis HVALS. Never
+            COUNT(*) on msg_messages.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; 6 messaging tables with partitioning. Migration:
+          <code>007_msg_messaging.sql</code>.
+        </div>
+      </div>
+
+      <!-- ── STEP 2 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">02</span>
+          <span class="step-title"
+            >Communications Schema &mdash; Notifications &amp; Announcements</span
+          >
+        </div>
+        <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+        <p>
+          The notification pipeline and announcement system. The notification queue uses Redis SET
+          NX for idempotency (not a DB UNIQUE constraint &mdash; avoids deadlocks during emergency
+          fan-out).
+        </p>
+
+        <div class="detail-heading">Tables (7)</div>
+        <ol class="detail-list">
+          <li>
+            <strong>msg_notification_queue</strong> &mdash; recipient_id FK, notification_type TEXT,
+            payload JSONB, status ENUM(PENDING,SENT,FAILED,SKIPPED), idempotency_key TEXT,
+            scheduled_for TIMESTAMPTZ. Idempotency via Redis SET NX. Partial index (status,
+            scheduled_for) WHERE status='PENDING'.
+          </li>
+          <li>
+            <strong>msg_notification_preferences</strong> &mdash; UNIQUE(platform_user_id,
+            notification_type). channels TEXT[] (IN_APP, EMAIL, PUSH, SMS), is_enabled,
+            quiet_hours_start TIME, quiet_hours_end TIME.
+          </li>
+          <li>
+            <strong>msg_notification_log</strong> &mdash; RANGE partition by sent_at monthly.
+            recipient_id, notification_type, channel ENUM(PUSH,EMAIL,SMS,IN_APP), status
+            ENUM(SENT,DELIVERED,FAILED), provider_ref, sent_at.
+          </li>
+          <li>
+            <strong>msg_announcements</strong> &mdash; school_id, author_id FK, title, body,
+            publish_at, expires_at, audience_type ENUM(ALL_SCHOOL,CLASS,YEAR_GROUP,ROLE,CUSTOM),
+            is_recurring, recurrence_rule (iCal RRULE). INDEX(school_id, publish_at DESC).
+          </li>
+          <li>
+            <strong>msg_announcement_audiences</strong> &mdash; Pre-computed audience.
+            INDEX(platform_user_id, delivery_status). Populated by announcement worker on publish.
+            Eliminates real-time fan-out at send time.
+          </li>
+          <li>
+            <strong>msg_announcement_reads</strong> &mdash; UNIQUE(announcement_id, reader_id).
+            read_at.
+          </li>
+          <li>
+            <strong>msg_alert_types</strong> &mdash; school_id, name, severity
+            ENUM(INFO,WARNING,URGENT,EMERGENCY), default_channels TEXT[], requires_acknowledgement.
+            Created for schema completeness; emergency alert service is deferred.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; 7 tables. Migration:
+          <code>008_msg_notifications_and_announcements.sql</code>.
+        </div>
+      </div>
+
+      <!-- ── STEP 3 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">03</span>
+          <span class="step-title"
+            >Communications Schema &mdash; Moderation &amp; Support Tables</span
+          >
+        </div>
+        <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+        <p>
+          Content moderation, user blocks, admin audit, and platform-level notification
+          infrastructure (push tokens, DLQ).
+        </p>
+
+        <div class="detail-heading">Tables (8)</div>
+        <ol class="detail-list">
+          <li>
+            <strong>msg_moderation_policies</strong> &mdash; scope ENUM(PLATFORM,DISTRICT,BUILDING),
+            scope_id, keywords TEXT[], keyword_action
+            ENUM(BLOCK,FLAG_FOR_REVIEW,ESCALATE_TO_COUNSELLOR), sensitivity_threshold,
+            escalation_rules JSONB, is_active. Three-tier: most restrictive action applies.
+          </li>
+          <li>
+            <strong>msg_moderation_log</strong> &mdash; RANGE-partitioned by created_at monthly.
+            message_id FK, policy_id FK, flag_type, matched_keywords, review_outcome, reviewed_at.
+          </li>
+          <li>
+            <strong>msg_tags</strong> &mdash; school_id, name, color. UNIQUE(school_id, name). For
+            thread tagging.
+          </li>
+          <li><strong>msg_user_tags</strong> &mdash; UNIQUE(platform_user_id, tag_id).</li>
+          <li>
+            <strong>msg_user_blocks</strong> &mdash; UNIQUE(blocker_id, blocked_id). school_id.
+          </li>
+          <li>
+            <strong>msg_admin_access_log</strong> &mdash; admin_id, thread_id, reason, accessed_at.
+            FERPA audit trail for admin reading private threads.
+          </li>
+          <li>
+            <strong>platform_push_tokens</strong> &mdash; platform_user_id FK, device_id, platform
+            ENUM(IOS,ANDROID,WEB), token, is_active, last_seen_at. UNIQUE(platform_user_id,
+            device_id). <em>Platform schema table, added via Prisma migration.</em>
+          </li>
+          <li>
+            <strong>platform_dlq_messages</strong> &mdash; topic, partition, offset, payload JSONB,
+            error_message, retry_count, first_failed_at, last_failed_at. Dead letter queue after 3
+            consumer failures. <em>Platform schema table.</em>
+          </li>
+        </ol>
+
+        <div class="detail-heading">Platform Schema Changes</div>
+        <p>
+          <code>platform_push_tokens</code> and <code>platform_dlq_messages</code> are
+          platform-scoped (shared across tenants). Add them via Prisma migration to the platform
+          schema, not the tenant migration pipeline.
+        </p>
+
+        <div class="produces">
+          Produces &rarr; 6 tenant tables + 2 platform tables. Total M40 tables in Cycle 3: ~21 of
+          29 (8 deferred: emergency alerts, digest batching, translation, retention/archival).
+        </div>
+      </div>
+
+      <!-- ── STEP 4 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">04</span>
+          <span class="step-title">Seed Data &mdash; Messaging &amp; Notifications</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+        <p>
+          Populate the demo school with messaging and notification data so the UI has content to
+          display.
+        </p>
+
+        <div class="detail-heading">What Gets Seeded</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Thread types:</strong> TEACHER_PARENT, CLASS_DISCUSSION, ADMIN_STAFF,
+            SYSTEM_NOTIFICATION.
+          </li>
+          <li>
+            <strong>Sample threads:</strong> 3 threads &mdash; one between James Rivera and David
+            Chen about Maya's progress (3 messages), one class discussion thread for Period 1
+            Algebra (5 messages from different students), one admin thread.
+          </li>
+          <li>
+            <strong>Notification preferences:</strong> Default preferences for all 5 test users:
+            IN_APP enabled for all notification types, EMAIL enabled for grade.published and
+            attendance.tardy. Quiet hours set for parent (10pm-7am).
+          </li>
+          <li>
+            <strong>Moderation policies:</strong> One PLATFORM-level policy with basic keyword list
+            (profanity, threat words). One BUILDING-level policy for Lincoln Elementary
+            (school-specific additions).
+          </li>
+          <li>
+            <strong>Sample announcements:</strong> 2 announcements &mdash; "Welcome Back to School"
+            (ALL_SCHOOL, published, with read tracking) and "Parent-Teacher Conference Dates"
+            (ROLE=PARENT, published).
+          </li>
+          <li>
+            <strong>Notification queue entries:</strong> Pre-seed 3 notifications &mdash; one for
+            David Chen (tardy notification for Maya, status=SENT), one for Maya (grade published,
+            status=SENT), one pending notification.
+          </li>
+          <li>
+            <strong>Permission updates:</strong> Add COM-001 (Messaging) read/write to Teacher,
+            Parent, Student. Add COM-002 (Announcements) read to all, write to Teacher and Admin.
+            Add COM-003 (Moderation) read/write to Admin. Rebuild effective access cache.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Populated messaging with threads, notifications, preferences, and
+          moderation policies.
+        </div>
+      </div>
+
+      <!-- ── STEP 5 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">05</span>
+          <span class="step-title">Notification Pipeline &mdash; Consumers &amp; Queue</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+        <p>
+          The heart of Cycle 3: Kafka consumers that listen to events from Cycles 1, 2, and 3 and
+          fan them out as user-facing notifications. This is where CampusOS stops being a system you
+          check and becomes a system that tells you.
+        </p>
+
+        <div class="detail-heading">Notification Consumers</div>
+        <ol class="detail-list">
+          <li>
+            <strong>AttendanceNotificationConsumer</strong> &mdash; consumes
+            <code>att.student.marked_tardy</code> and <code>att.student.marked_absent</code>. Looks
+            up the student's guardians via sis_student_guardians. For each guardian with
+            portal_access=true and receives_reports=true, enqueues an in-app notification. Payload
+            includes student name, class, period, status, time.
+          </li>
+          <li>
+            <strong>GradeNotificationConsumer</strong> &mdash; consumes
+            <code>cls.grade.published</code>. Enqueues notification to the student and their
+            guardians. Payload includes assignment title, grade, class name.
+          </li>
+          <li>
+            <strong>ProgressNoteNotificationConsumer</strong> &mdash; consumes
+            <code>cls.progress_note.published</code>. Enqueues notification to guardians. Payload
+            includes teacher name, class, term.
+          </li>
+          <li>
+            <strong>AbsenceRequestNotificationConsumer</strong> &mdash; consumes
+            <code>att.absence.requested</code> and <code>att.absence.reviewed</code>. Enqueues
+            notification to the relevant teacher/admin (on request) or parent (on review).
+          </li>
+          <li>
+            <strong>MessageNotificationConsumer</strong> &mdash; consumes
+            <code>msg.message.posted</code>. For each thread participant except the sender, enqueues
+            an in-app notification and increments the Redis unread counter.
+          </li>
+        </ol>
+
+        <div class="detail-heading">NotificationQueueService</div>
+        <p>
+          Accepts notification requests, checks the recipient's msg_notification_preferences (is
+          this type enabled? what channels? are we in quiet hours?), applies idempotency (Redis SET
+          NX on idempotency_key), and inserts into msg_notification_queue with status=PENDING.
+        </p>
+
+        <div class="detail-heading">NotificationDeliveryWorker</div>
+        <p>
+          Polls msg_notification_queue for PENDING entries. For each, delivers via the appropriate
+          channel. In Cycle 3, IN_APP is the only real delivery &mdash; it writes to a Redis sorted
+          set (<code>notifications:{user_id}</code>) that the UI polls. EMAIL and PUSH channels are
+          stubbed (log and mark as SENT, actual provider integration is Phase 3). Records delivery
+          in msg_notification_log.
+        </p>
+
+        <div class="produces">
+          Produces &rarr; 5 Kafka consumers, NotificationQueueService, NotificationDeliveryWorker.
+          The event loop from Cycles 1+2 is now closed.
+        </div>
+        <div class="depends">
+          Depends on &rarr; Step 0 (ADR-057 envelope), Steps 1-3 (notification tables), Cycle 1
+          (attendance events), Cycle 2 (grade events)
+        </div>
+      </div>
+
+      <!-- ── STEP 6 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">06</span>
+          <span class="step-title">Messaging NestJS Module</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+        <p>Direct messaging between users. Teacher-parent communication is the primary use case.</p>
+
+        <div class="detail-heading">Services &amp; Endpoints</div>
+        <ol class="detail-list">
+          <li>
+            <strong>ThreadService</strong> &mdash; Create thread (validates participant roles
+            against msg_thread_types.allowed_participant_roles). List user's threads (inbox).
+            Archive/unarchive thread.
+          </li>
+          <li>
+            <strong>MessageService</strong> &mdash; Post message to thread (only participants can
+            post). Edit message (only author, within 15-min window). Soft-delete message. List
+            messages in thread (paginated, newest first).
+          </li>
+          <li>
+            <strong>UnreadCountService</strong> &mdash; Redis-backed.
+            <code>increment(userId, threadId)</code> on new message,
+            <code>clear(userId, threadId)</code> on thread open,
+            <code>getBadgeCount(userId)</code> returns total unread across all threads. Never
+            queries msg_messages for counts.
+          </li>
+          <li>
+            <strong>ContentModerationInterceptor</strong> &mdash; NestJS interceptor on POST
+            /messages. Before persisting, checks message body against active msg_moderation_policies
+            (PLATFORM &rarr; DISTRICT &rarr; BUILDING, most restrictive wins). BLOCK: reject with
+            422 and reason. FLAG_FOR_REVIEW: persist but mark as flagged, log in msg_moderation_log.
+            ESCALATE: persist, log, and emit <code>msg.moderation.escalated</code> event.
+          </li>
+          <li>
+            <strong>Endpoints:</strong> <code>GET /threads</code> (inbox),
+            <code>POST /threads</code> (create), <code>GET /threads/:id/messages</code>,
+            <code>POST /threads/:id/messages</code>, <code>PATCH /messages/:id</code> (edit),
+            <code>DELETE /messages/:id</code> (soft delete),
+            <code>POST /threads/:id/read</code> (mark read),
+            <code>GET /notifications/unread-count</code> (badge). All
+            <code>@RequirePermission('com-001:read')</code> or <code>'com-001:write'</code>.
+          </li>
+        </ol>
+
+        <div class="detail-heading">Row-Level Authorization</div>
+        <p>
+          Users can only see threads they're a participant in. Users can only post to threads
+          they're a participant in with role OWNER or PARTICIPANT (not OBSERVER). Block list
+          enforced: if blocker_id/blocked_id pair exists in msg_user_blocks, message creation is
+          rejected.
+        </p>
+
+        <div class="produces">
+          Produces &rarr; MessagingModule with ThreadService, MessageService, UnreadCountService,
+          ContentModerationInterceptor. ~8 endpoints.
+        </div>
+      </div>
+
+      <!-- ── STEP 7 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">07</span>
+          <span class="step-title">Announcements NestJS Module</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+        <p>
+          School-wide, class-level, or role-targeted announcements with pre-computed audience
+          fan-out.
+        </p>
+
+        <div class="detail-heading">Services &amp; Endpoints</div>
+        <ol class="detail-list">
+          <li>
+            <strong>AnnouncementService</strong> &mdash; Create announcement (draft or publish
+            immediately). Schedule for future publish. List announcements for a user (filtered by
+            audience membership). Mark as read.
+          </li>
+          <li>
+            <strong>AudienceFanOutWorker</strong> &mdash; Kafka consumer on
+            <code>msg.announcement.published</code>. Resolves the audience based on audience_type:
+            ALL_SCHOOL queries all active platform_users for the school, CLASS queries enrollments +
+            class teachers, YEAR_GROUP queries by grade_level, ROLE queries by IAM role. Inserts
+            rows into msg_announcement_audiences. Enqueues notifications for each audience member.
+          </li>
+          <li>
+            <strong>Endpoints:</strong> <code>GET /announcements</code> (list for current user),
+            <code>GET /announcements/:id</code>, <code>POST /announcements</code> (create/publish),
+            <code>PATCH /announcements/:id</code> (edit draft),
+            <code>POST /announcements/:id/read</code> (mark read),
+            <code>GET /announcements/:id/stats</code> (read count, delivery stats &mdash; admin
+            only). <code>@RequirePermission('com-002:read')</code> or <code>'com-002:write'</code>.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; AnnouncementModule with AnnouncementService, AudienceFanOutWorker. ~6
+          endpoints.
+        </div>
+      </div>
+
+      <!-- ── STEP 8 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">08</span>
+          <span class="step-title">Notification Bell &amp; Inbox UI</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+        <p>
+          The notification bell in the top bar that shows a badge count and a dropdown of recent
+          notifications. This is the user-facing payoff for the entire Kafka event pipeline.
+        </p>
+
+        <div class="detail-heading">Components</div>
+        <ol class="detail-list">
+          <li>
+            <strong>NotificationBell</strong> &mdash; icon in the app top bar. Shows badge count
+            (from Redis via <code>GET /notifications/unread-count</code>). Polls every 30 seconds
+            (or WebSocket in future). Click opens dropdown.
+          </li>
+          <li>
+            <strong>NotificationDropdown</strong> &mdash; shows last 10 notifications. Each row:
+            icon (type-specific: bell for attendance, grade for classroom, envelope for message),
+            title, timestamp, read/unread state. Click navigates to the source (attendance record,
+            grade detail, message thread).
+          </li>
+          <li>
+            <strong>NotificationPage</strong> <code>/notifications</code> &mdash; full notification
+            history with pagination. Filter by type (attendance, grades, messages, announcements).
+            Mark all as read.
+          </li>
+          <li>
+            <strong>Deep links</strong> &mdash; each notification type links to the relevant page:
+            tardy notification &rarr; <code>/children/:id/attendance</code>, grade published &rarr;
+            <code>/grades</code> or <code>/students/:id/gradebook</code>, new message &rarr;
+            <code>/messages/:threadId</code>.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Notification bell, dropdown, full notification page. The first time a user
+          sees CampusOS proactively tell them something.
+        </div>
+      </div>
+
+      <!-- ── STEP 9 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">09</span>
+          <span class="step-title">Messaging UI</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+        <p>
+          The messaging inbox and conversation view. The primary teacher-parent communication
+          channel.
+        </p>
+
+        <div class="detail-heading">Pages</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Inbox</strong> <code>/messages</code> &mdash; list of threads, newest first.
+            Each row: participant names/avatars, subject, last message preview, timestamp, unread
+            badge. Click opens thread.
+          </li>
+          <li>
+            <strong>Thread view</strong> <code>/messages/:threadId</code> &mdash; message list
+            (oldest first, paginated). Each message: sender avatar, name, timestamp, body. Own
+            messages styled right-aligned. Mark thread as read on open (clears Redis counter). Reply
+            input at bottom.
+          </li>
+          <li>
+            <strong>Compose</strong> <code>/messages/new</code> &mdash; select recipient(s), choose
+            thread type, enter subject, write message. Recipient picker filters by
+            allowed_participant_roles for the selected thread type (e.g. TEACHER_PARENT only shows
+            teachers and parents).
+          </li>
+          <li>
+            <strong>Moderation feedback</strong> &mdash; if a message is blocked by content
+            moderation, the sender sees a clear error: "This message was not sent because it
+            contains content that violates school policy." No detail about which keyword triggered
+            it (prevents gaming).
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Inbox, thread view, compose, moderation feedback. Teachers and parents can
+          communicate directly.
+        </div>
+      </div>
+
+      <!-- ── STEP 10 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">10</span>
+          <span class="step-title">Announcements UI</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+        <p>The announcement feed and creation interface.</p>
+
+        <div class="detail-heading">Pages</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Announcement feed</strong> <code>/announcements</code> &mdash; list of
+            announcements targeted at the current user. Pinned/active at top, expired grayed out.
+            Each shows: title, author, timestamp, audience badge (ALL SCHOOL / YOUR CLASS / etc.),
+            read/unread state. Click to expand full body.
+          </li>
+          <li>
+            <strong>Create announcement</strong> <code>/announcements/new</code> (admin/teacher
+            only) &mdash; title, body (rich text), audience selector (ALL_SCHOOL, specific CLASS
+            dropdown, YEAR_GROUP dropdown, ROLE dropdown), schedule or publish now, expiry date.
+            Preview before publishing.
+          </li>
+          <li>
+            <strong>Announcement stats</strong> (admin only) &mdash; per-announcement: total
+            audience, read count, read %, delivery timeline chart.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Announcement feed, create form, stats dashboard. School-wide communication
+          working.
+        </div>
+      </div>
+
+      <!-- ── STEP 11 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">11</span>
+          <span class="step-title">Vertical Slice Integration Test</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+        <p>The end-to-end proof that the notification loop works and messaging is functional.</p>
+
+        <div class="detail-heading">Test Script</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Notification from attendance:</strong> Log in as teacher. Mark Maya tardy in
+            Period 1. Log in as parent (David). Verify notification bell shows badge count. Click
+            bell &rarr; see "Maya was marked tardy in Period 1 Algebra." Click notification &rarr;
+            navigates to attendance detail.
+          </li>
+          <li>
+            <strong>Notification from grading:</strong> Log in as teacher. Publish a grade for Maya.
+            Log in as parent. Verify grade notification appears. Click &rarr; navigates to
+            gradebook.
+          </li>
+          <li>
+            <strong>Direct messaging:</strong> Log in as teacher. Navigate to Messages. Compose new
+            message to David Chen (TEACHER_PARENT thread). Send. Log in as parent. Verify unread
+            badge in inbox. Open thread. See teacher's message. Reply: "Thanks for letting me know."
+          </li>
+          <li>
+            <strong>Content moderation:</strong> Log in as any user. Send a message containing a
+            moderation keyword. Verify message is blocked with appropriate error. Verify
+            msg_moderation_log has an entry.
+          </li>
+          <li>
+            <strong>Announcements:</strong> Log in as admin. Create announcement "Early Dismissal
+            Friday" targeting ALL_SCHOOL. Publish. Log in as teacher, parent, student. Verify all
+            see the announcement in their feed. Mark as read. Verify read count increases in admin
+            stats.
+          </li>
+          <li>
+            <strong>Notification preferences:</strong> Log in as parent. Disable attendance
+            notifications. Log in as teacher. Mark another student tardy. Verify David does NOT
+            receive a notification (preference honored).
+          </li>
+          <li>
+            <strong>Permission denial:</strong> Verify student cannot create announcements. Verify
+            parent cannot access moderation log. Verify user cannot read threads they're not a
+            participant in.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Verified notification loop + messaging + announcements + moderation. Phase
+          1 (Core) is complete. CampusOS is ready for Phase 2: Test &amp; Refine.
+        </div>
+      </div>
+
+      <!-- ═══════ COMPLETION ═══════ -->
+      <h2 class="section-heading">Cycle 3 Completion Criteria</h2>
+
+      <div class="callout callout-ai">
+        <div class="callout-title">Exit Checklist</div>
+        <ol style="font-size: 15px; line-height: 2.2; padding-left: 20px">
+          <li>
+            ADR-057 event envelope implemented. All producers migrated. Gradebook worker updated.
+          </li>
+          <li>
+            Tenant schema: ~21 new Communications tables. Platform schema: +2 (push_tokens,
+            dlq_messages).
+          </li>
+          <li>
+            5 Kafka consumers: attendance, grade, progress note, absence request, message
+            notifications.
+          </li>
+          <li>
+            NotificationQueueService with preference checking, quiet hours, Redis idempotency.
+          </li>
+          <li>
+            Messaging: threads, messages, read tracking, Redis unread counters, content moderation
+            interceptor.
+          </li>
+          <li>Announcements: create, publish, audience fan-out, read tracking, stats.</li>
+          <li>Notification bell with badge count, dropdown, deep links to source.</li>
+          <li>Messaging UI: inbox, thread view, compose, moderation feedback.</li>
+          <li>Announcement UI: feed, create, stats.</li>
+          <li>Vertical slice test: all 7 scenarios pass.</li>
+          <li>HANDOFF-CYCLE3.md and CLAUDE.md updated. CI green.</li>
+        </ol>
+      </div>
+
+      <div class="callout callout-thesis">
+        <div class="callout-title">Phase 1 Complete &rarr; Phase 2 Begins</div>
+        <p style="font-size: 15px; line-height: 1.8">
+          After Cycle 3, CampusOS handles three complete school workflows end-to-end:
+          <strong>attendance</strong> (teacher marks &rarr; parent notified),
+          <strong>grading</strong> (teacher grades &rarr; gradebook updates &rarr; parent sees
+          average), and <strong>communication</strong> (direct messaging + announcements +
+          notifications). The platform enters <strong>Phase 2: Test &amp; Refine</strong> &mdash;
+          persona walkthroughs, UI design review, edge case testing, and creation of the UI design
+          guide before expanding with Cycles 4&ndash;8.
+        </p>
+      </div>
+
+      <div class="doc-footer">
+        <p>
+          CampusOS Cycle 3 Implementation Plan &mdash; April 2026. Derived from: ERD v11 (M40
+          Communications, 29 tables), Function Library (COM-001 through COM-004), Architecture
+          Review (Section 1.3 Notification/Push Service, Section 10 AI Architecture for moderation,
+          ADR-047 thread partitioning, ADR-057 event envelope), Development &amp; Deployment Plan
+          (Section 13, Cycle 3).
+        </p>
+      </div>
     </div>
-    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
-    <p>The core messaging tables. Threads are partitioned by school (HASH 64 buckets per ADR-047) for inbox performance at scale. Messages are RANGE-partitioned by created_at monthly for retention management.</p>
-
-    <div class="detail-heading">Tables (6)</div>
-    <ol class="detail-list">
-      <li><strong>msg_thread_types</strong> &mdash; school_id, name, allowed_participant_roles TEXT[], is_system. UNIQUE(school_id, name). Examples: TEACHER_PARENT, CLASS_DISCUSSION, ADMIN_STAFF.</li>
-      <li><strong>msg_threads</strong> &mdash; HASH(school_id) with 64 buckets (ADR-047). school_id, thread_type_id FK, subject, created_by FK(platform_users), is_archived. Partition pruning eliminates 63/64 partitions on inbox queries.</li>
-      <li><strong>msg_thread_participants</strong> &mdash; UNIQUE(thread_id, platform_user_id). role ENUM(OWNER,PARTICIPANT,OBSERVER), joined_at, left_at. Determines who can read/write in a thread.</li>
-      <li><strong>msg_messages</strong> &mdash; RANGE(created_at) monthly via pg_partman, 24-month retention. thread_id, sender_id FK, body TEXT, is_edited, is_deleted (soft delete). school_id denormalised for partition-pruned queries. INDEX(thread_id, created_at DESC).</li>
-      <li><strong>msg_message_attachments</strong> &mdash; message_id FK, file_name, s3_key, content_type, file_size_bytes. Signed S3 URLs with 15-60 min expiry.</li>
-      <li><strong>msg_message_reads</strong> &mdash; UNIQUE(message_id, reader_id). read_at TIMESTAMPTZ. Unread count pattern: Redis HASH key <code>inbox:{user_id}:{thread_id}</code> stores count, incremented on msg.message.posted, cleared on thread open. Badge total = SUM of Redis HVALS. Never COUNT(*) on msg_messages.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; 6 messaging tables with partitioning. Migration: <code>007_msg_messaging.sql</code>.</div>
-  </div>
-
-  <!-- ── STEP 2 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">02</span>
-      <span class="step-title">Communications Schema &mdash; Notifications &amp; Announcements</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
-    <p>The notification pipeline and announcement system. The notification queue uses Redis SET NX for idempotency (not a DB UNIQUE constraint &mdash; avoids deadlocks during emergency fan-out).</p>
-
-    <div class="detail-heading">Tables (7)</div>
-    <ol class="detail-list">
-      <li><strong>msg_notification_queue</strong> &mdash; recipient_id FK, notification_type TEXT, payload JSONB, status ENUM(PENDING,SENT,FAILED,SKIPPED), idempotency_key TEXT, scheduled_for TIMESTAMPTZ. Idempotency via Redis SET NX. Partial index (status, scheduled_for) WHERE status='PENDING'.</li>
-      <li><strong>msg_notification_preferences</strong> &mdash; UNIQUE(platform_user_id, notification_type). channels TEXT[] (IN_APP, EMAIL, PUSH, SMS), is_enabled, quiet_hours_start TIME, quiet_hours_end TIME.</li>
-      <li><strong>msg_notification_log</strong> &mdash; RANGE partition by sent_at monthly. recipient_id, notification_type, channel ENUM(PUSH,EMAIL,SMS,IN_APP), status ENUM(SENT,DELIVERED,FAILED), provider_ref, sent_at.</li>
-      <li><strong>msg_announcements</strong> &mdash; school_id, author_id FK, title, body, publish_at, expires_at, audience_type ENUM(ALL_SCHOOL,CLASS,YEAR_GROUP,ROLE,CUSTOM), is_recurring, recurrence_rule (iCal RRULE). INDEX(school_id, publish_at DESC).</li>
-      <li><strong>msg_announcement_audiences</strong> &mdash; Pre-computed audience. INDEX(platform_user_id, delivery_status). Populated by announcement worker on publish. Eliminates real-time fan-out at send time.</li>
-      <li><strong>msg_announcement_reads</strong> &mdash; UNIQUE(announcement_id, reader_id). read_at.</li>
-      <li><strong>msg_alert_types</strong> &mdash; school_id, name, severity ENUM(INFO,WARNING,URGENT,EMERGENCY), default_channels TEXT[], requires_acknowledgement. Created for schema completeness; emergency alert service is deferred.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; 7 tables. Migration: <code>008_msg_notifications_and_announcements.sql</code>.</div>
-  </div>
-
-  <!-- ── STEP 3 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">03</span>
-      <span class="step-title">Communications Schema &mdash; Moderation &amp; Support Tables</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
-    <p>Content moderation, user blocks, admin audit, and platform-level notification infrastructure (push tokens, DLQ).</p>
-
-    <div class="detail-heading">Tables (8)</div>
-    <ol class="detail-list">
-      <li><strong>msg_moderation_policies</strong> &mdash; scope ENUM(PLATFORM,DISTRICT,BUILDING), scope_id, keywords TEXT[], keyword_action ENUM(BLOCK,FLAG_FOR_REVIEW,ESCALATE_TO_COUNSELLOR), sensitivity_threshold, escalation_rules JSONB, is_active. Three-tier: most restrictive action applies.</li>
-      <li><strong>msg_moderation_log</strong> &mdash; RANGE-partitioned by created_at monthly. message_id FK, policy_id FK, flag_type, matched_keywords, review_outcome, reviewed_at.</li>
-      <li><strong>msg_tags</strong> &mdash; school_id, name, color. UNIQUE(school_id, name). For thread tagging.</li>
-      <li><strong>msg_user_tags</strong> &mdash; UNIQUE(platform_user_id, tag_id).</li>
-      <li><strong>msg_user_blocks</strong> &mdash; UNIQUE(blocker_id, blocked_id). school_id.</li>
-      <li><strong>msg_admin_access_log</strong> &mdash; admin_id, thread_id, reason, accessed_at. FERPA audit trail for admin reading private threads.</li>
-      <li><strong>platform_push_tokens</strong> &mdash; platform_user_id FK, device_id, platform ENUM(IOS,ANDROID,WEB), token, is_active, last_seen_at. UNIQUE(platform_user_id, device_id). <em>Platform schema table, added via Prisma migration.</em></li>
-      <li><strong>platform_dlq_messages</strong> &mdash; topic, partition, offset, payload JSONB, error_message, retry_count, first_failed_at, last_failed_at. Dead letter queue after 3 consumer failures. <em>Platform schema table.</em></li>
-    </ol>
-
-    <div class="detail-heading">Platform Schema Changes</div>
-    <p><code>platform_push_tokens</code> and <code>platform_dlq_messages</code> are platform-scoped (shared across tenants). Add them via Prisma migration to the platform schema, not the tenant migration pipeline.</p>
-
-    <div class="produces">Produces &rarr; 6 tenant tables + 2 platform tables. Total M40 tables in Cycle 3: ~21 of 29 (8 deferred: emergency alerts, digest batching, translation, retention/archival).</div>
-  </div>
-
-  <!-- ── STEP 4 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">04</span>
-      <span class="step-title">Seed Data &mdash; Messaging &amp; Notifications</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
-    <p>Populate the demo school with messaging and notification data so the UI has content to display.</p>
-
-    <div class="detail-heading">What Gets Seeded</div>
-    <ol class="detail-list">
-      <li><strong>Thread types:</strong> TEACHER_PARENT, CLASS_DISCUSSION, ADMIN_STAFF, SYSTEM_NOTIFICATION.</li>
-      <li><strong>Sample threads:</strong> 3 threads &mdash; one between James Rivera and David Chen about Maya's progress (3 messages), one class discussion thread for Period 1 Algebra (5 messages from different students), one admin thread.</li>
-      <li><strong>Notification preferences:</strong> Default preferences for all 5 test users: IN_APP enabled for all notification types, EMAIL enabled for grade.published and attendance.tardy. Quiet hours set for parent (10pm-7am).</li>
-      <li><strong>Moderation policies:</strong> One PLATFORM-level policy with basic keyword list (profanity, threat words). One BUILDING-level policy for Lincoln Elementary (school-specific additions).</li>
-      <li><strong>Sample announcements:</strong> 2 announcements &mdash; "Welcome Back to School" (ALL_SCHOOL, published, with read tracking) and "Parent-Teacher Conference Dates" (ROLE=PARENT, published).</li>
-      <li><strong>Notification queue entries:</strong> Pre-seed 3 notifications &mdash; one for David Chen (tardy notification for Maya, status=SENT), one for Maya (grade published, status=SENT), one pending notification.</li>
-      <li><strong>Permission updates:</strong> Add COM-001 (Messaging) read/write to Teacher, Parent, Student. Add COM-002 (Announcements) read to all, write to Teacher and Admin. Add COM-003 (Moderation) read/write to Admin. Rebuild effective access cache.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Populated messaging with threads, notifications, preferences, and moderation policies.</div>
-  </div>
-
-  <!-- ── STEP 5 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">05</span>
-      <span class="step-title">Notification Pipeline &mdash; Consumers &amp; Queue</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
-    <p>The heart of Cycle 3: Kafka consumers that listen to events from Cycles 1, 2, and 3 and fan them out as user-facing notifications. This is where CampusOS stops being a system you check and becomes a system that tells you.</p>
-
-    <div class="detail-heading">Notification Consumers</div>
-    <ol class="detail-list">
-      <li><strong>AttendanceNotificationConsumer</strong> &mdash; consumes <code>att.student.marked_tardy</code> and <code>att.student.marked_absent</code>. Looks up the student's guardians via sis_student_guardians. For each guardian with portal_access=true and receives_reports=true, enqueues an in-app notification. Payload includes student name, class, period, status, time.</li>
-      <li><strong>GradeNotificationConsumer</strong> &mdash; consumes <code>cls.grade.published</code>. Enqueues notification to the student and their guardians. Payload includes assignment title, grade, class name.</li>
-      <li><strong>ProgressNoteNotificationConsumer</strong> &mdash; consumes <code>cls.progress_note.published</code>. Enqueues notification to guardians. Payload includes teacher name, class, term.</li>
-      <li><strong>AbsenceRequestNotificationConsumer</strong> &mdash; consumes <code>att.absence.requested</code> and <code>att.absence.reviewed</code>. Enqueues notification to the relevant teacher/admin (on request) or parent (on review).</li>
-      <li><strong>MessageNotificationConsumer</strong> &mdash; consumes <code>msg.message.posted</code>. For each thread participant except the sender, enqueues an in-app notification and increments the Redis unread counter.</li>
-    </ol>
-
-    <div class="detail-heading">NotificationQueueService</div>
-    <p>Accepts notification requests, checks the recipient's msg_notification_preferences (is this type enabled? what channels? are we in quiet hours?), applies idempotency (Redis SET NX on idempotency_key), and inserts into msg_notification_queue with status=PENDING.</p>
-
-    <div class="detail-heading">NotificationDeliveryWorker</div>
-    <p>Polls msg_notification_queue for PENDING entries. For each, delivers via the appropriate channel. In Cycle 3, IN_APP is the only real delivery &mdash; it writes to a Redis sorted set (<code>notifications:{user_id}</code>) that the UI polls. EMAIL and PUSH channels are stubbed (log and mark as SENT, actual provider integration is Phase 3). Records delivery in msg_notification_log.</p>
-
-    <div class="produces">Produces &rarr; 5 Kafka consumers, NotificationQueueService, NotificationDeliveryWorker. The event loop from Cycles 1+2 is now closed.</div>
-    <div class="depends">Depends on &rarr; Step 0 (ADR-057 envelope), Steps 1-3 (notification tables), Cycle 1 (attendance events), Cycle 2 (grade events)</div>
-  </div>
-
-  <!-- ── STEP 6 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">06</span>
-      <span class="step-title">Messaging NestJS Module</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
-    <p>Direct messaging between users. Teacher-parent communication is the primary use case.</p>
-
-    <div class="detail-heading">Services &amp; Endpoints</div>
-    <ol class="detail-list">
-      <li><strong>ThreadService</strong> &mdash; Create thread (validates participant roles against msg_thread_types.allowed_participant_roles). List user's threads (inbox). Archive/unarchive thread.</li>
-      <li><strong>MessageService</strong> &mdash; Post message to thread (only participants can post). Edit message (only author, within 15-min window). Soft-delete message. List messages in thread (paginated, newest first).</li>
-      <li><strong>UnreadCountService</strong> &mdash; Redis-backed. <code>increment(userId, threadId)</code> on new message, <code>clear(userId, threadId)</code> on thread open, <code>getBadgeCount(userId)</code> returns total unread across all threads. Never queries msg_messages for counts.</li>
-      <li><strong>ContentModerationInterceptor</strong> &mdash; NestJS interceptor on POST /messages. Before persisting, checks message body against active msg_moderation_policies (PLATFORM &rarr; DISTRICT &rarr; BUILDING, most restrictive wins). BLOCK: reject with 422 and reason. FLAG_FOR_REVIEW: persist but mark as flagged, log in msg_moderation_log. ESCALATE: persist, log, and emit <code>msg.moderation.escalated</code> event.</li>
-      <li><strong>Endpoints:</strong> <code>GET /threads</code> (inbox), <code>POST /threads</code> (create), <code>GET /threads/:id/messages</code>, <code>POST /threads/:id/messages</code>, <code>PATCH /messages/:id</code> (edit), <code>DELETE /messages/:id</code> (soft delete), <code>POST /threads/:id/read</code> (mark read), <code>GET /notifications/unread-count</code> (badge). All <code>@RequirePermission('com-001:read')</code> or <code>'com-001:write'</code>.</li>
-    </ol>
-
-    <div class="detail-heading">Row-Level Authorization</div>
-    <p>Users can only see threads they're a participant in. Users can only post to threads they're a participant in with role OWNER or PARTICIPANT (not OBSERVER). Block list enforced: if blocker_id/blocked_id pair exists in msg_user_blocks, message creation is rejected.</p>
-
-    <div class="produces">Produces &rarr; MessagingModule with ThreadService, MessageService, UnreadCountService, ContentModerationInterceptor. ~8 endpoints.</div>
-  </div>
-
-  <!-- ── STEP 7 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">07</span>
-      <span class="step-title">Announcements NestJS Module</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
-    <p>School-wide, class-level, or role-targeted announcements with pre-computed audience fan-out.</p>
-
-    <div class="detail-heading">Services &amp; Endpoints</div>
-    <ol class="detail-list">
-      <li><strong>AnnouncementService</strong> &mdash; Create announcement (draft or publish immediately). Schedule for future publish. List announcements for a user (filtered by audience membership). Mark as read.</li>
-      <li><strong>AudienceFanOutWorker</strong> &mdash; Kafka consumer on <code>msg.announcement.published</code>. Resolves the audience based on audience_type: ALL_SCHOOL queries all active platform_users for the school, CLASS queries enrollments + class teachers, YEAR_GROUP queries by grade_level, ROLE queries by IAM role. Inserts rows into msg_announcement_audiences. Enqueues notifications for each audience member.</li>
-      <li><strong>Endpoints:</strong> <code>GET /announcements</code> (list for current user), <code>GET /announcements/:id</code>, <code>POST /announcements</code> (create/publish), <code>PATCH /announcements/:id</code> (edit draft), <code>POST /announcements/:id/read</code> (mark read), <code>GET /announcements/:id/stats</code> (read count, delivery stats &mdash; admin only). <code>@RequirePermission('com-002:read')</code> or <code>'com-002:write'</code>.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; AnnouncementModule with AnnouncementService, AudienceFanOutWorker. ~6 endpoints.</div>
-  </div>
-
-  <!-- ── STEP 8 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">08</span>
-      <span class="step-title">Notification Bell &amp; Inbox UI</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
-    <p>The notification bell in the top bar that shows a badge count and a dropdown of recent notifications. This is the user-facing payoff for the entire Kafka event pipeline.</p>
-
-    <div class="detail-heading">Components</div>
-    <ol class="detail-list">
-      <li><strong>NotificationBell</strong> &mdash; icon in the app top bar. Shows badge count (from Redis via <code>GET /notifications/unread-count</code>). Polls every 30 seconds (or WebSocket in future). Click opens dropdown.</li>
-      <li><strong>NotificationDropdown</strong> &mdash; shows last 10 notifications. Each row: icon (type-specific: bell for attendance, grade for classroom, envelope for message), title, timestamp, read/unread state. Click navigates to the source (attendance record, grade detail, message thread).</li>
-      <li><strong>NotificationPage</strong> <code>/notifications</code> &mdash; full notification history with pagination. Filter by type (attendance, grades, messages, announcements). Mark all as read.</li>
-      <li><strong>Deep links</strong> &mdash; each notification type links to the relevant page: tardy notification &rarr; <code>/children/:id/attendance</code>, grade published &rarr; <code>/grades</code> or <code>/students/:id/gradebook</code>, new message &rarr; <code>/messages/:threadId</code>.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Notification bell, dropdown, full notification page. The first time a user sees CampusOS proactively tell them something.</div>
-  </div>
-
-  <!-- ── STEP 9 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">09</span>
-      <span class="step-title">Messaging UI</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
-    <p>The messaging inbox and conversation view. The primary teacher-parent communication channel.</p>
-
-    <div class="detail-heading">Pages</div>
-    <ol class="detail-list">
-      <li><strong>Inbox</strong> <code>/messages</code> &mdash; list of threads, newest first. Each row: participant names/avatars, subject, last message preview, timestamp, unread badge. Click opens thread.</li>
-      <li><strong>Thread view</strong> <code>/messages/:threadId</code> &mdash; message list (oldest first, paginated). Each message: sender avatar, name, timestamp, body. Own messages styled right-aligned. Mark thread as read on open (clears Redis counter). Reply input at bottom.</li>
-      <li><strong>Compose</strong> <code>/messages/new</code> &mdash; select recipient(s), choose thread type, enter subject, write message. Recipient picker filters by allowed_participant_roles for the selected thread type (e.g. TEACHER_PARENT only shows teachers and parents).</li>
-      <li><strong>Moderation feedback</strong> &mdash; if a message is blocked by content moderation, the sender sees a clear error: "This message was not sent because it contains content that violates school policy." No detail about which keyword triggered it (prevents gaming).</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Inbox, thread view, compose, moderation feedback. Teachers and parents can communicate directly.</div>
-  </div>
-
-  <!-- ── STEP 10 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">10</span>
-      <span class="step-title">Announcements UI</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
-    <p>The announcement feed and creation interface.</p>
-
-    <div class="detail-heading">Pages</div>
-    <ol class="detail-list">
-      <li><strong>Announcement feed</strong> <code>/announcements</code> &mdash; list of announcements targeted at the current user. Pinned/active at top, expired grayed out. Each shows: title, author, timestamp, audience badge (ALL SCHOOL / YOUR CLASS / etc.), read/unread state. Click to expand full body.</li>
-      <li><strong>Create announcement</strong> <code>/announcements/new</code> (admin/teacher only) &mdash; title, body (rich text), audience selector (ALL_SCHOOL, specific CLASS dropdown, YEAR_GROUP dropdown, ROLE dropdown), schedule or publish now, expiry date. Preview before publishing.</li>
-      <li><strong>Announcement stats</strong> (admin only) &mdash; per-announcement: total audience, read count, read %, delivery timeline chart.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Announcement feed, create form, stats dashboard. School-wide communication working.</div>
-  </div>
-
-  <!-- ── STEP 11 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">11</span>
-      <span class="step-title">Vertical Slice Integration Test</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
-    <p>The end-to-end proof that the notification loop works and messaging is functional.</p>
-
-    <div class="detail-heading">Test Script</div>
-    <ol class="detail-list">
-      <li><strong>Notification from attendance:</strong> Log in as teacher. Mark Maya tardy in Period 1. Log in as parent (David). Verify notification bell shows badge count. Click bell &rarr; see "Maya was marked tardy in Period 1 Algebra." Click notification &rarr; navigates to attendance detail.</li>
-      <li><strong>Notification from grading:</strong> Log in as teacher. Publish a grade for Maya. Log in as parent. Verify grade notification appears. Click &rarr; navigates to gradebook.</li>
-      <li><strong>Direct messaging:</strong> Log in as teacher. Navigate to Messages. Compose new message to David Chen (TEACHER_PARENT thread). Send. Log in as parent. Verify unread badge in inbox. Open thread. See teacher's message. Reply: "Thanks for letting me know."</li>
-      <li><strong>Content moderation:</strong> Log in as any user. Send a message containing a moderation keyword. Verify message is blocked with appropriate error. Verify msg_moderation_log has an entry.</li>
-      <li><strong>Announcements:</strong> Log in as admin. Create announcement "Early Dismissal Friday" targeting ALL_SCHOOL. Publish. Log in as teacher, parent, student. Verify all see the announcement in their feed. Mark as read. Verify read count increases in admin stats.</li>
-      <li><strong>Notification preferences:</strong> Log in as parent. Disable attendance notifications. Log in as teacher. Mark another student tardy. Verify David does NOT receive a notification (preference honored).</li>
-      <li><strong>Permission denial:</strong> Verify student cannot create announcements. Verify parent cannot access moderation log. Verify user cannot read threads they're not a participant in.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Verified notification loop + messaging + announcements + moderation. Phase 1 (Core) is complete. CampusOS is ready for Phase 2: Test &amp; Refine.</div>
-  </div>
-
-  <!-- ═══════ COMPLETION ═══════ -->
-  <h2 class="section-heading">Cycle 3 Completion Criteria</h2>
-
-  <div class="callout callout-ai">
-    <div class="callout-title">Exit Checklist</div>
-    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
-      <li>ADR-057 event envelope implemented. All producers migrated. Gradebook worker updated.</li>
-      <li>Tenant schema: ~21 new Communications tables. Platform schema: +2 (push_tokens, dlq_messages).</li>
-      <li>5 Kafka consumers: attendance, grade, progress note, absence request, message notifications.</li>
-      <li>NotificationQueueService with preference checking, quiet hours, Redis idempotency.</li>
-      <li>Messaging: threads, messages, read tracking, Redis unread counters, content moderation interceptor.</li>
-      <li>Announcements: create, publish, audience fan-out, read tracking, stats.</li>
-      <li>Notification bell with badge count, dropdown, deep links to source.</li>
-      <li>Messaging UI: inbox, thread view, compose, moderation feedback.</li>
-      <li>Announcement UI: feed, create, stats.</li>
-      <li>Vertical slice test: all 7 scenarios pass.</li>
-      <li>HANDOFF-CYCLE3.md and CLAUDE.md updated. CI green.</li>
-    </ol>
-  </div>
-
-  <div class="callout callout-thesis">
-    <div class="callout-title">Phase 1 Complete &rarr; Phase 2 Begins</div>
-    <p style="font-size:15px;line-height:1.8;">After Cycle 3, CampusOS handles three complete school workflows end-to-end: <strong>attendance</strong> (teacher marks &rarr; parent notified), <strong>grading</strong> (teacher grades &rarr; gradebook updates &rarr; parent sees average), and <strong>communication</strong> (direct messaging + announcements + notifications). The platform enters <strong>Phase 2: Test &amp; Refine</strong> &mdash; persona walkthroughs, UI design review, edge case testing, and creation of the UI design guide before expanding with Cycles 4&ndash;8.</p>
-  </div>
-
-  <div class="doc-footer">
-    <p>CampusOS Cycle 3 Implementation Plan &mdash; April 2026. Derived from: ERD v11 (M40 Communications, 29 tables), Function Library (COM-001 through COM-004), Architecture Review (Section 1.3 Notification/Push Service, Section 10 AI Architecture for moderation, ADR-047 thread partitioning, ADR-057 event envelope), Development &amp; Deployment Plan (Section 13, Cycle 3).</p>
-  </div>
-</div>
-
-</body>
+  </body>
 </html>

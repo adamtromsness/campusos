@@ -217,11 +217,7 @@ export function ChecklistIcon(props: SVGProps<SVGSVGElement>) {
         strokeLinejoin="round"
         d="M9 12.75 11.25 15l3.75-4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
       />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3.75 5.25h16.5M3.75 12h6m-6 6.75h12"
-      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h16.5M3.75 12h6m-6 6.75h12" />
     </svg>
   );
 }

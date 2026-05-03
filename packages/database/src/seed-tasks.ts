@@ -82,7 +82,11 @@ async function seedTasks() {
     priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
     dueOffsetHours: number | null;
     category: 'ACADEMIC' | 'PERSONAL' | 'ADMINISTRATIVE' | 'ACKNOWLEDGEMENT';
-    actions: Array<{ type: 'CREATE_TASK' | 'CREATE_ACKNOWLEDGEMENT' | 'SEND_NOTIFICATION'; sortOrder: number; config?: Record<string, unknown> }>;
+    actions: Array<{
+      type: 'CREATE_TASK' | 'CREATE_ACKNOWLEDGEMENT' | 'SEND_NOTIFICATION';
+      sortOrder: number;
+      config?: Record<string, unknown>;
+    }>;
     conditions?: Array<{ fieldPath: string; operator: 'EQUALS'; value: unknown }>;
   }
   const ruleSpecs: RuleSpec[] = [
@@ -221,7 +225,15 @@ async function seedTasks() {
         action.sortOrder,
       );
     }
-    console.log('     - ' + spec.triggerEventType + ' (' + spec.actions.length + ' action' + (spec.actions.length === 1 ? '' : 's') + ')');
+    console.log(
+      '     - ' +
+        spec.triggerEventType +
+        ' (' +
+        spec.actions.length +
+        ' action' +
+        (spec.actions.length === 1 ? '' : 's') +
+        ')',
+    );
   }
 
   // ── 3. Workflow templates + steps ─────────────────────────────

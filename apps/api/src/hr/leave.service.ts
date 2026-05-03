@@ -513,10 +513,7 @@ export class LeaveService {
    * approval.request.resolved with status=WITHDRAWN — the requester
    * pulled the approval back, the leave row should follow.
    */
-  async cancelInternal(
-    id: string,
-    cancellerAccountId: string,
-  ): Promise<LeaveRequestResponseDto> {
+  async cancelInternal(id: string, cancellerAccountId: string): Promise<LeaveRequestResponseDto> {
     var academicYearId = await this.requireCurrentAcademicYearId();
     var locked = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       var row = await this.lockAndValidate(tx, id, null);

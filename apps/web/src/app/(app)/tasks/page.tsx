@@ -63,7 +63,10 @@ export default function TasksPage() {
     return (
       <div className="mx-auto max-w-3xl">
         <PageHeader title="Tasks" />
-        <EmptyState title="Access required" description="You need OPS-001 read access to view tasks." />
+        <EmptyState
+          title="Access required"
+          description="You need OPS-001 read access to view tasks."
+        />
       </div>
     );
   }
@@ -134,9 +137,7 @@ export default function TasksPage() {
                 category={cat}
                 tasks={items}
                 collapsed={collapsed[cat]}
-                onToggle={() =>
-                  setCollapsed((prev) => ({ ...prev, [cat]: !prev[cat] }))
-                }
+                onToggle={() => setCollapsed((prev) => ({ ...prev, [cat]: !prev[cat] }))}
               />
             );
           })}

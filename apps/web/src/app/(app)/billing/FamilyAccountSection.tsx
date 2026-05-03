@@ -2,11 +2,7 @@
 
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import {
-  useFamilyAccountBalance,
-  useInvoices,
-  usePayments,
-} from '@/hooks/use-billing';
+import { useFamilyAccountBalance, useInvoices, usePayments } from '@/hooks/use-billing';
 import {
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_PILL,

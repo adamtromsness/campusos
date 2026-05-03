@@ -37,9 +37,9 @@ export default function WorkflowTemplatesPage() {
 
       <div className="mb-4 rounded-card border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <p>
-          <strong>Read-only this cycle.</strong> Editing templates (add/remove/reorder steps,
-          set approver type, set timeout) lands in a future cycle. The seed ships three
-          templates that drive the active flows.
+          <strong>Read-only this cycle.</strong> Editing templates (add/remove/reorder steps, set
+          approver type, set timeout) lands in a future cycle. The seed ships three templates that
+          drive the active flows.
         </p>
       </div>
 
@@ -67,9 +67,7 @@ export default function WorkflowTemplatesPage() {
                 <span
                   className={cn(
                     'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
-                    t.isActive
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-gray-200 text-gray-600',
+                    t.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600',
                   )}
                 >
                   {t.isActive ? 'Active' : 'Inactive'}
@@ -98,9 +96,7 @@ export default function WorkflowTemplatesPage() {
                         )}
                       </p>
                       <p className="mt-0.5 text-xs text-gray-500">
-                        {s.timeoutHours
-                          ? 'Timeout ' + s.timeoutHours + 'h'
-                          : 'No timeout'}
+                        {s.timeoutHours ? 'Timeout ' + s.timeoutHours + 'h' : 'No timeout'}
                         {s.isParallel && ' · parallel'}
                       </p>
                     </div>

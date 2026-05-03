@@ -1,378 +1,1107 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CampusOS — Cycle 4 Implementation Plan</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
-:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
-.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
-.topbar .brand{font-weight:600;color:white;font-size:15px}
-.topbar .sep{color:rgba(255,255,255,0.3)}
-.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
-.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
-.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
-.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
-.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
-.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
-h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
-h2.section-heading:first-of-type{border-top:none;margin-top:0}
-p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
-.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
-.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
-.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
-.callout-thesis .callout-title{color:var(--accent)}
-.callout-ai{background:#f0f7f0;border-color:var(--green)}
-.callout-ai .callout-title{color:#2d7a2d}
-.callout-note{background:var(--amber-bg);border-color:var(--amber)}
-.callout-note .callout-title{color:#9a7b1a}
-.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
-.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
-.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
-.step-title{font-size:19px;font-weight:700;color:var(--accent)}
-.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
-.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
-.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
-.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
-.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
-.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
-.tag-infra{background:#f0e6f6;color:#6b21a8;border:1px solid #d4a8e8}
-.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
-.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
-.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
-.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
-.step .depends{font-size:12px;color:var(--text-light);margin-top:6px}
-.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
-.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
-.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
-.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
-.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
-@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
-</style>
-</head>
-<body>
-
-<div class="topbar">
-  <a href="../index.html" class="brand">CampusOS</a>
-  <span class="sep">|</span>
-  <a href="../index.html">Design Hub</a>
-  <a href="campusos-erd-v11.html">ERD v11</a>
-</div>
-
-<div class="container">
-  <div class="hero">
-    <div class="hero-brand">CampusOS &middot; Phase 3</div>
-    <h1>Cycle 4: HR &amp; Workforce Core<br>Implementation Plan</h1>
-    <div class="sub">Employee records, positions, leave management, certifications, and training compliance. Resolves the temporary HR-employee identity mapping from Cycle 2 and adds the Staff Directory app to the launchpad.</div>
-    <span class="version">April 2026 &middot; 10 Steps &middot; ERD v11 &middot; M80 HR/Workforce (Core Subset)</span>
-  </div>
-
-  <h2 class="section-heading">Plan Overview</h2>
-
-  <p class="body-text">Cycle 4 builds the M80 HR/Workforce module &mdash; or rather, the core of it. The full ERD defines 48 HR tables; this cycle implements the 20 most essential ones that deliver immediate value: employee records, positions, leave management, certifications, training compliance, and the staff directory. Recruitment, payroll, benefits enrollment, appraisals, grievances, and workers' comp are deferred to Cycle 4b or later.</p>
-
-  <div class="callout callout-thesis">
-    <div class="callout-title">Vertical Slice Deliverable</div>
-    <p style="font-size:15px;line-height:1.8;">Admin creates an employee record for James Rivera &rarr; assigns him to the "Teacher" position &rarr; Rivera views his own profile with certifications and leave balances &rarr; Rivera submits a sick leave request &rarr; admin approves it &rarr; coverage notification fires for affected classes &rarr; Rivera's leave balance updates &rarr; compliance dashboard shows his certification expiry in 60 days.</p>
-  </div>
-
-  <div class="callout callout-note">
-    <div class="callout-title">Why Cycle 4 Matters</div>
-    <p style="font-size:15px;line-height:1.8;"><strong>Identity resolution:</strong> Since Cycle 2, every <code>teacher_employee_id</code>, <code>cls_grades.teacher_id</code>, and <code>cls_student_progress_notes.author_id</code> column has held <code>iam_person.id</code> directly because <code>hr_employees</code> didn't exist yet. This cycle creates the employee table with <code>person_id FK(iam_person)</code>, seeds employee records for all staff, and runs an additive migration that re-points the soft FKs. The "Temporary HR-Employee Identity Mapping" documented in CLAUDE.md is finally resolved.</p>
-    <p style="font-size:15px;line-height:1.8;"><strong>Leave &rarr; coverage:</strong> When a teacher takes leave, the system needs to know which classes are affected. The SIS module already has <code>sis_class_teachers</code>. This cycle connects leave requests to affected classes via a Kafka event, which Cycle 5 (Scheduling) can consume to trigger substitute assignment.</p>
-  </div>
-
-  <div class="callout callout-note">
-    <div class="callout-title">What's In / What's Deferred</div>
-    <p style="font-size:15px;line-height:1.8;"><strong>In scope:</strong> hr_employees, hr_positions, hr_employee_positions, hr_departments (reuses sis_departments), hr_leave_types, hr_leave_balances, hr_leave_requests, hr_staff_certifications, hr_training_requirements, hr_training_compliance, hr_cpd_requirements, hr_work_authorisation, hr_emergency_contacts, hr_onboarding_templates, hr_onboarding_checklists, hr_onboarding_tasks, hr_document_types, hr_employee_documents. Functions HR-001, HR-003, HR-004, HR-006 (core only).</p>
-    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> hr_job_postings, hr_applications, hr_interview_schedules, hr_offer_letters (HR-002 Recruitment &mdash; Cycle 4b). hr_pay_periods, hr_payroll_records, hr_salary_components, hr_deductions, hr_tax_information (payroll &mdash; separate cycle). hr_benefit_enrolment_periods, hr_benefit_plans, hr_benefit_elections (benefits &mdash; separate cycle). hr_appraisals, hr_appraisal_responses, hr_classroom_observations (HR-005 PD &mdash; Cycle 4b). hr_grievances, hr_grievance_actions, hr_disciplinary_actions (employee relations &mdash; separate cycle). hr_workers_comp_claims, hr_return_to_work_plans (workers comp &mdash; separate cycle).</p>
-  </div>
-
-  <table class="spec-table">
-    <tr><th style="width:8%">Step</th><th style="width:34%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
-    <tr><td><strong>0</strong></td><td>HR-Employee Identity Migration</td><td>Infra</td><td>Create hr_employees, seed employee records, re-point soft FKs from iam_person.id to hr_employees.id</td></tr>
-    <tr><td><strong>1</strong></td><td>HR Schema &mdash; Employees &amp; Positions</td><td>Schema</td><td>hr_employees, hr_positions, hr_employee_positions, hr_emergency_contacts, hr_document_types, hr_employee_documents</td></tr>
-    <tr><td><strong>2</strong></td><td>HR Schema &mdash; Leave Management</td><td>Schema</td><td>hr_leave_types, hr_leave_balances, hr_leave_requests</td></tr>
-    <tr><td><strong>3</strong></td><td>HR Schema &mdash; Certifications &amp; Training</td><td>Schema</td><td>hr_staff_certifications, hr_training_requirements, hr_training_compliance, hr_cpd_requirements, hr_work_authorisation</td></tr>
-    <tr><td><strong>4</strong></td><td>HR Schema &mdash; Onboarding</td><td>Schema</td><td>hr_onboarding_templates, hr_onboarding_checklists, hr_onboarding_tasks</td></tr>
-    <tr><td><strong>5</strong></td><td>Seed Data &mdash; Employees, Leave, Certifications</td><td>Seed</td><td>5 employee records, positions, leave types/balances, certifications, training requirements, onboarding checklist</td></tr>
-    <tr><td><strong>6</strong></td><td>HR NestJS Module &mdash; Employee Records &amp; Directory</td><td>Code</td><td>EmployeeService, PositionService, StaffDirectoryController, EmployeeDocumentService</td></tr>
-    <tr><td><strong>7</strong></td><td>HR NestJS Module &mdash; Leave &amp; Certifications</td><td>Code</td><td>LeaveService, CertificationService, TrainingComplianceService, Kafka events for leave</td></tr>
-    <tr><td><strong>8</strong></td><td>Staff Directory &amp; Employee Profile UI</td><td>UI</td><td>Staff Directory app tile, employee list, employee profile with tabs (info, certifications, leave, documents)</td></tr>
-    <tr><td><strong>9</strong></td><td>Leave Management &amp; Compliance Dashboard UI</td><td>UI</td><td>Leave request form, leave history, admin approval queue, certification tracker, compliance dashboard</td></tr>
-    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>End-to-end: create employee &rarr; leave request &rarr; approve &rarr; balance updates &rarr; compliance dashboard</td></tr>
-  </table>
-
-  <h2 class="section-heading">Step-by-Step Build Plan</h2>
-
-  <!-- ── STEP 0 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">00</span>
-      <span class="step-title">HR-Employee Identity Migration</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CampusOS — Cycle 4 Implementation Plan</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+      :root {
+        --accent: #1a3a5c;
+        --accent-light: #e8f0f8;
+        --accent-mid: #3d7ab5;
+        --text: #2c2c2c;
+        --text-light: #6b7280;
+        --bg: #fafbfc;
+        --white: #ffffff;
+        --border: #e2e6ea;
+        --green: #28a745;
+        --green-bg: #eef7ee;
+        --amber: #e5a919;
+        --amber-bg: #fef9ec;
+        --blue: #3d7ab5;
+        --blue-bg: #e8f0f8;
+        --purple: #8b4fc6;
+        --purple-bg: #f4ecfb;
+        --red: #dc3545;
+        --red-bg: #fdeaea;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+      .topbar {
+        background: #1a5276;
+        padding: 10px 40px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+      .topbar a {
+        color: rgba(255, 255, 255, 0.85);
+        text-decoration: none;
+        font-size: 13px;
+      }
+      .topbar .brand {
+        font-weight: 600;
+        color: white;
+        font-size: 15px;
+      }
+      .topbar .sep {
+        color: rgba(255, 255, 255, 0.3);
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 40px 40px 120px;
+      }
+      .hero {
+        padding: 60px 0 40px;
+        border-bottom: 2px solid var(--accent);
+        margin-bottom: 48px;
+      }
+      .hero-brand {
+        font-family: 'DM Serif Display', serif;
+        font-size: 14px;
+        color: var(--accent-mid);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      .hero h1 {
+        font-family: 'DM Serif Display', serif;
+        font-size: 40px;
+        color: var(--accent);
+        line-height: 1.15;
+        margin-bottom: 12px;
+        font-weight: 400;
+      }
+      .hero .sub {
+        font-size: 18px;
+        color: var(--text-light);
+        font-style: italic;
+        max-width: 700px;
+        margin-bottom: 16px;
+      }
+      .hero .version {
+        font-size: 13px;
+        color: var(--accent-mid);
+        font-weight: 600;
+        background: var(--accent-light);
+        display: inline-block;
+        padding: 4px 14px;
+        border-radius: 6px;
+      }
+      h2.section-heading {
+        font-family: 'DM Serif Display', serif;
+        font-size: 26px;
+        color: var(--accent);
+        font-weight: 400;
+        margin: 48px 0 16px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+      }
+      h2.section-heading:first-of-type {
+        border-top: none;
+        margin-top: 0;
+      }
+      p.body-text {
+        font-size: 15px;
+        line-height: 1.8;
+        margin-bottom: 16px;
+        color: var(--text);
+      }
+      .callout {
+        border-radius: 10px;
+        padding: 20px 24px;
+        margin: 20px 0 24px;
+        border-left: 5px solid;
+      }
+      .callout-title {
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+      .callout-thesis {
+        background: var(--accent-light);
+        border-color: var(--accent-mid);
+      }
+      .callout-thesis .callout-title {
+        color: var(--accent);
+      }
+      .callout-ai {
+        background: #f0f7f0;
+        border-color: var(--green);
+      }
+      .callout-ai .callout-title {
+        color: #2d7a2d;
+      }
+      .callout-note {
+        background: var(--amber-bg);
+        border-color: var(--amber);
+      }
+      .callout-note .callout-title {
+        color: #9a7b1a;
+      }
+      .step {
+        background: var(--white);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 28px 32px;
+        margin: 20px 0;
+        position: relative;
+      }
+      .step-header {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        margin-bottom: 12px;
+      }
+      .step-num {
+        font-family: 'DM Serif Display', serif;
+        font-size: 36px;
+        color: var(--accent-mid);
+        line-height: 1;
+        opacity: 0.4;
+      }
+      .step-title {
+        font-size: 19px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      .step-meta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+      .step-tag {
+        font-size: 11px;
+        padding: 3px 10px;
+        border-radius: 5px;
+        font-weight: 600;
+      }
+      .tag-schema {
+        background: var(--green-bg);
+        color: #2d7a2d;
+        border: 1px solid #b7deb7;
+      }
+      .tag-code {
+        background: var(--blue-bg);
+        color: var(--blue);
+        border: 1px solid #b5d4f4;
+      }
+      .tag-ui {
+        background: var(--purple-bg);
+        color: var(--purple);
+        border: 1px solid #d4b8e8;
+      }
+      .tag-seed {
+        background: var(--amber-bg);
+        color: #9a7b1a;
+        border: 1px solid #e5d5a0;
+      }
+      .tag-test {
+        background: var(--red-bg);
+        color: var(--red);
+        border: 1px solid #f5c6cb;
+      }
+      .tag-infra {
+        background: #f0e6f6;
+        color: #6b21a8;
+        border: 1px solid #d4a8e8;
+      }
+      .step p {
+        font-size: 14px;
+        line-height: 1.8;
+        color: var(--text);
+        margin-bottom: 10px;
+      }
+      .step .detail-heading {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--accent);
+        margin: 16px 0 6px;
+      }
+      .step .detail-list {
+        font-size: 14px;
+        line-height: 2;
+        color: var(--text);
+        padding-left: 20px;
+        margin-bottom: 10px;
+      }
+      .step .produces {
+        font-size: 13px;
+        color: var(--accent-mid);
+        font-weight: 600;
+        margin-top: 14px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+      }
+      .step .depends {
+        font-size: 12px;
+        color: var(--text-light);
+        margin-top: 6px;
+      }
+      .spec-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0 24px;
+        font-size: 13px;
+      }
+      .spec-table th {
+        background: #d5e8f0;
+        padding: 10px 14px;
+        border: 1px solid #ccc;
+        text-align: left;
+        font-weight: 600;
+        color: var(--accent);
+      }
+      .spec-table td {
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .spec-table code {
+        font-size: 12px;
+        background: #f0f0f0;
+        padding: 1px 5px;
+        border-radius: 3px;
+      }
+      .doc-footer {
+        margin-top: 56px;
+        padding-top: 20px;
+        border-top: 2px solid var(--accent);
+        font-size: 13px;
+        color: var(--text-light);
+        line-height: 1.8;
+      }
+      @media (max-width: 768px) {
+        .hero h1 {
+          font-size: 30px;
+        }
+        .container {
+          padding: 20px 20px 60px;
+        }
+        .step {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <a href="../index.html" class="brand">CampusOS</a>
+      <span class="sep">|</span>
+      <a href="../index.html">Design Hub</a>
+      <a href="campusos-erd-v11.html">ERD v11</a>
     </div>
-    <div class="step-meta"><span class="step-tag tag-infra">Infrastructure</span></div>
-    <p>This is the step that resolves the Cycle 2 carry-over. Create the <code>hr_employees</code> table, seed employee records for the 5 test staff users, then run an additive migration that re-points the soft FK columns that currently hold <code>iam_person.id</code> to hold <code>hr_employees.id</code> instead.</p>
 
-    <div class="detail-heading">What Changes</div>
-    <ol class="detail-list">
-      <li><strong>Create <code>hr_employees</code></strong> in the tenant migration. Core columns: <code>id UUID PK</code>, <code>person_id UUID NOT NULL UNIQUE</code> (soft FK to <code>iam_person</code>), <code>account_id UUID NOT NULL UNIQUE</code> (soft FK to <code>platform_users</code>), <code>school_id UUID</code>, <code>employee_number TEXT</code>, <code>employment_type</code>, <code>employment_status</code>, <code>hire_date DATE</code>.</li>
-      <li><strong>Seed employee records</strong> for: admin (Sarah Mitchell), principal (same), teacher (James Rivera), and any other staff users. Each row links <code>person_id</code> to their <code>iam_person</code> and <code>account_id</code> to their <code>platform_users</code>.</li>
-      <li><strong>Re-point soft FKs.</strong> Run UPDATE statements to replace <code>iam_person.id</code> values with the corresponding <code>hr_employees.id</code> in: <code>sis_class_teachers.teacher_employee_id</code>, <code>cls_grades.teacher_id</code>, <code>cls_student_progress_notes.author_id</code>, <code>cls_lessons.teacher_id</code>. Since <code>hr_employees.person_id = iam_person.id</code>, the join is straightforward.</li>
-      <li><strong>Update all service code</strong> that compares these columns against <code>actor.personId</code>. The new comparison is: <code>column_value = (SELECT id FROM hr_employees WHERE person_id = $actor.personId)</code>. Or better: resolve <code>employeeId</code> once in <code>ActorContextService</code> and carry it on the actor object.</li>
-      <li><strong>Remove the "Temporary HR-Employee Identity Mapping" section</strong> from CLAUDE.md. Replace with a permanent convention: "Staff columns reference <code>hr_employees.id</code>. Resolve via <code>actor.employeeId</code> from <code>ActorContextService</code>."</li>
-    </ol>
+    <div class="container">
+      <div class="hero">
+        <div class="hero-brand">CampusOS &middot; Phase 3</div>
+        <h1>Cycle 4: HR &amp; Workforce Core<br />Implementation Plan</h1>
+        <div class="sub">
+          Employee records, positions, leave management, certifications, and training compliance.
+          Resolves the temporary HR-employee identity mapping from Cycle 2 and adds the Staff
+          Directory app to the launchpad.
+        </div>
+        <span class="version"
+          >April 2026 &middot; 10 Steps &middot; ERD v11 &middot; M80 HR/Workforce (Core
+          Subset)</span
+        >
+      </div>
 
-    <div class="produces">Produces &rarr; <code>hr_employees</code> table with seeded records. All soft FKs resolved. Identity mapping complete.</div>
-  </div>
+      <h2 class="section-heading">Plan Overview</h2>
 
-  <!-- ── STEP 1 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">01</span>
-      <span class="step-title">HR Schema &mdash; Employees &amp; Positions</span>
+      <p class="body-text">
+        Cycle 4 builds the M80 HR/Workforce module &mdash; or rather, the core of it. The full ERD
+        defines 48 HR tables; this cycle implements the 20 most essential ones that deliver
+        immediate value: employee records, positions, leave management, certifications, training
+        compliance, and the staff directory. Recruitment, payroll, benefits enrollment, appraisals,
+        grievances, and workers' comp are deferred to Cycle 4b or later.
+      </p>
+
+      <div class="callout callout-thesis">
+        <div class="callout-title">Vertical Slice Deliverable</div>
+        <p style="font-size: 15px; line-height: 1.8">
+          Admin creates an employee record for James Rivera &rarr; assigns him to the "Teacher"
+          position &rarr; Rivera views his own profile with certifications and leave balances &rarr;
+          Rivera submits a sick leave request &rarr; admin approves it &rarr; coverage notification
+          fires for affected classes &rarr; Rivera's leave balance updates &rarr; compliance
+          dashboard shows his certification expiry in 60 days.
+        </p>
+      </div>
+
+      <div class="callout callout-note">
+        <div class="callout-title">Why Cycle 4 Matters</div>
+        <p style="font-size: 15px; line-height: 1.8">
+          <strong>Identity resolution:</strong> Since Cycle 2, every
+          <code>teacher_employee_id</code>, <code>cls_grades.teacher_id</code>, and
+          <code>cls_student_progress_notes.author_id</code> column has held
+          <code>iam_person.id</code> directly because <code>hr_employees</code> didn't exist yet.
+          This cycle creates the employee table with <code>person_id FK(iam_person)</code>, seeds
+          employee records for all staff, and runs an additive migration that re-points the soft
+          FKs. The "Temporary HR-Employee Identity Mapping" documented in CLAUDE.md is finally
+          resolved.
+        </p>
+        <p style="font-size: 15px; line-height: 1.8">
+          <strong>Leave &rarr; coverage:</strong> When a teacher takes leave, the system needs to
+          know which classes are affected. The SIS module already has
+          <code>sis_class_teachers</code>. This cycle connects leave requests to affected classes
+          via a Kafka event, which Cycle 5 (Scheduling) can consume to trigger substitute
+          assignment.
+        </p>
+      </div>
+
+      <div class="callout callout-note">
+        <div class="callout-title">What's In / What's Deferred</div>
+        <p style="font-size: 15px; line-height: 1.8">
+          <strong>In scope:</strong> hr_employees, hr_positions, hr_employee_positions,
+          hr_departments (reuses sis_departments), hr_leave_types, hr_leave_balances,
+          hr_leave_requests, hr_staff_certifications, hr_training_requirements,
+          hr_training_compliance, hr_cpd_requirements, hr_work_authorisation, hr_emergency_contacts,
+          hr_onboarding_templates, hr_onboarding_checklists, hr_onboarding_tasks, hr_document_types,
+          hr_employee_documents. Functions HR-001, HR-003, HR-004, HR-006 (core only).
+        </p>
+        <p style="font-size: 15px; line-height: 1.8">
+          <strong>Deferred:</strong> hr_job_postings, hr_applications, hr_interview_schedules,
+          hr_offer_letters (HR-002 Recruitment &mdash; Cycle 4b). hr_pay_periods,
+          hr_payroll_records, hr_salary_components, hr_deductions, hr_tax_information (payroll
+          &mdash; separate cycle). hr_benefit_enrolment_periods, hr_benefit_plans,
+          hr_benefit_elections (benefits &mdash; separate cycle). hr_appraisals,
+          hr_appraisal_responses, hr_classroom_observations (HR-005 PD &mdash; Cycle 4b).
+          hr_grievances, hr_grievance_actions, hr_disciplinary_actions (employee relations &mdash;
+          separate cycle). hr_workers_comp_claims, hr_return_to_work_plans (workers comp &mdash;
+          separate cycle).
+        </p>
+      </div>
+
+      <table class="spec-table">
+        <tr>
+          <th style="width: 8%">Step</th>
+          <th style="width: 34%">Deliverable</th>
+          <th style="width: 13%">Type</th>
+          <th>Key Outputs</th>
+        </tr>
+        <tr>
+          <td><strong>0</strong></td>
+          <td>HR-Employee Identity Migration</td>
+          <td>Infra</td>
+          <td>
+            Create hr_employees, seed employee records, re-point soft FKs from iam_person.id to
+            hr_employees.id
+          </td>
+        </tr>
+        <tr>
+          <td><strong>1</strong></td>
+          <td>HR Schema &mdash; Employees &amp; Positions</td>
+          <td>Schema</td>
+          <td>
+            hr_employees, hr_positions, hr_employee_positions, hr_emergency_contacts,
+            hr_document_types, hr_employee_documents
+          </td>
+        </tr>
+        <tr>
+          <td><strong>2</strong></td>
+          <td>HR Schema &mdash; Leave Management</td>
+          <td>Schema</td>
+          <td>hr_leave_types, hr_leave_balances, hr_leave_requests</td>
+        </tr>
+        <tr>
+          <td><strong>3</strong></td>
+          <td>HR Schema &mdash; Certifications &amp; Training</td>
+          <td>Schema</td>
+          <td>
+            hr_staff_certifications, hr_training_requirements, hr_training_compliance,
+            hr_cpd_requirements, hr_work_authorisation
+          </td>
+        </tr>
+        <tr>
+          <td><strong>4</strong></td>
+          <td>HR Schema &mdash; Onboarding</td>
+          <td>Schema</td>
+          <td>hr_onboarding_templates, hr_onboarding_checklists, hr_onboarding_tasks</td>
+        </tr>
+        <tr>
+          <td><strong>5</strong></td>
+          <td>Seed Data &mdash; Employees, Leave, Certifications</td>
+          <td>Seed</td>
+          <td>
+            5 employee records, positions, leave types/balances, certifications, training
+            requirements, onboarding checklist
+          </td>
+        </tr>
+        <tr>
+          <td><strong>6</strong></td>
+          <td>HR NestJS Module &mdash; Employee Records &amp; Directory</td>
+          <td>Code</td>
+          <td>
+            EmployeeService, PositionService, StaffDirectoryController, EmployeeDocumentService
+          </td>
+        </tr>
+        <tr>
+          <td><strong>7</strong></td>
+          <td>HR NestJS Module &mdash; Leave &amp; Certifications</td>
+          <td>Code</td>
+          <td>
+            LeaveService, CertificationService, TrainingComplianceService, Kafka events for leave
+          </td>
+        </tr>
+        <tr>
+          <td><strong>8</strong></td>
+          <td>Staff Directory &amp; Employee Profile UI</td>
+          <td>UI</td>
+          <td>
+            Staff Directory app tile, employee list, employee profile with tabs (info,
+            certifications, leave, documents)
+          </td>
+        </tr>
+        <tr>
+          <td><strong>9</strong></td>
+          <td>Leave Management &amp; Compliance Dashboard UI</td>
+          <td>UI</td>
+          <td>
+            Leave request form, leave history, admin approval queue, certification tracker,
+            compliance dashboard
+          </td>
+        </tr>
+        <tr>
+          <td><strong>10</strong></td>
+          <td>Vertical Slice Integration Test</td>
+          <td>Test</td>
+          <td>
+            End-to-end: create employee &rarr; leave request &rarr; approve &rarr; balance updates
+            &rarr; compliance dashboard
+          </td>
+        </tr>
+      </table>
+
+      <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+      <!-- ── STEP 0 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">00</span>
+          <span class="step-title">HR-Employee Identity Migration</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-infra">Infrastructure</span></div>
+        <p>
+          This is the step that resolves the Cycle 2 carry-over. Create the
+          <code>hr_employees</code> table, seed employee records for the 5 test staff users, then
+          run an additive migration that re-points the soft FK columns that currently hold
+          <code>iam_person.id</code> to hold <code>hr_employees.id</code> instead.
+        </p>
+
+        <div class="detail-heading">What Changes</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Create <code>hr_employees</code></strong> in the tenant migration. Core columns:
+            <code>id UUID PK</code>, <code>person_id UUID NOT NULL UNIQUE</code> (soft FK to
+            <code>iam_person</code>), <code>account_id UUID NOT NULL UNIQUE</code> (soft FK to
+            <code>platform_users</code>), <code>school_id UUID</code>,
+            <code>employee_number TEXT</code>, <code>employment_type</code>,
+            <code>employment_status</code>, <code>hire_date DATE</code>.
+          </li>
+          <li>
+            <strong>Seed employee records</strong> for: admin (Sarah Mitchell), principal (same),
+            teacher (James Rivera), and any other staff users. Each row links
+            <code>person_id</code> to their <code>iam_person</code> and <code>account_id</code> to
+            their <code>platform_users</code>.
+          </li>
+          <li>
+            <strong>Re-point soft FKs.</strong> Run UPDATE statements to replace
+            <code>iam_person.id</code> values with the corresponding
+            <code>hr_employees.id</code> in: <code>sis_class_teachers.teacher_employee_id</code>,
+            <code>cls_grades.teacher_id</code>, <code>cls_student_progress_notes.author_id</code>,
+            <code>cls_lessons.teacher_id</code>. Since
+            <code>hr_employees.person_id = iam_person.id</code>, the join is straightforward.
+          </li>
+          <li>
+            <strong>Update all service code</strong> that compares these columns against
+            <code>actor.personId</code>. The new comparison is:
+            <code
+              >column_value = (SELECT id FROM hr_employees WHERE person_id = $actor.personId)</code
+            >. Or better: resolve <code>employeeId</code> once in
+            <code>ActorContextService</code> and carry it on the actor object.
+          </li>
+          <li>
+            <strong>Remove the "Temporary HR-Employee Identity Mapping" section</strong> from
+            CLAUDE.md. Replace with a permanent convention: "Staff columns reference
+            <code>hr_employees.id</code>. Resolve via <code>actor.employeeId</code> from
+            <code>ActorContextService</code>."
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; <code>hr_employees</code> table with seeded records. All soft FKs
+          resolved. Identity mapping complete.
+        </div>
+      </div>
+
+      <!-- ── STEP 1 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">01</span>
+          <span class="step-title">HR Schema &mdash; Employees &amp; Positions</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+        <p>
+          The employee core: positions, position assignments (time-bounded), emergency contacts, and
+          document management.
+        </p>
+
+        <div class="detail-heading">Tables (5, plus hr_employees from Step 0)</div>
+        <ol class="detail-list">
+          <li>
+            <strong>hr_positions</strong> &mdash; <code>school_id</code>,
+            <code>title TEXT NOT NULL</code>, <code>department_id UUID</code> (soft FK to
+            <code>sis_departments</code>), <code>is_teaching_role BOOLEAN</code>. UNIQUE(school_id,
+            title).
+          </li>
+          <li>
+            <strong>hr_employee_positions</strong> &mdash; <code>employee_id FK</code>,
+            <code>position_id FK</code>, <code>effective_from DATE</code>,
+            <code>effective_to DATE</code>. INDEX(employee_id, effective_from DESC). Tracks position
+            history.
+          </li>
+          <li>
+            <strong>hr_emergency_contacts</strong> &mdash; <code>employee_id FK</code>,
+            <code>name TEXT NOT NULL</code>, <code>relationship TEXT</code>,
+            <code>phone TEXT NOT NULL</code>, <code>is_primary BOOLEAN</code>. Separate from
+            <code>sis_emergency_contacts</code> (student emergency contacts).
+          </li>
+          <li>
+            <strong>hr_document_types</strong> &mdash; <code>school_id</code>,
+            <code>name TEXT NOT NULL</code>, <code>is_required BOOLEAN</code>,
+            <code>retention_days INT</code>. UNIQUE(school_id, name). Examples: Contract, ID Copy,
+            Tax Form, Background Check.
+          </li>
+          <li>
+            <strong>hr_employee_documents</strong> &mdash; <code>employee_id FK</code>,
+            <code>document_type_id FK</code>, <code>file_name TEXT</code>, <code>s3_key TEXT</code>,
+            <code>uploaded_by UUID</code> (soft), <code>uploaded_at TIMESTAMPTZ</code>,
+            <code>expiry_date DATE</code>. INDEX(employee_id, document_type_id).
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; 5 new tables + hr_employees from Step 0. Migration:
+          <code>011_hr_employees_and_positions.sql</code>.
+        </div>
+      </div>
+
+      <!-- ── STEP 2 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">02</span>
+          <span class="step-title">HR Schema &mdash; Leave Management</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+        <p>Leave types, per-employee balances, and leave requests with approval workflow.</p>
+
+        <div class="detail-heading">Tables (3)</div>
+        <ol class="detail-list">
+          <li>
+            <strong>hr_leave_types</strong> &mdash; <code>school_id</code>,
+            <code>name TEXT NOT NULL</code>, <code>is_paid BOOLEAN</code>,
+            <code>accrual_rate NUMERIC(5,2)</code>, <code>max_balance NUMERIC(5,2)</code>. Examples:
+            Sick Leave, Personal Leave, Bereavement, Professional Development.
+          </li>
+          <li>
+            <strong>hr_leave_balances</strong> &mdash; UNIQUE(<code
+              >employee_id, leave_type_id, academic_year_id</code
+            >). <code>accrued NUMERIC(5,2)</code>, <code>used NUMERIC(5,2)</code>,
+            <code>pending NUMERIC(5,2)</code>. Updated by the leave request approval workflow.
+          </li>
+          <li>
+            <strong>hr_leave_requests</strong> &mdash; <code>employee_id FK</code>,
+            <code>leave_type_id FK</code>, <code>start_date DATE</code>, <code>end_date DATE</code>,
+            <code>days_requested NUMERIC(4,1)</code>, <code>status</code> ENUM(PENDING, APPROVED,
+            REJECTED, CANCELLED), <code>reason TEXT</code>,
+            <code>is_hr_initiated BOOLEAN DEFAULT false</code>,
+            <code>hr_initiated_by UUID</code> (soft), <code>hr_initiated_reason TEXT</code>.
+            INDEX(employee_id, status).
+          </li>
+        </ol>
+
+        <div class="detail-heading">Leave Approval Flow</div>
+        <p>
+          Employee submits &rarr; status=PENDING, <code>pending</code> balance incremented &rarr;
+          Kafka event <code>hr.leave.requested</code> fires &rarr; admin approves &rarr;
+          status=APPROVED, <code>pending</code> decremented, <code>used</code> incremented &rarr;
+          Kafka event <code>hr.leave.approved</code> fires (consumed by Cycle 5 Scheduling for
+          coverage). Rejection: status=REJECTED, <code>pending</code> decremented back.
+          Cancellation: same reversal.
+        </p>
+
+        <div class="produces">
+          Produces &rarr; 3 new tables. Migration: <code>012_hr_leave_management.sql</code>.
+        </div>
+      </div>
+
+      <!-- ── STEP 3 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">03</span>
+          <span class="step-title">HR Schema &mdash; Certifications &amp; Training</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+        <p>
+          Professional certifications, mandatory training requirements, compliance tracking, CPD
+          (Continuing Professional Development) hours, and work authorisation.
+        </p>
+
+        <div class="detail-heading">Tables (5)</div>
+        <ol class="detail-list">
+          <li>
+            <strong>hr_staff_certifications</strong> &mdash; <code>employee_id FK</code>,
+            <code>certification_type</code> ENUM(TEACHING_LICENCE, FIRST_AID, SAFEGUARDING_LEVEL1,
+            SAFEGUARDING_LEVEL2, DBS_BASIC, DBS_ENHANCED, FOOD_HYGIENE, FIRE_SAFETY_WARDEN,
+            SPECIALIST_SUBJECT, CUSTOM), <code>certification_name TEXT</code>,
+            <code>issuing_body TEXT</code>, <code>reference_number TEXT</code>,
+            <code>issued_date DATE</code>, <code>expiry_date DATE</code>,
+            <code>verification_status</code> ENUM(PENDING, VERIFIED, EXPIRED, REVOKED),
+            <code>document_s3_key TEXT</code>. Alert job: 90, 30, 7 days before expiry. Follows
+            ADR-015 for DBS: store reference + status only.
+          </li>
+          <li>
+            <strong>hr_training_requirements</strong> &mdash; <code>school_id</code>,
+            <code>position_id FK nullable</code> (null = all staff),
+            <code>training_name TEXT</code>, <code>certification_type</code> (links to
+            hr_staff_certifications for auto compliance), <code>frequency</code> ENUM(ONE_TIME,
+            ANNUAL, BIENNIAL, TRIENNIAL, CUSTOM), <code>is_active BOOLEAN</code>.
+          </li>
+          <li>
+            <strong>hr_training_compliance</strong> &mdash; Materialised per-employee
+            per-requirement compliance status. Updated nightly by
+            <code>TrainingComplianceWorker</code>. UNIQUE(<code>employee_id, requirement_id</code>).
+            <code>is_compliant BOOLEAN</code>, <code>last_completed_date DATE</code>,
+            <code>next_due_date DATE</code>, <code>linked_certification_id FK</code>,
+            <code>days_until_due INT</code>.
+          </li>
+          <li>
+            <strong>hr_cpd_requirements</strong> &mdash; UNIQUE(<code
+              >school_id, position_id, academic_year_id</code
+            >). <code>required_pd_hours NUMERIC(4,1)</code>,
+            <code>required_credit_hours NUMERIC(4,1)</code>.
+          </li>
+          <li>
+            <strong>hr_work_authorisation</strong> &mdash; UNIQUE(<code>employee_id</code>).
+            <code>document_type</code> ENUM(US_PASSPORT, UK_PASSPORT, UK_BRP,
+            PERMANENT_RESIDENT_CARD, EMPLOYMENT_AUTHORISATION, OTHER),
+            <code>expiry_date DATE</code>, <code>verified_by UUID</code>,
+            <code>verified_at DATE</code>, <code>reverification_due_date DATE</code>.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; 5 new tables. Migration:
+          <code>013_hr_certifications_and_training.sql</code>.
+        </div>
+      </div>
+
+      <!-- ── STEP 4 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">04</span>
+          <span class="step-title">HR Schema &mdash; Onboarding</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+        <p>New hire onboarding with template-based checklists and task tracking.</p>
+
+        <div class="detail-heading">Tables (3)</div>
+        <ol class="detail-list">
+          <li>
+            <strong>hr_onboarding_templates</strong> &mdash; <code>school_id</code>,
+            <code>name TEXT</code>, <code>position_id FK nullable</code> (null = generic),
+            <code>is_active BOOLEAN</code>. UNIQUE(school_id, name). Template for what a new hire
+            needs to complete.
+          </li>
+          <li>
+            <strong>hr_onboarding_checklists</strong> &mdash; <code>employee_id FK</code>,
+            <code>template_id FK</code>, <code>status</code> ENUM(NOT_STARTED, IN_PROGRESS,
+            COMPLETED), <code>started_at</code>, <code>completed_at</code>,
+            <code>assigned_by UUID</code> (soft). One checklist per new hire.
+          </li>
+          <li>
+            <strong>hr_onboarding_tasks</strong> &mdash; <code>checklist_id FK</code>,
+            <code>title TEXT</code>, <code>description TEXT</code>,
+            <code>category</code> ENUM(DOCUMENT, TRAINING, SYSTEM_ACCESS, ORIENTATION, OTHER),
+            <code>is_required BOOLEAN</code>, <code>due_days_from_start INT</code>,
+            <code>status</code> ENUM(PENDING, IN_PROGRESS, COMPLETED, SKIPPED),
+            <code>completed_at</code>, <code>completed_by UUID</code>. INDEX(checklist_id, status).
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; 3 new tables. Migration: <code>014_hr_onboarding.sql</code>.
+        </div>
+      </div>
+
+      <!-- ── STEP 5 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">05</span>
+          <span class="step-title">Seed Data &mdash; Employees, Leave, Certifications</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+        <p>Populate the HR module with realistic demo data.</p>
+
+        <div class="detail-heading">What Gets Seeded</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Employees:</strong> 5 employee records mapping to the 5 test users who are staff
+            (admin, principal, teacher, plus 2 more staff from the existing seed). Each links
+            <code>person_id</code> to <code>iam_person</code> and <code>account_id</code> to
+            <code>platform_users</code>.
+          </li>
+          <li>
+            <strong>Positions:</strong> 5 positions &mdash; Teacher, Principal, Vice Principal,
+            Administrative Assistant, Counsellor. Linked to <code>sis_departments</code> where
+            applicable.
+          </li>
+          <li>
+            <strong>Position assignments:</strong> Each employee assigned to their current position
+            with <code>effective_from</code> = hire date.
+          </li>
+          <li>
+            <strong>Leave types:</strong> 5 types &mdash; Sick Leave (10 days/year, paid), Personal
+            Leave (3 days/year, paid), Bereavement (5 days, paid), Professional Development (5 days,
+            paid), Unpaid Leave (unlimited, unpaid).
+          </li>
+          <li>
+            <strong>Leave balances:</strong> Each employee gets balances for the current academic
+            year. Rivera: 8 sick days remaining, 2 personal days remaining (has used some).
+          </li>
+          <li>
+            <strong>Leave requests:</strong> 2 sample requests &mdash; Rivera took 2 sick days in
+            March (APPROVED), and has a PD day request next month (PENDING).
+          </li>
+          <li>
+            <strong>Certifications:</strong> Rivera has: Teaching Licence (expires in 60 days
+            &mdash; will trigger compliance alert), First Aid (valid), Safeguarding Level 1 (valid).
+            Mitchell has: DBS Enhanced (verified).
+          </li>
+          <li>
+            <strong>Training requirements:</strong> 3 school-wide requirements &mdash; Safeguarding
+            (ANNUAL), First Aid (BIENNIAL), Fire Safety (ANNUAL). 1 position-specific: Teaching
+            Licence renewal for teachers.
+          </li>
+          <li>
+            <strong>Training compliance:</strong> Pre-computed compliance rows. Rivera: compliant on
+            Safeguarding and First Aid, non-compliant on Teaching Licence (expiring in 60 days).
+          </li>
+          <li>
+            <strong>Document types:</strong> Contract, Background Check, Tax Form W-4, Teaching
+            Licence Copy.
+          </li>
+          <li>
+            <strong>Onboarding template:</strong> "New Teacher Onboarding" with 8 tasks (submit tax
+            forms, upload ID, complete safeguarding training, classroom setup orientation, etc.).
+          </li>
+          <li>
+            <strong>Permission updates:</strong> Add HR-001 (Employee Records) read to
+            Teacher/Staff. Add HR-003 (Leave) read/write to Teacher/Staff. Add HR-004
+            (Certifications) read to Teacher/Staff. Full HR access to School Admin and Platform
+            Admin. Rebuild effective access cache.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Populated HR module. Employee directory, leave balances, certifications,
+          and compliance data ready for the UI.
+        </div>
+      </div>
+
+      <!-- ── STEP 6 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">06</span>
+          <span class="step-title">HR NestJS Module &mdash; Employee Records &amp; Directory</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+        <p>The employee management API and staff directory.</p>
+
+        <div class="detail-heading">Services &amp; Endpoints</div>
+        <ol class="detail-list">
+          <li>
+            <strong>EmployeeService</strong> &mdash; CRUD employees.
+            <code>GET /employees</code> (staff directory &mdash; list all active employees with
+            position, department, contact), <code>GET /employees/:id</code> (full profile),
+            <code>GET /employees/me</code> (own profile), <code>POST /employees</code> (admin
+            creates), <code>PATCH /employees/:id</code> (admin updates). All
+            <code>@RequirePermission('hr-001:read')</code> or <code>'hr-001:write'</code>.
+          </li>
+          <li>
+            <strong>PositionService</strong> &mdash; <code>GET /positions</code>,
+            <code>POST /positions</code>, <code>PATCH /positions/:id</code>. Admin only
+            (<code>hr-001:admin</code>).
+          </li>
+          <li>
+            <strong>EmployeeDocumentService</strong> &mdash;
+            <code>GET /employees/:id/documents</code>,
+            <code>POST /employees/:id/documents</code> (upload),
+            <code>DELETE /employees/:id/documents/:docId</code>. Own documents readable by the
+            employee; all documents readable by admin.
+          </li>
+          <li>
+            <strong>ActorContextService extension</strong> &mdash; <code>resolveActor()</code> now
+            resolves <code>employeeId</code> from <code>hr_employees</code> where
+            <code>person_id = actor.personId</code>. This replaces the previous direct
+            <code>personId</code> comparison for all class-teacher, grade, and progress-note
+            authorization checks.
+          </li>
+        </ol>
+
+        <div class="detail-heading">Row-Level Authorization</div>
+        <p>
+          Employees can view the staff directory (everyone) and their own full profile. Admins can
+          view and edit all employees. Teachers cannot view other employees' documents or leave
+          details (only their own).
+        </p>
+
+        <div class="produces">
+          Produces &rarr; HRModule with EmployeeService, PositionService, EmployeeDocumentService.
+          ~10 endpoints.
+        </div>
+      </div>
+
+      <!-- ── STEP 7 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">07</span>
+          <span class="step-title">HR NestJS Module &mdash; Leave &amp; Certifications</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+        <p>Leave request workflow, certification management, and training compliance tracking.</p>
+
+        <div class="detail-heading">Services &amp; Endpoints</div>
+        <ol class="detail-list">
+          <li>
+            <strong>LeaveService</strong> &mdash; <code>POST /leave-requests</code> (submit &mdash;
+            validates against balance), <code>GET /leave-requests</code> (own history or admin
+            queue), <code>PATCH /leave-requests/:id/approve</code> (admin),
+            <code>PATCH /leave-requests/:id/reject</code> (admin),
+            <code>PATCH /leave-requests/:id/cancel</code> (employee cancels own). Kafka events:
+            <code>hr.leave.requested</code>, <code>hr.leave.approved</code>,
+            <code>hr.leave.rejected</code>, <code>hr.leave.cancelled</code>. All
+            <code>@RequirePermission('hr-003:read')</code> or <code>'hr-003:write'</code>.
+          </li>
+          <li>
+            <strong>CertificationService</strong> &mdash;
+            <code>GET /employees/:id/certifications</code>,
+            <code>POST /employees/:id/certifications</code>,
+            <code>PATCH /certifications/:id/verify</code> (admin verifies). Expiry alerts via
+            <code>hr.certification.expiring</code> Kafka event (consumed by notification pipeline).
+            <code>@RequirePermission('hr-004:read')</code> or <code>'hr-004:write'</code>.
+          </li>
+          <li>
+            <strong>TrainingComplianceService</strong> &mdash;
+            <code>GET /compliance/dashboard</code> (admin view &mdash; all employees' compliance
+            status), <code>GET /employees/:id/compliance</code> (individual view). Recomputes
+            compliance status by comparing <code>hr_staff_certifications</code> against
+            <code>hr_training_requirements</code>.
+          </li>
+          <li>
+            <strong>LeaveNotificationConsumer</strong> &mdash; Kafka consumer on
+            <code>hr.leave.approved</code>. Resolves affected classes via
+            <code>sis_class_teachers</code> for the leave date range. Emits
+            <code>hr.leave.coverage_needed</code> with class IDs and dates (consumed by Scheduling
+            in Cycle 5). Also notifies the employee of approval/rejection.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; LeaveService, CertificationService, TrainingComplianceService,
+          LeaveNotificationConsumer. ~12 endpoints + 5 Kafka events.
+        </div>
+      </div>
+
+      <!-- ── STEP 8 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">08</span>
+          <span class="step-title">Staff Directory &amp; Employee Profile UI</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+        <p>
+          A new "Staff" app tile on the home page launchpad. The staff directory is the phone book
+          of the school.
+        </p>
+
+        <div class="detail-heading">Pages</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Staff Directory</strong> <code>/staff</code> &mdash; searchable list of all
+            employees. Each card: name, position, department, email, phone. Search filters by name,
+            position, department. Visible to all staff (<code>hr-001:read</code>).
+          </li>
+          <li>
+            <strong>Employee Profile</strong> <code>/staff/:id</code> &mdash; tabbed view: Info
+            (demographics, position history, emergency contacts), Certifications (list with expiry
+            dates, verification status, color-coded by urgency), Leave (balances, request history),
+            Documents (uploaded files). Own profile shows all tabs. Others' profiles show only Info
+            tab unless the viewer is an admin.
+          </li>
+          <li>
+            <strong>My Profile shortcut</strong> <code>/staff/me</code> &mdash; redirects to
+            <code>/staff/:myEmployeeId</code>.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Staff Directory app, employee profile with tabs. Launchpad gets a "Staff"
+          tile for users with <code>hr-001:read</code>.
+        </div>
+      </div>
+
+      <!-- ── STEP 9 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">09</span>
+          <span class="step-title">Leave Management &amp; Compliance Dashboard UI</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+        <p>Leave request forms, approval queue, and the training compliance dashboard.</p>
+
+        <div class="detail-heading">Pages</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Request Leave</strong> <code>/leave/new</code> &mdash; form: leave type
+            dropdown, date range picker, days requested (auto-calculated, supports half-days),
+            reason text. Shows current balance for the selected type. Submit creates a PENDING
+            request.
+          </li>
+          <li>
+            <strong>My Leave</strong> <code>/leave</code> &mdash; employee view of their leave
+            balances (by type, visual bar showing used/remaining) and request history (with status
+            badges). Cancel button on PENDING requests.
+          </li>
+          <li>
+            <strong>Leave Approval Queue</strong> <code>/leave/approvals</code> (admin only) &mdash;
+            list of PENDING requests. Each shows: employee name, type, dates, days, reason.
+            Approve/Reject buttons with optional response note.
+          </li>
+          <li>
+            <strong>Compliance Dashboard</strong> <code>/compliance</code> (admin only) &mdash;
+            table of all employees with their compliance status across all training requirements.
+            Color-coded: green (compliant), amber (expiring within 90 days), red
+            (non-compliant/expired). Filter by department, position, compliance status. Click an
+            employee to see their certification detail.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Leave request + history + approval queue. Compliance dashboard. Two new
+          app tiles: "Leave" for all staff, "Compliance" for admins.
+        </div>
+      </div>
+
+      <!-- ── STEP 10 ── -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">10</span>
+          <span class="step-title">Vertical Slice Integration Test</span>
+        </div>
+        <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+        <p>End-to-end proof that HR workflows work.</p>
+
+        <div class="detail-heading">Test Script</div>
+        <ol class="detail-list">
+          <li>
+            <strong>Admin creates employee:</strong> Log in as admin. Navigate to Staff &rarr;
+            create a new employee. Verify they appear in the directory.
+          </li>
+          <li>
+            <strong>Employee views profile:</strong> Log in as teacher. Navigate to My Profile.
+            Verify Info tab shows position, hire date, emergency contacts. Verify Certifications tab
+            shows Teaching Licence (expiring in 60 days, amber). Verify Leave tab shows balances.
+          </li>
+          <li>
+            <strong>Employee submits leave:</strong> Teacher submits a 1-day sick leave request for
+            next week. Verify balance shows <code>pending</code> incremented. Verify request appears
+            in history as PENDING.
+          </li>
+          <li>
+            <strong>Kafka event fires:</strong> Verify <code>hr.leave.requested</code> event
+            emitted.
+          </li>
+          <li>
+            <strong>Admin approves:</strong> Log in as admin. Navigate to Leave Approvals. See the
+            pending request. Approve it. Verify status changes to APPROVED.
+          </li>
+          <li>
+            <strong>Balance updates:</strong> Verify teacher's <code>used</code> incremented,
+            <code>pending</code> decremented. Verify <code>hr.leave.approved</code> event emitted.
+          </li>
+          <li>
+            <strong>Notification:</strong> Teacher receives a notification that their leave was
+            approved.
+          </li>
+          <li>
+            <strong>Compliance dashboard:</strong> Admin navigates to Compliance. Verify Rivera
+            shows amber for Teaching Licence (60 days to expiry). Verify overall compliance
+            percentage reflects the non-compliant item.
+          </li>
+          <li>
+            <strong>Permission denial:</strong> Teacher cannot access Leave Approvals or edit
+            another employee's record. Parent/student cannot access the Staff module at all.
+          </li>
+        </ol>
+
+        <div class="produces">
+          Produces &rarr; Verified HR vertical slice. Identity mapping resolved. Leave workflow
+          end-to-end. Compliance tracking active.
+        </div>
+      </div>
+
+      <h2 class="section-heading">Cycle 4 Completion Criteria</h2>
+
+      <div class="callout callout-ai">
+        <div class="callout-title">Exit Checklist</div>
+        <ol style="font-size: 15px; line-height: 2.2; padding-left: 20px">
+          <li>
+            HR-Employee identity migration complete. All soft FKs resolved from iam_person.id to
+            hr_employees.id.
+          </li>
+          <li>Tenant schema: ~18 new HR tables. Total tenant tables: ~75.</li>
+          <li>Employee API: ~10 endpoints with row-level auth (own profile vs admin).</li>
+          <li>Leave API: ~6 endpoints with approval workflow. Kafka events for leave lifecycle.</li>
+          <li>Certification API: ~4 endpoints. Expiry alert events.</li>
+          <li>Compliance dashboard with school-wide training status.</li>
+          <li>Staff Directory UI: searchable employee list, tabbed profile.</li>
+          <li>Leave UI: request form, balance view, admin approval queue.</li>
+          <li>Vertical slice test: all 9 steps pass.</li>
+          <li>HANDOFF-CYCLE4.md and CLAUDE.md updated. CI green.</li>
+        </ol>
+      </div>
+
+      <p class="body-text">
+        After Cycle 4, CampusOS has four complete workflow domains: attendance, classroom/grading,
+        communications, and HR. The temporary identity mapping is resolved. Leave requests connect
+        to class coverage. The next cycle (Cycle 5: Scheduling &amp; Calendar) adds the master
+        schedule, daily coverage, substitute management, and room booking.
+      </p>
+
+      <div class="doc-footer">
+        <p>
+          CampusOS Cycle 4 Implementation Plan &mdash; April 2026. Derived from: ERD v11 (M80
+          HR/Workforce, 48 tables &mdash; 18 in scope), Function Library (HR-001, HR-003, HR-004,
+          HR-006), REVIEW-CYCLE2-CHATGPT DEVIATION 4 (temporary HR-employee identity mapping).
+        </p>
+      </div>
     </div>
-    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
-    <p>The employee core: positions, position assignments (time-bounded), emergency contacts, and document management.</p>
-
-    <div class="detail-heading">Tables (5, plus hr_employees from Step 0)</div>
-    <ol class="detail-list">
-      <li><strong>hr_positions</strong> &mdash; <code>school_id</code>, <code>title TEXT NOT NULL</code>, <code>department_id UUID</code> (soft FK to <code>sis_departments</code>), <code>is_teaching_role BOOLEAN</code>. UNIQUE(school_id, title).</li>
-      <li><strong>hr_employee_positions</strong> &mdash; <code>employee_id FK</code>, <code>position_id FK</code>, <code>effective_from DATE</code>, <code>effective_to DATE</code>. INDEX(employee_id, effective_from DESC). Tracks position history.</li>
-      <li><strong>hr_emergency_contacts</strong> &mdash; <code>employee_id FK</code>, <code>name TEXT NOT NULL</code>, <code>relationship TEXT</code>, <code>phone TEXT NOT NULL</code>, <code>is_primary BOOLEAN</code>. Separate from <code>sis_emergency_contacts</code> (student emergency contacts).</li>
-      <li><strong>hr_document_types</strong> &mdash; <code>school_id</code>, <code>name TEXT NOT NULL</code>, <code>is_required BOOLEAN</code>, <code>retention_days INT</code>. UNIQUE(school_id, name). Examples: Contract, ID Copy, Tax Form, Background Check.</li>
-      <li><strong>hr_employee_documents</strong> &mdash; <code>employee_id FK</code>, <code>document_type_id FK</code>, <code>file_name TEXT</code>, <code>s3_key TEXT</code>, <code>uploaded_by UUID</code> (soft), <code>uploaded_at TIMESTAMPTZ</code>, <code>expiry_date DATE</code>. INDEX(employee_id, document_type_id).</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; 5 new tables + hr_employees from Step 0. Migration: <code>011_hr_employees_and_positions.sql</code>.</div>
-  </div>
-
-  <!-- ── STEP 2 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">02</span>
-      <span class="step-title">HR Schema &mdash; Leave Management</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
-    <p>Leave types, per-employee balances, and leave requests with approval workflow.</p>
-
-    <div class="detail-heading">Tables (3)</div>
-    <ol class="detail-list">
-      <li><strong>hr_leave_types</strong> &mdash; <code>school_id</code>, <code>name TEXT NOT NULL</code>, <code>is_paid BOOLEAN</code>, <code>accrual_rate NUMERIC(5,2)</code>, <code>max_balance NUMERIC(5,2)</code>. Examples: Sick Leave, Personal Leave, Bereavement, Professional Development.</li>
-      <li><strong>hr_leave_balances</strong> &mdash; UNIQUE(<code>employee_id, leave_type_id, academic_year_id</code>). <code>accrued NUMERIC(5,2)</code>, <code>used NUMERIC(5,2)</code>, <code>pending NUMERIC(5,2)</code>. Updated by the leave request approval workflow.</li>
-      <li><strong>hr_leave_requests</strong> &mdash; <code>employee_id FK</code>, <code>leave_type_id FK</code>, <code>start_date DATE</code>, <code>end_date DATE</code>, <code>days_requested NUMERIC(4,1)</code>, <code>status</code> ENUM(PENDING, APPROVED, REJECTED, CANCELLED), <code>reason TEXT</code>, <code>is_hr_initiated BOOLEAN DEFAULT false</code>, <code>hr_initiated_by UUID</code> (soft), <code>hr_initiated_reason TEXT</code>. INDEX(employee_id, status).</li>
-    </ol>
-
-    <div class="detail-heading">Leave Approval Flow</div>
-    <p>Employee submits &rarr; status=PENDING, <code>pending</code> balance incremented &rarr; Kafka event <code>hr.leave.requested</code> fires &rarr; admin approves &rarr; status=APPROVED, <code>pending</code> decremented, <code>used</code> incremented &rarr; Kafka event <code>hr.leave.approved</code> fires (consumed by Cycle 5 Scheduling for coverage). Rejection: status=REJECTED, <code>pending</code> decremented back. Cancellation: same reversal.</p>
-
-    <div class="produces">Produces &rarr; 3 new tables. Migration: <code>012_hr_leave_management.sql</code>.</div>
-  </div>
-
-  <!-- ── STEP 3 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">03</span>
-      <span class="step-title">HR Schema &mdash; Certifications &amp; Training</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
-    <p>Professional certifications, mandatory training requirements, compliance tracking, CPD (Continuing Professional Development) hours, and work authorisation.</p>
-
-    <div class="detail-heading">Tables (5)</div>
-    <ol class="detail-list">
-      <li><strong>hr_staff_certifications</strong> &mdash; <code>employee_id FK</code>, <code>certification_type</code> ENUM(TEACHING_LICENCE, FIRST_AID, SAFEGUARDING_LEVEL1, SAFEGUARDING_LEVEL2, DBS_BASIC, DBS_ENHANCED, FOOD_HYGIENE, FIRE_SAFETY_WARDEN, SPECIALIST_SUBJECT, CUSTOM), <code>certification_name TEXT</code>, <code>issuing_body TEXT</code>, <code>reference_number TEXT</code>, <code>issued_date DATE</code>, <code>expiry_date DATE</code>, <code>verification_status</code> ENUM(PENDING, VERIFIED, EXPIRED, REVOKED), <code>document_s3_key TEXT</code>. Alert job: 90, 30, 7 days before expiry. Follows ADR-015 for DBS: store reference + status only.</li>
-      <li><strong>hr_training_requirements</strong> &mdash; <code>school_id</code>, <code>position_id FK nullable</code> (null = all staff), <code>training_name TEXT</code>, <code>certification_type</code> (links to hr_staff_certifications for auto compliance), <code>frequency</code> ENUM(ONE_TIME, ANNUAL, BIENNIAL, TRIENNIAL, CUSTOM), <code>is_active BOOLEAN</code>.</li>
-      <li><strong>hr_training_compliance</strong> &mdash; Materialised per-employee per-requirement compliance status. Updated nightly by <code>TrainingComplianceWorker</code>. UNIQUE(<code>employee_id, requirement_id</code>). <code>is_compliant BOOLEAN</code>, <code>last_completed_date DATE</code>, <code>next_due_date DATE</code>, <code>linked_certification_id FK</code>, <code>days_until_due INT</code>.</li>
-      <li><strong>hr_cpd_requirements</strong> &mdash; UNIQUE(<code>school_id, position_id, academic_year_id</code>). <code>required_pd_hours NUMERIC(4,1)</code>, <code>required_credit_hours NUMERIC(4,1)</code>.</li>
-      <li><strong>hr_work_authorisation</strong> &mdash; UNIQUE(<code>employee_id</code>). <code>document_type</code> ENUM(US_PASSPORT, UK_PASSPORT, UK_BRP, PERMANENT_RESIDENT_CARD, EMPLOYMENT_AUTHORISATION, OTHER), <code>expiry_date DATE</code>, <code>verified_by UUID</code>, <code>verified_at DATE</code>, <code>reverification_due_date DATE</code>.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; 5 new tables. Migration: <code>013_hr_certifications_and_training.sql</code>.</div>
-  </div>
-
-  <!-- ── STEP 4 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">04</span>
-      <span class="step-title">HR Schema &mdash; Onboarding</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
-    <p>New hire onboarding with template-based checklists and task tracking.</p>
-
-    <div class="detail-heading">Tables (3)</div>
-    <ol class="detail-list">
-      <li><strong>hr_onboarding_templates</strong> &mdash; <code>school_id</code>, <code>name TEXT</code>, <code>position_id FK nullable</code> (null = generic), <code>is_active BOOLEAN</code>. UNIQUE(school_id, name). Template for what a new hire needs to complete.</li>
-      <li><strong>hr_onboarding_checklists</strong> &mdash; <code>employee_id FK</code>, <code>template_id FK</code>, <code>status</code> ENUM(NOT_STARTED, IN_PROGRESS, COMPLETED), <code>started_at</code>, <code>completed_at</code>, <code>assigned_by UUID</code> (soft). One checklist per new hire.</li>
-      <li><strong>hr_onboarding_tasks</strong> &mdash; <code>checklist_id FK</code>, <code>title TEXT</code>, <code>description TEXT</code>, <code>category</code> ENUM(DOCUMENT, TRAINING, SYSTEM_ACCESS, ORIENTATION, OTHER), <code>is_required BOOLEAN</code>, <code>due_days_from_start INT</code>, <code>status</code> ENUM(PENDING, IN_PROGRESS, COMPLETED, SKIPPED), <code>completed_at</code>, <code>completed_by UUID</code>. INDEX(checklist_id, status).</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; 3 new tables. Migration: <code>014_hr_onboarding.sql</code>.</div>
-  </div>
-
-  <!-- ── STEP 5 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">05</span>
-      <span class="step-title">Seed Data &mdash; Employees, Leave, Certifications</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
-    <p>Populate the HR module with realistic demo data.</p>
-
-    <div class="detail-heading">What Gets Seeded</div>
-    <ol class="detail-list">
-      <li><strong>Employees:</strong> 5 employee records mapping to the 5 test users who are staff (admin, principal, teacher, plus 2 more staff from the existing seed). Each links <code>person_id</code> to <code>iam_person</code> and <code>account_id</code> to <code>platform_users</code>.</li>
-      <li><strong>Positions:</strong> 5 positions &mdash; Teacher, Principal, Vice Principal, Administrative Assistant, Counsellor. Linked to <code>sis_departments</code> where applicable.</li>
-      <li><strong>Position assignments:</strong> Each employee assigned to their current position with <code>effective_from</code> = hire date.</li>
-      <li><strong>Leave types:</strong> 5 types &mdash; Sick Leave (10 days/year, paid), Personal Leave (3 days/year, paid), Bereavement (5 days, paid), Professional Development (5 days, paid), Unpaid Leave (unlimited, unpaid).</li>
-      <li><strong>Leave balances:</strong> Each employee gets balances for the current academic year. Rivera: 8 sick days remaining, 2 personal days remaining (has used some).</li>
-      <li><strong>Leave requests:</strong> 2 sample requests &mdash; Rivera took 2 sick days in March (APPROVED), and has a PD day request next month (PENDING).</li>
-      <li><strong>Certifications:</strong> Rivera has: Teaching Licence (expires in 60 days &mdash; will trigger compliance alert), First Aid (valid), Safeguarding Level 1 (valid). Mitchell has: DBS Enhanced (verified).</li>
-      <li><strong>Training requirements:</strong> 3 school-wide requirements &mdash; Safeguarding (ANNUAL), First Aid (BIENNIAL), Fire Safety (ANNUAL). 1 position-specific: Teaching Licence renewal for teachers.</li>
-      <li><strong>Training compliance:</strong> Pre-computed compliance rows. Rivera: compliant on Safeguarding and First Aid, non-compliant on Teaching Licence (expiring in 60 days).</li>
-      <li><strong>Document types:</strong> Contract, Background Check, Tax Form W-4, Teaching Licence Copy.</li>
-      <li><strong>Onboarding template:</strong> "New Teacher Onboarding" with 8 tasks (submit tax forms, upload ID, complete safeguarding training, classroom setup orientation, etc.).</li>
-      <li><strong>Permission updates:</strong> Add HR-001 (Employee Records) read to Teacher/Staff. Add HR-003 (Leave) read/write to Teacher/Staff. Add HR-004 (Certifications) read to Teacher/Staff. Full HR access to School Admin and Platform Admin. Rebuild effective access cache.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Populated HR module. Employee directory, leave balances, certifications, and compliance data ready for the UI.</div>
-  </div>
-
-  <!-- ── STEP 6 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">06</span>
-      <span class="step-title">HR NestJS Module &mdash; Employee Records &amp; Directory</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
-    <p>The employee management API and staff directory.</p>
-
-    <div class="detail-heading">Services &amp; Endpoints</div>
-    <ol class="detail-list">
-      <li><strong>EmployeeService</strong> &mdash; CRUD employees. <code>GET /employees</code> (staff directory &mdash; list all active employees with position, department, contact), <code>GET /employees/:id</code> (full profile), <code>GET /employees/me</code> (own profile), <code>POST /employees</code> (admin creates), <code>PATCH /employees/:id</code> (admin updates). All <code>@RequirePermission('hr-001:read')</code> or <code>'hr-001:write'</code>.</li>
-      <li><strong>PositionService</strong> &mdash; <code>GET /positions</code>, <code>POST /positions</code>, <code>PATCH /positions/:id</code>. Admin only (<code>hr-001:admin</code>).</li>
-      <li><strong>EmployeeDocumentService</strong> &mdash; <code>GET /employees/:id/documents</code>, <code>POST /employees/:id/documents</code> (upload), <code>DELETE /employees/:id/documents/:docId</code>. Own documents readable by the employee; all documents readable by admin.</li>
-      <li><strong>ActorContextService extension</strong> &mdash; <code>resolveActor()</code> now resolves <code>employeeId</code> from <code>hr_employees</code> where <code>person_id = actor.personId</code>. This replaces the previous direct <code>personId</code> comparison for all class-teacher, grade, and progress-note authorization checks.</li>
-    </ol>
-
-    <div class="detail-heading">Row-Level Authorization</div>
-    <p>Employees can view the staff directory (everyone) and their own full profile. Admins can view and edit all employees. Teachers cannot view other employees' documents or leave details (only their own).</p>
-
-    <div class="produces">Produces &rarr; HRModule with EmployeeService, PositionService, EmployeeDocumentService. ~10 endpoints.</div>
-  </div>
-
-  <!-- ── STEP 7 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">07</span>
-      <span class="step-title">HR NestJS Module &mdash; Leave &amp; Certifications</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
-    <p>Leave request workflow, certification management, and training compliance tracking.</p>
-
-    <div class="detail-heading">Services &amp; Endpoints</div>
-    <ol class="detail-list">
-      <li><strong>LeaveService</strong> &mdash; <code>POST /leave-requests</code> (submit &mdash; validates against balance), <code>GET /leave-requests</code> (own history or admin queue), <code>PATCH /leave-requests/:id/approve</code> (admin), <code>PATCH /leave-requests/:id/reject</code> (admin), <code>PATCH /leave-requests/:id/cancel</code> (employee cancels own). Kafka events: <code>hr.leave.requested</code>, <code>hr.leave.approved</code>, <code>hr.leave.rejected</code>, <code>hr.leave.cancelled</code>. All <code>@RequirePermission('hr-003:read')</code> or <code>'hr-003:write'</code>.</li>
-      <li><strong>CertificationService</strong> &mdash; <code>GET /employees/:id/certifications</code>, <code>POST /employees/:id/certifications</code>, <code>PATCH /certifications/:id/verify</code> (admin verifies). Expiry alerts via <code>hr.certification.expiring</code> Kafka event (consumed by notification pipeline). <code>@RequirePermission('hr-004:read')</code> or <code>'hr-004:write'</code>.</li>
-      <li><strong>TrainingComplianceService</strong> &mdash; <code>GET /compliance/dashboard</code> (admin view &mdash; all employees' compliance status), <code>GET /employees/:id/compliance</code> (individual view). Recomputes compliance status by comparing <code>hr_staff_certifications</code> against <code>hr_training_requirements</code>.</li>
-      <li><strong>LeaveNotificationConsumer</strong> &mdash; Kafka consumer on <code>hr.leave.approved</code>. Resolves affected classes via <code>sis_class_teachers</code> for the leave date range. Emits <code>hr.leave.coverage_needed</code> with class IDs and dates (consumed by Scheduling in Cycle 5). Also notifies the employee of approval/rejection.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; LeaveService, CertificationService, TrainingComplianceService, LeaveNotificationConsumer. ~12 endpoints + 5 Kafka events.</div>
-  </div>
-
-  <!-- ── STEP 8 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">08</span>
-      <span class="step-title">Staff Directory &amp; Employee Profile UI</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
-    <p>A new "Staff" app tile on the home page launchpad. The staff directory is the phone book of the school.</p>
-
-    <div class="detail-heading">Pages</div>
-    <ol class="detail-list">
-      <li><strong>Staff Directory</strong> <code>/staff</code> &mdash; searchable list of all employees. Each card: name, position, department, email, phone. Search filters by name, position, department. Visible to all staff (<code>hr-001:read</code>).</li>
-      <li><strong>Employee Profile</strong> <code>/staff/:id</code> &mdash; tabbed view: Info (demographics, position history, emergency contacts), Certifications (list with expiry dates, verification status, color-coded by urgency), Leave (balances, request history), Documents (uploaded files). Own profile shows all tabs. Others' profiles show only Info tab unless the viewer is an admin.</li>
-      <li><strong>My Profile shortcut</strong> <code>/staff/me</code> &mdash; redirects to <code>/staff/:myEmployeeId</code>.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Staff Directory app, employee profile with tabs. Launchpad gets a "Staff" tile for users with <code>hr-001:read</code>.</div>
-  </div>
-
-  <!-- ── STEP 9 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">09</span>
-      <span class="step-title">Leave Management &amp; Compliance Dashboard UI</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
-    <p>Leave request forms, approval queue, and the training compliance dashboard.</p>
-
-    <div class="detail-heading">Pages</div>
-    <ol class="detail-list">
-      <li><strong>Request Leave</strong> <code>/leave/new</code> &mdash; form: leave type dropdown, date range picker, days requested (auto-calculated, supports half-days), reason text. Shows current balance for the selected type. Submit creates a PENDING request.</li>
-      <li><strong>My Leave</strong> <code>/leave</code> &mdash; employee view of their leave balances (by type, visual bar showing used/remaining) and request history (with status badges). Cancel button on PENDING requests.</li>
-      <li><strong>Leave Approval Queue</strong> <code>/leave/approvals</code> (admin only) &mdash; list of PENDING requests. Each shows: employee name, type, dates, days, reason. Approve/Reject buttons with optional response note.</li>
-      <li><strong>Compliance Dashboard</strong> <code>/compliance</code> (admin only) &mdash; table of all employees with their compliance status across all training requirements. Color-coded: green (compliant), amber (expiring within 90 days), red (non-compliant/expired). Filter by department, position, compliance status. Click an employee to see their certification detail.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Leave request + history + approval queue. Compliance dashboard. Two new app tiles: "Leave" for all staff, "Compliance" for admins.</div>
-  </div>
-
-  <!-- ── STEP 10 ── -->
-  <div class="step">
-    <div class="step-header">
-      <span class="step-num">10</span>
-      <span class="step-title">Vertical Slice Integration Test</span>
-    </div>
-    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
-    <p>End-to-end proof that HR workflows work.</p>
-
-    <div class="detail-heading">Test Script</div>
-    <ol class="detail-list">
-      <li><strong>Admin creates employee:</strong> Log in as admin. Navigate to Staff &rarr; create a new employee. Verify they appear in the directory.</li>
-      <li><strong>Employee views profile:</strong> Log in as teacher. Navigate to My Profile. Verify Info tab shows position, hire date, emergency contacts. Verify Certifications tab shows Teaching Licence (expiring in 60 days, amber). Verify Leave tab shows balances.</li>
-      <li><strong>Employee submits leave:</strong> Teacher submits a 1-day sick leave request for next week. Verify balance shows <code>pending</code> incremented. Verify request appears in history as PENDING.</li>
-      <li><strong>Kafka event fires:</strong> Verify <code>hr.leave.requested</code> event emitted.</li>
-      <li><strong>Admin approves:</strong> Log in as admin. Navigate to Leave Approvals. See the pending request. Approve it. Verify status changes to APPROVED.</li>
-      <li><strong>Balance updates:</strong> Verify teacher's <code>used</code> incremented, <code>pending</code> decremented. Verify <code>hr.leave.approved</code> event emitted.</li>
-      <li><strong>Notification:</strong> Teacher receives a notification that their leave was approved.</li>
-      <li><strong>Compliance dashboard:</strong> Admin navigates to Compliance. Verify Rivera shows amber for Teaching Licence (60 days to expiry). Verify overall compliance percentage reflects the non-compliant item.</li>
-      <li><strong>Permission denial:</strong> Teacher cannot access Leave Approvals or edit another employee's record. Parent/student cannot access the Staff module at all.</li>
-    </ol>
-
-    <div class="produces">Produces &rarr; Verified HR vertical slice. Identity mapping resolved. Leave workflow end-to-end. Compliance tracking active.</div>
-  </div>
-
-  <h2 class="section-heading">Cycle 4 Completion Criteria</h2>
-
-  <div class="callout callout-ai">
-    <div class="callout-title">Exit Checklist</div>
-    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
-      <li>HR-Employee identity migration complete. All soft FKs resolved from iam_person.id to hr_employees.id.</li>
-      <li>Tenant schema: ~18 new HR tables. Total tenant tables: ~75.</li>
-      <li>Employee API: ~10 endpoints with row-level auth (own profile vs admin).</li>
-      <li>Leave API: ~6 endpoints with approval workflow. Kafka events for leave lifecycle.</li>
-      <li>Certification API: ~4 endpoints. Expiry alert events.</li>
-      <li>Compliance dashboard with school-wide training status.</li>
-      <li>Staff Directory UI: searchable employee list, tabbed profile.</li>
-      <li>Leave UI: request form, balance view, admin approval queue.</li>
-      <li>Vertical slice test: all 9 steps pass.</li>
-      <li>HANDOFF-CYCLE4.md and CLAUDE.md updated. CI green.</li>
-    </ol>
-  </div>
-
-  <p class="body-text">After Cycle 4, CampusOS has four complete workflow domains: attendance, classroom/grading, communications, and HR. The temporary identity mapping is resolved. Leave requests connect to class coverage. The next cycle (Cycle 5: Scheduling &amp; Calendar) adds the master schedule, daily coverage, substitute management, and room booking.</p>
-
-  <div class="doc-footer">
-    <p>CampusOS Cycle 4 Implementation Plan &mdash; April 2026. Derived from: ERD v11 (M80 HR/Workforce, 48 tables &mdash; 18 in scope), Function Library (HR-001, HR-003, HR-004, HR-006), REVIEW-CYCLE2-CHATGPT DEVIATION 4 (temporary HR-employee identity mapping).</p>
-  </div>
-</div>
-
-</body>
+  </body>
 </html>

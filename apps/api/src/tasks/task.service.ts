@@ -77,13 +77,13 @@ const SELECT_TASK_BASE =
   'op.first_name AS owner_first_name, op.last_name AS owner_last_name, ' +
   't.title, t.description, t.source, t.source_ref_id::text AS source_ref_id, ' +
   't.priority, t.status, ' +
-  "TO_CHAR(t.due_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS due_at, " +
+  'TO_CHAR(t.due_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS due_at, ' +
   't.task_category, t.acknowledgement_id::text AS acknowledgement_id, ' +
   't.created_for_id::text AS created_for_id, ' +
   'cf.first_name AS created_for_first_name, cf.last_name AS created_for_last_name, ' +
-  "TO_CHAR(t.completed_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS completed_at, " +
-  "TO_CHAR(t.created_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS created_at, " +
-  "TO_CHAR(t.updated_at, 'YYYY-MM-DD\"T\"HH24:MI:SSOF') AS updated_at " +
+  'TO_CHAR(t.completed_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS completed_at, ' +
+  'TO_CHAR(t.created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
+  'TO_CHAR(t.updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
   'FROM tsk_tasks t ' +
   'LEFT JOIN platform.platform_users opu ON opu.id = t.owner_id ' +
   'LEFT JOIN platform.iam_person op ON op.id = opu.person_id ' +
@@ -111,9 +111,7 @@ export class TaskService {
     let idx = 1;
 
     if (!actor.isSchoolAdmin) {
-      sql.push(
-        'AND (t.owner_id = $' + idx + '::uuid OR t.created_for_id = $' + idx + '::uuid) ',
-      );
+      sql.push('AND (t.owner_id = $' + idx + '::uuid OR t.created_for_id = $' + idx + '::uuid) ');
       params.push(actor.accountId);
       idx++;
     }
@@ -275,11 +273,7 @@ export class TaskService {
    * Row scope: owner can edit own rows; the task creator (actor =
    * created_for_id holder when present) can also edit; admins always.
    */
-  async update(
-    id: string,
-    input: UpdateTaskDto,
-    actor: ResolvedActor,
-  ): Promise<TaskResponseDto> {
+  async update(id: string, input: UpdateTaskDto, actor: ResolvedActor): Promise<TaskResponseDto> {
     const existing = await this.getById(id, actor); // also enforces row scope + 404
     const isOwner = existing.ownerId === actor.accountId;
     const isCreator = !!existing.createdForId && existing.createdForId === actor.accountId;

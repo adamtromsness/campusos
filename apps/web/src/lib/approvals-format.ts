@@ -1,8 +1,4 @@
-import type {
-  ApprovalRequestStatus,
-  ApprovalStepStatus,
-  ApproverType,
-} from './types';
+import type { ApprovalRequestStatus, ApprovalStepStatus, ApproverType } from './types';
 
 export const REQUEST_STATUSES: ApprovalRequestStatus[] = [
   'PENDING',
@@ -12,12 +8,7 @@ export const REQUEST_STATUSES: ApprovalRequestStatus[] = [
   'WITHDRAWN',
 ];
 
-export const STEP_STATUSES: ApprovalStepStatus[] = [
-  'AWAITING',
-  'APPROVED',
-  'REJECTED',
-  'SKIPPED',
-];
+export const STEP_STATUSES: ApprovalStepStatus[] = ['AWAITING', 'APPROVED', 'REJECTED', 'SKIPPED'];
 
 export const REQUEST_STATUS_LABELS: Record<ApprovalRequestStatus, string> = {
   PENDING: 'Pending',
@@ -68,7 +59,7 @@ export function formatStepPosition(
   const awaiting = steps.find((s) => s.status === 'AWAITING');
   if (awaiting) return 'Step ' + awaiting.stepOrder + ' of ' + totalSteps;
   // No awaiting step — request resolved or skipped.
-  const last = steps.reduce<typeof steps[number] | null>((acc, s) => {
+  const last = steps.reduce<(typeof steps)[number] | null>((acc, s) => {
     if (acc === null) return s;
     return s.stepOrder > acc.stepOrder ? s : acc;
   }, null);

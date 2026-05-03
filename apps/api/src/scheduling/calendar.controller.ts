@@ -114,8 +114,7 @@ export class CalendarController {
   @Get(':id/rsvps')
   @RequirePermission('sch-003:read')
   @ApiOperation({
-    summary:
-      'List RSVPs for an event. Admins see every row; non-admins see only their own.',
+    summary: 'List RSVPs for an event. Admins see every row; non-admins see only their own.',
   })
   async listRsvps(
     @Param('id', ParseUUIDPipe) id: string,

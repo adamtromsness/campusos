@@ -95,7 +95,10 @@ export class AssignmentService {
    * Cycle 7 Step 4's TaskWorker subscribes to this topic to auto-create
    * a TODO task on every enrolled student's to-do list.
    */
-  private emitPosted(assignment: AssignmentResponseDto, classRow: { sectionCode: string; courseName: string | null }): void {
+  private emitPosted(
+    assignment: AssignmentResponseDto,
+    classRow: { sectionCode: string; courseName: string | null },
+  ): void {
     if (!assignment.isPublished) return;
     var tenant = getCurrentTenant();
     void this.kafka.emit({
@@ -108,7 +111,9 @@ export class AssignmentService {
         title: assignment.title,
         assignment_title: assignment.title,
         section_code: classRow.sectionCode,
-        class_name: classRow.courseName ? classRow.courseName + ' (' + classRow.sectionCode + ')' : classRow.sectionCode,
+        class_name: classRow.courseName
+          ? classRow.courseName + ' (' + classRow.sectionCode + ')'
+          : classRow.sectionCode,
         dueDate: assignment.dueDate,
         due_date: assignment.dueDate,
         maxPoints: assignment.maxPoints,
@@ -119,7 +124,9 @@ export class AssignmentService {
     });
   }
 
-  private async loadClassDescriptor(classId: string): Promise<{ sectionCode: string; courseName: string | null }> {
+  private async loadClassDescriptor(
+    classId: string,
+  ): Promise<{ sectionCode: string; courseName: string | null }> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ section_code: string; course_name: string | null }>>(
         'SELECT c.section_code, co.name AS course_name FROM sis_classes c ' +

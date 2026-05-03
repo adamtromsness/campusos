@@ -11,10 +11,7 @@
  * string). Null and undefined values are treated as missing for the same
  * reason.
  */
-export function renderTemplate(
-  template: string,
-  values: Record<string, unknown>,
-): string {
+export function renderTemplate(template: string, values: Record<string, unknown>): string {
   return template.replace(/\{(\w+)\}/g, function (match, key: string) {
     const v = values[key];
     if (v === undefined || v === null) return match;

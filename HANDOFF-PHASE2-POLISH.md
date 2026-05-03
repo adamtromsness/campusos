@@ -7,13 +7,13 @@ Payments, and the platform schema. No post-cycle architecture review yet.
 
 ## Ship summary
 
-| Commit    | Feature                                                | Tenant migration | Platform migration |
-| --------- | ------------------------------------------------------ | ---------------- | ------------------ |
-| `44dff03` | iPhone-style dashboard launchpad                       | —                | —                  |
-| `9f8658c` | Calendar RSVPs + my-kids filter + multi-school toggle  | `023`            | —                  |
-| `adc78d4` | Add Child workflow with admin approval                 | `024`            | —                  |
-| `ae32299` | Public enrollment search by location                   | `025`            | `20260503130749`   |
-| `c9d2de7` | Multi-school billing structure                         | —                | (uses col from #4) |
+| Commit    | Feature                                               | Tenant migration | Platform migration |
+| --------- | ----------------------------------------------------- | ---------------- | ------------------ |
+| `44dff03` | iPhone-style dashboard launchpad                      | —                | —                  |
+| `9f8658c` | Calendar RSVPs + my-kids filter + multi-school toggle | `023`            | —                  |
+| `adc78d4` | Add Child workflow with admin approval                | `024`            | —                  |
+| `ae32299` | Public enrollment search by location                  | `025`            | `20260503130749`   |
+| `c9d2de7` | Multi-school billing structure                        | —                | (uses col from #4) |
 
 Tenant base table count: 106 → **108** (`sch_calendar_event_rsvps`,
 `sis_child_link_requests`). Platform `schools` gains 4 nullable columns
@@ -196,7 +196,7 @@ The public endpoint surfaced two latent issues that are corrected here:
 
 - **TenantGuard skipped on @Public()**. The global `TenantGuard` ran
   even on public endpoints and threw `'No tenant context — request was
-  not resolved to a tenant'`. Now reads `IS_PUBLIC_KEY` via `Reflector`
+not resolved to a tenant'`. Now reads `IS_PUBLIC_KEY` via `Reflector`
   and short-circuits, matching the existing `AuthGuard` pattern.
 - **Middleware path matching uses originalUrl**. The middleware's
   exempt-path matcher was using `req.path`, but Nest strips the global
@@ -275,8 +275,8 @@ fans out across each tenant the parent has a guardian record in.
 - Schema constraint smoke for `sis_child_link_requests` (4 cases) all
   fire correctly.
 - Calendar RSVP path not exercised end-to-end live yet — backend builds
-  + manual UI test is the validation done so far. End-to-end Kafka
-  envelope + DB-row check would be a fresh CAT add-on.
+  - manual UI test is the validation done so far. End-to-end Kafka
+    envelope + DB-row check would be a fresh CAT add-on.
 
 ## Known gaps / Phase 3 punch list
 

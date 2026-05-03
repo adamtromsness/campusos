@@ -201,25 +201,24 @@ export default function ApprovalDetailPage() {
               {s.comments && (
                 <p className="mt-1 italic text-xs text-gray-700">&ldquo;{s.comments}&rdquo;</p>
               )}
-              {s.status === 'AWAITING' &&
-                (s.approverId === user.id || isAdmin) && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setReviewing({ step: s, decision: 'APPROVE' })}
-                      className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-600"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReviewing({ step: s, decision: 'REJECT' })}
-                      className="rounded-lg border border-rose-300 px-3 py-1.5 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                )}
+              {s.status === 'AWAITING' && (s.approverId === user.id || isAdmin) && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReviewing({ step: s, decision: 'APPROVE' })}
+                    className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-600"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReviewing({ step: s, decision: 'REJECT' })}
+                    className="rounded-lg border border-rose-300 px-3 py-1.5 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50"
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ol>
@@ -343,7 +342,9 @@ function ReviewStepModal({
     <Modal
       open={true}
       onClose={onClose}
-      title={decision === 'APPROVE' ? 'Approve step ' + step.stepOrder : 'Reject step ' + step.stepOrder}
+      title={
+        decision === 'APPROVE' ? 'Approve step ' + step.stepOrder : 'Reject step ' + step.stepOrder
+      }
       size="md"
       footer={
         <>

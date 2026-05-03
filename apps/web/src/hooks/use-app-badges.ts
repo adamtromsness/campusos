@@ -51,8 +51,7 @@ export function useAppBadges(user: AuthUser | null): AppBadges {
   const myAccountId = user?.id ?? '';
   const approvalsAwaiting = (approvals.data ?? []).reduce((sum, r) => {
     return (
-      sum +
-      r.steps.filter((s) => s.status === 'AWAITING' && s.approverId === myAccountId).length
+      sum + r.steps.filter((s) => s.status === 'AWAITING' && s.approverId === myAccountId).length
     );
   }, 0);
 

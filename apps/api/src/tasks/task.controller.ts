@@ -14,12 +14,7 @@ import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
 import { TaskService } from './task.service';
-import {
-  CreateTaskDto,
-  ListTasksQueryDto,
-  TaskResponseDto,
-  UpdateTaskDto,
-} from './dto/task.dto';
+import { CreateTaskDto, ListTasksQueryDto, TaskResponseDto, UpdateTaskDto } from './dto/task.dto';
 
 interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };
@@ -37,8 +32,7 @@ export class TaskController {
   @Get()
   @RequirePermission('ops-001:read')
   @ApiOperation({
-    summary:
-      'List tasks visible to the caller (own list by default, full tenant list for admins).',
+    summary: 'List tasks visible to the caller (own list by default, full tenant list for admins).',
   })
   async list(
     @Query() query: ListTasksQueryDto,
@@ -69,11 +63,11 @@ export class TaskController {
 
   @Post()
   @RequirePermission('ops-001:write')
-  @ApiOperation({ summary: 'Create a manual task (source=MANUAL). Optionally delegate to another user (admin only this cycle).' })
-  async create(
-    @Body() body: CreateTaskDto,
-    @Req() req: AuthedRequest,
-  ): Promise<TaskResponseDto> {
+  @ApiOperation({
+    summary:
+      'Create a manual task (source=MANUAL). Optionally delegate to another user (admin only this cycle).',
+  })
+  async create(@Body() body: CreateTaskDto, @Req() req: AuthedRequest): Promise<TaskResponseDto> {
     const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     return this.tasks.create(body, actor);
   }

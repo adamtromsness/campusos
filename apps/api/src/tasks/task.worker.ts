@@ -110,9 +110,7 @@ export class TaskWorker implements OnModuleInit {
           },
         );
       } catch (e: any) {
-        this.logger.warn(
-          'Skipped tenant ' + school.subdomain + ' rule scan: ' + (e?.message || e),
-        );
+        this.logger.warn('Skipped tenant ' + school.subdomain + ' rule scan: ' + (e?.message || e));
       }
     }
     if (eventTypes.size === 0) {
@@ -165,9 +163,7 @@ export class TaskWorker implements OnModuleInit {
       );
     });
     if (rules.length === 0) {
-      this.logger.debug(
-        '[' + CONSUMER_GROUP + '] no active rules for ' + eventType + ' — drop',
-      );
+      this.logger.debug('[' + CONSUMER_GROUP + '] no active rules for ' + eventType + ' — drop');
       return;
     }
 
@@ -395,8 +391,7 @@ export class TaskWorker implements OnModuleInit {
       // Per-(owner, source_ref_id) Redis dedup. Skipped when no source
       // ref id (a manual-style auto-task with no domain anchor).
       if (sourceRefId) {
-        const dedupKey =
-          'tsk:auto:' + event.tenant.subdomain + ':' + ownerId + ':' + sourceRefId;
+        const dedupKey = 'tsk:auto:' + event.tenant.subdomain + ':' + ownerId + ':' + sourceRefId;
         const claimed = await this.redis.claimIdempotency(dedupKey, 60 * 60 * 24 * 30);
         if (!claimed) {
           this.logger.debug(
@@ -411,7 +406,7 @@ export class TaskWorker implements OnModuleInit {
         }
       }
       const taskId = generateId();
-      const ackId = ackIdsByOwner ? ackIdsByOwner.get(ownerId) ?? null : null;
+      const ackId = ackIdsByOwner ? (ackIdsByOwner.get(ownerId) ?? null) : null;
       try {
         await this.tenantPrisma.executeInTenantContext(async (client) => {
           await client.$executeRawUnsafe(
@@ -544,10 +539,7 @@ export function evaluateConditions(
   return true;
 }
 
-function evaluateCondition(
-  condition: ConditionRow,
-  payload: Record<string, unknown>,
-): boolean {
+function evaluateCondition(condition: ConditionRow, payload: Record<string, unknown>): boolean {
   const actual = resolvePath(payload, condition.field_path);
   switch (condition.operator) {
     case 'EXISTS':
@@ -561,9 +553,17 @@ function evaluateCondition(
     case 'NOT_IN':
       return !(Array.isArray(condition.value) && condition.value.some((v) => jsonEqual(actual, v)));
     case 'GT':
-      return typeof actual === 'number' && typeof condition.value === 'number' && actual > condition.value;
+      return (
+        typeof actual === 'number' &&
+        typeof condition.value === 'number' &&
+        actual > condition.value
+      );
     case 'LT':
-      return typeof actual === 'number' && typeof condition.value === 'number' && actual < condition.value;
+      return (
+        typeof actual === 'number' &&
+        typeof condition.value === 'number' &&
+        actual < condition.value
+      );
     default:
       return false;
   }
