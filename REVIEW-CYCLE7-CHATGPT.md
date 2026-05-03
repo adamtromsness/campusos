@@ -86,6 +86,40 @@ the companion CREATE_TASK.
 
 **MAJOR 5** — controller summary updated; no behavior change.
 
-## Round 2
+## Round 2 — APPROVED
 
-To be filed by the reviewer after these fixes land.
+Reviewer re-checked GitHub at `a0ac04e` (cache-busted raw file reads) and
+confirmed every Round 1 finding is closed. **Final gate decision:
+Approved to proceed.** Cycle 7 ships clean to Phase 3 / Cycle 8.
+
+The reviewer flagged two non-blocking items, both addressed in the
+closeout commit:
+
+### Doc cleanup — `HANDOFF-CYCLE7.md` stale narrative
+
+Step 6 / Step 7 narrative paragraphs still claimed:
+
+- `POST /approvals` uses `ops-001:write`
+- withdraw "does NOT emit `approval.request.resolved`"
+- `reviewed_by` falls back to requester per Phase 2 carry-over
+
+All three statements are no longer true in the code. The Step 6
+endpoint table row for `POST /approvals` now reads `ops-001:admin` and
+documents the allowlist + per-tenant existence check; the
+`POST /approvals/:id/withdraw` row documents the WITHDRAWN emit; the
+Step 7 `Approve/reject refactor` paragraph and the Out-of-scope bullet
+about final-approver id both now point at REVIEW-CYCLE7 MAJOR 3 as the
+closing fix. Future reviewers reading the handoff cold will see the
+current shape, not the original ship-day claim.
+
+### Future hardening — TaskWorker flexible-recipient fallback
+
+`TaskWorker.resolveOwners` keeps a fallback that resolves
+`recipientAccountId` / `accountId` directly from event payloads. For
+the 8 seeded system rules this is acceptable — none of them use the
+fallback path; each has an explicit `target_role` that drives a known
+join. When schools can author custom rules in a future cycle, the same
+tenant-projection check used in `TaskService.assertAssigneeInCurrentTenant`
+should be applied to event-supplied recipient ids before INSERT.
+
+Recorded as a Phase 2 punch-list item; not Cycle 7 scope.
