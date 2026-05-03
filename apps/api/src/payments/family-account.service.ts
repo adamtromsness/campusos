@@ -12,6 +12,8 @@ import {
 interface AccountRow {
   id: string;
   school_id: string;
+  school_name: string | null;
+  shared_billing_group_id: string | null;
   account_holder_id: string;
   account_holder_first_name: string;
   account_holder_last_name: string;
@@ -52,6 +54,8 @@ function accountRowToDto(
   return {
     id: r.id,
     schoolId: r.school_id,
+    schoolName: r.school_name,
+    sharedBillingGroupId: r.shared_billing_group_id,
     accountHolderId: r.account_holder_id,
     accountHolderName: r.account_holder_first_name + ' ' + r.account_holder_last_name,
     accountHolderEmail: r.account_holder_email,
@@ -66,13 +70,16 @@ function accountRowToDto(
 }
 
 var SELECT_ACCOUNT_BASE =
-  'SELECT a.id, a.school_id, a.account_holder_id, ' +
+  'SELECT a.id, a.school_id, ' +
+  'sc.name AS school_name, sc.shared_billing_group_id, ' +
+  'a.account_holder_id, ' +
   'ip.first_name AS account_holder_first_name, ip.last_name AS account_holder_last_name, ' +
   'pu.email AS account_holder_email, ' +
   'a.account_number, a.status, a.payment_authorisation_policy, a.created_at, a.updated_at ' +
   'FROM pay_family_accounts a ' +
   'JOIN platform.iam_person ip ON ip.id = a.account_holder_id ' +
-  'LEFT JOIN platform.platform_users pu ON pu.person_id = a.account_holder_id ';
+  'LEFT JOIN platform.platform_users pu ON pu.person_id = a.account_holder_id ' +
+  'LEFT JOIN platform.schools sc ON sc.id = a.school_id ';
 
 @Injectable()
 export class FamilyAccountService {

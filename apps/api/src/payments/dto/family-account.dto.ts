@@ -18,6 +18,8 @@ export class FamilyAccountStudentDto {
 export class FamilyAccountResponseDto {
   @ApiProperty() id!: string;
   @ApiProperty() schoolId!: string;
+  @ApiPropertyOptional({ nullable: true }) schoolName!: string | null;
+  @ApiPropertyOptional({ nullable: true }) sharedBillingGroupId!: string | null;
   @ApiProperty() accountHolderId!: string;
   @ApiProperty() accountHolderName!: string;
   @ApiPropertyOptional({ nullable: true }) accountHolderEmail!: string | null;

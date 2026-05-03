@@ -1557,6 +1557,8 @@ export interface FamilyAccountStudentDto {
 export interface FamilyAccountDto {
   id: string;
   schoolId: string;
+  schoolName: string | null;
+  sharedBillingGroupId: string | null;
   accountHolderId: string;
   accountHolderName: string;
   accountHolderEmail: string | null;
