@@ -42,6 +42,18 @@ async function main() {
   if (existingSchool) {
     console.log('  School "demo" already exists');
     schoolId = existingSchool.id;
+    // Backfill location fields if the existing row predates Phase 2.
+    if (existingSchool.latitude === null || existingSchool.longitude === null) {
+      await client.school.update({
+        where: { id: schoolId },
+        data: {
+          latitude: '39.78500000',
+          longitude: '-89.65500000',
+          fullAddress: '500 School Lane, Springfield, IL 62701',
+        },
+      });
+      console.log('  Backfilled location fields on demo school');
+    }
   } else {
     schoolId = generateId();
     await client.school.create({
@@ -54,6 +66,9 @@ async function main() {
         timezone: 'America/Chicago',
         planTier: 'MEDIUM',
         schemaName: 'tenant_demo',
+        latitude: '39.78500000',
+        longitude: '-89.65500000',
+        fullAddress: '500 School Lane, Springfield, IL 62701',
       },
     });
     console.log('  School "Lincoln Elementary" created');

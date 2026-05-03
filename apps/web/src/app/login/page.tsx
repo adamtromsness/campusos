@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch, setAccessToken } from '@/lib/api-client';
 import { useAuthActions } from '@/lib/auth-context';
@@ -136,6 +137,12 @@ function LoginPageInner() {
 
         <p className="mt-6 text-center text-xs text-gray-400">
           Tenant: <span className="font-mono">demo</span>
+        </p>
+        <p className="mt-2 text-center text-xs text-gray-500">
+          Don&rsquo;t have an account?{' '}
+          <Link href="/find-schools" className="font-medium text-campus-700 hover:text-campus-600">
+            Find a school accepting applications →
+          </Link>
         </p>
       </div>
     </main>

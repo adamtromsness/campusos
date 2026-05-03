@@ -46,22 +46,33 @@ enum OrgType {
 
 // ── Schools ──────────────────────────────────────────────────
 model School {
-  id             String   @id @db.Uuid
-  organisationId String?  @map("organisation_id") @db.Uuid
-  name           String
-  subdomain      String   @unique
-  countryCode    String   @map("country_code") @db.Char(2)
-  timezone       String
-  planTier       PlanTier @default(SMALL) @map("plan_tier")
-  schemaName     String   @map("schema_name")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id                   String   @id @db.Uuid
+  organisationId       String?  @map("organisation_id") @db.Uuid
+  name                 String
+  subdomain            String   @unique
+  countryCode          String   @map("country_code") @db.Char(2)
+  timezone             String
+  planTier             PlanTier @default(SMALL) @map("plan_tier")
+  schemaName           String   @map("schema_name")
+  isActive             Boolean  @default(true) @map("is_active")
+  // Phase 2 polish — public enrollment search + multi-school billing.
+  // latitude/longitude back the Haversine distance calc on
+  // GET /enrollment/search; fullAddress is the human-readable display
+  // string. sharedBillingGroupId groups schools that present a single
+  // combined billing surface to families — null means each school bills
+  // independently.
+  latitude             Decimal? @db.Decimal(10, 8)
+  longitude            Decimal? @db.Decimal(11, 8)
+  fullAddress          String?  @map("full_address")
+  sharedBillingGroupId String?  @map("shared_billing_group_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   organisation Organisation?      @relation(fields: [organisationId], references: [id])
   routing      TenantRouting?
   idProviders  IdentityProvider[]
 
   @@index([subdomain])
+  @@index([sharedBillingGroupId])
   @@map("schools")
   @@schema("platform")
 }

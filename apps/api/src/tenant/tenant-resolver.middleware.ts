@@ -29,8 +29,10 @@ export class TenantResolverMiddleware implements NestMiddleware {
   constructor(private readonly prisma: PrismaClient) {}
 
   async use(req: Request, _res: Response, next: NextFunction) {
-    // Skip tenant resolution for health checks and auth endpoints
-    if (this.isExemptPath(req.path)) {
+    // Express + Nest with a global prefix strip the prefix from req.path before
+    // middleware runs, so we match against the originalUrl (which keeps it).
+    var fullPath = (req.originalUrl || req.url || req.path).split('?')[0] || req.path;
+    if (this.isExemptPath(fullPath)) {
       next();
       return;
     }
@@ -122,6 +124,10 @@ export class TenantResolverMiddleware implements NestMiddleware {
       '/api/v1/auth/callback',
       '/api/docs',
       '/api/v1/guard-test/public',
+      // Phase 2 polish — public school discovery endpoint. Cross-tenant by
+      // design, queried from the marketing surface before any subdomain is
+      // known.
+      '/api/v1/enrollment/search',
     ];
 
     for (var i = 0; i < exemptPaths.length; i++) {

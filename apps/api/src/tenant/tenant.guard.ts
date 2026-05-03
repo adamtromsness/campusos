@@ -5,7 +5,9 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { getCurrentTenant } from './tenant.context';
+import { IS_PUBLIC_KEY } from '../auth/auth.guard';
 
 /**
  * TenantGuard
@@ -18,10 +20,22 @@ import { getCurrentTenant } from './tenant.context';
  * TenantResolverMiddleware → AuthGuard → TenantGuard → PermissionGuard
  *
  * For write operations on frozen tenants, returns 503 WRITE_FROZEN.
+ *
+ * Skipped on endpoints marked @Public() — those routes are exempt from
+ * tenant resolution by the middleware so getCurrentTenant() would throw.
  */
 @Injectable()
 export class TenantGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
   canActivate(context: ExecutionContext): boolean {
+    var isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
     var tenant = getCurrentTenant();
 
     // Check frozen state for write operations

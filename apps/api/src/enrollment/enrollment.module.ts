@@ -7,10 +7,12 @@ import { ApplicationService } from './application.service';
 import { OfferService } from './offer.service';
 import { WaitlistService } from './waitlist.service';
 import { CapacitySummaryService } from './capacity-summary.service';
+import { EnrollmentSearchService } from './enrollment-search.service';
 import { EnrollmentPeriodController } from './enrollment-period.controller';
 import { ApplicationController } from './application.controller';
 import { OfferController } from './offer.controller';
 import { WaitlistController } from './waitlist.controller';
+import { EnrollmentSearchController } from './enrollment-search.controller';
 
 /**
  * Enrollment Module — M81 Admissions (Cycle 6 Step 6).
@@ -60,12 +62,14 @@ import { WaitlistController } from './waitlist.controller';
     OfferService,
     WaitlistService,
     CapacitySummaryService,
+    EnrollmentSearchService,
   ],
   controllers: [
     EnrollmentPeriodController,
     ApplicationController,
     OfferController,
     WaitlistController,
+    EnrollmentSearchController,
   ],
   exports: [
     EnrollmentPeriodService,
@@ -73,6 +77,7 @@ import { WaitlistController } from './waitlist.controller';
     OfferService,
     WaitlistService,
     CapacitySummaryService,
+    EnrollmentSearchService,
   ],
 })
 export class EnrollmentModule {}

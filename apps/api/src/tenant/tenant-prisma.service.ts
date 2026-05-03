@@ -98,6 +98,23 @@ export class TenantPrismaService implements OnModuleDestroy {
     }, options);
   }
 
+  /**
+   * Execute against an explicit tenant schema, bypassing the AsyncLocalStorage
+   * tenant context. Used by cross-tenant aggregations on public/marketing
+   * surfaces (e.g. GET /enrollment/search). Same SET LOCAL discipline as
+   * executeInTenantContext — the search_path is scoped to the transaction
+   * so concurrent calls cannot leak.
+   */
+  async executeInExplicitSchema<T>(
+    schemaName: string,
+    fn: (client: PrismaClient) => Promise<T>,
+  ): Promise<T> {
+    return this.platformClient.$transaction(async function (tx: any): Promise<T> {
+      await tx.$executeRawUnsafe('SET LOCAL search_path TO "' + schemaName + '", platform, public');
+      return fn(tx as PrismaClient);
+    });
+  }
+
   async onModuleDestroy() {
     await this.platformClient.$disconnect();
   }
