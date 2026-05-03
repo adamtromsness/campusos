@@ -1,6 +1,6 @@
 # Cycle 7 Handoff — Tasks & Approval Workflows
 
-**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 done (schemas land cleanly on `tenant_demo` + `tenant_test`). Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
+**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 done (schemas land cleanly on `tenant_demo` + `tenant_test`; demo seeded with 8 auto-task rules + 3 workflow templates + 5 sample tasks + 1 historical leave-approval audit row; permission catalogue updated to grant OPS-001:read+write to Teacher/Student/Parent/Staff). Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
 
 **Branch:** `main`  
 **Plan reference:** `docs/campusos-cycle7-implementation-plan.html`  
@@ -16,7 +16,7 @@ This document tracks the Cycle 7 build — the M1 Task Management module (6 tabl
 | ---- | ------------------------------------------------------ | ----------------- |
 | 1    | Task Schema — Tasks, Archive, Auto-Rules               | **DONE**          |
 | 2    | Workflow Schema — Templates, Requests, Steps           | **DONE**          |
-| 3    | Seed Data — Auto-Task Rules + Workflow Templates       | pending           |
+| 3    | Seed Data — Auto-Task Rules + Workflow Templates       | **DONE**          |
 | 4    | Task Worker — Kafka Consumer + Auto-Task Engine        | pending           |
 | 5    | Task NestJS Module — CRUD + Acknowledgements           | pending           |
 | 6    | Workflow Engine — Multi-Step Approval                  | pending           |
@@ -176,6 +176,74 @@ Sanity counts (filtered to `tenant_demo`):
 **Sanity:** 6 logical wsk_* base tables in `tenant_demo` (`information_schema.tables` filter on `wsk\_%` returns exactly 6 — none of these tables are partitioned, so the count matches the logical-table count directly).
 
 **Splitter audit:** A naive single-line regex found false positives because COMMENT strings span multiple lines; switched to a state-machine audit that handles block comments, line comments, and `''` escape sequences inside single-quoted strings. The state-machine audit reports zero `;` outside legitimate statement terminators. Migration applied first try with no rewrite — second cycle in a row to clear the splitter trap on first attempt.
+
+---
+
+## Step 3 — Seed Data — Auto-Task Rules + Workflow Templates
+
+**Status:** DONE. New `packages/database/src/seed-tasks.ts` (idempotent, gated on `tsk_auto_task_rules` row count for the demo school). `seed:tasks` script wired into `package.json`. `seed-iam.ts` updated to grant `OPS-001:read+write` to Teacher / Student / Parent / Staff (the catalogue's existing entry for Internal Task Management — the plan's "SYS-001" wording is reconciled with the function library's `OPS-001` code so the catalogue stays at 447 functions × 3 tiers, no duplicate codes added). Build cache rebuilt; permission counts now read 38 / 19 / 19 / 18 for Teacher / Parent / Student / Staff respectively (each gained 2 perms from OPS-001:read + OPS-001:write).
+
+**Permission grants:**
+
+| Persona | Perms before | Perms after | Delta |
+| ------- | -----------: | ----------: | ----- |
+| Teacher | 36 | 38 | +`OPS-001:read+write` |
+| Parent  | 17 | 19 | +`OPS-001:read+write` |
+| Student | 17 | 19 | +`OPS-001:read+write` |
+| Staff   | 16 | 18 | +`OPS-001:read+write` |
+
+School Admin and Platform Admin already hold `OPS-001:admin` via the `everyFunction: ['read','write','admin']` catalogue grant — no change needed there. Catalogue total stays at **447 functions × 3 tiers = 1341 permission codes** (no new entries; OPS-001 was already in `permissions.json` waiting for Cycle 7 to use it).
+
+**What's seeded on `tenant_demo` (test tenant stays empty by convention — matches prior seeds):**
+
+1. **8 auto-task rules** (all `is_system=true, is_active=true`):
+
+   | Trigger event | Target role | Priority | Due offset | Category | Actions |
+   | ------------- | ----------- | -------- | ---------- | -------- | ------- |
+   | `cls.assignment.posted` | STUDENT | NORMAL | 0h | ACADEMIC | CREATE_TASK |
+   | `cls.grade.published` | STUDENT | LOW | 168h (7d) | ACADEMIC | CREATE_TASK |
+   | `cls.grade.returned` | STUDENT | LOW | 168h | ACADEMIC | CREATE_TASK |
+   | `hr.leave.approved` | SCHOOL_ADMIN | HIGH | 24h | ADMINISTRATIVE | CREATE_TASK |
+   | `att.absence.requested` | SCHOOL_ADMIN | NORMAL | 24h | ADMINISTRATIVE | CREATE_TASK |
+   | `msg.announcement.requires_acknowledgement` | (per-recipient) | NORMAL | 72h | ACKNOWLEDGEMENT | CREATE_ACKNOWLEDGEMENT, CREATE_TASK |
+   | `sis.consent.requested` | GUARDIAN | HIGH | 168h | ACKNOWLEDGEMENT | CREATE_ACKNOWLEDGEMENT, CREATE_TASK |
+   | `sys.profile.update_requested` | (per-recipient) | NORMAL | 168h | ADMINISTRATIVE | CREATE_TASK |
+
+   Total actions: 10 (6 single-action rules × 1 + 2 dual-action acknowledgement rules × 2).
+
+2. **2 auto-task conditions** — both gating on `payload.isPublished = true`:
+   - `cls.assignment.posted` rule fires only when the assignment is published.
+   - `cls.grade.published` rule fires only when the grade is published.
+
+3. **3 workflow templates** (each `is_active=true`):
+   - **Leave Request Approval** (`request_type=LEAVE_REQUEST`) — 2 steps: Step 1 `DEPARTMENT_HEAD` (timeout 48h), Step 2 `ROLE` `SCHOOL_ADMIN` (timeout 48h).
+   - **Absence Request Review** (`request_type=ABSENCE_REQUEST`) — 1 step: `ROLE` `SCHOOL_ADMIN` (timeout 24h).
+   - **Child Link Approval** (`request_type=CHILD_LINK_REQUEST`) — 1 step: `ROLE` `SCHOOL_ADMIN` (timeout 72h).
+
+4. **5 sample tasks** all back-dated to `2026-04-15 10:00:00+00` so they land in the `tsk_tasks_2026_04` partition leaf:
+   - **3 ACADEMIC tasks for Maya** keyed on her first 3 published `cls_assignments` rows (`source=AUTO`, `source_ref_id` = assignment id, due 2026-04-20).
+   - **1 PERSONAL task for Maya** ("Study for Biology test", `source=MANUAL`, due 2026-04-18).
+   - **1 ADMINISTRATIVE task for David** ("Update emergency contact information", `source=SYSTEM`, due 2026-04-25).
+
+5. **1 historical approval-request audit row** — wraps Rivera's existing APPROVED sick leave (2026-03-09 → 2026-03-10 from the Cycle 4 seed):
+   - `wsk_approval_requests` row with `status=APPROVED`, `request_type=LEAVE_REQUEST`, `reference_id` = Rivera's `hr_leave_requests.id`, `reference_table='hr_leave_requests'`, `submitted_at=2026-02-15`, `resolved_at=2026-02-17`.
+   - 2 `wsk_approval_steps` rows: Step 1 approver = VP (Linda Park), `actioned_at=2026-02-16`, comments `'Coverage arranged with Park.'`; Step 2 approver = Principal (Sarah Mitchell), `actioned_at=2026-02-17`, comments `'Approved.'`.
+   - Demonstrates the audit trail shape future engine writes will produce.
+
+**Verification (live counts on `tenant_demo`):**
+
+```
+rules: 8           tasks: 5
+conditions: 2      tasks-by-category: ACADEMIC=3 / ADMINISTRATIVE=1 / PERSONAL=1
+actions: 10        workflow-templates: 3
+                   workflow-steps: 4
+                   approval-requests: 1
+                   approval-steps: 2
+```
+
+All 5 tasks confirmed routed to the `tsk_tasks_2026_04` leaf (`SELECT COUNT(*) FROM ONLY tsk_tasks_2026_04` returns 5). Idempotent re-run logs `tsk_auto_task_rules already populated for demo school — skipping`. Test tenant stays empty (`tsk_auto_task_rules`, `tsk_tasks` both 0 rows on `tenant_test`).
+
+**Plan vs. catalogue reconciliation:** The plan refers to "Functions SYS-001 (core)" but the function library at `packages/database/data/permissions.json` has the entry under `OPS-001` "Internal Task Management" (Internal Operations group). Adding a new SYS-001 entry would create a duplicate code (the catalogue's existing SYS-001 is "Access Management" — IAM admin). Resolution: use the existing `OPS-001` code in service-layer `@RequirePermission('ops-001:read|write|admin')` decorators when those land in Step 5, and update the plan's nomenclature to match. The function library is authoritative.
 
 ---
 

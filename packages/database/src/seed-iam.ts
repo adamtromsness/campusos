@@ -205,6 +205,11 @@ async function seedIam() {
         // their own profile via /profile/me. Row scope at the service
         // layer keeps non-admins bound to their own iam_person row.
         'USR-001': ['read', 'write'],
+        // Cycle 7 — task management. Every persona has a to-do list
+        // surface. Row scope at the service layer keeps callers bound
+        // to their own owner_id. School Admin and Platform Admin get
+        // the admin tier through the everyFunction grant.
+        'OPS-001': ['read', 'write'],
       },
     },
     {
@@ -231,6 +236,11 @@ async function seedIam() {
         // shared-household editing (HouseholdsService gates on member
         // role HEAD_OF_HOUSEHOLD or SPOUSE).
         'USR-001': ['read', 'write'],
+        // Cycle 7 — task management. Every persona has a to-do list
+        // surface. Row scope at the service layer keeps callers bound
+        // to their own owner_id. School Admin and Platform Admin get
+        // the admin tier through the everyFunction grant.
+        'OPS-001': ['read', 'write'],
       },
     },
     {
@@ -251,6 +261,11 @@ async function seedIam() {
         // own profile + Demographics tab. Household is read-only for
         // non-HEAD/SPOUSE members per HouseholdsService.canEdit.
         'USR-001': ['read', 'write'],
+        // Cycle 7 — task management. Every persona has a to-do list
+        // surface. Row scope at the service layer keeps callers bound
+        // to their own owner_id. School Admin and Platform Admin get
+        // the admin tier through the everyFunction grant.
+        'OPS-001': ['read', 'write'],
       },
     },
     {
@@ -276,6 +291,11 @@ async function seedIam() {
         // Profile & Household mini-cycle — every persona self-services
         // their own profile (covers VP, counsellor, admin assistant).
         'USR-001': ['read', 'write'],
+        // Cycle 7 — task management. Every persona has a to-do list
+        // surface. Row scope at the service layer keeps callers bound
+        // to their own owner_id. School Admin and Platform Admin get
+        // the admin tier through the everyFunction grant.
+        'OPS-001': ['read', 'write'],
       },
     },
   ];
