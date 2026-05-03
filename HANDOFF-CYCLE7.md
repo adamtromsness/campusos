@@ -1,6 +1,6 @@
 # Cycle 7 Handoff — Tasks & Approval Workflows
 
-**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 done (schemas land cleanly on `tenant_demo` + `tenant_test`; demo seeded with 8 auto-task rules + 3 workflow templates + 5 sample tasks + 1 historical leave-approval audit row; permission catalogue updated to grant OPS-001:read+write to Teacher/Student/Parent/Staff). Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
+**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 done (schemas land cleanly; demo seeded with 8 rules + 3 templates + 5 sample tasks + 1 historical audit; OPS-001 grants on the four non-admin personas; **TaskWorker live and verified end-to-end on `tenant_demo`** — teacher publishes an assignment → `cls.assignment.posted` fires → worker resolves Maya as the only ACTIVE-enrolled student → 1 auto-task lands with rendered title; re-publish triggers Redis SET NX dedup hit and the task count stays at 1). Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
 
 **Branch:** `main`  
 **Plan reference:** `docs/campusos-cycle7-implementation-plan.html`  
@@ -17,7 +17,7 @@ This document tracks the Cycle 7 build — the M1 Task Management module (6 tabl
 | 1    | Task Schema — Tasks, Archive, Auto-Rules               | **DONE**          |
 | 2    | Workflow Schema — Templates, Requests, Steps           | **DONE**          |
 | 3    | Seed Data — Auto-Task Rules + Workflow Templates       | **DONE**          |
-| 4    | Task Worker — Kafka Consumer + Auto-Task Engine        | pending           |
+| 4    | Task Worker — Kafka Consumer + Auto-Task Engine        | **DONE**          |
 | 5    | Task NestJS Module — CRUD + Acknowledgements           | pending           |
 | 6    | Workflow Engine — Multi-Step Approval                  | pending           |
 | 7    | Leave Approval Migration to Workflow Engine            | pending           |
@@ -244,6 +244,83 @@ actions: 10        workflow-templates: 3
 All 5 tasks confirmed routed to the `tsk_tasks_2026_04` leaf (`SELECT COUNT(*) FROM ONLY tsk_tasks_2026_04` returns 5). Idempotent re-run logs `tsk_auto_task_rules already populated for demo school — skipping`. Test tenant stays empty (`tsk_auto_task_rules`, `tsk_tasks` both 0 rows on `tenant_test`).
 
 **Plan vs. catalogue reconciliation:** The plan refers to "Functions SYS-001 (core)" but the function library at `packages/database/data/permissions.json` has the entry under `OPS-001` "Internal Task Management" (Internal Operations group). Adding a new SYS-001 entry would create a duplicate code (the catalogue's existing SYS-001 is "Access Management" — IAM admin). Resolution: use the existing `OPS-001` code in service-layer `@RequirePermission('ops-001:read|write|admin')` decorators when those land in Step 5, and update the plan's nomenclature to match. The function library is authoritative.
+
+---
+
+## Step 4 — Task Worker — Kafka Consumer + Auto-Task Engine
+
+**Status:** DONE. `apps/api/src/tasks/task.worker.ts` + `apps/api/src/tasks/template-render.ts` + new `apps/api/src/tasks/tasks.module.ts` wired into `AppModule.imports` after `HouseholdsModule`. The TaskWorker is the **sole writer to `tsk_tasks`** per ADR-011 — domain modules emit Kafka events; auto-task rules subscribe; the worker creates rows.
+
+**Files:**
+
+- `apps/api/src/tasks/task.worker.ts` — TaskWorker consumer.
+- `apps/api/src/tasks/template-render.ts` — `renderTemplate('Complete: {assignment_title}', {...})` placeholder substitution + `buildPlaceholderValues(payload)` flattens camelCase to snake_case so templates can use either form.
+- `apps/api/src/tasks/tasks.module.ts` — wires `TaskWorker`, imports `TenantModule + IamModule + KafkaModule + NotificationsModule`.
+- `apps/api/src/kafka/event-envelope.ts` — adds `unprefixTopic(wireTopic)` helper, the inverse of `prefixedTopic`, so the worker can match wire topics back to the logical `trigger_event_type` in the rule table.
+- `apps/api/src/classroom/assignment.service.ts` — emits `cls.assignment.posted` on every create / update where `is_published=true` lands; injects `KafkaProducerService`; new private helpers `emitPosted()` and `loadClassDescriptor()`.
+- `apps/api/src/classroom/grade.service.ts` — adds `isPublished: true` to the `cls.grade.published` payload so the seeded condition (`payload.isPublished = true`) actually evaluates against a present field. The topic name implies it but the field needs to be on the wire for the condition evaluator.
+
+**Worker bootstrap:**
+
+```
+TaskWorker subscribed to 8 topic(s):
+  dev.att.absence.requested,
+  dev.cls.assignment.posted,
+  dev.cls.grade.published,
+  dev.cls.grade.returned,
+  dev.hr.leave.approved,
+  dev.msg.announcement.requires_acknowledgement,
+  dev.sis.consent.requested,
+  dev.sys.profile.update_requested
+```
+
+The bootstrap reads `tsk_auto_task_rules` across **every active school** (via `platform.schools` + `platform_tenant_routing` + `executeInExplicitSchema`), takes the union of distinct `trigger_event_type` values, env-prefixes them via `prefixedTopic()`, and subscribes under the `task-worker` consumer group. Adding a new auto-task rule with a never-before-seen trigger type at runtime requires a worker restart — documented limitation; the seed only adds rules at provisioning time today.
+
+**Per-event flow (matches the Cycle 3 + Cycle 5 consumer convention):**
+
+1. `unwrapEnvelope` reads `event_id`, `tenant_id`, `tenant-subdomain` (envelope-first, header-fallback) and reconstructs `TenantInfo`. Drops malformed events.
+2. `processWithIdempotency('task-worker', event)` — read-only `IdempotencyService.isClaimed` check. Already-claimed events are dropped silently.
+3. `runWithTenantContextAsync` opens the tenant context.
+4. Query `tsk_auto_task_rules WHERE trigger_event_type = $1 AND is_active = true` — returns 0..N rules.
+5. For each rule, AND-evaluate `tsk_auto_task_conditions` against the payload. The 7-value operator enum (EQUALS / NOT_EQUALS / IN / NOT_IN / GT / LT / EXISTS) is implemented in `evaluateCondition()` in the worker file. Field paths are JSON dot-paths into the payload.
+6. Resolve owners via `resolveOwners(rule, eventType, event)`:
+   - `cls.assignment.posted` → join `sis_enrollments + sis_students + platform_students + platform_users` for the class. Returns one account_id per ACTIVE enrollee.
+   - `target_role='SCHOOL_ADMIN'` → query `platform.iam_effective_access_cache` with the `'sch-001:admin' = ANY(permission_codes)` filter joined to school + platform scopes (matches the `AbsenceRequestNotificationConsumer.loadSchoolAdminAccounts` precedent).
+   - `target_role='STUDENT'` → `payload.studentId` → 1 account.
+   - `target_role='GUARDIAN'` → `payload.guardianAccountId` → 1 account.
+   - Fallback → `payload.recipientAccountId` / `accountId`.
+7. Execute actions in `sort_order`:
+   - `CREATE_ACKNOWLEDGEMENT` → INSERT into `tsk_acknowledgements` per owner. Returns a `Map<owner_id, ack_id>` so the next CREATE_TASK in the same rule links via `acknowledgement_id`. Source-type heuristic (`inferAckSourceType(topic)`) picks the right enum value from the topic name (announcement / consent / discipline / policy / form / CUSTOM fallback).
+   - `CREATE_TASK` → for each owner: per-(owner, source_ref_id) **Redis SET NX** dedup on `tsk:auto:{subdomain}:{owner}:{source_ref_id}` (30-day TTL); if claimed, INSERT into `tsk_tasks` with `source='AUTO'`, `status='TODO'`, the rule's priority + category, the rendered title + description, and `acknowledgement_id` from the prior action when applicable. Each successful insert emits `task.created` with `correlation_id = inbound event_id`.
+   - `SEND_NOTIFICATION` → reserved for future cycles; logged and skipped.
+8. Post-process — `IdempotencyService.claim('task-worker', event_id)` so a redelivery of the exact same event-id is dropped at step 2 next time.
+
+**Dedup is dual-layer per the Step 1 schema notes:**
+
+- Per-`event_id` consumer-group claim catches Kafka redelivery of the same event row.
+- Per-(owner, source_ref_id) Redis SET NX catches "different event_id but same logical action" — e.g. a teacher PATCHing `isPublished=true` on an already-published assignment re-emits with a new `event_id`, but the source_ref_id matches the existing task. The Redis claim returns false; INSERT is skipped.
+
+The schema-level partial INDEX on `(owner_id, source, source_ref_id) WHERE source != 'MANUAL'` is non-unique (partitioned tables can't constrain across partitions without including the partition key) — it's investigation support, not a dedup gate.
+
+**Live verification on `tenant_demo` (Step 4 smoke, 2026-05-03):**
+
+1. **Pre-create the 8 trigger topics** with `kafka-topics.sh --create --if-not-exists` for each `dev.<event_type>` (one-time dev workaround — the same race is documented for Cycle 3's audience-fan-out worker on a fresh broker; auto.create.topics.enable handles publish-side but subscribe-before-publish is racy).
+2. Boot the API. Worker logs `TaskWorker subscribed to 8 topic(s):` cleanly.
+3. Teacher (Rivera) logs in, POST `/classes/{Algebra}/assignments` with `{title:"Step 4 Live Smoke — Photosynthesis Lab", maxPoints:50, isPublished:true}`.
+4. AssignmentService emits `cls.assignment.posted` with `isPublished:true` + classId + assignment_title + class_name + due_date placeholders.
+5. Within ~3 seconds, the worker creates 1 row in `tsk_tasks` for Maya:
+   - `title = "Complete: Step 4 Live Smoke — Photosynthesis Lab"` (rendered from `title_template = "Complete: {assignment_title}"`)
+   - `owner_id = student@demo.campusos.dev` (the only ACTIVE enrollee in the class — Maya)
+   - `source = 'AUTO'`, `source_ref_id = <assignment id>`, `priority = 'NORMAL'`, `task_category = 'ACADEMIC'`, `status = 'TODO'`
+6. **Redis dedup verified** — PATCH the same assignment with `isPublished:true` again. Worker logs `[task-worker] dedup hit on tsk:auto:demo:<owner>:<source_ref_id> — skipping task creation`. Task count for the assignment stays at 1.
+7. Cleanup — DELETE the smoke task + smoke assignment + matching Redis key so the next CAT run starts clean.
+
+**Out of scope this step (deferred):**
+
+- The remaining 7 auto-task rules wired in Step 3 are scaffolded but not exercised end-to-end yet (the keystone path verifies the engine works; the smaller paths follow the same code path and reuse the same resolveOwners / template-render / dedup machinery).
+- The `cls.grade.returned` topic has no producer yet — the rule is in place for when the grade-return flow ships.
+- Runtime rule-add (without worker restart) — the seed-only convention covers this for now; a notify-on-rule-change channel would be a Phase 2 hardening.
+- The dev-cluster topic-creation race documented in Cycles 3+5 strikes again. A startup pre-create-topics step or a "warmup emit" sweep would harden first-boot. Documented as known issue.
 
 ---
 

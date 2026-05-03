@@ -106,3 +106,21 @@ export function prefixedTopic(logicalTopic: string): string {
   var env = (process.env.KAFKA_TOPIC_ENV || 'dev').trim();
   return env + '.' + logicalTopic;
 }
+
+/**
+ * Inverse of prefixedTopic. Strips the env prefix off an inbound wire
+ * topic so consumers can match it against logical event_type values
+ * stored in the database (e.g. tsk_auto_task_rules.trigger_event_type).
+ *
+ *   unprefixTopic('dev.cls.assignment.posted')
+ *     // → 'cls.assignment.posted'
+ *
+ * If the prefix doesn't match the configured KAFKA_TOPIC_ENV (e.g. a
+ * cross-environment consumer setup), returns the topic unchanged.
+ */
+export function unprefixTopic(wireTopic: string): string {
+  var env = (process.env.KAFKA_TOPIC_ENV || 'dev').trim();
+  var prefix = env + '.';
+  if (wireTopic.indexOf(prefix) === 0) return wireTopic.substring(prefix.length);
+  return wireTopic;
+}

@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
+import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   AssignmentResponseDto,
@@ -82,7 +84,53 @@ var SELECT_ASSIGNMENT_BASE =
 
 @Injectable()
 export class AssignmentService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly kafka: KafkaProducerService,
+  ) {}
+
+  /**
+   * Emit cls.assignment.posted whenever an assignment row lands with
+   * is_published=true (either on create or on a publish-toggling update).
+   * Cycle 7 Step 4's TaskWorker subscribes to this topic to auto-create
+   * a TODO task on every enrolled student's to-do list.
+   */
+  private emitPosted(assignment: AssignmentResponseDto, classRow: { sectionCode: string; courseName: string | null }): void {
+    if (!assignment.isPublished) return;
+    var tenant = getCurrentTenant();
+    void this.kafka.emit({
+      topic: 'cls.assignment.posted',
+      key: assignment.id,
+      sourceModule: 'classroom',
+      payload: {
+        assignmentId: assignment.id,
+        classId: assignment.classId,
+        title: assignment.title,
+        assignment_title: assignment.title,
+        section_code: classRow.sectionCode,
+        class_name: classRow.courseName ? classRow.courseName + ' (' + classRow.sectionCode + ')' : classRow.sectionCode,
+        dueDate: assignment.dueDate,
+        due_date: assignment.dueDate,
+        maxPoints: assignment.maxPoints,
+        isPublished: true,
+      },
+      tenantId: tenant.schoolId,
+      tenantSubdomain: tenant.subdomain,
+    });
+  }
+
+  private async loadClassDescriptor(classId: string): Promise<{ sectionCode: string; courseName: string | null }> {
+    var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ section_code: string; course_name: string | null }>>(
+        'SELECT c.section_code, co.name AS course_name FROM sis_classes c ' +
+          'LEFT JOIN sis_courses co ON co.id = c.course_id ' +
+          'WHERE c.id = $1::uuid',
+        classId,
+      );
+    });
+    if (rows.length === 0) return { sectionCode: '', courseName: null };
+    return { sectionCode: rows[0]!.section_code, courseName: rows[0]!.course_name };
+  }
 
   /**
    * Verify the caller can READ the given class. Used by all GET endpoints
@@ -335,7 +383,12 @@ export class AssignmentService {
       );
     });
 
-    return this.getById(assignmentId, actor);
+    var dto = await this.getById(assignmentId, actor);
+    if (dto.isPublished) {
+      var classDescriptor = await this.loadClassDescriptor(classId);
+      this.emitPosted(dto, classDescriptor);
+    }
+    return dto;
   }
 
   async update(
@@ -421,7 +474,15 @@ export class AssignmentService {
       );
     });
 
-    return this.getById(assignmentId, actor);
+    var dto = await this.getById(assignmentId, actor);
+    // Emit on every PATCH that lands isPublished=true. The TaskWorker
+    // dedups per-(owner, source_ref_id) via Redis SET NX, so re-emitting
+    // for already-existing tasks is a harmless no-op.
+    if (dto.isPublished) {
+      var classDescriptor = await this.loadClassDescriptor(dto.classId);
+      this.emitPosted(dto, classDescriptor);
+    }
+    return dto;
   }
 
   /**

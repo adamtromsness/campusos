@@ -611,6 +611,11 @@ export class GradeService {
         isExtraCredit: false,
         termId: termId,
         publishedAt: g.publishedAt,
+        // Cycle 7 Step 4 — the cls.grade.published seeded auto-task rule
+        // gates on payload.isPublished=true. The topic name already
+        // implies it but we set it explicitly so the TaskWorker's
+        // condition evaluator sees a value rather than undefined.
+        isPublished: true,
       },
     });
   }
