@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { TenantModule } from '../tenant/tenant.module';
 import { IamModule } from '../iam/iam.module';
+import { KafkaModule } from '../kafka/kafka.module';
 import { StudentService } from './student.service';
 import { ClassService } from './class.service';
 import { FamilyService } from './family.service';
+import { ChildLinkRequestService } from './child-link-request.service';
 import { StudentController } from './student.controller';
 import { ClassController } from './class.controller';
 import { AcademicYearController } from './academic-year.controller';
+import { ChildLinkRequestController } from './child-link-request.controller';
 
 /**
  * SIS Module — Student Information System (M20 SIS Core)
@@ -21,9 +24,14 @@ import { AcademicYearController } from './academic-year.controller';
  * read time — never duplicated in sis_* tables.
  */
 @Module({
-  imports: [TenantModule, IamModule],
-  providers: [StudentService, ClassService, FamilyService],
-  controllers: [StudentController, ClassController, AcademicYearController],
-  exports: [StudentService, ClassService, FamilyService],
+  imports: [TenantModule, IamModule, KafkaModule],
+  providers: [StudentService, ClassService, FamilyService, ChildLinkRequestService],
+  controllers: [
+    StudentController,
+    ClassController,
+    AcademicYearController,
+    ChildLinkRequestController,
+  ],
+  exports: [StudentService, ClassService, FamilyService, ChildLinkRequestService],
 })
 export class SisModule {}

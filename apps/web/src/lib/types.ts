@@ -1956,3 +1956,61 @@ export interface UpdateHouseholdMemberPayload {
   role?: HouseholdRole;
   isPrimaryContact?: boolean;
 }
+
+// ── Add Child / Child Link Requests ─────────────────────────────────
+
+export type ChildLinkRequestType = 'LINK_EXISTING' | 'ADD_NEW';
+export type ChildLinkRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ChildSearchResultDto {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  gradeLevel: string | null;
+  schoolName: string | null;
+  studentNumber: string | null;
+}
+
+export interface ChildLinkRequestDto {
+  id: string;
+  schoolId: string;
+  requestingGuardianId: string;
+  requestingGuardianName: string | null;
+  requestType: ChildLinkRequestType;
+  existingStudentId: string | null;
+  existingStudentName: string | null;
+  newChildFirstName: string | null;
+  newChildLastName: string | null;
+  newChildDateOfBirth: string | null;
+  newChildGender: string | null;
+  newChildGradeLevel: string | null;
+  status: ChildLinkRequestStatus;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  reviewerNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChildSearchArgs {
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+}
+
+export interface SubmitLinkExistingPayload {
+  existingStudentId: string;
+}
+
+export interface SubmitAddNewChildPayload {
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender?: string;
+  gradeLevel: string;
+}
+
+export interface ReviewLinkRequestPayload {
+  reviewerNotes?: string;
+}
