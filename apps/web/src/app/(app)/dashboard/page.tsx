@@ -45,7 +45,7 @@ export default function HomePage() {
         />
       </div>
 
-      <div className="mt-10 grid w-full grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="mt-10 grid w-full grid-cols-4 gap-x-3 gap-y-6 sm:grid-cols-6">
         {filtered.map((app) => (
           <AppTile key={app.key} app={app} badges={badges} />
         ))}
@@ -64,14 +64,21 @@ function AppTile({ app, badges }: { app: AppDef; badges: AppBadges }) {
   return (
     <Link
       href={app.href}
-      className={cn(
-        'group relative flex aspect-square flex-col items-center justify-center gap-3 rounded-card border border-gray-200 bg-white px-4 py-6 text-center shadow-card transition',
-        'hover:-translate-y-0.5 hover:border-campus-300 hover:shadow-elevated',
-      )}
+      title={app.description}
+      className="group flex flex-col items-center gap-1.5 rounded-lg p-1 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-campus-300"
     >
-      {count > 0 && <UnreadBadge count={count} />}
-      <Icon className="h-10 w-10 text-campus-600 transition-colors group-hover:text-campus-700" />
-      <span className="text-sm font-medium text-gray-900">{app.label}</span>
+      <span
+        className={cn(
+          'relative flex h-14 w-14 items-center justify-center rounded-2xl bg-campus-50 text-campus-600 transition',
+          'group-hover:bg-campus-100 group-hover:text-campus-700 group-active:scale-95',
+        )}
+      >
+        <Icon className="h-7 w-7" />
+        {count > 0 && <UnreadBadge count={count} />}
+      </span>
+      <span className="line-clamp-1 text-xs text-gray-700 group-hover:text-gray-900">
+        {app.label}
+      </span>
     </Link>
   );
 }
@@ -80,7 +87,7 @@ function UnreadBadge({ count }: { count: number }) {
   return (
     <span
       aria-label={`${count} unread`}
-      className="absolute right-2 top-2 inline-flex min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold leading-none text-white shadow-sm"
+      className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-white"
     >
       {count > 99 ? '99+' : count}
     </span>
