@@ -27,10 +27,10 @@ export class WorkflowController {
   ) {}
 
   @Post()
-  @RequirePermission('ops-001:write')
+  @RequirePermission('ops-001:admin')
   @ApiOperation({
     summary:
-      'Submit a new approval request. Engine selects the active workflow template by request_type and activates Step 1.',
+      'Submit a new approval request (ADMIN only). Engine selects the active workflow template by request_type and activates Step 1. Domain modules (LeaveService, etc.) submit programmatically via WorkflowEngineService.submit() and bypass this gate; non-admin self-service submission goes through those domain endpoints, not here. REVIEW-CYCLE7 BLOCKING 2.',
   })
   async submit(
     @Body() body: SubmitApprovalDto,
@@ -112,7 +112,7 @@ export class WorkflowController {
   @RequirePermission('ops-001:write')
   @ApiOperation({
     summary:
-      'Requester pulls back a still-PENDING request. Skips remaining steps; does NOT emit approval.request.resolved.',
+      'Requester pulls back a still-PENDING request. Skips remaining AWAITING steps and emits approval.request.resolved with status=WITHDRAWN so source-module consumers (e.g. LeaveApprovalConsumer) cascade-cancel the underlying domain row.',
   })
   async withdraw(
     @Param('id', ParseUUIDPipe) id: string,

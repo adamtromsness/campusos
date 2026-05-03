@@ -225,6 +225,15 @@ export class TaskService {
         'Only admins can create tasks on behalf of another user this cycle',
       );
     }
+    if (isDelegation) {
+      // Defence-in-depth: even an admin acting in tenant A must not be
+      // able to land a task on a platform_users.id that belongs to
+      // tenant B (cross-tenant guess). Verify the target has a domain
+      // projection in this tenant — sis_students/sis_guardians/hr_employees
+      // — mirroring the Cycle 6.1 ProfileService.assertTargetInCurrentTenant
+      // pattern. REVIEW-CYCLE7 MAJOR 4.
+      await this.assertAssigneeInCurrentTenant(input.assigneeAccountId!);
+    }
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
         'INSERT INTO tsk_tasks ' +
@@ -369,5 +378,34 @@ export class TaskService {
     });
     if (rows.length === 0) throw new NotFoundException('Task ' + id);
     return rowToDto(rows[0]!);
+  }
+
+  /**
+   * Verify that the supplied platform_users.id has a domain projection
+   * (sis_students / sis_guardians / hr_employees) in the calling tenant.
+   * Used by `create()` on the delegation path so that a school admin in
+   * tenant A cannot land a task on an unrelated tenant B's user by
+   * supplying a foreign UUID. Mirrors the Cycle 6.1 Profile pattern.
+   *
+   * REVIEW-CYCLE7 MAJOR 4.
+   */
+  private async assertAssigneeInCurrentTenant(accountId: string): Promise<void> {
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM platform.platform_users pu WHERE pu.id = $1::uuid AND ( ' +
+          'EXISTS (SELECT 1 FROM sis_students s ' +
+          '        JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+          '        WHERE ps.person_id = pu.person_id) ' +
+          'OR EXISTS (SELECT 1 FROM sis_guardians WHERE person_id = pu.person_id) ' +
+          'OR EXISTS (SELECT 1 FROM hr_employees WHERE person_id = pu.person_id)) LIMIT 1',
+        accountId,
+      );
+    });
+    if (rows.length === 0) {
+      // 400 not 404 — the assigneeAccountId is request-supplied, the
+      // caller didn't navigate to it. A bad UUID is invalid input, not
+      // a missing resource.
+      throw new BadRequestException('assigneeAccountId does not belong to a user in this school');
+    }
   }
 }

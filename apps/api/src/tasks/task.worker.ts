@@ -312,8 +312,21 @@ export class TaskWorker implements OnModuleInit {
 
   /**
    * Create a tsk_acknowledgements row per resolved owner. Returns a map
-   * from owner_id to the freshly minted acknowledgement id so the
-   * companion CREATE_TASK action in the same rule can link them.
+   * from owner_id to the matching acknowledgement id so the companion
+   * CREATE_TASK action in the same rule can link them.
+   *
+   * Idempotency is dual-layer per the same pattern as `createTasks`:
+   *   1. Redis SET NX on `tsk:auto-ack:{subdomain}:{ownerId}:{sourceRefId}`
+   *      (30-day TTL) catches "different event_id but same logical action"
+   *      — e.g. an announcement re-emitted with a fresh event_id.
+   *   2. The outer `processWithIdempotency` consumer-group claim catches
+   *      same-event_id Kafka redelivery.
+   *
+   * Failure model: when the INSERT throws, we release the Redis claim and
+   * rethrow so the outer wrapper does NOT claim the event_id and Kafka
+   * redelivers. On the retry, owners whose insert already succeeded will
+   * SET NX → false and we look up the existing ack id rather than
+   * minting a fresh one — at-least-once with no duplicate rows.
    */
   private async createAcknowledgements(
     rule: RuleRow,
@@ -335,6 +348,36 @@ export class TaskWorker implements OnModuleInit {
     const title = renderTemplate(rule.title_template, placeholders);
     const sourceType = inferAckSourceType(event.topic);
     for (const ownerId of ownerIds) {
+      const dedupKey = 'tsk:auto-ack:' + event.tenant.subdomain + ':' + ownerId + ':' + sourceRefId;
+      const claimed = await this.redis.claimIdempotency(dedupKey, 60 * 60 * 24 * 30);
+      if (!claimed) {
+        // Redelivery — the ack already landed on a previous run. Look up
+        // the existing row so the companion CREATE_TASK can link to it.
+        const existing = await this.lookupExistingAck(ownerId, sourceRefId, event.topic);
+        if (existing) {
+          out.set(ownerId, existing);
+          this.logger.debug(
+            '[' +
+              CONSUMER_GROUP +
+              '] dedup hit on ' +
+              dedupKey +
+              ' — reusing existing ack ' +
+              existing,
+          );
+        } else {
+          // Redis claim is stale (e.g. someone manually deleted the ack
+          // row). Release the claim so the next event lands cleanly.
+          await this.redis.releaseIdempotency(dedupKey);
+          this.logger.warn(
+            '[' +
+              CONSUMER_GROUP +
+              '] dedup hit on ' +
+              dedupKey +
+              ' but no matching tsk_acknowledgements row — released stale claim',
+          );
+        }
+        continue;
+      }
       const ackId = generateId();
       try {
         await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -354,17 +397,49 @@ export class TaskWorker implements OnModuleInit {
         });
         out.set(ownerId, ackId);
       } catch (e: any) {
-        this.logger.warn(
+        // Release the Redis claim so the next redelivery isn't blocked,
+        // then rethrow so processWithIdempotency does NOT claim the
+        // event_id and Kafka retries. REVIEW-CYCLE7 BLOCKING 1.
+        await this.redis.releaseIdempotency(dedupKey);
+        this.logger.error(
           '[' +
             CONSUMER_GROUP +
             '] tsk_acknowledgements insert failed for owner=' +
             ownerId +
-            ': ' +
+            '; released Redis claim, rethrowing for retry: ' +
             (e?.message || e),
         );
+        throw e;
       }
     }
     return out;
+  }
+
+  /**
+   * Look up a previously-inserted tsk_acknowledgements row for a given
+   * (owner platform user, source_ref_id, source_table) — used when the
+   * Redis dedup gate hits and we need to link an already-created ack
+   * id into the companion CREATE_TASK action on the same rule.
+   *
+   * Returns null when no matching row exists (the dedup key is stale).
+   */
+  private async lookupExistingAck(
+    ownerId: string,
+    sourceRefId: string,
+    sourceTable: string,
+  ): Promise<string | null> {
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ id: string }>>(
+        'SELECT a.id::text AS id FROM tsk_acknowledgements a ' +
+          'JOIN platform.platform_users pu ON pu.person_id = a.subject_id ' +
+          'WHERE pu.id = $1::uuid AND a.source_ref_id = $2::uuid AND a.source_table = $3 ' +
+          'ORDER BY a.created_at DESC LIMIT 1',
+        ownerId,
+        sourceRefId,
+        sourceTable,
+      );
+    });
+    return rows.length > 0 ? rows[0]!.id : null;
   }
 
   /**
@@ -390,8 +465,9 @@ export class TaskWorker implements OnModuleInit {
     for (const ownerId of ownerIds) {
       // Per-(owner, source_ref_id) Redis dedup. Skipped when no source
       // ref id (a manual-style auto-task with no domain anchor).
+      let dedupKey: string | null = null;
       if (sourceRefId) {
-        const dedupKey = 'tsk:auto:' + event.tenant.subdomain + ':' + ownerId + ':' + sourceRefId;
+        dedupKey = 'tsk:auto:' + event.tenant.subdomain + ':' + ownerId + ':' + sourceRefId;
         const claimed = await this.redis.claimIdempotency(dedupKey, 60 * 60 * 24 * 30);
         if (!claimed) {
           this.logger.debug(
@@ -427,15 +503,20 @@ export class TaskWorker implements OnModuleInit {
           );
         });
       } catch (e: any) {
-        this.logger.warn(
+        // Release the Redis claim so a Kafka redelivery can retry this
+        // owner, then rethrow so processWithIdempotency does NOT claim
+        // the event_id. Owners whose INSERT already succeeded keep their
+        // claim and skip cleanly on retry. REVIEW-CYCLE7 BLOCKING 1.
+        if (dedupKey) await this.redis.releaseIdempotency(dedupKey);
+        this.logger.error(
           '[' +
             CONSUMER_GROUP +
             '] tsk_tasks insert failed for owner=' +
             ownerId +
-            ': ' +
+            '; released Redis claim, rethrowing for retry: ' +
             (e?.message || e),
         );
-        continue;
+        throw e;
       }
       void this.kafka.emit({
         topic: 'task.created',

@@ -198,10 +198,36 @@ export class WorkflowEngineService {
       throw new BadRequestException('referenceId and referenceTable must be provided together');
     }
 
+    // Defense-in-depth: when a reference row is supplied, verify the
+    // table name is in our allowlist AND the row actually exists in
+    // the current tenant schema. The tenant schema search_path inside
+    // executeInTenantTransaction means a row found here is automatically
+    // bound to the calling tenant — no cross-tenant guessing. Public
+    // submission is gated on ops-001:admin (REVIEW-CYCLE7 BLOCKING 2);
+    // domain modules submit programmatically and are responsible for
+    // their own ownership checks before calling submit().
+    if (body.referenceTable && body.referenceId) {
+      assertReferenceTableAllowed(body.referenceTable);
+    }
+
     const requestId = generateId();
     let createdStep: ApprovalStepResponseDto | null = null;
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      if (body.referenceTable && body.referenceId) {
+        // Allowlisted table name has already been validated above against
+        // a strict alphanumeric+underscore regex, so direct interpolation
+        // here is safe.
+        const refRows = await tx.$queryRawUnsafe<Array<{ ok: number }>>(
+          'SELECT 1 AS ok FROM ' + body.referenceTable + ' WHERE id = $1::uuid LIMIT 1',
+          body.referenceId,
+        );
+        if (refRows.length === 0) {
+          throw new BadRequestException(
+            'Referenced row ' + body.referenceTable + '/' + body.referenceId + ' not found',
+          );
+        }
+      }
       const tplRows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         'SELECT id::text AS id FROM wsk_workflow_templates ' +
           'WHERE school_id = $1::uuid AND request_type = $2 AND is_active = true LIMIT 1',
@@ -435,6 +461,12 @@ export class WorkflowEngineService {
           referenceId: r.reference_id,
           referenceTable: r.reference_table,
           requesterId: r.requester_id,
+          // The actor whose action resolved the request (the final
+          // approver on APPROVED, or the rejecter on REJECTED). Source-
+          // module consumers (e.g. LeaveApprovalConsumer) populate the
+          // domain row's reviewed_by audit column from this so the audit
+          // trail is accurate. REVIEW-CYCLE7 MAJOR 3.
+          approverAccountId: actor.accountId,
           status: resolveStatus,
         },
         tenantId: tenant.schoolId,
@@ -506,6 +538,10 @@ export class WorkflowEngineService {
           referenceId: r.reference_id,
           referenceTable: r.reference_table,
           requesterId: r.requester_id,
+          // The actor who triggered the withdraw — for self-withdraw
+          // this is the requester, for an admin override it's the admin.
+          // REVIEW-CYCLE7 MAJOR 3.
+          approverAccountId: actor.accountId,
           status: 'WITHDRAWN',
         },
         tenantId: tenant.schoolId,
@@ -787,4 +823,35 @@ export function roleTokenToName(token: string): string {
     .split('_')
     .map((part) => (part.length === 0 ? part : part[0]!.toUpperCase() + part.slice(1)))
     .join(' ');
+}
+
+/**
+ * Allowlist of polymorphic referenceTable values the engine will accept
+ * on submit(). Adding a new domain that wires into the workflow engine
+ * means landing a new entry here. The strict alphanumeric+underscore
+ * regex check is the SQL-injection guard since the value is interpolated
+ * into the existence-check query — the allowlist is the contract guard
+ * to prevent admin typos pointing at unrelated tables.
+ *
+ * REVIEW-CYCLE7 BLOCKING 2.
+ */
+const ALLOWED_REFERENCE_TABLES = new Set<string>([
+  'hr_leave_requests',
+  'sis_absence_requests',
+  'sis_child_link_requests',
+]);
+
+function assertReferenceTableAllowed(table: string): void {
+  if (!/^[a-z][a-z0-9_]{0,63}$/.test(table)) {
+    throw new BadRequestException(
+      'referenceTable must be a snake_case identifier (1–64 chars, alphanumeric + underscore)',
+    );
+  }
+  if (!ALLOWED_REFERENCE_TABLES.has(table)) {
+    throw new BadRequestException(
+      'referenceTable "' +
+        table +
+        '" is not in the workflow allowlist. Wire your domain in WorkflowEngineService.ALLOWED_REFERENCE_TABLES first.',
+    );
+  }
 }

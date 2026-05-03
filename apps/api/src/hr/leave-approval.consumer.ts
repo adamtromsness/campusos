@@ -110,14 +110,10 @@ export class LeaveApprovalConsumer implements OnModuleInit {
 
   private async applyDecision(event: UnwrappedEvent<ResolvedPayload>): Promise<void> {
     const p = event.payload;
-    // The workflow engine doesn't expose the final approver's account
-    // id on approval.request.resolved (only requesterId + status). For
-    // the audit trail on hr_leave_requests.reviewed_by we use the
-    // requester's account as a placeholder — admins acting via the
-    // direct PATCH path still get their own id recorded. This is a
-    // documented Phase 2 carry-over: future cycles can extend the
-    // resolved payload with the final approver id so the audit trail
-    // is fully accurate.
+    // The engine emits the final approver's account_id on
+    // approval.request.resolved (REVIEW-CYCLE7 MAJOR 3). Fallback to
+    // requesterId is kept as defence-in-depth for any in-flight events
+    // emitted before the fix landed.
     const reviewerAccountId = p.approverAccountId ?? p.requesterId;
     const referenceId = p.referenceId!;
     try {
