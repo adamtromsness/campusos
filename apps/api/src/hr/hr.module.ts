@@ -3,6 +3,7 @@ import { TenantModule } from '../tenant/tenant.module';
 import { IamModule } from '../iam/iam.module';
 import { KafkaModule } from '../kafka/kafka.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 import { EmployeeService } from './employee.service';
 import { PositionService } from './position.service';
 import { EmployeeDocumentService } from './employee-document.service';
@@ -10,6 +11,7 @@ import { LeaveService } from './leave.service';
 import { CertificationService } from './certification.service';
 import { TrainingComplianceService } from './training-compliance.service';
 import { LeaveNotificationConsumer } from './leave-notification.consumer';
+import { LeaveApprovalConsumer } from './leave-approval.consumer';
 import { EmployeeController } from './employee.controller';
 import { PositionController } from './position.controller';
 import { LeaveController } from './leave.controller';
@@ -40,7 +42,7 @@ import { ComplianceController } from './compliance.controller';
  * for the consumer + producer wiring.
  */
 @Module({
-  imports: [TenantModule, IamModule, KafkaModule, NotificationsModule],
+  imports: [TenantModule, IamModule, KafkaModule, NotificationsModule, WorkflowsModule],
   providers: [
     EmployeeService,
     PositionService,
@@ -49,6 +51,7 @@ import { ComplianceController } from './compliance.controller';
     CertificationService,
     TrainingComplianceService,
     LeaveNotificationConsumer,
+    LeaveApprovalConsumer,
   ],
   controllers: [
     EmployeeController,

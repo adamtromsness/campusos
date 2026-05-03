@@ -1,6 +1,6 @@
 # Cycle 7 Handoff — Tasks & Approval Workflows
 
-**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 + 6 done. Schemas land cleanly; demo seeded with 8 rules + 3 templates + 5 sample tasks + 1 historical audit; OPS-001 grants on the four non-admin personas; TaskWorker live; Step 5 ships the request-path API; **Step 6 ships the WorkflowEngineService** — sole writer to `wsk_approval_requests` and `wsk_approval_steps` per ADR-012, 7 endpoints under `/approvals`, multi-step sequential approval with FOR-UPDATE locking, dynamic approver resolution (SPECIFIC_USER / ROLE via iam_role_assignment / MANAGER + DEPARTMENT_HEAD fall back to school admin), `approval.step.awaiting` and `approval.request.resolved` envelopes captured live. Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
+**Status:** Cycle 7 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 + 6 + 7 done. Schemas land cleanly; demo seeded; OPS-001 grants; TaskWorker live; tasks request-path API live; WorkflowEngineService live; **Step 7 migrates leave approval onto the workflow engine** — `LeaveService.submit()` also calls `workflowEngine.submit()` (graceful fallback when no `LEAVE_REQUEST` template exists); approve/reject extracted into `approveInternal`/`rejectInternal` helpers; new `LeaveApprovalConsumer` listens on `approval.request.resolved` filtered by `requestType='LEAVE_REQUEST'` and applies the internal helpers; existing `PATCH /leave-requests/:id/approve|reject` direct-admin path preserved; full end-to-end smoke verified live (Rivera submits → workflow engine creates 2-step request → admin approves both steps → leave row flips PENDING→APPROVED with balance shift + reviewed_at populated → existing `hr.leave.approved` + `hr.leave.coverage_needed` chain fires unchanged → CoverageConsumer creates 6 coverage rows). Cycles 0–6 are COMPLETE; Phase 2 Parent Polish (the cross-cutting bundle of 5 commits between `44dff03` and `c9d2de7` on 2026-05-03) extended the tenant base table count from 106 → 108 with `sch_calendar_event_rsvps` (`023`) and `sis_child_link_requests` (`024`); platform `schools` gained 4 nullable columns (`latitude`, `longitude`, `full_address`, `shared_billing_group_id`) and `enr_enrollment_periods` gained `allows_public_search` (`025`). Cycle 7 picks up from there. The Cycle 7 plan called its migrations `024` + `025` but those numbers are taken, so Cycle 7 ships them as **`026`** + **`027`**.
 
 **Branch:** `main`  
 **Plan reference:** `docs/campusos-cycle7-implementation-plan.html`  
@@ -20,7 +20,7 @@ This document tracks the Cycle 7 build — the M1 Task Management module (6 tabl
 | 4    | Task Worker — Kafka Consumer + Auto-Task Engine        | **DONE**          |
 | 5    | Task NestJS Module — CRUD + Acknowledgements           | **DONE**          |
 | 6    | Workflow Engine — Multi-Step Approval                  | **DONE**          |
-| 7    | Leave Approval Migration to Workflow Engine            | pending           |
+| 7    | Leave Approval Migration to Workflow Engine            | **DONE**          |
 | 8    | Tasks UI — To-Do List + Acknowledgements               | pending           |
 | 9    | Approvals UI — Admin Queue + Workflow Config           | pending           |
 | 10   | Vertical Slice Integration Test                        | pending           |
@@ -527,6 +527,62 @@ The query uses an EXISTS clause keyed on `wsk_approval_steps.approver_id = $acto
 - Parallel approval steps (`is_parallel=true`) — the column ships forward-compatible from Step 2 but the engine is sequential-only. Adding parallel mode requires reworking `advanceStep` to keep multiple AWAITING steps active simultaneously and resolve once any of them rejects (or all approve).
 - Proper `MANAGER` / `DEPARTMENT_HEAD` resolution — currently both fall back to the first school admin. The proper traversal needs `hr_employees.supervisor_id` and `sis_departments.head_id` columns that aren't populated in the demo seed. Documented in `resolveApprover` JSDoc + a runtime LOG line so the deferral is visible.
 - Escalation timeout worker — the schema (Step 2) has `wsk_workflow_escalations` ready and the step's `timeout_hours` carries the deadline, but no cron sweeps + escalates yet. Phase 2 hardening.
+
+---
+
+## Step 7 — Leave Approval Migration to Workflow Engine
+
+**Status:** DONE. The keystone proof that the engine works for real domain workflows. Leave approval now flows through the configurable multi-step chain by default; the old direct-admin path is preserved for override.
+
+**Files:**
+
+- `apps/api/src/hr/leave.service.ts` — three changes:
+  1. **Constructor** injects `WorkflowEngineService` from the new `WorkflowsModule`.
+  2. **`submit()`** at the end (after the leave row + balance commit) calls `workflowEngine.submit({requestType:'LEAVE_REQUEST', referenceId:requestId, referenceTable:'hr_leave_requests'}, actor)`. Wrapped in try/catch — schools without a `LEAVE_REQUEST` template (engine returns "No active workflow template configured") log + continue (the leave row is committed and the direct admin path still works); any other engine bug logs at ERROR level but doesn't fail the leave submission.
+  3. **Approve/reject refactor** — public `approve()` / `reject()` keep their `actor.isSchoolAdmin` gate then delegate to new public `approveInternal(id, reviewNotes, reviewerAccountId)` and `rejectInternal(...)` helpers. The internals contain the existing balance-shift + status-flip + Kafka-emit logic verbatim, plus they call `loadByIdNoAuth(id)` (a new private helper that fetches without actor scoping) since the consumer doesn't have an `actor` object. The audit trail's `reviewed_by` is populated from the `reviewerAccountId` parameter — the consumer passes `payload.requesterId` as a placeholder (documented as Phase 2 carry-over: future cycles can extend the resolved payload with the final approver id so `reviewed_by` is fully accurate).
+- `apps/api/src/hr/leave-approval.consumer.ts` — new Kafka consumer:
+  - Group: `leave-approval-consumer`. Topic: `dev.approval.request.resolved`.
+  - `unwrapEnvelope` + `processWithIdempotency` from the shared base.
+  - Filters by `payload.requestType === 'LEAVE_REQUEST'` (other request types are silently dropped — they'll be picked up by future ChildLinkApprovalConsumer / RoomChangeApprovalConsumer / etc.).
+  - Routes APPROVED → `LeaveService.approveInternal(referenceId, null, requesterId)`; REJECTED → `LeaveService.rejectInternal(...)`.
+  - Catches the "already APPROVED/REJECTED/CANCELLED" 400 from `lockAndValidate` and logs + drops — this is the documented race where an admin used the direct PATCH override and the row is no longer PENDING. The consumer-group claim still fires on success-path exit so a redelivery is a no-op.
+  - Other errors rethrow → `processWithIdempotency` leaves the event unclaimed → next redelivery retries.
+- `apps/api/src/hr/hr.module.ts` — imports `WorkflowsModule`, registers `LeaveApprovalConsumer` as a provider.
+
+**Backward compatibility — three layers:**
+
+1. **The seed continues to work.** Cycle 4's seeded `LEAVE_REQUEST` template provides the chain (DEPARTMENT_HEAD → ROLE SCHOOL_ADMIN). Cycles 4–6 worked without the engine; they still work with it because the original `hr.leave.approved` event still fires inside `approveInternal` (the engine adds an outer layer, doesn't replace the inner one).
+2. **Direct admin override** — `PATCH /leave-requests/:id/approve|reject` endpoints stay in place for admins who want to bypass the workflow chain. They go through `approve()` / `reject()` which still gate on `isSchoolAdmin` and call the same internal helpers. When this race happens (admin PATCHes while the workflow is still pending), the workflow engine will eventually resolve and fire `approval.request.resolved`; the consumer tries to apply but `lockAndValidate` 400's on the already-terminal status; the consumer logs the race and drops. The workflow engine's `wsk_approval_requests` row stays APPROVED in its own table — split-state but each side is internally consistent.
+3. **No template configured** — schools without a `LEAVE_REQUEST` workflow template fall back to the direct pattern. `LeaveService.submit()` swallows the engine's "No active workflow template configured" error and the leave row stays PENDING until an admin uses the direct PATCH endpoint.
+
+**LeaveNotificationConsumer (Cycle 4) remains in place** — the plan's note "the previous LeaveNotificationConsumer that notified the requester on approve/reject is replaced by the workflow engine's approval.request.resolved notification (the engine emits a notification to the requester automatically)" is **deferred**. Our engine emits `approval.step.awaiting` and `approval.request.resolved` but does not yet auto-create notification queue rows; that's a future-cycle consumer that bridges these events into the Cycle 3 NotificationQueueService. For now the existing LeaveNotificationConsumer keeps working — it consumes `hr.leave.approved` / `rejected` (still emitted from `approveInternal` / `rejectInternal`) and fans out the IN_APP notification. Documented as Phase 2 carry-over.
+
+**Live verification on `tenant_demo` (Step 7 smoke, end-to-end pass on first run after the leave-type-name fix — 9 scenarios all green):**
+
+Pre-state: Rivera Sick balance is `pending=0.00 used=2.00` from the Cycle 4 seed.
+
+1. **L2 Rivera submits a 1-day Sick leave for 2026-09-30** via `POST /leave-requests` → leave id returned, status=PENDING, balance shifts pending +1.
+2. **L3** Workflow engine has created the parallel approval request — `wsk_approval_requests` has 1 PENDING row with `reference_id = leave_id` and `reference_table = 'hr_leave_requests'`; Step 1 row exists in `wsk_approval_steps` with `approver_id = admin@` (DEPARTMENT_HEAD falls back to first school admin alphabetically by id).
+3. **L4 Sarah approves Step 1** via admin override (Sarah is `isSchoolAdmin=true`, gate passes even though her account isn't the resolved approver) → Step 1 transitions APPROVED, Step 2 activates with `approver_id = Sarah Mitchell` (ROLE='SCHOOL_ADMIN' resolves her). Request stays PENDING.
+4. **L5 Sarah approves Step 2** → request resolves to APPROVED, `resolved_at` populated. `dev.approval.request.resolved` envelope fires.
+5. **L6 LeaveApprovalConsumer fires within ~1 second** — leave row flips PENDING → APPROVED.
+6. **L7** Balance moved from `pending=0.00 used=2.00` to `pending=0.00 used=3.00` (the seeded pending=1 from L2 became used). `reviewed_at` populated, `reviewed_by` set (to the requester's account id per the documented Phase 2 carry-over — admins acting via the direct PATCH path still get their own id recorded).
+7. **L9 Existing chain still fires** — `hr.leave.approved` emit from `approveInternal` is consumed by the existing `LeaveNotificationConsumer` (Cycle 4) which republishes `hr.leave.coverage_needed`; the `CoverageConsumer` (Cycle 5) reacts and creates **6 OPEN coverage rows** (one per Rivera class on 2026-09-30). The full Cycle-4–5 chain still works — Step 7 didn't break anything.
+
+Smoke residue cleaned: 1 leave row + 6 coverage rows + 1 approval request (CASCADE drops 2 steps + 0 comments) deleted; balance restored to `pending=0.00 used=2.00`. Tenant returns to post-Step-3 seed state.
+
+**Two iteration issues caught during smoke (test-data only, not service-layer bugs):**
+
+1. **`psql -t -c "SET …; SELECT …"` returns the SET command tag** — `tr -d ' \n'` left `"SET"` concatenated to the actual UUID. Fixed by switching to schema-qualified queries (`tenant_demo.hr_leave_types`) and dropping the `SET search_path` prefix.
+2. **Leave type lookup `WHERE name='Sick'`** missed because the seed actually names it `'Sick Leave'`. Fixed by using the right name.
+
+Both bugs surfaced as runaway "leave id NULL" loops because the smoke had `until [ "$(psql … WHERE id='')" = "APPROVED" ]; do sleep 1; done` and the empty id never matched. Killed and re-ran with the corrections.
+
+**Out of scope this step (deferred per the plan):**
+
+- Engine-emitted requester notifications. The workflow engine emits `approval.step.awaiting` and `approval.request.resolved` but doesn't yet bridge into `NotificationQueueService.enqueue()`. Cycle 3's existing `LeaveNotificationConsumer` covers the notification UX for the leave path; a future consumer or Step 4 auto-task rule on these new topics would generalise it.
+- Final-approver id in the resolved payload. Currently `reviewed_by` on the leave row is set to the requester's account id (the only user-id the resolved payload carries). Future cycles can extend `approval.request.resolved` with the final-approver id so the audit trail is fully accurate.
+- Migrating `RoomChangeRequestService` (Cycle 5) and `ChildLinkRequestService` (Cycle 6.1) onto the workflow engine. Both modules work fine with their current hardcoded patterns; the engine is now ready to absorb them when the team chooses to.
 
 ---
 

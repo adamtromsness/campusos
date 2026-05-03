@@ -2,12 +2,14 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { WorkflowEngineService } from '../workflows/workflow-engine.service';
 import {
   LeaveBalanceDto,
   LeaveRequestResponseDto,
@@ -122,9 +124,12 @@ var SELECT_REQUEST_BASE =
 
 @Injectable()
 export class LeaveService {
+  private readonly logger = new Logger(LeaveService.name);
+
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
+    private readonly workflowEngine: WorkflowEngineService,
   ) {}
 
   async listLeaveTypes(): Promise<LeaveTypeResponseDto[]> {
@@ -217,6 +222,23 @@ export class LeaveService {
   }
 
   /**
+   * Fetch a leave request by id without any actor scoping. Used by the
+   * workflow engine consumer (Step 7) — by the time approval.request.resolved
+   * fires, the workflow engine has already validated who was allowed to
+   * approve, so the consumer just needs the row to apply the side effects.
+   */
+  private async loadByIdNoAuth(id: string): Promise<LeaveRequestResponseDto> {
+    var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<LeaveRequestRow[]>(
+        SELECT_REQUEST_BASE + 'WHERE lr.id = $1::uuid',
+        id,
+      );
+    });
+    if (rows.length === 0) throw new NotFoundException('Leave request ' + id + ' not found');
+    return requestRowToDto(rows[0]!);
+  }
+
+  /**
    * Submit a new request. Bumps `pending` on the matching balance row
    * inside the same transaction; the non-negative CHECK on `pending`
    * never fires here (balance can only go up), but the dates and
@@ -290,6 +312,42 @@ export class LeaveService {
         status: 'PENDING',
       },
     });
+
+    // Cycle 7 Step 7 — submit a parallel approval request through the
+    // workflow engine. Schools without a LEAVE_REQUEST template fall
+    // back gracefully to the direct PATCH /leave-requests/:id/approve
+    // pattern; the engine throws BadRequest in that case and we log +
+    // continue. When the template is configured (the seeded path), the
+    // engine creates the wsk_approval_requests row, activates Step 1
+    // with a resolved approver, and the LeaveApprovalConsumer applies
+    // approveInternal/rejectInternal once approval.request.resolved
+    // fires.
+    try {
+      await this.workflowEngine.submit(
+        {
+          requestType: 'LEAVE_REQUEST',
+          referenceId: requestId,
+          referenceTable: 'hr_leave_requests',
+        },
+        actor,
+      );
+    } catch (e: any) {
+      var msg = e?.message || '';
+      if (msg.indexOf('No active workflow template') >= 0) {
+        this.logger.log(
+          'No LEAVE_REQUEST workflow template configured for this school — falling back to the direct admin override path',
+        );
+      } else {
+        // Don't let an engine bug fail the leave submission; the leave row
+        // is committed and the direct admin path still works. Log loudly.
+        this.logger.error(
+          'WorkflowEngineService.submit failed for leave ' +
+            requestId +
+            ': ' +
+            (e?.stack || e?.message || e),
+        );
+      }
+    }
     return dto;
   }
 
@@ -310,6 +368,20 @@ export class LeaveService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can approve leave requests');
     }
+    return this.approveInternal(id, body.reviewNotes ?? null, actor.accountId);
+  }
+
+  /**
+   * Apply the approve side effects WITHOUT the admin gate. Used by both
+   * the public approve() (after admin gate) and the LeaveApprovalConsumer
+   * (after the workflow engine has resolved). Idempotent: re-applying on
+   * an already-APPROVED row is rejected by lockAndValidate's status check.
+   */
+  async approveInternal(
+    id: string,
+    reviewNotes: string | null,
+    reviewerAccountId: string,
+  ): Promise<LeaveRequestResponseDto> {
     var academicYearId = await this.requireCurrentAcademicYearId();
     var locked = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       var row = await this.lockAndValidate(tx, id, 'PENDING');
@@ -323,13 +395,13 @@ export class LeaveService {
       );
       await tx.$executeRawUnsafe(
         "UPDATE hr_leave_requests SET status = 'APPROVED', reviewed_at = now(), reviewed_by = $1::uuid, review_notes = $2, updated_at = now() WHERE id = $3::uuid",
-        actor.accountId,
-        body.reviewNotes ?? null,
+        reviewerAccountId,
+        reviewNotes,
         id,
       );
       return row;
     });
-    var dto = await this.getById(id, actor);
+    var dto = await this.loadByIdNoAuth(id);
     void this.kafka.emit({
       topic: 'hr.leave.approved',
       key: id,
@@ -343,7 +415,7 @@ export class LeaveService {
         startDate: dto.startDate,
         endDate: dto.endDate,
         daysRequested: dto.daysRequested,
-        reviewedBy: actor.accountId,
+        reviewedBy: reviewerAccountId,
         reviewedAt: dto.reviewedAt,
         status: 'APPROVED',
       },
@@ -359,6 +431,18 @@ export class LeaveService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can reject leave requests');
     }
+    return this.rejectInternal(id, body.reviewNotes ?? null, actor.accountId);
+  }
+
+  /**
+   * Apply the reject side effects WITHOUT the admin gate. Counterpart
+   * to approveInternal — used by the LeaveApprovalConsumer.
+   */
+  async rejectInternal(
+    id: string,
+    reviewNotes: string | null,
+    reviewerAccountId: string,
+  ): Promise<LeaveRequestResponseDto> {
     var academicYearId = await this.requireCurrentAcademicYearId();
     var locked = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       var row = await this.lockAndValidate(tx, id, 'PENDING');
@@ -372,13 +456,13 @@ export class LeaveService {
       );
       await tx.$executeRawUnsafe(
         "UPDATE hr_leave_requests SET status = 'REJECTED', reviewed_at = now(), reviewed_by = $1::uuid, review_notes = $2, updated_at = now() WHERE id = $3::uuid",
-        actor.accountId,
-        body.reviewNotes ?? null,
+        reviewerAccountId,
+        reviewNotes,
         id,
       );
       return row;
     });
-    var dto = await this.getById(id, actor);
+    var dto = await this.loadByIdNoAuth(id);
     void this.kafka.emit({
       topic: 'hr.leave.rejected',
       key: id,
@@ -392,8 +476,8 @@ export class LeaveService {
         startDate: dto.startDate,
         endDate: dto.endDate,
         daysRequested: dto.daysRequested,
-        reviewedBy: actor.accountId,
-        reviewNotes: body.reviewNotes ?? null,
+        reviewedBy: reviewerAccountId,
+        reviewNotes: reviewNotes,
         status: 'REJECTED',
       },
     });
