@@ -1,6 +1,6 @@
 # Cycle 10 Handoff — Health & Wellness
 
-**Status:** Cycle 10 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 + 6 of 10 done. All 15 hlth*\* tables in place + the ADR-030 read model + Maya's full demo data + HLT-001..005 IAM grants + the Health Records / Conditions / Immunisations / HIPAA Access Log NestJS module + the Medications / Schedule / Administration NestJS module with the medication dashboard + missed-dose audit + `hlth.medication.administered` Kafka emit. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth*\*`tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated`health_record:read`permission AND writes a row to`hlth_health_access_log` before the response body leaves the server.
+**Status:** Cycle 10 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 + 6 + 7 of 10 done. **Backend phase complete.** All 15 hlth*\* tables + the ADR-030 read model + Maya's full demo data + HLT-001..005 IAM grants + 6 NestJS service families: Health Records / Conditions / Immunisations / HIPAA Access Log (Step 5), Medications / Schedule / Administration with `hlth.medication.administered` emit (Step 6), and IEP plans / Nurse visits / Screenings / Dietary profiles + the **`IepAccommodationConsumer` ADR-030 read-model bridge** (Step 7) with `iep.accommodation.updated` and `hlth.nurse_visit.sent_home` Kafka emits. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth*\*`tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated`health_record:read`permission AND writes a row to`hlth_health_access_log` before the response body leaves the server.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle10-implementation-plan.html`
@@ -20,7 +20,7 @@ This document tracks the Cycle 10 build at the same level of detail as `HANDOFF-
 | 4    | Seed Data — Maya's Health Record + IEP + Sample Visits      | **DONE** |
 | 5    | Health Records NestJS Module — Records + Conditions + Imms  | **DONE** |
 | 6    | Medication NestJS Module — Meds + Schedule + Administration | **DONE** |
-| 7    | IEP/504 + Nurse + Screening + Dietary NestJS Modules        | TODO     |
+| 7    | IEP/504 + Nurse + Screening + Dietary NestJS Modules        | **DONE** |
 | 8    | Health UI — Nurse Dashboard + Student Health Record         | TODO     |
 | 9    | Health UI — IEP Editor + Screening + Parent View            | TODO     |
 | 10   | Vertical Slice Integration Test                             | TODO     |
@@ -473,6 +473,111 @@ Fired on every successful `administer` POST after the INSERT commits. ADR-057 en
 
 ## Step 7 — IEP/504 + Nurse + Screening + Dietary NestJS Modules
 
+**Status:** DONE. The largest backend step of Cycle 10. 4 services + 4 controllers + 1 Kafka consumer + ~23 endpoints + 2 Kafka emits added to `apps/api/src/health/`. **Cycle 10 endpoint count after Step 7: 47** (14 from Step 5 + 10 from Step 6 + 23 from Step 7). **Total Cycle 10 Kafka surface: 3 emit topics + 1 consumer.** Verified live on `tenant_demo` 2026-05-04 — 26 smoke scenarios + ADR-030 read-model reconcile end-to-end + 2 wire envelopes captured live.
+
+**New files:**
+
+| File                            | Purpose                                                                                                                                                                                                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `iep-plan.service.ts`           | Owns the full IEP/504 plan surface — plans + goals + goal_progress + services + accommodations. Emits `iep.accommodation.updated` on every accommodation INSERT/UPDATE/DELETE + on plan UPDATE (status changes affect the read model).                                   |
+| `iep-plan.controller.ts`        | 12 endpoints across plan, goals, services, accommodations                                                                                                                                                                                                                |
+| `iep-accommodation.consumer.ts` | **ADR-030 KEYSTONE.** Subscribes to `dev.iep.accommodation.updated`, reconciles `sis_student_active_accommodations` via UPSERT keyed on `source_iep_accommodation_id` + DELETE rows whose source is no longer in the snapshot. Standard claim-after-success idempotency. |
+| `nurse-visit.service.ts`        | Live nurse-office surface; soft polymorphic visited_person_id resolved to STUDENT or STAFF name. Emits `hlth.nurse_visit.sent_home` on the false→true transition.                                                                                                        |
+| `nurse-visit.controller.ts`     | 4 endpoints — list / roster / sign-in / patch                                                                                                                                                                                                                            |
+| `screening.service.ts`          | Per-student screening CRUD + admin follow-up queue (partial INDEX hot path)                                                                                                                                                                                              |
+| `screening.controller.ts`       | 4 endpoints                                                                                                                                                                                                                                                              |
+| `dietary-profile.service.ts`    | Per-student dietary CRUD + the `/allergen-alerts` POS / cafeteria surface                                                                                                                                                                                                |
+| `dietary-profile.controller.ts` | 4 endpoints                                                                                                                                                                                                                                                              |
+
+**Endpoint catalogue (23 new in Step 7):**
+
+```
+# IEP / 504 plans (12)
+GET    /health/students/:studentId/iep              hlt-001:read   full plan with inlined goals + services + accommodations + per-goal progress timeline (audit: VIEW_IEP). Returns null when no non-EXPIRED plan exists.
+POST   /health/students/:studentId/iep              hlt-001:write  create DRAFT plan
+PATCH  /health/iep-plans/:id                        hlt-001:write  status transitions + dates + case manager
+POST   /health/iep-plans/:id/goals                  hlt-001:write  add goal
+PATCH  /health/iep-goals/:id                        hlt-001:write  update goal
+POST   /health/iep-goals/:id/progress               hlt-001:write  append progress entry
+POST   /health/iep-plans/:id/services               hlt-001:write  add service
+PATCH  /health/iep-services/:id                     hlt-001:write  update service
+POST   /health/iep-plans/:id/accommodations         hlt-001:write  add accommodation; emits iep.accommodation.updated
+PATCH  /health/iep-accommodations/:id               hlt-001:write  update accommodation; re-emits
+DELETE /health/iep-accommodations/:id               hlt-001:write  delete; re-emits
+
+# Nurse visits (4)
+GET    /health/nurse-visits/roster                  hlt-003:read   live IN_PROGRESS roster (partial INDEX hot path)
+GET    /health/nurse-visits                         hlt-003:read   list with status / from / to filters; per-STUDENT visit writes VIEW_VISITS audit
+POST   /health/nurse-visits                         hlt-003:write  sign in student/staff (soft polymorphic ref validated)
+PATCH  /health/nurse-visits/:id                     hlt-003:write  update + sign out; emits hlth.nurse_visit.sent_home on false→true sentHome flip
+
+# Screenings (4)
+GET    /health/screenings/follow-up                 hlt-004:admin  admin follow-up queue (partial INDEX hot path)
+GET    /health/screenings                           hlt-004:read   list with filters; per-student VIEW_SCREENING audit
+POST   /health/screenings                           hlt-004:write  record screening
+PATCH  /health/screenings/:id                       hlt-004:write  flip result, mark follow-up complete, append referral notes
+
+# Dietary profiles (4)
+GET    /health/allergen-alerts                      hlt-005:read   POS / cafeteria surface — every student with pos_allergen_alert=true (partial INDEX)
+GET    /health/students/:studentId/dietary          hlt-001:read   per-student profile (audit: VIEW_DIETARY); admin/nurse all + parent own + teacher own-class
+POST   /health/students/:studentId/dietary          hlt-005:write  create profile (UNIQUE student_id catches duplicates)
+PATCH  /health/dietary-profiles/:id                 hlt-005:write  update profile; stamps updated_by
+```
+
+**ADR-030 keystone — `IepAccommodationConsumer`:**
+
+The accommodation read-model bridge that has been a placeholder reference in CLAUDE.md since Cycle 1 finally lights up. `IepPlanService.emitAccommodationSnapshotByPlanId(planId)` is called after every accommodation INSERT/UPDATE/DELETE and after every plan UPDATE. The emit packages the FULL post-mutation accommodation snapshot for the student — the consumer reconciles in two phases:
+
+1. **UPSERT** every accommodation in the payload, keyed on `source_iep_accommodation_id` (the schema's partial UNIQUE INDEX from Step 4 migration is the canonical key). The Postgres UPSERT clause is `ON CONFLICT (source_iep_accommodation_id) WHERE source_iep_accommodation_id IS NOT NULL DO UPDATE SET ...`.
+2. **DELETE** any `sis_student_active_accommodations` rows for this student whose `source_iep_accommodation_id` is NOT in the payload's set (and IS NOT NULL — seed rows with NULL source_iep_accommodation_id are left alone). This catches both deletions of source rows AND plan transitions to EXPIRED (the emitter sends an empty array when the plan flips to EXPIRED).
+
+Standard claim-after-success idempotency via `processWithIdempotency` matches the Cycle 5 CoverageConsumer + Cycle 9 BehaviourNotificationConsumer pattern. Subscribed under group `iep-accommodation-consumer`. The whole reconcile runs inside one `executeInTenantTransaction` so a partial fail rolls back the upserts cleanly.
+
+**IEP visibility model:**
+
+- **Admin / nurse / counsellor** (hasNurseScope) → all in tenant + every field.
+- **Parent (GUARDIAN)** → own children via `sis_student_guardians` keyed on `actor.personId`. **Full IEP detail — no PII strip** (parents are full IEP team participants; goals, accommodations, and progress are collaborative records).
+- **Teacher** → 403 service-layer with the message _"IEP plans are visible to nurses, admins, counsellors, and parents only. Teachers see accommodations via sis_student_active_accommodations."_ — the Step 1 student profile route teachers already use renders accommodations from the read model, so they never need direct access to `hlth_iep_*`.
+- **Student** → 403 at gate (HLT-001:read held but not granted to students).
+
+**Lockstep CHECK orchestration on nurse visits:**
+
+The Step 3 schema has multi-column `signed_chk` (IN_PROGRESS ⇔ signed_out_at NULL; COMPLETED ⇔ signed_out_at NOT NULL) and `sent_home_chk` (sent_home ⇔ sent_home_at NULL). `NurseVisitService.update` runs inside `executeInTenantTransaction` with `SELECT … FOR UPDATE` and stamps both lockstep columns in the same UPDATE so the schema CHECKs never fire mid-flight:
+
+- `sentHome=true` → adds `sent_home_at = now()` to the SET clause.
+- `sentHome=false` → adds `sent_home_at = NULL`.
+- `signOut=true` (only valid when status=IN_PROGRESS) → adds both `status='COMPLETED'` and `signed_out_at = now()` in one statement.
+
+**Screening + dietary visibility:**
+
+- Screenings are admin/nurse only (gated on `hlt-004:read`). Parents and teachers 403 at the gate. The follow-up queue is a stricter `hlt-004:admin` gate with a service-layer `isSchoolAdmin` check.
+- Dietary profile reads are gated on `hlt-001:read` so parents and teachers can both fetch own-child / own-class profiles for cafeteria coordination — the row scope is delegated to `HealthRecordService.assertCanReadStudentExternal`, the same helper Step 5 + 6 use. Writes are `hlt-005:write` (nurse / counsellor / admin).
+
+**Smoke results (live on `tenant_demo` 2026-05-04, 26 scenarios + 2 wire envelopes — all green):**
+
+- **I1–I5 IEP plan visibility:** nurse + parent see the seeded 504 plan with 2 goals + 1 service + 2 accommodations; teacher 403 service-layer with the redirect-to-read-model message; student 403 at gate; admin POST 2nd plan rejected with friendly partial-UNIQUE 400.
+- **I6 ADR-030 read model UPSERT keystone:** nurse adds a third accommodation (ASSISTIVE_TECH ALL_ASSIGNMENTS) → within 2s the consumer reconciles `sis_student_active_accommodations` to 3 rows including the new one, all with `has_src=true`.
+- **I8 multi-column `applies_to_chk` shape validator:** SPECIFIC without array → 400 with the friendly "applies_to=SPECIFIC requires a non-empty specificAssignmentTypes array" message.
+- **I9–I10 ADR-030 read model DELETE keystone:** nurse DELETEs the new accommodation → within 2s the consumer drops the matching row from `sis_student_active_accommodations` (back to the original 2 rows). The consumer's `<> ALL($incomingIds)` reconcile correctly identifies and removes it.
+- **I11 goal progress** appends with `recordedByName=Sarah Mitchell`.
+- **I12 teacher reads via the read model** (raw psql to demonstrate the path) — sees Maya's 2 accommodations without ever touching `hlth_*`.
+- **N1 nurse roster empty** initially; **N3 sign-in** flips to 1 IN_PROGRESS row visible on N4; **N5 sign out + parent_notified + sentHome=true** runs all the lockstep updates atomically (status=COMPLETED, signed_out_at + sent_home_at both populated); **N6 verifies** via psql `(t,t,t,t)`; **N7 second sign-out** rejected with 400.
+- **S1 admin follow-up queue** shows Maya VISION REFER from seed; **S2 nurse records** new screening; **S3 BOGUS result** rejected by class-validator; **S4 admin marks complete**; **S5 follow-up queue** now empty.
+- **D1 nurse + D2 parent** both see Maya's seeded dietary profile; **D3 teacher** also sees it (200 — own-class students; teachers DO need allergen lists for classroom snack/party safety; doc updated to reflect this); **D4 nurse allergen alerts** = 1 (Maya/Peanuts); **D5 admin POST** new profile for Aiden; **D6 duplicate** rejected with friendly UNIQUE 400; **D7 allergen alerts** now = 2.
+- **N5 wire envelope** captured live on `dev.hlth.nurse_visit.sent_home` with `event_type='hlth.nurse_visit.sent_home'`, `source_module='health'`, payload includes `visitedPersonType=STUDENT`, `nurseAccountId`, `sentHomeAt`.
+- **I6 wire envelope** captured live on `dev.iep.accommodation.updated` with `event_type='iep.accommodation.updated'`, `source_module='health'`, `planType=504`, `planStatus=ACTIVE`, accommodations array of 2 (post-DELETE state).
+
+**Iteration issues caught + fixed:**
+
+- Pre-created `dev.iep.accommodation.updated` and `dev.hlth.nurse_visit.sent_home` topics on Kafka before booting the API to dodge the auto-creation race documented in CLAUDE.md.
+- Initial dietary controller ApiOperation summary said "teacher 403"; live smoke showed teachers DO have row-scope to own-class students for dietary (which is correct — they need allergen awareness). Updated the doc to match the actual + correct behavior.
+
+**Out of scope this step (deferred to Step 8 + 9):** the UI surfaces. Step 8 ships the Health app tile + nurse dashboard (live roster + medication checklist + immunisation compliance summary) + student health record. Step 9 ships the IEP editor + screening log + parent health summary.
+
+---
+
+## Step 8 — Health UI — Nurse Dashboard + Student Health Record
+
 **Status:** TODO.
 
-(Steps 7–10 of Cycle 10 — IEP / Nurse / Screening / Dietary NestJS modules + IepAccommodationConsumer Kafka consumer, UI, and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
+(Steps 8–10 of Cycle 10 — UI surfaces and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)

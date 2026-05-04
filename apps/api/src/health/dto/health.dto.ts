@@ -605,3 +605,704 @@ export class MedicationDashboardRowDto {
   administeredAt!: string | null;
   missedReason!: MissedReason | null;
 }
+
+// ── IEP enums + write payloads (Step 7) ─────────────────────────
+
+export const IepPlanType = ['IEP', '504'] as const;
+export type IepPlanType = (typeof IepPlanType)[number];
+
+export const IepPlanStatus = ['DRAFT', 'ACTIVE', 'REVIEW', 'EXPIRED'] as const;
+export type IepPlanStatus = (typeof IepPlanStatus)[number];
+
+export const IepGoalStatus = ['ACTIVE', 'MET', 'NOT_MET', 'DISCONTINUED'] as const;
+export type IepGoalStatus = (typeof IepGoalStatus)[number];
+
+export const IepDeliveryMethod = ['PULL_OUT', 'PUSH_IN', 'CONSULT'] as const;
+export type IepDeliveryMethod = (typeof IepDeliveryMethod)[number];
+
+export const IepAppliesTo = ['ALL_ASSESSMENTS', 'ALL_ASSIGNMENTS', 'SPECIFIC'] as const;
+export type IepAppliesTo = (typeof IepAppliesTo)[number];
+
+export class CreateIepPlanDto {
+  @ApiProperty({ enum: IepPlanType })
+  @IsIn(IepPlanType as unknown as string[])
+  planType!: IepPlanType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  startDate?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  reviewDate?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  endDate?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  caseManagerId?: string | null;
+}
+
+export class UpdateIepPlanDto {
+  @ApiPropertyOptional({ enum: IepPlanStatus })
+  @IsOptional()
+  @IsIn(IepPlanStatus as unknown as string[])
+  status?: IepPlanStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  startDate?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  reviewDate?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  endDate?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  caseManagerId?: string | null;
+}
+
+export class CreateIepGoalDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 2000)
+  goalText!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  measurementCriteria?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  baseline?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  targetValue?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  currentValue?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  goalArea?: string | null;
+}
+
+export class UpdateIepGoalDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 2000)
+  goalText?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  measurementCriteria?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  baseline?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  targetValue?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  currentValue?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  goalArea?: string | null;
+
+  @ApiPropertyOptional({ enum: IepGoalStatus })
+  @IsOptional()
+  @IsIn(IepGoalStatus as unknown as string[])
+  status?: IepGoalStatus;
+}
+
+export class CreateGoalProgressDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  progressValue?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  observationNotes?: string | null;
+}
+
+export class CreateIepServiceDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 200)
+  serviceType!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  providerName?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  frequency?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  minutesPerSession?: number | null;
+
+  @ApiProperty({ enum: IepDeliveryMethod })
+  @IsIn(IepDeliveryMethod as unknown as string[])
+  deliveryMethod!: IepDeliveryMethod;
+}
+
+export class UpdateIepServiceDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  serviceType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  providerName?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  frequency?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  minutesPerSession?: number | null;
+
+  @ApiPropertyOptional({ enum: IepDeliveryMethod })
+  @IsOptional()
+  @IsIn(IepDeliveryMethod as unknown as string[])
+  deliveryMethod?: IepDeliveryMethod;
+}
+
+export class CreateAccommodationDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 200)
+  accommodationType!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string | null;
+
+  @ApiProperty({ enum: IepAppliesTo })
+  @IsIn(IepAppliesTo as unknown as string[])
+  appliesTo!: IepAppliesTo;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  specificAssignmentTypes?: string[] | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  effectiveFrom?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  effectiveTo?: string | null;
+}
+
+export class UpdateAccommodationDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  accommodationType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string | null;
+
+  @ApiPropertyOptional({ enum: IepAppliesTo })
+  @IsOptional()
+  @IsIn(IepAppliesTo as unknown as string[])
+  appliesTo?: IepAppliesTo;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  specificAssignmentTypes?: string[] | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  effectiveFrom?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  effectiveTo?: string | null;
+}
+
+// ── IEP response DTOs ───────────────────────────────────────────
+
+export class IepGoalProgressResponseDto {
+  id!: string;
+  goalId!: string;
+  recordedById!: string | null;
+  recordedByName!: string | null;
+  progressValue!: string | null;
+  observationNotes!: string | null;
+  recordedAt!: string;
+}
+
+export class IepGoalResponseDto {
+  id!: string;
+  iepPlanId!: string;
+  goalText!: string;
+  measurementCriteria!: string | null;
+  baseline!: string | null;
+  targetValue!: string | null;
+  currentValue!: string | null;
+  goalArea!: string | null;
+  status!: IepGoalStatus;
+  progress!: IepGoalProgressResponseDto[];
+  createdAt!: string;
+  updatedAt!: string;
+}
+
+export class IepServiceResponseDto {
+  id!: string;
+  iepPlanId!: string;
+  serviceType!: string;
+  providerName!: string | null;
+  frequency!: string | null;
+  minutesPerSession!: number | null;
+  deliveryMethod!: IepDeliveryMethod;
+  createdAt!: string;
+  updatedAt!: string;
+}
+
+export class IepAccommodationResponseDto {
+  id!: string;
+  iepPlanId!: string;
+  accommodationType!: string;
+  description!: string | null;
+  appliesTo!: IepAppliesTo;
+  specificAssignmentTypes!: string[] | null;
+  effectiveFrom!: string | null;
+  effectiveTo!: string | null;
+  createdAt!: string;
+  updatedAt!: string;
+}
+
+export class IepPlanResponseDto {
+  id!: string;
+  schoolId!: string;
+  studentId!: string;
+  studentFirstName!: string | null;
+  studentLastName!: string | null;
+  planType!: IepPlanType;
+  status!: IepPlanStatus;
+  startDate!: string | null;
+  reviewDate!: string | null;
+  endDate!: string | null;
+  caseManagerId!: string | null;
+  caseManagerName!: string | null;
+  goals!: IepGoalResponseDto[];
+  services!: IepServiceResponseDto[];
+  accommodations!: IepAccommodationResponseDto[];
+  createdAt!: string;
+  updatedAt!: string;
+}
+
+// ── Nurse visit enums + write payloads ──────────────────────────
+
+export const VisitedPersonType = ['STUDENT', 'STAFF'] as const;
+export type VisitedPersonType = (typeof VisitedPersonType)[number];
+
+export const NurseVisitStatus = ['IN_PROGRESS', 'COMPLETED'] as const;
+export type NurseVisitStatus = (typeof NurseVisitStatus)[number];
+
+export class CreateNurseVisitDto {
+  @ApiProperty()
+  @IsString()
+  visitedPersonId!: string;
+
+  @ApiPropertyOptional({ enum: VisitedPersonType })
+  @IsOptional()
+  @IsIn(VisitedPersonType as unknown as string[])
+  visitedPersonType?: VisitedPersonType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string | null;
+}
+
+export class UpdateNurseVisitDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  treatmentGiven?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  parentNotified?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  sentHome?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  followUpRequired?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  followUpNotes?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  followUpDate?: string | null;
+
+  /** When true, transitions IN_PROGRESS → COMPLETED and stamps signed_out_at. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  signOut?: boolean;
+}
+
+export class ListNurseVisitsQueryDto {
+  @ApiPropertyOptional({ enum: NurseVisitStatus })
+  @IsOptional()
+  @IsIn(NurseVisitStatus as unknown as string[])
+  status?: NurseVisitStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  fromDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  toDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
+}
+
+export class NurseVisitResponseDto {
+  id!: string;
+  schoolId!: string;
+  visitedPersonId!: string;
+  visitedPersonType!: VisitedPersonType;
+  visitedPersonName!: string | null;
+  nurseId!: string | null;
+  nurseName!: string | null;
+  visitDate!: string;
+  status!: NurseVisitStatus;
+  signedInAt!: string;
+  signedOutAt!: string | null;
+  reason!: string | null;
+  treatmentGiven!: string | null;
+  parentNotified!: boolean;
+  sentHome!: boolean;
+  sentHomeAt!: string | null;
+  followUpRequired!: boolean;
+  followUpNotes!: string | null;
+  followUpDate!: string | null;
+  createdAt!: string;
+  updatedAt!: string;
+}
+
+// ── Screening enums + write payloads ────────────────────────────
+
+export const ScreeningResult = ['PASS', 'REFER', 'RESCREEN', 'ABSENT'] as const;
+export type ScreeningResult = (typeof ScreeningResult)[number];
+
+export class CreateScreeningDto {
+  @ApiProperty()
+  @IsString()
+  studentId!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(1, 100)
+  screeningType!: string;
+
+  @ApiProperty()
+  @IsDateString()
+  screeningDate!: string;
+
+  @ApiPropertyOptional({ enum: ScreeningResult })
+  @IsOptional()
+  @IsIn(ScreeningResult as unknown as string[])
+  result?: ScreeningResult | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  resultNotes?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  followUpRequired?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  referralNotes?: string | null;
+}
+
+export class UpdateScreeningDto {
+  @ApiPropertyOptional({ enum: ScreeningResult })
+  @IsOptional()
+  @IsIn(ScreeningResult as unknown as string[])
+  result?: ScreeningResult | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  resultNotes?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  followUpRequired?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  followUpCompleted?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  referralNotes?: string | null;
+}
+
+export class ListScreeningsQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  studentId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  screeningType?: string;
+
+  @ApiPropertyOptional({ enum: ScreeningResult })
+  @IsOptional()
+  @IsIn(ScreeningResult as unknown as string[])
+  result?: ScreeningResult;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  fromDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  toDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
+}
+
+export class ScreeningResponseDto {
+  id!: string;
+  schoolId!: string;
+  studentId!: string;
+  studentName!: string | null;
+  screeningType!: string;
+  screeningDate!: string;
+  screenedById!: string | null;
+  screenedByName!: string | null;
+  result!: ScreeningResult | null;
+  resultNotes!: string | null;
+  followUpRequired!: boolean;
+  followUpCompleted!: boolean;
+  referralNotes!: string | null;
+  createdAt!: string;
+  updatedAt!: string;
+}
+
+// ── Dietary write payloads ──────────────────────────────────────
+
+export class DietaryAllergenDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 100)
+  allergen!: string;
+
+  @ApiProperty({ enum: ConditionSeverity })
+  @IsIn(ConditionSeverity as unknown as string[])
+  severity!: ConditionSeverity;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reaction?: string | null;
+}
+
+export class CreateDietaryProfileDto {
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  dietaryRestrictions?: string[];
+
+  @ApiPropertyOptional({ type: [DietaryAllergenDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => DietaryAllergenDto)
+  allergens?: DietaryAllergenDto[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  specialMealInstructions?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  posAllergenAlert?: boolean;
+}
+
+export class UpdateDietaryProfileDto {
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  dietaryRestrictions?: string[];
+
+  @ApiPropertyOptional({ type: [DietaryAllergenDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => DietaryAllergenDto)
+  allergens?: DietaryAllergenDto[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  specialMealInstructions?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  posAllergenAlert?: boolean;
+}
+
+export class DietaryProfileResponseDto {
+  id!: string;
+  schoolId!: string;
+  studentId!: string;
+  studentName!: string | null;
+  dietaryRestrictions!: string[];
+  allergens!: DietaryAllergenDto[];
+  specialMealInstructions!: string | null;
+  posAllergenAlert!: boolean;
+  updatedById!: string | null;
+  createdAt!: string;
+  updatedAt!: string;
+}

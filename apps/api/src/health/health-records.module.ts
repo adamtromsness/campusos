@@ -16,6 +16,15 @@ import { MedicationScheduleService } from './medication-schedule.service';
 import { MedicationScheduleController } from './medication-schedule.controller';
 import { AdministrationService } from './administration.service';
 import { AdministrationController } from './administration.controller';
+import { IepPlanService } from './iep-plan.service';
+import { IepPlanController } from './iep-plan.controller';
+import { IepAccommodationConsumer } from './iep-accommodation.consumer';
+import { NurseVisitService } from './nurse-visit.service';
+import { NurseVisitController } from './nurse-visit.controller';
+import { ScreeningService } from './screening.service';
+import { ScreeningController } from './screening.controller';
+import { DietaryProfileService } from './dietary-profile.service';
+import { DietaryProfileController } from './dietary-profile.controller';
 
 /**
  * Health Records Module — Cycle 10 Step 5.
@@ -67,6 +76,11 @@ import { AdministrationController } from './administration.controller';
     MedicationService,
     MedicationScheduleService,
     AdministrationService,
+    IepPlanService,
+    IepAccommodationConsumer,
+    NurseVisitService,
+    ScreeningService,
+    DietaryProfileService,
   ],
   controllers: [
     HealthAccessLogController,
@@ -76,11 +90,14 @@ import { AdministrationController } from './administration.controller';
     MedicationController,
     MedicationScheduleController,
     AdministrationController,
+    IepPlanController,
+    NurseVisitController,
+    ScreeningController,
+    DietaryProfileController,
   ],
-  // Exports so the Step 7 services can call recordAccess + the row-scope
-  // helpers (HealthRecordService.assertCanReadStudentExternal +
-  // loadRecordIdForStudent + assertNurseScope) and reuse
-  // MedicationService.loadStudentForMedication.
+  // Exports retained for downstream cycles + the Cycle 9 IepAccommodationConsumer
+  // self-wires its Kafka subscription via OnModuleInit so callers do not need
+  // a direct reference.
   exports: [HealthAccessLogService, HealthRecordService, MedicationService],
 })
 export class HealthRecordsModule {}
