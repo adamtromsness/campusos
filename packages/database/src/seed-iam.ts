@@ -196,6 +196,14 @@ async function seedIam() {
         'SCH-004': ['read'],
         'SCH-005': ['read', 'write'],
         'BEH-001': ['read', 'write'],
+        // Cycle 9 — teachers read BIPs for students in their classes and
+        // submit teacher feedback on strategy effectiveness. The Step 5
+        // FeedbackService PATCH endpoint is gated on beh-002:read plus a
+        // row-scope check (caller's employeeId === row's teacher_id) so
+        // teachers do not need beh-002:write to submit their assigned
+        // feedback. Counsellor-side BIP create / edit ships under the
+        // Staff role's beh-002:read+write grant below.
+        'BEH-002': ['read'],
         'COU-002': ['write'],
         // Cycle 4 HR — read directory, manage own leave, view own certs.
         'HR-001': ['read'],
@@ -251,6 +259,22 @@ async function seedIam() {
         // to their own owner_id. School Admin and Platform Admin get
         // the admin tier through the everyFunction grant.
         'OPS-001': ['read', 'write'],
+        // Cycle 9 — parents read discipline incidents for their own
+        // children only. The IncidentService row-scope joins through
+        // sis_student_guardians keyed on actor.personId; admin_notes
+        // is stripped for non-managers per the Step 4 visibility
+        // contract. Parents do NOT receive write — only staff can
+        // report incidents.
+        'BEH-001': ['read'],
+        // Cycle 9 Step 9 — parents read a summary of their own child's
+        // BIPs (plan_type, status, review_date, goals + progress). The
+        // BehaviorPlanService.buildVisibility GUARDIAN branch joins
+        // through sis_student_guardians keyed on actor.personId; the
+        // service additionally strips the feedback[] array for parents
+        // (private teacher observations stay staff-side per the Step 9
+        // visibility contract). Parents do NOT receive write — only
+        // counsellors and admins author plans.
+        'BEH-002': ['read'],
       },
     },
     {
@@ -312,6 +336,16 @@ async function seedIam() {
         // umbrella code, FAC-001 admin tier reached via everyFunction
         // for school admins.
         'IT-001': ['read', 'write'],
+        // Cycle 9 — behaviour & discipline. VPs, counsellors, and
+        // admin assistants log incidents the same way teachers do
+        // (BEH-001 read+write). Counsellors are the canonical author
+        // of BIPs so Staff also gets BEH-002 read+write to create
+        // and edit behaviour intervention plans, set goals, and
+        // request teacher feedback. School Admin and Platform Admin
+        // pick up the admin tier (catalogue management, hard delete)
+        // via the everyFunction grant.
+        'BEH-001': ['read', 'write'],
+        'BEH-002': ['read', 'write'],
       },
     },
   ];

@@ -234,6 +234,18 @@ export function LifebuoyIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function ShieldExclamationIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v3.75m9-.75a9.001 9.001 0 0 1-9 9 9.001 9.001 0 0 1-9-9V6.75l9-4.5 9 4.5v5.25Zm-9 3.75h.008v.008H12v-.008Z"
+      />
+    </svg>
+  );
+}
+
 export function LogoutIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...base} {...props}>

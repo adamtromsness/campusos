@@ -12,6 +12,7 @@ import { ProgressNoteNotificationConsumer } from './consumers/progress-note-noti
 import { AbsenceRequestNotificationConsumer } from './consumers/absence-request-notification.consumer';
 import { MessageNotificationConsumer } from './consumers/message-notification.consumer';
 import { TicketNotificationConsumer } from './consumers/ticket-notification.consumer';
+import { BehaviourNotificationConsumer } from './consumers/behaviour-notification.consumer';
 
 /**
  * NotificationsModule — M40 notification pipeline (Cycle 3 Step 5).
@@ -52,6 +53,7 @@ import { TicketNotificationConsumer } from './consumers/ticket-notification.cons
     AbsenceRequestNotificationConsumer,
     MessageNotificationConsumer,
     TicketNotificationConsumer,
+    BehaviourNotificationConsumer,
   ],
   controllers: [NotificationInboxController],
   exports: [

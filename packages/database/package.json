@@ -22,6 +22,7 @@
     "seed:profile": "tsx src/seed-profile.ts",
     "seed:tasks": "tsx src/seed-tasks.ts",
     "seed:tickets": "tsx src/seed-tickets.ts",
+    "seed:behaviour": "tsx src/seed-behaviour.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

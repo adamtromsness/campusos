@@ -14,6 +14,7 @@ import {
   GradeIcon,
   LifebuoyIcon,
   MegaphoneIcon,
+  ShieldExclamationIcon,
 } from '@/components/shell/icons';
 
 interface NotificationBellProps {
@@ -172,6 +173,7 @@ function iconFor(type: string): (props: { className?: string }) => JSX.Element {
   if (type === 'message.posted') return ChatBubbleIcon;
   if (type === 'announcement.published') return MegaphoneIcon;
   if (type.startsWith('ticket.')) return LifebuoyIcon;
+  if (type.startsWith('behaviour.')) return ShieldExclamationIcon;
   return BellIcon;
 }
 
@@ -183,6 +185,7 @@ function colorFor(type: string): string {
   if (type === 'message.posted') return 'bg-violet-100 text-violet-700';
   if (type === 'announcement.published') return 'bg-rose-100 text-rose-700';
   if (type.startsWith('ticket.')) return 'bg-teal-100 text-teal-700';
+  if (type.startsWith('behaviour.')) return 'bg-orange-100 text-orange-700';
   return 'bg-gray-100 text-gray-600';
 }
 
@@ -302,6 +305,43 @@ export function describeNotification(item: NotificationItem): RenderedNotificati
       return {
         title: `Resolved: ${ticketTitle}`,
         subtitle: viaProblem ? 'Resolved via a tracked problem' : null,
+      };
+    }
+    case 'behaviour.incident_reported': {
+      const studentName = strField(p, 'student_name') || 'A student';
+      const category = strField(p, 'category_name');
+      const severity = strField(p, 'severity');
+      const sub: string[] = [];
+      if (category) sub.push(category);
+      if (severity) sub.push(severity);
+      return {
+        title: `Incident reported: ${studentName}`,
+        subtitle: sub.length > 0 ? sub.join(' · ') : null,
+      };
+    }
+    case 'behaviour.action_assigned': {
+      const studentName = strField(p, 'student_name') || 'your child';
+      const actionType = strField(p, 'action_type_name') || 'A disciplinary action';
+      return {
+        title: `${actionType} assigned to ${studentName}`,
+        subtitle: strField(p, 'category_name'),
+      };
+    }
+    case 'behaviour.bip_feedback_requested': {
+      const studentName = strField(p, 'student_name') || 'a student';
+      const planType = strField(p, 'plan_type') || 'BIP';
+      const requester = strField(p, 'requester_name');
+      return {
+        title: `${planType} feedback requested for ${studentName}`,
+        subtitle: requester ? `From ${requester}` : null,
+      };
+    }
+    case 'behaviour.incident_resolved': {
+      const studentName = strField(p, 'student_name') || 'a student';
+      const resolver = strField(p, 'resolved_by_name');
+      return {
+        title: `Incident resolved for ${studentName}`,
+        subtitle: resolver ? `By ${resolver}` : null,
       };
     }
     default:

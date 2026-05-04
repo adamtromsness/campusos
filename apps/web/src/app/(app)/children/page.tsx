@@ -139,6 +139,12 @@ function ChildCard({ child }: { child: StudentDto }) {
           Schedule
         </Link>
         <Link
+          href={`/children/${child.id}/behaviour`}
+          className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-center font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Behaviour
+        </Link>
+        <Link
           href={`/children/${child.id}/absence-request`}
           className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-center font-medium text-gray-700 hover:bg-gray-50"
         >

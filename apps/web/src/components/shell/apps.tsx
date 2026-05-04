@@ -16,6 +16,7 @@ import {
   LifebuoyIcon,
   MegaphoneIcon,
   PeopleIcon,
+  ShieldExclamationIcon,
 } from './icons';
 
 export type AppKey =
@@ -33,8 +34,15 @@ export type AppKey =
   | 'admissions'
   | 'apply'
   | 'billing'
-  | 'helpdesk';
-export type BadgeKey = 'messages' | 'announcements' | 'tasks' | 'approvals' | 'helpdesk';
+  | 'helpdesk'
+  | 'behaviour';
+export type BadgeKey =
+  | 'messages'
+  | 'announcements'
+  | 'tasks'
+  | 'approvals'
+  | 'helpdesk'
+  | 'behaviour';
 
 export interface AppDef {
   key: AppKey;
@@ -216,6 +224,20 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       routePrefix: '/helpdesk',
       icon: LifebuoyIcon,
       badgeKey: 'helpdesk',
+    });
+  }
+
+  if (hasAnyPermission(user, ['beh-001:read'])) {
+    apps.push({
+      key: 'behaviour',
+      label: 'Behaviour',
+      description: isGuardian
+        ? 'Your child’s incident history'
+        : 'Report incidents and review the discipline queue',
+      href: '/behaviour',
+      routePrefix: '/behaviour',
+      icon: ShieldExclamationIcon,
+      badgeKey: 'behaviour',
     });
   }
 

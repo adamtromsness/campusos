@@ -6,8 +6,10 @@ import { useAnnouncements } from './use-announcements';
 import { useTasks } from './use-tasks';
 import { useApprovals } from './use-approvals';
 import { useTickets } from './use-tickets';
+import { useDisciplineIncidents } from './use-discipline';
 import { isTaskBadgeWorthy } from '@/lib/tasks-format';
 import { isTicketLive } from '@/lib/tickets-format';
+import { isIncidentLive } from '@/lib/discipline-format';
 
 export interface AppBadges {
   messages: number;
@@ -15,6 +17,7 @@ export interface AppBadges {
   tasks: number;
   approvals: number;
   helpdesk: number;
+  behaviour: number;
 }
 
 /**
@@ -40,6 +43,7 @@ export function useAppBadges(user: AuthUser | null): AppBadges {
   const canTasks = !!user && hasAnyPermission(user, ['ops-001:read']);
   const canApprovals = !!user && hasAnyPermission(user, ['ops-001:read']);
   const canHelpdesk = !!user && hasAnyPermission(user, ['it-001:read']);
+  const canBehaviour = !!user && hasAnyPermission(user, ['beh-001:read']);
 
   const threads = useThreads(false, canMessages);
   const announcements = useAnnouncements({}, canAnnouncements);
@@ -51,6 +55,11 @@ export function useAppBadges(user: AuthUser | null): AppBadges {
   // count and not their own in-flight submissions.
   const approvals = useApprovals({ status: 'PENDING' }, canApprovals);
   const tickets = useTickets({ includeTerminal: false, limit: 200 }, canHelpdesk);
+  // Cycle 9: Behaviour incidents in OPEN or UNDER_REVIEW. Server-side
+  // row scope at IncidentService.list already binds non-admins to their
+  // reported + class-students subset (or own children for parents); the
+  // count matches the queue's "live" filter.
+  const incidents = useDisciplineIncidents({ limit: 200 }, canBehaviour);
 
   const messages = (threads.data ?? []).reduce((sum, t) => sum + (t.unreadCount ?? 0), 0);
   const announcementsUnread = (announcements.data ?? []).filter(
@@ -66,6 +75,7 @@ export function useAppBadges(user: AuthUser | null): AppBadges {
     );
   }, 0);
   const helpdeskLive = (tickets.data ?? []).filter((t) => isTicketLive(t.status)).length;
+  const behaviourLive = (incidents.data ?? []).filter((i) => isIncidentLive(i.status)).length;
 
   return {
     messages,
@@ -73,5 +83,6 @@ export function useAppBadges(user: AuthUser | null): AppBadges {
     tasks: tasksDueToday,
     approvals: approvalsAwaiting,
     helpdesk: helpdeskLive,
+    behaviour: behaviourLive,
   };
 }

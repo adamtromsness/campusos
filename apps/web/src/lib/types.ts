@@ -2497,3 +2497,263 @@ export interface ListProblemsArgs {
   categoryId?: string;
   limit?: number;
 }
+
+// ─── Cycle 9: Behaviour & Discipline ──────────────────────────
+
+export type Severity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type IncidentStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED';
+
+export interface DisciplineCategoryDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  severity: Severity;
+  description: string | null;
+  isActive: boolean;
+}
+
+export interface DisciplineActionTypeDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  requiresParentNotification: boolean;
+  description: string | null;
+  isActive: boolean;
+}
+
+export interface DisciplineActionDto {
+  id: string;
+  incidentId: string;
+  actionTypeId: string;
+  actionTypeName: string;
+  requiresParentNotification: boolean;
+  assignedById: string | null;
+  assignedByName: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  notes: string | null;
+  parentNotified: boolean;
+  parentNotifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DisciplineIncidentDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  studentGradeLevel: string | null;
+  reportedById: string | null;
+  reportedByName: string | null;
+  categoryId: string;
+  categoryName: string;
+  severity: Severity;
+  description: string;
+  incidentDate: string;
+  incidentTime: string | null;
+  location: string | null;
+  witnesses: string | null;
+  status: IncidentStatus;
+  resolvedById: string | null;
+  resolvedByName: string | null;
+  resolvedAt: string | null;
+  /**
+   * Internal admin notes. Populated for managers (admin / counsellor /
+   * staff with beh-001:admin reach via everyFunction). Stripped to null
+   * for parents and non-manager teachers per the Step 4 row-scope
+   * contract.
+   */
+  adminNotes: string | null;
+  actions: DisciplineActionDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateIncidentPayload {
+  studentId: string;
+  categoryId: string;
+  description: string;
+  incidentDate: string;
+  incidentTime?: string;
+  location?: string | null;
+  witnesses?: string | null;
+}
+
+export interface ReviewIncidentPayload {
+  adminNotes?: string;
+}
+
+export interface ResolveIncidentPayload {
+  adminNotes?: string;
+}
+
+export interface CreateActionPayload {
+  actionTypeId: string;
+  startDate?: string;
+  endDate?: string;
+  notes?: string | null;
+}
+
+export interface UpdateActionPayload {
+  startDate?: string | null;
+  endDate?: string | null;
+  notes?: string | null;
+  parentNotified?: boolean;
+}
+
+export interface CreateDisciplineCategoryPayload {
+  name: string;
+  severity: Severity;
+  description?: string | null;
+}
+
+export interface UpdateDisciplineCategoryPayload {
+  name?: string;
+  severity?: Severity;
+  description?: string | null;
+  isActive?: boolean;
+}
+
+export interface CreateDisciplineActionTypePayload {
+  name: string;
+  requiresParentNotification?: boolean;
+  description?: string | null;
+}
+
+export interface UpdateDisciplineActionTypePayload {
+  name?: string;
+  requiresParentNotification?: boolean;
+  description?: string | null;
+  isActive?: boolean;
+}
+
+export interface ListIncidentsArgs {
+  status?: IncidentStatus;
+  severity?: Severity;
+  categoryId?: string;
+  studentId?: string;
+  fromDate?: string;
+  toDate?: string;
+  limit?: number;
+}
+
+// ─── Cycle 9 Step 5: Behaviour Plans ──────────────────────────
+
+export type BehaviorPlanType = 'BIP' | 'BSP' | 'SAFETY_PLAN';
+export type BehaviorPlanStatus = 'DRAFT' | 'ACTIVE' | 'REVIEW' | 'EXPIRED';
+export type GoalProgress = 'NOT_STARTED' | 'IN_PROGRESS' | 'MET' | 'NOT_MET';
+export type FeedbackEffectiveness =
+  | 'NOT_EFFECTIVE'
+  | 'SOMEWHAT_EFFECTIVE'
+  | 'EFFECTIVE'
+  | 'VERY_EFFECTIVE';
+
+export interface GoalDto {
+  id: string;
+  planId: string;
+  goalText: string;
+  baselineFrequency: string | null;
+  targetFrequency: string | null;
+  measurementMethod: string | null;
+  progress: GoalProgress;
+  lastAssessedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BIPFeedbackDto {
+  id: string;
+  planId: string;
+  teacherId: string | null;
+  teacherName: string | null;
+  requestedById: string | null;
+  requestedByName: string | null;
+  requestedAt: string;
+  submittedAt: string | null;
+  strategiesObserved: string[] | null;
+  overallEffectiveness: FeedbackEffectiveness | null;
+  classroomObservations: string | null;
+  recommendedAdjustments: string | null;
+  /** Populated only on the /bip-feedback/pending response. */
+  studentName: string | null;
+  /** Populated only on the /bip-feedback/pending response. */
+  planType: string | null;
+}
+
+export interface BehaviorPlanDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  studentGradeLevel: string | null;
+  caseloadId: string | null;
+  planType: BehaviorPlanType;
+  status: BehaviorPlanStatus;
+  createdById: string | null;
+  createdByName: string | null;
+  reviewDate: string;
+  reviewMeetingId: string | null;
+  targetBehaviors: string[];
+  replacementBehaviors: string[];
+  reinforcementStrategies: string[];
+  planDocumentS3Key: string | null;
+  sourceIncidentId: string | null;
+  goals: GoalDto[];
+  feedback: BIPFeedbackDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBehaviorPlanPayload {
+  studentId: string;
+  planType: BehaviorPlanType;
+  reviewDate: string;
+  targetBehaviors: string[];
+  replacementBehaviors?: string[];
+  reinforcementStrategies?: string[];
+  sourceIncidentId?: string;
+  caseloadId?: string;
+}
+
+export interface UpdateBehaviorPlanPayload {
+  reviewDate?: string;
+  targetBehaviors?: string[];
+  replacementBehaviors?: string[];
+  reinforcementStrategies?: string[];
+  status?: 'DRAFT' | 'REVIEW';
+}
+
+export interface CreateGoalPayload {
+  goalText: string;
+  baselineFrequency?: string | null;
+  targetFrequency?: string | null;
+  measurementMethod?: string | null;
+}
+
+export interface UpdateGoalPayload {
+  goalText?: string;
+  baselineFrequency?: string | null;
+  targetFrequency?: string | null;
+  measurementMethod?: string | null;
+  progress?: GoalProgress;
+}
+
+export interface RequestFeedbackPayload {
+  teacherId: string;
+}
+
+export interface SubmitFeedbackPayload {
+  strategiesObserved?: string[];
+  overallEffectiveness?: FeedbackEffectiveness;
+  classroomObservations?: string | null;
+  recommendedAdjustments?: string | null;
+}
+
+export interface ListBehaviorPlansArgs {
+  studentId?: string;
+  status?: BehaviorPlanStatus;
+  planType?: BehaviorPlanType;
+}
