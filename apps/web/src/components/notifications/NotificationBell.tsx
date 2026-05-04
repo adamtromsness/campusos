@@ -12,6 +12,7 @@ import {
   ChatBubbleIcon,
   CheckCircleIcon,
   GradeIcon,
+  LifebuoyIcon,
   MegaphoneIcon,
 } from '@/components/shell/icons';
 
@@ -170,6 +171,7 @@ function iconFor(type: string): (props: { className?: string }) => JSX.Element {
   if (type.startsWith('absence.')) return CheckCircleIcon;
   if (type === 'message.posted') return ChatBubbleIcon;
   if (type === 'announcement.published') return MegaphoneIcon;
+  if (type.startsWith('ticket.')) return LifebuoyIcon;
   return BellIcon;
 }
 
@@ -180,6 +182,7 @@ function colorFor(type: string): string {
   if (type.startsWith('absence.')) return 'bg-orange-100 text-orange-700';
   if (type === 'message.posted') return 'bg-violet-100 text-violet-700';
   if (type === 'announcement.published') return 'bg-rose-100 text-rose-700';
+  if (type.startsWith('ticket.')) return 'bg-teal-100 text-teal-700';
   return 'bg-gray-100 text-gray-600';
 }
 
@@ -261,6 +264,44 @@ export function describeNotification(item: NotificationItem): RenderedNotificati
       return {
         title: title,
         subtitle: author ? `From ${author}` : null,
+      };
+    }
+    case 'ticket.submitted': {
+      const ticketTitle = strField(p, 'ticket_title') || 'New ticket';
+      const priority = strField(p, 'priority');
+      const category = strField(p, 'category_name');
+      const sub: string[] = [];
+      if (category) sub.push(category);
+      if (priority) sub.push(priority);
+      return {
+        title: `New helpdesk ticket: ${ticketTitle}`,
+        subtitle: sub.length > 0 ? sub.join(' · ') : null,
+      };
+    }
+    case 'ticket.assigned': {
+      const ticketTitle = strField(p, 'ticket_title') || 'a ticket';
+      const priority = strField(p, 'priority');
+      return {
+        title: `Ticket assigned: ${ticketTitle}`,
+        subtitle: priority ? `Priority ${priority}` : null,
+      };
+    }
+    case 'ticket.commented': {
+      const ticketTitle = strField(p, 'ticket_title') || 'your ticket';
+      const isInternal = !!p['is_internal'];
+      const bumped = !!p['first_response_bumped'];
+      const tag = isInternal ? 'Internal note on' : 'New reply on';
+      return {
+        title: `${tag} ${ticketTitle}`,
+        subtitle: bumped ? 'First staff response — SLA clock stopped' : null,
+      };
+    }
+    case 'ticket.resolved': {
+      const ticketTitle = strField(p, 'ticket_title') || 'your ticket';
+      const viaProblem = strField(p, 'resolved_via_problem_id');
+      return {
+        title: `Resolved: ${ticketTitle}`,
+        subtitle: viaProblem ? 'Resolved via a tracked problem' : null,
       };
     }
     default:

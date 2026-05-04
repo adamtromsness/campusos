@@ -13,6 +13,7 @@ import {
   ChildrenIcon,
   ClassesIcon,
   GavelIcon,
+  LifebuoyIcon,
   MegaphoneIcon,
   PeopleIcon,
 } from './icons';
@@ -31,8 +32,9 @@ export type AppKey =
   | 'calendar'
   | 'admissions'
   | 'apply'
-  | 'billing';
-export type BadgeKey = 'messages' | 'announcements' | 'tasks' | 'approvals';
+  | 'billing'
+  | 'helpdesk';
+export type BadgeKey = 'messages' | 'announcements' | 'tasks' | 'approvals' | 'helpdesk';
 
 export interface AppDef {
   key: AppKey;
@@ -202,6 +204,18 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: isGuardian ? '/billing' : '/billing/accounts',
       routePrefix: '/billing',
       icon: BanknotesIcon,
+    });
+  }
+
+  if (hasAnyPermission(user, ['it-001:read'])) {
+    apps.push({
+      key: 'helpdesk',
+      label: 'Helpdesk',
+      description: 'Submit a ticket and track requests',
+      href: '/helpdesk',
+      routePrefix: '/helpdesk',
+      icon: LifebuoyIcon,
+      badgeKey: 'helpdesk',
     });
   }
 

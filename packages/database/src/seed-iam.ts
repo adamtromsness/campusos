@@ -210,6 +210,16 @@ async function seedIam() {
         // to their own owner_id. School Admin and Platform Admin get
         // the admin tier through the everyFunction grant.
         'OPS-001': ['read', 'write'],
+        // Cycle 8 — service tickets. Teachers and Staff can submit
+        // and track tickets. The service layer row-scopes
+        // requesters to their own tickets and assignees to tickets
+        // they own. School Admin and Platform Admin get the admin
+        // tier (queue + assignment + category + vendor management)
+        // via the everyFunction grant. FAC-001:admin is reached the
+        // same way; we do not extend FAC-001 read/write to non-admin
+        // staff this cycle — IT-001 is the umbrella code the Step 4
+        // TicketService gates on for all ticket categories.
+        'IT-001': ['read', 'write'],
       },
     },
     {
@@ -296,6 +306,12 @@ async function seedIam() {
         // to their own owner_id. School Admin and Platform Admin get
         // the admin tier through the everyFunction grant.
         'OPS-001': ['read', 'write'],
+        // Cycle 8 — service tickets. VPs, counsellors, and admin
+        // assistants submit and track tickets the same way teachers
+        // do. Same gating model as Teacher above — IT-001 is the
+        // umbrella code, FAC-001 admin tier reached via everyFunction
+        // for school admins.
+        'IT-001': ['read', 'write'],
       },
     },
   ];

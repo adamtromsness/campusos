@@ -556,6 +556,11 @@ function strField(obj: Record<string, unknown>, key: string): string | null {
  */
 function pickSourceRefId(payload: Record<string, unknown>): string | null {
   const candidates = [
+    // Universal escape hatch — emitters can set `sourceRefId` on any
+    // payload to give the worker the dedup key without adding a per-
+    // domain alias here. Cycle 8 tickets use this path.
+    'sourceRefId',
+    'source_ref_id',
     'referenceId',
     'reference_id',
     'assignmentId',
@@ -570,6 +575,8 @@ function pickSourceRefId(payload: Record<string, unknown>): string | null {
     'consent_id',
     'leaveRequestId',
     'leave_request_id',
+    'ticketId',
+    'ticket_id',
   ];
   for (const k of candidates) {
     const v = strField(payload, k);

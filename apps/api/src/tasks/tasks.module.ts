@@ -8,6 +8,7 @@ import { TaskService } from './task.service';
 import { AcknowledgementService } from './acknowledgement.service';
 import { TaskController } from './task.controller';
 import { AcknowledgementController } from './acknowledgement.controller';
+import { TicketTaskCompletionConsumer } from './ticket-task-completion.consumer';
 
 /**
  * Tasks Module — M1 Task Management (Cycle 7).
@@ -37,7 +38,7 @@ import { AcknowledgementController } from './acknowledgement.controller';
  */
 @Module({
   imports: [TenantModule, IamModule, KafkaModule, NotificationsModule],
-  providers: [TaskWorker, TaskService, AcknowledgementService],
+  providers: [TaskWorker, TaskService, AcknowledgementService, TicketTaskCompletionConsumer],
   controllers: [TaskController, AcknowledgementController],
   exports: [TaskService, AcknowledgementService],
 })

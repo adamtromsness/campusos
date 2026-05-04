@@ -20,6 +20,7 @@ import { ProfileModule } from './profile/profile.module';
 import { HouseholdsModule } from './households/households.module';
 import { TasksModule } from './tasks/tasks.module';
 import { WorkflowsModule } from './workflows/workflows.module';
+import { TicketsModule } from './tickets/tickets.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -66,6 +67,7 @@ var devOnlyControllers: Type<unknown>[] =
     HouseholdsModule,
     TasksModule,
     WorkflowsModule,
+    TicketsModule,
   ],
   controllers: devOnlyControllers,
   providers: [

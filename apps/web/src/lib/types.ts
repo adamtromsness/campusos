@@ -2202,3 +2202,202 @@ export interface WorkflowTemplateDto {
   updatedAt: string;
   steps: WorkflowTemplateStepDto[];
 }
+
+// ── Cycle 8 — Service Tickets (M60) ─────────────────────────────
+
+export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type TicketStatus =
+  | 'OPEN'
+  | 'IN_PROGRESS'
+  | 'VENDOR_ASSIGNED'
+  | 'PENDING_REQUESTER'
+  | 'RESOLVED'
+  | 'CLOSED'
+  | 'CANCELLED';
+export type VendorType =
+  | 'IT_REPAIR'
+  | 'FACILITIES_MAINTENANCE'
+  | 'CLEANING'
+  | 'ELECTRICAL'
+  | 'PLUMBING'
+  | 'HVAC'
+  | 'SECURITY'
+  | 'GROUNDS'
+  | 'OTHER';
+export type TicketActivityType =
+  | 'STATUS_CHANGE'
+  | 'REASSIGNMENT'
+  | 'COMMENT'
+  | 'ATTACHMENT'
+  | 'ESCALATION'
+  | 'VENDOR_ASSIGNMENT'
+  | 'SLA_BREACH';
+export type ProblemStatus = 'OPEN' | 'INVESTIGATING' | 'KNOWN_ERROR' | 'RESOLVED';
+
+export interface TicketSubcategoryDto {
+  id: string;
+  categoryId: string;
+  name: string;
+  defaultAssigneeId: string | null;
+  defaultAssigneeName: string | null;
+  autoAssignToRole: string | null;
+  isActive: boolean;
+}
+
+export interface TicketCategoryDto {
+  id: string;
+  schoolId: string;
+  parentCategoryId: string | null;
+  name: string;
+  icon: string | null;
+  isActive: boolean;
+  subcategories: TicketSubcategoryDto[];
+}
+
+export interface TicketSlaPolicyDto {
+  id: string;
+  schoolId: string;
+  categoryId: string;
+  categoryName: string;
+  priority: TicketPriority;
+  responseHours: number;
+  resolutionHours: number;
+}
+
+export interface TicketVendorDto {
+  id: string;
+  schoolId: string;
+  vendorName: string;
+  vendorType: VendorType;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  website: string | null;
+  isPreferred: boolean;
+  notes: string | null;
+  isActive: boolean;
+}
+
+export interface TicketSlaSnapshotDto {
+  policyId: string | null;
+  responseHours: number | null;
+  resolutionHours: number | null;
+  responseBreached: boolean;
+  resolutionBreached: boolean;
+  responseHoursRemaining: number | null;
+  resolutionHoursRemaining: number | null;
+}
+
+export interface TicketDto {
+  id: string;
+  schoolId: string;
+  categoryId: string;
+  categoryName: string;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
+  requesterId: string;
+  requesterName: string | null;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  vendorId: string | null;
+  vendorName: string | null;
+  vendorReference: string | null;
+  vendorAssignedAt: string | null;
+  title: string;
+  description: string | null;
+  priority: TicketPriority;
+  status: TicketStatus;
+  slaPolicyId: string | null;
+  locationId: string | null;
+  firstResponseAt: string | null;
+  resolvedAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sla: TicketSlaSnapshotDto;
+}
+
+export interface TicketCommentDto {
+  id: string;
+  ticketId: string;
+  authorId: string;
+  authorName: string | null;
+  body: string;
+  isInternal: boolean;
+  createdAt: string;
+}
+
+export interface TicketActivityDto {
+  id: string;
+  ticketId: string;
+  actorId: string | null;
+  actorName: string | null;
+  activityType: TicketActivityType;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface CreateTicketPayload {
+  categoryId: string;
+  subcategoryId?: string;
+  title: string;
+  description?: string;
+  priority?: TicketPriority;
+  locationId?: string;
+}
+
+export interface AssignTicketPayload {
+  assigneeEmployeeId: string;
+}
+
+export interface AssignVendorPayload {
+  vendorId: string;
+  vendorReference?: string;
+}
+
+export interface ResolveTicketPayload {
+  resolution?: string;
+}
+
+export interface CancelTicketPayload {
+  reason?: string;
+}
+
+export interface CreateTicketCommentPayload {
+  body: string;
+  isInternal?: boolean;
+}
+
+export interface ListTicketsArgs {
+  status?: TicketStatus;
+  priority?: TicketPriority;
+  categoryId?: string;
+  assigneeId?: string;
+  vendorId?: string;
+  createdAfter?: string;
+  createdBefore?: string;
+  includeTerminal?: boolean;
+  limit?: number;
+}
+
+export interface ProblemDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  description: string;
+  categoryId: string;
+  categoryName: string;
+  status: ProblemStatus;
+  rootCause: string | null;
+  resolution: string | null;
+  workaround: string | null;
+  assignedToId: string | null;
+  assignedToName: string | null;
+  vendorId: string | null;
+  vendorName: string | null;
+  createdBy: string;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  ticketIds: string[];
+}

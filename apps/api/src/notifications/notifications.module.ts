@@ -11,6 +11,7 @@ import { GradeNotificationConsumer } from './consumers/grade-notification.consum
 import { ProgressNoteNotificationConsumer } from './consumers/progress-note-notification.consumer';
 import { AbsenceRequestNotificationConsumer } from './consumers/absence-request-notification.consumer';
 import { MessageNotificationConsumer } from './consumers/message-notification.consumer';
+import { TicketNotificationConsumer } from './consumers/ticket-notification.consumer';
 
 /**
  * NotificationsModule — M40 notification pipeline (Cycle 3 Step 5).
@@ -50,6 +51,7 @@ import { MessageNotificationConsumer } from './consumers/message-notification.co
     ProgressNoteNotificationConsumer,
     AbsenceRequestNotificationConsumer,
     MessageNotificationConsumer,
+    TicketNotificationConsumer,
   ],
   controllers: [NotificationInboxController],
   exports: [
