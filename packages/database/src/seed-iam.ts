@@ -228,6 +228,16 @@ async function seedIam() {
         // staff this cycle — IT-001 is the umbrella code the Step 4
         // TicketService gates on for all ticket categories.
         'IT-001': ['read', 'write'],
+        // Cycle 10 — health alerts only. Teacher receives HLT-001:read so
+        // the future Step 5 HealthRecordService can return the
+        // accommodation-level health summary used in the classroom (no
+        // PII; the service strips management_plan, emergency_medical_notes,
+        // and condition severity for non-managers). Teachers do NOT
+        // receive HLT-002 / 003 / 004 / 005 — medication, nurse visits,
+        // screenings, and dietary are nurse-only surfaces. The ADR-030
+        // sis_student_active_accommodations table is the canonical
+        // teacher read path for IEP / 504 accommodations.
+        'HLT-001': ['read'],
       },
     },
     {
@@ -275,6 +285,19 @@ async function seedIam() {
         // visibility contract). Parents do NOT receive write — only
         // counsellors and admins author plans.
         'BEH-002': ['read'],
+        // Cycle 10 — parents read their own child's health summary
+        // (allergies, conditions overview, immunisation status,
+        // medication schedule, recent nurse visits). Row scope at the
+        // future Step 5 HealthRecordService GUARDIAN branch joins
+        // through sis_student_guardians keyed on actor.personId. The
+        // service strips management_plan from conditions, full
+        // emergency_medical_notes, and IEP details before returning
+        // the parent payload. Parents do NOT receive HLT-002 / 003 /
+        // 004 / 005 — medication administration logs, nurse-visit
+        // detail, screening results, and dietary admin are nurse
+        // surfaces (a parent can see meds via the parent summary on
+        // HLT-001:read but can't audit the administration log).
+        'HLT-001': ['read'],
       },
     },
     {
@@ -346,6 +369,25 @@ async function seedIam() {
         // via the everyFunction grant.
         'BEH-001': ['read', 'write'],
         'BEH-002': ['read', 'write'],
+        // Cycle 10 — health module is nurse-and-counsellor work.
+        // Staff (covering nurse, counsellor, VP, admin assistant)
+        // receives full read+write across all five HLT codes:
+        // HLT-001 (records + conditions + immunisations),
+        // HLT-002 (medications + administration log),
+        // HLT-003 (nurse visits + live roster),
+        // HLT-004 (screenings + follow-up queue),
+        // HLT-005 (dietary profiles + POS allergen alerts).
+        // School Admin and Platform Admin pick up the admin tier
+        // (HIPAA access log audit view, EXPORT, hard-delete) via
+        // the everyFunction grant. The Step 5 HealthAccessLogService
+        // writes a row to hlth_health_access_log on every read
+        // regardless of caller role per the ADR-010 immutable-audit
+        // contract.
+        'HLT-001': ['read', 'write'],
+        'HLT-002': ['read', 'write'],
+        'HLT-003': ['read', 'write'],
+        'HLT-004': ['read', 'write'],
+        'HLT-005': ['read', 'write'],
       },
     },
   ];

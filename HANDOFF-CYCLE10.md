@@ -1,6 +1,6 @@
 # Cycle 10 Handoff — Health & Wellness
 
-**Status:** Cycle 10 **IN PROGRESS** — Steps 1 + 2 + 3 of 10 done. All 15 hlth*\* tables now in place. Schema phase complete. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth*\*`tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated`health_record:read`permission AND writes a row to`hlth_health_access_log` before the response body leaves the server.
+**Status:** Cycle 10 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 of 10 done. All 15 hlth*\* tables in place + the ADR-030 read model + Maya's full demo data + HLT-001..005 IAM grants. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth*\*`tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated`health_record:read`permission AND writes a row to`hlth_health_access_log` before the response body leaves the server.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle10-implementation-plan.html`
@@ -17,7 +17,7 @@ This document tracks the Cycle 10 build at the same level of detail as `HANDOFF-
 | 1    | Health Records Schema — Records, Conditions, Immunisations  | **DONE** |
 | 2    | Medication Schema — Meds, Schedule, Administration          | **DONE** |
 | 3    | IEP/504 + Nurse + Screening + Dietary Schema                | **DONE** |
-| 4    | Seed Data — Maya's Health Record + IEP + Sample Visits      | TODO     |
+| 4    | Seed Data — Maya's Health Record + IEP + Sample Visits      | **DONE** |
 | 5    | Health Records NestJS Module — Records + Conditions + Imms  | TODO     |
 | 6    | Medication NestJS Module — Meds + Schedule + Administration | TODO     |
 | 7    | IEP/504 + Nurse + Screening + Dietary NestJS Modules        | TODO     |
@@ -253,6 +253,62 @@ All 11 FK delete actions confirmed via `pg_constraint.confdeltype` catalog reado
 
 ## Step 4 — Seed Data — Maya's Health Record + IEP + Sample Visits
 
+**Status:** DONE. Idempotent seed lands cleanly on `tenant_demo` 2026-05-04. Re-run gates on whether Maya already has a health record and skips with `Maya's health record already exists — skipping`. Test tenant `tenant_test` stays empty by convention.
+
+**Prerequisite migration:** `packages/database/prisma/tenant/migrations/035_sis_student_active_accommodations.sql`. The ADR-030 read model has been referenced in CLAUDE.md and prior cycle handoffs since Cycle 1 as the surface teachers read for active accommodations without ever touching `hlth_*` tables, but the table was never built. Step 4 ships it as a prerequisite for the Step 7 IepAccommodationConsumer Kafka consumer + the seed plants 2 demo rows so the read model has a baseline shape. **1 logical base table** (3-value `plan_type` CHECK IEP/504, 3-value `applies_to` CHECK matching `hlth_iep_accommodations`, multi-column `specific_chk` mirroring the source so the read model never holds a shape the source could not produce, multi-column `dates_chk`, `student_id` FK CASCADE, **partial UNIQUE INDEX on `source_iep_accommodation_id WHERE source_iep_accommodation_id IS NOT NULL`** so the Step 7 consumer keys upserts deterministically while seed rows can coexist). 1 new intra-tenant FK, 0 cross-schema FKs. Tenant logical base table count: 154 → **155**. Splitter trap caught two `;` characters in the comment header on the first audit; rewritten with periods on the second pass — matches the same trap pattern caught in Cycles 4–8.
+
+**Seed script:** `packages/database/src/seed-health.ts` (wired as `seed:health` in `packages/database/package.json`).
+
+**What gets seeded (8 sections + permissions):**
+
+A. **Maya's `hlth_student_health_records`** — A+ blood type; structured JSONB allergies (Peanuts SEVERE Anaphylaxis "Carries an EpiPen at all times" + Dust mites MILD Sneezing); emergency_medical_notes referencing the asthma plan; physician Dr. Sarah Lee + +1-217-555-9000.
+
+B. **2 `hlth_medical_conditions`** — Asthma MODERATE ACTIVE diagnosed 2020-05-15 with full management_plan ("PRN albuterol inhaler. Avoid known triggers..."); Seasonal allergies MILD ACTIVE diagnosed 2022-03-10 with management_plan.
+
+C. **3 `hlth_immunisations`** — DTaP CURRENT administered 2024-09-15 by Springfield Pediatrics; Influenza OVERDUE due 2025-10-15 (drives the OVERDUE compliance dashboard); MMR CURRENT administered 2023-08-20.
+
+D. **1 `hlth_medications` + 1 `hlth_medication_schedule` + 2 `hlth_medication_administrations`** — Albuterol Inhaler 90mcg, INHALER, 2 puffs PRN plus scheduled 08:00 daily, prescribed by Dr. Lee, `is_self_administered=true`. Schedule slot at 08:00 with `day_of_week=NULL` (every day). Administration 1: yesterday 08:05, administered by Sarah Mitchell, 1 puff, parent_notified=true (`was_missed=false`, timestamp populated — active dose shape). **Administration 2: today's slot missed because Maya was absent — `was_missed=true`, `administered_at=NULL`, `missed_reason='STUDENT_ABSENT'`** (exercises the missed_chk invariant).
+
+E. **2 `hlth_nurse_visits`** — V1: Maya yesterday 10:30, COMPLETED at 10:50 (20 minutes), reason "Wheezing episode after gym class", treatment "Administered albuterol inhaler 2 puffs. Resting period observed for 15 minutes. Symptoms resolved.", parent_notified=true, sent_home=false. V2: Ethan Rodriguez last week 13:15, COMPLETED at 13:35, reason "Headache complaint", treatment "Rest and water", parent_notified=false, sent_home=false.
+
+F. **1 `hlth_iep_plans` + 2 `hlth_iep_goals` + 1 `hlth_iep_goal_progress` + 1 `hlth_iep_services` + 2 `hlth_iep_accommodations`** — Maya, plan_type=504, status=ACTIVE, start_date=2025-08-15, review_date=today+60d, case_manager_id=Marcus Hayes (counsellor). Goal 1: "Demonstrate compliance with extended time accommodation across all assessments" baseline 60% target 90% current 75% Academic ACTIVE. Goal 2: "Reduced-distraction setting effectively across all assessments" qualitative baseline + target Behavioural ACTIVE. 1 progress entry on Goal 1 by Hayes a week ago: "Steady improvement... 3 of 4 recent assessments within the extended window without distress". Service: Speech therapy by Sarah Reynolds (district SLP), 30 min, 2x weekly, PULL_OUT. **Accommodation 1: EXTENDED_TIME ALL_ASSESSMENTS effective 2025-08-15** ("Maya receives 1.5x time on all assessments and quizzes"). **Accommodation 2: REDUCED_DISTRACTION ALL_ASSESSMENTS effective 2025-08-15** ("Maya completes assessments in a quiet alternate location separate from the main classroom").
+
+G. **1 `hlth_screenings`** — Maya VISION 2026-04-01 by Hayes, result=REFER, "Distance vision below threshold in left eye. Right eye within normal range.", `follow_up_required=true`, `follow_up_completed=false`, referral_notes "Schedule ophthalmologist appointment for further evaluation." This row populates the partial INDEX `WHERE follow_up_required=true AND follow_up_completed=false` so the Step 9 admin follow-up queue has a baseline entry.
+
+H. **1 `hlth_dietary_profiles`** — Maya, `dietary_restrictions=ARRAY[]` (no special dietary preferences beyond the allergen), allergens JSONB `[{allergen:'Peanuts', severity:'SEVERE', reaction:'Anaphylaxis'}]`, special_meal_instructions "Strict no-peanuts protocol. Verify ingredient lists at every service.", **`pos_allergen_alert=true`** so the future POS / cafeteria integration shows a hard-stop alert at checkout (drives the partial INDEX hot path).
+
+I. **2 `sis_student_active_accommodations` rows** — direct seed write demonstrating the ADR-030 read model shape. Both rows reference Maya's source IEP accommodation rows from section F via `source_iep_accommodation_id` (Step 7 consumer keys upserts here via the partial UNIQUE INDEX). EXTENDED_TIME ALL_ASSESSMENTS plan_type=504 effective 2025-08-15 + REDUCED_DISTRACTION ALL_ASSESSMENTS plan_type=504 effective 2025-08-15. The Step 7 IepAccommodationConsumer will maintain these going forward via Kafka events.
+
+**Live counts on `tenant_demo` after seed:**
+
+| Resource                            | Count                                   |
+| ----------------------------------- | --------------------------------------- |
+| `hlth_student_health_records`       | 1                                       |
+| `hlth_medical_conditions`           | 2                                       |
+| `hlth_immunisations`                | 3 (1 OVERDUE)                           |
+| `hlth_medications`                  | 1                                       |
+| `hlth_medication_schedule`          | 1                                       |
+| `hlth_medication_administrations`   | 2 (1 missed STUDENT_ABSENT)             |
+| `hlth_nurse_visits`                 | 2 (Maya + Ethan, both COMPLETED)        |
+| `hlth_iep_plans` ACTIVE             | 1 (504, Hayes case manager)             |
+| `hlth_iep_goals`                    | 2                                       |
+| `hlth_iep_goal_progress`            | 1                                       |
+| `hlth_iep_services`                 | 1 (Speech, 30min 2x weekly PULL_OUT)    |
+| `hlth_iep_accommodations`           | 2 (EXTENDED_TIME + REDUCED_DISTRACTION) |
+| `hlth_screenings`                   | 1 (Maya VISION REFER pending follow-up) |
+| `hlth_dietary_profiles` POS alert   | 1                                       |
+| `sis_student_active_accommodations` | 2 (ADR-030 read model demo)             |
+
+**`seed-iam.ts` updated:** Teacher gains `HLT-001:read` (41 → 42 perms — health alerts only; the future Step 5 service strips PII for non-managers and returns accommodation-level info). Parent gains `HLT-001:read` (21 → 22 — own child's summary, row-scoped at the future Step 5 service GUARDIAN branch via `sis_student_guardians`). Staff gains all 5 HLT codes read+write (24 → 34 — covers nurse / counsellor / VP). School Admin and Platform Admin already hold all `HLT-*:admin` tiers via `everyFunction: ['read','write','admin']`. Catalogue total stays at **447 codes** — HLT-001 through HLT-005 were already in `permissions.json` from earlier cycles awaiting use; no catalogue edit required. Cache rebuild reports 7 account-scope pairs — admin/principal 447 (unchanged), teacher 42 (was 41), parent 22 (was 21), student 19 (unchanged), VP/counsellor 34 (was 24).
+
+**Idempotency:** the seed gates on whether Maya already has a `hlth_student_health_records` row and skips on re-run. Test tenant `tenant_test` stays empty by convention. The `seed-iam.ts` re-run reports `0 newly added` for Teacher / Parent / Staff after the first run.
+
+**Out of scope this step (deferred to Steps 5–7):** the request-path APIs that read these tables. Step 5 ships `HealthRecordService` + `ConditionService` + `ImmunisationService` + `HealthAccessLogService` (the canonical writer for the HIPAA audit log). Step 6 ships `MedicationService` + `ScheduleService` + `AdministrationService` (with the missed-dose audit and `hlth.medication.administered` Kafka emit). Step 7 ships `IepPlanService` + `NurseVisitService` + `ScreeningService` + `DietaryProfileService` + the **`IepAccommodationConsumer`** (the keystone ADR-030 read-model bridge) that subscribes to `iep.accommodation.updated` and upserts `sis_student_active_accommodations` keyed on `source_iep_accommodation_id`.
+
+---
+
+## Step 5 — Health Records NestJS Module — Records + Conditions + Imms
+
 **Status:** TODO.
 
-(Steps 4–10 of Cycle 10 — seed data, NestJS modules + IepAccommodationConsumer, UI, and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
+(Steps 5–10 of Cycle 10 — NestJS modules, IepAccommodationConsumer, UI, and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
