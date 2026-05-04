@@ -197,20 +197,27 @@ export class AdministrationService {
   }
 
   /**
-   * Per-medication dose history. Inherits the parent medication's
-   * row scope. Reads write a VIEW_MEDICATIONS audit row.
+   * Per-medication dose history. **Nurse / admin only** per
+   * REVIEW-CYCLE10 BLOCKING — guardians do not reach this clinical
+   * log, even though they hold hlt-001:read. The parent surface for
+   * medications stops at the per-student summary + scheduled times
+   * (`GET /health/students/:studentId/medications`); the dose-by-dose
+   * administration history (including dose given, administering staff
+   * name, missed reasons, and parent-notified flags) is staff-only.
+   *
+   * Defence-in-depth: the controller already gates on hlt-002:read
+   * (which guardians do NOT hold). The hasNurseScope() check below
+   * is the second layer in case a future role grants hlt-002:read
+   * more broadly. Reads write a VIEW_MEDICATIONS audit row.
    */
   async listForMedication(
     medicationId: string,
     actor: ResolvedActor,
   ): Promise<AdministrationResponseDto[]> {
     const { studentId } = await this.medications.loadStudentForMedication(medicationId);
-    const includeRead =
-      (await this.records.assertCanReadStudentExternal(studentId, actor)).isManager ||
-      actor.personType === 'GUARDIAN';
-    if (!includeRead) {
+    if (!(await this.records.hasNurseScope(actor))) {
       throw new ForbiddenException(
-        'Medication administration history is visible to nurses, admins, and parents only',
+        'Medication administration history is visible to nurses and admins only',
       );
     }
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {

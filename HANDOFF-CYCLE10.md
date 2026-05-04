@@ -681,7 +681,45 @@ The third Cycle 10 emit (`dev.hlth.medication.administered`) was already verifie
 4. S4 ADR-030 keystone latency observed at ~2-3s end-to-end (Kafka round-trip); single-threaded per tenant via `processWithIdempotency`. Under load this could climb.
 5. Synthetic Platform Admin (`admin@`) cannot administer medication (no `hr_employees` row); Step 6 deliberately refuses such callers. Schools whose only admin lacks an HR bridge need to use the principal account or bridge `admin@` via `seed-hr.ts`.
 
-**Cycle 10 ships clean to the post-cycle architecture review.** Tagged `cycle10-complete` after the closeout commit + CI green; `cycle10-approved` after the post-cycle review verdict (filed as `REVIEW-CYCLE10-CHATGPT.md` per the Wave 1 / Wave 2 convention). Cycle 10 is the **second cycle of Wave 2 (Student Services)**; the next cycle (Cycle 11: Counselling & Student Support) builds on the IEP/504 plans by adding counselling caseloads, referrals, MTSS/RTI tiers, and wellbeing check-ins.
+**Cycle 10 ships clean to the post-cycle architecture review.** Tagged `cycle10-complete` at `e631cce` after the closeout commit + CI green.
+
+---
+
+## REVIEW-CYCLE10-CHATGPT (Round 1 + 2)
+
+**Round 1 against `cycle10-complete` at `e631cce`:** **REJECT pending 1 privacy fix.** The reviewer accepted the prior 2 closed concerns (`HealthRecordsModule` registered, Cycle 10 marked complete in the handoff/CAT package) and confirmed the 4 strong passes (zero cross-schema FKs / ADR-030 accommodation bridge end-to-end / HIPAA access logging exercised / parent row-scope correctly 404 on non-own-children + 403 on admin surfaces). One BLOCKING:
+
+**BLOCKING — Parent could read medication administration history.** The endpoint `GET /health/medications/:id/administrations` was gated on `hlt-001:read` (which guardians hold) and the service layer explicitly allowed guardians via `actor.personType === 'GUARDIAN'`, returning the full clinical dose-by-dose log including dose given, administered_at, missed reasons, parent-notified flag, and administering staff name. The handoff's vertical-slice privacy contract says the parent summary should be stripped of "no medication administration log"; the Step 9 parent UI on `/children/[id]/health` honours this, but the API endpoint did not.
+
+**Fix landed in the closeout commit:**
+
+- Controller `apps/api/src/health/administration.controller.ts::list` re-gated from `@RequirePermission('hlt-001:read')` → `@RequirePermission('hlt-002:read')` (which guardians do NOT hold).
+- Service `apps/api/src/health/administration.service.ts::listForMedication` removes the `actor.personType === 'GUARDIAN'` branch entirely; the gate becomes `if (!(await this.records.hasNurseScope(actor)))` so admins / nurses (employees holding `hlt-002:read` / `hlt-001:write` or `actor.isSchoolAdmin`) reach the data, everyone else 403s with the message "Medication administration history is visible to nurses and admins only".
+- ApiOperation summary on the controller rewritten to make the contract explicit: "Nurse / admin only — gated on hlt-002:read so guardians never reach this clinical log per REVIEW-CYCLE10 BLOCKING. Parents see medication summary + scheduled times via the Step 5 /students/:studentId/medications endpoint instead."
+- `docs/cycle10-cat-script.md` Scenario 7 gains a new **S7.I** sub-check verifying parent denial on `/health/medications/:id/administrations` 403; the prose explicitly documents the fix (gate + service-layer hasNurseScope) so future regressions are caught.
+
+**Live verification on `tenant_demo` 2026-05-04 (6 scenarios all green):**
+
+- R1 admin GET 200 (preserved access)
+- R2 counsellor GET 200 (Staff role holds HLT-002:read)
+- **R3 parent GET 403** (the BLOCKING fix — message: "You do not have the required permission for this action")
+- R4 teacher GET 403
+- R5 student GET 403
+- R6 parent CAN still read `/students/<maya>/medications` 200 with `prescribingPhysician=null` — the parent-safe summary surface is preserved per the Step 6 visibility model. Parents see the medication name, route, dosage, and scheduled times; they do NOT see administration events, missed reasons, or staff details.
+
+**Round 2 against the closeout commit:** the reviewer's stated approval condition was met — _"After [the BLOCKING fix], I would approve Cycle 10 with the duplicate-dose issue carried as a major follow-up."_ Tagged `cycle10-approved`.
+
+**MAJOR follow-ups (deferred to Wave 2 Phase 2 punch list):**
+
+1. **Scheduled-dose duplicate logging.** `AdministrationService.administer()` and `logMissed()` insert without UNIQUE / advisory lock on `(medication_id, schedule_entry_id, date)`, so two nurses logging the same scheduled dose at the same minute would land 2 rows. Reviewer accepts this as a non-blocking Phase 2 carry-over. Fix pattern: copy Cycle 6 `InvoiceService.generateFromSchedule` advisory-tx-lock + in-tx existence check, OR add a partial UNIQUE INDEX on `(schedule_entry_id, administered_at::date) WHERE was_missed=false` for active doses. Lands before pilot.
+2. **Nurse / Health Office / Counsellor role split.** Staff role currently grants all 5 HLT codes read+write — fine for demo where one persona covers all health-staff functions; before real school onboarding the Staff role should split into Nurse (full HLT) / Health Office (read-only) / Counsellor (HLT-001 + IEP only). Joins the Wave 1 Phase 2 punch list #9 (Counsellor split for behaviour).
+3. **IEP parent visibility — locked product decision.** `IepPlanService.buildVisibility` GUARDIAN branch returns full plan detail (parents are full IEP team participants per IDEA / 504 statute); the Step 9 parent UI on `/children/[id]/health` deliberately omits IEP from the summary card to keep that surface focused on day-to-day health awareness. Reviewer accepts as intentional. Decision documented in `REVIEW-CYCLE10-CHATGPT.md`; locked before pilot.
+
+See `REVIEW-CYCLE10-CHATGPT.md` for the full triage table + before/after code snippets + verification trail.
+
+---
+
+Cycle 10 is the **second cycle of Wave 2 (Student Services)**; the next cycle (Cycle 11: Counselling & Student Support) builds on the IEP/504 plans by adding counselling caseloads, referrals, MTSS/RTI tiers, and wellbeing check-ins.
 
 **Final Cycle 10 totals:**
 

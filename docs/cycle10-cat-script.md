@@ -334,9 +334,19 @@ curl -s -o /dev/null -w "%{http_code}\n" "$API/health/medication-dashboard" -H "
 # S7.H parent CANNOT read HIPAA access log — admin-only
 curl -s -o /dev/null -w "%{http_code}\n" "$API/health/access-log" -H "Authorization: Bearer $T_PARENT" -H "$H_TENANT"
 #  => 403
+
+# S7.I parent CANNOT read medication administration history — REVIEW-CYCLE10 BLOCKING fix.
+#       The endpoint is gated on hlt-002:read which guardians do NOT hold; service-layer
+#       hasNurseScope() is the second layer in case a future role grants the permission
+#       more broadly. Parents see the per-student medication summary + scheduled times
+#       at /health/students/:studentId/medications instead — that DTO already strips
+#       prescribingPhysician for guardians.
+curl -s -o /dev/null -w "%{http_code}\n" "$API/health/medications/$MED_ID/administrations" \
+  -H "Authorization: Bearer $T_PARENT" -H "$H_TENANT"
+#  => 403
 ```
 
-**Result:** the Step 5 visibility model strips `emergencyMedicalNotes`, `managementPlan`, and `prescribingPhysician` from the parent payload; `sis_student_guardians` row scope returns 404 on non-own-children; admin surfaces (screenings list, medication-dashboard, access-log) all 403 cleanly.
+**Result:** the Step 5 visibility model strips `emergencyMedicalNotes`, `managementPlan`, and `prescribingPhysician` from the parent payload; `sis_student_guardians` row scope returns 404 on non-own-children; admin surfaces (screenings list, medication-dashboard, access-log, administrations history) all 403 cleanly. The S7.I check verifies the REVIEW-CYCLE10 BLOCKING fix — the per-medication dose-history endpoint (`GET /health/medications/:id/administrations`) was previously gated on `hlt-001:read` with a service-layer GUARDIAN branch that exposed dose / notes / missed-reason / parent-notified / administering-staff details to parents; the fix tightens the gate to `hlt-002:read` and replaces the GUARDIAN branch with `hasNurseScope(actor)` so parents are denied at both layers.
 
 ## Scenario 8 — HIPAA access log verification
 

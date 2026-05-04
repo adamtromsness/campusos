@@ -55,10 +55,10 @@ export class AdministrationController {
   }
 
   @Get('health/medications/:id/administrations')
-  @RequirePermission('hlt-001:read')
+  @RequirePermission('hlt-002:read')
   @ApiOperation({
     summary:
-      "Per-medication dose history. Inherits the parent medication's row scope (nurse / admin / parent only; teachers 403 service-layer). Writes a VIEW_MEDICATIONS audit row.",
+      'Per-medication dose history. Nurse / admin only — gated on hlt-002:read so guardians never reach this clinical log per REVIEW-CYCLE10 BLOCKING. Parents see medication summary + scheduled times via the Step 5 /students/:studentId/medications endpoint instead. Writes a VIEW_MEDICATIONS audit row.',
   })
   async list(
     @Param('id', ParseUUIDPipe) id: string,
