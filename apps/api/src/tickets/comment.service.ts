@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
@@ -76,10 +72,7 @@ export class CommentService {
    *   - Non-participant non-admins fail with 404 (don't leak existence
    *     of the ticket — same convention as TicketService.getById).
    */
-  async list(
-    ticketId: string,
-    actor: ResolvedActor,
-  ): Promise<TicketCommentResponseDto[]> {
+  async list(ticketId: string, actor: ResolvedActor): Promise<TicketCommentResponseDto[]> {
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const t = await this.loadTicketStub(client, ticketId);
       const role = this.scopeRole(t, actor);
@@ -222,10 +215,7 @@ export class CommentService {
     return commentId;
   }
 
-  private async loadTicketStub(
-    client: any,
-    ticketId: string,
-  ): Promise<TicketStub> {
+  private async loadTicketStub(client: any, ticketId: string): Promise<TicketStub> {
     const rows = (await client.$queryRawUnsafe(
       'SELECT requester_id::text AS requester_id, assignee_id::text AS assignee_id, status, ' +
         'TO_CHAR(first_response_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS first_response_at ' +

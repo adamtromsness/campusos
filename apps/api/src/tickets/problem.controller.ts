@@ -39,7 +39,8 @@ export class ProblemController {
   @Get()
   @RequirePermission('it-001:read')
   @ApiOperation({
-    summary: 'Admin-only list of problems with linked-ticket counts inline. Service-layer 403 for non-admins.',
+    summary:
+      'Admin-only list of problems with linked-ticket counts inline. Service-layer 403 for non-admins.',
   })
   async list(
     @Query() query: ListProblemsQueryDto,

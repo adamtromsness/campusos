@@ -104,10 +104,7 @@ export class ProblemService {
    * row includes the linked ticket ids inline so the Step 9 Problem UI
    * can render the count without a second round-trip.
    */
-  async list(
-    query: ListProblemsQueryDto,
-    actor: ResolvedActor,
-  ): Promise<ProblemResponseDto[]> {
+  async list(query: ListProblemsQueryDto, actor: ResolvedActor): Promise<ProblemResponseDto[]> {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can browse problems');
     }
@@ -182,7 +179,9 @@ export class ProblemService {
       // Mutual exclusion CHECK enforces this at the DB layer too, but
       // surface a friendlier error.
       if (input.assignedToId && input.vendorId) {
-        throw new BadRequestException('A problem can be assigned to an employee OR a vendor, not both');
+        throw new BadRequestException(
+          'A problem can be assigned to an employee OR a vendor, not both',
+        );
       }
       if (input.assignedToId) {
         const e = (await tx.$queryRawUnsafe(
@@ -324,11 +323,7 @@ export class ProblemService {
    * already linked (UNIQUE(problem_id, ticket_id) — the schema would
    * reject a duplicate but we surface a friendly summary instead).
    */
-  async link(
-    id: string,
-    input: LinkTicketsDto,
-    actor: ResolvedActor,
-  ): Promise<ProblemResponseDto> {
+  async link(id: string, input: LinkTicketsDto, actor: ResolvedActor): Promise<ProblemResponseDto> {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can link tickets to a problem');
     }
@@ -399,7 +394,12 @@ export class ProblemService {
       const probLock = (await tx.$queryRawUnsafe(
         'SELECT id::text AS id, status, root_cause, resolution FROM tkt_problems WHERE id = $1::uuid FOR UPDATE',
         id,
-      )) as Array<{ id: string; status: string; root_cause: string | null; resolution: string | null }>;
+      )) as Array<{
+        id: string;
+        status: string;
+        root_cause: string | null;
+        resolution: string | null;
+      }>;
       if (probLock.length === 0) throw new NotFoundException('Problem ' + id);
       const prob = probLock[0]!;
       if (prob.status === 'RESOLVED') {
@@ -427,11 +427,7 @@ export class ProblemService {
       }>;
 
       // Flip the problem first.
-      const updateClauses = [
-        "status = 'RESOLVED'",
-        'root_cause = $1',
-        'resolution = $2',
-      ];
+      const updateClauses = ["status = 'RESOLVED'", 'root_cause = $1', 'resolution = $2'];
       const updateParams: any[] = [input.rootCause, input.resolution];
       let nextIdx = 3;
       if (input.workaround !== undefined) {
@@ -442,7 +438,11 @@ export class ProblemService {
       updateClauses.push('resolved_at = now()');
       updateClauses.push('updated_at = now()');
       await tx.$executeRawUnsafe(
-        'UPDATE tkt_problems SET ' + updateClauses.join(', ') + ' WHERE id = $' + nextIdx + '::uuid',
+        'UPDATE tkt_problems SET ' +
+          updateClauses.join(', ') +
+          ' WHERE id = $' +
+          nextIdx +
+          '::uuid',
         ...updateParams,
         id,
       );
@@ -492,10 +492,7 @@ export class ProblemService {
     return { problem, ticketsFlipped: flipped.map((t) => t.id) };
   }
 
-  private async loadLinks(
-    client: any,
-    problemIds: string[],
-  ): Promise<Map<string, string[]>> {
+  private async loadLinks(client: any, problemIds: string[]): Promise<Map<string, string[]>> {
     if (problemIds.length === 0) return new Map();
     const rows = (await client.$queryRawUnsafe(
       'SELECT problem_id::text AS problem_id, ticket_id::text AS ticket_id ' +

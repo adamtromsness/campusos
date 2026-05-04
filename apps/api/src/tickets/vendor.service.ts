@@ -2,12 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import {
-  CreateVendorDto,
-  UpdateVendorDto,
-  VendorResponseDto,
-  VendorType,
-} from './dto/ticket.dto';
+import { CreateVendorDto, UpdateVendorDto, VendorResponseDto, VendorType } from './dto/ticket.dto';
 
 interface VendorRow {
   id: string;
@@ -66,10 +61,7 @@ export class VendorService {
 
   async getById(id: string): Promise<VendorResponseDto> {
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<VendorRow[]>(
-        SELECT_VENDOR_BASE + 'WHERE id = $1::uuid',
-        id,
-      );
+      return client.$queryRawUnsafe<VendorRow[]>(SELECT_VENDOR_BASE + 'WHERE id = $1::uuid', id);
     });
     if (rows.length === 0) throw new NotFoundException('Vendor ' + id);
     return rowToDto(rows[0]!);

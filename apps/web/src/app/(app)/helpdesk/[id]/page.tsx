@@ -181,7 +181,9 @@ export default function HelpdeskDetailPage() {
             {TICKET_STATUS_LABELS[t.status]}
           </span>
           <span
-            className={cn('inline-flex items-center gap-1 rounded-full bg-gray-50 px-2 py-0.5 ring-1 ring-gray-200')}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full bg-gray-50 px-2 py-0.5 ring-1 ring-gray-200',
+            )}
           >
             <span className={cn('h-1.5 w-1.5 rounded-full', SLA_URGENCY_DOT[urgency])} />
             <span className="text-gray-600">{SLA_URGENCY_LABEL[urgency]}</span>
@@ -278,10 +280,7 @@ export default function HelpdeskDetailPage() {
       </div>
 
       {createProblemOpen && (
-        <CreateProblemFromTicketModal
-          ticket={t}
-          onClose={() => setCreateProblemOpen(false)}
-        />
+        <CreateProblemFromTicketModal ticket={t} onClose={() => setCreateProblemOpen(false)} />
       )}
 
       <CommentThread
@@ -336,7 +335,8 @@ function CommentThread({
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5">
       <h3 className="mb-3 text-sm font-semibold text-gray-900">
-        Conversation {comments.length > 0 && <span className="text-gray-400">· {comments.length}</span>}
+        Conversation{' '}
+        {comments.length > 0 && <span className="text-gray-400">· {comments.length}</span>}
       </h3>
 
       {loading ? (
@@ -376,7 +376,11 @@ function CommentThread({
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder={ticket.status === 'PENDING_REQUESTER' ? 'Reply to keep things moving…' : 'Add a comment…'}
+            placeholder={
+              ticket.status === 'PENDING_REQUESTER'
+                ? 'Reply to keep things moving…'
+                : 'Add a comment…'
+            }
             rows={3}
             maxLength={4000}
             className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-campus-500 focus:ring-2 focus:ring-campus-200"
@@ -472,9 +476,7 @@ function ActivityMetadata({ metadata }: { metadata: Record<string, unknown> }) {
   if ('vendor_id' in metadata && 'vendor_reference' in metadata) {
     const ref = metadata.vendor_reference;
     return (
-      <p className="text-sm text-gray-700">
-        Assigned to vendor{ref ? ' · ' + String(ref) : ''}
-      </p>
+      <p className="text-sm text-gray-700">Assigned to vendor{ref ? ' · ' + String(ref) : ''}</p>
     );
   }
   if ('is_internal' in metadata) {

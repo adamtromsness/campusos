@@ -26,7 +26,9 @@ export default function HelpdeskCategoriesPage() {
 
   const [editCategory, setEditCategory] = useState<TicketCategoryDto | null>(null);
   const [createCategory, setCreateCategory] = useState<boolean>(false);
-  const [editSub, setEditSub] = useState<{ sub: TicketSubcategoryDto; categoryId: string } | null>(null);
+  const [editSub, setEditSub] = useState<{ sub: TicketSubcategoryDto; categoryId: string } | null>(
+    null,
+  );
   const [createSubFor, setCreateSubFor] = useState<TicketCategoryDto | null>(null);
 
   if (!user) return null;
@@ -70,7 +72,10 @@ export default function HelpdeskCategoriesPage() {
           <LoadingSpinner size="sm" /> Loading…
         </div>
       ) : tree.length === 0 ? (
-        <EmptyState title="No categories yet" description="Add a top-level category to start the tree." />
+        <EmptyState
+          title="No categories yet"
+          description="Add a top-level category to start the tree."
+        />
       ) : (
         <div className="space-y-3">
           {tree.map((cat) => (
@@ -85,9 +90,7 @@ export default function HelpdeskCategoriesPage() {
         </div>
       )}
 
-      {createCategory && (
-        <CategoryModal mode="create" onClose={() => setCreateCategory(false)} />
-      )}
+      {createCategory && <CategoryModal mode="create" onClose={() => setCreateCategory(false)} />}
       {editCategory && (
         <CategoryModal mode="edit" category={editCategory} onClose={() => setEditCategory(null)} />
       )}
@@ -123,7 +126,9 @@ function CategoryCard({
   onEditSub: (sub: TicketSubcategoryDto) => void;
 }) {
   return (
-    <div className={cn('rounded-lg border border-gray-200 bg-white', !cat.isActive && 'opacity-60')}>
+    <div
+      className={cn('rounded-lg border border-gray-200 bg-white', !cat.isActive && 'opacity-60')}
+    >
       <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
         <div>
           <div className="flex items-center gap-2">
@@ -212,7 +217,7 @@ function CategoryModal({
       } else if (category) {
         await update.mutateAsync({
           name: name.trim() !== category.name ? name.trim() : undefined,
-          icon: icon !== (category.icon ?? '') ? (icon.trim() || null) : undefined,
+          icon: icon !== (category.icon ?? '') ? icon.trim() || null : undefined,
           isActive: isActive !== category.isActive ? isActive : undefined,
         });
         toast('Category updated', 'success');
@@ -376,7 +381,9 @@ function SubcategoryModal({
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">Auto-assign to (optional)</label>
+          <label className="block text-sm font-medium text-gray-700">
+            Auto-assign to (optional)
+          </label>
           <p className="mb-2 mt-0.5 text-xs text-gray-500">
             Pick an employee OR a role token. Leave both blank to land tickets in the admin queue.
           </p>

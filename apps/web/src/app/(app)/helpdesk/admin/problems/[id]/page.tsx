@@ -114,10 +114,7 @@ export default function ProblemDetailPage() {
       <PageHeader
         title={p.title}
         actions={
-          <Link
-            href="/helpdesk/admin/problems"
-            className="text-sm text-campus-700 hover:underline"
-          >
+          <Link href="/helpdesk/admin/problems" className="text-sm text-campus-700 hover:underline">
             ← Back to problems
           </Link>
         }
@@ -145,13 +142,21 @@ export default function ProblemDetailPage() {
         <p className="mt-3 whitespace-pre-wrap text-sm text-gray-800">{p.description}</p>
 
         <dl className="mt-4 grid grid-cols-1 gap-3 text-sm">
-          <Field label="Root cause" value={p.rootCause} hint="Required to mark KNOWN_ERROR or RESOLVED." />
+          <Field
+            label="Root cause"
+            value={p.rootCause}
+            hint="Required to mark KNOWN_ERROR or RESOLVED."
+          />
           <Field
             label="Resolution"
             value={p.resolution}
             hint="Required when resolving — describes what fixed it."
           />
-          <Field label="Workaround" value={p.workaround} hint="Optional — what affected users can do until the fix lands." />
+          <Field
+            label="Workaround"
+            value={p.workaround}
+            hint="Optional — what affected users can do until the fix lands."
+          />
         </dl>
 
         {p.resolvedAt && (
@@ -247,19 +252,16 @@ export default function ProblemDetailPage() {
   );
 }
 
-function Field({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string | null;
-  hint?: string;
-}) {
+function Field({ label, value, hint }: { label: string; value: string | null; hint?: string }) {
   return (
     <div>
       <dt className="text-xs uppercase tracking-wide text-gray-500">{label}</dt>
-      <dd className={cn('mt-0.5 whitespace-pre-wrap text-sm', value ? 'text-gray-800' : 'italic text-gray-400')}>
+      <dd
+        className={cn(
+          'mt-0.5 whitespace-pre-wrap text-sm',
+          value ? 'text-gray-800' : 'italic text-gray-400',
+        )}
+      >
         {value ?? 'Not set'}
       </dd>
       {hint && <p className="mt-0.5 text-xs text-gray-500">{hint}</p>}
@@ -275,7 +277,9 @@ function EditProblemModal({ problem, onClose }: { problem: ProblemDto; onClose: 
   const [title, setTitle] = useState(problem.title);
   const [description, setDescription] = useState(problem.description);
   const [status, setStatus] = useState<Exclude<ProblemStatus, 'RESOLVED'>>(
-    problem.status === 'RESOLVED' ? 'KNOWN_ERROR' : (problem.status as Exclude<ProblemStatus, 'RESOLVED'>),
+    problem.status === 'RESOLVED'
+      ? 'KNOWN_ERROR'
+      : (problem.status as Exclude<ProblemStatus, 'RESOLVED'>),
   );
   const [rootCause, setRootCause] = useState(problem.rootCause ?? '');
   const [workaround, setWorkaround] = useState(problem.workaround ?? '');
@@ -288,11 +292,9 @@ function EditProblemModal({ problem, onClose }: { problem: ProblemDto; onClose: 
         description: description.trim() !== problem.description ? description.trim() : undefined,
         status: status !== problem.status ? status : undefined,
         rootCause:
-          rootCause.trim() !== (problem.rootCause ?? '') ? (rootCause.trim() || null) : undefined,
+          rootCause.trim() !== (problem.rootCause ?? '') ? rootCause.trim() || null : undefined,
         workaround:
-          workaround.trim() !== (problem.workaround ?? '')
-            ? workaround.trim() || null
-            : undefined,
+          workaround.trim() !== (problem.workaround ?? '') ? workaround.trim() || null : undefined,
       });
       toast('Problem updated', 'success');
       onClose();
@@ -338,7 +340,8 @@ function EditProblemModal({ problem, onClose }: { problem: ProblemDto; onClose: 
             <option value="KNOWN_ERROR">Known error (root cause documented)</option>
           </select>
           <p className="mt-1 text-xs text-gray-500">
-            Use the Resolve button to mark RESOLVED — it batch-resolves linked tickets in one transaction.
+            Use the Resolve button to mark RESOLVED — it batch-resolves linked tickets in one
+            transaction.
           </p>
         </div>
         <div>
@@ -350,9 +353,7 @@ function EditProblemModal({ problem, onClose }: { problem: ProblemDto; onClose: 
             maxLength={4000}
             className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
-          <p className="mt-1 text-xs text-gray-500">
-            Required when status is KNOWN_ERROR.
-          </p>
+          <p className="mt-1 text-xs text-gray-500">Required when status is KNOWN_ERROR.</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">Workaround</label>
@@ -476,7 +477,8 @@ function LinkTicketsModal({
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
         />
         <p className="text-xs text-gray-500">
-          Showing live tickets (Open / In progress / Vendor assigned / Pending requester) that aren&apos;t already linked.
+          Showing live tickets (Open / In progress / Vendor assigned / Pending requester) that
+          aren&apos;t already linked.
         </p>
         <div className="max-h-96 overflow-y-auto rounded-md border border-gray-200">
           {candidates.length === 0 ? (
@@ -520,7 +522,9 @@ function LinkTicketsModal({
                         >
                           {TICKET_STATUS_LABELS[t.status]}
                         </span>
-                        <span className="text-xs text-gray-500">{formatTicketAge(t.createdAt)}</span>
+                        <span className="text-xs text-gray-500">
+                          {formatTicketAge(t.createdAt)}
+                        </span>
                       </div>
                       <p className="truncate font-medium text-gray-900">{t.title}</p>
                       <p className="text-xs text-gray-500">
@@ -626,8 +630,8 @@ function ResolveProblemModal({
         <div className="rounded-md bg-amber-50 p-3 text-xs text-amber-900 ring-1 ring-amber-200">
           <strong>This is irreversible from the UI.</strong> Resolving the problem will flip every
           linked ticket currently in OPEN / IN_PROGRESS / VENDOR_ASSIGNED / PENDING_REQUESTER to
-          RESOLVED, emit one tkt.ticket.resolved per flipped ticket, and stop the SLA clock on
-          each. Already-resolved tickets are left untouched.
+          RESOLVED, emit one tkt.ticket.resolved per flipped ticket, and stop the SLA clock on each.
+          Already-resolved tickets are left untouched.
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">

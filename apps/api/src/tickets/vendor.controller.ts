@@ -37,7 +37,9 @@ export class VendorController {
 
   @Patch(':id')
   @RequirePermission('it-001:admin')
-  @ApiOperation({ summary: 'Edit a vendor record. Admin-only. Supports soft-deactivate via isActive.' })
+  @ApiOperation({
+    summary: 'Edit a vendor record. Admin-only. Supports soft-deactivate via isActive.',
+  })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdateVendorDto,

@@ -12,18 +12,18 @@ This document tracks the Cycle 8 build at the same level of detail as `HANDOFF-C
 
 ## Step status
 
-| Step | Title                                              | Status      |
-| ---- | -------------------------------------------------- | ----------- |
-| 1    | Ticket Schema — Categories, SLA, Vendors           | **DONE**    |
-| 2    | Ticket Schema — Tickets, Comments, Activity        | **DONE**    |
-| 3    | Seed Data — Categories, SLA, Vendors, Sample Tickets | **DONE**    |
-| 4    | Ticket NestJS Module — Core CRUD + Lifecycle       | **DONE**    |
-| 5    | Ticket NestJS Module — Comments, Activity, Problems | **DONE**    |
-| 6    | Ticket Notification Consumer + Auto-Task Wiring    | **DONE**    |
-| 7    | Helpdesk UI — Submit + My Tickets                  | **DONE**    |
-| 8    | Helpdesk Admin UI — Queue + Dashboard              | **DONE**    |
-| 9    | Problem Management UI                              | **DONE**    |
-| 10   | Vertical Slice Integration Test                    | **DONE**    |
+| Step | Title                                                | Status   |
+| ---- | ---------------------------------------------------- | -------- |
+| 1    | Ticket Schema — Categories, SLA, Vendors             | **DONE** |
+| 2    | Ticket Schema — Tickets, Comments, Activity          | **DONE** |
+| 3    | Seed Data — Categories, SLA, Vendors, Sample Tickets | **DONE** |
+| 4    | Ticket NestJS Module — Core CRUD + Lifecycle         | **DONE** |
+| 5    | Ticket NestJS Module — Comments, Activity, Problems  | **DONE** |
+| 6    | Ticket Notification Consumer + Auto-Task Wiring      | **DONE** |
+| 7    | Helpdesk UI — Submit + My Tickets                    | **DONE** |
+| 8    | Helpdesk Admin UI — Queue + Dashboard                | **DONE** |
+| 9    | Problem Management UI                                | **DONE** |
+| 10   | Vertical Slice Integration Test                      | **DONE** |
 
 ---
 
@@ -74,7 +74,7 @@ What does not change: every existing module continues to function. Cycle 8 is pu
 
 **Tenant logical base table count after Step 1:** 121 → **125**.
 
-(Aside: the prior Cycle 7 narrative in `CLAUDE.md` reported "120 base tables after Cycle 7 Step 2," but the live database actually shows 121. The off-by-one drift originated when Cycle 6.1's `sis_student_demographics` table was double-counted in the cycle text: Cycle 6.1's own narrative says "tenant base table count: **107** after Step 2" while the Phase 2 polish callout says Phase 2 brought the count from 106 → 108, missing the 6.1 Step 2 +1 in the chain. Real chain: 106 (end of Cycle 6) → 107 (Cycle 6.1 Step 2 adds `sis_student_demographics`) → 108 (Phase 2 adds `sch_calendar_event_rsvps`) → 109 (Phase 2 adds `sis_child_link_requests`) → 115 (Cycle 7 Step 1 adds 6 tsk_\*) → 121 (Cycle 7 Step 2 adds 6 wsk_\*). The Cycle 8 handoff uses 121 as the pre-step baseline so the math closes against the live database. The CLAUDE.md update for Step 1 carries the corrected total forward.)
+(Aside: the prior Cycle 7 narrative in `CLAUDE.md` reported "120 base tables after Cycle 7 Step 2," but the live database actually shows 121. The off-by-one drift originated when Cycle 6.1's `sis_student_demographics` table was double-counted in the cycle text: Cycle 6.1's own narrative says "tenant base table count: **107** after Step 2" while the Phase 2 polish callout says Phase 2 brought the count from 106 → 108, missing the 6.1 Step 2 +1 in the chain. Real chain: 106 (end of Cycle 6) → 107 (Cycle 6.1 Step 2 adds `sis_student_demographics`) → 108 (Phase 2 adds `sch_calendar_event_rsvps`) → 109 (Phase 2 adds `sis_child_link_requests`) → 115 (Cycle 7 Step 1 adds 6 tsk*\*) → 121 (Cycle 7 Step 2 adds 6 wsk*\*). The Cycle 8 handoff uses 121 as the pre-step baseline so the math closes against the live database. The CLAUDE.md update for Step 1 carries the corrected total forward.)
 
 **Smoke results (live on `tenant_demo`, single BEGIN…ROLLBACK with savepoints, 15 assertions, 14 verified empirically + 1 verified via `pg_constraint` catalog inspection):**
 
@@ -163,22 +163,22 @@ All 4 actions match the migration's declared intent.
 
 **FK summary — 14 new intra-tenant DB-enforced FKs:**
 
-| FK                                              | Action      |
-| ----------------------------------------------- | ----------- |
-| `tkt_tickets.category_id → tkt_categories(id)`        | NO ACTION   |
-| `tkt_tickets.subcategory_id → tkt_subcategories(id)`  | NO ACTION   |
-| `tkt_tickets.assignee_id → hr_employees(id)`          | SET NULL    |
-| `tkt_tickets.vendor_id → tkt_vendors(id)`             | SET NULL    |
-| `tkt_tickets.sla_policy_id → tkt_sla_policies(id)`    | SET NULL    |
-| `tkt_ticket_comments.ticket_id → tkt_tickets(id)`     | CASCADE     |
-| `tkt_ticket_attachments.ticket_id → tkt_tickets(id)`  | CASCADE     |
-| `tkt_ticket_tags.ticket_id → tkt_tickets(id)`         | CASCADE     |
-| `tkt_ticket_activity.ticket_id → tkt_tickets(id)`     | CASCADE     |
-| `tkt_problems.category_id → tkt_categories(id)`       | NO ACTION   |
-| `tkt_problems.assigned_to_id → hr_employees(id)`      | SET NULL    |
-| `tkt_problems.vendor_id → tkt_vendors(id)`            | SET NULL    |
-| `tkt_problem_tickets.problem_id → tkt_problems(id)`   | CASCADE     |
-| `tkt_problem_tickets.ticket_id → tkt_tickets(id)`     | CASCADE     |
+| FK                                                   | Action    |
+| ---------------------------------------------------- | --------- |
+| `tkt_tickets.category_id → tkt_categories(id)`       | NO ACTION |
+| `tkt_tickets.subcategory_id → tkt_subcategories(id)` | NO ACTION |
+| `tkt_tickets.assignee_id → hr_employees(id)`         | SET NULL  |
+| `tkt_tickets.vendor_id → tkt_vendors(id)`            | SET NULL  |
+| `tkt_tickets.sla_policy_id → tkt_sla_policies(id)`   | SET NULL  |
+| `tkt_ticket_comments.ticket_id → tkt_tickets(id)`    | CASCADE   |
+| `tkt_ticket_attachments.ticket_id → tkt_tickets(id)` | CASCADE   |
+| `tkt_ticket_tags.ticket_id → tkt_tickets(id)`        | CASCADE   |
+| `tkt_ticket_activity.ticket_id → tkt_tickets(id)`    | CASCADE   |
+| `tkt_problems.category_id → tkt_categories(id)`      | NO ACTION |
+| `tkt_problems.assigned_to_id → hr_employees(id)`     | SET NULL  |
+| `tkt_problems.vendor_id → tkt_vendors(id)`           | SET NULL  |
+| `tkt_problem_tickets.problem_id → tkt_problems(id)`  | CASCADE   |
+| `tkt_problem_tickets.ticket_id → tkt_tickets(id)`    | CASCADE   |
 
 All 14 actions confirmed via `pg_constraint.confdeltype` catalog readout. 0 cross-schema FKs.
 
@@ -243,10 +243,10 @@ All 14 actions confirmed via `pg_constraint.confdeltype` catalog readout. 0 cros
 
 **Permission grants:**
 
-| Persona  | Perms before | Perms after | Delta              |
-| -------- | -----------: | ----------: | ------------------ |
-| Teacher  |           38 |          40 | +`IT-001:read+write` |
-| Staff    |           18 |          20 | +`IT-001:read+write` |
+| Persona | Perms before | Perms after | Delta                |
+| ------- | -----------: | ----------: | -------------------- |
+| Teacher |           38 |          40 | +`IT-001:read+write` |
+| Staff   |           18 |          20 | +`IT-001:read+write` |
 
 School Admin and Platform Admin already hold `IT-001:admin` and `FAC-001:admin` via the `everyFunction: ['read','write','admin']` catalogue grant — no change needed there. Catalogue total stays at **447 functions × 3 tiers = 1341 permission codes** (no new entries; `IT-001` "Helpdesk Tickets" + `FAC-001` "Maintenance Tickets" are already in `permissions.json` from earlier cycles waiting for Cycle 8). Per the plan, FAC-001 read/write is **not** extended to non-admin staff — `IT-001` is the umbrella code the Step 4 TicketService will gate on for all ticket categories. School-side ticket admin paths (queue management, category tree editing, vendor management) reach `FAC-001:admin` via the `everyFunction` mechanism.
 
@@ -256,30 +256,30 @@ School Admin and Platform Admin already hold `IT-001:admin` and `FAC-001:admin` 
 
 2. **11 `tkt_subcategories`:**
 
-   | Parent       | Subcategory       | default_assignee_id | auto_assign_to_role |
-   | ------------ | ----------------- | -------------------: | ------------------: |
-   | IT           | Hardware          | Sarah Mitchell (principal) | —                   |
-   | IT           | Software          | —                    | —                   |
-   | IT           | Network           | —                    | —                   |
-   | IT           | Account Access    | —                    | —                   |
-   | Facilities   | Electrical        | —                    | `SCHOOL_ADMIN`      |
-   | Facilities   | Plumbing          | —                    | —                   |
-   | Facilities   | HVAC              | —                    | —                   |
-   | Facilities   | Cleaning          | —                    | —                   |
-   | Facilities   | Furniture         | —                    | —                   |
-   | HR Support   | Payroll Question  | —                    | —                   |
-   | HR Support   | Benefits Question | —                    | —                   |
+   | Parent     | Subcategory       |        default_assignee_id | auto_assign_to_role |
+   | ---------- | ----------------- | -------------------------: | ------------------: |
+   | IT         | Hardware          | Sarah Mitchell (principal) |                   — |
+   | IT         | Software          |                          — |                   — |
+   | IT         | Network           |                          — |                   — |
+   | IT         | Account Access    |                          — |                   — |
+   | Facilities | Electrical        |                          — |      `SCHOOL_ADMIN` |
+   | Facilities | Plumbing          |                          — |                   — |
+   | Facilities | HVAC              |                          — |                   — |
+   | Facilities | Cleaning          |                          — |                   — |
+   | Facilities | Furniture         |                          — |                   — |
+   | HR Support | Payroll Question  |                          — |                   — |
+   | HR Support | Benefits Question |                          — |                   — |
 
    IT/Hardware exercises the direct-assignee path; Facilities/Electrical exercises the role-resolution path. The other 9 leaves land tickets in the admin queue unassigned — the Step 4 TicketService will provide the default behaviour. Sarah Mitchell stands in as the IT admin for the demo since the `admin@` Platform Admin persona is intentionally NOT bridged to `hr_employees` per the Cycle 4 Step 0 design.
 
 3. **12 SLA policies** — 3 categories × 4 priorities, identical shape across all 3 categories:
 
-   | Priority  | response_hours | resolution_hours |
-   | --------- | -------------: | ---------------: |
-   | CRITICAL  |              1 |                4 |
-   | HIGH      |              2 |                8 |
-   | MEDIUM    |              4 |               24 |
-   | LOW       |              8 |               72 |
+   | Priority | response_hours | resolution_hours |
+   | -------- | -------------: | ---------------: |
+   | CRITICAL |              1 |                4 |
+   | HIGH     |              2 |                8 |
+   | MEDIUM   |              4 |               24 |
+   | LOW      |              8 |               72 |
 
    Live verification: `SELECT priority, response_hours, resolution_hours, c.name FROM tkt_sla_policies sla JOIN tkt_categories c ON c.id = sla.category_id` returned all 12 rows in the expected shape. In production each school would tune these per category; the demo uses one matrix.
 
@@ -289,13 +289,13 @@ School Admin and Platform Admin already hold `IT-001:admin` and `FAC-001:admin` 
 
 5. **5 sample tickets** covering 5 of the 7 lifecycle states (PENDING_REQUESTER and CANCELLED are deliberately omitted — they require the Step 4 TicketService to drive transitions in production):
 
-   | # | Title                              | Category          | Priority  | Status            | Assignee           |
-   | - | ---------------------------------- | ----------------- | --------- | ----------------- | ------------------ |
-   | 1 | Projector not working in Room 101  | IT/Hardware       | HIGH      | OPEN              | Sarah Mitchell     |
-   | 2 | Leaking faucet in staff bathroom   | Facilities/Plumbing | MEDIUM  | IN_PROGRESS       | Sarah Mitchell     |
-   | 3 | Can't access gradebook             | IT/Software       | HIGH      | RESOLVED          | Sarah Mitchell     |
-   | 4 | Light out in hallway B             | Facilities/Electrical | LOW   | VENDOR_ASSIGNED   | Lincoln Maintenance Co |
-   | 5 | Payroll date question              | HR Support/Payroll | LOW      | CLOSED            | Sarah Mitchell     |
+   | #   | Title                             | Category              | Priority | Status          | Assignee               |
+   | --- | --------------------------------- | --------------------- | -------- | --------------- | ---------------------- |
+   | 1   | Projector not working in Room 101 | IT/Hardware           | HIGH     | OPEN            | Sarah Mitchell         |
+   | 2   | Leaking faucet in staff bathroom  | Facilities/Plumbing   | MEDIUM   | IN_PROGRESS     | Sarah Mitchell         |
+   | 3   | Can't access gradebook            | IT/Software           | HIGH     | RESOLVED        | Sarah Mitchell         |
+   | 4   | Light out in hallway B            | Facilities/Electrical | LOW      | VENDOR_ASSIGNED | Lincoln Maintenance Co |
+   | 5   | Payroll date question             | HR Support/Payroll    | LOW      | CLOSED          | Sarah Mitchell         |
 
    Requesters span Rivera (T1, T3, T5), Park (T2), and Hayes (T4) so the demo exercises the row-scope filter the Step 4 service will apply. Every ticket has its `sla_policy_id` populated so the SLA breach computation has a target. T2 has `first_response_at` populated; T3 and T5 have `first_response_at` + `resolved_at`; T4 has `first_response_at` + `vendor_assigned_at` + `vendor_reference='WO-2026-0451'`; T5 has `first_response_at` + `resolved_at` + `closed_at` populated end-to-end (passes the `resolved_chk` lifecycle invariant).
 
@@ -306,16 +306,16 @@ School Admin and Platform Admin already hold `IT-001:admin` and `FAC-001:admin` 
 
 7. **8 activity rows** tracing lifecycle transitions across the 5 tickets:
 
-   | Ticket | activity_type     | metadata                              | actor          |
-   | ------ | ----------------- | ------------------------------------- | -------------- |
-   | T1     | COMMENT           | `{is_internal:false}`                 | Rivera         |
-   | T2     | STATUS_CHANGE     | `{from:OPEN, to:IN_PROGRESS}`         | Mitchell       |
-   | T2     | COMMENT           | `{is_internal:true}`                  | Mitchell       |
-   | T3     | STATUS_CHANGE     | `{from:OPEN, to:RESOLVED}`            | Mitchell       |
-   | T3     | COMMENT           | `{is_internal:false}`                 | Mitchell       |
-   | T4     | VENDOR_ASSIGNMENT | `{vendor_id, vendor_reference}`       | Mitchell       |
-   | T4     | REASSIGNMENT      | `{from_assignee_id:null, to_vendor_id}` | Mitchell     |
-   | T5     | STATUS_CHANGE     | `{from:OPEN, to:CLOSED}`              | Mitchell       |
+   | Ticket | activity_type     | metadata                                | actor    |
+   | ------ | ----------------- | --------------------------------------- | -------- |
+   | T1     | COMMENT           | `{is_internal:false}`                   | Rivera   |
+   | T2     | STATUS_CHANGE     | `{from:OPEN, to:IN_PROGRESS}`           | Mitchell |
+   | T2     | COMMENT           | `{is_internal:true}`                    | Mitchell |
+   | T3     | STATUS_CHANGE     | `{from:OPEN, to:RESOLVED}`              | Mitchell |
+   | T3     | COMMENT           | `{is_internal:false}`                   | Mitchell |
+   | T4     | VENDOR_ASSIGNMENT | `{vendor_id, vendor_reference}`         | Mitchell |
+   | T4     | REASSIGNMENT      | `{from_assignee_id:null, to_vendor_id}` | Mitchell |
+   | T5     | STATUS_CHANGE     | `{from:OPEN, to:CLOSED}`                | Mitchell |
 
    Total = 8 — matches the plan. T5's STATUS_CHANGE is a single roll-up entry (OPEN → CLOSED) rather than three discrete transitions because the historical seed represents a closed-out audit row; the Step 4 service in production will write 3 rows (OPEN → IN_PROGRESS → RESOLVED → CLOSED) as the lifecycle plays out.
 
@@ -386,14 +386,14 @@ When auto-assignment lands an internal employee, status flips OPEN → IN_PROGRE
 
 **Locked-row state machine transitions** (every PATCH endpoint runs `SELECT … FOR UPDATE` on the ticket row inside `executeInTenantTransaction`):
 
-| Endpoint                             | Permission     | From states                                                          | To state         | Side effects                                                                                          |
-| ------------------------------------ | -------------- | -------------------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------- |
-| `PATCH /:id/assign`                  | `it-001:admin` | OPEN, IN_PROGRESS, VENDOR_ASSIGNED, PENDING_REQUESTER                | IN_PROGRESS      | Sets `assignee_id`, clears vendor fields, sets `first_response_at` if NULL. Emits `tkt.ticket.assigned`. |
-| `PATCH /:id/assign-vendor`           | `it-001:admin` | OPEN, IN_PROGRESS, VENDOR_ASSIGNED, PENDING_REQUESTER                | VENDOR_ASSIGNED  | Sets `vendor_id` + `vendor_reference` + `vendor_assigned_at`, clears `assignee_id`. No `tkt.ticket.assigned` emit (auto-task targets internal employees, not vendors). |
-| `PATCH /:id/resolve`                 | `it-001:write` | non-terminal                                                         | RESOLVED         | Sets `resolved_at`. Optional resolution note inserted as a public `tkt_ticket_comments` row in same tx. Emits `tkt.ticket.resolved`. |
-| `PATCH /:id/close`                   | `it-001:write` | RESOLVED                                                             | CLOSED           | Sets `closed_at`. Requester or admin only.                                                             |
-| `PATCH /:id/reopen`                  | `it-001:write` | RESOLVED                                                             | OPEN             | Clears `resolved_at`. Requester or admin only. CLOSED is terminal — admin path only.                  |
-| `PATCH /:id/cancel`                  | `it-001:write` | OPEN, IN_PROGRESS, VENDOR_ASSIGNED, PENDING_REQUESTER                | CANCELLED        | Sets `closed_at`, keeps `resolved_at` NULL per `resolved_chk`. Cancelling a RESOLVED ticket is rejected (use close instead). Requester or admin. |
+| Endpoint                   | Permission     | From states                                           | To state        | Side effects                                                                                                                                                           |
+| -------------------------- | -------------- | ----------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PATCH /:id/assign`        | `it-001:admin` | OPEN, IN_PROGRESS, VENDOR_ASSIGNED, PENDING_REQUESTER | IN_PROGRESS     | Sets `assignee_id`, clears vendor fields, sets `first_response_at` if NULL. Emits `tkt.ticket.assigned`.                                                               |
+| `PATCH /:id/assign-vendor` | `it-001:admin` | OPEN, IN_PROGRESS, VENDOR_ASSIGNED, PENDING_REQUESTER | VENDOR_ASSIGNED | Sets `vendor_id` + `vendor_reference` + `vendor_assigned_at`, clears `assignee_id`. No `tkt.ticket.assigned` emit (auto-task targets internal employees, not vendors). |
+| `PATCH /:id/resolve`       | `it-001:write` | non-terminal                                          | RESOLVED        | Sets `resolved_at`. Optional resolution note inserted as a public `tkt_ticket_comments` row in same tx. Emits `tkt.ticket.resolved`.                                   |
+| `PATCH /:id/close`         | `it-001:write` | RESOLVED                                              | CLOSED          | Sets `closed_at`. Requester or admin only.                                                                                                                             |
+| `PATCH /:id/reopen`        | `it-001:write` | RESOLVED                                              | OPEN            | Clears `resolved_at`. Requester or admin only. CLOSED is terminal — admin path only.                                                                                   |
+| `PATCH /:id/cancel`        | `it-001:write` | OPEN, IN_PROGRESS, VENDOR_ASSIGNED, PENDING_REQUESTER | CANCELLED       | Sets `closed_at`, keeps `resolved_at` NULL per `resolved_chk`. Cancelling a RESOLVED ticket is rejected (use close instead). Requester or admin.                       |
 
 Every transition writes a `tkt_ticket_activity` row via the private `recordActivity()` helper — STATUS_CHANGE / REASSIGNMENT / VENDOR_ASSIGNMENT / COMMENT entries with structured `metadata` JSONB matching the Step 3 seed shape.
 
@@ -460,12 +460,12 @@ Every transition writes a `tkt_ticket_activity` row via the private `recordActiv
 
 **Comment visibility model (clarified):**
 
-| Caller             | Sees public | Sees internal |
-| ------------------ | :---------: | :-----------: |
-| Admin              |     ✅      |      ✅       |
-| Assignee on ticket |     ✅      |      ✅       |
-| Requester          |     ✅      |      ❌       |
-| Non-participant    |  404 — fail-closed without leaking existence    |
+| Caller             |                 Sees public                 | Sees internal |
+| ------------------ | :-----------------------------------------: | :-----------: |
+| Admin              |                     ✅                      |      ✅       |
+| Assignee on ticket |                     ✅                      |      ✅       |
+| Requester          |                     ✅                      |      ❌       |
+| Non-participant    | 404 — fail-closed without leaking existence |
 
 `POST` honours `is_internal=true` only when the caller is admin or assignee. Requesters who try to set it are silently demoted to `is_internal=false` (the staff/internal distinction is a staff-side concern; surfacing a 400 to a requester whose comment was still saved would be confusing).
 
@@ -539,14 +539,14 @@ Post-cleanup verification: T1 has 1 comment (seed), `first_response_at` is NULL,
 
 **Notification fan-out matrix:**
 
-| Topic                  | Recipient(s)                                                  | Notification type   | Notes |
-| ---------------------- | -------------------------------------------------------------- | ------------------- | ----- |
-| `tkt.ticket.submitted` | Every account with `sch-001:admin` (school admins + Platform Admin) | `ticket.submitted`  | Same `loadSchoolAdminAccounts` lookup as `AbsenceRequestNotificationConsumer`. |
-| `tkt.ticket.assigned`  | The assignee — `payload.recipientAccountId` (Step 4 emit pre-resolved) with fallback to the context-loaded `assigneeAccountId`. | `ticket.assigned`   | Vendor assignments deliberately do not emit `tkt.ticket.assigned` (Step 4 design — vendors don't have a Tasks app). |
-| `tkt.ticket.commented` (public, requester author) | Assignee + admins (admins only when assignee is null so the comment doesn't dead-letter). | `ticket.commented`  | Excludes the author from the recipient set. |
-| `tkt.ticket.commented` (public, staff author) | Requester only.                                                 | `ticket.commented`  | The "first staff response" UX cue — payload includes `first_response_bumped` flag. |
-| `tkt.ticket.commented` (internal) | Assignee + other admins (NOT the requester — internal stays staff-side). | `ticket.commented`  | Author always excluded. |
-| `tkt.ticket.resolved`  | Requester only.                                                 | `ticket.resolved`   | Skipped when requester == resolver (admin resolving own self-submitted ticket). Payload includes `resolved_at` + `resolved_via_problem_id`. |
+| Topic                                             | Recipient(s)                                                                                                                    | Notification type  | Notes                                                                                                                                       |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tkt.ticket.submitted`                            | Every account with `sch-001:admin` (school admins + Platform Admin)                                                             | `ticket.submitted` | Same `loadSchoolAdminAccounts` lookup as `AbsenceRequestNotificationConsumer`.                                                              |
+| `tkt.ticket.assigned`                             | The assignee — `payload.recipientAccountId` (Step 4 emit pre-resolved) with fallback to the context-loaded `assigneeAccountId`. | `ticket.assigned`  | Vendor assignments deliberately do not emit `tkt.ticket.assigned` (Step 4 design — vendors don't have a Tasks app).                         |
+| `tkt.ticket.commented` (public, requester author) | Assignee + admins (admins only when assignee is null so the comment doesn't dead-letter).                                       | `ticket.commented` | Excludes the author from the recipient set.                                                                                                 |
+| `tkt.ticket.commented` (public, staff author)     | Requester only.                                                                                                                 | `ticket.commented` | The "first staff response" UX cue — payload includes `first_response_bumped` flag.                                                          |
+| `tkt.ticket.commented` (internal)                 | Assignee + other admins (NOT the requester — internal stays staff-side).                                                        | `ticket.commented` | Author always excluded.                                                                                                                     |
+| `tkt.ticket.resolved`                             | Requester only.                                                                                                                 | `ticket.resolved`  | Skipped when requester == resolver (admin resolving own self-submitted ticket). Payload includes `resolved_at` + `resolved_via_problem_id`. |
 
 The `deep_link` field on every payload is `/helpdesk/<ticketId>` so the Step 7 staff UI can navigate the recipient straight to the detail page from the bell.
 
@@ -613,7 +613,7 @@ The plan called for "a new auto-task condition on this topic marks the linked ta
   - **Mark resolved** (assignee or admin, working state) — calls `useResolveTicket`.
   - **Close ticket** + **Reopen** (requester or admin, RESOLVED state).
   - **Cancel** (requester or admin, working state) with `window.confirm`.
-  
+
   **Comment thread** below: oldest-first list with internal comments rendered amber-tinted (`bg-amber-50 ring-amber-200`) plus an "Internal" badge. Reply form at the bottom for active participants; staff (assignee + admin) get an "Internal note" checkbox; requester sees "Visible to staff and the requester." hint text instead. Reply form hidden when the ticket is in CLOSED or CANCELLED. **Activity timeline** at the bottom — read-only chronological list. The `ActivityMetadata` helper renders STATUS_CHANGE rows as "OPEN → RESOLVED · reason: …", VENDOR_ASSIGNMENT rows as "Assigned to vendor · WO-…", and COMMENT rows as "Internal note · stopped the SLA response clock" or "Public comment". Page size: **9.96 kB / 116 kB**.
 
 **Live verification on `tenant_demo` 2026-05-03** (4 read-path scenarios, no mutations — UI sources data from the existing 27-endpoint surface):
@@ -667,7 +667,7 @@ The third build attempt was clean. Total build time across the 3 attempts: ~30 s
 
 - **`/helpdesk/admin/sla`** (SLA Dashboard) — admin-only stats dashboard. Pulls `useTickets({includeTerminal: true, limit: 500})` and computes the dashboard client-side via the local `computeDashboard(tickets)` function. **4 stat cards:** Open tickets (with critical+high count subtitle); Avg response (time from submit to first staff comment, computed from `firstResponseAt - createdAt`); Avg resolution (time from submit to resolved); SLA compliance (resolved-within-target / total-resolved %). The compliance card auto-tones `good`/`warn`/`bad` based on the % (≥90 green, ≥70 amber, <70 red). **By-priority histogram** (4 cards, CRITICAL first). **Breached tickets list** — every live ticket whose SLA snapshot is `red`, with deep-link to detail and full pill row. **Per-category breakdown table** — open / breached / resolved / within-SLA % per category. **SLA matrix table** — the configured `tkt_sla_policies` rows for the school. Time-series volume chart deferred this cycle (would need a histogram endpoint we don't ship). Page size **3.07 kB / 115 kB**.
 
-- **`/helpdesk/admin/categories`** (Category Tree Editor) — admin-only tree of categories with subcategories inlined. Each category card shows name + active flag + Edit + Add subcategory buttons. Subcategory rows show name + auto-assignment hint ("Auto-assigns to {employee}" / "Routes to role {ROLE_TOKEN}" / "Lands in admin queue"). **Category Modal** (create/edit) — name + icon + isActive toggle (edit only). **Subcategory Modal** — name + auto-assignment picker (employee dropdown OR role token input — picking one clears the other so the schema's mutex CHECK never fires; the modal's pickEmployee/pickRole helpers enforce this) + isActive toggle. Employee picker filters to active employees only. Role token input has `pattern="^[A-Z][A-Z0-9_]*$"` and force-uppercases the input. Includes inactive subcategories in the editor view via `useTicketCategories(isAdmin, true)` so admins can re-activate retired leaves. Page size **6.62 kB / 116 kB**.
+- **`/helpdesk/admin/categories`** (Category Tree Editor) — admin-only tree of categories with subcategories inlined. Each category card shows name + active flag + Edit + Add subcategory buttons. Subcategory rows show name + auto-assignment hint ("Auto-assigns to {employee}" / "Routes to role {ROLE*TOKEN}" / "Lands in admin queue"). **Category Modal** (create/edit) — name + icon + isActive toggle (edit only). **Subcategory Modal** — name + auto-assignment picker (employee dropdown OR role token input — picking one clears the other so the schema's mutex CHECK never fires; the modal's pickEmployee/pickRole helpers enforce this) + isActive toggle. Employee picker filters to active employees only. Role token input has `pattern="^[A-Z]A-Z0-9*]\*$"`and force-uppercases the input. Includes inactive subcategories in the editor view via`useTicketCategories(isAdmin, true)` so admins can re-activate retired leaves. Page size **6.62 kB / 116 kB**.
 
 - **`/helpdesk/admin/vendors`** (Vendor Management) — admin-only vendor list with type pill + ★ Preferred badge + Inactive label + contact info grid (name / email / phone / website link) + notes. Add / Edit Modal exposes every column (`vendorName`, `vendorType` from the 9-value enum dropdown, `contactName`, `contactEmail`, `contactPhone`, `website`, `isPreferred` checkbox, `notes` textarea, `isActive` toggle on edit). Update payload uses the `string | null` shape so clearing a contact field actually clears it — the diff logic compares `formField.trim() !== (vendor.contactName ?? '')` then sends either `null` or the new value. Page size **3.89 kB / 116 kB**.
 
@@ -717,7 +717,8 @@ All 4 prerender as static content. Combined Cycle 8 web surface is now 7 routes 
 - **Header card** — status pill + category pill + assignee/vendor labels + description; 3 fields (Root cause, Resolution, Workaround) rendered as `Field` rows ("Not set" italic when empty + hint text below). Resolved problems show a green `Resolved {timestamp}` line. Action bar (hidden on RESOLVED): Edit details / Link more tickets / Resolve problem (right-aligned, emerald).
 - **Linked tickets list** — pulls `useTickets({includeTerminal:true, limit:500})` and filters client-side by `problem.ticketIds` so each row can render the ticket's current status pill + priority pill + relative age + click-through to `/helpdesk/:id`.
 
-  *Hook ordering note:* the `useMemo` over `linkedTickets` runs before the early-return paths so React's rule of hooks is satisfied. Memo dependency is `ticketIds.join('|')` rather than the array reference so the memo doesn't churn on every parent re-render.
+  _Hook ordering note:_ the `useMemo` over `linkedTickets` runs before the early-return paths so React's rule of hooks is satisfied. Memo dependency is `ticketIds.join('|')` rather than the array reference so the memo doesn't churn on every parent re-render.
+
 - **Edit Problem Modal** — title / description / status dropdown (3 values; RESOLVED is excluded from the dropdown because the dedicated Resolve button is the right path) / root_cause / workaround. Sends only the fields that changed via diff comparison so the API doesn't see no-op writes.
 - **Link Tickets Modal** — search bar filters live tickets (Open / In progress / Vendor assigned / Pending requester) by title or category substring; checkbox list with multi-select; submit button shows the selected count. Excludes already-linked tickets and CLOSED/CANCELLED ones. Empty state when nothing matches the search or every visible ticket is already linked.
 - **Resolve Modal** — the **keystone batch-resolve flow**. Required `rootCause` + `resolution`, optional `workaround`. Top of the modal carries an amber warning that the action is irreversible from the UI and explains the fan-out: every linked ticket in OPEN / IN_PROGRESS / VENDOR_ASSIGNED / PENDING_REQUESTER will flip to RESOLVED, emit one `tkt.ticket.resolved` per flipped ticket, and stop the SLA clock. A preview list shows exactly which tickets will flip (already-resolved ones are excluded since the API skips them). On success, the toast says "Problem resolved — N linked ticket(s) flipped to RESOLVED" with the count from the `ResolveProblemResponse.ticketsFlipped` array.

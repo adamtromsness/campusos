@@ -135,8 +135,7 @@ export function useResolveTicket(id: string) {
 export function useCloseTicket(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      apiFetch<TicketDto>('/api/v1/tickets/' + id + '/close', { method: 'PATCH' }),
+    mutationFn: () => apiFetch<TicketDto>('/api/v1/tickets/' + id + '/close', { method: 'PATCH' }),
     onSuccess: () => invalidateTicket(qc, id),
   });
 }
@@ -144,8 +143,7 @@ export function useCloseTicket(id: string) {
 export function useReopenTicket(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      apiFetch<TicketDto>('/api/v1/tickets/' + id + '/reopen', { method: 'PATCH' }),
+    mutationFn: () => apiFetch<TicketDto>('/api/v1/tickets/' + id + '/reopen', { method: 'PATCH' }),
     onSuccess: () => invalidateTicket(qc, id),
   });
 }
@@ -178,8 +176,7 @@ function invalidateTicket(qc: ReturnType<typeof useQueryClient>, id: string): vo
 export function useTicketComments(ticketId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['tickets', 'comments', ticketId],
-    queryFn: () =>
-      apiFetch<TicketCommentDto[]>('/api/v1/tickets/' + ticketId + '/comments'),
+    queryFn: () => apiFetch<TicketCommentDto[]>('/api/v1/tickets/' + ticketId + '/comments'),
     enabled: enabled && typeof ticketId === 'string' && ticketId.length > 0,
     refetchOnWindowFocus: true,
     staleTime: 15_000,
@@ -208,8 +205,7 @@ export function usePostTicketComment(ticketId: string) {
 export function useTicketActivity(ticketId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['tickets', 'activity', ticketId],
-    queryFn: () =>
-      apiFetch<TicketActivityDto[]>('/api/v1/tickets/' + ticketId + '/activity'),
+    queryFn: () => apiFetch<TicketActivityDto[]>('/api/v1/tickets/' + ticketId + '/activity'),
     enabled: enabled && typeof ticketId === 'string' && ticketId.length > 0,
     staleTime: 30_000,
   });

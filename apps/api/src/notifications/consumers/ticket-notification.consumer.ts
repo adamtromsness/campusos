@@ -145,10 +145,7 @@ export class TicketNotificationConsumer implements OnModuleInit {
     );
   }
 
-  private async fanOut(
-    topic: string,
-    event: UnwrappedEvent<TicketEventBase>,
-  ): Promise<void> {
+  private async fanOut(topic: string, event: UnwrappedEvent<TicketEventBase>): Promise<void> {
     var ctx = await this.loadTicketContext(event.payload.ticketId);
     if (!ctx) {
       this.logger.warn(

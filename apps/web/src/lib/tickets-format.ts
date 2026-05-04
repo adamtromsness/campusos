@@ -158,9 +158,7 @@ export const SLA_URGENCY_LABEL: Record<SlaUrgency, string> = {
  */
 export function formatSlaRemaining(sla: TicketSlaSnapshotDto): string | null {
   const remaining =
-    sla.responseHoursRemaining !== null
-      ? sla.responseHoursRemaining
-      : sla.resolutionHoursRemaining;
+    sla.responseHoursRemaining !== null ? sla.responseHoursRemaining : sla.resolutionHoursRemaining;
   if (remaining === null) return null;
   const abs = Math.abs(remaining);
   if (remaining < 0) {

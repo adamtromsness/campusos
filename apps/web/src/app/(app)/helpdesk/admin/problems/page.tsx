@@ -8,11 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { cn } from '@/components/ui/cn';
 import { useProblems } from '@/hooks/use-tickets';
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
-import {
-  PROBLEM_STATUS_LABELS,
-  PROBLEM_STATUS_PILL,
-  formatTicketAge,
-} from '@/lib/tickets-format';
+import { PROBLEM_STATUS_LABELS, PROBLEM_STATUS_PILL, formatTicketAge } from '@/lib/tickets-format';
 import type { ProblemStatus } from '@/lib/types';
 
 type FilterChip = ProblemStatus | 'ALL';
@@ -24,7 +20,10 @@ export default function ProblemsListPage() {
   const isAdmin = !!user && hasAnyPermission(user, ['it-001:admin', 'sch-001:admin']);
   const [filter, setFilter] = useState<FilterChip>('ALL');
 
-  const problems = useProblems(filter === 'ALL' ? {} : { status: filter as ProblemStatus }, isAdmin);
+  const problems = useProblems(
+    filter === 'ALL' ? {} : { status: filter as ProblemStatus },
+    isAdmin,
+  );
 
   if (!user) return null;
   if (!isAdmin) {

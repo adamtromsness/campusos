@@ -225,10 +225,7 @@ export class TicketService {
 
   async getById(id: string, actor: ResolvedActor): Promise<TicketResponseDto> {
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<TicketRow[]>(
-        SELECT_TICKET_BASE + 'WHERE t.id = $1::uuid',
-        id,
-      );
+      return client.$queryRawUnsafe<TicketRow[]>(SELECT_TICKET_BASE + 'WHERE t.id = $1::uuid', id);
     });
     if (rows.length === 0) throw new NotFoundException('Ticket ' + id);
     const row = rows[0]!;
@@ -273,7 +270,9 @@ export class TicketService {
         input.categoryId,
       )) as Array<{ ok: number }>;
       if (cat.length === 0) {
-        throw new BadRequestException('categoryId does not match an active category in this school');
+        throw new BadRequestException(
+          'categoryId does not match an active category in this school',
+        );
       }
       if (input.subcategoryId) {
         const sub = (await client.$queryRawUnsafe(
@@ -392,7 +391,12 @@ export class TicketService {
       const lockRows = (await tx.$queryRawUnsafe(
         'SELECT id::text AS id, status, assignee_id::text AS assignee_id, first_response_at FROM tkt_tickets WHERE id = $1::uuid FOR UPDATE',
         id,
-      )) as Array<{ id: string; status: string; assignee_id: string | null; first_response_at: string | null }>;
+      )) as Array<{
+        id: string;
+        status: string;
+        assignee_id: string | null;
+        first_response_at: string | null;
+      }>;
       if (lockRows.length === 0) throw new NotFoundException('Ticket ' + id);
       const row = lockRows[0]!;
       if (row.status === 'CLOSED' || row.status === 'CANCELLED') {
@@ -455,13 +459,16 @@ export class TicketService {
       const lockRows = (await tx.$queryRawUnsafe(
         'SELECT status, assignee_id::text AS assignee_id, vendor_id::text AS vendor_id, first_response_at FROM tkt_tickets WHERE id = $1::uuid FOR UPDATE',
         id,
-      )) as Array<{ status: string; assignee_id: string | null; vendor_id: string | null; first_response_at: string | null }>;
+      )) as Array<{
+        status: string;
+        assignee_id: string | null;
+        vendor_id: string | null;
+        first_response_at: string | null;
+      }>;
       if (lockRows.length === 0) throw new NotFoundException('Ticket ' + id);
       const row = lockRows[0]!;
       if (row.status === 'CLOSED' || row.status === 'CANCELLED') {
-        throw new BadRequestException(
-          'Cannot assign a vendor to a ticket in status ' + row.status,
-        );
+        throw new BadRequestException('Cannot assign a vendor to a ticket in status ' + row.status);
       }
       const updateClauses = [
         "status = 'VENDOR_ASSIGNED'",
@@ -517,9 +524,7 @@ export class TicketService {
       if (lockRows.length === 0) throw new NotFoundException('Ticket ' + id);
       const row = lockRows[0]!;
       if (row.status === 'RESOLVED' || row.status === 'CLOSED' || row.status === 'CANCELLED') {
-        throw new BadRequestException(
-          'Cannot resolve a ticket in status ' + row.status,
-        );
+        throw new BadRequestException('Cannot resolve a ticket in status ' + row.status);
       }
       const isAssignee = !!actor.employeeId && row.assignee_id === actor.employeeId;
       if (!actor.isSchoolAdmin && !isAssignee) {
@@ -659,11 +664,7 @@ export class TicketService {
       )) as Array<{ status: string; requester_id: string }>;
       if (lockRows.length === 0) throw new NotFoundException('Ticket ' + id);
       const row = lockRows[0]!;
-      if (
-        row.status === 'RESOLVED' ||
-        row.status === 'CLOSED' ||
-        row.status === 'CANCELLED'
-      ) {
+      if (row.status === 'RESOLVED' || row.status === 'CLOSED' || row.status === 'CANCELLED') {
         throw new BadRequestException(
           'Cannot cancel a ticket in status ' + row.status + '; close it instead',
         );
@@ -717,10 +718,7 @@ export class TicketService {
    * hr_employees row (e.g. the role only resolves to admin@ which is
    * intentionally not bridged per Cycle 4 Step 0).
    */
-  private async resolveRoleToEmployee(
-    roleToken: string,
-    schoolId: string,
-  ): Promise<string | null> {
+  private async resolveRoleToEmployee(roleToken: string, schoolId: string): Promise<string | null> {
     const roleName = roleTokenToName(roleToken);
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
@@ -805,10 +803,7 @@ export class TicketService {
 
   private async loadOrFail(id: string): Promise<TicketResponseDto> {
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<TicketRow[]>(
-        SELECT_TICKET_BASE + 'WHERE t.id = $1::uuid',
-        id,
-      );
+      return client.$queryRawUnsafe<TicketRow[]>(SELECT_TICKET_BASE + 'WHERE t.id = $1::uuid', id);
     });
     if (rows.length === 0) throw new NotFoundException('Ticket ' + id);
     return rowToDto(rows[0]!);

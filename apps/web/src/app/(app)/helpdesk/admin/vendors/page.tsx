@@ -78,7 +78,10 @@ export default function HelpdeskVendorsPage() {
           <LoadingSpinner size="sm" /> Loading…
         </div>
       ) : list.length === 0 ? (
-        <EmptyState title="No vendors yet" description="Add a vendor to enable ticket escalation." />
+        <EmptyState
+          title="No vendors yet"
+          description="Add a vendor to enable ticket escalation."
+        />
       ) : (
         <ul className="space-y-2">
           {list.map((v) => (
@@ -185,11 +188,17 @@ function VendorModal({
           vendorName: vendorName.trim() !== vendor.vendorName ? vendorName.trim() : undefined,
           vendorType: vendorType !== vendor.vendorType ? vendorType : undefined,
           contactName:
-            contactName.trim() !== (vendor.contactName ?? '') ? contactName.trim() || null : undefined,
+            contactName.trim() !== (vendor.contactName ?? '')
+              ? contactName.trim() || null
+              : undefined,
           contactEmail:
-            contactEmail.trim() !== (vendor.contactEmail ?? '') ? contactEmail.trim() || null : undefined,
+            contactEmail.trim() !== (vendor.contactEmail ?? '')
+              ? contactEmail.trim() || null
+              : undefined,
           contactPhone:
-            contactPhone.trim() !== (vendor.contactPhone ?? '') ? contactPhone.trim() || null : undefined,
+            contactPhone.trim() !== (vendor.contactPhone ?? '')
+              ? contactPhone.trim() || null
+              : undefined,
           website: website.trim() !== (vendor.website ?? '') ? website.trim() || null : undefined,
           isPreferred: isPreferred !== vendor.isPreferred ? isPreferred : undefined,
           notes: notes.trim() !== (vendor.notes ?? '') ? notes.trim() || null : undefined,

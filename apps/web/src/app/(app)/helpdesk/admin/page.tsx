@@ -108,7 +108,10 @@ export default function HelpdeskAdminQueuePage() {
         title="Helpdesk queue"
         description={
           breachedCount > 0
-            ? breachedCount + ' ticket' + (breachedCount === 1 ? '' : 's') + ' breached SLA — review at the top of the list.'
+            ? breachedCount +
+              ' ticket' +
+              (breachedCount === 1 ? '' : 's') +
+              ' breached SLA — review at the top of the list.'
             : 'Triage, assign, and track every ticket across the school.'
         }
         actions={
@@ -210,7 +213,10 @@ export default function HelpdeskAdminQueuePage() {
           <LoadingSpinner size="sm" /> Loading…
         </div>
       ) : visible.length === 0 ? (
-        <EmptyState title="No tickets to show" description="Adjust the filters or wait for the queue to fill up." />
+        <EmptyState
+          title="No tickets to show"
+          description="Adjust the filters or wait for the queue to fill up."
+        />
       ) : (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
           <table className="w-full text-sm">
@@ -234,14 +240,22 @@ export default function HelpdeskAdminQueuePage() {
                   <tr key={t.id} className={cn(urgency === 'red' && 'bg-rose-50/40')}>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-2">
-                        <span className={cn('inline-block h-2 w-2 rounded-full', SLA_URGENCY_DOT[urgency])} />
+                        <span
+                          className={cn(
+                            'inline-block h-2 w-2 rounded-full',
+                            SLA_URGENCY_DOT[urgency],
+                          )}
+                        />
                         <span className="text-xs text-gray-600">
                           {remaining ?? SLA_URGENCY_LABEL[urgency]}
                         </span>
                       </div>
                     </td>
                     <td className="px-3 py-3">
-                      <Link href={'/helpdesk/' + t.id} className="block text-campus-700 hover:underline">
+                      <Link
+                        href={'/helpdesk/' + t.id}
+                        className="block text-campus-700 hover:underline"
+                      >
                         <span className="font-mono text-xs text-gray-400">#{shortId(t.id)}</span>{' '}
                         <span className="font-medium">{t.title}</span>
                       </Link>
@@ -273,11 +287,13 @@ export default function HelpdeskAdminQueuePage() {
                       ) : null}
                     </td>
                     <td className="px-3 py-3 text-gray-700">
-                      {t.assigneeName
-                        ? t.assigneeName
-                        : t.vendorName
-                          ? 'Vendor: ' + t.vendorName
-                          : <span className="text-gray-400">Unassigned</span>}
+                      {t.assigneeName ? (
+                        t.assigneeName
+                      ) : t.vendorName ? (
+                        'Vendor: ' + t.vendorName
+                      ) : (
+                        <span className="text-gray-400">Unassigned</span>
+                      )}
                     </td>
                     <td className="px-3 py-3 text-gray-500">{formatTicketAge(t.createdAt)}</td>
                     <td className="px-3 py-3 text-right">
@@ -310,7 +326,10 @@ export default function HelpdeskAdminQueuePage() {
         <AssignEmployeeModal ticket={assignTarget} onClose={() => setAssignTarget(null)} />
       )}
       {assignVendorTarget && (
-        <AssignVendorModal ticket={assignVendorTarget} onClose={() => setAssignVendorTarget(null)} />
+        <AssignVendorModal
+          ticket={assignVendorTarget}
+          onClose={() => setAssignVendorTarget(null)}
+        />
       )}
     </div>
   );

@@ -134,7 +134,9 @@ export class TicketTaskCompletionConsumer implements OnModuleInit {
 
     if (!rows || rows.length === 0) {
       this.logger.debug(
-        '[ticket-task-completion] no auto-tasks linked to ticket ' + ticketId + ' — nothing to flip',
+        '[ticket-task-completion] no auto-tasks linked to ticket ' +
+          ticketId +
+          ' — nothing to flip',
       );
       return;
     }

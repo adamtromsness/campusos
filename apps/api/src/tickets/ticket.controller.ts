@@ -40,7 +40,8 @@ export class TicketController {
   @Get()
   @RequirePermission('it-001:read')
   @ApiOperation({
-    summary: 'List tickets visible to the caller (own + assigned by default; full tenant for admins).',
+    summary:
+      'List tickets visible to the caller (own + assigned by default; full tenant for admins).',
   })
   async list(
     @Query() query: ListTicketsQueryDto,
@@ -107,8 +108,7 @@ export class TicketController {
   @Patch(':id/resolve')
   @RequirePermission('it-001:write')
   @ApiOperation({
-    summary:
-      'Resolve the ticket. Allowed by the assignee or any admin. Emits tkt.ticket.resolved.',
+    summary: 'Resolve the ticket. Allowed by the assignee or any admin. Emits tkt.ticket.resolved.',
   })
   async resolve(
     @Param('id', ParseUUIDPipe) id: string,

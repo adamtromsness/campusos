@@ -81,10 +81,7 @@ async function seedTickets() {
     findUserId('counsellor@demo.campusos.dev'),
   ]);
 
-  const [principalEmpId, vpEmpId] = await Promise.all([
-    findEmployeeId('principal@demo.campusos.dev'),
-    findEmployeeId('vp@demo.campusos.dev'),
-  ]);
+  const principalEmpId = await findEmployeeId('principal@demo.campusos.dev');
 
   // Idempotency gate — checks tkt_categories for the demo school.
   const existingCats = (await client.$queryRawUnsafe(
@@ -169,7 +166,11 @@ async function seedTickets() {
 
   // ── 3. SLA policies ───────────────────────────────────────────
   console.log('  C) SLA policies:');
-  const slaTargets: Array<{ priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; resp: number; res: number }> = [
+  const slaTargets: Array<{
+    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    resp: number;
+    res: number;
+  }> = [
     { priority: 'CRITICAL', resp: 1, res: 4 },
     { priority: 'HIGH', resp: 2, res: 8 },
     { priority: 'MEDIUM', resp: 4, res: 24 },
@@ -232,7 +233,9 @@ async function seedTickets() {
     'https://lincoln-maintenance.example',
     'Local maintenance company. Lighting and general repairs.',
   );
-  console.log('     - Springfield IT Solutions (preferred IT_REPAIR), Lincoln Maintenance Co (FACILITIES_MAINTENANCE)');
+  console.log(
+    '     - Springfield IT Solutions (preferred IT_REPAIR), Lincoln Maintenance Co (FACILITIES_MAINTENANCE)',
+  );
 
   // ── 5. Sample tickets + comments + activity ───────────────────
   console.log('  E) sample tickets:');
@@ -374,7 +377,9 @@ async function seedTickets() {
     'Cleared the cache and reset the gradebook permissions. Please confirm you can access again.',
     '2026-04-12 16:30:00+00',
   );
-  console.log('     - 1 public comment on T1, 1 internal comment on T2, 1 resolution comment on T3');
+  console.log(
+    '     - 1 public comment on T1, 1 internal comment on T2, 1 resolution comment on T3',
+  );
 
   // Activity — 8 rows tracing lifecycle transitions across the 5 tickets.
   console.log('  E3) activity:');
@@ -469,7 +474,7 @@ async function seedTickets() {
   await client.$executeRawUnsafe(
     'INSERT INTO ' +
       TENANT_SCHEMA +
-      ".tkt_problems (id, school_id, title, description, category_id, status, assigned_to_id, created_by, created_at) " +
+      '.tkt_problems (id, school_id, title, description, category_id, status, assigned_to_id, created_by, created_at) ' +
       "VALUES ($1::uuid, $2::uuid, $3, $4, $5::uuid, 'INVESTIGATING', $6::uuid, $7::uuid, $8::timestamptz)",
     problemId,
     schoolId,
@@ -492,7 +497,9 @@ async function seedTickets() {
     generateId(),
     t3Id,
   );
-  console.log('     - "Network switch failure in Building A" linking T1 (Projector) + T3 (Gradebook access)');
+  console.log(
+    '     - "Network switch failure in Building A" linking T1 (Projector) + T3 (Gradebook access)',
+  );
 
   // ── 7. Auto-task rule on tkt.ticket.assigned ──────────────────
   console.log('  G) auto-task rule:');
@@ -515,7 +522,9 @@ async function seedTickets() {
     generateId(),
     ruleId,
   );
-  console.log('     - tkt.ticket.assigned rule (HIGH priority, ADMINISTRATIVE, 24h offset, CREATE_TASK action)');
+  console.log(
+    '     - tkt.ticket.assigned rule (HIGH priority, ADMINISTRATIVE, 24h offset, CREATE_TASK action)',
+  );
 
   console.log('');
   console.log('  Tickets seed complete. ' + TODAY_ISO);

@@ -9,10 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { useCreateTicket, useTicketCategories } from '@/hooks/use-tickets';
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
-import {
-  TICKET_PRIORITIES,
-  TICKET_PRIORITY_LABELS,
-} from '@/lib/tickets-format';
+import { TICKET_PRIORITIES, TICKET_PRIORITY_LABELS } from '@/lib/tickets-format';
 import type { TicketPriority, TicketSubcategoryDto } from '@/lib/types';
 
 export default function NewTicketPage() {
@@ -111,7 +108,10 @@ export default function NewTicketPage() {
           <LoadingSpinner size="sm" /> Loading categories…
         </div>
       ) : (
-        <form onSubmit={onSubmit} className="space-y-5 rounded-lg border border-gray-200 bg-white p-6">
+        <form
+          onSubmit={onSubmit}
+          className="space-y-5 rounded-lg border border-gray-200 bg-white p-6"
+        >
           <div>
             <label htmlFor="category" className="mb-1 block text-sm font-medium text-gray-700">
               Category <span className="text-rose-600">*</span>

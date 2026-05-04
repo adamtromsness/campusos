@@ -41,7 +41,10 @@ function filterTickets(list: TicketDto[], chip: FilterChip): TicketDto[] {
       return list.filter((t) => t.status === 'OPEN');
     case 'IN_PROGRESS':
       return list.filter(
-        (t) => t.status === 'IN_PROGRESS' || t.status === 'VENDOR_ASSIGNED' || t.status === 'PENDING_REQUESTER',
+        (t) =>
+          t.status === 'IN_PROGRESS' ||
+          t.status === 'VENDOR_ASSIGNED' ||
+          t.status === 'PENDING_REQUESTER',
       );
     case 'RESOLVED':
       return list.filter((t) => t.status === 'RESOLVED');
@@ -153,7 +156,10 @@ function TicketRow({ ticket }: { ticket: TicketDto }) {
       >
         <div className="flex items-start gap-3">
           <span
-            className={cn('mt-2 inline-block h-2 w-2 flex-none rounded-full', SLA_URGENCY_DOT[urgency])}
+            className={cn(
+              'mt-2 inline-block h-2 w-2 flex-none rounded-full',
+              SLA_URGENCY_DOT[urgency],
+            )}
             title={SLA_URGENCY_LABEL[urgency] + (remaining ? ' · ' + remaining : '')}
             aria-label={SLA_URGENCY_LABEL[urgency]}
           />
@@ -186,7 +192,11 @@ function TicketRow({ ticket }: { ticket: TicketDto }) {
             <p className="mt-0.5 text-xs text-gray-500">
               {ticket.categoryName}
               {ticket.subcategoryName ? ' · ' + ticket.subcategoryName : ''}
-              {ticket.assigneeName ? ' · Assigned to ' + ticket.assigneeName : ticket.vendorName ? ' · Vendor: ' + ticket.vendorName : ' · Unassigned'}
+              {ticket.assigneeName
+                ? ' · Assigned to ' + ticket.assigneeName
+                : ticket.vendorName
+                  ? ' · Vendor: ' + ticket.vendorName
+                  : ' · Unassigned'}
               {' · ' + formatTicketAge(ticket.createdAt)}
             </p>
           </div>
