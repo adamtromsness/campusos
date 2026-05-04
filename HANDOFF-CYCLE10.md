@@ -1,6 +1,6 @@
 # Cycle 10 Handoff — Health & Wellness
 
-**Status:** Cycle 10 **IN PROGRESS** — Step 1 of 10 done. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth_*` tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated `health_record:read` permission AND writes a row to `hlth_health_access_log` before the response body leaves the server.
+**Status:** Cycle 10 **IN PROGRESS** — Steps 1 + 2 of 10 done. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth_*` tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated `health_record:read` permission AND writes a row to `hlth_health_access_log` before the response body leaves the server.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle10-implementation-plan.html`
@@ -15,7 +15,7 @@ This document tracks the Cycle 10 build at the same level of detail as `HANDOFF-
 | Step | Title                                                       | Status   |
 | ---- | ----------------------------------------------------------- | -------- |
 | 1    | Health Records Schema — Records, Conditions, Immunisations  | **DONE** |
-| 2    | Medication Schema — Meds, Schedule, Administration          | TODO     |
+| 2    | Medication Schema — Meds, Schedule, Administration          | **DONE** |
 | 3    | IEP/504 + Nurse + Screening + Dietary Schema                | TODO     |
 | 4    | Seed Data — Maya's Health Record + IEP + Sample Visits      | TODO     |
 | 5    | Health Records NestJS Module — Records + Conditions + Imms  | TODO     |
@@ -100,6 +100,62 @@ All 4 FK delete actions confirmed via `pg_constraint.confdeltype` catalog readou
 
 ## Step 2 — Medication Schema — Meds, Schedule, Administration
 
+**Status:** DONE. Migration applied cleanly to `tenant_demo` and `tenant_test` on 2026-05-04. Idempotent re-provision verified (zero new applies on the second run; tenant base table count stable at 146). Splitter-clean — Python audit script confirmed zero `;` outside legitimate statement terminators on the first attempt. Eighth migration in a row to clear the splitter trap (Cycles 4–10 unbroken).
+
+**Migration:** `packages/database/prisma/tenant/migrations/033_hlth_medications.sql`.
+
+**Tables (3):**
+
+1. **`hlth_medications`** — Per-record prescribed medication. `health_record_id` NOT NULL FK to `hlth_student_health_records(id)` ON DELETE CASCADE (a medication has no meaning without its parent health record), `medication_name TEXT NOT NULL`, `dosage TEXT` nullable, `frequency TEXT` nullable (free-form prescribing-physician text — the structured scheduled times live in `hlth_medication_schedule`; this is the note the nurse renders on the medication card), `route TEXT NOT NULL` 5-value CHECK `ORAL / TOPICAL / INHALER / INJECTION / OTHER`, `prescribing_physician TEXT`, `is_self_administered BOOLEAN NOT NULL DEFAULT false` (when true the student carries the medication themselves — epinephrine pen, rescue inhaler — and the Step 6 nurse dashboard sorts these out of the daily admin checklist since the nurse only logs administered doses for staff-administered medications), `is_active BOOLEAN NOT NULL DEFAULT true`. INDEX on `(health_record_id, is_active)` for the active-medications hot path. The Step 6 `MedicationService` is the canonical writer.
+
+2. **`hlth_medication_schedule`** — Per-medication daily schedule slot. `medication_id` NOT NULL FK to `hlth_medications(id)` ON DELETE CASCADE (a schedule slot has no meaning without its parent medication), `scheduled_time TIME NOT NULL` (no date — the slot recurs), `day_of_week SMALLINT` nullable with **CHECK `day_of_week IS NULL OR day_of_week BETWEEN 0 AND 6`** (NULL means every day, the typical case for daily medications; 0–6 follows the Cycle 5 `sch_periods` ISO Sunday-Saturday convention), `notes TEXT` nullable. INDEX on `(medication_id)`. The Step 6 `ScheduleService` renders these as a time-slot checklist on the nurse dashboard.
+
+3. **`hlth_medication_administrations`** — Per-dose log. `medication_id` NOT NULL FK to `hlth_medications(id)` ON DELETE CASCADE, `schedule_entry_id UUID` nullable **with no DB-enforced FK** (deliberate soft ref — when a nurse retires a slot the historical administrations remain pinned to the medication via `medication_id`; the nullable column also reflects PRN/unscheduled doses that never had a slot), `administered_by UUID` REFERENCES `hr_employees(id)` ON DELETE SET NULL (audit trail survives a nurse leaving the school — the row remains for compliance review with `administered_by` NULL), `administered_at TIMESTAMPTZ` nullable, `dose_given TEXT` nullable, `notes TEXT` nullable, `parent_notified BOOLEAN NOT NULL DEFAULT false`, `was_missed BOOLEAN NOT NULL DEFAULT false`, `missed_reason TEXT` nullable 5-value CHECK `STUDENT_ABSENT / STUDENT_REFUSED / MEDICATION_UNAVAILABLE / PARENT_CANCELLED / OTHER` (or NULL). **Multi-column `hlth_medication_administrations_missed_chk`** is the keystone invariant: pins administration rows to one of two shapes — active dose requires `was_missed=false AND administered_at NOT NULL AND missed_reason NULL`; missed dose requires `was_missed=true AND administered_at NULL AND missed_reason NOT NULL`. Any other combination is rejected. INDEX on `(medication_id, administered_at DESC)` for the dose-history hot path. **Partial INDEX on `(schedule_entry_id, was_missed) WHERE was_missed = true`** for the missed-dose audit query — the canonical compliance report shape.
+
+**Soft cross-schema refs per ADR-001 / ADR-020:** none new in this step.
+
+**FK summary — 4 new intra-tenant DB-enforced FKs:**
+
+| FK                                                                     | Action   |
+| ---------------------------------------------------------------------- | -------- |
+| `hlth_medications.health_record_id → hlth_student_health_records(id)`  | CASCADE  |
+| `hlth_medication_schedule.medication_id → hlth_medications(id)`        | CASCADE  |
+| `hlth_medication_administrations.medication_id → hlth_medications(id)` | CASCADE  |
+| `hlth_medication_administrations.administered_by → hr_employees(id)`   | SET NULL |
+
+The `schedule_entry_id` soft ref intentionally has no DB-enforced FK to `hlth_medication_schedule` — the design choice documented inline so future cycles know retiring a slot is safe.
+
+0 cross-schema FKs.
+
+**Tenant logical base table count after Step 2:** 143 → **146**. Cycle 10 running tally: 7 logical base tables (4 from Step 1 + 3 from Step 2). 8 intra-tenant FKs (4 + 4).
+
+**Smoke results (live on `tenant_demo`, single BEGIN…ROLLBACK transaction with savepoints, 16 assertions, all green):**
+
+- T1 medication `route_chk` rejects `BOGUS`.
+- T2 medication happy path with all 5 route values inserted in one block (Albuterol INHALER, Acetaminophen ORAL, Hydrocortisone TOPICAL, EpiPen INJECTION, Eye drops OTHER).
+- T3 schedule `dow_chk` rejects `day_of_week=9`.
+- T4 schedule happy path with NULL day_of_week (every day) AND specific day_of_week=3 (Wednesday extra slot) coexisting on the same medication.
+- T5 schedule FK rejects bogus `medication_id`.
+- T6 administration `missed_reason_chk` rejects `BOGUS`.
+- T7 `missed_chk` rejects active dose with `administered_at` NULL (active doses must have a timestamp).
+- T8 `missed_chk` rejects active dose with `missed_reason` set (active doses must have NULL missed_reason).
+- T9 `missed_chk` rejects missed dose with `administered_at` set (missed doses must have NULL timestamp — the keystone invariant from the plan).
+- T10 `missed_chk` rejects missed dose without `missed_reason` (missed doses must justify why).
+- T11 active administration happy path (linked to schedule slot, administered yesterday, 1 puff, parent notified).
+- T12 missed administration happy path with all 5 missed_reason values inserted in one block.
+- T13 PRN administration with NULL `schedule_entry_id` accepted (unscheduled doses).
+- T14 partial-INDEX query path returns exactly 5 missed rows for the slot.
+- T15 schedule delete leaves administration rows intact via the soft-ref convention (the deliberately-not-FK design); the `schedule_entry_id` column retains its UUID after the parent slot row is gone, by design.
+- T16 CASCADE on medication delete drops schedule + administrations cleanly (admin row count goes from 7 → 0).
+
+All 4 FK delete actions confirmed via `pg_constraint.confdeltype` catalog readout: CASCADE 'c' / CASCADE 'c' / CASCADE 'c' / SET NULL 'n'. Idempotent re-provision verified — table count stable at 146.
+
+**Out of scope this step (deferred to Step 6):** the request-path API. The schema ships now; the `MedicationService`, `ScheduleService`, and `AdministrationService` land in Step 6 along with the missed-dose audit endpoints, the nurse-dashboard medication checklist, and the `hlth.medication.administered` Kafka emit for parent notification. The HIPAA access log writes (VIEW_MEDICATIONS) are wired in via `HealthAccessLogService.recordAccess` from Step 5.
+
+---
+
+## Step 3 — IEP/504 + Nurse + Screening + Dietary Schema
+
 **Status:** TODO.
 
-(Steps 2–10 of Cycle 10 — medication schema, IEP / nurse / screening / dietary schema, seed data, NestJS modules, UI, and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
+(Steps 3–10 of Cycle 10 — IEP / nurse / screening / dietary schema, seed data, NestJS modules, UI, and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
