@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 9 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
+.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
+.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
+.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
+.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
+.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
+.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}
+.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}
+.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
+.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
+.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
+.step-title{font-size:19px;font-weight:700;color:var(--accent)}
+.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
+.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
+.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
+.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
+.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
+.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 2 &middot; Student Services</div>
+    <h1>Cycle 9: Behaviour &amp; Discipline<br>Implementation Plan</h1>
+    <div class="sub">The first student-services module. Incident documentation, disciplinary actions with parent notification, and Behaviour Intervention Plans (BIPs) with measurable goals and teacher feedback. Bridges from the existing sis_student_notes (informal) to formal discipline records and behaviour support plans.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M20 SIS Discipline (4 tables) + M27 Behaviour Plans (3 tables)</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 9 spans two ERD modules: the 4 discipline tables from M20 SIS Core (deferred from Cycle 1 since they weren't needed for the attendance vertical slice) and 3 behaviour plan tables from M27 Student Services. Together they deliver the complete behaviour management lifecycle: a teacher logs an incident &rarr; admin reviews and assigns consequences &rarr; parents are notified when required &rarr; repeated incidents trigger a formal Behaviour Intervention Plan &rarr; the BIP tracks goals and collects teacher feedback on strategy effectiveness.</p>
+
+  <p class="body-text">This module is the first to involve <strong>sensitive student conduct data</strong>. Row-level visibility is strict: teachers see incidents they reported or that involve students in their classes. Parents see their own children's incidents (non-confidential only). Students never see discipline records directly. Admins and counsellors see all. BIPs follow the same scoping.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Teacher reports an incident: "Maya was involved in a verbal altercation in the hallway" under category "Disrespect" (MEDIUM severity) &rarr; admin reviews the incident, transitions to UNDER_REVIEW, assigns a consequence (Detention, 1 day) with <code>requires_parent_notification=true</code> &rarr; parent (David Chen) receives an IN_APP notification &rarr; admin resolves the incident &rarr; because Maya now has 2+ incidents this semester, the counsellor creates a BIP with target behaviours, replacement strategies, and 3 measurable goals &rarr; teacher receives a feedback request on BIP strategy effectiveness &rarr; teacher submits feedback &rarr; counsellor reviews and updates goal progress.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (M20 Discipline):</strong> sis_discipline_categories (severity-levelled catalogue), sis_discipline_action_types (with parent-notification flag), sis_discipline_incidents (OPEN &rarr; UNDER_REVIEW &rarr; RESOLVED lifecycle), sis_discipline_actions (per-incident consequences with date ranges for suspensions). Functions BEH-001.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (M27 Behaviour Plans):</strong> svc_behavior_plans (BIP/BSP/SAFETY_PLAN with DRAFT &rarr; ACTIVE &rarr; REVIEW &rarr; EXPIRED lifecycle, target/replacement behaviours, reinforcement strategies), svc_behavior_plan_goals (measurable goals with progress tracking), svc_bip_teacher_feedback (structured teacher input on strategy effectiveness). Functions BEH-002.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> PBIS points/rewards system (not in ERD v11 &mdash; future enhancement). Discipline hearing/appeal workflow (would use Cycle 7 approval engine &mdash; Phase 3). Automated "repeat offender" BIP trigger (manual counsellor action this cycle). sis_student_notes integration (the table exists from Cycle 1 but the <code>is_shared_with_counselor</code> cross-module read is Cycle 11 scope). Mandatory reporting integration (COU-006, Cycle 11).</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">Integration with Wave 1</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>Task Worker (Cycle 7):</strong> New auto-task rule <code>beh.incident.reported</code> creates an ADMINISTRATIVE task on school admins: "Review incident: {student_name} &mdash; {category_name}". A second rule <code>beh.bip.feedback_requested</code> creates a task on the target teacher.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Notifications (Cycle 3):</strong> Parent notification on actions with <code>requires_parent_notification=true</code>. Admin notification on incident submission.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>HR Employees (Cycle 4):</strong> <code>reported_by</code> and BIP <code>created_by</code> reference hr_employees. Teacher feedback links through hr_employees.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Students (Cycle 1):</strong> All incident and BIP tables FK to sis_students. Row-scope uses the same <code>sis_student_guardians</code> + <code>sis_class_teachers</code> patterns from Cycles 1&ndash;2.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:34%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Discipline Schema &mdash; Categories, Incidents, Actions</td><td>Schema</td><td>sis_discipline_categories, sis_discipline_action_types, sis_discipline_incidents, sis_discipline_actions</td></tr>
+    <tr><td><strong>2</strong></td><td>Behaviour Plan Schema &mdash; BIPs, Goals, Feedback</td><td>Schema</td><td>svc_behavior_plans, svc_behavior_plan_goals, svc_bip_teacher_feedback</td></tr>
+    <tr><td><strong>3</strong></td><td>Seed Data &mdash; Categories, Action Types, Sample Incidents + BIP</td><td>Seed</td><td>Category catalogue, action types, 3 sample incidents, 1 BIP with goals, auto-task rules, permissions</td></tr>
+    <tr><td><strong>4</strong></td><td>Discipline NestJS Module &mdash; Incidents + Actions</td><td>Code</td><td>IncidentService, ActionService, CategoryService. Report, review, assign consequences, resolve. Parent notification emit.</td></tr>
+    <tr><td><strong>5</strong></td><td>Behaviour Plan NestJS Module &mdash; BIPs + Goals + Feedback</td><td>Code</td><td>BehaviorPlanService, GoalService, FeedbackService. Create BIP, track goals, request and submit teacher feedback.</td></tr>
+    <tr><td><strong>6</strong></td><td>Behaviour Notification Consumer</td><td>Code</td><td>BehaviourNotificationConsumer for incident lifecycle events + parent notification on actions. Auto-task rules for admin review + teacher feedback.</td></tr>
+    <tr><td><strong>7</strong></td><td>Discipline UI &mdash; Report Incident + Admin Queue</td><td>UI</td><td>"Behaviour" app tile, incident report form, admin incident queue with filters, incident detail with action assignment</td></tr>
+    <tr><td><strong>8</strong></td><td>Behaviour Plan UI &mdash; BIP Editor + Goals + Feedback</td><td>UI</td><td>BIP list per student, BIP editor with target/replacement behaviours, goal progress tracker, teacher feedback request + submission</td></tr>
+    <tr><td><strong>9</strong></td><td>Parent + Student Behaviour Views</td><td>UI</td><td>Parent sees child's incident history (non-confidential), BIP summary. Student behaviour summary on the student profile (admin/teacher view).</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Report &rarr; review &rarr; consequence &rarr; parent notification &rarr; BIP creation &rarr; goal tracking &rarr; teacher feedback &rarr; progress update</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Discipline Schema &mdash; Categories, Incidents, Actions</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The 4 M20 discipline tables that were deferred from Cycle 1. These are <code>sis_</code> prefixed and live in the tenant schema alongside the existing SIS tables.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>sis_discipline_categories</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>severity</code> ENUM(LOW, MEDIUM, HIGH, CRITICAL), <code>description TEXT</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name). Examples: Tardiness (LOW), Disrespect (MEDIUM), Fighting (HIGH), Weapons (CRITICAL).</li>
+      <li><strong>sis_discipline_action_types</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>requires_parent_notification BOOLEAN DEFAULT false</code>, <code>is_active BOOLEAN DEFAULT true</code>, <code>description TEXT</code>. UNIQUE(school_id, name). Examples: Verbal Warning (no notification), Detention (notify), In-School Suspension (notify), Out-of-School Suspension (notify), Expulsion Referral (notify).</li>
+      <li><strong>sis_discipline_incidents</strong> &mdash; <code>school_id UUID</code>, <code>student_id UUID FK(sis_students)</code>, <code>reported_by UUID FK(hr_employees)</code>, <code>category_id UUID FK(sis_discipline_categories)</code>, <code>description TEXT NOT NULL</code>, <code>incident_date DATE NOT NULL</code>, <code>incident_time TIME</code> nullable, <code>location TEXT</code> nullable, <code>witnesses TEXT</code> nullable, <code>status</code> ENUM(OPEN, UNDER_REVIEW, RESOLVED) DEFAULT 'OPEN', <code>resolved_by UUID</code> nullable (soft to hr_employees), <code>resolved_at TIMESTAMPTZ</code> nullable, <code>admin_notes TEXT</code> nullable (internal, not visible to parents). Multi-column <code>resolved_chk</code> keeps resolved_by and resolved_at in lockstep &mdash; both set or both null, and RESOLVED requires both set. INDEX(student_id, incident_date DESC). INDEX(school_id, status) WHERE status != 'RESOLVED'.</li>
+      <li><strong>sis_discipline_actions</strong> &mdash; <code>incident_id UUID FK(sis_discipline_incidents) ON DELETE CASCADE</code>, <code>action_type_id UUID FK(sis_discipline_action_types)</code>, <code>assigned_by UUID</code> (soft to hr_employees), <code>start_date DATE</code> nullable, <code>end_date DATE</code> nullable (for suspensions &mdash; multi-day range), <code>notes TEXT</code> nullable, <code>parent_notified BOOLEAN DEFAULT false</code>, <code>parent_notified_at TIMESTAMPTZ</code> nullable. UNIQUE(incident_id, action_type_id) &mdash; one action per type per incident. Multi-column <code>dates_chk</code>: when both set, end_date >= start_date.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>030_sis_discipline.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Behaviour Plan Schema &mdash; BIPs, Goals, Feedback</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The M27 behaviour plan tables. These use the <code>svc_</code> prefix &mdash; the first Student Services tables in the system. The <code>svc_caseloads</code> FK on <code>svc_behavior_plans</code> is nullable since caseloads ship in Cycle 11; the column is forward-compatible.</p>
+
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>svc_behavior_plans</strong> &mdash; <code>school_id UUID</code>, <code>student_id UUID FK(sis_students)</code>, <code>caseload_id UUID</code> nullable (soft to future svc_caseloads), <code>plan_type</code> ENUM(BIP, BSP, SAFETY_PLAN), <code>status</code> ENUM(DRAFT, ACTIVE, REVIEW, EXPIRED) DEFAULT 'DRAFT', <code>created_by UUID FK(hr_employees)</code>, <code>review_date DATE NOT NULL</code>, <code>review_meeting_id UUID</code> nullable (soft to future mtg_meetings), <code>target_behaviors TEXT[] NOT NULL</code>, <code>replacement_behaviors TEXT[]</code>, <code>reinforcement_strategies TEXT[]</code>, <code>plan_document_s3_key TEXT</code> nullable, <code>source_incident_id UUID</code> nullable (soft to sis_discipline_incidents). Partial UNIQUE(student_id, plan_type) WHERE status = 'ACTIVE' &mdash; one active plan per type per student. INDEX(student_id, status).</li>
+      <li><strong>svc_behavior_plan_goals</strong> &mdash; <code>plan_id UUID FK(svc_behavior_plans) ON DELETE CASCADE</code>, <code>goal_text TEXT NOT NULL</code>, <code>baseline_frequency TEXT</code>, <code>target_frequency TEXT</code>, <code>measurement_method TEXT</code>, <code>progress</code> ENUM(NOT_STARTED, IN_PROGRESS, MET, NOT_MET) DEFAULT 'NOT_STARTED', <code>last_assessed_at DATE</code> nullable. INDEX(plan_id).</li>
+      <li><strong>svc_bip_teacher_feedback</strong> &mdash; <code>plan_id UUID FK(svc_behavior_plans) ON DELETE CASCADE</code>, <code>teacher_id UUID FK(hr_employees)</code>, <code>requested_by UUID FK(hr_employees)</code> (the counsellor), <code>requested_at TIMESTAMPTZ NOT NULL</code>, <code>submitted_at TIMESTAMPTZ</code> nullable, <code>strategies_observed TEXT[]</code> nullable, <code>overall_effectiveness</code> ENUM(NOT_EFFECTIVE, SOMEWHAT_EFFECTIVE, EFFECTIVE, VERY_EFFECTIVE) nullable, <code>classroom_observations TEXT</code> nullable, <code>recommended_adjustments TEXT</code> nullable. Partial UNIQUE(plan_id, teacher_id) WHERE submitted_at IS NULL &mdash; one pending request per teacher per plan. INDEX(plan_id, submitted_at).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 3 new tables. Migration: <code>031_svc_behavior_plans.sql</code>. Total Cycle 9 tables: 7.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Seed Data &mdash; Categories, Action Types, Sample Incidents + BIP</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>Discipline categories (6):</strong> Tardiness (LOW), Dress Code Violation (LOW), Disrespect (MEDIUM), Disruptive Behaviour (MEDIUM), Fighting (HIGH), Weapons/Dangerous Items (CRITICAL).</li>
+      <li><strong>Action types (5):</strong> Verbal Warning (no notification), Written Warning (no notification), Detention (notify), In-School Suspension (notify), Out-of-School Suspension (notify).</li>
+      <li><strong>Sample incidents (3):</strong> (1) Maya &mdash; "Disruptive Behaviour" MEDIUM, reported by Rivera, RESOLVED with Verbal Warning action. (2) Maya &mdash; "Disrespect" MEDIUM, reported by Rivera, UNDER_REVIEW with Detention action (requires_parent_notification=true, parent_notified=true). (3) A second student &mdash; "Tardiness" LOW, OPEN, no actions yet.</li>
+      <li><strong>Sample BIP (1):</strong> Maya &mdash; BIP type, ACTIVE status, created by Hayes (counsellor), source_incident_id linked to incident #2. target_behaviors: ["Verbal confrontation with peers", "Refusal to follow staff instructions"]. replacement_behaviors: ["Use I-statements", "Request a break"]. reinforcement_strategies: ["Positive verbal praise", "Weekly check-in with counsellor"]. review_date = today + 30 days. 3 goals: (1) "Reduce verbal confrontations to fewer than 2 per week" IN_PROGRESS, (2) "Use I-statements in 3 out of 5 conflict situations" NOT_STARTED, (3) "Attend weekly counsellor check-in" MET.</li>
+      <li><strong>Sample feedback request (1):</strong> Hayes requests feedback from Rivera on Maya's BIP. Pending (submitted_at = null).</li>
+      <li><strong>Auto-task rules (2):</strong> <code>beh.incident.reported</code> &rarr; ADMINISTRATIVE task on school admins ("Review incident: {student_name} &mdash; {category_name}"). <code>beh.bip.feedback_requested</code> &rarr; ADMINISTRATIVE task on the target teacher ("BIP feedback requested: {student_name}").</li>
+      <li><strong>Permission updates:</strong> Add BEH-001:read+write to Teacher/Staff (report incidents, view for their students). Add BEH-001:admin to School Admin/Platform Admin (review, assign actions, configure categories). Add BEH-002:read to Teacher (view BIPs for their students, submit feedback). Add BEH-002:write to Staff/Counsellor (create/edit BIPs). Add BEH-002:admin to School Admin/Platform Admin. Rebuild cache.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Populated behaviour system with realistic demo data + 2 auto-task rules + permission grants.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Discipline NestJS Module &mdash; Incidents + Actions</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>IncidentService</strong> &mdash; <code>POST /discipline/incidents</code> (teacher/staff reports; stamps reported_by from actor.employeeId; emits <code>beh.incident.reported</code>). <code>GET /discipline/incidents</code> (row-scoped: teacher sees incidents they reported + incidents for students in their classes; admin sees all; parent sees own children's; filters: status, category, student, dateRange, severity). <code>GET /discipline/incidents/:id</code> (row-scope 404). <code>PATCH /discipline/incidents/:id/review</code> (admin: OPEN &rarr; UNDER_REVIEW; locks row FOR UPDATE). <code>PATCH /discipline/incidents/:id/resolve</code> (admin: sets resolved_by + resolved_at; emits <code>beh.incident.resolved</code>). <code>PATCH /discipline/incidents/:id/reopen</code> (admin: RESOLVED &rarr; OPEN; clears resolved fields).</li>
+      <li><strong>ActionService</strong> &mdash; <code>POST /discipline/incidents/:id/actions</code> (admin assigns a consequence; if action_type has requires_parent_notification=true, emits <code>beh.action.parent_notification_required</code> with guardian account IDs resolved from sis_student_guardians). <code>GET /discipline/incidents/:id/actions</code>. <code>PATCH /discipline/actions/:id</code> (update dates, notes, mark parent_notified). <code>DELETE /discipline/actions/:id</code> (admin removes a consequence).</li>
+      <li><strong>CategoryService</strong> &mdash; <code>GET /discipline/categories</code> (tree with action types). <code>POST /discipline/categories</code> (admin). <code>PATCH /discipline/categories/:id</code> (admin). <code>GET /discipline/action-types</code>. <code>POST /discipline/action-types</code> (admin). <code>PATCH /discipline/action-types/:id</code> (admin).</li>
+    </ol>
+
+    <div class="detail-heading">Row-Level Visibility</div>
+    <p><strong>Teachers:</strong> see incidents they reported OR incidents for students enrolled in their classes (via sis_class_teachers + sis_enrollments). <strong>Parents:</strong> see their own children's incidents (via sis_student_guardians), excluding admin_notes. <strong>Students:</strong> no direct access to discipline records. <strong>Admins/Counsellors:</strong> see all incidents in the tenant.</p>
+
+    <div class="produces">Produces &rarr; DisciplineModule with 3 services, ~14 endpoints + 3 Kafka events.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Behaviour Plan NestJS Module &mdash; BIPs + Goals + Feedback</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>BehaviorPlanService</strong> &mdash; <code>GET /behavior-plans</code> (by student, by status; row-scope: teacher sees plans for students in their classes; counsellor/admin sees all). <code>GET /behavior-plans/:id</code> (with goals + feedback inline). <code>POST /behavior-plans</code> (counsellor/admin creates; validates partial UNIQUE on active plan per type; source_incident_id validated if supplied). <code>PATCH /behavior-plans/:id</code> (update status, strategies, review_date; status transitions use SELECT FOR UPDATE). <code>PATCH /behavior-plans/:id/activate</code> (DRAFT &rarr; ACTIVE). <code>PATCH /behavior-plans/:id/expire</code> (ACTIVE/REVIEW &rarr; EXPIRED).</li>
+      <li><strong>GoalService</strong> &mdash; <code>GET /behavior-plans/:id/goals</code>. <code>POST /behavior-plans/:id/goals</code> (add a goal). <code>PATCH /behavior-plan-goals/:id</code> (update progress, last_assessed_at). <code>DELETE /behavior-plan-goals/:id</code>.</li>
+      <li><strong>FeedbackService</strong> &mdash; <code>POST /behavior-plans/:id/feedback-requests</code> (counsellor requests feedback from a specific teacher; emits <code>beh.bip.feedback_requested</code>). <code>GET /behavior-plans/:id/feedback</code> (list all feedback for a plan). <code>PATCH /bip-feedback/:id</code> (teacher submits their feedback: strategies_observed, overall_effectiveness, observations, adjustments; sets submitted_at). <code>GET /bip-feedback/pending</code> (teacher's pending feedback requests).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; BehaviourPlanModule with 3 services, ~12 endpoints. Total behaviour endpoints: ~26.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Behaviour Notification Consumer</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Components</div>
+    <ol class="detail-list">
+      <li><strong>BehaviourNotificationConsumer</strong> &mdash; Kafka consumer on <code>beh.incident.reported</code>, <code>beh.incident.resolved</code>, <code>beh.action.parent_notification_required</code>, <code>beh.bip.feedback_requested</code>. On incident.reported: notifies school admins (same pattern as attendance/absence). On action.parent_notification_required: resolves guardian accounts via sis_student_guardians (portal_access=true) and enqueues "Your child has received a disciplinary action" notification. On bip.feedback_requested: notifies the target teacher.</li>
+      <li><strong>Auto-task integration:</strong> The 2 auto-task rules from Step 3 feed the existing Task Worker. Admin gets "Review incident" tasks. Teachers get "BIP feedback requested" tasks.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 1 Kafka consumer + auto-task rule wiring.</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Discipline UI &mdash; Report Incident + Admin Queue</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Report Incident</strong> <code>/behaviour/report</code> &mdash; student picker (searchable, filtered to caller's students for teachers), category dropdown, date + optional time, location (free text or room picker), description (required), optional witnesses field. Submit creates the incident and navigates to the detail page.</li>
+      <li><strong>Incident Queue</strong> <code>/behaviour</code> &mdash; "Behaviour" app tile on the home page for anyone with beh-001:read. List with filter chips: Open / Under Review / Resolved / All. Per-row: student name, category + severity pill (LOW gray / MEDIUM amber / HIGH orange / CRITICAL red), date, reported by, status pill, action count. Admin-only bulk actions: review, resolve.</li>
+      <li><strong>Incident Detail</strong> <code>/behaviour/:id</code> &mdash; header with student name, category, severity, status, reported by, date/time/location. Description panel. Admin: Review / Resolve / Reopen buttons. Actions section: list of assigned consequences with action type, dates, parent notification status. "Add Action" button (admin) opens a modal with action type dropdown, optional date range (for suspensions), notes. Admin notes panel (internal, not visible to parents). Activity timeline at bottom.</li>
+      <li><strong>Category Management</strong> <code>/behaviour/admin/categories</code> &mdash; admin-only. Categories list with severity pills + active toggle. Action types list with parent-notification toggle. Add/edit modals.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; "Behaviour" app tile, incident report, admin queue, incident detail, category management.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Behaviour Plan UI &mdash; BIP Editor + Goals + Feedback</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Student Behaviour Summary</strong> <code>/students/:id/behaviour</code> &mdash; accessible from the student profile (admin/teacher/counsellor). Incident count by severity. Recent incidents list. Active BIPs section. "Create BIP" button for counsellors/admins. Links to the BIP detail page.</li>
+      <li><strong>BIP Editor</strong> <code>/behavior-plans/:id</code> &mdash; header with student name, plan type pill, status pill, review date. Editable sections: target behaviours (text array editor), replacement behaviours, reinforcement strategies. Goals table: goal text, baseline, target, measurement method, progress pill, last assessed date, inline edit. "Add Goal" row. Status transition buttons: Activate (DRAFT &rarr; ACTIVE), Mark for Review (ACTIVE &rarr; REVIEW), Expire. Source incident link (if set). Feedback section: list of teacher feedback with effectiveness pill, "Request Feedback" button for counsellors.</li>
+      <li><strong>Pending Feedback</strong> <code>/behavior-plans/feedback</code> &mdash; teacher's view of their pending feedback requests. Each row: student name, plan type, requested by, requested date. Click opens a feedback form: strategies observed (checklist from the plan's reinforcement_strategies), effectiveness rating, classroom observations (text), recommended adjustments (text). Submit sets submitted_at.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Student behaviour summary, BIP editor with goals + feedback, teacher feedback view.</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Parent + Student Behaviour Views</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Parent Incident History</strong> <code>/children/:id/behaviour</code> &mdash; accessible from the child card on the parent dashboard. Shows non-confidential incidents for their child: date, category, severity, status, actions taken (with parent notification dates). Admin notes are NOT visible. Active BIP summary (plan type, status, review date, goal count + progress summary) visible read-only.</li>
+      <li><strong>Student Profile Behaviour Tab</strong> &mdash; on the admin/teacher student profile page (<code>/students/:id</code>), add a "Behaviour" tab showing incident count, recent incidents, active BIPs, and a link to the full behaviour summary page. This is the at-a-glance view for staff who need context.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Parent behaviour view for their children + staff behaviour tab on student profiles.</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Report incident:</strong> Rivera reports "Verbal altercation" for Maya under Disrespect (MEDIUM). Verify status=OPEN. Verify <code>beh.incident.reported</code> event fires. Verify auto-task created on admin list.</li>
+      <li><strong>Admin reviews:</strong> Sarah transitions OPEN &rarr; UNDER_REVIEW. Verify status + admin notes.</li>
+      <li><strong>Assign consequence:</strong> Sarah adds Detention action (requires_parent_notification=true). Verify <code>beh.action.parent_notification_required</code> fires. Verify David Chen receives notification.</li>
+      <li><strong>Resolve incident:</strong> Sarah resolves. Verify resolved_by + resolved_at populated.</li>
+      <li><strong>Parent visibility:</strong> David sees Maya's 3 incidents (2 seeded + 1 new). admin_notes not visible. Action dates and notification status visible.</li>
+      <li><strong>Create BIP:</strong> Hayes (counsellor) creates a BIP for Maya linked to the new incident. 3 goals added. Verify partial UNIQUE allows (Maya already has 1 ACTIVE BIP from seed &mdash; creating a second BIP of same type while one is ACTIVE should fail; different type should succeed).</li>
+      <li><strong>Goal progress:</strong> Hayes updates goal #1 progress NOT_STARTED &rarr; IN_PROGRESS with last_assessed_at = today.</li>
+      <li><strong>Request feedback:</strong> Hayes requests feedback from Rivera on Maya's BIP. Verify <code>beh.bip.feedback_requested</code> fires. Verify task created on Rivera's list.</li>
+      <li><strong>Submit feedback:</strong> Rivera submits feedback with SOMEWHAT_EFFECTIVE rating + observations. Verify submitted_at populated. Verify pending count decrements.</li>
+      <li><strong>Permission denials:</strong> Student cannot see discipline records. Parent cannot see admin_notes. Teacher cannot assign actions (admin only). Student cannot submit feedback. Parent cannot create BIPs.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Verified behaviour lifecycle from incident to BIP with teacher feedback.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 9 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 7 new tables (4 discipline + 3 behaviour plans). Tenant table count: ~138.</li>
+      <li>Discipline API: ~14 endpoints. Report, review, assign actions, resolve. Parent notification on flagged actions.</li>
+      <li>Behaviour Plan API: ~12 endpoints. Create/edit BIPs, track goals, request and submit teacher feedback.</li>
+      <li>Notifications: incident reported &rarr; admin, action with parent flag &rarr; guardian, feedback request &rarr; teacher.</li>
+      <li>Auto-task rules: incident.reported &rarr; admin review task, feedback.requested &rarr; teacher task.</li>
+      <li>Row-level visibility: teacher scope (reported + class students), parent scope (own children, no admin_notes), admin/counsellor scope (all).</li>
+      <li>Staff UI: report incident, admin queue, incident detail with actions, category/action-type management.</li>
+      <li>BIP UI: editor with target/replacement behaviours, goal progress tracker, feedback request + submission.</li>
+      <li>Parent UI: child's incident history + BIP summary (read-only).</li>
+      <li>HANDOFF-CYCLE9.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">After Cycle 9, CampusOS tracks the full behaviour lifecycle from informal student notes (Cycle 1) through formal discipline incidents with consequences and parent notification, to structured Behaviour Intervention Plans with measurable goals and teacher feedback. The soft link from BIPs to discipline incidents creates the audit trail; the soft link from BIPs to future counselling caseloads (Cycle 11) is forward-compatible via the nullable <code>caseload_id</code> column.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 9 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M20 SIS Core discipline tables + M27 Student Services behaviour plan tables), Function Library (BEH-001, BEH-002).</p>
+  </div>
+</div>
+
+</body>
+</html>

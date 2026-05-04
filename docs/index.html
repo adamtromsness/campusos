@@ -99,8 +99,8 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
       <p><strong>All 10 cycles (0&ndash;8) built, peer-reviewed, and approved.</strong> Platform, SIS, Classroom, Communications, HR, Scheduling, Enrollment, Payments, Profiles, Tasks, Workflows, Service Tickets. ~131 tenant tables, 13 Kafka consumers, ~188 endpoints, 65+ UI pages.</p>
     </div>
     <div class="status-card" style="background:var(--blue-bg);border-color:var(--blue);">
-      <h3 style="color:var(--blue);">Next: Wave 2 &mdash; Student Services</h3>
-      <p>Behaviour, Health, Counselling, Library, Athletics &amp; Clubs. Builds on the complete core operational platform.</p>
+      <h3 style="color:var(--blue);">Cycle 9 Next &mdash; Wave 2 Begins</h3>
+      <p><strong>Behaviour &amp; Discipline</strong> &mdash; discipline incidents, consequences with parent notification, BIPs with measurable goals, teacher feedback. 7 tables, ~26 endpoints.</p>
     </div>
     <div class="status-card" style="background:var(--amber-bg);border-color:var(--amber);">
       <h3 style="color:#9a7b1a;">Phase 2 Punch List</h3>
@@ -130,6 +130,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
     <a href="campusos-cycle6.1-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 6.1: Profile &amp; Household</h3><div class="desc">Self-service profile editing. Extends iam_person + platform_families. Household roles, demographics, guardian employment.</div><div class="meta">8 steps &middot; 9 endpoints &middot; Phase 2 polish</div></a>
     <a href="campusos-cycle7-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 7: Tasks &amp; Approval Workflows</h3><div class="desc">12 tables. Auto-task rules from Kafka events + configurable multi-step approval engine (ADR-011/012). Leave approval migrated.</div><div class="meta">10 steps &middot; ~23 endpoints &middot; Task Worker + Workflow Engine</div></a>
     <a href="campusos-cycle8-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 8: Service Tickets</h3><div class="desc">11 tables. Shared reactive ticketing for IT, facilities, HR. SLA tracking, vendor management, problem linking. Wave 1 final cycle.</div><div class="meta">10 steps &middot; ~28 endpoints &middot; 1 consumer</div></a>
+    <a href="campusos-cycle9-implementation-plan.html" class="doc-card"><span class="badge badge-active">PLANNED &mdash; NEXT</span><h3>Cycle 9: Behaviour &amp; Discipline</h3><div class="desc">7 tables. Discipline incidents, consequences with parent notification, Behaviour Intervention Plans with goals and teacher feedback. First Wave 2 cycle.</div><div class="meta">10 steps &middot; ~26 endpoints &middot; 1 consumer</div></a>
   </div>
 
   <!-- TESTING -->
@@ -165,7 +166,8 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
     <tr><td><strong>7</strong></td><td>Tasks &amp; Approval Workflows</td><td>12 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (2 blocking)</td></tr>
     <tr><td><strong>8</strong></td><td>Service Tickets</td><td>11 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (3 follow-ups)</td></tr>
     <tr><td colspan="5" style="background:#e0f2e9;color:#1a6b3c;font-weight:700;text-align:center;font-size:14px;">&#10003; Wave 1 Complete &mdash; Core Operations Platform Approved</td></tr>
-    <tr><td>9&ndash;13</td><td>Student Services (Wave 2)</td><td>~60 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
+    <tr><td><strong>9</strong></td><td>Behaviour &amp; Discipline</td><td>7 tenant</td><td class="status-active">&#9654; Next</td><td class="status-planned">&mdash;</td></tr>
+    <tr><td>10&ndash;13</td><td>Health, Counselling, Library, Athletics (Wave 2)</td><td>~53 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
     <tr><td>14&ndash;17</td><td>Operational Support (Wave 3)</td><td>~50 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
     <tr><td>18&ndash;23</td><td>Advanced &amp; Expansion (Wave 4)</td><td>~100 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
     <tr><td>24</td><td>Integration &amp; Hardening</td><td>&mdash;</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
@@ -182,7 +184,8 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
     <div class="tl-item done"><h4>Parent Testing Pause <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete</span></h4><p>Validated the parent experience. Shipped: add-child workflow, calendar RSVP, open enrollment search, multi-school billing, dashboard redesign.</p></div>
     <div class="tl-item done"><h4>Cycle 7: Tasks &amp; Approval Workflows <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>Cross-cutting infrastructure. Task Worker (ADR-011), Workflow Engine (ADR-012). Leave migrated to engine. 12 tables, ~23 endpoints, 1 consumer.</p></div>
     <div class="tl-item done"><h4>Cycle 8: Service Tickets <span class="tl-badge" style="background:#e0f2e9;color:#1a6b3c;">Complete + Reviewed &mdash; Wave 1 Final</span></h4><p>Shared reactive ticketing for IT, facilities, HR. SLA tracking, vendor management, problem root-cause linking, auto-task integration. 11 tables, ~28 endpoints, 1 consumer.</p><a href="campusos-cycle8-implementation-plan.html">View Plan</a></div>
-    <div class="tl-item active"><h4>Wave 2 (Cycles 9&ndash;13): Student Services <span class="tl-badge" style="background:var(--blue-bg);color:var(--blue);">Next</span></h4><p>Behaviour, Health, Counselling, Library, Athletics &amp; Clubs. Builds on the complete core operational platform.</p></div>
+    <div class="tl-item active"><h4>Cycle 9: Behaviour &amp; Discipline <span class="tl-badge" style="background:var(--blue-bg);color:var(--blue);">Next &mdash; Wave 2 First</span></h4><p>Discipline incidents, consequences with parent notification, BIPs with measurable goals, teacher feedback. 7 tables, ~26 endpoints, 1 consumer. First student-services module.</p><a href="campusos-cycle9-implementation-plan.html">View Plan</a></div>
+    <div class="tl-item planned"><h4>Cycles 10&ndash;13: Health, Counselling, Library, Athletics</h4><p>Health records + medication + nurse visits. Counselling caseloads + referrals + MTSS/RTI. Library. Athletics &amp; Clubs.</p></div>
     <div class="tl-item planned"><h4>Waves 3&ndash;5 (Cycles 14&ndash;24): Ops, Advanced &amp; Hardening</h4><p>Transportation, Food Service, Forms, Safety, Advanced HR/Scheduling, Procurement, Analytics, Marketplace, Integration Testing.</p></div>
   </div>
 
@@ -190,10 +193,9 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
   <div class="next-steps">
     <h3>Next Steps &mdash; Wave 2</h3>
     <ol>
-      <li><strong>Wave 1 closeout:</strong> Tag <code>wave1-complete</code>. Address Phase 2 punch list items as time permits.</li>
-      <li><strong>Cycle 9 (Behaviour):</strong> Behaviour incidents, referrals, consequences, PBIS points, behaviour plans. First student-services module.</li>
-      <li><strong>Cycle 10 (Health):</strong> Health records, medication tracking, nurse visits, immunizations, screenings.</li>
-      <li><strong>Cycles 11&ndash;13:</strong> Counselling, Library, Athletics &amp; Clubs.</li>
+      <li><strong>Build Cycle 9 (Behaviour &amp; Discipline):</strong> 10 steps, 7 tables. Discipline incidents with consequences, parent notification, BIPs with goals and teacher feedback. First Wave 2 module.</li>
+      <li><strong>Cycle 10 (Health):</strong> Health records, medication tracking, nurse visits, immunizations, screenings, IEP/504, dietary profiles.</li>
+      <li><strong>Cycles 11&ndash;13:</strong> Counselling &amp; Student Support, Library, Athletics &amp; Clubs.</li>
     </ol>
   </div>
 
