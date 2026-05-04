@@ -21,7 +21,7 @@ This document tracks the Cycle 10 build at the same level of detail as `HANDOFF-
 | 5    | Health Records NestJS Module — Records + Conditions + Imms  | **DONE** |
 | 6    | Medication NestJS Module — Meds + Schedule + Administration | **DONE** |
 | 7    | IEP/504 + Nurse + Screening + Dietary NestJS Modules        | **DONE** |
-| 8    | Health UI — Nurse Dashboard + Student Health Record         | TODO     |
+| 8    | Health UI — Nurse Dashboard + Student Health Record         | **DONE** |
 | 9    | Health UI — IEP Editor + Screening + Parent View            | TODO     |
 | 10   | Vertical Slice Integration Test                             | TODO     |
 
@@ -578,6 +578,31 @@ The Step 3 schema has multi-column `signed_chk` (IN_PROGRESS ⇔ signed_out_at N
 
 ## Step 8 — Health UI — Nurse Dashboard + Student Health Record
 
-**Status:** TODO.
+**Status:** DONE.
 
-(Steps 8–10 of Cycle 10 — UI surfaces and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
+Ships the first batch of Cycle 10 web routes — the nurse-facing surfaces for the day-of clinical workflow plus the per-student record. **No backend changes** — Step 8 sits entirely on the 36 endpoints from Steps 5–7. Build clean on first try after fixing four small TS issues.
+
+**New launchpad tile.** `apps/web/src/components/shell/apps.tsx` registers a `Health` tile with `routePrefix: '/health'` gated on `hlt-001:read`. Description copy switches on persona — guardians see "Your child's health summary"; staff see "Nurse dashboard, medications, visits, and IEPs". The icon is a new `HeartIcon` in `apps/web/src/components/shell/icons.tsx`.
+
+**4 routes:**
+
+- `/health` — three-panel nurse dashboard. Header gains "Visit log" + "Medication dashboard" Link buttons for nurse-scope users (`hlt-001:write` OR `hlt-002:read` OR `hlt-002:write`). **RosterPanel** reads `useNurseVisitRoster` (10s stale + refetch on focus) and renders one row per IN_PROGRESS visit with sign-out button per row that PATCHes `{ signOut: true }`. **MedicationPanel** reads `useMedicationDashboard` (15s stale + refetch on focus) and groups rows by `scheduledTime` newest-first; each row shows status pill + dosage + self-administered indicator with a "Open dashboard →" link to the full checklist. **CompliancePanel** (admin-only — `hlt-001:admin OR sch-001:admin`) reads `useImmunisationCompliance` and renders 3 totals (current/overdue/waived) plus a per-vaccine table with green/rose/gray tabular-nums numerals.
+- `/health/students/[studentId]` — 6-tab student health record. **OverviewTab** shows blood-type + physician fields + per-allergy rows with severity pills + amber-tinted emergency medical notes block. **ConditionsTab** lists conditions with severity pills + Active/Resolved status. **ImmunisationsTab** shows compliance % stat cards (Current/Overdue/Waived) + table sorted by status. **MedicationsTab** lists active meds with schedule + route + self-administered pills (drug + dosage + frequency). **VisitsTab** filters `useNurseVisits` client-side to this `studentId`. **DietaryTab** shows allergens + restrictions + POS alert toggle.
+- `/health/nurse-visits` — visit log with 4 filter chips (Today / In progress / Completed / All). Per-row VisitRow shows status/sentHome/parentNotified/followUp pills. **SignInModal** opens from the page header — student picker (driven by `useStudentsForReport`) + reason text. **EditVisitModal** opens per-row — treatment textarea + parent_notified / sent_home / follow_up_required checkboxes + Save vs Save+Sign Out submit pair (the latter passes `signOut: true` so the controller stamps `signed_out_at`).
+- `/health/medications` — expanded school-wide medication checklist. Per-time-slot grouping with header counts (N pending · N administered · N missed). Per-row Administer button calls `useAdministerDose` (auto-fills `doseGiven` from medication's seeded `dosage`). Per-row Mark missed button opens **MissModal** with 5-value reason dropdown (STUDENT_ABSENT / REFUSED / FORGOT / FIELD_TRIP / OTHER) + optional notes textarea + emerald Logged toast.
+
+**`apps/web/src/lib/types.ts` extended.** Appended ~300 lines of Cycle 10 health DTOs: 11 enum unions (ConditionSeverity / ImmunisationStatus / MedicationRoute / MissedReason / IepPlanType / IepPlanStatus / IepGoalStatus / IepDeliveryMethod / IepAppliesTo / VisitedPersonType / NurseVisitStatus / ScreeningResult / HealthAccessType) + 24 DTO + payload interfaces matching the Cycle 10 backend exactly: `AllergyEntryDto` / `ConditionDto` / `ImmunisationDto` / `HealthRecordDto` / `ImmunisationComplianceRowDto` / `ScheduleSlotDto` / `MedicationDto` / `AdministrationDto` / `MedicationDashboardRowDto` / `NurseVisitDto` / `CreateNurseVisitPayload` / `UpdateNurseVisitPayload` / `AdministerDosePayload` / `LogMissedDosePayload` / `IepGoalProgressDto` / `IepGoalDto` / `IepServiceDto` / `IepAccommodationDto` / `IepPlanDto` / `ScreeningDto` / `DietaryAllergenDto` / `DietaryProfileDto` / `HealthAccessLogRowDto` / `ListNurseVisitsArgs`.
+
+**`apps/web/src/lib/health-format.ts` (new).** Label maps + pill class maps + formatting helpers. `SEVERITIES` / `IMMUNISATION_STATUSES` / `MEDICATION_ROUTES` / `MISSED_REASONS` / `NURSE_VISIT_STATUSES` / `IEP_PLAN_STATUSES` / `IEP_GOAL_STATUSES` / `SCREENING_RESULTS` const arrays + matching label/pill records. `DASHBOARD_STATUS_LABELS` + `DASHBOARD_STATUS_PILL` (rose PENDING / sky ADMINISTERED / amber MISSED). `formatTime("08:00:00") → "8:00 AM"`, `formatDate("2026-05-04") → "May 4, 2026"`, `formatDateTime`, `studentDisplayName(first, last, fallbackId)`.
+
+**`apps/web/src/hooks/use-health.ts` (new).** 16 React Query hooks: `useHealthRecord(studentId)` / `useConditions(studentId)` / `useImmunisations(studentId)` (30s stale); `useImmunisationCompliance` (60s stale + refetch on focus); `useStudentMedications(studentId)`; `useMedicationAdministrations(medicationId)` (15s stale); `useMedicationDashboard` (15s stale + refetch on focus); `useAdministerDose(medicationId)` + `useLogMissedDose(medicationId)` (both invalidate `['health', 'medication-dashboard']` + per-medication administration list); `useNurseVisits(args)` + `useNurseVisitRoster` (10s stale + refetch on focus); `useCreateNurseVisit` + `useUpdateNurseVisit(visitId)` (both invalidate `['health', 'nurse-visits']`); `useIepPlan(studentId)` + `useDietaryProfile(studentId)`; admin-only `useHealthAccessLog(args)`. Every read hook accepts an `enabled` boolean so persona gating doesn't fire 403 calls.
+
+**Build sizes** (web): `/health` 5.73 kB / 115 kB First Load JS; `/health/medications` 5.6 kB / 115 kB; `/health/nurse-visits` 5.2 kB / 117 kB; `/health/students/[studentId]` 5.97 kB / 115 kB. All routes are static prerender except the dynamic `[studentId]` route.
+
+**Iteration issues caught:** unescaped `'` in "Today's medications" (replaced with `&apos;`); unused `toast` import in MedicationPanel; unused `MISSED_REASON_LABELS` import in StudentHealthPage; unused `ScreeningDto` re-export in use-health.ts. All 4 issues caught by `next build`'s ESLint + tsc strict pass; fixed in one round.
+
+**Live verification on `tenant_demo` 2026-05-04** (8 read scenarios): principal `GET /health/nurse-visits/roster` 200 → 0 rows (no live visits at boot); principal `GET /health/medication-dashboard` 200 → 1 row (Maya / Albuterol Inhaler / 08:00 / status=MISSED — the seeded Step 4 missed administration); principal `GET /health/immunisation-compliance` 200 → 3 vaccines (Influenza overdue=1 / DTaP current=1 / MMR current=1); principal `GET /health/students/<maya>` 200 returns full record (blood=A+ / 2 allergies / Dr. Sarah Lee); parent (David Chen) `GET /health/students/<maya>` 200 returns same shape (parent visibility for own children); teacher `GET /health/students/<maya>` 200 returns own-class read; **student `GET /health/medication-dashboard` 403** (gate); **student `GET /health/students/<maya>` 403** (gate). All gate denials return cleanly.
+
+**Out of scope this step (deferred to Step 9):** IEP plan editor (the `/health/students/[studentId]` Medications tab references the IEP plan but the editor for plan/goals/services/accommodations belongs to Step 9 alongside Screening). Parent-facing `/children/[id]/health` route (Step 9). Health access log viewer (Step 9 admin tab).
+
+(Steps 9 + 10 of Cycle 10 — IEP/Screening/Parent UI + CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)

@@ -13,6 +13,7 @@ import {
   ChildrenIcon,
   ClassesIcon,
   GavelIcon,
+  HeartIcon,
   LifebuoyIcon,
   MegaphoneIcon,
   PeopleIcon,
@@ -35,7 +36,8 @@ export type AppKey =
   | 'apply'
   | 'billing'
   | 'helpdesk'
-  | 'behaviour';
+  | 'behaviour'
+  | 'health';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -238,6 +240,19 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       routePrefix: '/behaviour',
       icon: ShieldExclamationIcon,
       badgeKey: 'behaviour',
+    });
+  }
+
+  if (hasAnyPermission(user, ['hlt-001:read'])) {
+    apps.push({
+      key: 'health',
+      label: 'Health',
+      description: isGuardian
+        ? 'Your child’s health summary'
+        : 'Nurse dashboard, medications, visits, and IEPs',
+      href: '/health',
+      routePrefix: '/health',
+      icon: HeartIcon,
     });
   }
 

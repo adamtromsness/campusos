@@ -2757,3 +2757,329 @@ export interface ListBehaviorPlansArgs {
   status?: BehaviorPlanStatus;
   planType?: BehaviorPlanType;
 }
+
+// ── Cycle 10 Health Records DTOs ──────────────────────────────
+
+export type ConditionSeverity = 'MILD' | 'MODERATE' | 'SEVERE';
+export type ImmunisationStatus = 'CURRENT' | 'OVERDUE' | 'WAIVED';
+export type MedicationRoute = 'ORAL' | 'TOPICAL' | 'INHALER' | 'INJECTION' | 'OTHER';
+export type MissedReason =
+  | 'STUDENT_ABSENT'
+  | 'STUDENT_REFUSED'
+  | 'MEDICATION_UNAVAILABLE'
+  | 'PARENT_CANCELLED'
+  | 'OTHER';
+export type IepPlanType = 'IEP' | '504';
+export type IepPlanStatus = 'DRAFT' | 'ACTIVE' | 'REVIEW' | 'EXPIRED';
+export type IepGoalStatus = 'ACTIVE' | 'MET' | 'NOT_MET' | 'DISCONTINUED';
+export type IepDeliveryMethod = 'PULL_OUT' | 'PUSH_IN' | 'CONSULT';
+export type IepAppliesTo = 'ALL_ASSESSMENTS' | 'ALL_ASSIGNMENTS' | 'SPECIFIC';
+export type VisitedPersonType = 'STUDENT' | 'STAFF';
+export type NurseVisitStatus = 'IN_PROGRESS' | 'COMPLETED';
+export type ScreeningResult = 'PASS' | 'REFER' | 'RESCREEN' | 'ABSENT';
+export type HealthAccessType =
+  | 'VIEW_RECORD'
+  | 'VIEW_CONDITIONS'
+  | 'VIEW_IMMUNISATIONS'
+  | 'VIEW_MEDICATIONS'
+  | 'VIEW_VISITS'
+  | 'VIEW_IEP'
+  | 'VIEW_SCREENING'
+  | 'VIEW_DIETARY'
+  | 'EXPORT';
+
+export interface AllergyEntryDto {
+  allergen: string;
+  severity: ConditionSeverity;
+  reaction?: string | null;
+  notes?: string | null;
+}
+
+export interface ConditionDto {
+  id: string;
+  healthRecordId: string;
+  conditionName: string;
+  diagnosisDate: string | null;
+  isActive: boolean;
+  severity: ConditionSeverity;
+  managementPlan: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImmunisationDto {
+  id: string;
+  healthRecordId: string;
+  vaccineName: string;
+  administeredDate: string | null;
+  dueDate: string | null;
+  administeredBy: string | null;
+  status: ImmunisationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HealthRecordDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  bloodType: string | null;
+  allergies: AllergyEntryDto[];
+  emergencyMedicalNotes: string | null;
+  physicianName: string | null;
+  physicianPhone: string | null;
+  conditions: ConditionDto[];
+  immunisations: ImmunisationDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImmunisationComplianceRowDto {
+  vaccineName: string;
+  totalRows: number;
+  currentCount: number;
+  overdueCount: number;
+  waivedCount: number;
+}
+
+export interface ScheduleSlotDto {
+  id: string;
+  medicationId: string;
+  scheduledTime: string;
+  dayOfWeek: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MedicationDto {
+  id: string;
+  healthRecordId: string;
+  medicationName: string;
+  dosage: string | null;
+  frequency: string | null;
+  route: MedicationRoute;
+  prescribingPhysician: string | null;
+  isSelfAdministered: boolean;
+  isActive: boolean;
+  schedule: ScheduleSlotDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdministrationDto {
+  id: string;
+  medicationId: string;
+  scheduleEntryId: string | null;
+  administeredById: string | null;
+  administeredByName: string | null;
+  administeredAt: string | null;
+  doseGiven: string | null;
+  notes: string | null;
+  parentNotified: boolean;
+  wasMissed: boolean;
+  missedReason: MissedReason | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MedicationDashboardRowDto {
+  scheduleEntryId: string;
+  medicationId: string;
+  medicationName: string;
+  dosage: string | null;
+  route: MedicationRoute;
+  isSelfAdministered: boolean;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  scheduledTime: string;
+  status: 'ADMINISTERED' | 'MISSED' | 'PENDING';
+  administrationId: string | null;
+  administeredAt: string | null;
+  missedReason: MissedReason | null;
+}
+
+export interface NurseVisitDto {
+  id: string;
+  schoolId: string;
+  visitedPersonId: string;
+  visitedPersonType: VisitedPersonType;
+  visitedPersonName: string | null;
+  nurseId: string | null;
+  nurseName: string | null;
+  visitDate: string;
+  status: NurseVisitStatus;
+  signedInAt: string;
+  signedOutAt: string | null;
+  reason: string | null;
+  treatmentGiven: string | null;
+  parentNotified: boolean;
+  sentHome: boolean;
+  sentHomeAt: string | null;
+  followUpRequired: boolean;
+  followUpNotes: string | null;
+  followUpDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateNurseVisitPayload {
+  visitedPersonId: string;
+  visitedPersonType?: VisitedPersonType;
+  reason?: string | null;
+}
+
+export interface UpdateNurseVisitPayload {
+  reason?: string | null;
+  treatmentGiven?: string | null;
+  parentNotified?: boolean;
+  sentHome?: boolean;
+  followUpRequired?: boolean;
+  followUpNotes?: string | null;
+  followUpDate?: string | null;
+  signOut?: boolean;
+}
+
+export interface AdministerDosePayload {
+  scheduleEntryId?: string | null;
+  doseGiven?: string | null;
+  notes?: string | null;
+  parentNotified?: boolean;
+}
+
+export interface LogMissedDosePayload {
+  scheduleEntryId?: string | null;
+  missedReason: MissedReason;
+  notes?: string | null;
+}
+
+export interface IepGoalProgressDto {
+  id: string;
+  goalId: string;
+  recordedById: string | null;
+  recordedByName: string | null;
+  progressValue: string | null;
+  observationNotes: string | null;
+  recordedAt: string;
+}
+
+export interface IepGoalDto {
+  id: string;
+  iepPlanId: string;
+  goalText: string;
+  measurementCriteria: string | null;
+  baseline: string | null;
+  targetValue: string | null;
+  currentValue: string | null;
+  goalArea: string | null;
+  status: IepGoalStatus;
+  progress: IepGoalProgressDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IepServiceDto {
+  id: string;
+  iepPlanId: string;
+  serviceType: string;
+  providerName: string | null;
+  frequency: string | null;
+  minutesPerSession: number | null;
+  deliveryMethod: IepDeliveryMethod;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IepAccommodationDto {
+  id: string;
+  iepPlanId: string;
+  accommodationType: string;
+  description: string | null;
+  appliesTo: IepAppliesTo;
+  specificAssignmentTypes: string[] | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IepPlanDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  planType: IepPlanType;
+  status: IepPlanStatus;
+  startDate: string | null;
+  reviewDate: string | null;
+  endDate: string | null;
+  caseManagerId: string | null;
+  caseManagerName: string | null;
+  goals: IepGoalDto[];
+  services: IepServiceDto[];
+  accommodations: IepAccommodationDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScreeningDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentName: string | null;
+  screeningType: string;
+  screeningDate: string;
+  screenedById: string | null;
+  screenedByName: string | null;
+  result: ScreeningResult | null;
+  resultNotes: string | null;
+  followUpRequired: boolean;
+  followUpCompleted: boolean;
+  referralNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DietaryAllergenDto {
+  allergen: string;
+  severity: ConditionSeverity;
+  reaction?: string | null;
+}
+
+export interface DietaryProfileDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentName: string | null;
+  dietaryRestrictions: string[];
+  allergens: DietaryAllergenDto[];
+  specialMealInstructions: string | null;
+  posAllergenAlert: boolean;
+  updatedById: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HealthAccessLogRowDto {
+  id: string;
+  schoolId: string;
+  accessedById: string;
+  accessedByName: string | null;
+  accessedByEmail: string | null;
+  studentId: string;
+  studentName: string | null;
+  accessType: HealthAccessType;
+  ipAddress: string | null;
+  accessedAt: string;
+}
+
+export interface ListNurseVisitsArgs {
+  status?: NurseVisitStatus;
+  fromDate?: string;
+  toDate?: string;
+  limit?: number;
+}
