@@ -254,6 +254,7 @@ export class ProblemService {
       );
     }
     if (Object.keys(input).length === 0) return this.getById(id, actor);
+
     const sets: string[] = [];
     const params: any[] = [];
     let idx = 1;
@@ -290,11 +291,71 @@ export class ProblemService {
     sets.push('updated_at = now()');
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      const lock = (await tx.$queryRawUnsafe(
-        'SELECT id::text AS id FROM tkt_problems WHERE id = $1::uuid FOR UPDATE',
+      // REVIEW-CYCLE8 follow-up 3: lock the row and read the existing
+      // root_cause + assigned_to_id + vendor_id atomically so we can
+      // validate the post-patch shape against the schema's multi-column
+      // resolved_chk and assigned_or_vendor_chk before the UPDATE fires.
+      // Surfaces clean 400s instead of raw 23514 CHECK violations.
+      const lockRows = (await tx.$queryRawUnsafe(
+        'SELECT id::text AS id, root_cause, assigned_to_id::text AS assigned_to_id, vendor_id::text AS vendor_id ' +
+          'FROM tkt_problems WHERE id = $1::uuid FOR UPDATE',
         id,
-      )) as Array<{ id: string }>;
-      if (lock.length === 0) throw new NotFoundException('Problem ' + id);
+      )) as Array<{
+        id: string;
+        root_cause: string | null;
+        assigned_to_id: string | null;
+        vendor_id: string | null;
+      }>;
+      if (lockRows.length === 0) throw new NotFoundException('Problem ' + id);
+      const existing = lockRows[0]!;
+
+      // KNOWN_ERROR requires root_cause. Compute the effective root_cause
+      // after the patch applies — explicit `null` clears, an undefined
+      // input keeps the existing value, anything else takes the input.
+      if (input.status === 'KNOWN_ERROR') {
+        const effectiveRoot = input.rootCause === undefined ? existing.root_cause : input.rootCause;
+        if (effectiveRoot === null || effectiveRoot === '') {
+          throw new BadRequestException(
+            'KNOWN_ERROR requires a root_cause — provide rootCause in the patch payload, or set it on a separate PATCH first',
+          );
+        }
+      }
+
+      // Mutex check after merging the patch with existing fields. Mirrors
+      // the schema-level tkt_problems_assigned_or_vendor_chk so we can
+      // reject the half-state with a friendly 400 instead of relying on
+      // the DB CHECK 23514.
+      const effectiveAssignee =
+        input.assignedToId === undefined ? existing.assigned_to_id : input.assignedToId;
+      const effectiveVendor = input.vendorId === undefined ? existing.vendor_id : input.vendorId;
+      if (effectiveAssignee && effectiveVendor) {
+        throw new BadRequestException(
+          'A problem cannot be assigned to both an employee and a vendor — clear one before setting the other',
+        );
+      }
+
+      // Validate FK targets at the service layer (mirrors create()).
+      // The DB FK would surface a 23503 otherwise; this gives a friendlier
+      // shape and saves the CHECK round-trip.
+      if (input.assignedToId) {
+        const e = (await tx.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM hr_employees WHERE id = $1::uuid LIMIT 1',
+          input.assignedToId,
+        )) as Array<{ ok: number }>;
+        if (e.length === 0) {
+          throw new BadRequestException('assignedToId does not match an hr_employees row');
+        }
+      }
+      if (input.vendorId) {
+        const v = (await tx.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM tkt_vendors WHERE id = $1::uuid LIMIT 1',
+          input.vendorId,
+        )) as Array<{ ok: number }>;
+        if (v.length === 0) {
+          throw new BadRequestException('vendorId does not match a tkt_vendors row');
+        }
+      }
+
       try {
         await tx.$executeRawUnsafe(
           'UPDATE tkt_problems SET ' + sets.join(', ') + ' WHERE id = $' + idx + '::uuid',
@@ -479,6 +540,11 @@ export class ProblemService {
           status: 'RESOLVED',
           assigneeId: t.assignee_id,
           requesterId: t.requester_id,
+          // resolvedByAccountId is the actor who resolved the parent
+          // problem. Used by the Cycle 8 notification consumer to skip
+          // the "your ticket has been resolved" notification when the
+          // resolver IS the requester. REVIEW-CYCLE8 follow-up 2.
+          resolvedByAccountId: actor.accountId,
           resolvedAt: new Date().toISOString(),
           resolvedViaProblemId: id,
           sourceRefId: t.id,

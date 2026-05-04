@@ -78,6 +78,16 @@ interface ResolvedPayload extends TicketEventBase {
   status?: string;
   assigneeId?: string | null;
   requesterId?: string;
+  /**
+   * platform_users.id of the actor who resolved the ticket. Added in
+   * REVIEW-CYCLE8 follow-up 2 so the consumer can correctly suppress the
+   * "your ticket has been resolved" notification when the resolver is
+   * the requester (admin resolving their own self-submitted ticket).
+   * Compared against `ctx.requesterId` (which is also a platform_users.id)
+   * — the previous comparison against `assigneeId` (an hr_employees.id)
+   * never matched in practice.
+   */
+  resolvedByAccountId?: string | null;
   resolvedAt?: string | null;
   resolvedViaProblemId?: string | null;
 }
@@ -260,8 +270,17 @@ export class TicketNotificationConsumer implements OnModuleInit {
     // problem is fixed and (if the resolution comment landed) what was
     // done about it. Skip when the requester is the resolver (an admin
     // resolving their own self-submitted ticket — rare but possible).
-    var resolver = (event.payload.assigneeId as string | undefined | null) ?? null;
-    if (ctx.requesterId === resolver) return;
+    //
+    // REVIEW-CYCLE8 follow-up 2: compare against `resolvedByAccountId`
+    // (a platform_users.id captured by the producer at resolve time)
+    // rather than `assigneeId` (an hr_employees.id). The prior
+    // comparison was a category-mismatch and never matched, so the
+    // self-notification path was effectively dead. Falls back to a
+    // never-match string when the field is absent so a future emit
+    // without the field doesn't accidentally suppress every requester
+    // notification.
+    var resolver = (event.payload.resolvedByAccountId as string | undefined | null) ?? null;
+    if (resolver !== null && ctx.requesterId === resolver) return;
     var payload = this.buildPayload(ctx, event.payload, 'resolved');
     payload['resolved_at'] = event.payload.resolvedAt ?? null;
     payload['resolved_via_problem_id'] = event.payload.resolvedViaProblemId ?? null;

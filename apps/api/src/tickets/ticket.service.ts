@@ -286,6 +286,22 @@ export class TicketService {
           );
         }
       }
+      // REVIEW-CYCLE8 follow-up 4: locationId is a soft cross-module ref
+      // to sch_rooms (intra-tenant but kept soft per ADR-001/020 so the
+      // ticket survives a Cycle 5 room being retired). Validate at the
+      // application layer that the supplied id resolves to a row in this
+      // tenant — without this check a typo or cross-tenant guess would
+      // silently land on the ticket as an orphan UUID and only surface
+      // when the helpdesk UI tried to render the location.
+      if (input.locationId) {
+        const room = (await client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM sch_rooms WHERE id = $1::uuid LIMIT 1',
+          input.locationId,
+        )) as Array<{ ok: number }>;
+        if (room.length === 0) {
+          throw new BadRequestException('locationId does not match a room in this school');
+        }
+      }
     });
 
     // Auto-assignment chain.
@@ -566,6 +582,14 @@ export class TicketService {
         status: dto.status,
         assigneeId: dto.assigneeId,
         requesterId: dto.requesterId,
+        // resolvedByAccountId is the platform_users.id of the actor who
+        // resolved the ticket. Used by the Cycle 8 notification consumer
+        // to suppress the "your ticket has been resolved" notification
+        // when the resolver IS the requester (admin resolving their own
+        // self-submitted ticket). REVIEW-CYCLE8 follow-up 2 — without
+        // this, the consumer was comparing requesterId (platform_users)
+        // to assigneeId (hr_employees) which never matches.
+        resolvedByAccountId: actor.accountId,
         resolvedAt: dto.resolvedAt,
       },
       tenantId: tenant.schoolId,
