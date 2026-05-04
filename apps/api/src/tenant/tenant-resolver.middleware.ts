@@ -116,10 +116,17 @@ export class TenantResolverMiddleware implements NestMiddleware {
 
   /**
    * Paths that don't require tenant resolution.
+   *
+   * `/api/v1/health` is matched exactly because Cycle 10 introduces
+   * tenant-scoped `/api/v1/health/students/:studentId` (M23 health
+   * record) routes that share the prefix but DO require a tenant.
+   * Everything else still uses startsWith so /auth/callback?code=...
+   * and /api/docs/* keep working without a tenant context.
    */
   private isExemptPath(path: string): boolean {
-    var exemptPaths = [
-      '/api/v1/health',
+    if (path === '/api/v1/health') return true;
+
+    var exemptPrefixes = [
       '/api/v1/auth/login',
       '/api/v1/auth/callback',
       '/api/docs',
@@ -130,8 +137,8 @@ export class TenantResolverMiddleware implements NestMiddleware {
       '/api/v1/enrollment/search',
     ];
 
-    for (var i = 0; i < exemptPaths.length; i++) {
-      if (path.startsWith(exemptPaths[i] as string)) {
+    for (var i = 0; i < exemptPrefixes.length; i++) {
+      if (path.startsWith(exemptPrefixes[i] as string)) {
         return true;
       }
     }

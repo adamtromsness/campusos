@@ -1,6 +1,6 @@
 # Cycle 10 Handoff — Health & Wellness
 
-**Status:** Cycle 10 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 of 10 done. All 15 hlth*\* tables in place + the ADR-030 read model + Maya's full demo data + HLT-001..005 IAM grants. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth*\*`tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated`health_record:read`permission AND writes a row to`hlth_health_access_log` before the response body leaves the server.
+**Status:** Cycle 10 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 of 10 done. All 15 hlth*\* tables in place + the ADR-030 read model + Maya's full demo data + HLT-001..005 IAM grants + the Health Records / Conditions / Immunisations / HIPAA Access Log NestJS module live with row-scope visibility, PII-stripping per persona, and audit-write-before-respond on every read. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth*\*`tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated`health_record:read`permission AND writes a row to`hlth_health_access_log` before the response body leaves the server.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle10-implementation-plan.html`
@@ -18,7 +18,7 @@ This document tracks the Cycle 10 build at the same level of detail as `HANDOFF-
 | 2    | Medication Schema — Meds, Schedule, Administration          | **DONE** |
 | 3    | IEP/504 + Nurse + Screening + Dietary Schema                | **DONE** |
 | 4    | Seed Data — Maya's Health Record + IEP + Sample Visits      | **DONE** |
-| 5    | Health Records NestJS Module — Records + Conditions + Imms  | TODO     |
+| 5    | Health Records NestJS Module — Records + Conditions + Imms  | **DONE** |
 | 6    | Medication NestJS Module — Meds + Schedule + Administration | TODO     |
 | 7    | IEP/504 + Nurse + Screening + Dietary NestJS Modules        | TODO     |
 | 8    | Health UI — Nurse Dashboard + Student Health Record         | TODO     |
@@ -309,6 +309,88 @@ I. **2 `sis_student_active_accommodations` rows** — direct seed write demonstr
 
 ## Step 5 — Health Records NestJS Module — Records + Conditions + Imms
 
+**Status:** DONE. New module at `apps/api/src/health/` with 4 services + 4 controllers + DTO module + `HealthRecordsModule` wired into `AppModule.imports` between `BehaviorPlansModule` and `KafkaModule`. **13 health endpoints** + 1 access log endpoint + the existing system `/health` check (which lives in the original `HealthModule` and stays untouched — Step 5 names the new module `HealthRecordsModule` to avoid the collision). Verified live on `tenant_demo` 2026-05-04.
+
+**Module structure** (all files under `apps/api/src/health/`):
+
+| File                              | Purpose                                                                                                                           |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `health-records.module.ts`        | Wires services + controllers; exports `HealthAccessLogService` + `HealthRecordService` for the Step 6 + 7 modules to reuse        |
+| `dto/health.dto.ts`               | All write payloads + response DTOs + `HealthAccessType` 9-value enum + `RecordAccessInput` interface for cross-module call        |
+| `health-access-log.service.ts`    | The canonical `recordAccess(actor, studentId, accessType)` writer — every Step 5 / 6 / 7 read endpoint calls this                 |
+| `health-access-log.controller.ts` | `GET /health/access-log` admin-only audit list                                                                                    |
+| `health-record.service.ts`        | Row-scope visibility (admin / nurse / teacher / parent / student) + PII strip per persona; `hasNurseScope` helper for write gates |
+| `health-record.controller.ts`     | 4 endpoints — get full record, create, patch, immunisation compliance dashboard                                                   |
+| `condition.service.ts`            | List / create / patch / delete conditions; reuses HealthRecordService row-scope + field-strip helpers                             |
+| `condition.controller.ts`         | 4 endpoints                                                                                                                       |
+| `immunisation.service.ts`         | List / create / patch immunisations; service-layer 403 for teachers (immunisations are nurse / parent / admin only)               |
+| `immunisation.controller.ts`      | 3 endpoints                                                                                                                       |
+
+**Endpoint catalogue (14 total — 13 health + 1 access log):**
+
+```
+GET    /health/students/:studentId                       hlt-001:read   full record (audit: VIEW_RECORD)
+POST   /health/students/:studentId                       hlt-001:write  create record; nurse/admin only
+PATCH  /health/students/:studentId                       hlt-001:write  update record; nurse/admin only
+GET    /health/immunisation-compliance                   hlt-001:admin  school-wide vaccine OVERDUE rollup
+GET    /health/students/:studentId/conditions            hlt-001:read   conditions only (audit: VIEW_CONDITIONS)
+POST   /health/students/:studentId/conditions            hlt-001:write  add condition; nurse/admin only
+PATCH  /health/conditions/:id                            hlt-001:write  update condition; nurse/admin only
+DELETE /health/conditions/:id                            hlt-001:write  hard delete (admin remediation; canonical resolve is is_active=false)
+GET    /health/students/:studentId/immunisations         hlt-001:read   immunisations only (audit: VIEW_IMMUNISATIONS); teacher service-layer 403
+POST   /health/students/:studentId/immunisations         hlt-001:write  add immunisation; nurse/admin only
+PATCH  /health/immunisations/:id                         hlt-001:write  update immunisation; nurse/admin only
+GET    /health/access-log                                hlt-001:admin  paginated HIPAA audit (admin-only)
+```
+
+**Visibility model — keystone of the module:**
+
+- **Admin / nurse** = `actor.isSchoolAdmin OR holds hlt-001:write`. The `hasNurseScope(actor)` helper is the canonical check; admins inherit `hlt-001:*` via the `everyFunction: ['read','write','admin']` grant. Sees every student in tenant + every field on the record.
+- **Teacher** (STAFF persona without `hlt-001:write`): row-scoped to students enrolled in their classes via `sis_class_teachers + ACTIVE sis_enrollments`. Receives a STRIPPED DTO — `bloodType` kept, `allergies` keeps allergen + severity but strips `reaction` + `notes`, `emergency_medical_notes` kept (teachers need evacuation awareness), `physician` contact stripped (classroom-irrelevant), conditions keep name + severity but strip `management_plan`, `immunisations[]` returns empty array (out of classroom scope). The dedicated `GET /health/students/:studentId/immunisations` endpoint additionally 403s teachers at the service layer.
+- **Parent (GUARDIAN)**: row-scoped to own children via `sis_student_guardians` keyed on `actor.personId`. Receives a STRIPPED DTO — full allergy details + immunisations + physician contact (parent already has it) + conditions name + severity, but `management_plan` is stripped (staff treatment guidance) and `emergency_medical_notes` is stripped (procedural staff content).
+- **Student**: 403 at the gate (`HLT-001:read` is not granted to students). Defence in depth at the service layer would also throw 404.
+
+**HIPAA audit discipline** — every Step 5 read endpoint calls `HealthAccessLogService.recordAccess(actor, studentId, accessType)` AFTER the row-scope check passes and BEFORE the response body leaves the server. The `recordAccess` method writes one row to `hlth_health_access_log` (the IMMUTABLE per ADR-010 schema from Step 1 — service-side discipline; no UPDATE / DELETE method exists on the service). The 9-value `access_type` enum covers every per-domain read: `VIEW_RECORD` / `VIEW_CONDITIONS` / `VIEW_IMMUNISATIONS` from Step 5; `VIEW_MEDICATIONS` from Step 6; `VIEW_VISITS` / `VIEW_IEP` / `VIEW_SCREENING` / `VIEW_DIETARY` from Step 7; `EXPORT` is reserved for future bulk export endpoints. The Step 6 + 7 services will import `HealthAccessLogService` (exported from `HealthRecordsModule`) and call the same canonical helper.
+
+**Tenant resolver fix (REVIEW-CYCLE6 carry-over):** `apps/api/src/tenant/tenant-resolver.middleware.ts::isExemptPath` previously matched `/api/v1/health` with `startsWith`, which silently swallowed every new tenant-scoped `/api/v1/health/students/:studentId` route in Cycle 10 because the prefix matched. The exempt match was tightened to exact-match for `/api/v1/health` (the system health check stays public; everything under `/health/...` now requires a tenant). Other exempt prefixes (`/auth/login`, `/auth/callback`, `/api/docs`, `/guard-test/public`, `/enrollment/search`) continue to use `startsWith` since they have no tenant-scoped sub-paths. Without this fix every Step 5 endpoint returned a 500 with `No tenant context — request was not resolved to a tenant`.
+
+**Smoke results (live on `tenant_demo` 2026-05-04, all 18 scenarios green):**
+
+- **S1 admin GET full record:** A+ blood type, 2 allergies with reaction "Anaphylaxis", emergency_medical_notes populated, Dr. Sarah Lee, 2 conditions with management_plan, 3 immunisations.
+- **S2 nurse (Hayes) GET:** identical shape (full management_plan + 3 imms).
+- **S3 teacher GET (STAFF non-manager):** blood A+ ✓, 2 allergies but reaction=null ✓, emergency notes kept ✓ (evac awareness), physName=null ✓, 2 conditions but management_plan=null ✓, immunisations=0 ✓ (classroom-irrelevant).
+- **S4 parent GET own child:** full allergy reaction "Anaphylaxis" ✓, emergency notes stripped ✓ (staff procedural), physician kept ✓, 3 immunisations ✓, management_plan stripped ✓.
+- **S5 student GET → 403** at the gate.
+- **S6 parent GET unrelated student (Ethan) → 404** row-scope.
+- **S7 immunisation compliance dashboard:** Influenza (1 OVERDUE), DTaP (1 CURRENT), MMR (1 CURRENT) sorted by overdue_count DESC.
+- **S8 access log:** 4 VIEW_RECORD audit rows (one per persona who successfully read S1–S4) all stamped with the correct `accessedByName`, `studentName`, and `accessedAt`.
+- **W1 teacher POST condition → 403** (write requires nurse scope, service-layer enforced).
+- **W2 admin POST duplicate health record → 400** with friendly UNIQUE catch ("Student … already has a health record. Use PATCH to update.").
+- **W3 admin creates new record for Aiden Johnson → 201** with O+ blood type + Latex MODERATE allergy.
+- **W4 admin POST condition with management_plan → 201** Eczema MILD with management_plan visible.
+- **W5 admin POST severity=BOGUS → 400** from class-validator (`severity must be one of the following values: MILD, MODERATE, SEVERE`).
+- **W6 parent list /conditions** sees Maya's 3 conditions (the 2 seeded + 1 added during smoke) with `managementPlan=null` for all.
+- **W7 teacher GET /immunisations → 403** at the service layer (immunisations are nurse / parent / admin only).
+- **W8 parent GET /immunisations → 200** with 3 rows + VIEW_IMMUNISATIONS audit row.
+- **W9 access log filter:** `{VIEW_RECORD: 4, VIEW_CONDITIONS: 1, VIEW_IMMUNISATIONS: 1}` — every successful read produced exactly one audit row.
+- **W10 teacher GET /access-log → 403** (admin-only).
+
+**Iteration issues caught + fixed during smoke:**
+
+1. **Tenant exempt-path collision** — described above. Fixed in `tenant-resolver.middleware.ts`.
+2. **TS6133 unused imports** — `IsNumber` in `dto/health.dto.ts`, `ForbiddenException` and `StudentJoin` in `condition.service.ts`. Removed.
+3. **TS2345 `string | null` mismatch** — `actor.personType` is typed `string | null` in `ResolvedActor` but I'd typed the `personType` parameter as `string`. The `conditionRowToDto` helper turned out to not actually use `personType` (the field strip is purely on `isManager`), so I dropped the parameter entirely from the helper signature. The `recordRowToDto` does use `personType` for its STAFF / GUARDIAN branch and was updated to accept `string | null`.
+4. **Module name collision with system /health** — the existing `apps/api/src/health/health.controller.ts` is the `@Public()` `GET /health` system health check and uses `HealthModule`. Renamed the new Cycle 10 module to `HealthRecordsModule` in a separate `health-records.module.ts` file so both coexist in the same directory.
+
+**Out of scope this step (deferred to Step 6 + 7):**
+
+- The Step 6 `MedicationService` + `ScheduleService` + `AdministrationService` will reuse `HealthAccessLogService.recordAccess` for `VIEW_MEDICATIONS` and add the `hlth.medication.administered` Kafka emit for parent notification.
+- The Step 7 `IepPlanService` + `NurseVisitService` + `ScreeningService` + `DietaryProfileService` will reuse the same audit helper for `VIEW_IEP` / `VIEW_VISITS` / `VIEW_SCREENING` / `VIEW_DIETARY` and add the `IepAccommodationConsumer` Kafka consumer (the keystone ADR-030 read-model bridge that upserts `sis_student_active_accommodations`).
+
+---
+
+## Step 6 — Medication NestJS Module — Meds + Schedule + Administration
+
 **Status:** TODO.
 
-(Steps 5–10 of Cycle 10 — NestJS modules, IepAccommodationConsumer, UI, and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
+(Steps 6–10 of Cycle 10 — Medication module, IEP / Nurse / Screening / Dietary modules + IepAccommodationConsumer Kafka consumer (ADR-030 read-model bridge), UI, and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
