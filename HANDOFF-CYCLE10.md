@@ -1,6 +1,6 @@
 # Cycle 10 Handoff — Health & Wellness
 
-**Status:** Cycle 10 **IN PROGRESS** — Steps 1 + 2 of 10 done. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth_*` tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated `health_record:read` permission AND writes a row to `hlth_health_access_log` before the response body leaves the server.
+**Status:** Cycle 10 **IN PROGRESS** — Steps 1 + 2 + 3 of 10 done. All 15 hlth*\* tables now in place. Schema phase complete. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth*\*`tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated`health_record:read`permission AND writes a row to`hlth_health_access_log` before the response body leaves the server.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle10-implementation-plan.html`
@@ -16,7 +16,7 @@ This document tracks the Cycle 10 build at the same level of detail as `HANDOFF-
 | ---- | ----------------------------------------------------------- | -------- |
 | 1    | Health Records Schema — Records, Conditions, Immunisations  | **DONE** |
 | 2    | Medication Schema — Meds, Schedule, Administration          | **DONE** |
-| 3    | IEP/504 + Nurse + Screening + Dietary Schema                | TODO     |
+| 3    | IEP/504 + Nurse + Screening + Dietary Schema                | **DONE** |
 | 4    | Seed Data — Maya's Health Record + IEP + Sample Visits      | TODO     |
 | 5    | Health Records NestJS Module — Records + Conditions + Imms  | TODO     |
 | 6    | Medication NestJS Module — Meds + Schedule + Administration | TODO     |
@@ -156,6 +156,103 @@ All 4 FK delete actions confirmed via `pg_constraint.confdeltype` catalog readou
 
 ## Step 3 — IEP/504 + Nurse + Screening + Dietary Schema
 
+**Status:** DONE. Migration applied cleanly to `tenant_demo` and `tenant_test` on 2026-05-04. Idempotent re-provision verified (zero new applies on the second run; tenant base table count stable at 154). Splitter-clean — Python audit script confirmed zero `;` outside legitimate statement terminators on the first attempt. Ninth migration in a row to clear the splitter trap (Cycles 4–10 unbroken). The largest schema migration of Cycle 10 — 8 tables in one file completing the full M23 Health surface.
+
+**Migration:** `packages/database/prisma/tenant/migrations/034_hlth_iep_nurse_screening_dietary.sql`.
+
+**Tables (8):**
+
+1. **`hlth_iep_plans`** — One IEP or 504 plan per student. `school_id`, `student_id` NOT NULL FK to `sis_students(id)` ON DELETE CASCADE, `plan_type TEXT NOT NULL` 2-value CHECK `IEP / 504` (mutually exclusive in practice — a student gets one or the other), `status TEXT NOT NULL DEFAULT 'DRAFT'` 4-value CHECK `DRAFT / ACTIVE / REVIEW / EXPIRED`, `start_date DATE`, `review_date DATE`, `end_date DATE`, `case_manager_id UUID` FK to `hr_employees(id)` ON DELETE SET NULL (audit survives a counsellor leaving). **Partial UNIQUE INDEX on `(student_id) WHERE status <> 'EXPIRED'`** so expired plans accumulate as history while at most one active / draft / review plan exists per student. Mirrors the Cycle 9 `svc_behavior_plans` partial UNIQUE pattern. INDEX on `(school_id, status)`. The Step 7 `IepPlanService` is the canonical writer and emits `iep.accommodation.updated` on accommodation changes so the ADR-030 read model stays in sync.
+
+2. **`hlth_iep_goals`** — Per-plan measurable goal. `iep_plan_id` NOT NULL FK CASCADE, `goal_text TEXT NOT NULL`, `measurement_criteria TEXT`, `baseline TEXT`, `target_value TEXT`, `current_value TEXT`, `goal_area TEXT`, `status TEXT NOT NULL DEFAULT 'ACTIVE'` 4-value CHECK `ACTIVE / MET / NOT_MET / DISCONTINUED`. INDEX on `(iep_plan_id, status)`. baseline / target_value / current_value are TEXT to accommodate quantitative ("90 percent accuracy") and qualitative ("independent transition between classes") measurement criteria.
+
+3. **`hlth_iep_goal_progress`** — Per-goal progress entry (append-only audit history). `goal_id` NOT NULL FK CASCADE, `recorded_by` FK to `hr_employees(id)` ON DELETE SET NULL, `progress_value TEXT`, `observation_notes TEXT`, `recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()`. INDEX on `(goal_id, recorded_at DESC)` for the timeline query.
+
+4. **`hlth_iep_services`** — Per-plan related service. `iep_plan_id` NOT NULL FK CASCADE, `service_type TEXT NOT NULL` (free-form covering speech therapy / OT / PT / counselling / other), `provider_name TEXT`, `frequency TEXT`, `minutes_per_session INT` with CHECK `IS NULL OR > 0` (zero or negative session length is nonsense), `delivery_method TEXT NOT NULL` 3-value CHECK `PULL_OUT / PUSH_IN / CONSULT`. INDEX on `(iep_plan_id)`. PULL_OUT means the student leaves the classroom; PUSH_IN means the provider joins the classroom; CONSULT means the provider supports the teacher rather than working with the student directly.
+
+5. **`hlth_iep_accommodations`** — Per-plan accommodation. `iep_plan_id` NOT NULL FK CASCADE, `accommodation_type TEXT NOT NULL` (free-form matching the ADR-030 read model — EXTENDED*TIME, ALTERNATIVE_ASSESSMENT, ASSISTIVE_TECH, READ_ALOUD, REDUCED_DISTRACTION, PREFERENTIAL_SEATING), `description TEXT`, `applies_to TEXT NOT NULL` 3-value CHECK `ALL_ASSESSMENTS / ALL_ASSIGNMENTS / SPECIFIC`, `specific_assignment_types TEXT[]` nullable, `effective_from DATE`, `effective_to DATE`. **Multi-column `applies_to_chk`** pins the SPECIFIC scope to a non-empty `specific_assignment_types` array AND pins the broad scopes (ALL_ASSESSMENTS, ALL_ASSIGNMENTS) to a NULL array — the broad scope cannot also enumerate specific types. **Multi-column `dates_chk`** enforces `effective_to >= effective_from` only when both are set. INDEX on `(iep_plan_id)`. The Step 7 `IepPlanService` emits `iep.accommodation.updated` on every INSERT / UPDATE / DELETE so the ADR-030 `IepAccommodationConsumer` upserts `sis_student_active_accommodations` for teachers to read without ever touching `hlth*\*`.
+
+6. **`hlth_nurse_visits`** — Live nurse office row. `school_id`, **`visited_person_id UUID NOT NULL` (soft polymorphic ref) + `visited_person_type TEXT NOT NULL DEFAULT 'STUDENT'`** 2-value CHECK `STUDENT / STAFF` (the soft polymorphic ref resolves via the type — STUDENT references `sis_students(id)`, STAFF references `hr_employees(id)`; no DB-enforced FK because the target table differs by row; the Step 7 `NurseVisitService` is the canonical validator), `nurse_id` FK to `hr_employees(id)` ON DELETE SET NULL, `visit_date TIMESTAMPTZ NOT NULL DEFAULT now()`, `status TEXT NOT NULL DEFAULT 'COMPLETED'` 2-value CHECK `IN_PROGRESS / COMPLETED`, `signed_in_at TIMESTAMPTZ NOT NULL DEFAULT now()`, `signed_out_at TIMESTAMPTZ`, `reason TEXT`, `treatment_given TEXT`, `parent_notified BOOLEAN`, `sent_home BOOLEAN NOT NULL DEFAULT false`, `sent_home_at TIMESTAMPTZ`, `follow_up_required`, `follow_up_notes`, `follow_up_date DATE`. **Multi-column `signed_chk`** pins IN_PROGRESS to `signed_out_at NULL` AND COMPLETED to `signed_out_at NOT NULL`. **Multi-column `sent_home_chk`** pins `sent_home=true` to a non-NULL `sent_home_at` AND `sent_home=false` to a NULL `sent_home_at`. **Partial INDEX on `(school_id, status) WHERE status = 'IN_PROGRESS'`** backs the live nurse office roster query that the Step 8 dashboard polls. Plus INDEX on `(school_id, visit_date DESC)` and `(visited_person_id, visit_date DESC)`.
+
+7. **`hlth_screenings`** — Per-student screening result. `school_id`, `student_id` NOT NULL FK CASCADE, `screening_type TEXT NOT NULL` (free-form — VISION, HEARING, SCOLIOSIS, BMI, DENTAL, CUSTOM), `screening_date DATE NOT NULL`, `screened_by` FK to `hr_employees(id)` ON DELETE SET NULL, `result TEXT` nullable 4-value CHECK `PASS / REFER / RESCREEN / ABSENT` (or NULL while the screening is in progress), `result_notes`, `follow_up_required BOOLEAN`, `follow_up_completed BOOLEAN DEFAULT false`, `referral_notes`. INDEX on `(student_id, screening_date DESC)` for the per-student screening history. **Partial INDEX on `(school_id, follow_up_completed) WHERE follow_up_required = true AND follow_up_completed = false`** backs the admin follow-up queue that the Step 9 screening log renders.
+
+8. **`hlth_dietary_profiles`** — One profile per student. `school_id`, `student_id` NOT NULL FK CASCADE, `dietary_restrictions TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]` (free-form array — VEGETARIAN, VEGAN, HALAL, KOSHER, GLUTEN_FREE, DAIRY_FREE plus school-specific tags), `allergens JSONB NOT NULL DEFAULT '[]'::jsonb` (structured `[{allergen, severity, reaction}]` rows), `special_meal_instructions TEXT`, `pos_allergen_alert BOOLEAN NOT NULL DEFAULT false` (when true the future POS / cafeteria integration shows a hard-stop alert at checkout), `updated_by UUID` (soft ref to `platform.platform_users(id)` per ADR-001). **UNIQUE INDEX on `(student_id)`** so the Step 7 `DietaryProfileService` can upsert. **Partial INDEX on `(school_id) WHERE pos_allergen_alert = true`** backs the `GET /health/allergen-alerts` endpoint that the future POS / cafeteria integration polls.
+
+**Soft cross-schema refs per ADR-001 / ADR-020:**
+
+- `hlth_iep_plans.school_id → platform.schools(id)`
+- `hlth_nurse_visits.school_id → platform.schools(id)`
+- `hlth_screenings.school_id → platform.schools(id)`
+- `hlth_dietary_profiles.school_id → platform.schools(id)`
+- `hlth_dietary_profiles.updated_by → platform.platform_users(id)` (soft per ADR-001)
+- `hlth_nurse_visits.visited_person_id` is **soft polymorphic** per the `visited_person_type` column — STUDENT references `sis_students(id)`, STAFF references `hr_employees(id)`; the Step 7 `NurseVisitService` is the canonical validator before insert.
+
+**FK summary — 11 new intra-tenant DB-enforced FKs:**
+
+| FK                                                         | Action   |
+| ---------------------------------------------------------- | -------- |
+| `hlth_iep_plans.student_id → sis_students(id)`             | CASCADE  |
+| `hlth_iep_plans.case_manager_id → hr_employees(id)`        | SET NULL |
+| `hlth_iep_goals.iep_plan_id → hlth_iep_plans(id)`          | CASCADE  |
+| `hlth_iep_goal_progress.goal_id → hlth_iep_goals(id)`      | CASCADE  |
+| `hlth_iep_goal_progress.recorded_by → hr_employees(id)`    | SET NULL |
+| `hlth_iep_services.iep_plan_id → hlth_iep_plans(id)`       | CASCADE  |
+| `hlth_iep_accommodations.iep_plan_id → hlth_iep_plans(id)` | CASCADE  |
+| `hlth_nurse_visits.nurse_id → hr_employees(id)`            | SET NULL |
+| `hlth_screenings.student_id → sis_students(id)`            | CASCADE  |
+| `hlth_screenings.screened_by → hr_employees(id)`           | SET NULL |
+| `hlth_dietary_profiles.student_id → sis_students(id)`      | CASCADE  |
+
+0 cross-schema FKs.
+
+**Tenant logical base table count after Step 3:** 146 → **154**. **Cycle 10 schema phase complete.** All 15 hlth*\* tables in place: 4 from Step 1 (records + conditions + immunisations + access log) + 3 from Step 2 (medications + schedule + administrations) + 8 from Step 3. Cycle 10 running tally: \*\*15 logical hlth*\* tables, 19 intra-tenant FKs (4 + 4 + 11), 0 cross-schema FKs\*\*.
+
+**Smoke results (live on `tenant_demo`, single BEGIN…ROLLBACK transaction with savepoints, 36 assertions, all green):**
+
+- T1–T2 IEP plan_type_chk + status_chk reject `BOGUS`.
+- T3 504 ACTIVE plan happy path (Maya, Hayes case manager, dates set).
+- **T4 partial UNIQUE keystone — rejects 2nd non-EXPIRED plan for same student.**
+- **T5 partial UNIQUE allows EXPIRED + ACTIVE coexistence (history preserved).**
+- T6 goal status_chk rejects `BOGUS`.
+- T7 goal happy path (Extended Time compliance, baseline 60% target 90%).
+- T8 goal_progress happy path (Hayes records 75% with notes).
+- T9 service delivery_chk rejects `BOGUS`.
+- T10 minutes_chk rejects 0.
+- T11 service happy path with all 3 delivery methods (PULL_OUT, PUSH_IN, CONSULT).
+- T12 accommodation applies_to_chk rejects `BOGUS`.
+- **T13 specific_chk rejects ALL_ASSESSMENTS with array set (broad scope cannot enumerate types).**
+- **T14 specific_chk rejects SPECIFIC without array.**
+- **T15 specific_chk rejects SPECIFIC with empty array.**
+- T16 dates_chk rejects effective_to before effective_from.
+- T17 accommodation happy path with all 3 applies_to values + SPECIFIC with `ARRAY['ESSAY', 'EXAM']`.
+- T18 nurse_visit visited_type_chk rejects `BOGUS`.
+- T19 nurse_visit status_chk rejects `BOGUS`.
+- **T20 signed_chk rejects IN_PROGRESS with signed_out_at set.**
+- **T21 signed_chk rejects COMPLETED without signed_out_at.**
+- **T22 sent_home_chk rejects sent_home=true without timestamp.**
+- **T23 sent_home_chk rejects sent_home=false with timestamp.**
+- T24 IN_PROGRESS happy path (Maya wheezing).
+- T25 COMPLETED with sent_home happy path (Maya goes home).
+- T26 STAFF visit happy path (a teacher with a headache exercises the soft polymorphic ref).
+- T27 partial-INDEX live roster query returns 1 active visit.
+- T28 screening result_chk rejects `BOGUS`.
+- T29 screening happy path with all 4 result values (PASS, REFER, RESCREEN, ABSENT).
+- T30 NULL result accepted (in-progress / pending).
+- T31 partial-INDEX follow-up query returns 1 (Maya VISION REFER).
+- T32 dietary profile happy path with `pos_allergen_alert=true` and structured allergens JSONB.
+- T33 UNIQUE student_id rejects duplicate dietary profile.
+- T34 partial-INDEX allergen-alert query returns 1.
+- T35 plan delete CASCADEs through all 4 child tables (goals + goal_progress + accommodations + services drop together).
+- T36 FK rejects bogus iep_plan_id.
+
+All 11 FK delete actions confirmed via `pg_constraint.confdeltype` catalog readout: 6 CASCADE 'c' + 5 SET NULL 'n'. **All 8 multi-column lockstep CHECKs fire on every mismatch direction** — `applies_to_chk` × 3 (T13/T14/T15), `signed_chk` × 2 (T20/T21), `sent_home_chk` × 2 (T22/T23), `dates_chk` × 1 (T16). Idempotent re-provision verified — table count stable at 154.
+
+**Out of scope this step (deferred to Step 7):** the request-path APIs. The schema ships now; `IepPlanService`, `NurseVisitService`, `ScreeningService`, `DietaryProfileService`, and the `IepAccommodationConsumer` Kafka consumer (the keystone ADR-030 read-model bridge) all land in Step 7. The HIPAA access log writes (VIEW_IEP / VIEW_VISITS / VIEW_SCREENING / VIEW_DIETARY) are wired in via `HealthAccessLogService.recordAccess` from Step 5.
+
+---
+
+## Step 4 — Seed Data — Maya's Health Record + IEP + Sample Visits
+
 **Status:** TODO.
 
-(Steps 3–10 of Cycle 10 — IEP / nurse / screening / dietary schema, seed data, NestJS modules, UI, and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
+(Steps 4–10 of Cycle 10 — seed data, NestJS modules + IepAccommodationConsumer, UI, and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
