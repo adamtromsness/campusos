@@ -1,6 +1,6 @@
 # Cycle 8 Handoff — Service Tickets
 
-**Status:** Cycle 8 **IN PROGRESS** — Steps 1–7 (schemas + seed + ticket module + comments/activity/problems + notification consumers + helpdesk staff UI) **DONE**. Steps 8–10 remain. Cycles 0–7 are COMPLETE + APPROVED. Cycle 8 is the final cycle of Wave 1 and ships the M60 Service Tickets module — a shared reactive ticketing engine that IT, facilities, and HR support all use. NOT a facilities management system (that is M65, a future cycle). This module handles reactive requests like "my projector is broken," "Room 204 needs a new light bulb," "I can't log in." It integrates with Cycle 7's Task Worker (ticket assignment creates a task on the assignee's to-do list) and the Cycle 7 Approval Workflows engine (ticket escalation can route through an approval chain).
+**Status:** Cycle 8 **IN PROGRESS** — Steps 1–8 (full schema + seed + ticket API + consumers + staff UI + admin UI) **DONE**. Steps 9–10 remain. Cycles 0–7 are COMPLETE + APPROVED. Cycle 8 is the final cycle of Wave 1 and ships the M60 Service Tickets module — a shared reactive ticketing engine that IT, facilities, and HR support all use. NOT a facilities management system (that is M65, a future cycle). This module handles reactive requests like "my projector is broken," "Room 204 needs a new light bulb," "I can't log in." It integrates with Cycle 7's Task Worker (ticket assignment creates a task on the assignee's to-do list) and the Cycle 7 Approval Workflows engine (ticket escalation can route through an approval chain).
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle8-implementation-plan.html`
@@ -21,7 +21,7 @@ This document tracks the Cycle 8 build at the same level of detail as `HANDOFF-C
 | 5    | Ticket NestJS Module — Comments, Activity, Problems | **DONE**    |
 | 6    | Ticket Notification Consumer + Auto-Task Wiring    | **DONE**    |
 | 7    | Helpdesk UI — Submit + My Tickets                  | **DONE**    |
-| 8    | Helpdesk Admin UI — Queue + Dashboard              | **PENDING** |
+| 8    | Helpdesk Admin UI — Queue + Dashboard              | **DONE**    |
 | 9    | Problem Management UI                              | **PENDING** |
 | 10   | Vertical Slice Integration Test                    | **PENDING** |
 
@@ -652,11 +652,58 @@ The third build attempt was clean. Total build time across the 3 attempts: ~30 s
 
 ---
 
-## Steps 8–10 — Pending
+## Step 8 — Helpdesk Admin UI — Queue + Dashboard
+
+**Status:** DONE. 4 new admin routes under `/helpdesk/admin/*` plus 7 admin-write hooks added to `use-tickets.ts` and 7 payload DTOs added to `apps/web/src/lib/types.ts`. Build clean on first try, all 4 routes register at the expected sizes.
+
+**Files:**
+
+- `apps/web/src/lib/types.ts` — adds 7 admin payload types: `CreateTicketCategoryPayload` / `UpdateTicketCategoryPayload`, `CreateTicketSubcategoryPayload` / `UpdateTicketSubcategoryPayload`, `CreateTicketVendorPayload` / `UpdateTicketVendorPayload`, `UpsertTicketSlaPayload`. The Subcategory + Vendor update payloads use `string | null` for nullable fields so callers can clear `default_assignee_id` / `auto_assign_to_role` / contact fields explicitly.
+- `apps/web/src/hooks/use-tickets.ts` — extends with 7 admin mutation hooks: `useCreateTicketCategory`, `useUpdateTicketCategory(id)`, `useCreateTicketSubcategory`, `useUpdateTicketSubcategory(id)`, `useCreateTicketVendor`, `useUpdateTicketVendor(id)`, `useUpsertTicketSla`. Each invalidates the matching `['tickets', 'categories'|'vendors'|'sla']` query key on success so the admin pages refresh without manual refetches. The Cycle 8 hook count grows to 20.
+
+**4 new routes:**
+
+- **`/helpdesk/admin`** (Admin Queue) — admin-only queue gated on `it-001:admin OR sch-001:admin` (the second is the everyFunction-derived School Admin path). 4-control filter bar (status / priority / category / SLA urgency) — first 3 are server-side, SLA urgency filter is client-side because the snapshot is computed not stored. Per-row table with SLA dot indicator + remaining-time text; ticket id prefix + title link; status pill + priority pill + category/subcategory + assignee/vendor/Unassigned label + relative age. Per-row **Assign** + **Vendor** action buttons. Breached rows get a `bg-rose-50/40` row tint at the top (sort respects the API's priority-then-created order, but the SLA breached count is surfaced in the page header). **Assign Modal** — searchable employee picker pulling from `useEmployees()` filtered to `employmentStatus='ACTIVE'`. **Assign Vendor Modal** — vendor dropdown sorted preferred-first (the API already orders this way) with optional vendor-reference text input. Both modals use the existing `Modal` shell + `useToast()` for the success/error feedback. Page size **5.19 kB / 118 kB First Load**.
+
+- **`/helpdesk/admin/sla`** (SLA Dashboard) — admin-only stats dashboard. Pulls `useTickets({includeTerminal: true, limit: 500})` and computes the dashboard client-side via the local `computeDashboard(tickets)` function. **4 stat cards:** Open tickets (with critical+high count subtitle); Avg response (time from submit to first staff comment, computed from `firstResponseAt - createdAt`); Avg resolution (time from submit to resolved); SLA compliance (resolved-within-target / total-resolved %). The compliance card auto-tones `good`/`warn`/`bad` based on the % (≥90 green, ≥70 amber, <70 red). **By-priority histogram** (4 cards, CRITICAL first). **Breached tickets list** — every live ticket whose SLA snapshot is `red`, with deep-link to detail and full pill row. **Per-category breakdown table** — open / breached / resolved / within-SLA % per category. **SLA matrix table** — the configured `tkt_sla_policies` rows for the school. Time-series volume chart deferred this cycle (would need a histogram endpoint we don't ship). Page size **3.07 kB / 115 kB**.
+
+- **`/helpdesk/admin/categories`** (Category Tree Editor) — admin-only tree of categories with subcategories inlined. Each category card shows name + active flag + Edit + Add subcategory buttons. Subcategory rows show name + auto-assignment hint ("Auto-assigns to {employee}" / "Routes to role {ROLE_TOKEN}" / "Lands in admin queue"). **Category Modal** (create/edit) — name + icon + isActive toggle (edit only). **Subcategory Modal** — name + auto-assignment picker (employee dropdown OR role token input — picking one clears the other so the schema's mutex CHECK never fires; the modal's pickEmployee/pickRole helpers enforce this) + isActive toggle. Employee picker filters to active employees only. Role token input has `pattern="^[A-Z][A-Z0-9_]*$"` and force-uppercases the input. Includes inactive subcategories in the editor view via `useTicketCategories(isAdmin, true)` so admins can re-activate retired leaves. Page size **6.62 kB / 116 kB**.
+
+- **`/helpdesk/admin/vendors`** (Vendor Management) — admin-only vendor list with type pill + ★ Preferred badge + Inactive label + contact info grid (name / email / phone / website link) + notes. Add / Edit Modal exposes every column (`vendorName`, `vendorType` from the 9-value enum dropdown, `contactName`, `contactEmail`, `contactPhone`, `website`, `isPreferred` checkbox, `notes` textarea, `isActive` toggle on edit). Update payload uses the `string | null` shape so clearing a contact field actually clears it — the diff logic compares `formField.trim() !== (vendor.contactName ?? '')` then sends either `null` or the new value. Page size **3.89 kB / 116 kB**.
+
+**Cross-page navigation:** every admin page header has a "← Back to queue" link, plus the queue header carries SLA dashboard / Categories / Vendors quick-links so admins can hop between the 4 surfaces without a sidebar trip. The Helpdesk launchpad tile's `routePrefix: '/helpdesk'` (set in Step 7) means all 4 admin routes keep the tile lit.
+
+**Permission gating:** every admin page guards on `hasAnyPermission(user, ['it-001:admin', 'sch-001:admin'])` and renders an "Admin only" `EmptyState` when the caller lacks both. The backend service-layer `it-001:admin` permission check (held only via the School Admin / Platform Admin `everyFunction` block) is the actual access gate; the UI guard prevents rendering the editor for non-admins to begin with.
+
+**Build sizes for the 4 new admin routes:**
+
+```
+├ ○ /helpdesk/admin                  5.19 kB         118 kB
+├ ○ /helpdesk/admin/categories       6.62 kB         116 kB
+├ ○ /helpdesk/admin/sla              3.07 kB         115 kB
+├ ○ /helpdesk/admin/vendors          3.89 kB         116 kB
+```
+
+All 4 prerender as static content. Combined Cycle 8 web surface is now 7 routes (3 staff + 4 admin). Total cycle web hook count grew from 13 to 20.
+
+**No API changes required** — Step 8 sits entirely on the 27-endpoint surface from Steps 4 + 5. The `POST /ticket-categories` / `PATCH /ticket-categories/:id` / `POST /ticket-subcategories` / `PATCH /ticket-subcategories/:id` / `POST /ticket-vendors` / `PATCH /ticket-vendors/:id` / `POST /ticket-sla` endpoints all shipped in Step 4.
+
+**No iteration issues caught during build** — first build clean. The 7 admin pages were cribbed from the same EmptyState + Modal + Toast patterns Step 7 settled on, so the conventions held without rework.
+
+**What's deferred to later steps:**
+
+- Step 9 lands the **problem management UI** (`/helpdesk/admin/problems` list + detail). The Step 5 ProblemService is already complete on the API side with 6 endpoints; Step 9 is purely additive on the web side.
+- Step 10 ships the **vertical-slice CAT** — `docs/cycle8-cat-script.md` walks the full plan flow end-to-end on `tenant_demo` (submit → auto-assign → SLA clock → comment → vendor → resolve → notification → task complete → SLA metrics).
+- **Bulk actions on the admin queue** (assign-many, change-priority-many, close-many) are documented in the plan but punted to a future polish pass — the per-row Assign/Vendor buttons cover the 80% case for the demo.
+- **SLA matrix editor** — the dashboard surfaces the configured policies read-only with a link to the seed; the `useUpsertTicketSla` hook is wired for a future polish pass that adds a per-row edit modal.
+- **Ticket volume time-series chart** on the SLA dashboard — would need a histogram endpoint to aggregate the activity log; punted to ops dashboards.
+
+---
+
+## Steps 9–10 — Pending
 
 Each step's full detail will be written into this document as it ships, matching the level of detail of the corresponding step writeups in `HANDOFF-CYCLE7.md`. The plan-time scope of each is summarised below:
 
-- **Step 8 — Helpdesk admin UI.** Admin queue, SLA dashboard, category tree editor, vendor management.
 - **Step 9 — Problem management UI.** List, detail, link tickets, resolve-batch.
 - **Step 10 — Vertical slice CAT.** `docs/cycle8-cat-script.md`. The full plan-time scenario walked end-to-end on `tenant_demo`.
 

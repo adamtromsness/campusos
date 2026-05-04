@@ -6,8 +6,11 @@ import type {
   AssignTicketPayload,
   AssignVendorPayload,
   CancelTicketPayload,
+  CreateTicketCategoryPayload,
   CreateTicketCommentPayload,
   CreateTicketPayload,
+  CreateTicketSubcategoryPayload,
+  CreateTicketVendorPayload,
   ListTicketsArgs,
   ResolveTicketPayload,
   TicketActivityDto,
@@ -15,7 +18,12 @@ import type {
   TicketCommentDto,
   TicketDto,
   TicketSlaPolicyDto,
+  TicketSubcategoryDto,
   TicketVendorDto,
+  UpdateTicketCategoryPayload,
+  UpdateTicketSubcategoryPayload,
+  UpdateTicketVendorPayload,
+  UpsertTicketSlaPayload,
 } from '@/lib/types';
 
 function buildQs(args: ListTicketsArgs): string {
@@ -232,5 +240,105 @@ export function useTicketSla(enabled = true) {
     queryFn: () => apiFetch<TicketSlaPolicyDto[]>('/api/v1/ticket-sla'),
     enabled,
     staleTime: 5 * 60_000,
+  });
+}
+
+// ── Admin mutations (Step 8) ────────────────────────────────────
+
+export function useCreateTicketCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateTicketCategoryPayload) =>
+      apiFetch<TicketCategoryDto>('/api/v1/ticket-categories', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['tickets', 'categories'] });
+    },
+  });
+}
+
+export function useUpdateTicketCategory(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateTicketCategoryPayload) =>
+      apiFetch<TicketCategoryDto>('/api/v1/ticket-categories/' + id, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['tickets', 'categories'] });
+    },
+  });
+}
+
+export function useCreateTicketSubcategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateTicketSubcategoryPayload) =>
+      apiFetch<TicketSubcategoryDto>('/api/v1/ticket-subcategories', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['tickets', 'categories'] });
+    },
+  });
+}
+
+export function useUpdateTicketSubcategory(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateTicketSubcategoryPayload) =>
+      apiFetch<TicketSubcategoryDto>('/api/v1/ticket-subcategories/' + id, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['tickets', 'categories'] });
+    },
+  });
+}
+
+export function useCreateTicketVendor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateTicketVendorPayload) =>
+      apiFetch<TicketVendorDto>('/api/v1/ticket-vendors', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['tickets', 'vendors'] });
+    },
+  });
+}
+
+export function useUpdateTicketVendor(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateTicketVendorPayload) =>
+      apiFetch<TicketVendorDto>('/api/v1/ticket-vendors/' + id, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['tickets', 'vendors'] });
+    },
+  });
+}
+
+export function useUpsertTicketSla() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpsertTicketSlaPayload) =>
+      apiFetch<TicketSlaPolicyDto>('/api/v1/ticket-sla', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['tickets', 'sla'] });
+    },
   });
 }

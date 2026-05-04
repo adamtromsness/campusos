@@ -2380,6 +2380,62 @@ export interface ListTicketsArgs {
   limit?: number;
 }
 
+export interface CreateTicketCategoryPayload {
+  name: string;
+  parentCategoryId?: string;
+  icon?: string;
+}
+
+export interface UpdateTicketCategoryPayload {
+  name?: string;
+  icon?: string | null;
+  isActive?: boolean;
+}
+
+export interface CreateTicketSubcategoryPayload {
+  categoryId: string;
+  name: string;
+  defaultAssigneeId?: string;
+  autoAssignToRole?: string;
+}
+
+export interface UpdateTicketSubcategoryPayload {
+  name?: string;
+  defaultAssigneeId?: string | null;
+  autoAssignToRole?: string | null;
+  isActive?: boolean;
+}
+
+export interface CreateTicketVendorPayload {
+  vendorName: string;
+  vendorType: VendorType;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  website?: string;
+  isPreferred?: boolean;
+  notes?: string;
+}
+
+export interface UpdateTicketVendorPayload {
+  vendorName?: string;
+  vendorType?: VendorType;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  website?: string | null;
+  isPreferred?: boolean;
+  notes?: string | null;
+  isActive?: boolean;
+}
+
+export interface UpsertTicketSlaPayload {
+  categoryId: string;
+  priority: TicketPriority;
+  responseHours: number;
+  resolutionHours: number;
+}
+
 export interface ProblemDto {
   id: string;
   schoolId: string;
