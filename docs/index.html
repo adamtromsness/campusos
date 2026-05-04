@@ -12,11 +12,11 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
 .topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
 .topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
 .topbar a.active{color:white;font-weight:600}
-.topbar .brand{font-family:'DM Sans',sans-serif;font-weight:600;color:white;font-size:15px}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
 .topbar .sep{color:rgba(255,255,255,0.3)}
 .container{max-width:1000px;margin:0 auto;padding:40px 40px 120px}
 .hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
-.hero-brand{font-family:'DM Sans',sans-serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:600}
+.hero-brand{font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:600}
 .hero h1{font-family:'DM Serif Display',serif;font-size:48px;color:var(--accent);line-height:1.1;margin-bottom:12px;font-weight:400}
 .hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:680px;margin-bottom:16px}
 .hero .stats{display:flex;gap:24px;flex-wrap:wrap;font-size:13px;color:var(--accent-mid);font-weight:600}
@@ -81,26 +81,26 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
     <div class="sub">Cloud-native school operating system. Replaces 8&ndash;15 disconnected school systems with one platform.</div>
     <div class="stats">
       <span>840 Tables (ERD)</span>
-      <span>~139 Built</span>
-      <span>~216 Endpoints</span>
-      <span>14 Kafka Consumers</span>
-      <span>72+ UI Pages</span>
-      <span>11 Cycles Complete</span>
-      <span style="background:#e0f2e9;color:#1a6b3c;">Wave 1 Complete &middot; Wave 2 In Progress</span>
+      <span>~155 Built</span>
+      <span>~264 Endpoints</span>
+      <span>15 Kafka Consumers</span>
+      <span>80+ UI Pages</span>
+      <span>12 Cycles Complete</span>
+      <span style="background:#e0f2e9;color:#1a6b3c;">Wave 2 In Progress</span>
     </div>
   </div>
   <div class="status-banner">
     <div class="status-card" style="background:#e0f2e9;border-color:#1a6b3c;">
-      <h3 style="color:#1a6b3c;">Wave 1 Complete + Cycle 9 Approved</h3>
-      <p><strong>All 11 cycles (0&ndash;9) built, peer-reviewed, and approved.</strong> Core Operations + first Student Services module. ~139 tenant tables, 14 Kafka consumers, ~216 endpoints, 72+ UI pages.</p>
+      <h3 style="color:#1a6b3c;">Cycles 0&ndash;10 Complete + Approved</h3>
+      <p><strong>Wave 1 (Core Ops) + Wave 2 Behaviour + Health.</strong> ~155 tenant tables, 15 Kafka consumers, ~264 endpoints, 80+ UI pages. HIPAA access logging + ADR-030 accommodation sync live.</p>
     </div>
     <div class="status-card" style="background:var(--blue-bg);border-color:var(--blue);">
-      <h3 style="color:var(--blue);">Cycle 10 Next &mdash; Health &amp; Wellness</h3>
-      <p>Health records, medication tracking, nurse visits, immunizations, screenings, IEP/504, dietary profiles. Second Wave 2 cycle.</p>
+      <h3 style="color:var(--blue);">Cycle 11 Next &mdash; Counselling</h3>
+      <p><strong>Counselling &amp; Student Support</strong> &mdash; caseloads, referrals, FERPA session notes, MTSS/RTI tiered interventions, mandatory reporting, coordinated care. 14 tables, ~40 endpoints.</p>
     </div>
     <div class="status-card" style="background:var(--amber-bg);border-color:var(--amber);">
       <h3 style="color:#9a7b1a;">Wave 2 Remaining</h3>
-      <p>Cycles 11&ndash;13: Counselling &amp; Student Support, Library, Athletics &amp; Clubs.</p>
+      <p>Cycle 11.1 (Wellbeing Surveys, 6 tables), Cycle 12 (Library), Cycle 13 (Athletics &amp; Clubs).</p>
     </div>
   </div>
 
@@ -115,16 +115,18 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
 
   <h2 class="section-title">Cycle Implementation Plans</h2>
   <div class="doc-grid">
-    <a href="campusos-cycle1-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 1: SIS Core + Attendance</h3><div class="desc">18 tables. Students, classes, families, attendance.</div><div class="meta">11 steps &middot; 18 endpoints &middot; 6 Kafka events</div></a>
-    <a href="campusos-cycle2-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 2: Classroom + Grading</h3><div class="desc">15 tables. Assignments, submissions, grades, gradebook snapshots.</div><div class="meta">10 steps &middot; 20 endpoints &middot; 1 consumer</div></a>
-    <a href="campusos-cycle3-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 3: Communications</h3><div class="desc">19+2 tables. Messaging, notifications, announcements, content moderation.</div><div class="meta">12 steps &middot; 22 endpoints &middot; 6 consumers</div></a>
-    <a href="campusos-cycle4-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 4: HR &amp; Workforce Core</h3><div class="desc">17 tables. Employees, positions, leave, certifications, compliance.</div><div class="meta">11 steps &middot; 23 endpoints &middot; 1 consumer</div></a>
-    <a href="campusos-cycle5-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 5: Scheduling &amp; Calendar</h3><div class="desc">10 tables. Bell schedules, timetable, rooms, calendar, coverage.</div><div class="meta">10 steps &middot; ~30 endpoints &middot; 1 consumer</div></a>
-    <a href="campusos-cycle6-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 6: Enrollment &amp; Payments</h3><div class="desc">~22 tables. Admissions pipeline + family billing (Stripe stubbed).</div><div class="meta">12 steps &middot; ~32 endpoints &middot; 2 consumers</div></a>
+    <a href="campusos-cycle1-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 1: SIS Core + Attendance</h3><div class="desc">18 tables. Students, classes, families, attendance.</div><div class="meta">11 steps &middot; 18 endpoints</div></a>
+    <a href="campusos-cycle2-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 2: Classroom + Grading</h3><div class="desc">15 tables. Assignments, submissions, grades, gradebook snapshots.</div><div class="meta">10 steps &middot; 20 endpoints</div></a>
+    <a href="campusos-cycle3-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 3: Communications</h3><div class="desc">19+2 tables. Messaging, notifications, announcements, moderation.</div><div class="meta">12 steps &middot; 22 endpoints</div></a>
+    <a href="campusos-cycle4-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 4: HR &amp; Workforce Core</h3><div class="desc">17 tables. Employees, positions, leave, certifications, compliance.</div><div class="meta">11 steps &middot; 23 endpoints</div></a>
+    <a href="campusos-cycle5-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 5: Scheduling &amp; Calendar</h3><div class="desc">10 tables. Timetable, rooms, calendar, coverage.</div><div class="meta">10 steps &middot; ~30 endpoints</div></a>
+    <a href="campusos-cycle6-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 6: Enrollment &amp; Payments</h3><div class="desc">~22 tables. Admissions + billing (Stripe stubbed).</div><div class="meta">12 steps &middot; ~32 endpoints</div></a>
     <a href="campusos-cycle6.1-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 6.1: Profile &amp; Household</h3><div class="desc">Self-service profile editing. Household roles, demographics.</div><div class="meta">8 steps &middot; 9 endpoints</div></a>
-    <a href="campusos-cycle7-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 7: Tasks &amp; Approval Workflows</h3><div class="desc">12 tables. Auto-task rules + multi-step approval engine (ADR-011/012).</div><div class="meta">10 steps &middot; ~23 endpoints &middot; Task Worker + Workflow Engine</div></a>
-    <a href="campusos-cycle8-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 8: Service Tickets</h3><div class="desc">11 tables. IT/facilities/HR ticketing, SLA tracking, vendor management.</div><div class="meta">10 steps &middot; ~28 endpoints &middot; 1 consumer</div></a>
-    <a href="campusos-cycle9-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 9: Behaviour &amp; Discipline</h3><div class="desc">7 tables. Discipline incidents, consequences, BIPs with goals and teacher feedback. First Wave 2 cycle.</div><div class="meta">10 steps &middot; 28 endpoints &middot; 1 consumer</div></a>
+    <a href="campusos-cycle7-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 7: Tasks &amp; Approval Workflows</h3><div class="desc">12 tables. Auto-task rules + approval engine (ADR-011/012).</div><div class="meta">10 steps &middot; ~23 endpoints</div></a>
+    <a href="campusos-cycle8-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 8: Service Tickets</h3><div class="desc">11 tables. IT/facilities/HR ticketing, SLA, vendor management.</div><div class="meta">10 steps &middot; ~28 endpoints</div></a>
+    <a href="campusos-cycle9-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 9: Behaviour &amp; Discipline</h3><div class="desc">7 tables. Incidents, consequences, BIPs with goals + feedback.</div><div class="meta">10 steps &middot; 28 endpoints</div></a>
+    <a href="campusos-cycle10-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 10: Health &amp; Wellness</h3><div class="desc">15+1 tables. Health records, medications, nurse visits, IEP/504 with ADR-030 accommodation sync, screenings, dietary profiles. HIPAA access logging.</div><div class="meta">10 steps &middot; 48 endpoints &middot; 1 consumer</div></a>
+    <a href="campusos-cycle11-implementation-plan.html" class="doc-card"><span class="badge badge-active">PLANNED &mdash; NEXT</span><h3>Cycle 11: Counselling &amp; Student Support</h3><div class="desc">14 tables. Caseloads, referrals, FERPA session notes, MTSS/RTI tiers, interventions, mandatory reporting, coordinated care.</div><div class="meta">10 steps &middot; ~40 endpoints &middot; 2 Kafka events</div></a>
   </div>
 
   <h2 class="section-title">Testing &amp; Quality</h2>
@@ -132,7 +134,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
     <a href="campusos-phase2-testing-checklist.html" class="doc-card"><span class="badge badge-complete">COMPLETE</span><h3>Parent Persona Testing</h3><div class="desc">Post-Cycle 6 pause. Child linking, calendar RSVP, enrollment search, multi-school billing, dashboard redesign.</div><div class="meta">42 test items &middot; Improvements shipped</div></a>
   </div>
   <div class="doc-grid">
-    <a href="cycle1-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 1 CAT</h3><div class="desc">Attendance, parent notification, absence request.</div><div class="meta">Reproducible curl walkthrough</div></a>
+    <a href="cycle1-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 1 CAT</h3><div class="desc">Attendance, parent notification, absence request.</div><div class="meta">Curl walkthrough</div></a>
     <a href="cycle2-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 2 CAT</h3><div class="desc">Assignment, submit, grade, publish, snapshot.</div><div class="meta">9 scenarios</div></a>
     <a href="cycle3-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 3 CAT</h3><div class="desc">Notifications, messaging, moderation, announcements.</div><div class="meta">7 scenarios</div></a>
     <a href="cycle4-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 4 CAT</h3><div class="desc">HR identity bridge, employee profile, leave, compliance.</div><div class="meta">13 scenarios</div></a>
@@ -140,8 +142,9 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
     <a href="cycle6-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 6 CAT</h3><div class="desc">Apply, offer, accept, enroll, invoice, pay, ledger.</div><div class="meta">12 scenarios</div></a>
     <a href="cycle6.1-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 6.1 CAT</h3><div class="desc">Profile editing, household, demographics, emergency contacts.</div><div class="meta">11 scenarios</div></a>
     <a href="cycle7-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 7 CAT</h3><div class="desc">Auto-task, multi-step approval, acknowledgement, withdrawal.</div><div class="meta">10 scenarios</div></a>
-    <a href="cycle8-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 8 CAT</h3><div class="desc">Submit ticket, auto-assign, SLA, comments, vendor, resolve, problems.</div><div class="meta">10 scenarios</div></a>
-    <a href="cycle9-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 9 CAT</h3><div class="desc">Incident report, consequence, parent notification, BIP, goals, teacher feedback.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle8-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 8 CAT</h3><div class="desc">Ticket submit, SLA, comments, vendor, resolve, problems.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle9-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 9 CAT</h3><div class="desc">Incident, consequence, parent notification, BIP, goals, feedback.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle10-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 10 CAT</h3><div class="desc">Health record, medication, nurse visit, IEP accommodation sync, screening, dietary, HIPAA log.</div><div class="meta">9 scenarios</div></a>
   </div>
 
   <h2 class="section-title">Build Progress</h2>
@@ -160,8 +163,10 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
     <tr><td><strong>8</strong></td><td>Service Tickets</td><td>11 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (3 follow-ups)</td></tr>
     <tr><td colspan="5" style="background:#e0f2e9;color:#1a6b3c;font-weight:700;text-align:center;font-size:14px;">&#10003; Wave 1 Complete &mdash; Core Operations Platform Approved</td></tr>
     <tr><td><strong>9</strong></td><td>Behaviour &amp; Discipline</td><td>7 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (1 blocking)</td></tr>
-    <tr><td><strong>10</strong></td><td>Health &amp; Wellness</td><td>~20 tenant</td><td class="status-active">&#9654; Next</td><td class="status-planned">&mdash;</td></tr>
-    <tr><td>11&ndash;13</td><td>Counselling, Library, Athletics (Wave 2)</td><td>~33 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
+    <tr><td><strong>10</strong></td><td>Health &amp; Wellness</td><td>15+1 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (1 blocking)</td></tr>
+    <tr><td><strong>11</strong></td><td>Counselling &amp; Student Support</td><td>14 tenant</td><td class="status-active">&#9654; Next</td><td class="status-planned">&mdash;</td></tr>
+    <tr><td>11.1</td><td>Wellbeing Surveys</td><td>6 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
+    <tr><td>12&ndash;13</td><td>Library, Athletics &amp; Clubs (Wave 2)</td><td>~40 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
     <tr><td>14&ndash;17</td><td>Operational Support (Wave 3)</td><td>~50 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
     <tr><td>18&ndash;23</td><td>Advanced &amp; Expansion (Wave 4)</td><td>~100 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
     <tr><td>24</td><td>Integration &amp; Hardening</td><td>&mdash;</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
@@ -171,22 +176,23 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);lin
   <div class="timeline">
     <div class="tl-item done"><h4>Design Phase <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete</span></h4><p>ERD v1&ndash;v11 (840 tables), Architecture Review, Function Library, Dev Plan, Business Strategy. All frozen.</p></div>
     <div class="tl-item done"><h4>Cycle 0: Platform Foundation <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete</span></h4><p>Monorepo, Docker, 29 platform tables, IAM (447 permissions), tenant isolation, auth, CI/CD.</p></div>
-    <div class="tl-item done"><h4>Cycles 1&ndash;3: Core Teaching &amp; Learning <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>SIS, attendance, classroom, grading, communications, notifications. 52 tenant tables, 60 endpoints, 7 consumers.</p></div>
-    <div class="tl-item done"><h4>Cycles 4&ndash;5: Staff Operations <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>HR, leave, certifications, scheduling, timetable, calendar, coverage. 27 tenant tables, 53 endpoints, 2 consumers.</p></div>
-    <div class="tl-item done"><h4>Cycles 6&ndash;6.1: Enrollment, Payments &amp; Profile <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>Admissions, billing (Stripe stubbed), profile editing, household management. ~23 tables, ~41 endpoints, 2 consumers.</p></div>
+    <div class="tl-item done"><h4>Cycles 1&ndash;3: Core Teaching &amp; Learning <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>SIS, attendance, classroom, grading, communications, notifications. 52 tables, 60 endpoints, 7 consumers.</p></div>
+    <div class="tl-item done"><h4>Cycles 4&ndash;5: Staff Operations <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>HR, leave, certifications, scheduling, timetable, calendar, coverage. 27 tables, 53 endpoints, 2 consumers.</p></div>
+    <div class="tl-item done"><h4>Cycles 6&ndash;6.1: Enrollment, Payments &amp; Profile <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>Admissions, billing, profile editing, household management. ~23 tables, ~41 endpoints, 2 consumers.</p></div>
     <div class="tl-item done"><h4>Parent Testing Pause <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete</span></h4><p>Child linking, calendar RSVP, enrollment search, multi-school billing, dashboard redesign.</p></div>
-    <div class="tl-item done"><h4>Cycles 7&ndash;8: Tasks, Workflows &amp; Tickets <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed &mdash; Wave 1 Final</span></h4><p>Task Worker + Workflow Engine + Service Tickets. Cross-cutting infrastructure. 23 tables, ~51 endpoints, 2 consumers.</p></div>
-    <div class="tl-item done"><h4>Cycle 9: Behaviour &amp; Discipline <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed &mdash; Wave 2 First</span></h4><p>Discipline incidents, consequences with parent notification, BIPs with goals and teacher feedback. 7 tables, 28 endpoints, 1 consumer.</p><a href="campusos-cycle9-implementation-plan.html">View Plan</a></div>
-    <div class="tl-item active"><h4>Cycle 10: Health &amp; Wellness <span class="tl-badge" style="background:var(--blue-bg);color:var(--blue);">Next</span></h4><p>Health records, medication tracking, nurse visits, immunizations, screenings, IEP/504, dietary profiles.</p></div>
-    <div class="tl-item planned"><h4>Cycles 11&ndash;13: Counselling, Library, Athletics</h4><p>Counselling caseloads + referrals + MTSS/RTI. Library. Athletics &amp; Clubs.</p></div>
+    <div class="tl-item done"><h4>Cycles 7&ndash;8: Tasks, Workflows &amp; Tickets <span class="tl-badge" style="background:#e0f2e9;color:#1a6b3c;">Wave 1 Final</span></h4><p>Task Worker + Workflow Engine + Service Tickets. 23 tables, ~51 endpoints, 2 consumers.</p></div>
+    <div class="tl-item done"><h4>Cycle 9: Behaviour &amp; Discipline <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>Incidents, consequences, BIPs with goals + teacher feedback. 7 tables, 28 endpoints, 1 consumer.</p></div>
+    <div class="tl-item done"><h4>Cycle 10: Health &amp; Wellness <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>Health records, medications, nurse visits, IEP/504 with ADR-030 accommodation sync, screenings, dietary profiles. HIPAA access log. 15+1 tables, 48 endpoints, 1 consumer.</p><a href="campusos-cycle10-implementation-plan.html">View Plan</a></div>
+    <div class="tl-item active"><h4>Cycle 11: Counselling &amp; Student Support <span class="tl-badge" style="background:var(--blue-bg);color:var(--blue);">Next</span></h4><p>Caseloads, referrals, FERPA session notes, MTSS/RTI tiers, interventions, mandatory reporting, coordinated care. 14 tables, ~40 endpoints.</p><a href="campusos-cycle11-implementation-plan.html">View Plan</a></div>
+    <div class="tl-item planned"><h4>Cycles 11.1&ndash;13: Wellbeing, Library, Athletics</h4><p>Wellbeing surveys (6 tables). Library. Athletics &amp; Clubs.</p></div>
     <div class="tl-item planned"><h4>Waves 3&ndash;5 (Cycles 14&ndash;24): Ops, Advanced &amp; Hardening</h4><p>Transportation, Food Service, Forms, Safety, Procurement, Analytics, Marketplace.</p></div>
   </div>
 
   <div class="next-steps">
     <h3>Next Steps &mdash; Wave 2 Continues</h3>
     <ol>
-      <li><strong>Plan Cycle 10 (Health &amp; Wellness):</strong> M23 Health module &mdash; health records, medication administration, nurse visits, immunizations, screenings, IEP/504, dietary profiles. Highest-sensitivity data domain (FERPA + HIPAA-adjacent).</li>
-      <li><strong>Cycle 11 (Counselling):</strong> Caseloads, referrals, session notes, MTSS/RTI tiers, interventions, wellbeing check-ins.</li>
+      <li><strong>Build Cycle 11 (Counselling):</strong> 10 steps, 14 tables. Caseloads, referrals with triage workflow, FERPA-protected session notes, MTSS/RTI tiered interventions with progress monitoring, mandatory reporting, coordinated nurse-counsellor care. Populates the Cycle 9 BIP <code>caseload_id</code> FK. Unified student support profile.</li>
+      <li><strong>Cycle 11.1 (Wellbeing Surveys):</strong> 6 tables. Student-facing pulse surveys with self-harm indicator auto-escalation.</li>
       <li><strong>Cycles 12&ndash;13:</strong> Library + Athletics &amp; Clubs.</li>
     </ol>
   </div>
