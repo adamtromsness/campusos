@@ -1,6 +1,6 @@
 # Cycle 10 Handoff — Health & Wellness
 
-**Status:** Cycle 10 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 of 10 done. All 15 hlth*\* tables in place + the ADR-030 read model + Maya's full demo data + HLT-001..005 IAM grants + the Health Records / Conditions / Immunisations / HIPAA Access Log NestJS module live with row-scope visibility, PII-stripping per persona, and audit-write-before-respond on every read. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth*\*`tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated`health_record:read`permission AND writes a row to`hlth_health_access_log` before the response body leaves the server.
+**Status:** Cycle 10 **IN PROGRESS** — Steps 1 + 2 + 3 + 4 + 5 + 6 of 10 done. All 15 hlth*\* tables in place + the ADR-030 read model + Maya's full demo data + HLT-001..005 IAM grants + the Health Records / Conditions / Immunisations / HIPAA Access Log NestJS module + the Medications / Schedule / Administration NestJS module with the medication dashboard + missed-dose audit + `hlth.medication.administered` Kafka emit. Cycle 10 is the **second cycle of Wave 2 (Student Services)** and ships the M23 Health module — 14 of the 17 ERD tables (3 telehealth tables deferred). Plus the immutable HIPAA access log brings the total to 15 new tenant base tables. Cycle 10 is the **most access-restricted module in the system**: the `hlth*\*`tables are flagged in the ERD for a separate HIPAA-compliant KMS key. For the dev / demo phase the tables ship without field-level encryption but the access control layer is strict from day one — every read endpoint is gated by a dedicated`health_record:read`permission AND writes a row to`hlth_health_access_log` before the response body leaves the server.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle10-implementation-plan.html`
@@ -19,7 +19,7 @@ This document tracks the Cycle 10 build at the same level of detail as `HANDOFF-
 | 3    | IEP/504 + Nurse + Screening + Dietary Schema                | **DONE** |
 | 4    | Seed Data — Maya's Health Record + IEP + Sample Visits      | **DONE** |
 | 5    | Health Records NestJS Module — Records + Conditions + Imms  | **DONE** |
-| 6    | Medication NestJS Module — Meds + Schedule + Administration | TODO     |
+| 6    | Medication NestJS Module — Meds + Schedule + Administration | **DONE** |
 | 7    | IEP/504 + Nurse + Screening + Dietary NestJS Modules        | TODO     |
 | 8    | Health UI — Nurse Dashboard + Student Health Record         | TODO     |
 | 9    | Health UI — IEP Editor + Screening + Parent View            | TODO     |
@@ -391,6 +391,88 @@ GET    /health/access-log                                hlt-001:admin  paginate
 
 ## Step 6 — Medication NestJS Module — Meds + Schedule + Administration
 
+**Status:** DONE. 3 services + 3 controllers + 10 endpoints added to `apps/api/src/health/`. `KafkaModule` added to `HealthRecordsModule.imports` for the `hlth.medication.administered` emit. Verified live on `tenant_demo` 2026-05-04 with all 15 smoke scenarios + the wire envelope captured on `dev.hlth.medication.administered`.
+
+**New files:**
+
+| File                                | Purpose                                                                                                            |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `medication.service.ts`             | List with inlined schedule + create + patch; `loadStudentForMedication(id)` helper exported for the Step 7 modules |
+| `medication.controller.ts`          | 3 endpoints — list / create / patch                                                                                |
+| `medication-schedule.service.ts`    | List / create / patch / delete schedule slots                                                                      |
+| `medication-schedule.controller.ts` | 4 endpoints                                                                                                        |
+| `administration.service.ts`         | Administer + log missed + per-medication history + the keystone medication dashboard query                         |
+| `administration.controller.ts`      | 4 endpoints                                                                                                        |
+
+**Endpoint catalogue (10 total):**
+
+```
+GET    /health/students/:studentId/medications          hlt-001:read   list with inlined schedule (audit: VIEW_MEDICATIONS)
+POST   /health/students/:studentId/medications          hlt-002:write  add medication; nurse/admin only
+PATCH  /health/medications/:id                          hlt-002:write  update medication; nurse/admin only
+GET    /health/medications/:id/schedule                 hlt-001:read   list slots for a medication
+POST   /health/medications/:id/schedule                 hlt-002:write  add slot
+PATCH  /health/medication-schedule/:id                  hlt-002:write  update slot
+DELETE /health/medication-schedule/:id                  hlt-002:write  delete slot (historical admin rows survive — soft ref)
+POST   /health/medications/:id/administer               hlt-002:write  log dose; emits hlth.medication.administered
+POST   /health/medications/:id/missed                   hlt-002:write  log missed dose; sets was_missed=true
+GET    /health/medications/:id/administrations          hlt-001:read   dose history (audit: VIEW_MEDICATIONS)
+GET    /health/medication-dashboard                     hlt-002:read   today's school-wide checklist; nurse/admin only
+```
+
+**Visibility model + permission tiers:**
+
+- **Reads (`hlt-001:read`):** admin/nurse see all; **parent** sees own children with `prescribingPhysician` stripped (parents already have the prescription on paper); **teacher** receives 403 service-layer (medication info is not classroom-relevant; safety alerts surface via the Step 5 health record stripped DTO instead). Student 403 at gate.
+- **Writes (`hlt-002:write`):** nurse / admin only via `HealthRecordService.assertNurseScope`. The seed grants both HLT-001 and HLT-002 read+write to the Staff role (covers nurse, counsellor, VP, admin assistant); a teacher with read-only HLT-001:read has no HLT-002 grant and 403s at the controller gate.
+- **Dashboard (`hlt-002:read`):** the school-wide medication checklist requires HLT-002:read which the seed grants only to Staff (and admins via `everyFunction`); parents and teachers 403 at the gate. The service additionally checks `hasNurseScope(actor)` for defence in depth.
+
+**Administer + missed shapes (the schema's `missed_chk` keystone in action):**
+
+- `POST /health/medications/:id/administer` writes an active dose:
+  - `was_missed=false`, `administered_at=now()`, `administered_by=actor.employeeId`, `missed_reason=NULL`.
+  - Refuses callers without an `hr_employees` row (synthetic Platform Admin would fail by design — dose administrations are a clinical record).
+  - Validates `scheduleEntryId` (when supplied) belongs to the parent medication; bogus ids return 400 ("scheduleEntryId does not belong to this medication").
+  - Refuses inactive medications with 400 ("Medication is inactive — reactivate via PATCH before logging doses").
+- `POST /health/medications/:id/missed` writes a missed dose:
+  - `was_missed=true`, `administered_at=NULL`, `administered_by=NULL` (the dose was not given by anyone), `missed_reason=` one of `STUDENT_ABSENT / STUDENT_REFUSED / MEDICATION_UNAVAILABLE / PARENT_CANCELLED / OTHER`.
+  - The schema's multi-column `missed_chk` enforces both shapes — any drift would 23514.
+
+**Medication dashboard query (the keystone of Step 8 nurse UI):**
+
+The `GET /health/medication-dashboard` endpoint joins `hlth_medication_schedule + hlth_medications + hlth_student_health_records + sis_students + platform.iam_person` for today's slots, then LEFT JOINs `hlth_medication_administrations` keyed on `(schedule_entry_id, today's date)` to resolve each slot's status. Today's slots = `WHERE m.is_active=true AND r.school_id=$schoolId AND (s.day_of_week IS NULL OR s.day_of_week = EXTRACT(DOW FROM now() AT TIME ZONE 'UTC'))`. Status resolution per row:
+
+- `administration_id IS NULL` → `PENDING`.
+- `administration_id` exists with `was_missed=true` → `MISSED` (with `missed_reason` and `created_at::date = today`).
+- otherwise → `ADMINISTERED` (with `administered_at::date = today`).
+
+Sorted by `scheduled_time ASC` then student `last_name, first_name` so the daily checklist reads top-to-bottom by time slot.
+
+**Kafka emit — `hlth.medication.administered`:**
+
+Fired on every successful `administer` POST after the INSERT commits. ADR-057 envelope on the wire with `source_module='health'`, populated `tenant_id`, fresh `event_id` UUIDv7. Payload includes `administrationId`, `medicationId`, `medicationName`, `studentId`, `studentName`, `scheduleEntryId` (nullable), `administeredBy` (employeeId) + `administeredByAccountId`, `doseGiven`, `parentNotified`, `administeredAt`. Reserved for the future Cycle 3 NotificationConsumer to fan out parent notifications when `parentNotified=true` is the canonical signal.
+
+**Smoke results (live on `tenant_demo` 2026-05-04 — 15 scenarios all green):**
+
+- **M1 admin GET** sees Albuterol Inhaler with `physician=Dr. Sarah Lee` + 1 schedule slot.
+- **M2 parent GET** sees same medication but **`physician=null`** — prescriber strip works.
+- **M3 teacher GET → 403** service-layer; **M4 student → 403** at gate.
+- **M5 nurse POST administer** with `scheduleEntryId` writes active dose; **M6 verifies** `was_missed=f, administered_at NOT NULL, missed_reason NULL`.
+- **M7 nurse POST missed** with `STUDENT_REFUSED` writes missed dose; verifies `was_missed=t, administered_at=NULL, missed_reason=STUDENT_REFUSED`.
+- **M8 BOGUS missed_reason → 400** from class-validator listing all 5 enum values.
+- **M9 bogus scheduleEntryId → 400** with "does not belong to this medication".
+- **M10 teacher POST administer → 403** (write requires nurse scope).
+- **M11 nurse GET dashboard** returns 3 rows for today's 08:00 slot (the seeded missed-STUDENT_ABSENT row + the new ADMINISTERED + the new MISSED-STUDENT_REFUSED). Status resolution working.
+- **M12 parent GET dashboard → 403** (HLT-002:read not granted).
+- **M13 nurse GET medication history** returns 4 rows in correct chronological order (newest-first via `COALESCE(administered_at, created_at) DESC`).
+- **M14 access log** shows 3 `VIEW_MEDICATIONS` audit rows from M1 admin / M2 parent / M13 nurse.
+- **M15 wire envelope captured live** on `dev.hlth.medication.administered` with full ADR-057 shape including `medicationName=Albuterol Inhaler`, `studentName=Maya Chen`, `parentNotified=true`, `administeredByAccountId` set.
+
+**Out of scope this step (deferred to Step 7):** the IEP / Nurse / Screening / Dietary services + the `IepAccommodationConsumer` Kafka consumer (the keystone ADR-030 read-model bridge). Those will reuse `HealthAccessLogService.recordAccess` for `VIEW_VISITS / VIEW_IEP / VIEW_SCREENING / VIEW_DIETARY` and `MedicationService.loadStudentForMedication` (exported from `HealthRecordsModule`) where they need to bridge medication ↔ student ids.
+
+---
+
+## Step 7 — IEP/504 + Nurse + Screening + Dietary NestJS Modules
+
 **Status:** TODO.
 
-(Steps 6–10 of Cycle 10 — Medication module, IEP / Nurse / Screening / Dietary modules + IepAccommodationConsumer Kafka consumer (ADR-030 read-model bridge), UI, and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
+(Steps 7–10 of Cycle 10 — IEP / Nurse / Screening / Dietary NestJS modules + IepAccommodationConsumer Kafka consumer, UI, and CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)

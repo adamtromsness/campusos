@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TenantModule } from '../tenant/tenant.module';
 import { IamModule } from '../iam/iam.module';
+import { KafkaModule } from '../kafka/kafka.module';
 import { HealthAccessLogService } from './health-access-log.service';
 import { HealthAccessLogController } from './health-access-log.controller';
 import { HealthRecordService } from './health-record.service';
@@ -9,6 +10,12 @@ import { ConditionService } from './condition.service';
 import { ConditionController } from './condition.controller';
 import { ImmunisationService } from './immunisation.service';
 import { ImmunisationController } from './immunisation.controller';
+import { MedicationService } from './medication.service';
+import { MedicationController } from './medication.controller';
+import { MedicationScheduleService } from './medication-schedule.service';
+import { MedicationScheduleController } from './medication-schedule.controller';
+import { AdministrationService } from './administration.service';
+import { AdministrationController } from './administration.controller';
 
 /**
  * Health Records Module — Cycle 10 Step 5.
@@ -51,17 +58,29 @@ import { ImmunisationController } from './immunisation.controller';
  * the server.
  */
 @Module({
-  imports: [TenantModule, IamModule],
-  providers: [HealthAccessLogService, HealthRecordService, ConditionService, ImmunisationService],
+  imports: [TenantModule, IamModule, KafkaModule],
+  providers: [
+    HealthAccessLogService,
+    HealthRecordService,
+    ConditionService,
+    ImmunisationService,
+    MedicationService,
+    MedicationScheduleService,
+    AdministrationService,
+  ],
   controllers: [
     HealthAccessLogController,
     HealthRecordController,
     ConditionController,
     ImmunisationController,
+    MedicationController,
+    MedicationScheduleController,
+    AdministrationController,
   ],
-  // Exports so the Step 6 + Step 7 services can call recordAccess +
-  // the row-scope helpers (HealthRecordService.assertCanReadStudentExternal
-  // + loadRecordIdForStudent + assertNurseScope).
-  exports: [HealthAccessLogService, HealthRecordService],
+  // Exports so the Step 7 services can call recordAccess + the row-scope
+  // helpers (HealthRecordService.assertCanReadStudentExternal +
+  // loadRecordIdForStudent + assertNurseScope) and reuse
+  // MedicationService.loadStudentForMedication.
+  exports: [HealthAccessLogService, HealthRecordService, MedicationService],
 })
 export class HealthRecordsModule {}

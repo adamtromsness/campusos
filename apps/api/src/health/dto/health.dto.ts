@@ -367,3 +367,241 @@ export interface RecordAccessInput {
   accessType: HealthAccessType;
   ipAddress?: string | null;
 }
+
+// ── Medication enums + write payloads (Step 6) ─────────────────
+
+export const MedicationRoute = ['ORAL', 'TOPICAL', 'INHALER', 'INJECTION', 'OTHER'] as const;
+export type MedicationRoute = (typeof MedicationRoute)[number];
+
+export const MissedReason = [
+  'STUDENT_ABSENT',
+  'STUDENT_REFUSED',
+  'MEDICATION_UNAVAILABLE',
+  'PARENT_CANCELLED',
+  'OTHER',
+] as const;
+export type MissedReason = (typeof MissedReason)[number];
+
+export class CreateMedicationDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 200)
+  medicationName!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  dosage?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  frequency?: string | null;
+
+  @ApiProperty({ enum: MedicationRoute })
+  @IsIn(MedicationRoute as unknown as string[])
+  route!: MedicationRoute;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  prescribingPhysician?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isSelfAdministered?: boolean;
+}
+
+export class UpdateMedicationDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  medicationName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  dosage?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  frequency?: string | null;
+
+  @ApiPropertyOptional({ enum: MedicationRoute })
+  @IsOptional()
+  @IsIn(MedicationRoute as unknown as string[])
+  route?: MedicationRoute;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  prescribingPhysician?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isSelfAdministered?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class CreateScheduleSlotDto {
+  /** TIME in HH:MM or HH:MM:SS form. */
+  @ApiProperty()
+  @IsString()
+  scheduledTime!: string;
+
+  /** 0=Sunday through 6=Saturday. NULL means every day. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  dayOfWeek?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string | null;
+}
+
+export class UpdateScheduleSlotDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  scheduledTime?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  dayOfWeek?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string | null;
+}
+
+export class AdministerDoseDto {
+  @ApiPropertyOptional({
+    description: 'Schedule slot id when fulfilling a scheduled dose. Omit for PRN.',
+  })
+  @IsOptional()
+  @IsString()
+  scheduleEntryId?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  doseGiven?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  parentNotified?: boolean;
+}
+
+export class LogMissedDoseDto {
+  @ApiPropertyOptional({ description: 'Schedule slot id this missed dose was meant to fulfil.' })
+  @IsOptional()
+  @IsString()
+  scheduleEntryId?: string | null;
+
+  @ApiProperty({ enum: MissedReason })
+  @IsIn(MissedReason as unknown as string[])
+  missedReason!: MissedReason;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string | null;
+}
+
+// ── Medication response DTOs ────────────────────────────────────
+
+export class ScheduleSlotResponseDto {
+  id!: string;
+  medicationId!: string;
+  scheduledTime!: string;
+  dayOfWeek!: number | null;
+  notes!: string | null;
+  createdAt!: string;
+  updatedAt!: string;
+}
+
+export class MedicationResponseDto {
+  id!: string;
+  healthRecordId!: string;
+  medicationName!: string;
+  dosage!: string | null;
+  frequency!: string | null;
+  route!: MedicationRoute;
+  /** Stripped to null for parent payload — staff-side prescribing detail. */
+  prescribingPhysician!: string | null;
+  isSelfAdministered!: boolean;
+  isActive!: boolean;
+  /** Inlined when reading via GET /health/students/:studentId/medications */
+  schedule!: ScheduleSlotResponseDto[];
+  createdAt!: string;
+  updatedAt!: string;
+}
+
+export class AdministrationResponseDto {
+  id!: string;
+  medicationId!: string;
+  scheduleEntryId!: string | null;
+  administeredById!: string | null;
+  administeredByName!: string | null;
+  administeredAt!: string | null;
+  doseGiven!: string | null;
+  notes!: string | null;
+  parentNotified!: boolean;
+  wasMissed!: boolean;
+  missedReason!: MissedReason | null;
+  createdAt!: string;
+  updatedAt!: string;
+}
+
+// Used by the Step 6 medication dashboard endpoint — one row per
+// scheduled-today slot with the administration status resolved.
+export class MedicationDashboardRowDto {
+  scheduleEntryId!: string;
+  medicationId!: string;
+  medicationName!: string;
+  dosage!: string | null;
+  route!: MedicationRoute;
+  isSelfAdministered!: boolean;
+  studentId!: string;
+  studentFirstName!: string | null;
+  studentLastName!: string | null;
+  scheduledTime!: string;
+  /** ADMINISTERED / MISSED / PENDING. */
+  status!: 'ADMINISTERED' | 'MISSED' | 'PENDING';
+  administrationId!: string | null;
+  administeredAt!: string | null;
+  missedReason!: MissedReason | null;
+}
