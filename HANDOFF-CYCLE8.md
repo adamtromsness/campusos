@@ -1,6 +1,6 @@
 # Cycle 8 Handoff — Service Tickets
 
-**Status:** Cycle 8 **IN PROGRESS** — Steps 1–9 (full schema + seed + ticket API + consumers + staff UI + admin UI + problem management UI) **DONE**. Step 10 (vertical-slice CAT) remains. Cycles 0–7 are COMPLETE + APPROVED. Cycle 8 is the final cycle of Wave 1 and ships the M60 Service Tickets module — a shared reactive ticketing engine that IT, facilities, and HR support all use. NOT a facilities management system (that is M65, a future cycle). This module handles reactive requests like "my projector is broken," "Room 204 needs a new light bulb," "I can't log in." It integrates with Cycle 7's Task Worker (ticket assignment creates a task on the assignee's to-do list) and the Cycle 7 Approval Workflows engine (ticket escalation can route through an approval chain).
+**Status:** Cycle 8 **COMPLETE** — all 10 steps done. Vertical-slice CAT lives at `docs/cycle8-cat-script.md` and has been verified live on `tenant_demo` (10 plan scenarios all pass; cleanup script restores tenant to post-Step-3 seed shape — 5 tickets across the 5 lifecycle states + 1 problem). Cycle 8 ships clean to the post-cycle architecture review. Tag `cycle8-complete` after the closeout commit; `cycle8-approved` after the eventual REVIEW-CYCLE8-CHATGPT verdict. Cycle 8 is the final cycle of Wave 1; the platform is now ready for Wave 2 (Student Services). Cycles 0–7 are COMPLETE + APPROVED. Cycle 8 is the final cycle of Wave 1 and ships the M60 Service Tickets module — a shared reactive ticketing engine that IT, facilities, and HR support all use. NOT a facilities management system (that is M65, a future cycle). This module handles reactive requests like "my projector is broken," "Room 204 needs a new light bulb," "I can't log in." It integrates with Cycle 7's Task Worker (ticket assignment creates a task on the assignee's to-do list) and the Cycle 7 Approval Workflows engine (ticket escalation can route through an approval chain).
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle8-implementation-plan.html`
@@ -23,7 +23,7 @@ This document tracks the Cycle 8 build at the same level of detail as `HANDOFF-C
 | 7    | Helpdesk UI — Submit + My Tickets                  | **DONE**    |
 | 8    | Helpdesk Admin UI — Queue + Dashboard              | **DONE**    |
 | 9    | Problem Management UI                              | **DONE**    |
-| 10   | Vertical Slice Integration Test                    | **PENDING** |
+| 10   | Vertical Slice Integration Test                    | **DONE**    |
 
 ---
 
@@ -755,9 +755,54 @@ Third build clean. No backend changes — Step 9 sits entirely on the 6 problem 
 
 ---
 
-## Step 10 — Pending
+## Step 10 — Vertical Slice Integration Test
 
-- **Step 10 — Vertical slice CAT.** `docs/cycle8-cat-script.md`. The full plan-time scenario walked end-to-end on `tenant_demo`.
+**Status:** DONE. `docs/cycle8-cat-script.md` ships the reproducible end-to-end walkthrough (10 plan scenarios + 10-check schema preamble + cleanup script). Live-verified on `tenant_demo` 2026-05-04 against the Step 9 build (`ca31197`).
+
+**The CAT walks the full vertical slice on `tenant_demo`:**
+
+1. **Schema preamble (10 checks)** — confirms 132 tenant logical base tables, 11 `tkt_*` tables (4 from Step 1 + 7 from Step 2), 0 cross-schema FKs, 18 intra-tenant `tkt_*` FKs, and the Step 3 seed counts (3 categories / 11 subcategories / 12 SLA / 2 vendors / 5 tickets / 1 problem).
+2. **S1 — Submit + auto-assign + SLA link + envelope + admin notification.** Teacher Rivera POSTs an IT/Hardware HIGH ticket. Response shows `assigneeName: 'Sarah Mitchell'` (auto-assigned via `subcategory.default_assignee_id`), `status: 'IN_PROGRESS'` (auto-assignment skips OPEN), `slaPolicyId` populated to the IT/HIGH policy (2h response / 8h resolution), `firstResponseAt` populated. Both `dev.tkt.ticket.submitted` and `dev.tkt.ticket.assigned` envelopes captured live with full ADR-057 shape. Both school admins receive the `ticket.submitted` notification.
+3. **S2 — Cycle 7 TaskWorker creates AUTO task on Sarah's list.** Within ~3 seconds the worker reacts to `tkt.ticket.assigned` and writes a TODO row with `task_category='ADMINISTRATIVE'`, `source='AUTO'`, `source_ref_id` matching the ticket id (the Step 4 `pickSourceRefId` fix is the load-bearing piece for the linkage).
+4. **S3 — Public comment bumps `first_response_at` + activity row + requester notification.** Sarah posts "Checking the lamp." after we manually clear `first_response_at = NULL` to simulate a not-yet-acknowledged ticket. The bump fires correctly; the COMMENT activity row carries `metadata.first_response_bump: true`. Rivera receives the `ticket.commented` notification.
+5. **S4 — Internal comment hidden from requester, visible to staff.** Sarah posts an internal comment. Requester GET sees 1 row (the public one); admin GET sees 2 rows (both). The Step 6 fan-out matrix correctly routes the internal comment to admin@ Platform Admin and NOT to Rivera.
+6. **S5 — Vendor assignment with WO reference clears internal assignee.** Sarah PATCHes /assign-vendor with Springfield IT Solutions + `WO-2026-0451`. Response shows `status='VENDOR_ASSIGNED'`, `assigneeId=null`, `vendorName='Springfield IT Solutions'`, `vendorReference='WO-2026-0451'`. The schema-level `tkt_tickets_assignee_or_vendor_chk` mutex is satisfied because the same UPDATE clears the assignee.
+7. **S6 — Resolve + Step 6 auto-task DONE-cascade.** Sarah PATCHes /resolve with a resolution note. Status flips to RESOLVED with `resolvedAt` populated. Within 4 seconds the `TicketTaskCompletionConsumer` flips the linked AUTO task from TODO to DONE with `completed_at` matching the resolve timestamp. Consumer log line `[ticket-task-completion] flipped 1 auto-task(s) DONE for ticket 019df073-…` captured. Rivera receives the `ticket.resolved` notification.
+8. **S7 — SLA metrics computed.** `(resolved_at - created_at) ≤ 8h` returns `within 8h SLA ✓` (CAT smoke ran in seconds; the dashboard aggregates the same metric across the school's history).
+9. **S8 — Problem grouping + batch-resolve keystone.** Sarah POSTs a new problem linking T1 (OPEN — Projector seed) and T2 (IN_PROGRESS — Plumbing seed). Then PATCHes /resolve with `rootCause` + `resolution`. Response shows `problem.status=RESOLVED`, `ticketsFlipped.length=2`. Both linked tickets confirmed RESOLVED in the DB. The `ProblemService.resolveBatch` keystone correctly locked both tickets `FOR UPDATE OF t` in one transaction and emitted one `tkt.ticket.resolved` per flipped ticket.
+10. **S9 — Reopen.** Rivera reopens T3 (RESOLVED — Gradebook seed). Response shows `status='OPEN'`, `resolvedAt=null`. The schema's `resolved_chk` invariant is satisfied (OPEN ⇒ resolved_at NULL). Activity log captures the STATUS_CHANGE.
+11. **S10 — 6 permission denial paths:**
+    - Student POST /tickets → 403 (no `it-001:write`)
+    - Parent GET /tickets → 403 (no `it-001:read`)
+    - Teacher POST /ticket-categories → 403 (no `it-001:admin`)
+    - Teacher POST /ticket-vendors → 403 (admin only)
+    - Teacher GET /problems → 403 (admin-only at the service layer per the Step 5 `if (!actor.isSchoolAdmin) throw new ForbiddenException(...)` guard)
+    - Teacher GET /tickets/:T2 → 404 (row scope on Park's plumbing ticket — service returns 404 not 403 to match the don't-leak-existence pattern from prior cycles)
+
+**Live verification trail:** every scenario captured with the actual API responses + DB state + Kafka envelopes + consumer log lines. The CAT script reproduces them via `bash` + `curl` + `jq` + `psql`, so a future reviewer or operator can re-run the entire flow on a fresh tenant in under 5 minutes.
+
+**Cleanup script** restores `tenant_demo` to the post-Step-3 seed shape: 5 tickets (1 each across OPEN / IN_PROGRESS / RESOLVED / VENDOR_ASSIGNED / CLOSED) + 1 problem (the seeded `Network switch failure in Building A` with T1+T3 links, INVESTIGATING). Verified post-cleanup row counts match the seed exactly.
+
+**Cycle 8 ships clean to the post-cycle architecture review.** Reviewer attention items (non-blocking, Phase 2 polish) recorded at the bottom of the CAT script — bulk admin actions, SLA matrix per-row edit, ticket volume time-series chart, attachment upload UI, email-to-ticket inbound, CSAT survey. None are required for the Wave 1 platform.
+
+---
+
+## Closing — Wave 1 Complete
+
+After Cycle 8 closes (post-cycle architecture review APPROVED), CampusOS has the complete core operational platform:
+
+- **Cycle 0** — Platform Foundation (multi-tenant DB, IAM, guards, ADR-001/020 soft cross-schema FK convention).
+- **Cycle 1** — SIS Core + Attendance.
+- **Cycle 2** — Classroom + Assignments + Grading.
+- **Cycle 3** — Communications (messaging, announcements, notifications, content moderation).
+- **Cycle 4** — HR & Workforce Core.
+- **Cycle 5** — Scheduling & Calendar (timetable EXCLUSION constraints, coverage requests, calendar events).
+- **Cycle 6** — Enrollment & Payments (`enr.student.enrolled` → PaymentAccountWorker).
+- **Cycle 6.1** — Profile & Household polish.
+- **Cycle 7** — Tasks & Approval Workflows (M1 + M2 — auto-task rule engine + multi-step approval engine).
+- **Cycle 8** — Service Tickets (M60 — the final cycle of Wave 1).
+
+Every domain module is connected via Kafka events. Every approval flow routes through the configurable workflow engine. Every persona has a to-do list. Every reactive support request lands in the helpdesk queue. The platform is ready for Wave 2: Student Services (Behaviour, Health, Counselling, Library, Athletics & Clubs). `docs/cycle8-cat-script.md`. The full plan-time scenario walked end-to-end on `tenant_demo`.
 
 ---
 
