@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 10 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
+.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
+.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
+.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
+.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
+.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
+.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}
+.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}
+.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}
+.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
+.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
+.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
+.step-title{font-size:19px;font-weight:700;color:var(--accent)}
+.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
+.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
+.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
+.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
+.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
+.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 2 &middot; Student Services</div>
+    <h1>Cycle 10: Health &amp; Wellness<br>Implementation Plan</h1>
+    <div class="sub">Student health records, medication administration with missed-dose tracking, nurse office visits with live roster, immunisation compliance, health screenings, IEP/504 plans with accommodation sync to the classroom, dietary profiles with allergen alerts, and HIPAA access logging. The highest-sensitivity data domain in the platform.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M23 Health (17 tables &mdash; 14 core in scope, 3 telehealth deferred)</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 10 builds the M23 Health module &mdash; 14 of the 17 ERD tables (telehealth deferred). This is the most access-restricted module in the system: <code>hlth_*</code> tables require a dedicated <code>health_record:read</code> permission. Teachers never read <code>hlth_*</code> directly &mdash; they read <code>sis_student_active_accommodations</code> (the ADR-030 read model) populated by a Kafka consumer when IEP accommodations change. Parents see their own child's health summary, immunisation status, and medication schedule. The school nurse is the primary operator.</p>
+
+  <p class="body-text">The module spans 5 domains: (1) core health records + conditions + immunisations, (2) medication management with scheduling and missed-dose audit, (3) nurse visits with live office roster, (4) IEP/504 plans with goals, services, and accommodation sync, (5) screenings + dietary profiles. Each domain has its own schema step so the migration sequence is clear.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Data Sensitivity &mdash; FERPA + HIPAA-Adjacent</div>
+    <p style="font-size:15px;line-height:1.8;">All <code>hlth_*</code> tables are flagged for a separate HIPAA-compliant KMS key in the ERD. For the dev/demo phase, the tables ship without field-level encryption but the access control layer is strict from day one: a dedicated <code>health_record:read</code> permission gates every read endpoint. An immutable <code>hlth_health_access_log</code> records every access for HIPAA audit. Teachers see ONLY the <code>sis_student_active_accommodations</code> read model &mdash; they never query <code>hlth_*</code> tables.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Nurse creates Maya's health record with blood type + allergies (peanuts, SEVERE) &rarr; adds an active medical condition (asthma, MODERATE) with management plan &rarr; records 3 immunisations (2 CURRENT, 1 OVERDUE) &rarr; sets up a daily medication (albuterol inhaler, PRN) with a morning schedule slot &rarr; logs today's administration &rarr; logs a nurse visit (Maya came in wheezing, treatment given, parent notified, not sent home) &rarr; creates an IEP plan with 2 goals + 1 accommodation (EXTENDED_TIME for ALL_ASSESSMENTS) &rarr; <code>iep.accommodation.updated</code> fires &rarr; <code>sis_student_active_accommodations</code> updated via Kafka consumer (ADR-030) &rarr; teacher sees the accommodation on Maya's classroom profile without touching <code>hlth_*</code> &rarr; nurse runs a vision screening on Maya &rarr; screening flagged for follow-up &rarr; dietary profile created (peanut allergy, SEVERE, with POS allergen alert flag) &rarr; parent sees Maya's health summary with immunisation compliance and medication schedule.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (14 tables):</strong> hlth_student_health_records, hlth_medical_conditions, hlth_immunisations, hlth_medications, hlth_medication_schedule, hlth_medication_administrations, hlth_nurse_visits, hlth_iep_plans, hlth_iep_goals, hlth_iep_goal_progress, hlth_iep_services, hlth_iep_accommodations, hlth_screenings, hlth_dietary_profiles. Plus hlth_health_access_log (HIPAA audit). Functions HLT-001 through HLT-005.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred (3 tables):</strong> hlth_telehealth_providers, hlth_telehealth_sessions, hlth_telehealth_documents (require video platform integration + platform_signature_requests &mdash; future cycle). Screening schedule auto-generation (manual this cycle). Field-level encryption (tagged in ERD for HIPAA KMS key &mdash; access control ships now, encryption is Phase 3 ops). Nurse-visit pattern alerting (threshold-based &mdash; future). Medication inventory management (out of ERD scope).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:34%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Health Records Schema &mdash; Records, Conditions, Immunisations</td><td>Schema</td><td>hlth_student_health_records, hlth_medical_conditions, hlth_immunisations, hlth_health_access_log</td></tr>
+    <tr><td><strong>2</strong></td><td>Medication Schema &mdash; Meds, Schedule, Administration</td><td>Schema</td><td>hlth_medications, hlth_medication_schedule, hlth_medication_administrations</td></tr>
+    <tr><td><strong>3</strong></td><td>IEP/504 + Nurse + Screening + Dietary Schema</td><td>Schema</td><td>hlth_iep_plans, hlth_iep_goals, hlth_iep_goal_progress, hlth_iep_services, hlth_iep_accommodations, hlth_nurse_visits, hlth_screenings, hlth_dietary_profiles</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Maya's Health Record + IEP + Sample Visits</td><td>Seed</td><td>Health record, 2 conditions, 3 immunisations, 1 medication + schedule, 2 nurse visits, 1 IEP with goals + accommodation, 1 screening, 1 dietary profile, permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Health Records NestJS Module &mdash; Records + Conditions + Immunisations</td><td>Code</td><td>HealthRecordService, ConditionService, ImmunisationService. HIPAA access logging on every read.</td></tr>
+    <tr><td><strong>6</strong></td><td>Medication NestJS Module &mdash; Meds + Schedule + Administration</td><td>Code</td><td>MedicationService, ScheduleService, AdministrationService. Missed-dose tracking. Parent notification on administration.</td></tr>
+    <tr><td><strong>7</strong></td><td>IEP/504 + Nurse + Screening + Dietary NestJS Modules</td><td>Code</td><td>IepPlanService, NurseVisitService, ScreeningService, DietaryProfileService. IEP accommodation sync via Kafka. Nurse office live roster.</td></tr>
+    <tr><td><strong>8</strong></td><td>Health UI &mdash; Nurse Dashboard + Student Health Record</td><td>UI</td><td>"Health" app tile, nurse dashboard with live roster + medication schedule + immunisation compliance, student health record detail</td></tr>
+    <tr><td><strong>9</strong></td><td>Health UI &mdash; IEP Editor + Screening + Parent View</td><td>UI</td><td>IEP/504 plan editor with goals + services + accommodations, screening log, dietary profiles, parent health summary</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Full health lifecycle + IEP accommodation sync to classroom + parent view + HIPAA access log verification</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Health Records Schema &mdash; Records, Conditions, Immunisations</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The core health identity: one record per student, with linked conditions and immunisation tracking. Plus the HIPAA access log that every health read operation writes to.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>hlth_student_health_records</strong> &mdash; <code>student_id UUID FK(sis_students) UNIQUE</code> (one record per student), <code>school_id UUID</code>, <code>blood_type TEXT</code> nullable, <code>allergies JSONB</code> (structured: <code>[{allergen, severity, reaction, notes}]</code>), <code>emergency_medical_notes TEXT</code>, <code>physician_name TEXT</code>, <code>physician_phone TEXT</code>. The master health record. Created by the nurse; updated as conditions evolve.</li>
+      <li><strong>hlth_medical_conditions</strong> &mdash; <code>health_record_id UUID FK</code>, <code>condition_name TEXT NOT NULL</code>, <code>diagnosis_date DATE</code>, <code>is_active BOOLEAN</code>, <code>severity</code> ENUM(MILD, MODERATE, SEVERE), <code>management_plan TEXT</code>. INDEX(health_record_id, is_active).</li>
+      <li><strong>hlth_immunisations</strong> &mdash; <code>health_record_id UUID FK</code>, <code>vaccine_name TEXT NOT NULL</code>, <code>administered_date DATE</code>, <code>due_date DATE</code>, <code>administered_by TEXT</code>, <code>status</code> ENUM(CURRENT, OVERDUE, WAIVED). INDEX(health_record_id, vaccine_name). The compliance dashboard aggregates OVERDUE counts.</li>
+      <li><strong>hlth_health_access_log</strong> &mdash; IMMUTABLE. <code>school_id UUID</code>, <code>accessed_by UUID</code> (soft to platform_users), <code>student_id UUID FK(sis_students)</code>, <code>access_type</code> ENUM(VIEW_RECORD, VIEW_CONDITIONS, VIEW_IMMUNISATIONS, VIEW_MEDICATIONS, VIEW_VISITS, VIEW_IEP, VIEW_SCREENING, VIEW_DIETARY, EXPORT), <code>accessed_at TIMESTAMPTZ DEFAULT now()</code>, <code>ip_address TEXT</code> nullable. INDEX(student_id, accessed_at DESC). INDEX(accessed_by, accessed_at DESC). No UPDATE, no DELETE. Every health read endpoint writes a row here before returning data.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>032_hlth_health_records.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Medication Schema &mdash; Meds, Schedule, Administration</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The medication management domain: prescribed medications linked to health records, daily schedule slots, and dose administration logs with missed-dose audit tracking.</p>
+
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>hlth_medications</strong> &mdash; <code>health_record_id UUID FK</code>, <code>medication_name TEXT NOT NULL</code>, <code>dosage TEXT</code>, <code>frequency TEXT</code>, <code>route</code> ENUM(ORAL, TOPICAL, INHALER, INJECTION, OTHER), <code>prescribing_physician TEXT</code>, <code>is_self_administered BOOLEAN</code>, <code>is_active BOOLEAN DEFAULT true</code>. INDEX(health_record_id, is_active).</li>
+      <li><strong>hlth_medication_schedule</strong> &mdash; <code>medication_id UUID FK</code>, <code>scheduled_time TIME NOT NULL</code>, <code>day_of_week SMALLINT</code> nullable (0&ndash;6; null = every day), <code>notes TEXT</code>. The daily schedule that the nurse dashboard renders as a checklist. INDEX(medication_id).</li>
+      <li><strong>hlth_medication_administrations</strong> &mdash; <code>medication_id UUID FK</code>, <code>schedule_entry_id UUID FK(hlth_medication_schedule)</code> nullable (null for PRN/unscheduled), <code>administered_by UUID FK(hr_employees)</code>, <code>administered_at TIMESTAMPTZ</code> nullable (null when was_missed=true), <code>dose_given TEXT</code>, <code>notes TEXT</code>, <code>parent_notified BOOLEAN DEFAULT false</code>, <code>was_missed BOOLEAN DEFAULT false</code>, <code>missed_reason</code> ENUM(STUDENT_ABSENT, STUDENT_REFUSED, MEDICATION_UNAVAILABLE, PARENT_CANCELLED, OTHER) nullable. CHECK: NOT (was_missed = true AND administered_at IS NOT NULL). INDEX(medication_id, administered_at DESC). Partial INDEX(schedule_entry_id, was_missed) WHERE was_missed = true &mdash; missed dose audit query.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 3 new tables. Migration: <code>033_hlth_medications.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">IEP/504 + Nurse + Screening + Dietary Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The remaining 7 tables: the IEP/504 plan domain (5 tables with accommodation sync), nurse visits with live roster, screenings, and dietary profiles.</p>
+
+    <div class="detail-heading">Tables (8)</div>
+    <ol class="detail-list">
+      <li><strong>hlth_iep_plans</strong> &mdash; <code>student_id UUID FK(sis_students) UNIQUE</code> (one active plan per student), <code>plan_type</code> ENUM(IEP, 504), <code>status</code> ENUM(DRAFT, ACTIVE, REVIEW, EXPIRED), <code>start_date DATE</code>, <code>review_date DATE</code>, <code>end_date DATE</code>, <code>case_manager_id UUID FK(hr_employees)</code>. On plan changes: emit <code>iep.accommodation.updated</code> Kafka event &rarr; <code>sis_student_active_accommodations</code> updated by SIS consumer (ADR-030).</li>
+      <li><strong>hlth_iep_goals</strong> &mdash; <code>iep_plan_id UUID FK</code>, <code>goal_text TEXT NOT NULL</code>, <code>measurement_criteria TEXT</code>, <code>baseline TEXT</code>, <code>target_value TEXT</code>, <code>current_value TEXT</code>, <code>goal_area TEXT</code>, <code>status</code> ENUM(ACTIVE, MET, NOT_MET, DISCONTINUED).</li>
+      <li><strong>hlth_iep_goal_progress</strong> &mdash; <code>goal_id UUID FK</code>, <code>recorded_by UUID FK</code>, <code>progress_value TEXT</code>, <code>observation_notes TEXT</code>, <code>recorded_at TIMESTAMPTZ</code>. INDEX(goal_id, recorded_at DESC).</li>
+      <li><strong>hlth_iep_services</strong> &mdash; <code>iep_plan_id UUID FK</code>, <code>service_type TEXT</code> (speech, OT, PT, counselling...), <code>provider_name TEXT</code>, <code>frequency TEXT</code>, <code>minutes_per_session INT</code>, <code>delivery_method</code> ENUM(PULL_OUT, PUSH_IN, CONSULT).</li>
+      <li><strong>hlth_iep_accommodations</strong> &mdash; <code>iep_plan_id UUID FK</code>, <code>accommodation_type TEXT</code> (EXTENDED_TIME, ALTERNATIVE_ASSESSMENT, ASSISTIVE_TECH, READ_ALOUD, REDUCED_DISTRACTION...), <code>description TEXT</code>, <code>applies_to</code> ENUM(ALL_ASSESSMENTS, ALL_ASSIGNMENTS, SPECIFIC), <code>specific_assignment_types TEXT[]</code> nullable, <code>effective_from DATE</code>, <code>effective_to DATE</code>. On INSERT/UPDATE/DELETE: the parent IepPlanService emits <code>iep.accommodation.updated</code>.</li>
+      <li><strong>hlth_nurse_visits</strong> &mdash; <code>visited_person_id UUID NOT NULL</code> (soft &mdash; sis_students.id or hr_employees.id per visited_person_type), <code>visited_person_type</code> ENUM(STUDENT, STAFF) DEFAULT 'STUDENT', <code>school_id UUID</code>, <code>nurse_id UUID FK(hr_employees)</code>, <code>visit_date TIMESTAMPTZ</code>, <code>status</code> ENUM(IN_PROGRESS, COMPLETED) DEFAULT 'COMPLETED', <code>signed_in_at TIMESTAMPTZ</code>, <code>signed_out_at TIMESTAMPTZ</code> nullable, <code>reason TEXT</code>, <code>treatment_given TEXT</code>, <code>parent_notified BOOLEAN</code>, <code>sent_home BOOLEAN</code>, <code>sent_home_at TIMESTAMPTZ</code>, <code>follow_up_required BOOLEAN</code>, <code>follow_up_notes TEXT</code>, <code>follow_up_date DATE</code>. Partial INDEX(school_id, status) WHERE status = 'IN_PROGRESS' &mdash; live nurse office roster.</li>
+      <li><strong>hlth_screenings</strong> &mdash; <code>school_id UUID</code>, <code>student_id UUID FK(sis_students)</code>, <code>screening_type TEXT NOT NULL</code> (VISION, HEARING, SCOLIOSIS, BMI, DENTAL, CUSTOM), <code>screening_date DATE NOT NULL</code>, <code>screened_by UUID FK(hr_employees)</code>, <code>result</code> ENUM(PASS, REFER, RESCREEN, ABSENT), <code>result_notes TEXT</code>, <code>follow_up_required BOOLEAN</code>, <code>follow_up_completed BOOLEAN DEFAULT false</code>, <code>referral_notes TEXT</code>. INDEX(student_id, screening_date DESC).</li>
+      <li><strong>hlth_dietary_profiles</strong> &mdash; <code>student_id UUID FK(sis_students) UNIQUE</code> (one profile per student), <code>school_id UUID</code>, <code>dietary_restrictions TEXT[]</code> (VEGETARIAN, VEGAN, HALAL, KOSHER, GLUTEN_FREE, DAIRY_FREE...), <code>allergens JSONB</code> (structured: <code>[{allergen, severity, reaction}]</code>), <code>special_meal_instructions TEXT</code>, <code>pos_allergen_alert BOOLEAN DEFAULT false</code> (when true: POS system shows a hard-stop alert), <code>updated_by UUID</code> (soft). INDEX(school_id, pos_allergen_alert) WHERE pos_allergen_alert = true.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 8 new tables. Migration: <code>034_hlth_iep_nurse_screening_dietary.sql</code>. Total Cycle 10 tables: 15 (including the access log).</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Seed Data &mdash; Maya's Health Record + IEP + Sample Visits</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>Maya's health record:</strong> blood_type='A+', allergies=[{allergen:'Peanuts', severity:'SEVERE', reaction:'Anaphylaxis'}, {allergen:'Dust mites', severity:'MILD', reaction:'Sneezing'}], physician Dr. Lee, phone. 2 conditions: Asthma (MODERATE, ACTIVE, management plan) + Seasonal allergies (MILD, ACTIVE).</li>
+      <li><strong>Immunisations (3):</strong> DTaP (CURRENT, administered 2024-09), Flu (OVERDUE, due 2025-10), MMR (CURRENT, administered 2023-08). The OVERDUE row drives the immunisation compliance dashboard.</li>
+      <li><strong>Medication (1):</strong> Albuterol inhaler, PRN + scheduled morning dose. 1 schedule slot (08:00 daily). 2 administration records (1 administered yesterday, 1 missed today with reason STUDENT_ABSENT).</li>
+      <li><strong>Nurse visits (2):</strong> (1) Maya, yesterday, COMPLETED, reason "Wheezing episode", treatment "Administered inhaler", parent_notified=true, not sent home. (2) Ethan Rodriguez, last week, COMPLETED, reason "Headache", treatment "Rest + water", not sent home.</li>
+      <li><strong>IEP plan (1):</strong> Maya, type=504, status=ACTIVE, case_manager=Hayes (counsellor). 2 goals (Extended Time compliance + Reduced Distraction compliance). 1 service (Speech therapy, 30 min, 2x/week, PULL_OUT). 2 accommodations (EXTENDED_TIME for ALL_ASSESSMENTS + REDUCED_DISTRACTION for ALL_ASSESSMENTS). 1 goal progress entry.</li>
+      <li><strong>Screening (1):</strong> Maya, VISION, last month, REFER, follow_up_required=true, follow_up_completed=false, referral_notes "Schedule ophthalmologist appointment."</li>
+      <li><strong>Dietary profile (1):</strong> Maya, restrictions=['NONE'], allergens=[{allergen:'Peanuts', severity:'SEVERE'}], pos_allergen_alert=true.</li>
+      <li><strong>sis_student_active_accommodations (2):</strong> Seeded directly to demonstrate the ADR-030 read model shape. EXTENDED_TIME + REDUCED_DISTRACTION for Maya, plan_type=504, effective dates matching the IEP accommodations. The Step 7 Kafka consumer will maintain these going forward.</li>
+      <li><strong>Permissions:</strong> HLT-001 through HLT-005 read+write to Staff (nurse/counsellor). HLT-001:read to Teacher (health alerts only &mdash; the service strips PII and returns accommodation-level info). HLT-001:read to Parent (own child's health summary). Admin gets all tiers via everyFunction.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Rich health demo data for Maya + permissions for 5 HLT functions.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Health Records NestJS Module &mdash; Records + Conditions + Immunisations</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>HealthRecordService</strong> &mdash; <code>GET /health/students/:studentId</code> (full record + conditions + immunisations; HIPAA access log written on every call), <code>POST /health/students/:studentId</code> (create record; nurse/admin only), <code>PATCH /health/students/:studentId</code> (update). <code>GET /health/immunisation-compliance</code> (admin: school-wide OVERDUE count by vaccine). Row-scope: nurse/admin sees all; teacher sees accommodation-relevant alerts only (stripped DTO); parent sees own child.</li>
+      <li><strong>ConditionService</strong> &mdash; <code>GET/POST /health/students/:studentId/conditions</code>, <code>PATCH/DELETE /health/conditions/:id</code>.</li>
+      <li><strong>ImmunisationService</strong> &mdash; <code>GET/POST /health/students/:studentId/immunisations</code>, <code>PATCH /health/immunisations/:id</code>.</li>
+      <li><strong>HealthAccessLogService</strong> &mdash; internal: <code>recordAccess(actor, studentId, accessType)</code> called by every health read. <code>GET /health/access-log</code> (admin-only audit view).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; HealthModule with 4 services, ~14 endpoints. Every read writes to hlth_health_access_log.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Medication NestJS Module &mdash; Meds + Schedule + Administration</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>MedicationService</strong> &mdash; <code>GET/POST /health/students/:studentId/medications</code>, <code>PATCH /health/medications/:id</code>. Active medications feed the nurse dashboard's daily checklist.</li>
+      <li><strong>ScheduleService</strong> &mdash; <code>GET/POST /health/medications/:id/schedule</code>, <code>PATCH/DELETE /health/medication-schedule/:id</code>. The daily schedule that renders time slots on the nurse dashboard.</li>
+      <li><strong>AdministrationService</strong> &mdash; <code>POST /health/medications/:id/administer</code> (log a dose; stamps administered_by from actor.employeeId; links schedule_entry_id when fulfilling a scheduled slot; emits <code>hlth.medication.administered</code>). <code>POST /health/medications/:id/missed</code> (log a missed dose with reason; sets was_missed=true; the CHECK constraint enforces administered_at IS NULL). <code>GET /health/medications/:id/administrations</code> (dose history). <code>GET /health/medication-dashboard</code> (nurse: today's schedule across all students with administered/pending/missed status per slot).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 3 services, ~10 endpoints. Missed-dose audit trail via the partial INDEX.</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">IEP/504 + Nurse + Screening + Dietary NestJS Modules</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>IepPlanService</strong> &mdash; <code>GET/POST /health/students/:studentId/iep</code>, <code>PATCH /health/iep-plans/:id</code> (status transitions with FOR UPDATE). <code>POST /health/iep-plans/:id/goals</code>, <code>PATCH /health/iep-goals/:id</code>, <code>POST /health/iep-goals/:id/progress</code>. <code>POST /health/iep-plans/:id/services</code>, <code>PATCH /health/iep-services/:id</code>. <code>POST /health/iep-plans/:id/accommodations</code>, <code>PATCH/DELETE /health/iep-accommodations/:id</code>. On accommodation INSERT/UPDATE/DELETE: emits <code>iep.accommodation.updated</code> with the full accommodation set for the student.</li>
+      <li><strong>IepAccommodationConsumer</strong> &mdash; Kafka consumer on <code>iep.accommodation.updated</code>. Upserts <code>sis_student_active_accommodations</code> rows (ADR-030 read model). Deletes rows that no longer match. Teachers read this table via the existing Cycle 1 student profile &mdash; they never touch <code>hlth_*</code>.</li>
+      <li><strong>NurseVisitService</strong> &mdash; <code>GET /health/nurse-visits</code> (nurse: today's roster filtered by status=IN_PROGRESS + recent completed; admin: full history), <code>POST /health/nurse-visits</code> (sign in a student/staff), <code>PATCH /health/nurse-visits/:id</code> (sign out, add treatment, mark parent notified, mark sent home). <code>GET /health/nurse-visits/roster</code> (live: students currently IN_PROGRESS). Emits <code>hlth.nurse_visit.sent_home</code> when sent_home flips true (parent notification).</li>
+      <li><strong>ScreeningService</strong> &mdash; <code>GET/POST /health/screenings</code>, <code>PATCH /health/screenings/:id</code>, <code>GET /health/screenings/follow-up</code> (admin: all REFER results with follow_up_completed=false).</li>
+      <li><strong>DietaryProfileService</strong> &mdash; <code>GET/POST /health/students/:studentId/dietary</code>, <code>PATCH /health/dietary-profiles/:id</code>. <code>GET /health/allergen-alerts</code> (returns all students with pos_allergen_alert=true &mdash; the POS/cafeteria integration surface).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 5 services + 1 Kafka consumer, ~20 endpoints. Total health endpoints: ~44.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Health UI &mdash; Nurse Dashboard + Student Health Record</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Nurse Dashboard</strong> <code>/health</code> &mdash; "Health" app tile gated on hlt-001:read. Three-panel layout: (1) Live nurse office roster (students currently IN_PROGRESS, sign-out button per row), (2) Today's medication schedule (time slots with administered/pending/missed pills, quick-administer button), (3) Immunisation compliance summary (OVERDUE count with drill-down).</li>
+      <li><strong>Student Health Record</strong> <code>/health/students/:studentId</code> &mdash; tabbed view: Overview (blood type, allergies, physician, emergency notes), Conditions (active/inactive with severity pills), Immunisations (vaccine list with status pills, compliance %, add button), Medications (active meds with schedule + recent administrations + missed doses), Visits (nurse visit history with treatment + parent notification status + follow-up flags).</li>
+      <li><strong>Nurse Visit Log</strong> <code>/health/nurse-visits</code> &mdash; sign in a new student/staff with reason, view today's completed visits, filter by date range.</li>
+      <li><strong>Medication Dashboard</strong> <code>/health/medications</code> &mdash; expanded view of today's school-wide medication schedule. Per-student, per-time-slot checklist with administer/miss buttons.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; "Health" app tile, nurse dashboard, student health record, nurse visit log, medication dashboard.</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Health UI &mdash; IEP Editor + Screening + Parent View</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>IEP/504 Plan Editor</strong> <code>/health/iep-plans/:id</code> &mdash; plan header (type, status, case manager, dates). Goals table with progress tracking + add progress entry. Services list with frequency + delivery method. Accommodations list with type + scope + dates + add/edit/remove. Status transitions (DRAFT &rarr; ACTIVE &rarr; REVIEW &rarr; EXPIRED). On accommodation change, the background Kafka sync updates <code>sis_student_active_accommodations</code> automatically.</li>
+      <li><strong>Screening Log</strong> <code>/health/screenings</code> &mdash; admin: school-wide screening list with type/result filters. Follow-up queue (REFER results with follow_up_completed=false). Add screening form.</li>
+      <li><strong>Dietary Profiles</strong> <code>/health/dietary</code> &mdash; admin: list of students with dietary restrictions or allergen alerts. Per-student edit. POS alert flag toggle.</li>
+      <li><strong>Parent Health Summary</strong> <code>/children/:id/health</code> &mdash; read-only summary of their child's health: allergies, active conditions (name + severity only, no management plan details), immunisation status (CURRENT/OVERDUE/WAIVED per vaccine), medication schedule (name + time + route), recent nurse visits (date + reason + sent home status). NO access to IEP details, screening results, or medication administration log &mdash; those are staff-only.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; IEP editor, screening log, dietary profiles, parent health summary.</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Health record lifecycle:</strong> Nurse creates Maya's record. Adds asthma condition. Adds 3 immunisations. Verify HIPAA access log rows on every read.</li>
+      <li><strong>Medication lifecycle:</strong> Add albuterol medication + daily schedule. Administer a dose. Log a missed dose with STUDENT_ABSENT reason. Verify CHECK constraint: missed dose cannot have administered_at.</li>
+      <li><strong>Nurse visit:</strong> Sign Maya in (IN_PROGRESS). Add treatment + parent notification. Sign out (COMPLETED). Verify live roster shows 0 after sign-out.</li>
+      <li><strong>IEP accommodation sync (ADR-030 keystone):</strong> Create IEP with EXTENDED_TIME accommodation. Verify <code>iep.accommodation.updated</code> fires. Verify <code>sis_student_active_accommodations</code> row created by the consumer. Teacher reads <code>/students/:id</code> and sees the accommodation without touching hlth_*.</li>
+      <li><strong>Screening:</strong> Record a vision screening with REFER result. Verify follow-up queue includes it.</li>
+      <li><strong>Dietary profile:</strong> Create profile with peanut allergen + POS alert. Verify allergen-alerts endpoint returns Maya.</li>
+      <li><strong>Parent visibility:</strong> David Chen sees Maya's health summary (allergies, conditions summary, immunisation status, medication schedule). Verify NO access to IEP details, screening results, admin notes, or medication administration log.</li>
+      <li><strong>HIPAA access log verification:</strong> Admin reads the access log. Verify every health read in this CAT generated a log row with the correct access_type + actor.</li>
+      <li><strong>Permission denials:</strong> Teacher cannot read full health record (only accommodations via sis_student_active_accommodations). Student cannot access health module. Parent cannot see another child's health data.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Verified health lifecycle with IEP accommodation sync + HIPAA audit trail.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 10 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 15 new tables (4 records + 3 medication + 8 IEP/nurse/screening/dietary). Tenant table count: ~154.</li>
+      <li>Health API: ~44 endpoints with HIPAA access logging on every read.</li>
+      <li>IEP accommodation sync: <code>iep.accommodation.updated</code> &rarr; consumer &rarr; <code>sis_student_active_accommodations</code> (ADR-030).</li>
+      <li>Medication dashboard: daily schedule with administer/miss tracking.</li>
+      <li>Nurse office: live roster (IN_PROGRESS), visit log, parent notification on sent-home.</li>
+      <li>Immunisation compliance: school-wide OVERDUE dashboard.</li>
+      <li>Dietary profiles: allergen alerts with POS flag.</li>
+      <li>Parent view: read-only health summary for own child (stripped of staff-only data).</li>
+      <li>HIPAA access log: every health read creates an immutable audit row.</li>
+      <li>HANDOFF-CYCLE10.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">After Cycle 10, CampusOS manages the complete student health lifecycle: from health records through medication administration, nurse visits, IEP/504 plans with classroom accommodation sync, screenings, and dietary profiles. The HIPAA access log provides the audit trail required for compliance. The ADR-030 accommodation read model lets teachers see what they need without accessing protected health data. The next cycle (Cycle 11: Counselling &amp; Student Support) builds on the IEP/504 plans by adding counselling caseloads, referrals, MTSS/RTI tiers, and wellbeing check-ins.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 10 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M23 Health, 17 tables &mdash; 14 core in scope), Function Library (HLT-001 through HLT-005), Architecture Review (ADR-030 IEP accommodation read model).</p>
+  </div>
+</div>
+
+</body>
+</html>
