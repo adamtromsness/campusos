@@ -65,7 +65,19 @@ export default function NurseDashboardPage() {
                 href="/health/medications"
                 className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
-                Medication dashboard
+                Medications
+              </Link>
+              <Link
+                href="/health/screenings"
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Screenings
+              </Link>
+              <Link
+                href="/health/dietary"
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Dietary
               </Link>
             </div>
           ) : null

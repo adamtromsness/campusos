@@ -22,7 +22,7 @@ This document tracks the Cycle 10 build at the same level of detail as `HANDOFF-
 | 6    | Medication NestJS Module — Meds + Schedule + Administration | **DONE** |
 | 7    | IEP/504 + Nurse + Screening + Dietary NestJS Modules        | **DONE** |
 | 8    | Health UI — Nurse Dashboard + Student Health Record         | **DONE** |
-| 9    | Health UI — IEP Editor + Screening + Parent View            | TODO     |
+| 9    | Health UI — IEP Editor + Screening + Parent View            | **DONE** |
 | 10   | Vertical Slice Integration Test                             | TODO     |
 
 ---
@@ -605,4 +605,49 @@ Ships the first batch of Cycle 10 web routes — the nurse-facing surfaces for t
 
 **Out of scope this step (deferred to Step 9):** IEP plan editor (the `/health/students/[studentId]` Medications tab references the IEP plan but the editor for plan/goals/services/accommodations belongs to Step 9 alongside Screening). Parent-facing `/children/[id]/health` route (Step 9). Health access log viewer (Step 9 admin tab).
 
-(Steps 9 + 10 of Cycle 10 — IEP/Screening/Parent UI + CAT — remain to ship; see `docs/campusos-cycle10-implementation-plan.html`.)
+---
+
+## Step 9 — Health UI — IEP Editor + Screening + Parent View
+
+**Status:** DONE.
+
+Ships the second batch of Cycle 10 web routes — IEP/504 editor, screening log, dietary admin, and parent health summary — plus a small backend extension and a runtime path bug fix carried over from Step 8.
+
+**Step 8 carry-over (BLOCKING fix):** Step 8's `use-health.ts` hooks omitted the `/api/v1` prefix on every endpoint path. `apiFetch` does NOT auto-prefix and the existing convention (`use-discipline.ts`, `use-tickets.ts`, `use-children.ts`) is for the caller to pass the full path. The 4 Step 8 routes would have 404'd at runtime. Fixed by introducing a `PREFIX = '/api/v1'` constant and template-prefixing every queryFn / mutationFn URL. Verified by booting the API + the 7-scenario smoke (S1-3 admin reads, P1-2 parent reads through the new endpoint, P3-4 permission denials) all return 200/403 as expected.
+
+**Backend extension** — `apps/api/src/health/nurse-visit.service.ts` gains `listForStudent(studentId, actor)` plus a new `GET /health/students/:studentId/visits` endpoint on `NurseVisitController` gated on `hlt-001:read`. Filters STUDENT visits only (the row is keyed on `sis_students.id`); STAFF visits stay under the broader admin-only `/health/nurse-visits` path. Row scope routes through the existing `HealthRecordService.assertCanReadStudentExternal` so parents (GUARDIAN row scope via `sis_student_guardians`), teachers (own-class row scope via `sis_class_teachers + sis_enrollments`), and admins/nurses all reach it cleanly. Writes a `VIEW_VISITS` HIPAA audit row before returning. Cycle 10 endpoint count: **48** (47 from Steps 5–7 + this one).
+
+**4 new web routes:**
+
+- `/health/iep-plans/[id]` — full IEP/504 editor. Resolves the plan via the existing `/students/:studentId/iep` endpoint by reading `?studentId=` from the query string (the Step 8 student health record's OverviewTab now renders an active-IEP card that links here with both the plan id and the studentId). **PlanHeaderCard** shows type / case manager / dates with status pill + transition buttons (Move to DRAFT / ACTIVE / REVIEW / EXPIRED) for managers. **GoalsSection** lists each goal with status pill + measurement criteria + baseline/current/target stats + collapsible progress entries; per-goal Add-progress modal + status transition buttons. **ServicesSection** lists per-service rows with delivery method pill + minutes-per-session + frequency + provider name. **AccommodationsSection** is the keystone — each accommodation INSERT/UPDATE/DELETE triggers `iep.accommodation.updated` Kafka emit (already wired in Step 7's `IepPlanService`) which the Step 7 `IepAccommodationConsumer` reconciles into `sis_student_active_accommodations`; the modal handles the `applies_to_chk` shape rule client-side (SPECIFIC requires comma-separated assignment types; ALL_ASSESSMENTS / ALL_ASSIGNMENTS clear the array).
+- `/health/screenings` — admin-only screening log + follow-up queue. Two tabs: `Follow-up queue` defaulted (REFER results with `follow_up_completed=false`, hits Step 3's partial INDEX) and `All screenings` with per-result filter chips. **ScreeningModal** drives `useStudentsForReport` for the searchable student picker, freeform `screeningType` text, date input, optional 4-value result dropdown, follow-up flag, and referral notes. Per-row "Mark follow-up complete" button on REFER rows.
+- `/health/dietary` — admin / nurse list of students with cafeteria allergen alerts (hits Step 3's `(school_id) WHERE pos_allergen_alert=true` partial INDEX via `/health/allergen-alerts`). **DietaryEditModal** lets admins edit the allergen array (per-row severity + reaction), comma-separated dietary restrictions, special meal instructions, and the POS allergen alert flag. Per-row "Open record →" link to the full health record.
+- `/children/[id]/health` — parent read-only health summary. Renders 6 cards: **Allergies** (severity pills + reaction text per row); **Active conditions** (filtered to `is_active=true` only — Maya's seeded Asthma MODERATE + Seasonal MILD; backend's GUARDIAN strip removes management_plan); **Immunisations** (status pills with administered + due dates); **Medication schedule** (active meds with drug + route + self-administered + dosage + scheduled times — backend strips `prescribingPhysician` for parents); **Dietary** (allergen pills + restrictions + POS alert + special instructions); **Recent nurse visits** (top 5 rows with sent-home + parent-notified pills via the new `useStudentVisits` hook). Per the Cycle 10 plan: NO IEP details, NO screening results, NO admin notes, NO medication administration log on this surface. The Add-Health button on `/children` ChildCard wires the entry point.
+
+**Web side additions** — `apps/web/src/lib/types.ts` extended with 11 Step 9 mutation payload types (CreateIepPlanPayload / UpdateIepPlanPayload / CreateIepGoalPayload / UpdateIepGoalPayload / CreateGoalProgressPayload / CreateIepServicePayload / UpdateIepServicePayload / CreateAccommodationPayload / UpdateAccommodationPayload / CreateScreeningPayload / UpdateScreeningPayload / CreateDietaryProfilePayload / UpdateDietaryProfilePayload / ListScreeningsArgs). `apps/web/src/lib/health-format.ts` extended with `IEP_PLAN_TYPE_LABELS` (IEP / 504 Plan) + `IEP_DELIVERY_METHOD_LABELS` (Pull-out / Push-in / Consultative). `apps/web/src/hooks/use-health.ts` rewritten — every existing Step 8 hook URL re-prefixed with `/api/v1`, plus 17 new mutation hooks for IEP CRUD (10) + Screening CRUD (4) + Dietary CRUD (3), plus `useStudentVisits` and `useAllergenAlerts` reads. Every mutation invalidates the appropriate `['health', ...]` query keys. `apps/web/src/components/shell/apps.tsx` is unchanged — the Step 8 Health tile already covers all routes.
+
+**Navigation wiring** — `/children` ChildCard gains a Health button alongside Attendance / Grades / Schedule / Behaviour / Report-absence. The `/health` dashboard's nurse-scope action bar gains Screenings + Dietary buttons (alongside the existing Visit log + Medications). The Step 8 student health record's OverviewTab gains an active-IEP banner card linking to the editor.
+
+**Build sizes** (web): `/children/[id]/health` 7.1 kB / 116 kB First Load JS; `/health/iep-plans/[id]` 9.91 kB / 119 kB; `/health/screenings` 3.59 kB / 118 kB; `/health/dietary` 7.08 kB / 116 kB. The original Step 8 routes grew slightly with the new types (5.73 → 7.26 kB on `/health` etc.) due to the larger DTO module and additional hooks.
+
+**Iteration issues caught:** unused `IepGoalStatus` and `IepPlanStatus` imports in the IEP editor (the labels handle status keying directly); unused `studentDisplayName` import in `/health/dietary`; `ImmunisationDto.nextDueDate` doesn't exist (the field is `dueDate`) — fixed in the parent health page. All 3 issues caught by next build's strict TS + ESLint pass.
+
+**Live verification on `tenant_demo` 2026-05-04** (7 scenarios all green):
+
+- **S1 admin GET /health/screenings/follow-up** → 1 row (Maya VISION REFER from seed).
+- **S2 admin GET /health/screenings** → 1 row (the same VISION REFER).
+- **S3 admin GET /health/allergen-alerts** → 1 profile (Maya, pos_alert=true, allergens=['Peanuts']).
+- **P1 parent GET /health/students/<maya>/visits** → 1 row (yesterday's "Wheezing episode after gym class", sentHome=false). HIPAA audit row written via `recordAccess(VIEW_VISITS)`.
+- **P2 parent GET /health/students/<maya>/iep** → full plan visible (504 ACTIVE / 2 goals / 1 service / 2 accommodations) — backend's GUARDIAN branch returns the full IEP since parents are full team participants per Step 7. The parent UI choice to NOT render IEP on the summary page is product-side, not gating-side.
+- **P3 student GET /health/students/<maya>/visits** → 403 at the gate (no hlt-001:read).
+- **P4 teacher GET /health/screenings** → 403 at the gate (teachers don't have hlt-004:read; consistent with Step 7's design that only nurses/admins/counsellors see screening results).
+
+**Out of scope this step (deferred to Step 10 / future):** IEP / 504 plan creation flow (the editor only handles existing plans; new plan creation hits POST /health/students/:studentId/iep but no UI yet — admins can create via curl); Health access log admin viewer (the `useHealthAccessLog` hook is wired but no UI surface — punted to a future polish pass since the Step 10 CAT can verify the audit trail via direct SQL).
+
+---
+
+## Step 10 — Vertical Slice Integration Test
+
+**Status:** TODO.
+
+The Cycle 10 CAT — reproducible end-to-end walkthrough across the 9 plan scenarios + schema preamble.

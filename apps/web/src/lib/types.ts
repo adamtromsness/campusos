@@ -3083,3 +3083,120 @@ export interface ListNurseVisitsArgs {
   toDate?: string;
   limit?: number;
 }
+
+// Cycle 10 Step 9 — IEP / Screening / Dietary write payloads.
+
+export interface CreateIepPlanPayload {
+  planType: IepPlanType;
+  startDate?: string | null;
+  reviewDate?: string | null;
+  endDate?: string | null;
+  caseManagerId?: string | null;
+}
+
+export interface UpdateIepPlanPayload {
+  status?: IepPlanStatus;
+  startDate?: string | null;
+  reviewDate?: string | null;
+  endDate?: string | null;
+  caseManagerId?: string | null;
+}
+
+export interface CreateIepGoalPayload {
+  goalText: string;
+  measurementCriteria?: string | null;
+  baseline?: string | null;
+  targetValue?: string | null;
+  currentValue?: string | null;
+  goalArea?: string | null;
+}
+
+export interface UpdateIepGoalPayload {
+  goalText?: string;
+  measurementCriteria?: string | null;
+  baseline?: string | null;
+  targetValue?: string | null;
+  currentValue?: string | null;
+  goalArea?: string | null;
+  status?: IepGoalStatus;
+}
+
+export interface CreateGoalProgressPayload {
+  progressValue?: string | null;
+  observationNotes?: string | null;
+}
+
+export interface CreateIepServicePayload {
+  serviceType: string;
+  providerName?: string | null;
+  frequency?: string | null;
+  minutesPerSession?: number | null;
+  deliveryMethod: IepDeliveryMethod;
+}
+
+export interface UpdateIepServicePayload {
+  serviceType?: string;
+  providerName?: string | null;
+  frequency?: string | null;
+  minutesPerSession?: number | null;
+  deliveryMethod?: IepDeliveryMethod;
+}
+
+export interface CreateAccommodationPayload {
+  accommodationType: string;
+  description?: string | null;
+  appliesTo: IepAppliesTo;
+  specificAssignmentTypes?: string[] | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+}
+
+export interface UpdateAccommodationPayload {
+  accommodationType?: string;
+  description?: string | null;
+  appliesTo?: IepAppliesTo;
+  specificAssignmentTypes?: string[] | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+}
+
+export interface ListScreeningsArgs {
+  studentId?: string;
+  screeningType?: string;
+  result?: ScreeningResult;
+  fromDate?: string;
+  toDate?: string;
+  limit?: number;
+}
+
+export interface CreateScreeningPayload {
+  studentId: string;
+  screeningType: string;
+  screeningDate: string;
+  result?: ScreeningResult | null;
+  resultNotes?: string | null;
+  followUpRequired?: boolean;
+  referralNotes?: string | null;
+}
+
+export interface UpdateScreeningPayload {
+  result?: ScreeningResult | null;
+  resultNotes?: string | null;
+  followUpRequired?: boolean;
+  followUpCompleted?: boolean;
+  referralNotes?: string | null;
+}
+
+export interface CreateDietaryProfilePayload {
+  dietaryRestrictions?: string[];
+  allergens?: DietaryAllergenDto[];
+  specialMealInstructions?: string | null;
+  posAllergenAlert?: boolean;
+}
+
+export interface UpdateDietaryProfilePayload {
+  dietaryRestrictions?: string[];
+  allergens?: DietaryAllergenDto[];
+  specialMealInstructions?: string | null;
+  posAllergenAlert?: boolean;
+}

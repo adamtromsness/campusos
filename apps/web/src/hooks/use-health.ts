@@ -6,37 +6,55 @@ import type {
   AdministerDosePayload,
   AdministrationDto,
   ConditionDto,
+  CreateAccommodationPayload,
+  CreateDietaryProfilePayload,
+  CreateGoalProgressPayload,
+  CreateIepGoalPayload,
+  CreateIepPlanPayload,
+  CreateIepServicePayload,
   CreateNurseVisitPayload,
+  CreateScreeningPayload,
   DietaryProfileDto,
   HealthAccessLogRowDto,
   HealthAccessType,
   HealthRecordDto,
+  IepAccommodationDto,
+  IepGoalDto,
+  IepGoalProgressDto,
   IepPlanDto,
+  IepServiceDto,
   ImmunisationComplianceRowDto,
   ImmunisationDto,
   ListNurseVisitsArgs,
+  ListScreeningsArgs,
   LogMissedDosePayload,
   MedicationDashboardRowDto,
   MedicationDto,
   NurseVisitDto,
+  ScreeningDto,
+  UpdateAccommodationPayload,
+  UpdateDietaryProfilePayload,
+  UpdateIepGoalPayload,
+  UpdateIepPlanPayload,
+  UpdateIepServicePayload,
   UpdateNurseVisitPayload,
+  UpdateScreeningPayload,
 } from '@/lib/types';
 
-/* Cycle 10 Step 8 — React Query hooks for the health UI.
- *
- * 30s staleTime + refetch on focus on the live-changing reads
- * (nurse roster, medication dashboard) so the nurse dashboard
- * shows fresh data after another tab marks a dose as administered.
- * Mutation invalidation pattern matches the Cycle 9 use-discipline.ts
- * convention.
+/* Cycle 10 — React Query hooks for the health UI.
+ * Step 8 shipped the read paths; Step 9 adds the IEP / Screening /
+ * Dietary mutation surface plus a per-student visit history hook
+ * that backs the parent /children/[id]/health page.
  */
+
+const PREFIX = '/api/v1';
 
 // ─── Health record + conditions + immunisations ─────────────
 
 export function useHealthRecord(studentId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['health', 'record', studentId],
-    queryFn: () => apiFetch<HealthRecordDto>(`/health/students/${studentId}`),
+    queryFn: () => apiFetch<HealthRecordDto>(`${PREFIX}/health/students/${studentId}`),
     enabled: enabled && !!studentId,
     staleTime: 30_000,
   });
@@ -45,7 +63,7 @@ export function useHealthRecord(studentId: string | null | undefined, enabled = 
 export function useConditions(studentId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['health', 'conditions', studentId],
-    queryFn: () => apiFetch<ConditionDto[]>(`/health/students/${studentId}/conditions`),
+    queryFn: () => apiFetch<ConditionDto[]>(`${PREFIX}/health/students/${studentId}/conditions`),
     enabled: enabled && !!studentId,
     staleTime: 30_000,
   });
@@ -54,7 +72,8 @@ export function useConditions(studentId: string | null | undefined, enabled = tr
 export function useImmunisations(studentId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['health', 'immunisations', studentId],
-    queryFn: () => apiFetch<ImmunisationDto[]>(`/health/students/${studentId}/immunisations`),
+    queryFn: () =>
+      apiFetch<ImmunisationDto[]>(`${PREFIX}/health/students/${studentId}/immunisations`),
     enabled: enabled && !!studentId,
     staleTime: 30_000,
   });
@@ -63,7 +82,8 @@ export function useImmunisations(studentId: string | null | undefined, enabled =
 export function useImmunisationCompliance(enabled = true) {
   return useQuery({
     queryKey: ['health', 'immunisation-compliance'],
-    queryFn: () => apiFetch<ImmunisationComplianceRowDto[]>('/health/immunisation-compliance'),
+    queryFn: () =>
+      apiFetch<ImmunisationComplianceRowDto[]>(`${PREFIX}/health/immunisation-compliance`),
     enabled,
     staleTime: 60_000,
     refetchOnWindowFocus: true,
@@ -75,7 +95,7 @@ export function useImmunisationCompliance(enabled = true) {
 export function useStudentMedications(studentId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['health', 'medications', studentId],
-    queryFn: () => apiFetch<MedicationDto[]>(`/health/students/${studentId}/medications`),
+    queryFn: () => apiFetch<MedicationDto[]>(`${PREFIX}/health/students/${studentId}/medications`),
     enabled: enabled && !!studentId,
     staleTime: 30_000,
   });
@@ -88,7 +108,7 @@ export function useMedicationAdministrations(
   return useQuery({
     queryKey: ['health', 'medication-administrations', medicationId],
     queryFn: () =>
-      apiFetch<AdministrationDto[]>(`/health/medications/${medicationId}/administrations`),
+      apiFetch<AdministrationDto[]>(`${PREFIX}/health/medications/${medicationId}/administrations`),
     enabled: enabled && !!medicationId,
     staleTime: 15_000,
   });
@@ -97,7 +117,7 @@ export function useMedicationAdministrations(
 export function useMedicationDashboard(enabled = true) {
   return useQuery({
     queryKey: ['health', 'medication-dashboard'],
-    queryFn: () => apiFetch<MedicationDashboardRowDto[]>('/health/medication-dashboard'),
+    queryFn: () => apiFetch<MedicationDashboardRowDto[]>(`${PREFIX}/health/medication-dashboard`),
     enabled,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
@@ -108,7 +128,7 @@ export function useAdministerDose(medicationId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: AdministerDosePayload) =>
-      apiFetch<AdministrationDto>(`/health/medications/${medicationId}/administer`, {
+      apiFetch<AdministrationDto>(`${PREFIX}/health/medications/${medicationId}/administer`, {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
@@ -123,7 +143,7 @@ export function useLogMissedDose(medicationId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: LogMissedDosePayload) =>
-      apiFetch<AdministrationDto>(`/health/medications/${medicationId}/missed`, {
+      apiFetch<AdministrationDto>(`${PREFIX}/health/medications/${medicationId}/missed`, {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
@@ -149,7 +169,8 @@ function buildNurseVisitsQs(args: ListNurseVisitsArgs): string {
 export function useNurseVisits(args: ListNurseVisitsArgs = {}, enabled = true) {
   return useQuery({
     queryKey: ['health', 'nurse-visits', args],
-    queryFn: () => apiFetch<NurseVisitDto[]>(`/health/nurse-visits${buildNurseVisitsQs(args)}`),
+    queryFn: () =>
+      apiFetch<NurseVisitDto[]>(`${PREFIX}/health/nurse-visits${buildNurseVisitsQs(args)}`),
     enabled,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
@@ -159,10 +180,24 @@ export function useNurseVisits(args: ListNurseVisitsArgs = {}, enabled = true) {
 export function useNurseVisitRoster(enabled = true) {
   return useQuery({
     queryKey: ['health', 'nurse-visits', 'roster'],
-    queryFn: () => apiFetch<NurseVisitDto[]>('/health/nurse-visits/roster'),
+    queryFn: () => apiFetch<NurseVisitDto[]>(`${PREFIX}/health/nurse-visits/roster`),
     enabled,
     staleTime: 10_000,
     refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * Per-student visit history for parents + nurses (gated on hlt-001:read +
+ * row-scope at the service layer). Backs the parent /children/[id]/health
+ * recent-visits section.
+ */
+export function useStudentVisits(studentId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['health', 'student-visits', studentId],
+    queryFn: () => apiFetch<NurseVisitDto[]>(`${PREFIX}/health/students/${studentId}/visits`),
+    enabled: enabled && !!studentId,
+    staleTime: 30_000,
   });
 }
 
@@ -170,7 +205,7 @@ export function useCreateNurseVisit() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateNurseVisitPayload) =>
-      apiFetch<NurseVisitDto>('/health/nurse-visits', {
+      apiFetch<NurseVisitDto>(`${PREFIX}/health/nurse-visits`, {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
@@ -184,7 +219,7 @@ export function useUpdateNurseVisit(visitId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: UpdateNurseVisitPayload) =>
-      apiFetch<NurseVisitDto>(`/health/nurse-visits/${visitId}`, {
+      apiFetch<NurseVisitDto>(`${PREFIX}/health/nurse-visits/${visitId}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       }),
@@ -194,23 +229,250 @@ export function useUpdateNurseVisit(visitId: string) {
   });
 }
 
-// ─── IEP / Screening / Dietary (read-only here for Step 8 Health Record tabs) ──
+// ─── IEP / 504 plan ────────────────────────────────────────
 
 export function useIepPlan(studentId: string | null | undefined, enabled = true) {
   return useQuery({
-    queryKey: ['health', 'iep', studentId],
-    queryFn: () => apiFetch<IepPlanDto | null>(`/health/students/${studentId}/iep`),
+    queryKey: ['health', 'iep', 'student', studentId],
+    queryFn: () => apiFetch<IepPlanDto | null>(`${PREFIX}/health/students/${studentId}/iep`),
     enabled: enabled && !!studentId,
     staleTime: 30_000,
   });
 }
 
+function invalidateIep(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['health', 'iep'] });
+}
+
+export function useCreateIepPlan(studentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateIepPlanPayload) =>
+      apiFetch<IepPlanDto>(`${PREFIX}/health/students/${studentId}/iep`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateIep(qc),
+  });
+}
+
+export function useUpdateIepPlan(planId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateIepPlanPayload) =>
+      apiFetch<IepPlanDto>(`${PREFIX}/health/iep-plans/${planId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateIep(qc),
+  });
+}
+
+export function useCreateIepGoal(planId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateIepGoalPayload) =>
+      apiFetch<IepGoalDto>(`${PREFIX}/health/iep-plans/${planId}/goals`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateIep(qc),
+  });
+}
+
+export function useUpdateIepGoal(goalId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateIepGoalPayload) =>
+      apiFetch<IepGoalDto>(`${PREFIX}/health/iep-goals/${goalId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateIep(qc),
+  });
+}
+
+export function useCreateGoalProgress(goalId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateGoalProgressPayload) =>
+      apiFetch<IepGoalProgressDto>(`${PREFIX}/health/iep-goals/${goalId}/progress`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateIep(qc),
+  });
+}
+
+export function useCreateIepService(planId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateIepServicePayload) =>
+      apiFetch<IepServiceDto>(`${PREFIX}/health/iep-plans/${planId}/services`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateIep(qc),
+  });
+}
+
+export function useUpdateIepService(serviceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateIepServicePayload) =>
+      apiFetch<IepServiceDto>(`${PREFIX}/health/iep-services/${serviceId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateIep(qc),
+  });
+}
+
+export function useCreateAccommodation(planId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateAccommodationPayload) =>
+      apiFetch<IepAccommodationDto>(`${PREFIX}/health/iep-plans/${planId}/accommodations`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateIep(qc),
+  });
+}
+
+export function useUpdateAccommodation(accommodationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateAccommodationPayload) =>
+      apiFetch<IepAccommodationDto>(`${PREFIX}/health/iep-accommodations/${accommodationId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateIep(qc),
+  });
+}
+
+export function useDeleteAccommodation(accommodationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>(`${PREFIX}/health/iep-accommodations/${accommodationId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => invalidateIep(qc),
+  });
+}
+
+// ─── Screenings ────────────────────────────────────────────
+
+function buildScreeningsQs(args: ListScreeningsArgs): string {
+  const p = new URLSearchParams();
+  if (args.studentId) p.set('studentId', args.studentId);
+  if (args.screeningType) p.set('screeningType', args.screeningType);
+  if (args.result) p.set('result', args.result);
+  if (args.fromDate) p.set('fromDate', args.fromDate);
+  if (args.toDate) p.set('toDate', args.toDate);
+  if (args.limit) p.set('limit', String(args.limit));
+  const qs = p.toString();
+  return qs ? '?' + qs : '';
+}
+
+export function useScreenings(args: ListScreeningsArgs = {}, enabled = true) {
+  return useQuery({
+    queryKey: ['health', 'screenings', args],
+    queryFn: () =>
+      apiFetch<ScreeningDto[]>(`${PREFIX}/health/screenings${buildScreeningsQs(args)}`),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useFollowUpScreenings(enabled = true) {
+  return useQuery({
+    queryKey: ['health', 'screenings', 'follow-up'],
+    queryFn: () => apiFetch<ScreeningDto[]>(`${PREFIX}/health/screenings/follow-up`),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateScreening() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateScreeningPayload) =>
+      apiFetch<ScreeningDto>(`${PREFIX}/health/screenings`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['health', 'screenings'] });
+    },
+  });
+}
+
+export function useUpdateScreening(screeningId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateScreeningPayload) =>
+      apiFetch<ScreeningDto>(`${PREFIX}/health/screenings/${screeningId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['health', 'screenings'] });
+    },
+  });
+}
+
+// ─── Dietary profiles ──────────────────────────────────────
+
 export function useDietaryProfile(studentId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ['health', 'dietary', studentId],
-    queryFn: () => apiFetch<DietaryProfileDto | null>(`/health/students/${studentId}/dietary`),
+    queryFn: () =>
+      apiFetch<DietaryProfileDto | null>(`${PREFIX}/health/students/${studentId}/dietary`),
     enabled: enabled && !!studentId,
     staleTime: 30_000,
+  });
+}
+
+/** Admin/nurse only — students with pos_allergen_alert=true. */
+export function useAllergenAlerts(enabled = true) {
+  return useQuery({
+    queryKey: ['health', 'allergen-alerts'],
+    queryFn: () => apiFetch<DietaryProfileDto[]>(`${PREFIX}/health/allergen-alerts`),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateDietaryProfile(studentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateDietaryProfilePayload) =>
+      apiFetch<DietaryProfileDto>(`${PREFIX}/health/students/${studentId}/dietary`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['health', 'dietary'] });
+      qc.invalidateQueries({ queryKey: ['health', 'allergen-alerts'] });
+    },
+  });
+}
+
+export function useUpdateDietaryProfile(profileId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateDietaryProfilePayload) =>
+      apiFetch<DietaryProfileDto>(`${PREFIX}/health/dietary-profiles/${profileId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['health', 'dietary'] });
+      qc.invalidateQueries({ queryKey: ['health', 'allergen-alerts'] });
+    },
   });
 }
 
@@ -227,11 +489,12 @@ export function useHealthAccessLog(
   const qs = params.toString();
   return useQuery({
     queryKey: ['health', 'access-log', args],
-    queryFn: () => apiFetch<HealthAccessLogRowDto[]>('/health/access-log' + (qs ? '?' + qs : '')),
+    queryFn: () =>
+      apiFetch<HealthAccessLogRowDto[]>(`${PREFIX}/health/access-log${qs ? '?' + qs : ''}`),
     enabled,
     staleTime: 30_000,
   });
 }
 
 // Re-export for convenience on the Step 8 nurse visit log page.
-export type { NurseVisitDto, ScreeningDto } from '@/lib/types';
+export type { NurseVisitDto } from '@/lib/types';

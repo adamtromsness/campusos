@@ -10,6 +10,7 @@ import {
   useConditions,
   useDietaryProfile,
   useHealthRecord,
+  useIepPlan,
   useImmunisations,
   useNurseVisits,
   useStudentMedications,
@@ -131,8 +132,25 @@ export default function StudentHealthPage() {
 }
 
 function OverviewTab({ record }: { record: ReturnType<typeof useHealthRecord>['data'] & {} }) {
+  const iep = useIepPlan(record.studentId);
+  const plan = iep.data;
   return (
     <div className="space-y-4">
+      {plan && plan.status !== 'EXPIRED' ? (
+        <Link
+          href={`/health/iep-plans/${plan.id}?studentId=${record.studentId}`}
+          className="block rounded-md border border-violet-200 bg-violet-50 p-3 text-sm hover:bg-violet-100"
+        >
+          <p className="font-semibold text-violet-900">
+            {plan.planType === 'IEP' ? 'IEP' : '504 Plan'} on file · {plan.status.toLowerCase()}
+          </p>
+          <p className="mt-1 text-xs text-violet-800">
+            {plan.goals.length} goal{plan.goals.length === 1 ? '' : 's'} ·{' '}
+            {plan.accommodations.length} accommodation
+            {plan.accommodations.length === 1 ? '' : 's'} · open editor →
+          </p>
+        </Link>
+      ) : null}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Blood type" value={record.bloodType ?? '—'} />
         <Field

@@ -45,6 +45,20 @@ export class NurseVisitController {
     return this.visits.roster(actor);
   }
 
+  @Get('health/students/:studentId/visits')
+  @RequirePermission('hlt-001:read')
+  @ApiOperation({
+    summary:
+      "Per-student visit history under hlt-001:read so parents (GUARDIAN row scope via assertCanReadStudentExternal) can view their own child's recent visits. Filters STUDENT visits only; STAFF visits live under the broader admin-only /health/nurse-visits path. Writes a VIEW_VISITS HIPAA audit row.",
+  })
+  async listForStudent(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Req() req: AuthedRequest,
+  ): Promise<NurseVisitResponseDto[]> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.visits.listForStudent(studentId, actor);
+  }
+
   @Get('health/nurse-visits')
   @RequirePermission('hlt-003:read')
   @ApiOperation({

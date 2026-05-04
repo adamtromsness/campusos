@@ -160,6 +160,27 @@ export class NurseVisitService {
   }
 
   /**
+   * Per-student visit history. Gated on hlt-001:read so parents
+   * (GUARDIAN row-scope via `assertCanReadStudentExternal`) and
+   * nurses can both reach it. Filters STUDENT visits only since the
+   * row is keyed on a `sis_students` id; STAFF visits live under
+   * the broader admin-only `list` path.
+   */
+  async listForStudent(studentId: string, actor: ResolvedActor): Promise<NurseVisitResponseDto[]> {
+    await this.records.assertCanReadStudentExternal(studentId, actor);
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return (await client.$queryRawUnsafe(
+        SELECT_VISIT_BASE +
+          "WHERE v.visited_person_id = $1::uuid AND v.visited_person_type = 'STUDENT' " +
+          'ORDER BY v.visit_date DESC LIMIT 100',
+        studentId,
+      )) as VisitRow[];
+    });
+    await this.accessLog.recordAccess(actor, studentId, 'VIEW_VISITS');
+    return rows.map((r) => this.rowToDto(r));
+  }
+
+  /**
    * Live nurse-office roster — students/staff currently IN_PROGRESS.
    * Hits the partial INDEX on (school_id, status) WHERE status='IN_PROGRESS'.
    */

@@ -1,8 +1,10 @@
 import type {
   ConditionSeverity,
   ImmunisationStatus,
+  IepDeliveryMethod,
   IepGoalStatus,
   IepPlanStatus,
+  IepPlanType,
   MedicationRoute,
   MissedReason,
   NurseVisitStatus,
@@ -102,6 +104,17 @@ export const NURSE_VISIT_STATUS_LABELS: Record<NurseVisitStatus, string> = {
 export const NURSE_VISIT_STATUS_PILL: Record<NurseVisitStatus, string> = {
   IN_PROGRESS: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
   COMPLETED: 'bg-gray-100 text-gray-700 ring-1 ring-gray-200',
+};
+
+export const IEP_PLAN_TYPE_LABELS: Record<IepPlanType, string> = {
+  IEP: 'IEP',
+  '504': '504 Plan',
+};
+
+export const IEP_DELIVERY_METHOD_LABELS: Record<IepDeliveryMethod, string> = {
+  PULL_OUT: 'Pull-out',
+  PUSH_IN: 'Push-in',
+  CONSULT: 'Consultative',
 };
 
 export const IEP_PLAN_STATUSES: IepPlanStatus[] = ['DRAFT', 'ACTIVE', 'REVIEW', 'EXPIRED'];
