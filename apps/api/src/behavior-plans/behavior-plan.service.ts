@@ -125,6 +125,23 @@ function fullName(first: string | null, last: string | null): string | null {
   return null;
 }
 
+/**
+ * Detect a SQLSTATE 23505 unique-violation across Prisma's encodings —
+ * `code='P2010'` (raw query path), `meta.code='23505'`, or the SQLSTATE
+ * embedded in the message. Used to translate a partial-UNIQUE race into
+ * the same friendly 400 the pre-flight surfaces (REVIEW-CYCLE9 MAJOR 2 +
+ * MAJOR 3). Same shape as the helper in `discipline/action.service.ts`
+ * and `profile/profile.service.ts`.
+ */
+function isUniqueViolation(err: unknown): boolean {
+  const errObj = err as { code?: string; meta?: { code?: string }; message?: string };
+  return (
+    errObj?.code === 'P2010' ||
+    errObj?.meta?.code === '23505' ||
+    (typeof errObj?.message === 'string' && errObj.message.includes('23505'))
+  );
+}
+
 function rowToGoalDto(r: GoalRow): GoalResponseDto {
   return {
     id: r.id,
@@ -239,15 +256,21 @@ export class BehaviorPlanService {
   }
 
   /**
-   * Whether the calling actor is allowed to see the per-plan feedback
-   * array. Counsellors and admins see all; teachers see all on plans
-   * they can otherwise read; parents (GUARDIAN) get an empty array — the
-   * feedback rows carry teacher observations about their child and are
+   * Whether the calling actor is allowed to see per-plan teacher feedback
+   * (the `svc_bip_teacher_feedback` rows). Counsellors and admins see
+   * all; teachers see feedback on plans they can otherwise read; parents
+   * (GUARDIAN) and students see NOTHING — the feedback rows carry private
+   * teacher observations and effectiveness ratings about a child and are
    * staff-side per the Step 9 plan ("BIP summary visible read-only" — no
-   * feedback timeline for parents).
+   * feedback timeline for parents). Public so FeedbackService can apply
+   * the same gate on the dedicated `/behavior-plans/:id/feedback`
+   * endpoint (REVIEW-CYCLE9 BLOCKING fix — without this, a parent who
+   * holds `BEH-002:read` could call that endpoint and get the rows the
+   * main plan service already strips).
    */
-  private async canSeeFeedback(actor: ResolvedActor): Promise<boolean> {
+  async canSeeFeedback(actor: ResolvedActor): Promise<boolean> {
     if (actor.personType === 'GUARDIAN') return false;
+    if (actor.personType === 'STUDENT') return false;
     return true;
   }
 
@@ -506,7 +529,16 @@ export class BehaviorPlanService {
       if (row.status === 'EXPIRED') {
         throw new BadRequestException('Cannot activate an EXPIRED plan; create a new one instead');
       }
-      // Pre-flight against the partial UNIQUE.
+      // Pre-flight against the partial UNIQUE — surfaces the conflicting
+      // plan id in the friendly error so the counsellor can find and
+      // expire it. The schema's partial UNIQUE INDEX on
+      // (student_id, plan_type) WHERE status='ACTIVE' is the
+      // belt-and-braces; under concurrent activations of two different
+      // DRAFT plans for the same (student, type), both txs can pass this
+      // pre-check before either UPDATE lands. The try/catch on 23505
+      // below catches the race winner and surfaces the same friendly
+      // 400 (REVIEW-CYCLE9 MAJOR 2 — without this, the loser sees a raw
+      // Prisma/Postgres unique-violation error).
       const conflict = (await tx.$queryRawUnsafe(
         "SELECT id::text AS id FROM svc_behavior_plans WHERE student_id = $1::uuid AND plan_type = $2 AND status = 'ACTIVE' AND id <> $3::uuid LIMIT 1",
         row.student_id,
@@ -522,10 +554,21 @@ export class BehaviorPlanService {
             '). Expire that plan before activating a new one.',
         );
       }
-      await tx.$executeRawUnsafe(
-        "UPDATE svc_behavior_plans SET status = 'ACTIVE', updated_at = now() WHERE id = $1::uuid",
-        id,
-      );
+      try {
+        await tx.$executeRawUnsafe(
+          "UPDATE svc_behavior_plans SET status = 'ACTIVE', updated_at = now() WHERE id = $1::uuid",
+          id,
+        );
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          throw new BadRequestException(
+            'Student already has an ACTIVE ' +
+              row.plan_type +
+              ' plan. Expire that plan before activating a new one.',
+          );
+        }
+        throw err;
+      }
     });
     return this.loadOrFailNoAuth(id);
   }

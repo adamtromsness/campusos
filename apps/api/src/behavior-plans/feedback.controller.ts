@@ -25,7 +25,10 @@ export class FeedbackController {
 
   @Get('behavior-plans/:id/feedback')
   @RequirePermission('beh-002:read')
-  @ApiOperation({ summary: 'List feedback rows for a plan (pending + submitted).' })
+  @ApiOperation({
+    summary:
+      'List feedback rows for a plan (pending + submitted). Staff/counsellor/admin only — guardians and students always receive an empty array. Parent BIP summaries never include teacher feedback (REVIEW-CYCLE9 BLOCKING).',
+  })
   async list(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthedRequest,

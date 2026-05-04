@@ -55,6 +55,22 @@ const SELECT_BASE =
   'LEFT JOIN hr_employees re ON re.id = f.requested_by ' +
   'LEFT JOIN platform.iam_person rp ON rp.id = re.person_id ';
 
+/**
+ * Detect a SQLSTATE 23505 unique-violation across Prisma's encodings —
+ * `code='P2010'` (raw query path), `meta.code='23505'`, or the SQLSTATE
+ * embedded in the message. Used to translate a partial-UNIQUE race on
+ * `(plan_id, teacher_id) WHERE submitted_at IS NULL` into the same
+ * friendly 400 the pre-flight surfaces (REVIEW-CYCLE9 MAJOR 3).
+ */
+function isUniqueViolation(err: unknown): boolean {
+  const errObj = err as { code?: string; meta?: { code?: string }; message?: string };
+  return (
+    errObj?.code === 'P2010' ||
+    errObj?.meta?.code === '23505' ||
+    (typeof errObj?.message === 'string' && errObj.message.includes('23505'))
+  );
+}
+
 const SELECT_PENDING = SELECT_BASE.replace(
   'FROM svc_bip_teacher_feedback f',
   'FROM svc_bip_teacher_feedback f ' +
@@ -80,10 +96,19 @@ export class FeedbackService {
   /**
    * List all feedback rows for a plan. Visibility flows through the
    * parent plan via plans.getById() — non-readers 404 before any feedback
-   * row leaks.
+   * row leaks. Then `canSeeFeedback(actor)` short-circuits guardians and
+   * students to an empty array — feedback rows carry private teacher
+   * observations and effectiveness ratings the main plan service
+   * already strips for those personas. Without this, a parent who holds
+   * `BEH-002:read` (granted in Step 9 for the per-child Behaviour tab)
+   * could read the rows on this dedicated endpoint that the main plan
+   * service intentionally strips. (REVIEW-CYCLE9 BLOCKING fix.)
    */
   async listForPlan(planId: string, actor: ResolvedActor): Promise<FeedbackResponseDto[]> {
     await this.plans.getById(planId, actor);
+    if (!(await this.plans.canSeeFeedback(actor))) {
+      return [];
+    }
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
         SELECT_BASE + 'WHERE f.plan_id = $1::uuid ORDER BY f.requested_at DESC',
@@ -144,9 +169,15 @@ export class FeedbackService {
       return rows[0]!;
     });
 
-    // Partial UNIQUE pre-flight.
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      const conflict = (await client.$queryRawUnsafe(
+    // Partial UNIQUE pre-flight + INSERT inside a single tenant transaction
+    // so the read sees the same snapshot the INSERT writes against. Under
+    // concurrent requestFeedback calls for the same (plan, teacher) pair,
+    // both txs can still pass the pre-check before either INSERT commits;
+    // the try/catch on 23505 catches the race loser and surfaces the same
+    // friendly 400 the pre-check uses (REVIEW-CYCLE9 MAJOR 3 — without
+    // this, the loser sees a raw Prisma/Postgres unique-violation error).
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const conflict = (await tx.$queryRawUnsafe(
         'SELECT id::text AS id FROM svc_bip_teacher_feedback ' +
           'WHERE plan_id = $1::uuid AND teacher_id = $2::uuid AND submitted_at IS NULL LIMIT 1',
         planId,
@@ -159,18 +190,25 @@ export class FeedbackService {
             '). Wait for the teacher to submit before opening another request.',
         );
       }
-    });
-
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        'INSERT INTO svc_bip_teacher_feedback ' +
-          '(id, plan_id, teacher_id, requested_by, requested_at) ' +
-          'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, now())',
-        id,
-        planId,
-        input.teacherId,
-        actor.employeeId,
-      );
+      try {
+        await tx.$executeRawUnsafe(
+          'INSERT INTO svc_bip_teacher_feedback ' +
+            '(id, plan_id, teacher_id, requested_by, requested_at) ' +
+            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, now())',
+          id,
+          planId,
+          input.teacherId,
+          actor.employeeId,
+        );
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          throw new BadRequestException(
+            'A pending feedback request already exists for this teacher on this plan. ' +
+              'Wait for the teacher to submit before opening another request.',
+          );
+        }
+        throw err;
+      }
     });
 
     const teacherName = teacherInfo.first_name + ' ' + teacherInfo.last_name;
