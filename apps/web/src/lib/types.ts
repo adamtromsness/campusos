@@ -2457,3 +2457,43 @@ export interface ProblemDto {
   updatedAt: string;
   ticketIds: string[];
 }
+
+export interface CreateProblemPayload {
+  title: string;
+  description: string;
+  categoryId: string;
+  assignedToId?: string;
+  vendorId?: string;
+  ticketIds?: string[];
+}
+
+export interface UpdateProblemPayload {
+  title?: string;
+  description?: string;
+  status?: Exclude<ProblemStatus, 'RESOLVED'>;
+  rootCause?: string | null;
+  workaround?: string | null;
+  assignedToId?: string | null;
+  vendorId?: string | null;
+}
+
+export interface LinkProblemTicketsPayload {
+  ticketIds: string[];
+}
+
+export interface ResolveProblemPayload {
+  rootCause: string;
+  resolution: string;
+  workaround?: string;
+}
+
+export interface ResolveProblemResponse {
+  problem: ProblemDto;
+  ticketsFlipped: string[];
+}
+
+export interface ListProblemsArgs {
+  status?: ProblemStatus;
+  categoryId?: string;
+  limit?: number;
+}

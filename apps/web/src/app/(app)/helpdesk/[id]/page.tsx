@@ -5,12 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Modal } from '@/components/ui/Modal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/components/ui/cn';
 import {
   useCancelTicket,
   useCloseTicket,
+  useCreateProblem,
   usePostTicketComment,
   useReopenTicket,
   useResolveTicket,
@@ -50,6 +52,7 @@ export default function HelpdeskDetailPage() {
   const close = useCloseTicket(ticketId);
   const reopen = useReopenTicket(ticketId);
   const cancel = useCancelTicket(ticketId);
+  const [createProblemOpen, setCreateProblemOpen] = useState(false);
 
   if (!user) return null;
   if (!canRead) {
@@ -261,9 +264,25 @@ export default function HelpdeskDetailPage() {
                 Cancel
               </button>
             )}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setCreateProblemOpen(true)}
+                className="ml-auto rounded-md bg-white px-3 py-1.5 text-sm font-medium text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50"
+              >
+                Create problem from this ticket
+              </button>
+            )}
           </div>
         )}
       </div>
+
+      {createProblemOpen && (
+        <CreateProblemFromTicketModal
+          ticket={t}
+          onClose={() => setCreateProblemOpen(false)}
+        />
+      )}
 
       <CommentThread
         ticketId={ticketId}
@@ -469,4 +488,96 @@ function ActivityMetadata({ metadata }: { metadata: Record<string, unknown> }) {
     );
   }
   return null;
+}
+
+// ── Create-problem-from-ticket modal ──────────────────────────
+
+function CreateProblemFromTicketModal({
+  ticket,
+  onClose,
+}: {
+  ticket: TicketDto;
+  onClose: () => void;
+}) {
+  const create = useCreateProblem();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+
+  async function onSubmit(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    if (!title.trim() || !description.trim()) return;
+    try {
+      const created = await create.mutateAsync({
+        title: title.trim(),
+        description: description.trim(),
+        categoryId: ticket.categoryId,
+        ticketIds: [ticket.id],
+      });
+      toast('Problem created and linked', 'success');
+      router.push('/helpdesk/admin/problems/' + created.id);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not create problem';
+      toast(msg, 'error');
+    }
+  }
+
+  return (
+    <Modal
+      open={true}
+      onClose={onClose}
+      title="Create problem from this ticket"
+      size="md"
+      footer={
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!title.trim() || !description.trim() || create.isPending}
+            className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+          >
+            Create + link
+          </button>
+        </div>
+      }
+    >
+      <form onSubmit={onSubmit} className="space-y-3">
+        <div className="rounded-md bg-violet-50 p-3 text-xs text-violet-900 ring-1 ring-violet-200">
+          The problem will be created in <strong>{ticket.categoryName}</strong> and linked to this
+          ticket. You can link more tickets afterwards.
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Title</label>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            maxLength={200}
+            placeholder="e.g. Network switch failure in Building A"
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Description</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            required
+            rows={4}
+            maxLength={4000}
+            placeholder="What pattern are you seeing? Why are these tickets related?"
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+      </form>
+    </Modal>
+  );
 }

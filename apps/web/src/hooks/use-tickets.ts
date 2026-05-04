@@ -6,12 +6,18 @@ import type {
   AssignTicketPayload,
   AssignVendorPayload,
   CancelTicketPayload,
+  CreateProblemPayload,
   CreateTicketCategoryPayload,
   CreateTicketCommentPayload,
   CreateTicketPayload,
   CreateTicketSubcategoryPayload,
   CreateTicketVendorPayload,
+  LinkProblemTicketsPayload,
+  ListProblemsArgs,
   ListTicketsArgs,
+  ProblemDto,
+  ResolveProblemPayload,
+  ResolveProblemResponse,
   ResolveTicketPayload,
   TicketActivityDto,
   TicketCategoryDto,
@@ -20,6 +26,7 @@ import type {
   TicketSlaPolicyDto,
   TicketSubcategoryDto,
   TicketVendorDto,
+  UpdateProblemPayload,
   UpdateTicketCategoryPayload,
   UpdateTicketSubcategoryPayload,
   UpdateTicketVendorPayload,
@@ -339,6 +346,105 @@ export function useUpsertTicketSla() {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['tickets', 'sla'] });
+    },
+  });
+}
+
+// ── Problem management (Step 9) ─────────────────────────────────
+
+function buildProblemQs(args: ListProblemsArgs): string {
+  const params = new URLSearchParams();
+  if (args.status) params.set('status', args.status);
+  if (args.categoryId) params.set('categoryId', args.categoryId);
+  if (args.limit) params.set('limit', String(args.limit));
+  const qs = params.toString();
+  return qs ? '?' + qs : '';
+}
+
+export function useProblems(args: ListProblemsArgs = {}, enabled = true) {
+  return useQuery({
+    queryKey: [
+      'problems',
+      'list',
+      {
+        status: args.status ?? null,
+        categoryId: args.categoryId ?? null,
+        limit: args.limit ?? null,
+      },
+    ],
+    queryFn: () => apiFetch<ProblemDto[]>('/api/v1/problems' + buildProblemQs(args)),
+    enabled,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+  });
+}
+
+export function useProblem(id: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['problems', 'one', id],
+    queryFn: () => apiFetch<ProblemDto>('/api/v1/problems/' + id),
+    enabled: enabled && typeof id === 'string' && id.length > 0,
+  });
+}
+
+function invalidateProblem(qc: ReturnType<typeof useQueryClient>, id: string | null): void {
+  void qc.invalidateQueries({ queryKey: ['problems'] });
+  if (id) void qc.invalidateQueries({ queryKey: ['problems', 'one', id] });
+}
+
+export function useCreateProblem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateProblemPayload) =>
+      apiFetch<ProblemDto>('/api/v1/problems', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (data) => invalidateProblem(qc, data.id),
+  });
+}
+
+export function useUpdateProblem(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateProblemPayload) =>
+      apiFetch<ProblemDto>('/api/v1/problems/' + id, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateProblem(qc, id),
+  });
+}
+
+export function useLinkProblemTickets(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: LinkProblemTicketsPayload) =>
+      apiFetch<ProblemDto>('/api/v1/problems/' + id + '/link', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => invalidateProblem(qc, id),
+  });
+}
+
+export function useResolveProblem(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ResolveProblemPayload) =>
+      apiFetch<ResolveProblemResponse>('/api/v1/problems/' + id + '/resolve', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      // Resolve cascades to flipping linked tickets to RESOLVED via the
+      // ProblemService.resolveBatch endpoint, plus per-ticket
+      // tkt.ticket.resolved emits that flip linked auto-tasks DONE via
+      // Step 6's TicketTaskCompletionConsumer. Refresh everything.
+      invalidateProblem(qc, id);
+      void qc.invalidateQueries({ queryKey: ['tickets'] });
+      void qc.invalidateQueries({ queryKey: ['tasks'] });
+      void qc.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 }

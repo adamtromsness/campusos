@@ -1,6 +1,6 @@
 # Cycle 8 Handoff — Service Tickets
 
-**Status:** Cycle 8 **IN PROGRESS** — Steps 1–8 (full schema + seed + ticket API + consumers + staff UI + admin UI) **DONE**. Steps 9–10 remain. Cycles 0–7 are COMPLETE + APPROVED. Cycle 8 is the final cycle of Wave 1 and ships the M60 Service Tickets module — a shared reactive ticketing engine that IT, facilities, and HR support all use. NOT a facilities management system (that is M65, a future cycle). This module handles reactive requests like "my projector is broken," "Room 204 needs a new light bulb," "I can't log in." It integrates with Cycle 7's Task Worker (ticket assignment creates a task on the assignee's to-do list) and the Cycle 7 Approval Workflows engine (ticket escalation can route through an approval chain).
+**Status:** Cycle 8 **IN PROGRESS** — Steps 1–9 (full schema + seed + ticket API + consumers + staff UI + admin UI + problem management UI) **DONE**. Step 10 (vertical-slice CAT) remains. Cycles 0–7 are COMPLETE + APPROVED. Cycle 8 is the final cycle of Wave 1 and ships the M60 Service Tickets module — a shared reactive ticketing engine that IT, facilities, and HR support all use. NOT a facilities management system (that is M65, a future cycle). This module handles reactive requests like "my projector is broken," "Room 204 needs a new light bulb," "I can't log in." It integrates with Cycle 7's Task Worker (ticket assignment creates a task on the assignee's to-do list) and the Cycle 7 Approval Workflows engine (ticket escalation can route through an approval chain).
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle8-implementation-plan.html`
@@ -22,7 +22,7 @@ This document tracks the Cycle 8 build at the same level of detail as `HANDOFF-C
 | 6    | Ticket Notification Consumer + Auto-Task Wiring    | **DONE**    |
 | 7    | Helpdesk UI — Submit + My Tickets                  | **DONE**    |
 | 8    | Helpdesk Admin UI — Queue + Dashboard              | **DONE**    |
-| 9    | Problem Management UI                              | **PENDING** |
+| 9    | Problem Management UI                              | **DONE**    |
 | 10   | Vertical Slice Integration Test                    | **PENDING** |
 
 ---
@@ -700,11 +700,63 @@ All 4 prerender as static content. Combined Cycle 8 web surface is now 7 routes 
 
 ---
 
-## Steps 9–10 — Pending
+## Step 9 — Problem Management UI
 
-Each step's full detail will be written into this document as it ships, matching the level of detail of the corresponding step writeups in `HANDOFF-CYCLE7.md`. The plan-time scope of each is summarised below:
+**Status:** DONE. 2 new admin routes (`/helpdesk/admin/problems` list + `[id]` detail) + 6 new problem hooks in `use-tickets.ts` + 5 new payload DTOs in `types.ts` + the **Create problem from this ticket** flow on the staff detail page + a Problems quick-link from the admin queue header. Build clean after 3 trivial fix-ups (rule-of-hooks ordering on the detail page; unused import in the list page; unescaped apostrophe in JSX).
 
-- **Step 9 — Problem management UI.** List, detail, link tickets, resolve-batch.
+**Files:**
+
+- `apps/web/src/lib/types.ts` — adds `CreateProblemPayload`, `UpdateProblemPayload` (with `Exclude<ProblemStatus, 'RESOLVED'>` for the status field — RESOLVED is rejected by `PATCH /problems/:id` server-side, callers must use the dedicated `/resolve` endpoint), `LinkProblemTicketsPayload`, `ResolveProblemPayload`, `ResolveProblemResponse` (`{problem, ticketsFlipped: string[]}` matching the API shape), `ListProblemsArgs`.
+- `apps/web/src/hooks/use-tickets.ts` — adds 6 problem hooks: `useProblems(args)` (30s stale + refetch on focus), `useProblem(id)`, `useCreateProblem`, `useUpdateProblem(id)`, `useLinkProblemTickets(id)`, `useResolveProblem(id)`. The shared `invalidateProblem(qc, id)` helper invalidates the problems list + the per-id detail; `useResolveProblem` additionally invalidates `['tickets']`, `['tasks']`, `['notifications']` because the batch-flip cascade resolves linked tickets which fires `tkt.ticket.resolved` → `TicketTaskCompletionConsumer` → linked auto-tasks DONE → notification fan-out. Cycle 8 web hook count grows from 20 to 26.
+- `apps/web/src/lib/tickets-format.ts` — adds `PROBLEM_STATUSES` const array, `PROBLEM_STATUS_LABELS` map, `PROBLEM_STATUS_PILL` map (OPEN rose / INVESTIGATING sky / KNOWN_ERROR amber / RESOLVED emerald — same colour grammar as ticket statuses).
+
+**`/helpdesk/admin/problems`** (Problems List) — admin-only list with 5-state filter chips (All / Open / Investigating / Known Error / Resolved). Per-row card shows status pill + category pill + linked-ticket count + title + 2-line description preview + assignee/vendor + relative age. Click-through to detail. Header subtitle counts open problems (status NOT RESOLVED). Page size **3.1 kB / 114 kB**.
+
+**`/helpdesk/admin/problems/[id]`** (Detail) — admin-only with three sections + three modals:
+
+- **Header card** — status pill + category pill + assignee/vendor labels + description; 3 fields (Root cause, Resolution, Workaround) rendered as `Field` rows ("Not set" italic when empty + hint text below). Resolved problems show a green `Resolved {timestamp}` line. Action bar (hidden on RESOLVED): Edit details / Link more tickets / Resolve problem (right-aligned, emerald).
+- **Linked tickets list** — pulls `useTickets({includeTerminal:true, limit:500})` and filters client-side by `problem.ticketIds` so each row can render the ticket's current status pill + priority pill + relative age + click-through to `/helpdesk/:id`.
+
+  *Hook ordering note:* the `useMemo` over `linkedTickets` runs before the early-return paths so React's rule of hooks is satisfied. Memo dependency is `ticketIds.join('|')` rather than the array reference so the memo doesn't churn on every parent re-render.
+- **Edit Problem Modal** — title / description / status dropdown (3 values; RESOLVED is excluded from the dropdown because the dedicated Resolve button is the right path) / root_cause / workaround. Sends only the fields that changed via diff comparison so the API doesn't see no-op writes.
+- **Link Tickets Modal** — search bar filters live tickets (Open / In progress / Vendor assigned / Pending requester) by title or category substring; checkbox list with multi-select; submit button shows the selected count. Excludes already-linked tickets and CLOSED/CANCELLED ones. Empty state when nothing matches the search or every visible ticket is already linked.
+- **Resolve Modal** — the **keystone batch-resolve flow**. Required `rootCause` + `resolution`, optional `workaround`. Top of the modal carries an amber warning that the action is irreversible from the UI and explains the fan-out: every linked ticket in OPEN / IN_PROGRESS / VENDOR_ASSIGNED / PENDING_REQUESTER will flip to RESOLVED, emit one `tkt.ticket.resolved` per flipped ticket, and stop the SLA clock. A preview list shows exactly which tickets will flip (already-resolved ones are excluded since the API skips them). On success, the toast says "Problem resolved — N linked ticket(s) flipped to RESOLVED" with the count from the `ResolveProblemResponse.ticketsFlipped` array.
+
+  Page size **6.7 kB / 118 kB**.
+
+**Create-problem-from-ticket flow:** `/helpdesk/[id]` (staff detail, Step 7) gains an admin-only "Create problem from this ticket" button (right-aligned in the action bar with violet styling so it's visually distinct from the resolve/cancel actions). The button opens a `CreateProblemFromTicketModal` that pre-populates `categoryId` from the ticket and seeds `ticketIds: [ticket.id]` on the create payload. Title + description are required. On success the modal navigates to the new problem's detail page so the admin can immediately link more tickets or write the root cause. Modal copy explains the pre-population so the admin knows the link is automatic.
+
+**Admin queue header** — adds a Problems quick-link between SLA dashboard and Categories so admins can hop into the problem surface without the sidebar.
+
+**Cycle 8 web surface is now 9 routes** (3 staff + 4 admin + 2 problems). 26 web hooks total in `use-tickets.ts`.
+
+**Build sizes for the 2 new problem routes:**
+
+```
+├ ○ /helpdesk/admin/problems         3.1 kB         114 kB
+├ ƒ /helpdesk/admin/problems/[id]    6.7 kB         118 kB
+```
+
+The list page prerenders as static; the detail page is server-rendered on demand (matches the dynamic-id convention from `[id]` routes elsewhere in the app).
+
+**Iteration issues caught and resolved:**
+
+- **Rule-of-hooks ordering.** The first draft put `useState(createProblemOpen)` after the early returns on the staff detail page, and the `useMemo(linkedTickets)` after `if (!problem.data) return …` on the problem detail page. ESLint's `react-hooks/rules-of-hooks` fired on both. Fix: hoist the hook calls above any conditional returns, then read `problem.data?.ticketIds ?? []` and feed an empty fallback into the memo so the linked-tickets render path tolerates the loading state.
+- **Unused `PROBLEM_STATUSES` import.** Pulled into the list page's import block but never referenced (the chip array uses inline strings). Removed.
+- **Unescaped apostrophe.** `aren't` in the Link Tickets modal description tripped `react/no-unescaped-entities`. Replaced with `aren&apos;t`.
+
+Third build clean. No backend changes — Step 9 sits entirely on the 6 problem endpoints from Step 5 (`GET /problems`, `GET /problems/:id`, `POST /problems`, `PATCH /problems/:id`, `POST /problems/:id/link`, `PATCH /problems/:id/resolve`).
+
+**What's deferred to Step 10:**
+
+- The vertical-slice CAT — `docs/cycle8-cat-script.md` walking the full plan flow end-to-end on `tenant_demo` (submit → auto-assign → SLA clock → comment → vendor → resolve → notification → task complete → SLA metrics → problem batch-resolve).
+- Per-problem assignee + vendor edit (the `assignedToId` / `vendorId` fields on the schema and `UpdateProblemPayload` are wired but no Edit Modal field for them yet — the Resolve flow is the dominant happy path; future polish can add a dropdown).
+- Bulk problem-from-multiple-tickets selection on the admin queue (today admins use one ticket as the seed, then Link more tickets in the modal — covers the demo flow but a future polish lets multi-select on the queue feed the create flow).
+
+---
+
+## Step 10 — Pending
+
 - **Step 10 — Vertical slice CAT.** `docs/cycle8-cat-script.md`. The full plan-time scenario walked end-to-end on `tenant_demo`.
 
 ---

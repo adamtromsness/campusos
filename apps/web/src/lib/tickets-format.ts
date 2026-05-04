@@ -1,4 +1,5 @@
 import type {
+  ProblemStatus,
   TicketActivityType,
   TicketPriority,
   TicketSlaSnapshotDto,
@@ -66,6 +67,27 @@ export const VENDOR_TYPE_LABELS: Record<VendorType, string> = {
   SECURITY: 'Security',
   GROUNDS: 'Grounds',
   OTHER: 'Other',
+};
+
+export const PROBLEM_STATUSES: ProblemStatus[] = [
+  'OPEN',
+  'INVESTIGATING',
+  'KNOWN_ERROR',
+  'RESOLVED',
+];
+
+export const PROBLEM_STATUS_LABELS: Record<ProblemStatus, string> = {
+  OPEN: 'Open',
+  INVESTIGATING: 'Investigating',
+  KNOWN_ERROR: 'Known error',
+  RESOLVED: 'Resolved',
+};
+
+export const PROBLEM_STATUS_PILL: Record<ProblemStatus, string> = {
+  OPEN: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200',
+  INVESTIGATING: 'bg-sky-50 text-sky-700 ring-1 ring-sky-200',
+  KNOWN_ERROR: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  RESOLVED: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
 };
 
 export const ACTIVITY_TYPE_LABELS: Record<TicketActivityType, string> = {

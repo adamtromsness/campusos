@@ -120,6 +120,12 @@ export default function HelpdeskAdminQueuePage() {
               SLA dashboard
             </Link>
             <Link
+              href="/helpdesk/admin/problems"
+              className="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-campus-700 ring-1 ring-campus-200 hover:bg-campus-50"
+            >
+              Problems
+            </Link>
+            <Link
               href="/helpdesk/admin/categories"
               className="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50"
             >
