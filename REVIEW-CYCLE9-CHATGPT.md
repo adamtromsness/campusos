@@ -185,13 +185,40 @@ contingent on the BLOCKING fix landing.
 
 ## Round 2 verdict — APPROVED
 
-(Pending reviewer confirmation against the closeout commit. The
-reviewer's gate decision was: _"Once that endpoint is fixed, Cycle 9
-should be approvable."_)
+> **The blocking privacy issue is fixed in the current GitHub state.**
+> _"Cycle 9 is now clean from the review perspective. The privacy
+> blocker is closed, and the remaining item is a role-design hardening
+> task rather than a cycle blocker."_
 
-Tag `cycle9-approved` lands on the closeout commit that ships the
-BLOCKING fix + MAJOR 2 + MAJOR 3 + MAJOR 5 plus the MAJOR 4 backlog
-entry.
+Reviewer cache-busted the four affected files and confirmed each fix
+in code:
+
+1. **Parent feedback leak — fixed.** `FeedbackService.listForPlan()`
+   calls `plans.getById(planId, actor)` to verify plan visibility,
+   then `plans.canSeeFeedback(actor)`, returning `[]` without
+   querying feedback rows when the actor is not allowed to see
+   feedback. Matches the intended privacy contract: parents can see
+   their child's behavior-plan summary but not private teacher
+   observations or effectiveness notes.
+2. **Feedback endpoint documentation — fixed.** The Swagger summary
+   explicitly states the endpoint is staff/counsellor/admin only and
+   that guardians and students receive an empty array.
+3. **Feedback request duplicate race — improved.** `requestFeedback()`
+   runs the pending-feedback pre-check and insert inside a tenant
+   transaction and catches unique-violation races, returning a
+   friendly error instead of surfacing raw database failures.
+4. **BIP activation race — documented as fixed.** The review artifact
+   states `activate()` catches the partial-unique race and returns
+   the same friendly conflict message; reviewer saw no contrary code
+   signal.
+
+**Remaining accepted follow-up:** Counsellor role split (MAJOR 4) is
+correctly carried as a Phase 2 role-model refinement on the Wave 2
+punch list — distinct Counsellor role or narrowed assignment before
+onboarding real schools.
+
+Tag `cycle9-approved` landed on commit `48f58e4` (the BLOCKING + MAJOR
+2 + MAJOR 3 + MAJOR 5 fix commit). **Cycle 9 ships clean.**
 
 ## Strong passes (Round 1, unchanged)
 
