@@ -23,7 +23,7 @@ This document tracks the Cycle 10 build at the same level of detail as `HANDOFF-
 | 7    | IEP/504 + Nurse + Screening + Dietary NestJS Modules        | **DONE** |
 | 8    | Health UI — Nurse Dashboard + Student Health Record         | **DONE** |
 | 9    | Health UI — IEP Editor + Screening + Parent View            | **DONE** |
-| 10   | Vertical Slice Integration Test                             | TODO     |
+| 10   | Vertical Slice Integration Test                             | **DONE** |
 
 ---
 
@@ -648,6 +648,49 @@ Ships the second batch of Cycle 10 web routes — IEP/504 editor, screening log,
 
 ## Step 10 — Vertical Slice Integration Test
 
-**Status:** TODO.
+**Status:** DONE.
 
-The Cycle 10 CAT — reproducible end-to-end walkthrough across the 9 plan scenarios + schema preamble.
+Ships `docs/cycle10-cat-script.md` — a reproducible end-to-end walkthrough across the 9 plan scenarios + 8-check schema preamble. Verified live on `tenant_demo` 2026-05-04. **All 9 scenarios pass.**
+
+**The 9 scenarios:**
+
+1. **Health record lifecycle** — admin GETs Maya's full record (blood + 2 allergies + 2 conditions + 3 immunisations); HIPAA `VIEW_RECORD` audit row written.
+2. **Medication lifecycle** — pre-state shows seeded MISSED row; reset; admin POSTs administer (active dose shape: was_missed=false, administered_at NOT NULL, missed_reason NULL); admin POSTs missed STUDENT_ABSENT (missed dose shape: was_missed=true, administered_at NULL, missed_reason populated); schema-side `missed_chk` keystone rejects an invalid hybrid INSERT.
+3. **Nurse visit lifecycle** — admin signs Maya in (status=IN_PROGRESS, roster=1); atomic update with treatment + parent_notified=true + sentHome=true + signOut=true → status flips to COMPLETED with signed_out_at + sent_home_at populated atomically per the Step 7 lockstep tx; roster falls 1 → 0.
+4. **ADR-030 keystone** — admin POSTs new ASSISTIVE_TECH ALL_ASSIGNMENTS accommodation; within ~3s the `IepAccommodationConsumer` reconciles `sis_student_active_accommodations` from 2 → 3 rows with `has_src=true`; teacher reads the read model directly via psql confirming the contract; admin DELETEs; consumer drops the row back to 2.
+5. **Screening** — pre-state shows Maya VISION REFER pending; admin records new HEARING PASS for Ethan; BOGUS result rejected; admin marks Maya's REFER follow-up complete; queue drops 1 → 0.
+6. **Dietary** — admin GET /allergen-alerts shows Maya/Peanuts; admin POST new Latex MODERATE allergen for Aiden; duplicate POST rejected; allergen-alerts grows 1 → 2.
+7. **Parent visibility** — parent reads full record (`emergencyMedicalNotes` stripped), conditions (`managementPlan` stripped), medications (`prescribingPhysician` stripped), and visits via the new Step 9 endpoint. Parent gets 404 on Ethan (don't-leak-existence) and 403 on screenings, medication-dashboard, and access-log.
+8. **HIPAA access log** — admin GETs the audit log; counts by access_type show every read in the CAT generated exactly one audit row (total=13 across VIEW_RECORD/CONDITIONS/IMMUNISATIONS/MEDICATIONS/VISITS/IEP/SCREENING). Persona breakdown attributes 7 to David Chen (parent), 5 to Sarah Mitchell (admin), 1 to James Rivera (prior smoke).
+9. **Permission denials** — 6 paths: student gate 403 on full record; teacher service-layer 403 on /iep with the exact ADR-030 redirect message ("Teachers see accommodations via sis_student_active_accommodations"); teacher service-layer 403 on /medications; teacher CAN read the read model directly (the ADR-030 contract); student gate 403 on POST administer; teacher gate 403 on POST screening; parent gate 403 on POST IEP plan.
+
+**ADR-057 wire envelopes captured live:**
+
+- `dev.iep.accommodation.updated` (S4.B + S4.E) — `event_type='iep.accommodation.updated'`, `source_module='health'`, payload includes `planId`, `planType=504`, `planStatus=ACTIVE`, accommodations array reflecting the post-mutation state.
+- `dev.hlth.nurse_visit.sent_home` (S3.D) — `event_type='hlth.nurse_visit.sent_home'`, `source_module='health'`, payload includes `visitId`, `visitedPersonId`, `visitedPersonType=STUDENT`, `nurseAccountId`, `sentHomeAt` populated.
+
+The third Cycle 10 emit (`dev.hlth.medication.administered`) was already verified in the Step 6 smoke run — not re-captured in this CAT but the emit fires on every administration and lands cleanly. The future Cycle 3 NotificationConsumer that fans this out to parent IN_APP / EMAIL is deferred as a Phase 2 punch list item.
+
+**Cleanup script** (in the CAT) restores `tenant_demo` to the post-Step-4 seed shape exactly: records=1, conditions=2, immunisations=3, meds=1, administrations=2, visits=2, plans=1, accommodations=2, screenings=1, dietary=1, read_model=2 — verified live post-cleanup. The S4 keystone DELETE already self-cleans its accommodation. The audit log is intentionally NOT cleaned — every entry is IMMUTABLE per ADR-010 and accumulating across CAT runs is the expected behavior.
+
+**Reviewer attention items (non-blocking Phase 2 polish — captured in the CAT):**
+
+1. `hlth_health_access_log` immutability is service-side only (no UPDATE/DELETE method); schema deliberately allows DBA / emergency operator action per ADR-010. A stronger reviewer could add a tenant-scoped trigger.
+2. Parent IEP visibility — the `IepPlanService` GUARDIAN branch surfaces full plan detail; the Step 9 parent UI hides IEP from the summary card by product decision. If a school wants the API to be the source of truth, the visibility model would need to drop GUARDIAN from `/iep` reads.
+3. Cycle 3 NotificationConsumer fan-out on `hlth.medication.administered` and `hlth.nurse_visit.sent_home` is deferred — emits land cleanly but no consumer wires the parent IN_APP / EMAIL yet. Both have placeholder TODO carry-overs.
+4. S4 ADR-030 keystone latency observed at ~2-3s end-to-end (Kafka round-trip); single-threaded per tenant via `processWithIdempotency`. Under load this could climb.
+5. Synthetic Platform Admin (`admin@`) cannot administer medication (no `hr_employees` row); Step 6 deliberately refuses such callers. Schools whose only admin lacks an HR bridge need to use the principal account or bridge `admin@` via `seed-hr.ts`.
+
+**Cycle 10 ships clean to the post-cycle architecture review.** Tagged `cycle10-complete` after the closeout commit + CI green; `cycle10-approved` after the post-cycle review verdict (filed as `REVIEW-CYCLE10-CHATGPT.md` per the Wave 1 / Wave 2 convention). Cycle 10 is the **second cycle of Wave 2 (Student Services)**; the next cycle (Cycle 11: Counselling & Student Support) builds on the IEP/504 plans by adding counselling caseloads, referrals, MTSS/RTI tiers, and wellbeing check-ins.
+
+**Final Cycle 10 totals:**
+
+- **15 hlth\_\* tables** (Steps 1+2+3) + 1 read model (`sis_student_active_accommodations`, Step 4 prerequisite) — tenant base table count 139 → **155**.
+- **19 intra-tenant FKs** across the hlth\_\* tables, 0 cross-schema FKs.
+- **48 endpoints** (Step 5: 14 / Step 6: 10 / Step 7: 23 / Step 9: 1).
+- **3 Kafka emit topics** (`hlth.medication.administered` / `iep.accommodation.updated` / `hlth.nurse_visit.sent_home`) + **1 Kafka consumer** (`IepAccommodationConsumer`).
+- **8 web routes** (Step 8: `/health` + `/health/students/[id]` + `/health/nurse-visits` + `/health/medications`; Step 9: `/health/iep-plans/[id]` + `/health/screenings` + `/health/dietary` + `/children/[id]/health`).
+- **5 HLT permission codes granted across the 7 personas** (HLT-001 to HLT-005, all already in `permissions.json`).
+- **9-value HIPAA `access_type` enum** (`hlth_health_access_log`) covering every per-domain read shape.
+- **5 multi-column CHECK keystones** — `missed_chk` (medication administrations), `signed_chk` + `sent_home_chk` (nurse visits), `applies_to_chk` + `dates_chk` (IEP accommodations).
+- **3 partial UNIQUE / partial INDEXes** — `(student_id) WHERE status<>'EXPIRED'` (IEP plans), `(school_id) WHERE pos_allergen_alert=true` (dietary), `(school_id, follow_up_completed) WHERE follow_up_required=true AND follow_up_completed=false` (screenings).
