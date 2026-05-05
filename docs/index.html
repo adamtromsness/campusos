@@ -141,11 +141,11 @@ a.card{text-decoration:none;color:inherit}
   <h1>Design Hub</h1>
   <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38 modules, 76 ADRs across 8 delivery waves.</p>
   <div class="stats-row">
-    <div class="stat"><span class="num">175</span><span class="label">Tables Built</span></div>
-    <div class="stat"><span class="num">~332</span><span class="label">Endpoints</span></div>
-    <div class="stat"><span class="num">95+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">189</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">~378</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">106+</span><span class="label">UI Pages</span></div>
     <div class="stat"><span class="num">15</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">14</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">15</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -166,30 +166,30 @@ a.card{text-decoration:none;color:inherit}
 
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Cycles 0&ndash;11.1 Complete</h4>
-      <p>Wave 1 (Core Ops) + Wave 2 Student Services shipped. 175 tenant tables, ~332 endpoints, 95+ UI pages. M27 Student Services fully complete. First student-input surface live.</p>
+      <h4>Cycles 0&ndash;12 Complete</h4>
+      <p>Wave 1 (Core Ops) + Wave 2 Student Services + Library. 189 tenant tables, ~378 endpoints, 106+ UI pages. Full library with barcode circulation, GIN search, reading programmes.</p>
     </div>
     <div class="status-card sc-blue">
-      <h4>Cycle 12: Library &mdash; Building</h4>
-      <p>Catalogue with full-text search, barcode circulation, holds, fines, reading programmes, student book reviews. 14 tables, ~40 endpoints.</p>
+      <h4>Cycle 13: Athletics &mdash; Next</h4>
+      <p>Sports programmes, seasonal rosters with GPA eligibility, game scheduling, results + stats, 6-step concussion protocol. 14 tables, ~42 endpoints. Completes Wave 2.</p>
     </div>
     <div class="status-card sc-amber">
-      <h4>Wave 2 Remaining</h4>
-      <p>Cycle 13 (Athletics &amp; Clubs). Then Wave 3: Communications &amp; Community.</p>
+      <h4>Wave 3 Up Next</h4>
+      <p>Communications, Meetings, Enrolment, Clubs &amp; Student Life, Groups.</p>
     </div>
   </div>
 
   <h2 class="sec">Build Progress</h2>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Tables Built</span><span>175 / 840 (21%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:21%"></div></div>
+    <div class="progress-label"><span>Tables Built</span><span>189 / 840 (22%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:22%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Cycles Complete</span><span>14 / 31 planned</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:45%"></div></div>
+    <div class="progress-label"><span>Cycles Complete</span><span>15 / 32 planned</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:47%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>1 of 8 (Wave 2 in progress)</span></div>
+    <div class="progress-label"><span>Waves Complete</span><span>1 of 8 (Wave 2 almost done)</span></div>
     <div class="progress-bar"><div class="progress-fill" style="width:18%"></div></div>
   </div>
 
@@ -294,7 +294,7 @@ a.card{text-decoration:none;color:inherit}
     <div class="mod-group-header"><h3>Library &amp; Enrichment</h3><span class="count">3 modules &middot; 74 tables</span></div>
     <table class="mod-table">
       <tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
-      <tr><td>M24 Library</td><td><code>lib_</code></td><td>20</td><td><span class="pill pill-blue">Building</span></td><td>Catalogue, circulation, reading programmes, reviews</td></tr>
+      <tr><td>M24 Library</td><td><code>lib_</code></td><td>20</td><td><span class="pill pill-green">Built (14/20)</span></td><td>Catalogue, circulation, reading programmes, reviews</td></tr>
       <tr><td>M64 Clubs &amp; Student Life</td><td><code>ext_</code></td><td>22</td><td><span class="pill pill-gray">Planned</span></td><td>Clubs, student government, elections, field trips</td></tr>
       <tr><td>M66 Athletics</td><td><code>ath_</code></td><td>32</td><td><span class="pill pill-gray">Planned</span></td><td>Sports, seasons, rosters, eligibility, officials, game scheduling</td></tr>
     </table>
@@ -393,8 +393,8 @@ a.card{text-decoration:none;color:inherit}
       <div class="cycle-row"><span class="cycle-num">10</span><span class="cycle-title">Health &amp; Wellness <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle10-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle10-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">11</span><span class="cycle-title">Counselling &amp; Student Support <span class="pill pill-green">Done</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="campusos-cycle11-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle11-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">11.1</span><span class="cycle-title">Wellbeing Check-Ins <span class="pill pill-green">Done</span></span><span class="cycle-tables">6 tenant</span><span class="cycle-links"><a href="campusos-cycle11.1-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle11.1-cat-script.md" class="cl-cat">CAT</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">12</span><span class="cycle-title">Library <span class="pill pill-blue">Building</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="campusos-cycle12-implementation-plan.html" class="cl-plan">Plan</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">13</span><span class="cycle-title">Athletics &amp; Clubs <span class="pill pill-gray">Planned</span></span><span class="cycle-tables">~32 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">12</span><span class="cycle-title">Library <span class="pill pill-green">Done</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="campusos-cycle12-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle12-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">13</span><span class="cycle-title">Athletics <span class="pill pill-blue">Next</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="campusos-cycle13-implementation-plan.html" class="cl-plan">Plan</a></span></div>
     </div>
   </div>
 
@@ -402,14 +402,15 @@ a.card{text-decoration:none;color:inherit}
   <div class="wave w-purple">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>Wave 3 &mdash; Communications &amp; Community</h3>
-      <span class="wave-meta">4 cycles &middot; PLANNED</span>
+      <span class="wave-meta">5 cycles &middot; PLANNED</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
       <div class="cycle-row"><span class="cycle-num">14</span><span class="cycle-title">Communications &amp; Messaging</span><span class="cycle-tables">~28 tenant</span><span class="cycle-links"></span></div>
       <div class="cycle-row"><span class="cycle-num">15</span><span class="cycle-title">Meetings &amp; Conferences</span><span class="cycle-tables">~18 tenant</span><span class="cycle-links"></span></div>
       <div class="cycle-row"><span class="cycle-num">16</span><span class="cycle-title">Enrolment &amp; Admissions</span><span class="cycle-tables">~28 tenant</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">17</span><span class="cycle-title">Groups &amp; Communities</span><span class="cycle-tables">~13 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">17</span><span class="cycle-title">Clubs &amp; Student Life</span><span class="cycle-tables">~22 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">18</span><span class="cycle-title">Groups &amp; Communities</span><span class="cycle-tables">~13 tenant</span><span class="cycle-links"></span></div>
     </div>
   </div>
 
@@ -421,10 +422,10 @@ a.card{text-decoration:none;color:inherit}
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">18</span><span class="cycle-title">Transportation</span><span class="cycle-tables">~38 tenant</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">19</span><span class="cycle-title">Food Service</span><span class="cycle-tables">~32 tenant</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">20</span><span class="cycle-title">Facilities Management</span><span class="cycle-tables">~27 tenant</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">21</span><span class="cycle-title">IT Infrastructure</span><span class="cycle-tables">~34 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">19</span><span class="cycle-title">Transportation</span><span class="cycle-tables">~38 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">20</span><span class="cycle-title">Food Service</span><span class="cycle-tables">~32 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">21</span><span class="cycle-title">Facilities Management</span><span class="cycle-tables">~27 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">22</span><span class="cycle-title">IT Infrastructure</span><span class="cycle-tables">~34 tenant</span><span class="cycle-links"></span></div>
     </div>
   </div>
 
@@ -436,9 +437,9 @@ a.card{text-decoration:none;color:inherit}
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">22</span><span class="cycle-title">Curriculum &amp; Standards</span><span class="cycle-tables">~14 tenant</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">23</span><span class="cycle-title">Student Portfolio</span><span class="cycle-tables">~13 tenant</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">24</span><span class="cycle-title">Publications</span><span class="cycle-tables">~11 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">23</span><span class="cycle-title">Curriculum &amp; Standards</span><span class="cycle-tables">~14 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">24</span><span class="cycle-title">Student Portfolio</span><span class="cycle-tables">~13 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">25</span><span class="cycle-title">Publications</span><span class="cycle-tables">~11 tenant</span><span class="cycle-links"></span></div>
     </div>
   </div>
 
@@ -450,9 +451,9 @@ a.card{text-decoration:none;color:inherit}
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">25</span><span class="cycle-title">Finance &amp; Accounting</span><span class="cycle-tables">~9 tenant</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">26</span><span class="cycle-title">Procurement</span><span class="cycle-tables">~12 tenant</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">27</span><span class="cycle-title">School Store</span><span class="cycle-tables">~14 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">26</span><span class="cycle-title">Finance &amp; Accounting</span><span class="cycle-tables">~9 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">27</span><span class="cycle-title">Procurement</span><span class="cycle-tables">~12 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">28</span><span class="cycle-title">School Store</span><span class="cycle-tables">~14 tenant</span><span class="cycle-links"></span></div>
     </div>
   </div>
 
@@ -464,8 +465,8 @@ a.card{text-decoration:none;color:inherit}
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">28</span><span class="cycle-title">Analytics &amp; Reporting</span><span class="cycle-tables">~34 tenant</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">29</span><span class="cycle-title">Data Governance &amp; Compliance</span><span class="cycle-tables">~12 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">29</span><span class="cycle-title">Analytics &amp; Reporting</span><span class="cycle-tables">~34 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">30</span><span class="cycle-title">Data Governance &amp; Compliance</span><span class="cycle-tables">~12 tenant</span><span class="cycle-links"></span></div>
     </div>
   </div>
 
@@ -477,8 +478,8 @@ a.card{text-decoration:none;color:inherit}
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">30</span><span class="cycle-title">Performance &amp; Observability</span><span class="cycle-tables">Ops</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">31</span><span class="cycle-title">Multi-Region &amp; Disaster Recovery</span><span class="cycle-tables">Ops</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">31</span><span class="cycle-title">Performance &amp; Observability</span><span class="cycle-tables">Ops</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">32</span><span class="cycle-title">Multi-Region &amp; Disaster Recovery</span><span class="cycle-tables">Ops</span><span class="cycle-links"></span></div>
     </div>
   </div>
 </div>
@@ -490,6 +491,13 @@ a.card{text-decoration:none;color:inherit}
 
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>Cycle 12: Library <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">14 tables &middot; 46 endpoints &middot; 1 Kafka emit &middot; 11 web routes &middot; Review: 4 BLOCKING fixed</div>
+    <div class="log-desc">Catalogue with GIN full-text search, barcode circulation (checkout/return/renew), holds with auto-fulfilment, overdue fines with Kafka emit, reading programmes with progress tracking, curated reading lists, student book reviews. Second student-input surface.</div>
+    <div class="log-links"><a href="campusos-cycle12-implementation-plan.html">Plan</a> <a href="cycle12-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>Cycle 11.1: Wellbeing Check-Ins <span class="pill pill-green">Approved</span></h4>
@@ -543,6 +551,7 @@ a.card{text-decoration:none;color:inherit}
     <a href="cycle10-cat-script.md" class="card"><h4>Cycle 10 CAT</h4><div class="desc">Health record, medication, nurse visit, ADR-030 IEP sync, screening, dietary, HIPAA log.</div><div class="meta">9 scenarios</div></a>
     <a href="cycle11-cat-script.md" class="card"><h4>Cycle 11 CAT</h4><div class="desc">Referral pipeline, caseload, FERPA notes + lock, MTSS tier, intervention, coordinated care, mandatory report.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle11.1-cat-script.md" class="card"><h4>Cycle 11.1 CAT</h4><div class="desc">Survey template, deploy, student check-in, WANTS_TO_TALK + SELF_HARM_INDICATOR alerts, triage.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle12-cat-script.md" class="card"><h4>Cycle 12 CAT</h4><div class="desc">Catalogue + GIN search, barcode checkout, max-checkouts, hold queue, overdue auto-fine, reading log + programme progress, reviews, reading lists.</div><div class="meta">10 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 2 Punch List</h2>
