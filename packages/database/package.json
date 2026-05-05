@@ -26,6 +26,7 @@
     "seed:health": "tsx src/seed-health.ts",
     "seed:counselling": "tsx src/seed-counselling.ts",
     "seed:wellbeing": "tsx src/seed-wellbeing.ts",
+    "seed:library": "tsx src/seed-library.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

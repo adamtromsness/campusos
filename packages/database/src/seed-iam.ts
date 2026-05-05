@@ -261,6 +261,17 @@ async function seedIam() {
         // sis_student_active_accommodations table is the canonical
         // teacher read path for IEP / 504 accommodations.
         'HLT-001': ['read'],
+        // Cycle 12 — Library. Teachers browse the catalogue (LIB-001:read),
+        // see their own staff checkouts + holds + fines (LIB-002:read),
+        // and create or curate reading lists for their classes
+        // (LIB-003:write — staff can author lists alongside the
+        // librarian). Teachers do NOT receive LIB-001:write — only the
+        // librarian (Staff role) adds items + copies. Teachers do NOT
+        // receive LIB-002:write — only the librarian processes the
+        // checkout / return / renew lifecycle.
+        'LIB-001': ['read'],
+        'LIB-002': ['read'],
+        'LIB-003': ['write'],
       },
     },
     {
@@ -328,6 +339,14 @@ async function seedIam() {
         // surfaces (a parent can see meds via the parent summary on
         // HLT-001:read but can't audit the administration log).
         'HLT-001': ['read'],
+        // Cycle 12 — Library. Parents browse the catalogue
+        // (LIB-001:read) so they can see what their child is reading +
+        // search for titles to recommend. Parents do NOT receive
+        // LIB-002:read in this cycle — child checkout/hold/fine
+        // visibility is a future polish (the parent UI on
+        // /children/[id]/library will surface the row-scoped child
+        // checkout summary once that surface ships).
+        'LIB-001': ['read'],
       },
     },
     {
@@ -365,6 +384,19 @@ async function seedIam() {
         // follow-up conversation naturally without surfacing the
         // technical flag to the student).
         'COU-004': ['read'],
+        // Cycle 12 — Library. Students browse the catalogue
+        // (LIB-001:read), see their own checkouts + holds + fines
+        // (LIB-002:read; the Step 6 CheckoutService row-scopes patron
+        // reads to the calling iam_person.id), and **log reading
+        // entries + write book reviews** (LIB-003:read+write — THE
+        // SECOND STUDENT-INPUT PERMISSION in CampusOS after Cycle
+        // 11.1 wellbeing's COU-004:read). Row scope at the Step 7
+        // ReadingLogService + ReviewService binds students to their
+        // own student_id so they cannot log on behalf of other
+        // students or post reviews to other students' accounts.
+        'LIB-001': ['read'],
+        'LIB-002': ['read'],
+        'LIB-003': ['read', 'write'],
       },
     },
     {
@@ -455,6 +487,20 @@ async function seedIam() {
         // delete) is reached via the everyFunction grant.
         'COU-004': ['read', 'write'],
         student_counseling_record: ['read'],
+        // Cycle 12 — Library. Staff covers the librarian (and any
+        // other staff who help at the circulation desk). LIB-001
+        // read+write so the librarian adds + edits catalogue items,
+        // locations, and copies. LIB-002 read+write so the librarian
+        // processes the checkout / return / renew / hold-fulfil
+        // lifecycle and manages fines (pay / waive). LIB-003 write
+        // covers programme + reading list + review moderation
+        // (read piggybacks on the librarian's catalogue browse via
+        // LIB-001:read). School Admin and Platform Admin pick up
+        // the admin tier (catalogue-import, hard-delete, library
+        // analytics dashboard) via the everyFunction grant.
+        'LIB-001': ['read', 'write'],
+        'LIB-002': ['read', 'write'],
+        'LIB-003': ['write'],
       },
     },
   ];

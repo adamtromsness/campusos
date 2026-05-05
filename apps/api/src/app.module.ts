@@ -26,6 +26,7 @@ import { BehaviorPlansModule } from './behavior-plans/behavior-plans.module';
 import { HealthRecordsModule } from './health/health-records.module';
 import { CounsellingModule } from './counselling/counselling.module';
 import { WellbeingModule } from './wellbeing/wellbeing.module';
+import { LibraryModule } from './library/library.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -78,6 +79,7 @@ var devOnlyControllers: Type<unknown>[] =
     HealthRecordsModule,
     CounsellingModule,
     WellbeingModule,
+    LibraryModule,
   ],
   controllers: devOnlyControllers,
   providers: [
