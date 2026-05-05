@@ -3200,3 +3200,508 @@ export interface UpdateDietaryProfilePayload {
   specialMealInstructions?: string | null;
   posAllergenAlert?: boolean;
 }
+
+// ─── Cycle 11 — Counselling & Student Support ─────────────────
+
+export type PrimaryConcern =
+  | 'ACADEMIC'
+  | 'BEHAVIORAL'
+  | 'SOCIAL_EMOTIONAL'
+  | 'ATTENDANCE'
+  | 'CRISIS'
+  | 'TRANSITION'
+  | 'GENERAL';
+
+export type CaseloadStatus = 'ACTIVE' | 'CLOSED' | 'TRANSFERRED';
+
+export type ReferralPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
+export type ReferralStatus =
+  | 'SUBMITTED'
+  | 'TRIAGED'
+  | 'ACCEPTED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'DECLINED'
+  | 'CANCELLED';
+
+export type ReferralActivityType =
+  | 'STATUS_CHANGE'
+  | 'ASSIGNMENT_CHANGE'
+  | 'NOTE_ADDED'
+  | 'PARENT_NOTIFIED'
+  | 'ESCALATED'
+  | 'EXTERNAL_CONTACT_MADE';
+
+export type SessionType =
+  | 'INDIVIDUAL'
+  | 'GROUP'
+  | 'CRISIS'
+  | 'CHECK_IN'
+  | 'PARENT_MEETING'
+  | 'CONSULTATION';
+
+export type SessionStatus = 'SCHEDULED' | 'COMPLETED' | 'NO_SHOW' | 'CANCELLED';
+
+export type SessionAttendanceStatus = 'ATTENDED' | 'NO_SHOW' | 'LATE';
+
+export interface CaseloadDto {
+  id: string;
+  schoolId: string;
+  counselorId: string;
+  counselorName: string | null;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  studentGradeLevel: string | null;
+  academicYearId: string;
+  academicYearName: string | null;
+  primaryConcern: PrimaryConcern;
+  isPrimaryCounselor: boolean;
+  status: CaseloadStatus;
+  openedAt: string;
+  closedAt: string | null;
+  closureReason: string | null;
+  notes: string | null;
+  // Inlined for getById only
+  sessionCount?: number | null;
+  lastSessionDate?: string | null;
+  linkedBipId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCaseloadPayload {
+  counselorId: string;
+  studentId: string;
+  academicYearId: string;
+  primaryConcern: PrimaryConcern;
+  isPrimaryCounselor?: boolean;
+  openedAt: string;
+  notes?: string | null;
+  fromReferralId?: string;
+}
+
+export interface UpdateCaseloadPayload {
+  primaryConcern?: PrimaryConcern;
+  notes?: string | null;
+}
+
+export interface CloseCaseloadPayload {
+  closureReason: string;
+}
+
+export interface ReferralTypeDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  defaultPriority: ReferralPriority;
+  requiresParentNotification: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReferralTypePayload {
+  name: string;
+  description?: string | null;
+  defaultPriority: ReferralPriority;
+  requiresParentNotification?: boolean;
+  isActive?: boolean;
+}
+
+export interface UpdateReferralTypePayload {
+  name?: string;
+  description?: string | null;
+  defaultPriority?: ReferralPriority;
+  requiresParentNotification?: boolean;
+  isActive?: boolean;
+}
+
+export interface ReferralActivityDto {
+  id: string;
+  referralId: string;
+  actorId: string;
+  actorName: string | null;
+  activityType: ReferralActivityType;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface ReferralDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  studentGradeLevel: string | null;
+  referredById: string;
+  referredByName: string | null;
+  referralTypeId: string;
+  referralTypeName: string | null;
+  requiresParentNotification: boolean;
+  assignedCounselorId: string | null;
+  assignedCounselorName: string | null;
+  priority: ReferralPriority;
+  status: ReferralStatus;
+  reason: string;
+  parentNotified: boolean;
+  parentNotifiedAt: string | null;
+  outcome: string | null;
+  createdAt: string;
+  updatedAt: string;
+  activity?: ReferralActivityDto[];
+}
+
+export interface CreateReferralPayload {
+  studentId: string;
+  referralTypeId: string;
+  reason: string;
+  priority?: ReferralPriority;
+}
+
+export interface TriageReferralPayload {
+  assignedCounselorId: string;
+  notes?: string | null;
+}
+
+export interface AcceptReferralPayload {
+  openCaseload?: boolean;
+  caseloadConcern?: PrimaryConcern;
+  academicYearId?: string;
+  notes?: string | null;
+}
+
+export interface CompleteReferralPayload {
+  outcome: string;
+}
+
+export interface DeclineReferralPayload {
+  reason: string;
+}
+
+export interface SessionParticipantDto {
+  id: string;
+  sessionId: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  caseloadId: string | null;
+  attendanceStatus: SessionAttendanceStatus;
+  notes: string | null;
+}
+
+export interface SessionDto {
+  id: string;
+  schoolId: string;
+  counselorId: string;
+  counselorName: string | null;
+  sessionDate: string;
+  durationMinutes: number | null;
+  sessionType: SessionType;
+  primaryCaseloadId: string | null;
+  primaryStudentId: string | null;
+  primaryStudentName: string | null;
+  referralId: string | null;
+  status: SessionStatus;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  participants?: SessionParticipantDto[];
+}
+
+export interface CreateSessionPayload {
+  counselorId: string;
+  sessionDate: string;
+  durationMinutes?: number;
+  sessionType: SessionType;
+  primaryCaseloadId?: string | null;
+  referralId?: string | null;
+  status?: SessionStatus;
+  notes?: string | null;
+}
+
+export interface UpdateSessionPayload {
+  status?: SessionStatus;
+  durationMinutes?: number;
+  sessionType?: SessionType;
+  notes?: string | null;
+}
+
+export interface AddParticipantPayload {
+  studentId: string;
+  caseloadId?: string | null;
+  attendanceStatus?: SessionAttendanceStatus;
+  notes?: string | null;
+}
+
+export interface MarkAttendancePayload {
+  attendanceStatus: SessionAttendanceStatus;
+  notes?: string | null;
+}
+
+export interface SessionNoteDto {
+  id: string;
+  sessionId: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  notesText: string;
+  goalsAddressed: string[] | null;
+  followUpRequired: boolean;
+  followUpNotes: string | null;
+  isLocked: boolean;
+  lockedAt: string | null;
+  lockedById: string | null;
+  lockedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSessionNotePayload {
+  studentId: string;
+  notesText: string;
+  goalsAddressed?: string[];
+  followUpRequired?: boolean;
+  followUpNotes?: string | null;
+}
+
+export interface UpdateSessionNotePayload {
+  notesText?: string;
+  goalsAddressed?: string[];
+  followUpRequired?: boolean;
+  followUpNotes?: string | null;
+}
+
+// ─── Cycle 11 Step 7 — MTSS / Care / Reporting ────────────────
+
+export type MtssTier = 'TIER_1' | 'TIER_2' | 'TIER_3';
+
+export type MtssDomain = 'ACADEMIC' | 'BEHAVIORAL' | 'SOCIAL_EMOTIONAL' | 'ATTENDANCE';
+
+export type MtssTierStatus = 'ACTIVE' | 'EXITED' | 'PROMOTED' | 'DEMOTED';
+
+export type InterventionType =
+  | 'ACADEMIC_SUPPORT'
+  | 'BEHAVIORAL_SUPPORT'
+  | 'SOCIAL_EMOTIONAL_LEARNING'
+  | 'ATTENDANCE_SUPPORT'
+  | 'COUNSELING'
+  | 'EXTERNAL_SERVICE';
+
+export type InterventionStatus = 'ACTIVE' | 'COMPLETED' | 'DISCONTINUED';
+
+export type MeetingOutcome =
+  | 'NO_CHANGE'
+  | 'TIER_UP'
+  | 'TIER_DOWN'
+  | 'EXIT'
+  | 'CONTINUE_WITH_ADJUSTMENT';
+
+export type CareAuthorRole = 'NURSE' | 'COUNSELLOR';
+
+export type ReportType = 'SUSPECTED_ABUSE' | 'SUSPECTED_NEGLECT' | 'IMMINENT_DANGER' | 'OTHER';
+
+export type ReportStatus = 'FILED' | 'CPS_CONTACTED' | 'INVESTIGATION_ACTIVE' | 'CLOSED';
+
+// MTSS Tier
+
+export interface MtssTierDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  academicYearId: string;
+  academicYearName: string | null;
+  tier: MtssTier;
+  domain: MtssDomain;
+  assignedById: string;
+  assignedByName: string | null;
+  assignedAt: string;
+  reviewDate: string;
+  exitDate: string | null;
+  exitReason: string | null;
+  status: MtssTierStatus;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateMtssTierPayload {
+  studentId: string;
+  academicYearId: string;
+  tier: MtssTier;
+  domain: MtssDomain;
+  assignedAt: string;
+  reviewDate: string;
+  notes?: string | null;
+}
+
+export interface UpdateMtssTierPayload {
+  tier?: MtssTier;
+  status?: MtssTierStatus;
+  reviewDate?: string;
+  exitDate?: string;
+  exitReason?: string | null;
+  notes?: string | null;
+}
+
+export interface MtssDashboardCellDto {
+  tier: MtssTier;
+  domain: MtssDomain;
+  count: number;
+}
+
+export interface MtssDashboardDto {
+  cells: MtssDashboardCellDto[];
+  totalActive: number;
+}
+
+// Intervention + progress
+
+export interface InterventionProgressEntryDto {
+  id: string;
+  interventionId: string;
+  recordedById: string;
+  recordedByName: string | null;
+  recordedDate: string;
+  measureType: string;
+  score: number | null;
+  benchmark: number | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface InterventionDto {
+  id: string;
+  tierId: string;
+  interventionName: string;
+  interventionType: InterventionType;
+  description: string | null;
+  frequency: string | null;
+  startDate: string;
+  endDate: string | null;
+  providerId: string | null;
+  providerName: string | null;
+  status: InterventionStatus;
+  latestProgress?: InterventionProgressEntryDto | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateInterventionPayload {
+  interventionName: string;
+  interventionType: InterventionType;
+  description?: string | null;
+  frequency?: string | null;
+  startDate: string;
+  endDate?: string;
+  providerId?: string | null;
+}
+
+export interface UpdateInterventionPayload {
+  status?: InterventionStatus;
+  frequency?: string | null;
+  endDate?: string;
+  description?: string | null;
+}
+
+export interface LogProgressPayload {
+  recordedDate: string;
+  measureType: string;
+  score?: number;
+  benchmark?: number;
+  notes?: string | null;
+}
+
+// Team meetings
+
+export interface TeamMeetingStudentDto {
+  id: string;
+  teamMeetingId: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  tierId: string | null;
+  outcome: MeetingOutcome | null;
+  outcomeNotes: string | null;
+}
+
+export interface TeamMeetingDto {
+  id: string;
+  schoolId: string;
+  meetingId: string | null;
+  academicYearId: string;
+  facilitatedById: string;
+  facilitatedByName: string | null;
+  meetingDate: string;
+  notes: string | null;
+  students?: TeamMeetingStudentDto[];
+  createdAt: string;
+}
+
+export interface CreateTeamMeetingPayload {
+  academicYearId: string;
+  meetingDate: string;
+  notes?: string | null;
+}
+
+export interface AttachTeamMeetingStudentPayload {
+  studentId: string;
+  tierId?: string | null;
+  outcome?: MeetingOutcome | null;
+  outcomeNotes?: string | null;
+}
+
+// Coordinated care
+
+export interface CoordinatedCareNoteDto {
+  id: string;
+  studentId: string;
+  authorPersonId: string;
+  authorName: string | null;
+  authorRole: CareAuthorRole;
+  noteText: string;
+  createdAt: string;
+}
+
+export interface CreateCoordinatedCareNotePayload {
+  authorRole: CareAuthorRole;
+  noteText: string;
+}
+
+// Mandatory reports
+
+export interface MandatoryReportDto {
+  id: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  reporterPersonId: string;
+  reporterName: string | null;
+  reportType: ReportType;
+  reportedToAuthority: string;
+  reportDate: string;
+  description: string;
+  supportingDocsS3Keys: string[] | null;
+  cpsResponse: string | null;
+  status: ReportStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateMandatoryReportPayload {
+  studentId: string;
+  reportType: ReportType;
+  reportedToAuthority: string;
+  reportDate: string;
+  description: string;
+  supportingDocsS3Keys?: string[];
+}
+
+export interface UpdateMandatoryReportPayload {
+  status?: ReportStatus;
+  cpsResponse?: string | null;
+}

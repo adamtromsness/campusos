@@ -24,6 +24,7 @@
     "seed:tickets": "tsx src/seed-tickets.ts",
     "seed:behaviour": "tsx src/seed-behaviour.ts",
     "seed:health": "tsx src/seed-health.ts",
+    "seed:counselling": "tsx src/seed-counselling.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

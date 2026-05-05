@@ -226,6 +226,11 @@
       "group": "Counselling & Student Support"
     },
     {
+      "code": "student_counseling_record",
+      "name": "Counselling Session Notes (FERPA)",
+      "group": "Counselling & Student Support"
+    },
+    {
       "code": "CRM-001",
       "name": "Lead Management",
       "group": "Customer Management"

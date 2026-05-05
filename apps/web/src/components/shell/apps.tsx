@@ -13,6 +13,7 @@ import {
   ChildrenIcon,
   ClassesIcon,
   GavelIcon,
+  HeartHandIcon,
   HeartIcon,
   LifebuoyIcon,
   MegaphoneIcon,
@@ -37,7 +38,8 @@ export type AppKey =
   | 'billing'
   | 'helpdesk'
   | 'behaviour'
-  | 'health';
+  | 'health'
+  | 'counselling';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -253,6 +255,19 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/health',
       routePrefix: '/health',
       icon: HeartIcon,
+    });
+  }
+
+  if (hasAnyPermission(user, ['cou-001:read'])) {
+    apps.push({
+      key: 'counselling',
+      label: 'Counselling',
+      description: isGuardian
+        ? 'Your child’s caseload assignment'
+        : 'Caseloads, referrals, sessions, and FERPA-protected notes',
+      href: '/counselling',
+      routePrefix: '/counselling',
+      icon: HeartHandIcon,
     });
   }
 

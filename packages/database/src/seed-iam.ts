@@ -8,7 +8,7 @@ import { join } from 'path';
 
 /**
  * Seeds the IAM subsystem:
- * 1. Permission catalogue (149 functions x 3 tiers = 447 permissions)
+ * 1. Permission catalogue (150 functions x 3 tiers = 450 permissions)
  * 2. Scope types (PLATFORM, DISTRICT, SCHOOL, DEPARTMENT, CLASS, ACTIVITY)
  * 3. Default system roles (Platform Admin, School Admin, Teacher, Student, Parent, Staff)
  * 4. Role-permission mappings
@@ -204,7 +204,25 @@ async function seedIam() {
         // feedback. Counsellor-side BIP create / edit ships under the
         // Staff role's beh-002:read+write grant below.
         'BEH-002': ['read'],
-        'COU-002': ['write'],
+        // Cycle 11 — Counselling & Student Support. Teacher reads
+        // caseload assignment for class students (counsellor name +
+        // concern, with notes stripped server-side via the per-row
+        // manager check on CaseloadService — teachers see who is
+        // counselling the student but NOT the counsellor's notes).
+        // Submits and tracks referrals (COU-002 read+write — row scope
+        // at the Step 5 ReferralService limits non-counsellor reads to
+        // own submitted referrals), reads accommodation info via
+        // COU-005 for the IEP/504 surface already covered by ADR-030
+        // read model + the accommodations panel, and can file a
+        // mandatory report (COU-006 write — every employee is a
+        // mandated reporter). Teachers do NOT receive
+        // student_counseling_record:read — session notes are
+        // FERPA-protected counselling content gated to Staff and
+        // Admin only.
+        'COU-001': ['read'],
+        'COU-002': ['read', 'write'],
+        'COU-005': ['read'],
+        'COU-006': ['write'],
         // Cycle 4 HR — read directory, manage own leave, view own certs.
         'HR-001': ['read'],
         'HR-003': ['read', 'write'],
@@ -285,6 +303,13 @@ async function seedIam() {
         // visibility contract). Parents do NOT receive write — only
         // counsellors and admins author plans.
         'BEH-002': ['read'],
+        // Cycle 11 — parents see only that their child has an active
+        // caseload and the counsellor's name. The Step 5 CaseloadService
+        // GUARDIAN branch returns a stripped DTO for parents — counsellor
+        // name and primary concern only, no notes. Parents do NOT
+        // receive any other COU code: no referrals, no MTSS, no session
+        // notes, no coordinated care, no mandatory reports.
+        'COU-001': ['read'],
         // Cycle 10 — parents read their own child's health summary
         // (allergies, conditions overview, immunisation status,
         // medication schedule, recent nurse visits). Row scope at the
@@ -388,6 +413,25 @@ async function seedIam() {
         'HLT-003': ['read', 'write'],
         'HLT-004': ['read', 'write'],
         'HLT-005': ['read', 'write'],
+        // Cycle 11 — Counselling & Student Support. Staff covers
+        // counsellor + VP + admin assistant. Counsellors are the
+        // canonical author of caseloads / referrals (COU-001/002),
+        // MTSS tier assignments + interventions (COU-003), IEP / 504
+        // accommodations (COU-005), and coordinated care notes
+        // (COU-007 — gated additionally at the Step 7 service layer
+        // on the intersection of hlt-001:read AND cou-007:read).
+        // Mandatory reporting (COU-006) is read+write because lead
+        // counsellors update CPS responses on filed reports.
+        // student_counseling_record:read is the FERPA gate for
+        // svc_session_notes content — granted to Staff and Admin
+        // ONLY. Teachers and parents NEVER hold this code.
+        'COU-001': ['read', 'write'],
+        'COU-002': ['read', 'write'],
+        'COU-003': ['read', 'write'],
+        'COU-005': ['read', 'write'],
+        'COU-006': ['read', 'write'],
+        'COU-007': ['read', 'write'],
+        student_counseling_record: ['read'],
       },
     },
   ];
