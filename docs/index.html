@@ -6,207 +6,572 @@
 <title>CampusOS — Design Hub</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
-:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+:root{--bg:#f7f8fa;--surface:#fff;--text:#1e1e2e;--text-muted:#64748b;--border:#e2e6ea;--accent:#1a5276;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--green:#16a34a;--green-bg:#dcfce7;--amber:#d97706;--amber-bg:#fef3c7;--blue:#2563eb;--blue-bg:#dbeafe;--red:#dc2626;--red-bg:#fee2e2;--purple:#7c3aed;--purple-bg:#ede9fe;--teal:#0d9488;--teal-bg:#ccfbf1;--nav-h:52px}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
-.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
-.topbar a.active{color:white;font-weight:600}
-.topbar .brand{font-weight:600;color:white;font-size:15px}
-.topbar .sep{color:rgba(255,255,255,0.3)}
-.container{max-width:1000px;margin:0 auto;padding:40px 40px 120px}
-.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
-.hero-brand{font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:600}
-.hero h1{font-family:'DM Serif Display',serif;font-size:48px;color:var(--accent);line-height:1.1;margin-bottom:12px;font-weight:400}
-.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:680px;margin-bottom:16px}
-.hero .stats{display:flex;gap:24px;flex-wrap:wrap;font-size:13px;color:var(--accent-mid);font-weight:600}
-.hero .stats span{background:var(--accent-light);padding:4px 14px;border-radius:6px}
-.status-banner{display:flex;gap:16px;margin-bottom:48px;flex-wrap:wrap}
-.status-card{flex:1;min-width:200px;border-radius:10px;padding:20px 24px;border-left:5px solid}
-.status-card h3{font-size:13px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px}
-.status-card p{font-size:14px;line-height:1.6}
-.section-title{font-family:'DM Serif Display',serif;font-size:28px;color:var(--accent);font-weight:400;margin:48px 0 20px;padding-top:24px;border-top:1px solid var(--border)}
-.section-title:first-of-type{border-top:none;margin-top:0}
-.doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-.doc-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:24px 28px;transition:all 0.2s;text-decoration:none;color:inherit;display:block}
-.doc-card:hover{border-color:var(--accent-mid);box-shadow:0 4px 12px rgba(0,0,0,0.08);transform:translateY(-1px)}
-.doc-card .badge{display:inline-block;font-size:11px;padding:2px 10px;border-radius:5px;font-weight:600;margin-bottom:10px}
-.badge-frozen{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
-.badge-complete{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
-.badge-active{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
-.badge-planned{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
-.doc-card h3{font-size:17px;font-weight:600;color:var(--accent);margin-bottom:6px}
-.doc-card .desc{font-size:14px;color:var(--text-light);line-height:1.6;margin-bottom:10px}
-.doc-card .meta{font-size:12px;color:var(--accent-mid);font-weight:500}
-.cycle-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
-.cycle-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
-.cycle-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
-.cycle-table .status-done{color:#2d7a2d;font-weight:600}
-.cycle-table .status-active{color:var(--blue);font-weight:600}
-.cycle-table .status-planned{color:var(--text-light)}
-.timeline{position:relative;padding-left:32px;margin:24px 0}
-.timeline::before{content:'';position:absolute;left:11px;top:8px;bottom:8px;width:2px;background:var(--border)}
-.tl-item{position:relative;margin-bottom:20px}
-.tl-item::before{content:'';position:absolute;left:-32px;top:6px;width:24px;height:24px;border-radius:50%;border:2px solid var(--border);background:var(--white)}
-.tl-item.done::before{background:var(--green);border-color:var(--green)}
-.tl-item.active::before{background:var(--blue);border-color:var(--blue);box-shadow:0 0 0 4px rgba(61,122,181,0.2)}
-.tl-item.planned::before{background:var(--white);border-color:var(--border)}
-.tl-item h4{font-size:15px;font-weight:600;color:var(--text);margin-bottom:2px}
-.tl-item p{font-size:13px;color:var(--text-light);line-height:1.6}
-.tl-item .tl-badge{font-size:11px;padding:1px 8px;border-radius:4px;font-weight:600;margin-left:8px}
-.tl-item a{color:var(--accent-mid);text-decoration:none;font-size:12px;font-weight:600}
-.tl-item a:hover{text-decoration:underline}
-.next-steps{background:var(--accent-light);border:1px solid var(--accent-mid);border-radius:10px;padding:28px 32px;margin-top:32px}
-.next-steps h3{font-size:18px;font-weight:700;color:var(--accent);margin-bottom:12px}
-.next-steps ol{padding-left:20px;font-size:15px;line-height:2}
-.next-steps li strong{color:var(--accent)}
-.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
-@media(max-width:768px){.doc-grid{grid-template-columns:1fr}.status-banner{flex-direction:column}.hero h1{font-size:36px}.container{padding:20px 20px 60px}}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;line-height:1.6}
+/* ── TOPBAR ── */
+.topbar{background:var(--accent);height:var(--nav-h);display:flex;align-items:center;padding:0 32px;position:sticky;top:0;z-index:100;gap:24px}
+.topbar .brand{font-family:'DM Serif Display',serif;color:#fff;font-size:17px;letter-spacing:.5px}
+.topbar .gh{color:rgba(255,255,255,.7);font-size:13px;text-decoration:none;margin-left:auto}
+.topbar .gh:hover{color:#fff}
+/* ── HERO ── */
+.hero{background:linear-gradient(135deg,#1a5276 0%,#2e86c1 60%,#3d7ab5 100%);color:#fff;padding:48px 32px 32px;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;right:-80px;top:-80px;width:320px;height:320px;border-radius:50%;background:rgba(255,255,255,.04)}
+.hero h1{font-family:'DM Serif Display',serif;font-size:36px;font-weight:400;margin-bottom:6px}
+.hero .tagline{font-size:15px;color:rgba(255,255,255,.75);max-width:600px;margin-bottom:20px}
+.stats-row{display:flex;flex-wrap:wrap;gap:10px}
+.stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;backdrop-filter:blur(4px)}
+.stat .num{font-family:'DM Serif Display',serif;font-size:22px;display:block;line-height:1.1}
+.stat .label{font-weight:400;color:rgba(255,255,255,.7);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+/* ── TABS ── */
+.tab-bar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 32px;gap:0;position:sticky;top:var(--nav-h);z-index:90;overflow-x:auto}
+.tab-btn{background:none;border:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;color:var(--text-muted);padding:14px 20px;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+/* ── CONTENT ── */
+.tab-content{display:none;padding:32px;max-width:1100px;margin:0 auto}
+.tab-content.active{display:block}
+/* ── SHARED ── */
+h2.sec{font-family:'DM Serif Display',serif;font-size:22px;color:var(--accent);margin:32px 0 12px;font-weight:400}
+h2.sec:first-child{margin-top:0}
+h3.sub{font-size:15px;font-weight:600;color:var(--text);margin:20px 0 8px}
+p.body{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:12px}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:16px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;transition:box-shadow .15s}
+.card:hover{box-shadow:0 4px 12px rgba(0,0,0,.06)}
+.card h4{font-size:15px;font-weight:600;margin-bottom:4px}
+.card .desc{font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:8px}
+.card .meta{font-size:11px;color:var(--accent-mid);font-weight:600}
+a.card{text-decoration:none;color:inherit}
+.pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.3px;vertical-align:middle}
+.pill-green{background:var(--green-bg);color:var(--green)}
+.pill-blue{background:var(--blue-bg);color:var(--blue)}
+.pill-amber{background:var(--amber-bg);color:var(--amber)}
+.pill-red{background:var(--red-bg);color:var(--red)}
+.pill-purple{background:var(--purple-bg);color:var(--purple)}
+.pill-teal{background:var(--teal-bg);color:var(--teal)}
+.pill-gray{background:#f1f5f9;color:#64748b}
+/* ── OVERVIEW TAB ── */
+.status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:16px 0}
+.status-card{border-radius:10px;padding:18px 20px;border-left:4px solid}
+.status-card h4{font-size:14px;font-weight:700;margin-bottom:4px}
+.status-card p{font-size:13px;line-height:1.6;color:var(--text)}
+.sc-green{background:var(--green-bg);border-color:var(--green)}
+.sc-green h4{color:var(--green)}
+.sc-blue{background:var(--blue-bg);border-color:var(--blue)}
+.sc-blue h4{color:var(--blue)}
+.sc-amber{background:var(--amber-bg);border-color:var(--amber)}
+.sc-amber h4{color:var(--amber)}
+/* ── PROGRESS BAR ── */
+.progress-wrap{margin:16px 0}
+.progress-label{display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px}
+.progress-bar{height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden}
+.progress-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--accent),var(--accent-mid));transition:width .4s}
+/* ── MODULES TAB ── */
+.mod-group{margin:20px 0}
+.mod-group-header{display:flex;align-items:center;gap:12px;margin-bottom:10px;cursor:pointer;user-select:none}
+.mod-group-header h3{font-size:16px;font-weight:600;color:var(--accent)}
+.mod-group-header .count{font-size:12px;color:var(--text-muted)}
+.mod-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}
+.mod-table th{background:var(--accent-light);padding:8px 12px;text-align:left;font-weight:600;color:var(--accent);border:1px solid var(--border)}
+.mod-table td{padding:8px 12px;border:1px solid var(--border);vertical-align:top}
+.mod-table code{font-size:11px;background:#f0f0f0;padding:1px 4px;border-radius:3px}
+/* ── ROADMAP TAB ── */
+.wave{margin:24px 0;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.wave-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.wave-header h3{font-size:16px;font-weight:700}
+.wave-header .wave-meta{font-size:12px;color:var(--text-muted)}
+.wave-header .chevron{transition:transform .2s;font-size:14px;color:var(--text-muted)}
+.wave.open .chevron{transform:rotate(180deg)}
+.wave-body{padding:0 20px 16px;display:none}
+.wave.open .wave-body{display:block}
+.w-green .wave-header{background:var(--green-bg)}
+.w-green .wave-header h3{color:var(--green)}
+.w-blue .wave-header{background:var(--blue-bg)}
+.w-blue .wave-header h3{color:var(--blue)}
+.w-amber .wave-header{background:var(--amber-bg)}
+.w-amber .wave-header h3{color:var(--amber)}
+.w-purple .wave-header{background:var(--purple-bg)}
+.w-purple .wave-header h3{color:var(--purple)}
+.w-teal .wave-header{background:var(--teal-bg)}
+.w-teal .wave-header h3{color:var(--teal)}
+.w-red .wave-header{background:var(--red-bg)}
+.w-red .wave-header h3{color:var(--red)}
+.w-gray .wave-header{background:#f1f5f9}
+.w-gray .wave-header h3{color:#475569}
+.cycle-row{display:grid;grid-template-columns:60px 1fr 100px 140px;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);align-items:center;font-size:13px}
+.cycle-row:last-child{border-bottom:none}
+.cycle-num{font-family:'DM Serif Display',serif;font-size:18px;color:var(--accent-mid);opacity:.5}
+.cycle-title{font-weight:600}
+.cycle-tables{color:var(--text-muted);font-size:12px}
+.cycle-links{display:flex;gap:6px;flex-wrap:wrap}
+.cycle-links a{font-size:11px;padding:2px 8px;border-radius:4px;text-decoration:none;font-weight:600}
+.cl-plan{background:var(--accent-light);color:var(--accent)}
+.cl-cat{background:var(--green-bg);color:var(--green)}
+/* ── BUILD LOG TAB ── */
+.log-entry{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin:12px 0}
+.log-entry h4{font-size:15px;font-weight:600;margin-bottom:6px}
+.log-entry .log-meta{font-size:12px;color:var(--text-muted);margin-bottom:8px}
+.log-entry .log-desc{font-size:13px;line-height:1.7}
+.log-links{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.log-links a{font-size:12px;padding:4px 12px;border-radius:6px;text-decoration:none;font-weight:600;border:1px solid var(--border);color:var(--accent);background:var(--surface)}
+.log-links a:hover{background:var(--accent-light)}
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .hero{padding:32px 20px 24px}
+  .hero h1{font-size:28px}
+  .tab-bar{padding:0 16px}
+  .tab-btn{padding:12px 14px;font-size:13px}
+  .tab-content{padding:20px 16px}
+  .cycle-row{grid-template-columns:40px 1fr;gap:4px}
+  .cycle-tables,.cycle-links{grid-column:1/-1}
+}
 </style>
 </head>
 <body>
+
+<!-- ── TOPBAR ── -->
 <div class="topbar">
-  <a href="index.html" class="brand">CampusOS</a><span class="sep">|</span>
-  <a href="index.html" class="active">Design Hub</a>
-  <a href="campusos-erd-v11.html">ERD v11</a>
-  <a href="campusos-architecture-review-v10.html">Architecture</a>
-  <a href="campusos-function-library-v11.html">Functions</a>
-  <a href="campusos-business-strategy.html">Business Strategy</a>
-  <a href="campusos-dev-deployment-plan.html">Dev Plan</a>
+  <span class="brand">CampusOS</span>
+  <a class="gh" href="https://github.com/adamtromsness/campusos" target="_blank">github.com/adamtromsness/campusos</a>
 </div>
-<div class="container">
-  <div class="hero">
-    <div class="hero-brand">CampusOS</div>
-    <h1>Design Hub</h1>
-    <div class="sub">Cloud-native school operating system. Replaces 8&ndash;15 disconnected school systems with one platform.</div>
-    <div class="stats">
-      <span>840 Tables (ERD)</span>
-      <span>~175 Built</span>
-      <span>~332 Endpoints</span>
-      <span>15 Kafka Consumers</span>
-      <span>95+ UI Pages</span>
-      <span>14 Cycles Complete</span>
-      <span style="background:#e0f2e9;color:#1a6b3c;">Wave 2 In Progress</span>
-    </div>
-  </div>
-  <div class="status-banner">
-    <div class="status-card" style="background:#e0f2e9;border-color:#1a6b3c;">
-      <h3 style="color:#1a6b3c;">Cycles 0&ndash;11.1 Complete + Approved</h3>
-      <p><strong>Wave 1 (Core Ops) + Wave 2 Student Services complete.</strong> ~175 tenant tables, 15 Kafka consumers, ~332 endpoints, 95+ UI pages. M27 Student Services fully shipped (BIPs + Counselling + Wellbeing). First student-input surface live.</p>
-    </div>
-    <div class="status-card" style="background:var(--blue-bg);border-color:var(--blue);">
-      <h3 style="color:var(--blue);">Cycle 12 Next &mdash; Library</h3>
-      <p><strong>Library</strong> &mdash; catalogue with full-text search, barcode circulation, holds, fines, reading programmes, curated reading lists, student book reviews. 14 tables, ~40 endpoints.</p>
-    </div>
-    <div class="status-card" style="background:var(--amber-bg);border-color:var(--amber);">
-      <h3 style="color:#9a7b1a;">Wave 2 Remaining</h3>
-      <p>Cycle 13 (Athletics &amp; Clubs). Then Wave 3: Operational Support.</p>
-    </div>
-  </div>
 
-  <h2 class="section-title">Frozen Design Documents</h2>
-  <div class="doc-grid">
-    <a href="campusos-erd-v11.html" class="doc-card"><span class="badge badge-frozen">v11 BUILD BASELINE</span><h3>Entity-Relationship Design</h3><div class="desc">Complete unified schema: 840 tables, 38 modules, 76 ADRs.</div><div class="meta">840 tables &middot; 38 modules &middot; 76 ADRs</div></a>
-    <a href="campusos-architecture-review-v10.html" class="doc-card"><span class="badge badge-frozen">FROZEN</span><h3>Architecture Design Review</h3><div class="desc">30 sections: system architecture, multi-tenancy, IAM, events, scheduling, finance, scalability, security.</div><div class="meta">30 sections &middot; Modular monolith + 6 extracted services</div></a>
-    <a href="campusos-function-library-v11.html" class="doc-card"><span class="badge badge-frozen">v11 UNIFIED</span><h3>Function Library</h3><div class="desc">148 functions across 28 groups with three permission tiers each.</div><div class="meta">148 functions &middot; 28 groups &middot; 447+ permissions</div></a>
-    <a href="campusos-dev-deployment-plan.html" class="doc-card"><span class="badge badge-frozen">FROZEN</span><h3>Development &amp; Deployment Plan</h3><div class="desc">Build pipeline, environments, Wave 1 sequence.</div><div class="meta">29 sections &middot; 24 cycles &middot; 4 environments</div></a>
-    <a href="campusos-business-strategy.html" class="doc-card"><span class="badge badge-frozen">v2.1 BASELINED</span><h3>Business Strategy &amp; GTM</h3><div class="desc">Flat-fee pricing, lean team, go-to-market, 90-day onboarding, support tiers.</div><div class="meta">15 sections &middot; All key decisions locked</div></a>
-  </div>
-
-  <h2 class="section-title">Cycle Implementation Plans</h2>
-  <div class="doc-grid">
-    <a href="campusos-cycle1-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 1: SIS Core + Attendance</h3><div class="desc">18 tables. Students, classes, families, attendance.</div><div class="meta">11 steps &middot; 18 endpoints</div></a>
-    <a href="campusos-cycle2-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 2: Classroom + Grading</h3><div class="desc">15 tables. Assignments, submissions, grades, gradebook snapshots.</div><div class="meta">10 steps &middot; 20 endpoints</div></a>
-    <a href="campusos-cycle3-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 3: Communications</h3><div class="desc">19+2 tables. Messaging, notifications, announcements, moderation.</div><div class="meta">12 steps &middot; 22 endpoints</div></a>
-    <a href="campusos-cycle4-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 4: HR &amp; Workforce Core</h3><div class="desc">17 tables. Employees, positions, leave, certifications, compliance.</div><div class="meta">11 steps &middot; 23 endpoints</div></a>
-    <a href="campusos-cycle5-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 5: Scheduling &amp; Calendar</h3><div class="desc">10 tables. Timetable, rooms, calendar, coverage.</div><div class="meta">10 steps &middot; ~30 endpoints</div></a>
-    <a href="campusos-cycle6-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 6: Enrollment &amp; Payments</h3><div class="desc">~22 tables. Admissions + billing (Stripe stubbed).</div><div class="meta">12 steps &middot; ~32 endpoints</div></a>
-    <a href="campusos-cycle6.1-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 6.1: Profile &amp; Household</h3><div class="desc">Self-service profile editing. Household roles, demographics.</div><div class="meta">8 steps &middot; 9 endpoints</div></a>
-    <a href="campusos-cycle7-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 7: Tasks &amp; Approval Workflows</h3><div class="desc">12 tables. Auto-task rules + approval engine (ADR-011/012).</div><div class="meta">10 steps &middot; ~23 endpoints</div></a>
-    <a href="campusos-cycle8-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 8: Service Tickets</h3><div class="desc">11 tables. IT/facilities/HR ticketing, SLA, vendor management.</div><div class="meta">10 steps &middot; ~28 endpoints</div></a>
-    <a href="campusos-cycle9-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 9: Behaviour &amp; Discipline</h3><div class="desc">7 tables. Incidents, consequences, BIPs with goals + feedback.</div><div class="meta">10 steps &middot; 28 endpoints</div></a>
-    <a href="campusos-cycle10-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 10: Health &amp; Wellness</h3><div class="desc">15+1 tables. Health records, medications, nurse visits, IEP/504 with ADR-030 accommodation sync, screenings, dietary profiles. HIPAA access logging.</div><div class="meta">10 steps &middot; 48 endpoints &middot; 1 consumer</div></a>
-    <a href="campusos-cycle11-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 11: Counselling &amp; Student Support</h3><div class="desc">14 tables. Caseloads, referrals, FERPA session notes, MTSS/RTI tiers, interventions, mandatory reporting, coordinated care.</div><div class="meta">10 steps &middot; 48 endpoints &middot; 2 Kafka events</div></a>
-    <a href="campusos-cycle11.1-implementation-plan.html" class="doc-card"><span class="badge badge-complete">COMPLETE + REVIEWED</span><h3>Cycle 11.1: Wellbeing Check-Ins</h3><div class="desc">6 tables. Student-facing pulse surveys, counsellor-deployed targeting, auto-alert with SELF_HARM_INDICATOR escalation. First student-input surface.</div><div class="meta">8 steps &middot; 20 endpoints &middot; 1 Kafka event</div></a>
-    <a href="campusos-cycle12-implementation-plan.html" class="doc-card"><span class="badge badge-active">PLANNED &mdash; NEXT</span><h3>Cycle 12: Library</h3><div class="desc">14 tables. Catalogue with full-text search, barcode circulation, holds, fines, reading programmes, curated reading lists, student book reviews.</div><div class="meta">10 steps &middot; ~40 endpoints &middot; 1 Kafka event</div></a>
-  </div>
-
-  <h2 class="section-title">Testing &amp; Quality</h2>
-  <div class="doc-grid">
-    <a href="campusos-phase2-testing-checklist.html" class="doc-card"><span class="badge badge-complete">COMPLETE</span><h3>Parent Persona Testing</h3><div class="desc">Post-Cycle 6 pause. Child linking, calendar RSVP, enrollment search, multi-school billing, dashboard redesign.</div><div class="meta">42 test items &middot; Improvements shipped</div></a>
-  </div>
-  <div class="doc-grid">
-    <a href="cycle1-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 1 CAT</h3><div class="desc">Attendance, parent notification, absence request.</div><div class="meta">Curl walkthrough</div></a>
-    <a href="cycle2-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 2 CAT</h3><div class="desc">Assignment, submit, grade, publish, snapshot.</div><div class="meta">9 scenarios</div></a>
-    <a href="cycle3-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 3 CAT</h3><div class="desc">Notifications, messaging, moderation, announcements.</div><div class="meta">7 scenarios</div></a>
-    <a href="cycle4-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 4 CAT</h3><div class="desc">HR identity bridge, employee profile, leave, compliance.</div><div class="meta">13 scenarios</div></a>
-    <a href="cycle5-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 5 CAT</h3><div class="desc">Timetable conflicts, leave-to-coverage, substitute, calendar.</div><div class="meta">10 scenarios</div></a>
-    <a href="cycle6-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 6 CAT</h3><div class="desc">Apply, offer, accept, enroll, invoice, pay, ledger.</div><div class="meta">12 scenarios</div></a>
-    <a href="cycle6.1-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 6.1 CAT</h3><div class="desc">Profile editing, household, demographics, emergency contacts.</div><div class="meta">11 scenarios</div></a>
-    <a href="cycle7-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 7 CAT</h3><div class="desc">Auto-task, multi-step approval, acknowledgement, withdrawal.</div><div class="meta">10 scenarios</div></a>
-    <a href="cycle8-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 8 CAT</h3><div class="desc">Ticket submit, SLA, comments, vendor, resolve, problems.</div><div class="meta">10 scenarios</div></a>
-    <a href="cycle9-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 9 CAT</h3><div class="desc">Incident, consequence, parent notification, BIP, goals, feedback.</div><div class="meta">10 scenarios</div></a>
-    <a href="cycle10-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 10 CAT</h3><div class="desc">Health record, medication, nurse visit, IEP accommodation sync, screening, dietary, HIPAA log.</div><div class="meta">9 scenarios</div></a>
-    <a href="cycle11-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 11 CAT</h3><div class="desc">Referral pipeline, caseload, FERPA notes + lock, MTSS tier, intervention, coordinated care, mandatory report.</div><div class="meta">10 scenarios</div></a>
-    <a href="cycle11.1-cat-script.md" class="doc-card"><span class="badge badge-complete">VERIFIED</span><h3>Cycle 11.1 CAT</h3><div class="desc">Survey template, deployment activate, student check-in submit, WANTS_TO_TALK + SELF_HARM_INDICATOR alerts, triage.</div><div class="meta">10 scenarios</div></a>
-  </div>
-
-  <h2 class="section-title">Build Progress</h2>
-  <table class="cycle-table">
-    <tr><th>Cycle</th><th>Module</th><th>Tables</th><th>Status</th><th>Review</th></tr>
-    <tr><td><strong>0</strong></td><td>Platform Foundation</td><td>29 platform</td><td class="status-done">&#10003; Complete</td><td>&mdash;</td></tr>
-    <tr><td><strong>1</strong></td><td>SIS Core + Attendance</td><td>18 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">Claude + ChatGPT</td></tr>
-    <tr><td><strong>2</strong></td><td>Classroom + Grading</td><td>15 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (2 blocking)</td></tr>
-    <tr><td><strong>3</strong></td><td>Communications</td><td>19+2 platform</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (3 findings)</td></tr>
-    <tr><td><strong>4</strong></td><td>HR &amp; Workforce</td><td>17 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (1 blocking)</td></tr>
-    <tr><td><strong>5</strong></td><td>Scheduling &amp; Calendar</td><td>10 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (2 blocking)</td></tr>
-    <tr><td><strong>6</strong></td><td>Enrollment &amp; Payments</td><td>~22 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (5 blocking)</td></tr>
-    <tr><td><strong>6.1</strong></td><td>Profile &amp; Household</td><td>1 tenant + 1 platform</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (3 blocking)</td></tr>
-    <tr><td colspan="5" style="background:var(--green-bg);color:#2d7a2d;font-weight:600;text-align:center;">&#10003; Parent Testing Pause Complete &mdash; Improvements Shipped</td></tr>
-    <tr><td><strong>7</strong></td><td>Tasks &amp; Approval Workflows</td><td>12 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (2 blocking)</td></tr>
-    <tr><td><strong>8</strong></td><td>Service Tickets</td><td>11 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (3 follow-ups)</td></tr>
-    <tr><td colspan="5" style="background:#e0f2e9;color:#1a6b3c;font-weight:700;text-align:center;font-size:14px;">&#10003; Wave 1 Complete &mdash; Core Operations Platform Approved</td></tr>
-    <tr><td><strong>9</strong></td><td>Behaviour &amp; Discipline</td><td>7 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (1 blocking)</td></tr>
-    <tr><td><strong>10</strong></td><td>Health &amp; Wellness</td><td>15+1 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (1 blocking)</td></tr>
-    <tr><td><strong>11</strong></td><td>Counselling &amp; Student Support</td><td>14 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (2 blocking)</td></tr>
-    <tr><td><strong>11.1</strong></td><td>Wellbeing Check-Ins</td><td>6 tenant</td><td class="status-done">&#10003; Complete</td><td class="status-done">ChatGPT (2 blocking)</td></tr>
-    <tr><td><strong>12</strong></td><td>Library</td><td>14 tenant</td><td class="status-active">&#9654; Next</td><td class="status-planned">&mdash;</td></tr>
-    <tr><td>13</td><td>Athletics &amp; Clubs (Wave 2)</td><td>~32 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
-    <tr><td>14&ndash;17</td><td>Operational Support (Wave 3)</td><td>~50 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
-    <tr><td>18&ndash;23</td><td>Advanced &amp; Expansion (Wave 4)</td><td>~100 tenant</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
-    <tr><td>24</td><td>Integration &amp; Hardening</td><td>&mdash;</td><td class="status-planned">Planned</td><td class="status-planned">&mdash;</td></tr>
-  </table>
-
-  <h2 class="section-title">Project Timeline</h2>
-  <div class="timeline">
-    <div class="tl-item done"><h4>Design Phase <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete</span></h4><p>ERD v1&ndash;v11 (840 tables), Architecture Review, Function Library, Dev Plan, Business Strategy. All frozen.</p></div>
-    <div class="tl-item done"><h4>Cycle 0: Platform Foundation <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete</span></h4><p>Monorepo, Docker, 29 platform tables, IAM (447 permissions), tenant isolation, auth, CI/CD.</p></div>
-    <div class="tl-item done"><h4>Cycles 1&ndash;3: Core Teaching &amp; Learning <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>SIS, attendance, classroom, grading, communications, notifications. 52 tables, 60 endpoints, 7 consumers.</p></div>
-    <div class="tl-item done"><h4>Cycles 4&ndash;5: Staff Operations <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>HR, leave, certifications, scheduling, timetable, calendar, coverage. 27 tables, 53 endpoints, 2 consumers.</p></div>
-    <div class="tl-item done"><h4>Cycles 6&ndash;6.1: Enrollment, Payments &amp; Profile <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>Admissions, billing, profile editing, household management. ~23 tables, ~41 endpoints, 2 consumers.</p></div>
-    <div class="tl-item done"><h4>Parent Testing Pause <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete</span></h4><p>Child linking, calendar RSVP, enrollment search, multi-school billing, dashboard redesign.</p></div>
-    <div class="tl-item done"><h4>Cycles 7&ndash;8: Tasks, Workflows &amp; Tickets <span class="tl-badge" style="background:#e0f2e9;color:#1a6b3c;">Wave 1 Final</span></h4><p>Task Worker + Workflow Engine + Service Tickets. 23 tables, ~51 endpoints, 2 consumers.</p></div>
-    <div class="tl-item done"><h4>Cycle 9: Behaviour &amp; Discipline <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>Incidents, consequences, BIPs with goals + teacher feedback. 7 tables, 28 endpoints, 1 consumer.</p></div>
-    <div class="tl-item done"><h4>Cycle 10: Health &amp; Wellness <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>Health records, medications, nurse visits, IEP/504 with ADR-030 accommodation sync, screenings, dietary profiles. HIPAA access log. 15+1 tables, 48 endpoints, 1 consumer.</p><a href="campusos-cycle10-implementation-plan.html">View Plan</a></div>
-    <div class="tl-item done"><h4>Cycle 11: Counselling &amp; Student Support <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>Caseloads, referrals, FERPA session notes with irreversible locking, MTSS/RTI tiers with intervention progress, coordinated nurse-counsellor care, mandatory reporting. 14 tables, 48 endpoints, 2 Kafka emits.</p><a href="campusos-cycle11-implementation-plan.html">View Plan</a></div>
-    <div class="tl-item done"><h4>Cycle 11.1: Wellbeing Check-Ins <span class="tl-badge" style="background:var(--green-bg);color:#2d7a2d;">Complete + Reviewed</span></h4><p>Student-facing pulse surveys with auto-alert escalation. First student-input surface. SELF_HARM_INDICATOR auto-escalates to admin. 6 tables, 20 endpoints, 1 Kafka emit.</p><a href="campusos-cycle11.1-implementation-plan.html">View Plan</a></div>
-    <div class="tl-item active"><h4>Cycle 12: Library <span class="tl-badge" style="background:var(--blue-bg);color:var(--blue);">Next</span></h4><p>Catalogue with full-text search, barcode circulation, holds, fines, reading programmes, curated reading lists, student book reviews. 14 tables, ~40 endpoints.</p><a href="campusos-cycle12-implementation-plan.html">View Plan</a></div>
-    <div class="tl-item planned"><h4>Cycle 13: Athletics &amp; Clubs</h4><p>Athletics + Clubs membership, scheduling, rosters, eligibility. Completes Wave 2.</p></div>
-    <div class="tl-item planned"><h4>Waves 3&ndash;5 (Cycles 14&ndash;24): Ops, Advanced &amp; Hardening</h4><p>Transportation, Food Service, Forms, Safety, Procurement, Analytics, Marketplace.</p></div>
-  </div>
-
-  <div class="next-steps">
-    <h3>Next Steps &mdash; Wave 2 Continues</h3>
-    <ol>
-      <li><strong>Build Cycle 12 (Library):</strong> 10 steps, 14 tables. Catalogue with full-text search + barcode circulation (checkout, holds, renewals, fines with Kafka emit) + reading programmes with progress tracking + curated reading lists + student book reviews. Second student-input surface.</li>
-      <li><strong>Cycle 13 (Athletics &amp; Clubs):</strong> M66 Athletics. Completes Wave 2.</li>
-      <li><strong>Wave 3:</strong> Operational Support (Cycles 14&ndash;17: Transportation, Food Service, Forms, Safety).</li>
-    </ol>
-  </div>
-
-  <div class="doc-footer">
-    <p>CampusOS Design Hub &mdash; Updated May 2026 &middot; <a href="https://github.com/adamtromsness/campusos" style="color:var(--accent-mid);">github.com/adamtromsness/campusos</a></p>
+<!-- ── HERO ── -->
+<div class="hero">
+  <h1>Design Hub</h1>
+  <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38 modules, 76 ADRs across 8 delivery waves.</p>
+  <div class="stats-row">
+    <div class="stat"><span class="num">175</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">~332</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">95+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">15</span><span class="label">Kafka Consumers</span></div>
+    <div class="stat"><span class="num">14</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
+
+<!-- ── TAB BAR ── -->
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="overview">Overview</button>
+  <button class="tab-btn" data-tab="architecture">Architecture</button>
+  <button class="tab-btn" data-tab="modules">Modules</button>
+  <button class="tab-btn" data-tab="roadmap">Roadmap</button>
+  <button class="tab-btn" data-tab="buildlog">Build Log</button>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- TAB: OVERVIEW                                    -->
+<!-- ════════════════════════════════════════════════ -->
+<div id="overview" class="tab-content active">
+
+  <div class="status-grid">
+    <div class="status-card sc-green">
+      <h4>Cycles 0&ndash;11.1 Complete</h4>
+      <p>Wave 1 (Core Ops) + Wave 2 Student Services shipped. 175 tenant tables, ~332 endpoints, 95+ UI pages. M27 Student Services fully complete. First student-input surface live.</p>
+    </div>
+    <div class="status-card sc-blue">
+      <h4>Cycle 12: Library &mdash; Building</h4>
+      <p>Catalogue with full-text search, barcode circulation, holds, fines, reading programmes, student book reviews. 14 tables, ~40 endpoints.</p>
+    </div>
+    <div class="status-card sc-amber">
+      <h4>Wave 2 Remaining</h4>
+      <p>Cycle 13 (Athletics &amp; Clubs). Then Wave 3: Communications &amp; Community.</p>
+    </div>
+  </div>
+
+  <h2 class="sec">Build Progress</h2>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>Tables Built</span><span>175 / 840 (21%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:21%"></div></div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>Cycles Complete</span><span>14 / 31 planned</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:45%"></div></div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>Waves Complete</span><span>1 of 8 (Wave 2 in progress)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:18%"></div></div>
+  </div>
+
+  <h2 class="sec">What is CampusOS?</h2>
+  <p class="body">CampusOS is a cloud-native, multi-tenant School Operating System designed to replace the patchwork of disconnected tools that schools use today. It covers the complete operational surface of a K-12 school: student information, classroom management, scheduling, health records, counselling, library, athletics, transportation, food service, finance, communications, and more &mdash; all in one platform with a unified identity model, shared permission framework, and event-driven architecture.</p>
+  <p class="body">The system is built as a modular monolith (NestJS + Next.js + PostgreSQL + Kafka) with 6 extracted services for compute-intensive workloads (video processing, AI inference, scheduling solver, transport dispatch, notification push, emergency alert). Multi-tenancy uses schema-per-tenant PostgreSQL with a platform schema for shared identity and routing.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- TAB: ARCHITECTURE                                -->
+<!-- ════════════════════════════════════════════════ -->
+<div id="architecture" class="tab-content">
+
+  <h2 class="sec">Frozen Design Documents</h2>
+  <p class="body">These documents are the authoritative design baseline. They are frozen at v10/v11 and drive all implementation cycles.</p>
+
+  <div class="card-grid">
+    <a href="campusos-erd-v11.html" class="card">
+      <span class="pill pill-blue">v11 BUILD BASELINE</span>
+      <h4>Entity-Relationship Design</h4>
+      <div class="desc">Complete unified schema: 840 tables across 38 modules with full column definitions, constraints, indexes, partitioning strategies, and Kafka event contracts.</div>
+      <div class="meta">840 tables &middot; 38 modules &middot; 76 ADRs</div>
+    </a>
+    <a href="campusos-architecture-review-v10.html" class="card">
+      <span class="pill pill-gray">FROZEN</span>
+      <h4>Architecture Design Review</h4>
+      <div class="desc">30 sections covering system architecture, multi-tenancy, IAM, event model, scheduling engine, finance backbone, scalability, and security posture.</div>
+      <div class="meta">30 sections &middot; Modular monolith + 6 extracted services</div>
+    </a>
+    <a href="campusos-function-library-v11.html" class="card">
+      <span class="pill pill-gray">FROZEN</span>
+      <h4>Function Library</h4>
+      <div class="desc">Every permission-gated function across all 38 modules. 150 function codes with 3-tier access (read / write / admin) defining the IAM surface.</div>
+      <div class="meta">150 functions &middot; 450 permission codes</div>
+    </a>
+    <a href="campusos-business-strategy.html" class="card">
+      <span class="pill pill-gray">FROZEN</span>
+      <h4>Business Strategy</h4>
+      <div class="desc">Market analysis, competitive positioning, go-to-market strategy, and product vision for the CampusOS platform.</div>
+      <div class="meta">Strategy &middot; Market &middot; GTM</div>
+    </a>
+    <a href="campusos-dev-deployment-plan.html" class="card">
+      <span class="pill pill-gray">FROZEN</span>
+      <h4>Development &amp; Deployment Plan</h4>
+      <div class="desc">Infrastructure architecture, CI/CD pipeline, environment strategy, and operational runbook for the CampusOS platform.</div>
+      <div class="meta">DevOps &middot; Infrastructure &middot; CI/CD</div>
+    </a>
+  </div>
+
+  <h2 class="sec">Key Architectural Decisions</h2>
+  <div class="card-grid">
+    <div class="card"><h4>ADR-001: Soft Cross-Schema Refs</h4><div class="desc">Tenant tables reference platform schema via application-layer validation, not DB-enforced FKs. Enables independent schema evolution.</div></div>
+    <div class="card"><h4>ADR-008: CQRS-Lite</h4><div class="desc">Domain modules write to operational tables. Background workers materialise read models into rpt_* tables for dashboards and analytics.</div></div>
+    <div class="card"><h4>ADR-010: Immutable Audit</h4><div class="desc">Audit tables (referral_activity, health_access_log, etc.) have no UPDATE/DELETE at the service layer. Service-side discipline, not schema triggers.</div></div>
+    <div class="card"><h4>ADR-030: IEP Accommodation Read Model</h4><div class="desc">Teachers read sis_student_active_accommodations populated by Kafka consumer. They never touch hlth_* tables directly.</div></div>
+    <div class="card"><h4>ADR-055: Universal Person Identity</h4><div class="desc">iam_person is the universal human identity. Domain tables use FK(iam_person) for human refs, FK(platform_users) only for auth/audit.</div></div>
+    <div class="card"><h4>ADR-057: Platform Event Model</h4><div class="desc">Standard Kafka envelope with event_id, event_type, tenant_id, source_module, correlation_id, payload. All emits follow this shape.</div></div>
+  </div>
+
+  <h2 class="sec">Technology Stack</h2>
+  <p class="body"><strong>Backend:</strong> NestJS (Node.js 22) &middot; <strong>Frontend:</strong> Next.js 14 (App Router) + React + Tailwind &middot; <strong>Database:</strong> PostgreSQL 16 (schema-per-tenant) &middot; <strong>Events:</strong> Kafka (Redpanda in dev) &middot; <strong>Cache:</strong> Redis &middot; <strong>Monorepo:</strong> pnpm workspaces &middot; <strong>CI:</strong> GitHub Actions &middot; <strong>Infra:</strong> Docker Desktop (dev), AWS ECS (prod target)</p>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- TAB: MODULES                                     -->
+<!-- ════════════════════════════════════════════════ -->
+<div id="modules" class="tab-content">
+
+  <h2 class="sec">38 Modules by Domain Group</h2>
+  <p class="body">CampusOS is organised into 9 domain groups. Each module has a dedicated table prefix and belongs to a delivery wave. Modules in green are fully built; blue are in progress; gray are planned.</p>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Platform &amp; Identity</h3><span class="count">1 module &middot; 48 tables</span></div>
+    <table class="mod-table">
+      <tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M10 Platform</td><td><code>platform.*</code></td><td>48</td><td><span class="pill pill-green">Built</span></td><td>Tenant routing, IAM, entity cache, families, district policies</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Academic Core</h3><span class="count">5 modules &middot; 139 tables</span></div>
+    <table class="mod-table">
+      <tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M20 SIS</td><td><code>sis_</code></td><td>42</td><td><span class="pill pill-green">Built</span></td><td>Students, enrolments, attendance, grades, guardians, discipline</td></tr>
+      <tr><td>M21 Classroom</td><td><code>cls_</code></td><td>38</td><td><span class="pill pill-green">Built</span></td><td>Lessons, assignments, grading, AI tutoring, hall passes</td></tr>
+      <tr><td>M22 Scheduling</td><td><code>sch_</code></td><td>32</td><td><span class="pill pill-green">Built</span></td><td>Timetables, bell schedules, cover arrangements, course selection</td></tr>
+      <tr><td>M25 Curriculum</td><td><code>cur_</code></td><td>14</td><td><span class="pill pill-gray">Planned</span></td><td>Curriculum maps, units, standards alignment</td></tr>
+      <tr><td>M26 Portfolio</td><td><code>pfl_</code></td><td>13</td><td><span class="pill pill-gray">Planned</span></td><td>Student portfolios, achievements, sharing</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Student Support</h3><span class="count">2 modules &middot; 42 tables</span></div>
+    <table class="mod-table">
+      <tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M23 Health</td><td><code>hlth_</code></td><td>17</td><td><span class="pill pill-green">Built (14/17)</span></td><td>Health records, medications, IEP/504, nurse visits, screenings, dietary</td></tr>
+      <tr><td>M27 Student Services</td><td><code>svc_</code></td><td>25</td><td><span class="pill pill-green">Built (23/25)</span></td><td>Counselling, referrals, MTSS/RTI, behaviour plans, wellbeing, care, reporting</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Library &amp; Enrichment</h3><span class="count">3 modules &middot; 74 tables</span></div>
+    <table class="mod-table">
+      <tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M24 Library</td><td><code>lib_</code></td><td>20</td><td><span class="pill pill-blue">Building</span></td><td>Catalogue, circulation, reading programmes, reviews</td></tr>
+      <tr><td>M64 Clubs &amp; Student Life</td><td><code>ext_</code></td><td>22</td><td><span class="pill pill-gray">Planned</span></td><td>Clubs, student government, elections, field trips</td></tr>
+      <tr><td>M66 Athletics</td><td><code>ath_</code></td><td>32</td><td><span class="pill pill-gray">Planned</span></td><td>Sports, seasons, rosters, eligibility, officials, game scheduling</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Communications</h3><span class="count">3 modules &middot; 57 tables</span></div>
+    <table class="mod-table">
+      <tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M40 Communications</td><td><code>msg_</code></td><td>28</td><td><span class="pill pill-green">Partial (Cycle 3)</span></td><td>Messaging, announcements, notifications, push tokens, content moderation</td></tr>
+      <tr><td>M41 Meetings</td><td><code>mtg_</code></td><td>18</td><td><span class="pill pill-gray">Planned</span></td><td>Video meetings, AI minutes, parent-teacher conferences</td></tr>
+      <tr><td>M42 Publications</td><td><code>pub_</code></td><td>11</td><td><span class="pill pill-gray">Planned</span></td><td>School publications, newsletters, collaborative publishing</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Campus Operations</h3><span class="count">5 modules &middot; 145 tables</span></div>
+    <table class="mod-table">
+      <tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M60 Service Tickets</td><td><code>tkt_</code></td><td>14</td><td><span class="pill pill-green">Built</span></td><td>Shared reactive ticketing &mdash; IT, facilities, HR</td></tr>
+      <tr><td>M61 Transportation</td><td><code>trn_</code></td><td>38</td><td><span class="pill pill-gray">Planned</span></td><td>Routes, vehicles, driver app, fleet management, trip logs</td></tr>
+      <tr><td>M62 IT Infrastructure</td><td><code>tech_</code></td><td>34</td><td><span class="pill pill-gray">Planned</span></td><td>Device fleet, MDM, licensing, credential vault, VOIP</td></tr>
+      <tr><td>M63 Food Service</td><td><code>fds_</code></td><td>32</td><td><span class="pill pill-gray">Planned</span></td><td>POS, menus, dietary profiles, NSLP eligibility, production</td></tr>
+      <tr><td>M65 Facilities</td><td><code>fac_</code></td><td>27</td><td><span class="pill pill-gray">Planned</span></td><td>Spaces, work orders, inspections, safety, occupancy</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>HR &amp; Staffing</h3><span class="count">1 module &middot; 42 tables</span></div>
+    <table class="mod-table">
+      <tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M17 Human Resources</td><td><code>hr_</code></td><td>42</td><td><span class="pill pill-green">Partial (Cycle 4)</span></td><td>Employee records, leave, recruitment, training, certifications, appraisals</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Commerce &amp; Finance</h3><span class="count">4 modules &middot; 77 tables</span></div>
+    <table class="mod-table">
+      <tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M81 Enrolment</td><td><code>enr_</code></td><td>28</td><td><span class="pill pill-gray">Planned</span></td><td>Applications, tours, admission workflow, lottery, waitlist</td></tr>
+      <tr><td>M84 Payments &amp; Billing</td><td><code>pay_</code></td><td>28</td><td><span class="pill pill-green">Partial (Cycle 6)</span></td><td>Family accounts, invoices, payments, fee schedules, Stripe</td></tr>
+      <tr><td>M83 Finance &amp; Accounting</td><td><code>fin_</code></td><td>9</td><td><span class="pill pill-gray">Planned</span></td><td>GL, AP, AR, fund accounting, budget management</td></tr>
+      <tr><td>M86 Procurement</td><td><code>prc_</code></td><td>12</td><td><span class="pill pill-gray">Planned</span></td><td>Requisitions, POs, goods receipt, budget commitments</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Platform Services</h3><span class="count">4 modules &middot; 73 tables</span></div>
+    <table class="mod-table">
+      <tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M15 Task Management</td><td><code>wsk_</code></td><td>12</td><td><span class="pill pill-green">Built</span></td><td>Tasks, workflows, approval chains, SLA tracking</td></tr>
+      <tr><td>M67 School Store</td><td><code>str_</code></td><td>14</td><td><span class="pill pill-gray">Planned</span></td><td>Products, inventory, orders, fulfilment</td></tr>
+      <tr><td>M103 Groups &amp; Communities</td><td><code>grp_</code></td><td>13</td><td><span class="pill pill-gray">Planned</span></td><td>Groups, announcements, events, communities</td></tr>
+      <tr><td>M110 Analytics</td><td><code>rpt_</code></td><td>34</td><td><span class="pill pill-gray">Planned</span></td><td>Read models, dashboards, district analytics, reporting</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- TAB: ROADMAP                                     -->
+<!-- ════════════════════════════════════════════════ -->
+<div id="roadmap" class="tab-content">
+
+  <h2 class="sec">Full Implementation Roadmap</h2>
+  <p class="body">31 cycles across 8 waves. Each cycle ships schema + seed + API + UI + integration test + adversarial review. Click a wave to expand its cycles.</p>
+
+  <!-- WAVE 1 -->
+  <div class="wave w-green open">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 1 &mdash; Core Operations</h3>
+      <span class="wave-meta">9 cycles &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">0</span><span class="cycle-title">Platform Bootstrap <span class="pill pill-green">Done</span></span><span class="cycle-tables">48 platform</span><span class="cycle-links"><a href="campusos-cycle0-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">1</span><span class="cycle-title">SIS Core <span class="pill pill-green">Done</span></span><span class="cycle-tables">18 tenant</span><span class="cycle-links"><a href="campusos-cycle1-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">2</span><span class="cycle-title">Classroom &amp; Grades <span class="pill pill-green">Done</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="campusos-cycle2-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">3</span><span class="cycle-title">Notifications &amp; Calendar <span class="pill pill-green">Done</span></span><span class="cycle-tables">12 tenant</span><span class="cycle-links"><a href="campusos-cycle3-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">4</span><span class="cycle-title">HR &amp; Employee Records <span class="pill pill-green">Done</span></span><span class="cycle-tables">10 tenant</span><span class="cycle-links"><a href="campusos-cycle4-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">5</span><span class="cycle-title">Academic Scheduling <span class="pill pill-green">Done</span></span><span class="cycle-tables">12 tenant</span><span class="cycle-links"><a href="campusos-cycle5-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">6</span><span class="cycle-title">Payments &amp; Billing <span class="pill pill-green">Done</span></span><span class="cycle-tables">11 tenant</span><span class="cycle-links"><a href="campusos-cycle6-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">7</span><span class="cycle-title">Task Management &amp; Workflows <span class="pill pill-green">Done</span></span><span class="cycle-tables">6 tenant</span><span class="cycle-links"><a href="campusos-cycle7-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">8</span><span class="cycle-title">Service Tickets <span class="pill pill-green">Done</span></span><span class="cycle-tables">8 tenant</span><span class="cycle-links"><a href="campusos-cycle8-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 2 -->
+  <div class="wave w-blue open">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 2 &mdash; Student Services &amp; Enrichment</h3>
+      <span class="wave-meta">6 cycles &middot; IN PROGRESS</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">9</span><span class="cycle-title">Behaviour &amp; Discipline <span class="pill pill-green">Done</span></span><span class="cycle-tables">7 tenant</span><span class="cycle-links"><a href="campusos-cycle9-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle9-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">10</span><span class="cycle-title">Health &amp; Wellness <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle10-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle10-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">11</span><span class="cycle-title">Counselling &amp; Student Support <span class="pill pill-green">Done</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="campusos-cycle11-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle11-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">11.1</span><span class="cycle-title">Wellbeing Check-Ins <span class="pill pill-green">Done</span></span><span class="cycle-tables">6 tenant</span><span class="cycle-links"><a href="campusos-cycle11.1-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle11.1-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">12</span><span class="cycle-title">Library <span class="pill pill-blue">Building</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="campusos-cycle12-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">13</span><span class="cycle-title">Athletics &amp; Clubs <span class="pill pill-gray">Planned</span></span><span class="cycle-tables">~32 tenant</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 3 -->
+  <div class="wave w-purple">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 3 &mdash; Communications &amp; Community</h3>
+      <span class="wave-meta">4 cycles &middot; PLANNED</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">14</span><span class="cycle-title">Communications &amp; Messaging</span><span class="cycle-tables">~28 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">15</span><span class="cycle-title">Meetings &amp; Conferences</span><span class="cycle-tables">~18 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">16</span><span class="cycle-title">Enrolment &amp; Admissions</span><span class="cycle-tables">~28 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">17</span><span class="cycle-title">Groups &amp; Communities</span><span class="cycle-tables">~13 tenant</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 4 -->
+  <div class="wave w-amber">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 4 &mdash; Campus Operations</h3>
+      <span class="wave-meta">4 cycles &middot; PLANNED</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">18</span><span class="cycle-title">Transportation</span><span class="cycle-tables">~38 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">19</span><span class="cycle-title">Food Service</span><span class="cycle-tables">~32 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">20</span><span class="cycle-title">Facilities Management</span><span class="cycle-tables">~27 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">21</span><span class="cycle-title">IT Infrastructure</span><span class="cycle-tables">~34 tenant</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 5 -->
+  <div class="wave w-teal">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 5 &mdash; Academic Advanced</h3>
+      <span class="wave-meta">3 cycles &middot; PLANNED</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">22</span><span class="cycle-title">Curriculum &amp; Standards</span><span class="cycle-tables">~14 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">23</span><span class="cycle-title">Student Portfolio</span><span class="cycle-tables">~13 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">24</span><span class="cycle-title">Publications</span><span class="cycle-tables">~11 tenant</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 6 -->
+  <div class="wave w-red">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 6 &mdash; Finance &amp; Commerce</h3>
+      <span class="wave-meta">3 cycles &middot; PLANNED</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">25</span><span class="cycle-title">Finance &amp; Accounting</span><span class="cycle-tables">~9 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">26</span><span class="cycle-title">Procurement</span><span class="cycle-tables">~12 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">27</span><span class="cycle-title">School Store</span><span class="cycle-tables">~14 tenant</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 7 -->
+  <div class="wave w-gray">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 7 &mdash; Analytics &amp; Governance</h3>
+      <span class="wave-meta">2 cycles &middot; PLANNED</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">28</span><span class="cycle-title">Analytics &amp; Reporting</span><span class="cycle-tables">~34 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">29</span><span class="cycle-title">Data Governance &amp; Compliance</span><span class="cycle-tables">~12 tenant</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 8 -->
+  <div class="wave w-gray">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 8 &mdash; Hardening</h3>
+      <span class="wave-meta">2 cycles &middot; PLANNED</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">30</span><span class="cycle-title">Performance &amp; Observability</span><span class="cycle-tables">Ops</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">31</span><span class="cycle-title">Multi-Region &amp; Disaster Recovery</span><span class="cycle-tables">Ops</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- TAB: BUILD LOG                                   -->
+<!-- ════════════════════════════════════════════════ -->
+<div id="buildlog" class="tab-content">
+
+  <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
+  <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>Cycle 11.1: Wellbeing Check-Ins <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">6 tables &middot; 20 endpoints &middot; 1 Kafka emit &middot; 7 web routes &middot; Review: 2 BLOCKING fixed</div>
+    <div class="log-desc">First student-input surface. Pulse surveys with counsellor-deployed targeting, auto-alert with SELF_HARM_INDICATOR auto-escalation. Completes M27 Student Services.</div>
+    <div class="log-links"><a href="campusos-cycle11.1-implementation-plan.html">Plan</a> <a href="cycle11.1-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 11: Counselling &amp; Student Support <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">14 tables &middot; 48 endpoints &middot; 2 Kafka emits &middot; 8 web routes &middot; Review: 2 BLOCKING fixed</div>
+    <div class="log-desc">Caseloads, referral triage pipeline, FERPA session notes with irreversible locking, MTSS/RTI tiered interventions, coordinated care, mandatory reporting.</div>
+    <div class="log-links"><a href="campusos-cycle11-implementation-plan.html">Plan</a> <a href="cycle11-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 10: Health &amp; Wellness <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">16 tables &middot; 48 endpoints &middot; 3 Kafka emits &middot; 1 consumer &middot; 8 web routes &middot; Review: 1 BLOCKING fixed</div>
+    <div class="log-desc">Health records, medications with missed-dose tracking, nurse visits with live roster, IEP/504 with ADR-030 accommodation sync, screenings, dietary profiles. HIPAA access log on every read.</div>
+    <div class="log-links"><a href="campusos-cycle10-implementation-plan.html">Plan</a> <a href="cycle10-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 9: Behaviour &amp; Discipline <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">7 tables &middot; 28 endpoints &middot; 1 consumer &middot; Review: 1 BLOCKING fixed</div>
+    <div class="log-desc">Discipline incidents, consequences with parent notification, behaviour intervention plans with goals and teacher feedback.</div>
+    <div class="log-links"><a href="campusos-cycle9-implementation-plan.html">Plan</a> <a href="cycle9-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycles 0&ndash;8: Wave 1 Core Operations <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">~131 tables &middot; ~188 endpoints &middot; 13 consumers &middot; 65+ pages</div>
+    <div class="log-desc">Platform bootstrap, SIS core, classroom &amp; grades, notifications &amp; calendar, HR, academic scheduling, payments &amp; billing, task management, service tickets.</div>
+    <div class="log-links">
+      <a href="campusos-cycle0-implementation-plan.html">C0</a>
+      <a href="campusos-cycle1-implementation-plan.html">C1</a>
+      <a href="campusos-cycle2-implementation-plan.html">C2</a>
+      <a href="campusos-cycle3-implementation-plan.html">C3</a>
+      <a href="campusos-cycle4-implementation-plan.html">C4</a>
+      <a href="campusos-cycle5-implementation-plan.html">C5</a>
+      <a href="campusos-cycle6-implementation-plan.html">C6</a>
+      <a href="campusos-cycle7-implementation-plan.html">C7</a>
+      <a href="campusos-cycle8-implementation-plan.html">C8</a>
+    </div>
+  </div>
+
+  <h2 class="sec">CAT Scripts</h2>
+  <p class="body">Customer Acceptance Tests are reproducible end-to-end walkthroughs verified live on <code>tenant_demo</code>. Each CAT covers a schema preamble + 8&ndash;10 plan scenarios + cleanup.</p>
+  <div class="card-grid">
+    <a href="cycle9-cat-script.md" class="card"><h4>Cycle 9 CAT</h4><div class="desc">Discipline incidents, consequences, BIP with goals + feedback.</div><div class="meta">8 scenarios</div></a>
+    <a href="cycle10-cat-script.md" class="card"><h4>Cycle 10 CAT</h4><div class="desc">Health record, medication, nurse visit, ADR-030 IEP sync, screening, dietary, HIPAA log.</div><div class="meta">9 scenarios</div></a>
+    <a href="cycle11-cat-script.md" class="card"><h4>Cycle 11 CAT</h4><div class="desc">Referral pipeline, caseload, FERPA notes + lock, MTSS tier, intervention, coordinated care, mandatory report.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle11.1-cat-script.md" class="card"><h4>Cycle 11.1 CAT</h4><div class="desc">Survey template, deploy, student check-in, WANTS_TO_TALK + SELF_HARM_INDICATOR alerts, triage.</div><div class="meta">10 scenarios</div></a>
+  </div>
+
+  <h2 class="sec">Phase 2 Punch List</h2>
+  <p class="body">Architectural and product items deferred from cycle reviews. All must land before pilot.</p>
+  <div class="card-grid">
+    <div class="card"><h4>DLQ Dashboard</h4><div class="desc">Dead-letter-queue row dashboard + alert wiring for failed Kafka consumers.</div></div>
+    <div class="card"><h4>Consumer Envelope Validation</h4><div class="desc">Every Kafka consumer validates tenant_id in the ADR-057 envelope before processing.</div></div>
+    <div class="card"><h4>Transactional Outbox</h4><div class="desc">Replace direct Kafka emit with outbox pattern for guaranteed exactly-once delivery.</div></div>
+    <div class="card"><h4>Role Split</h4><div class="desc">Split Staff role into Nurse / Counsellor / VP / General before pilot. Currently one role grants all codes.</div></div>
+    <div class="card"><h4>Scheduled-Dose Dedup</h4><div class="desc">Advisory lock or partial UNIQUE on medication administrations to prevent duplicate dose logging.</div></div>
+    <div class="card"><h4>Wellbeing Score-Drop Alerts</h4><div class="desc">SIGNIFICANT_SCORE_DROP + PERSISTENT_LOW_SCORE alert types require longitudinal comparison across deployments.</div></div>
+  </div>
+</div>
+
+<!-- ── FOOTER ── -->
+<div style="max-width:1100px;margin:40px auto;padding:0 32px 60px;font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:20px;">
+  CampusOS Design Hub &mdash; May 2026 &middot; <a href="https://github.com/adamtromsness/campusos" style="color:var(--accent-mid)">GitHub</a> &middot; ERD v11 &middot; Architecture v10
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
 </body>
 </html>
