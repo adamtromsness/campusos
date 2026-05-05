@@ -223,7 +223,12 @@ async function seedIam() {
         'COU-002': ['read', 'write'],
         'COU-005': ['read'],
         'COU-006': ['write'],
-        // Cycle 4 HR — read directory, manage own leave, view own certs.
+        // Cycle 11.1 — Wellbeing Check-Ins. Teachers receive COU-004:read
+        // for the aggregated trends panel only (e.g. "1 of 1 completed
+        // this week"). The Step 5 service strips individual student
+        // responses and alert details for non-counsellor readers; the
+        // teacher trend rollup is the only data shape teachers ever see.
+        'COU-004': ['read'],
         'HR-001': ['read'],
         'HR-003': ['read', 'write'],
         'HR-004': ['read'],
@@ -348,6 +353,18 @@ async function seedIam() {
         // to their own owner_id. School Admin and Platform Admin get
         // the admin tier through the everyFunction grant.
         'OPS-001': ['read', 'write'],
+        // Cycle 11.1 — Wellbeing Check-Ins. The first student-input
+        // surface in CampusOS. Students receive COU-004:read so the
+        // Step 7 student UI at /wellbeing renders own pending check-ins
+        // + own response history. Row scope at the Step 5 service
+        // layer binds students to their own check-ins (sis_students.id
+        // resolved via actor.personId → platform_students → sis_students)
+        // and to own responses only — students never see other
+        // students' check-ins, never see alert status, never see the
+        // flagged_for_follow_up flag (the counsellor initiates any
+        // follow-up conversation naturally without surfacing the
+        // technical flag to the student).
+        'COU-004': ['read'],
       },
     },
     {
@@ -431,6 +448,12 @@ async function seedIam() {
         'COU-005': ['read', 'write'],
         'COU-006': ['read', 'write'],
         'COU-007': ['read', 'write'],
+        // Cycle 11.1 — Wellbeing Check-Ins. Counsellors create survey
+        // templates, deploy to target audiences, view all check-in
+        // detail (full responses + flagged status + alert lifecycle),
+        // and triage alerts. Admin tier (school-wide analytics, hard
+        // delete) is reached via the everyFunction grant.
+        'COU-004': ['read', 'write'],
         student_counseling_record: ['read'],
       },
     },

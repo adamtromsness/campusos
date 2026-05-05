@@ -39,7 +39,8 @@ export type AppKey =
   | 'helpdesk'
   | 'behaviour'
   | 'health'
-  | 'counselling';
+  | 'counselling'
+  | 'wellbeing';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -268,6 +269,23 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/counselling',
       routePrefix: '/counselling',
       icon: HeartHandIcon,
+    });
+  }
+
+  // Cycle 11.1 — Student-facing wellbeing check-in tile. Students hold
+  // COU-004:read for own check-ins / own responses only. Other personas
+  // (counsellor / admin / teacher) reach the wellbeing surface via the
+  // Counselling tile + /counselling/wellbeing nested area, so the tile
+  // is intentionally gated on isStudent rather than just COU-004:read.
+  // The first student-input surface in CampusOS.
+  if (isStudent && hasAnyPermission(user, ['cou-004:read'])) {
+    apps.push({
+      key: 'wellbeing',
+      label: 'Wellbeing',
+      description: 'Pending check-ins and your response history',
+      href: '/wellbeing',
+      routePrefix: '/wellbeing',
+      icon: HeartIcon,
     });
   }
 

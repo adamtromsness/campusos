@@ -3705,3 +3705,171 @@ export interface UpdateMandatoryReportPayload {
   status?: ReportStatus;
   cpsResponse?: string | null;
 }
+
+// ─── Cycle 11.1 Wellbeing ──────────────────────────────────────
+
+export type FrequencyRecommendation = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'AS_NEEDED';
+
+export type WellbeingQuestionType =
+  | 'SCALE_1_5'
+  | 'SCALE_1_10'
+  | 'YES_NO'
+  | 'FREE_TEXT'
+  | 'EMOJI_SCALE';
+
+export type WellbeingDomain = 'ACADEMIC' | 'SOCIAL' | 'EMOTIONAL' | 'PHYSICAL' | 'SAFETY';
+
+export type DeploymentTargetType = 'CASELOAD' | 'CLASS' | 'YEAR_GROUP' | 'SCHOOL' | 'CUSTOM_LIST';
+
+export type DeploymentStatus = 'SCHEDULED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+
+export type WellbeingAlertType =
+  | 'FEELS_UNSAFE'
+  | 'WANTS_TO_TALK'
+  | 'SIGNIFICANT_SCORE_DROP'
+  | 'PERSISTENT_LOW_SCORE'
+  | 'SELF_HARM_INDICATOR';
+
+export type WellbeingAlertStatus = 'NEW' | 'ACKNOWLEDGED' | 'IN_PROGRESS' | 'RESOLVED';
+
+export interface WellbeingQuestionDto {
+  id: string;
+  templateId: string;
+  questionText: string;
+  questionType: WellbeingQuestionType;
+  domain: WellbeingDomain;
+  sortOrder: number;
+}
+
+export interface WellbeingTemplateDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  frequencyRecommendation: FrequencyRecommendation;
+  isActive: boolean;
+  createdById: string;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  questions?: WellbeingQuestionDto[];
+}
+
+export interface CreateWellbeingQuestionInputDto {
+  questionText: string;
+  questionType: WellbeingQuestionType;
+  domain: WellbeingDomain;
+  sortOrder: number;
+}
+
+export interface CreateWellbeingTemplatePayload {
+  name: string;
+  description?: string;
+  frequencyRecommendation: FrequencyRecommendation;
+  questions: CreateWellbeingQuestionInputDto[];
+}
+
+export interface UpdateWellbeingTemplatePayload {
+  name?: string;
+  description?: string;
+  frequencyRecommendation?: FrequencyRecommendation;
+  isActive?: boolean;
+}
+
+export interface UpdateWellbeingQuestionPayload {
+  questionText?: string;
+  questionType?: WellbeingQuestionType;
+  domain?: WellbeingDomain;
+  sortOrder?: number;
+}
+
+export interface WellbeingDeploymentDto {
+  id: string;
+  schoolId: string;
+  templateId: string;
+  templateName: string | null;
+  deployedById: string;
+  deployedByName: string | null;
+  deployAt: string;
+  expiresAt: string | null;
+  targetType: DeploymentTargetType;
+  targetIds: string[] | null;
+  status: DeploymentStatus;
+  totalTargeted: number | null;
+  totalCompleted: number | null;
+  completionRate: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateWellbeingDeploymentPayload {
+  templateId: string;
+  deployAt: string;
+  expiresAt?: string;
+  targetType: DeploymentTargetType;
+  targetIds?: string[];
+}
+
+export interface ActivateWellbeingDeploymentResponse {
+  deployment: WellbeingDeploymentDto;
+  checkinsCreated: number;
+}
+
+export interface WellbeingResponseDto {
+  id: string;
+  checkinId: string;
+  questionId: string;
+  numericResponse: number | null;
+  textResponse: string | null;
+  createdAt: string;
+}
+
+export interface WellbeingCheckinDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentName: string | null;
+  templateId: string;
+  templateName: string | null;
+  deploymentId: string | null;
+  completedAt: string | null;
+  flaggedForFollowUp: boolean;
+  assignedCounselorId: string | null;
+  assignedCounselorName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  responses?: WellbeingResponseDto[];
+}
+
+export interface SubmitWellbeingCheckinResponseInput {
+  questionId: string;
+  numericResponse?: number;
+  textResponse?: string;
+}
+
+export interface SubmitWellbeingCheckinPayload {
+  responses: SubmitWellbeingCheckinResponseInput[];
+}
+
+export interface WellbeingAlertDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  responseId: string;
+  checkinId: string | null;
+  questionId: string | null;
+  questionText: string | null;
+  responsePreview: string | null;
+  alertType: WellbeingAlertType;
+  status: WellbeingAlertStatus;
+  acknowledgedById: string | null;
+  acknowledgedByName: string | null;
+  acknowledgedAt: string | null;
+  resolutionNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResolveWellbeingAlertPayload {
+  resolutionNotes: string;
+}
