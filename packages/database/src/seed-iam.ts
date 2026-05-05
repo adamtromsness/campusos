@@ -189,6 +189,11 @@ async function seedIam() {
         'TCH-006': ['read', 'write'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read', 'write'],
+        // Cycle 14 — emergency alert read so the persistent banner
+        // renders for teachers when the school issues an EMERGENCY
+        // alert. Acknowledgement is row-scoped to own deliveries at
+        // the EmergencyAlertService layer.
+        'COM-003': ['read'],
         'SCH-001': ['read'],
         'SCH-003': ['read'],
         // Cycle 5 — coverage read so a teacher sees their own coverage,
@@ -294,6 +299,9 @@ async function seedIam() {
         'TCH-004': ['read'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
+        // Cycle 14 — emergency alert read so the dismiss-proof
+        // banner reaches parents.
+        'COM-003': ['read'],
         'SCH-003': ['read'],
         // Cycle 6 — Enrollment write so a parent can submit + track an
         // application (row-scoped to their own apps in ApplicationService).
@@ -380,6 +388,8 @@ async function seedIam() {
         'TCH-007': ['read', 'write'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
+        // Cycle 14 — students see emergency alerts on their devices.
+        'COM-003': ['read'],
         'SCH-003': ['read'],
         // Profile & Household mini-cycle — students self-service their
         // own profile + Demographics tab. Household is read-only for
@@ -434,7 +444,17 @@ async function seedIam() {
         'STU-001': ['read'],
         'ATT-001': ['read'],
         'COM-001': ['read', 'write'],
-        'COM-002': ['read'],
+        'COM-002': ['read', 'write'],
+        // Cycle 14 — Staff covers the admin operator. read for
+        // banner + write for issuing emergency alerts via
+        // EmergencyAlertService.
+        'COM-003': ['read', 'write'],
+        // Cycle 14 — admin moderation queue + policy editor.
+        // ModerationReviewService is gated on COM-004:read for the
+        // queue list and COM-004:write for the release / confirm
+        // actions plus building-tier policy CRUD. Teachers,
+        // parents, and students never receive COM-004.
+        'COM-004': ['read', 'write'],
         'SCH-001': ['read'],
         'SCH-003': ['read'],
         // Cycle 5 — coverage read so VPs and counsellors who fill in as

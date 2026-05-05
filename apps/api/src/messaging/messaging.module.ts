@@ -10,6 +10,9 @@ import { ContentModerationService } from './content-moderation.service';
 import { ThreadController } from './thread.controller';
 import { MessageController } from './message.controller';
 import { NotificationBadgeController } from './notification-badge.controller';
+import { ThreadStatsConsumer } from './consumers/thread-stats.consumer';
+import { ModerationService } from './moderation.service';
+import { ModerationController } from './moderation.controller';
 
 /**
  * MessagingModule — M40 Communications messaging core (Cycle 3 Step 6).
@@ -51,8 +54,26 @@ import { NotificationBadgeController } from './notification-badge.controller';
  */
 @Module({
   imports: [TenantModule, IamModule, KafkaModule, NotificationsModule],
-  providers: [ThreadService, MessageService, UnreadCountService, ContentModerationService],
-  controllers: [ThreadController, MessageController, NotificationBadgeController],
-  exports: [ThreadService, MessageService, UnreadCountService, ContentModerationService],
+  providers: [
+    ThreadService,
+    MessageService,
+    UnreadCountService,
+    ContentModerationService,
+    ThreadStatsConsumer,
+    ModerationService,
+  ],
+  controllers: [
+    ThreadController,
+    MessageController,
+    NotificationBadgeController,
+    ModerationController,
+  ],
+  exports: [
+    ThreadService,
+    MessageService,
+    UnreadCountService,
+    ContentModerationService,
+    ModerationService,
+  ],
 })
 export class MessagingModule {}

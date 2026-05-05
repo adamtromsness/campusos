@@ -7,6 +7,7 @@ import { PageLoader } from '@/components/ui/LoadingSpinner';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { CloseIcon } from './icons';
+import { EmergencyAlertBanner } from '@/components/notifications/EmergencyAlertBanner';
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const status = useAuthStore((s) => s.status);
@@ -49,6 +50,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       <div className="flex flex-1 flex-col">
         <TopBar user={user} onOpenMenu={() => setDrawerOpen(true)} />
+        <EmergencyAlertBanner />
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>

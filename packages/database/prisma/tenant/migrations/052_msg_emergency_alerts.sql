@@ -1,0 +1,103 @@
+/* 052_msg_emergency_alerts.sql
+ * Cycle 14 Step 2 — M40 Communications: emergency alert head row
+ * + multi-channel delivery + acknowledgement tracking. Plus three
+ * column additions to the existing msg_announcements for
+ * forward-compatible recurrence support (the recurring-announcement
+ * processor itself is deferred per the Cycle 14 plan).
+ *
+ * Cycle 3 already shipped six of the eight tables in the Cycle 14
+ * Step 2 plan list (msg_announcements, msg_announcement_audiences,
+ * msg_announcement_reads, msg_alert_types, msg_moderation_policies,
+ * msg_moderation_log). This migration adds the two emergency-alert
+ * tables and the three announcement columns.
+ *
+ * Soft refs per ADR-001 / ADR-020:
+ *   msg_emergency_alerts.school_id, issued_by, resolved_by,
+ *     incident_id are all soft to platform / future tenant tables.
+ *   msg_emergency_alert_deliveries.recipient_id is soft to
+ *     platform.platform_users(id).
+ *   msg_announcements.parent_announcement_id is a soft self-ref
+ *     so a recurring template can retire while its instances live
+ *     on as audit.
+ *
+ * DB-enforced FKs introduced this migration:
+ *   msg_emergency_alerts.alert_type_id -> msg_alert_types(id)
+ *     ON DELETE NO ACTION (audit survives a type retirement —
+ *     admin must deactivate via is_active=false).
+ *   msg_emergency_alert_deliveries.alert_id -> msg_emergency_alerts(id)
+ *     ON DELETE CASCADE (deliveries are meaningless without
+ *     their parent alert).
+ *
+ * Splitter discipline: this file is splitter-clean.
+ */
+
+CREATE TABLE IF NOT EXISTS msg_emergency_alerts (
+  id            UUID PRIMARY KEY,
+  school_id     UUID NOT NULL,
+  alert_type_id UUID NOT NULL REFERENCES msg_alert_types(id) ON DELETE NO ACTION,
+  title         TEXT NOT NULL,
+  body          TEXT NOT NULL,
+  issued_by     UUID NOT NULL,
+  incident_id   UUID,
+  issued_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  status        TEXT NOT NULL DEFAULT 'ACTIVE',
+  resolved_at   TIMESTAMPTZ,
+  resolved_by   UUID,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT msg_emergency_alerts_status_chk CHECK (status IN ('ACTIVE','RESOLVED')),
+  CONSTRAINT msg_emergency_alerts_resolved_chk CHECK (
+    (status = 'ACTIVE' AND resolved_at IS NULL AND resolved_by IS NULL)
+    OR
+    (status = 'RESOLVED' AND resolved_at IS NOT NULL AND resolved_by IS NOT NULL)
+  )
+);
+
+CREATE INDEX IF NOT EXISTS msg_emergency_alerts_school_recent_idx
+  ON msg_emergency_alerts (school_id, issued_at DESC);
+
+CREATE INDEX IF NOT EXISTS msg_emergency_alerts_active_idx
+  ON msg_emergency_alerts (school_id) WHERE status = 'ACTIVE';
+
+COMMENT ON TABLE msg_emergency_alerts IS
+  'Cycle 14 Step 2. One row per declared emergency alert. Multi-column resolved_chk pins (status, resolved_at, resolved_by) in lockstep so the schema never sees a half-resolved row. Emits msg.emergency.issued on creation. Partial INDEX(school_id) WHERE status=ACTIVE backs the Step 8 dismiss-proof banner hot path.';
+
+COMMENT ON COLUMN msg_emergency_alerts.incident_id IS
+  'Soft ref to a future inc_incidents(id) for the cycle that ships incident management. Nullable because alerts can be issued ahead of an incident record.';
+
+CREATE TABLE IF NOT EXISTS msg_emergency_alert_deliveries (
+  id              UUID PRIMARY KEY,
+  alert_id        UUID NOT NULL REFERENCES msg_emergency_alerts(id) ON DELETE CASCADE,
+  recipient_id    UUID NOT NULL,
+  channel         TEXT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'PENDING',
+  sent_at         TIMESTAMPTZ,
+  acknowledged_at TIMESTAMPTZ,
+  failure_reason  TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT msg_emergency_alert_deliveries_channel_chk
+    CHECK (channel IN ('PUSH','SMS','EMAIL','APP')),
+  CONSTRAINT msg_emergency_alert_deliveries_status_chk
+    CHECK (status IN ('PENDING','SENT','DELIVERED','FAILED')),
+  CONSTRAINT msg_emergency_alert_deliveries_unique
+    UNIQUE (alert_id, recipient_id, channel)
+);
+
+CREATE INDEX IF NOT EXISTS msg_emergency_alert_deliveries_recipient_unack_idx
+  ON msg_emergency_alert_deliveries (recipient_id) WHERE acknowledged_at IS NULL;
+
+COMMENT ON TABLE msg_emergency_alert_deliveries IS
+  'Cycle 14 Step 2. Multi-channel delivery + acknowledgement tracking per emergency alert. UNIQUE(alert_id, recipient_id, channel) so each tuple lands at most once. Partial INDEX(recipient_id) WHERE acknowledged_at IS NULL is the per-recipient unread-emergency hot path that drives the Step 8 dismiss-proof banner.';
+
+ALTER TABLE msg_announcements
+  ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE msg_announcements
+  ADD COLUMN IF NOT EXISTS recurrence_rule TEXT;
+
+ALTER TABLE msg_announcements
+  ADD COLUMN IF NOT EXISTS parent_announcement_id UUID;
+
+COMMENT ON COLUMN msg_announcements.parent_announcement_id IS
+  'Soft self-ref per ADR-001 + ADR-020. Set on instances generated by a recurring announcement template. The template can be retired while its historical instances live on as audit. The recurring-announcement processor that materialises instances from recurrence_rule is deferred per the Cycle 14 plan.';

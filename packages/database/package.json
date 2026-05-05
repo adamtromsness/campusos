@@ -28,6 +28,7 @@
     "seed:wellbeing": "tsx src/seed-wellbeing.ts",
     "seed:library": "tsx src/seed-library.ts",
     "seed:athletics": "tsx src/seed-athletics.ts",
+    "seed:emergency": "tsx src/seed-emergency.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

@@ -4571,3 +4571,156 @@ export interface CreateAthleticsInjuryPayload {
   healthRecordId?: string;
   incidentReportId?: string;
 }
+
+// ============================================================================
+// Cycle 14 — Emergency Alerts + Moderation
+// ============================================================================
+
+export type AlertSeverity = 'INFO' | 'WARNING' | 'URGENT' | 'EMERGENCY';
+export type AlertChannel = 'PUSH' | 'SMS' | 'EMAIL' | 'APP';
+export type AlertStatus = 'ACTIVE' | 'RESOLVED';
+export type DeliveryStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'FAILED';
+
+export interface AlertTypeDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  severity: AlertSeverity;
+  defaultChannels: AlertChannel[];
+  requiresAcknowledgement: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAlertTypePayload {
+  name: string;
+  description?: string;
+  severity: AlertSeverity;
+  defaultChannels: AlertChannel[];
+  requiresAcknowledgement?: boolean;
+}
+
+export interface UpdateAlertTypePayload {
+  name?: string;
+  description?: string;
+  severity?: AlertSeverity;
+  defaultChannels?: AlertChannel[];
+  requiresAcknowledgement?: boolean;
+  isActive?: boolean;
+}
+
+export interface EmergencyAlertDeliveryDto {
+  id: string;
+  alertId: string;
+  recipientId: string;
+  recipientName: string | null;
+  channel: AlertChannel;
+  status: DeliveryStatus;
+  sentAt: string | null;
+  acknowledgedAt: string | null;
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmergencyAlertDto {
+  id: string;
+  schoolId: string;
+  alertTypeId: string;
+  alertTypeName: string | null;
+  alertSeverity: AlertSeverity;
+  requiresAcknowledgement: boolean;
+  title: string;
+  body: string;
+  issuedBy: string;
+  issuedByName: string | null;
+  incidentId: string | null;
+  issuedAt: string;
+  status: AlertStatus;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  resolvedByName: string | null;
+  deliveries?: EmergencyAlertDeliveryDto[];
+  myDelivery?: EmergencyAlertDeliveryDto | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IssueEmergencyAlertPayload {
+  alertTypeId: string;
+  title: string;
+  body: string;
+  incidentId?: string;
+  channels?: AlertChannel[];
+}
+
+export interface EmergencyAlertStatusDto {
+  alertId: string;
+  totalDeliveries: number;
+  sentCount: number;
+  deliveredCount: number;
+  acknowledgedCount: number;
+  failedCount: number;
+  pendingCount: number;
+}
+
+// ── Moderation ──
+
+export type ModerationPolicyScope = 'PLATFORM' | 'DISTRICT' | 'BUILDING';
+export type ModerationPolicyAction = 'BLOCK' | 'FLAG_FOR_REVIEW' | 'ESCALATE_TO_COUNSELLOR';
+export type ModerationReviewOutcome = 'CONFIRMED_BLOCK' | 'RELEASED' | 'ESCALATED';
+
+export interface ModerationPolicyDto {
+  id: string;
+  scope: ModerationPolicyScope;
+  scopeId: string | null;
+  name: string | null;
+  description: string | null;
+  keywords: string[];
+  keywordAction: ModerationPolicyAction;
+  isActive: boolean;
+  isEditable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateModerationPolicyPayload {
+  name: string;
+  description?: string;
+  keywords: string[];
+  keywordAction: ModerationPolicyAction;
+}
+
+export interface UpdateModerationPolicyPayload {
+  name?: string;
+  description?: string;
+  keywords?: string[];
+  keywordAction?: ModerationPolicyAction;
+  isActive?: boolean;
+}
+
+export interface ModerationQueueRowDto {
+  logId: string;
+  messageId: string;
+  threadId: string | null;
+  senderId: string;
+  senderName: string | null;
+  flagType: string;
+  matchedKeywords: string[];
+  severity: string;
+  policyId: string;
+  policyName: string | null;
+  reviewOutcome: string | null;
+  reviewedAt: string | null;
+  reviewedByName: string | null;
+  messagePreview: string | null;
+  messageStatus: string | null;
+  loggedAt: string;
+}
+
+export interface ReviewModerationLogPayload {
+  outcome: ModerationReviewOutcome;
+  notes?: string;
+}
