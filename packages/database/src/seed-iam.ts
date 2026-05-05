@@ -272,6 +272,15 @@ async function seedIam() {
         'LIB-001': ['read'],
         'LIB-002': ['read'],
         'LIB-003': ['write'],
+        // Cycle 13 — Athletics. Teachers view programmes + rosters
+        // (ATH-001:read), the public game schedule + results (ATH-002:read),
+        // and athlete injury status for their own students (ATH-004:read —
+        // covers head coaches who teach during the day). Write paths
+        // for programmes, results, coaching, injuries, clearances are
+        // AD/admin-only (Staff role).
+        'ATH-001': ['read'],
+        'ATH-002': ['read'],
+        'ATH-004': ['read'],
       },
     },
     {
@@ -347,6 +356,15 @@ async function seedIam() {
         // /children/[id]/library will surface the row-scoped child
         // checkout summary once that surface ships).
         'LIB-001': ['read'],
+        // Cycle 13 — Athletics. Parents view programmes + rosters
+        // (ATH-001:read) so they can see which sport their child plays,
+        // and the public game schedule + results (ATH-002:read) for
+        // upcoming games. Parents do NOT receive ATH-004:read this
+        // cycle — injury status is restricted to staff (parents are
+        // notified separately via the school health record path on
+        // HLT-001:read once the injury links into hlth_).
+        'ATH-001': ['read'],
+        'ATH-002': ['read'],
       },
     },
     {
@@ -397,6 +415,17 @@ async function seedIam() {
         'LIB-001': ['read'],
         'LIB-002': ['read'],
         'LIB-003': ['read', 'write'],
+        // Cycle 13 — Athletics. Students view programmes + rosters
+        // (ATH-001:read), see their game schedule + results
+        // (ATH-002:read), and view their own injury status
+        // (ATH-004:read — row-scoped at the Step 7 InjuryService to
+        // own student_id only, so a student cannot see other
+        // students' injuries). Students do NOT receive any write
+        // permission — roster eligibility, results, stats, injuries,
+        // and clearances are all AD-managed.
+        'ATH-001': ['read'],
+        'ATH-002': ['read'],
+        'ATH-004': ['read'],
       },
     },
     {
@@ -501,6 +530,22 @@ async function seedIam() {
         'LIB-001': ['read', 'write'],
         'LIB-002': ['read', 'write'],
         'LIB-003': ['write'],
+        // Cycle 13 — Athletics. Staff covers the Athletic Director (AD)
+        // and any other staff who help with athletic operations.
+        // ATH-001 read+write covers programme + roster management.
+        // ATH-002 read+write covers game scheduling, cross-school
+        // proposals, results, and player stats entry. ATH-003
+        // read+write covers coaching staff assignments and stipend
+        // tracking. ATH-004 read+write covers injury logging and the
+        // 6-step concussion protocol management. ATH-005 read+write
+        // covers physician medical clearance review. School Admin and
+        // Platform Admin pick up the admin tier (catalogue-import,
+        // hard-delete, athletics analytics) via the everyFunction grant.
+        'ATH-001': ['read', 'write'],
+        'ATH-002': ['read', 'write'],
+        'ATH-003': ['read', 'write'],
+        'ATH-004': ['read', 'write'],
+        'ATH-005': ['read', 'write'],
       },
     },
   ];

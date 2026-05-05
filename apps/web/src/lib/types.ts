@@ -4282,3 +4282,292 @@ export interface UpdateLibraryReviewPayload {
   rating?: number;
   reviewText?: string;
 }
+
+// ── Cycle 13 — Athletics ───────────────────────────────────────
+
+export type AthleticsProgrammeSeason = 'FALL' | 'WINTER' | 'SPRING' | 'YEAR_ROUND';
+export type AthleticsRosterLevel = 'VARSITY' | 'JV' | 'FRESHMAN' | 'CLUB';
+export type AthleticsSeasonStatus = 'UPCOMING' | 'ACTIVE' | 'POSTSEASON' | 'COMPLETED';
+export type AthleticsEligibilityStatus =
+  | 'ELIGIBLE'
+  | 'INELIGIBLE'
+  | 'PENDING_PHYSICAL'
+  | 'PENDING_CONSENT'
+  | 'PENDING_TRANSFER_WAIVER'
+  | 'INJURED_NOT_CLEARED';
+export type AthleticsGameStatus =
+  | 'SCHEDULED'
+  | 'CONFIRMED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'POSTPONED'
+  | 'CANCELLED';
+export type AthleticsGameLocation = 'HOME' | 'AWAY' | 'NEUTRAL';
+export type AthleticsGameOutcome = 'WIN' | 'LOSS' | 'DRAW' | 'FORFEIT';
+export type AthleticsCoachingRole =
+  | 'HEAD_COACH'
+  | 'ASSISTANT_COACH'
+  | 'VOLUNTEER_COACH'
+  | 'SPECIALIST';
+export type AthleticsInjurySeverity = 'MINOR' | 'MODERATE' | 'SEVERE' | 'EMERGENCY';
+export type AthleticsReturnToPlayStatus =
+  | 'ACTIVE'
+  | 'SIDELINED'
+  | 'CONCUSSION_PROTOCOL'
+  | 'CLEARED';
+export type AthleticsClearanceReviewStatus =
+  | 'PENDING'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'NOT_SUBMITTED'
+  | 'EXPIRED';
+
+export interface AthleticsProgrammeDto {
+  id: string;
+  schoolId: string;
+  sportName: string;
+  season: AthleticsProgrammeSeason;
+  levelsOffered: AthleticsRosterLevel[];
+  maxRosterSizePerLevel: Record<string, number> | null;
+  minGpa: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAthleticsProgrammePayload {
+  sportName: string;
+  season: AthleticsProgrammeSeason;
+  levelsOffered: AthleticsRosterLevel[];
+  maxRosterSizePerLevel?: Record<string, number>;
+  minGpa?: number;
+  isActive?: boolean;
+}
+
+export interface AthleticsSeasonDto {
+  id: string;
+  programmeId: string;
+  programmeName?: string;
+  academicYear: string;
+  firstPracticeDate: string | null;
+  firstGameDate: string | null;
+  lastGameDate: string | null;
+  playoffCutoffDate: string | null;
+  status: AthleticsSeasonStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAthleticsSeasonPayload {
+  academicYear: string;
+  firstPracticeDate?: string;
+  firstGameDate?: string;
+  lastGameDate?: string;
+  playoffCutoffDate?: string;
+  status?: AthleticsSeasonStatus;
+}
+
+export interface AthleticsRosterDto {
+  id: string;
+  seasonId: string;
+  level: AthleticsRosterLevel;
+  headCoachId: string | null;
+  headCoachName: string | null;
+  isCertified: boolean;
+  certifiedAt: string | null;
+  certifiedBy: string | null;
+  certifiedByName: string | null;
+  memberCount?: number;
+  eligibleCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAthleticsRosterPayload {
+  level: AthleticsRosterLevel;
+  headCoachId?: string;
+}
+
+export interface AthleticsRosterMemberDto {
+  id: string;
+  rosterId: string;
+  studentId: string;
+  studentName: string;
+  studentGradeLevel: string | null;
+  jerseyNumber: string | null;
+  position: string | null;
+  eligibilityStatus: AthleticsEligibilityStatus;
+  eligibilityNotes: string | null;
+  liveGpa: number | null;
+  programmeMinGpa: number | null;
+  joinedAt: string;
+  removedAt: string | null;
+  removalReason: string | null;
+}
+
+export interface AddAthleticsRosterMemberPayload {
+  studentId: string;
+  jerseyNumber?: string;
+  position?: string;
+  eligibilityNotes?: string;
+}
+
+export interface AthleticsGameResultDto {
+  id: string;
+  gameId: string;
+  homeScore: number;
+  awayScore: number;
+  scoreByPeriod: Record<string, unknown> | null;
+  outcome: AthleticsGameOutcome;
+  notes: string | null;
+  enteredBy: string;
+  enteredByName: string | null;
+  enteredAt: string;
+}
+
+export interface AthleticsGameDto {
+  id: string;
+  seasonId: string;
+  rosterId: string;
+  rosterLevel: AthleticsRosterLevel | null;
+  programmeName: string | null;
+  gameDate: string;
+  gameTime: string;
+  opponentName: string;
+  opponentSchoolId: string | null;
+  location: AthleticsGameLocation;
+  status: AthleticsGameStatus;
+  isConferenceGame: boolean;
+  isTicketed: boolean;
+  notes: string | null;
+  result: AthleticsGameResultDto | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAthleticsGamePayload {
+  rosterId: string;
+  gameDate: string;
+  gameTime: string;
+  opponentName: string;
+  opponentSchoolId?: string;
+  location: AthleticsGameLocation;
+  isConferenceGame?: boolean;
+  isTicketed?: boolean;
+  notes?: string;
+}
+
+export interface EnterGameResultPayload {
+  homeScore: number;
+  awayScore: number;
+  scoreByPeriod?: Record<string, unknown>;
+  outcome: AthleticsGameOutcome;
+  notes?: string;
+}
+
+export interface AthleticsPlayerStatLineDto {
+  id: string;
+  gameId: string;
+  studentId: string;
+  studentName: string;
+  statCategory: string;
+  statValue: number;
+  notes: string | null;
+  enteredBy: string;
+  enteredAt: string;
+}
+
+export interface AthleticsSeasonRecordDto {
+  rosterId: string;
+  wins: number;
+  losses: number;
+  draws: number;
+  conferenceWins: number;
+  conferenceLosses: number;
+  conferenceDraws: number;
+  lastUpdatedAt: string;
+}
+
+export interface AthleticsCoachingAssignmentDto {
+  id: string;
+  rosterId: string;
+  coachPersonId: string;
+  coachName: string | null;
+  role: AthleticsCoachingRole;
+  stipendAmount: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  isActive: boolean;
+  notes: string | null;
+}
+
+export interface AthleticsConcussionProtocolStepDto {
+  id: string;
+  injuryId: string;
+  stepNumber: number;
+  stepName: string;
+  startedAt: string;
+  minimumDurationHours: number;
+  completedAt: string | null;
+  symptomFree: boolean;
+  clearedBy: string | null;
+  clearedByName: string | null;
+  notes: string | null;
+  canStartNext: boolean;
+}
+
+export interface AthleticsMedicalClearanceDto {
+  id: string;
+  injuryId: string;
+  documentS3Key: string;
+  physicianName: string | null;
+  physicianPhone: string | null;
+  clearanceDate: string;
+  uploadedBy: string;
+  uploadedByName: string | null;
+  uploadedAt: string;
+  reviewStatus: AthleticsClearanceReviewStatus;
+  reviewedBy: string | null;
+  reviewedByName: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  expiresAt: string | null;
+}
+
+export interface AthleticsInjuryDto {
+  id: string;
+  studentId: string;
+  studentName: string;
+  gameId: string | null;
+  practiceDate: string | null;
+  injuryDate: string;
+  bodyPart: string;
+  injuryDescription: string;
+  initialAssessment: string | null;
+  actionTaken: string | null;
+  severity: AthleticsInjurySeverity;
+  healthRecordId: string | null;
+  incidentReportId: string | null;
+  returnToPlayStatus: AthleticsReturnToPlayStatus;
+  loggedBy: string;
+  loggedByName: string | null;
+  loggedAt: string;
+  clearedAt: string | null;
+  protocolSteps?: AthleticsConcussionProtocolStepDto[];
+  clearances?: AthleticsMedicalClearanceDto[];
+}
+
+export interface CreateAthleticsInjuryPayload {
+  studentId: string;
+  gameId?: string;
+  practiceDate?: string;
+  injuryDate: string;
+  bodyPart: string;
+  injuryDescription: string;
+  initialAssessment?: string;
+  actionTaken?: string;
+  severity: AthleticsInjurySeverity;
+  returnToPlayStatus: AthleticsReturnToPlayStatus;
+  healthRecordId?: string;
+  incidentReportId?: string;
+}

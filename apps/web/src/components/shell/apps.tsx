@@ -20,6 +20,7 @@ import {
   MegaphoneIcon,
   PeopleIcon,
   ShieldExclamationIcon,
+  TrophyIcon,
 } from './icons';
 
 export type AppKey =
@@ -42,7 +43,8 @@ export type AppKey =
   | 'health'
   | 'counselling'
   | 'wellbeing'
-  | 'library';
+  | 'library'
+  | 'athletics';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -321,6 +323,29 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/library',
       routePrefix: '/library',
       icon: BookIcon,
+    });
+  }
+
+  // Cycle 13 — Athletics tile gated on ath-001:read (held by every
+  // persona). The /athletics landing page branches on persona —
+  // AD/admin see programmes + rosters management; students see "My
+  // sports" + game schedule; teachers + parents see programme
+  // browse + game schedule.
+  if (hasAnyPermission(user, ['ath-001:read'])) {
+    const isAthleticDirector = isAdmin || (isStaff && hasAnyPermission(user, ['ath-001:write']));
+    apps.push({
+      key: 'athletics',
+      label: 'Athletics',
+      description: isAthleticDirector
+        ? 'Programmes, rosters, games, results, injuries'
+        : isStudent
+          ? 'My sports, game schedule, and stats'
+          : isGuardian
+            ? 'Game schedule and athletic programmes'
+            : 'Athletic programmes and game schedule',
+      href: '/athletics',
+      routePrefix: '/athletics',
+      icon: TrophyIcon,
     });
   }
 
