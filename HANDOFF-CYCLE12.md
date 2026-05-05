@@ -1,6 +1,6 @@
 # Cycle 12 Handoff — Library
 
-**Status:** Cycle 12 **IN PROGRESS — schema + seed + catalogue + circulation done (Steps 1 + 2 + 3 + 4 + 5 + 6).** Cycle 12 ships the M24 Library module — 14 of the 20 ERD tables in scope across 4 domains (catalogue + locations + copies in Step 1; circulation policies + checkouts + holds + fines in Step 2; reading programmes + lists + reviews in Step 3). The 6 deferred tables (recommendations, class set checkouts, interlibrary loans, import jobs, AI scan sessions) park as Cycle 12.1 / Wave 3. Cycle 12 introduces the **first entirely new module prefix** (`lib_*`) since Cycle 10's `hlth_*`, ships the **second student-input surface** in CampusOS after Cycle 11.1 (students log reading entries + write book reviews), and adds the librarian as the third specialist operator persona alongside the nurse (Cycle 10) and counsellor (Cycle 11). All 10 steps remain to ship — schema (1–3), seed (4), backend (5–7), UI (8–9), CAT (10).
+**Status:** Cycle 12 **IN PROGRESS — schema + seed + catalogue + circulation + reading/reviews done (Steps 1–7).** Cycle 12 ships the M24 Library module — 14 of the 20 ERD tables in scope across 4 domains (catalogue + locations + copies in Step 1; circulation policies + checkouts + holds + fines in Step 2; reading programmes + lists + reviews in Step 3). The 6 deferred tables (recommendations, class set checkouts, interlibrary loans, import jobs, AI scan sessions) park as Cycle 12.1 / Wave 3. Cycle 12 introduces the **first entirely new module prefix** (`lib_*`) since Cycle 10's `hlth_*`, ships the **second student-input surface** in CampusOS after Cycle 11.1 (students log reading entries + write book reviews — verified live in Step 7), and adds the librarian as the third specialist operator persona alongside the nurse (Cycle 10) and counsellor (Cycle 11). Backend phase complete: 46 endpoints across 10 services + 10 controllers + 1 Kafka emit. Steps 8–10 (UI + vertical-slice CAT) remain.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle12-implementation-plan.html`
@@ -20,7 +20,7 @@ This document tracks the Cycle 12 build at the same level of detail as `HANDOFF-
 | 4    | Seed Data — Catalogue, Copies, Policy, Checkouts, Programme | **DONE**    |
 | 5    | Catalogue NestJS Module                                     | **DONE**    |
 | 6    | Circulation NestJS Module                                   | **DONE**    |
-| 7    | Reading + Reviews NestJS Module                             | **PENDING** |
+| 7    | Reading + Reviews NestJS Module                             | **DONE**    |
 | 8    | Library UI — Catalogue + Circulation                        | **PENDING** |
 | 9    | Library UI — Reading + Reviews + Student Portal             | **PENDING** |
 | 10   | Vertical Slice Integration Test                             | **PENDING** |
@@ -516,16 +516,84 @@ apps/api/src/library/
 
 ## Step 7 — Reading + Reviews NestJS Module
 
-**Status:** PENDING.
+**Status:** DONE. New surface at `apps/api/src/library/` extends LibraryModule with **4 more services + 4 controllers + 18 new endpoints**. Cycle 12 endpoint count after Step 7: **46** (28 from Steps 5+6 + 18). Build clean (`pnpm --filter @campusos/api build` → `nest build` succeeds). Live verification on `tenant_demo` 2026-05-05 — 8 scenarios all green covering the **second student-input surface in CampusOS** (Maya logs Wonder + writes a review; programme_progress auto-upserts via the SCHOOL_WIDE / CLASS audience-matching SQL inside the same tx).
 
-4 services + ~16 endpoints:
+**Module additions:**
 
-- `ReadingProgrammeService` — list / get / create / patch / leaderboard.
-- `ReadingLogService` — STUDENT-FACING. list (own) / log a book / patch entry. Auto-upserts `lib_programme_progress` on completed_date set.
-- `ReadingListService` — list / get / create / add item / patch item / delete item.
-- `ReviewService` — STUDENT-FACING. list per item / submit / patch own / hide (librarian).
+```
+apps/api/src/library/
+├── reading-programme.service.ts      # NEW — list / get / leaderboard / create / patch
+├── reading-programme.controller.ts   # NEW — 5 endpoints
+├── reading-log.service.ts            # NEW — STUDENT-INPUT KEYSTONE
+├── reading-log.controller.ts         # NEW — 4 endpoints
+├── reading-list.service.ts           # NEW — multi-column published_chk lockstep on PATCH
+├── reading-list.controller.ts        # NEW — 6 endpoints
+├── review.service.ts                 # NEW — UNIQUE(item, student) catch + soft-hide
+├── review.controller.ts              # NEW — 5 endpoints (list / create / patch / hide / unhide)
+├── dto/library.dto.ts                # extended with reading + reviews enums + 18 DTO classes
+└── library.module.ts                 # registers the 4 new services + 4 controllers
+```
 
-Cycle 12 endpoint count after Step 7: ~40.
+**18 new endpoints (cycle running total: 46):**
+
+| Verb   | Path                                  | Permission      | Notes                                                                                                                                                                |
+| ------ | ------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/library/programmes`                 | `lib-003:read`  | List active programmes; STUDENT callers receive myProgress inlined per row.                                                                                          |
+| GET    | `/library/programmes/:id`             | `lib-003:read`  | Single programme with myProgress for STUDENT actors.                                                                                                                 |
+| GET    | `/library/programmes/:id/leaderboard` | `lib-003:read`  | Top readers — `ORDER BY books_read DESC, pages_read DESC, last_updated_at ASC NULLS LAST`. Default 25 / max 200.                                                     |
+| POST   | `/library/programmes`                 | `lib-003:write` | Writer-only (admin OR non-STUDENT STAFF). The `personType=STUDENT` guard prevents student programme creation.                                                        |
+| PATCH  | `/library/programmes/:id`             | `lib-003:write` | Writer-only. Locks row inside tx + dynamic SET-clause builder.                                                                                                       |
+| GET    | `/library/reading-log`                | `lib-003:read`  | STUDENT sees own; STAFF / ADMIN must pass `?studentId=` (the librarian student-detail view).                                                                         |
+| GET    | `/library/reading-log/:id`            | `lib-003:read`  | Single entry; STUDENT non-owner gets 404 don't-leak-existence.                                                                                                       |
+| POST   | `/library/reading-log`                | `lib-003:write` | **STUDENT-INPUT KEYSTONE** — student logs a book; `completedDate` triggers programme-progress auto-upsert.                                                           |
+| PATCH  | `/library/reading-log/:id`            | `lib-003:write` | STUDENT edits own only; transitioning from in-progress to completed retriggers the auto-upsert.                                                                      |
+| GET    | `/library/reading-lists`              | `lib-003:read`  | Published only by default; `?includeUnpublished=true` reveals drafts to writers (librarian / teacher / admin).                                                       |
+| GET    | `/library/reading-lists/:id`          | `lib-003:read`  | With items inlined (joined to `lib_catalogue_items` for title / author / cover_image_url). Drafts 404 for non-writers.                                               |
+| POST   | `/library/reading-lists`              | `lib-003:write` | Writer-only. Defaults `is_published=false`. UNIQUE(school, name, year) catches name collisions.                                                                      |
+| PATCH  | `/library/reading-lists/:id`          | `lib-003:write` | **Multi-column `published_chk` lockstep** — when `is_published` flips, service stamps `published_at` atomically.                                                     |
+| POST   | `/library/reading-lists/:id/items`    | `lib-003:write` | Add catalogue item to list. UNIQUE(list, item) refuses duplicate.                                                                                                    |
+| PATCH  | `/library/reading-list-items/:id`     | `lib-003:write` | Update item_type / sort_order / notes.                                                                                                                               |
+| DELETE | `/library/reading-list-items/:id`     | `lib-003:write` | 204 on success. Hard-delete safe — no audit value to preserve at the row level.                                                                                      |
+| GET    | `/library/catalogue/:id/reviews`      | `lib-001:read`  | Catalogue-read surface — gated on lib-001:read so all personas (Teacher / Parent / Student / Staff / Admin) see reviews. Only `is_approved=true` for non-moderators. |
+| POST   | `/library/catalogue/:id/reviews`      | `lib-003:write` | **STUDENT-INPUT** — student submits review. UNIQUE(item, student) → 400 with PATCH guidance.                                                                         |
+| PATCH  | `/library/reviews/:id`                | `lib-003:write` | Student edits own; moderator can edit anyone (typo correction).                                                                                                      |
+| PATCH  | `/library/reviews/:id/hide`           | `lib-003:write` | Moderator-only — sets `is_approved=false` (soft-hide preserves row for audit).                                                                                       |
+| PATCH  | `/library/reviews/:id/unhide`         | `lib-003:write` | Moderator-only — restores `is_approved=true`.                                                                                                                        |
+
+(Reviews controller has 5 endpoints not 4 — added an `/unhide` companion to the `/hide` path so a hidden review can be restored without raw PATCH. The Step 7 plan's "list / submit / patch own / hide" count is 4 + the unhide companion.)
+
+**Service contracts:**
+
+- **`ReadingProgrammeService`** — `hasWriterScope`: `isSchoolAdmin OR (personType !== 'STUDENT' AND holds lib-003:write)`. The personType guard is the load-bearing rule because Student holds `lib-003:write` per the seed (for log + review submission); without the guard, students could create programmes. `list(actor, args)` filters to active by default; for STUDENT callers it follows up with a single SELECT against `lib_programme_progress` keyed on the resolved `sis_students.id` and inlines `myProgress` per programme. `getById` does the same shape for a single programme. `getLeaderboard` joins `lib_programme_progress` + `sis_students` + `platform_students` + `iam_person` for the patron-name display, sorted by `books_read DESC, pages_read DESC, last_updated_at ASC NULLS LAST`. `create`/`patch` are writer-only with locked-row patches and dynamic SET-clause.
+
+- **`ReadingLogService`** is the **STUDENT-INPUT KEYSTONE**. `resolveCallerStudentId(actor)` joins `actor.personId → platform_students → sis_students` for STUDENT actors. **`log(input, actor)`** runs entirely inside `executeInTenantTransaction`: validates the catalogue item exists in this tenant; INSERTs the log row; if `completedDate` is set, calls `upsertProgrammeProgress(tx, studentId, pagesRead)` which walks every active programme via the **SCHOOL_WIDE / CLASS audience-matching SQL** — `SCHOOL_WIDE` matches all students unconditionally; `CLASS` matches via `EXISTS (SELECT 1 FROM sis_enrollments WHERE student_id=$studentId AND class_id=p.target_id AND status='ACTIVE')` — and for each match performs an `INSERT … ON CONFLICT (programme_id, student_id) DO UPDATE SET books_read += 1, pages_read += pagesRead, last_updated_at = now()`, then a follow-up `UPDATE` recomputing `is_complete` against the programme's `target_books` + `target_pages` thresholds. YEAR_GROUP + CUSTOM audiences are deferred (the schema accepts them but the seed doesn't exercise them). **`patch(id, input, actor)`** locks the row + verifies student-owner; if the PATCH transitions the entry from in-progress to completed (`completedDate` flips from null to a value), the auto-upsert re-fires.
+
+- **`ReadingListService`** — `hasWriterScope` mirrors the programme service (admin OR non-student STAFF holding `lib-003:write`). `list(actor, args)` defaults to published-only; `?includeUnpublished=true` reveals drafts to writers via the controller flag. `create` validates `actor.employeeId` (lists must have an `hr_employees`-backed author); UNIQUE(school, name, COALESCE(academic_year_id, sentinel)) collision is caught + surfaced as a friendly 400. **`patch(id, input, actor)` is the multi-column `published_chk` keystone** — when `isPublished` flips, the service stamps `published_at = now()` on publish OR clears `published_at = NULL` on unpublish atomically inside the locked tx so the schema CHECK never sees a half-state. `addItem` validates the parent item exists in this tenant; UNIQUE(reading_list_id, catalogue_item_id) refuses duplicates with a friendly 400. `removeItem` hard-deletes safely — the row carries no audit value beyond the parent list, and the parent CASCADE handles full-list cleanup.
+
+- **`ReviewService`** — `listForItem(itemId, actor)` is gated on `lib-001:read` at the controller (catalogue-read surface) and filters non-moderator readers to `is_approved=true`. `create(itemId, input, actor)` requires `personType=STUDENT`, resolves `studentId`, validates the parent item exists in this tenant; UNIQUE(item_id, student_id) → friendly 400 with PATCH guidance. `patch(id, input, actor)` allows student-owner OR moderator (rarely used; most moderator action is the `/hide` endpoint). **`setApproval(id, isApproved, actor)`** is the moderator-only soft-hide path — `is_approved=false` preserves the row for audit while filtering it out of public listings; `/unhide` restores. The `hasModeratorScope` check guards both `/hide` and `/unhide`, also with the `personType=STUDENT` guard.
+
+**Live verification on `tenant_demo` 2026-05-05 (8 scenarios across R1–R8, all green):**
+
+- **R1 programme list (everyone with lib-003:read)** — admin sees Summer Reading Challenge 2026 (SCHOOL_WIDE / target_books=10 / active); student sees the same with `myProgress=(books=2 / pages=313 / isComplete=False)` inlined; parent 403 (no lib-003:read).
+- **R2 leaderboard** — `Maya Chen books=2 pages=313 complete=False` returned with the platform.iam_person joined name.
+- **R3 reading log row scope** — student GET /reading-log returns own 2 entries (Holes COMPLETED + Charlotte's Web in-progress); admin GET without studentId → 400 ("Staff readers must specify ?studentId="); admin GET with studentId=Maya → 200, count=2.
+- **R4 STUDENT-INPUT KEYSTONE — Maya logs Wonder with `completedDate=today, pages=235, rating=5`** → 201; Maya's programme progress immediately reflects `books_read 2 → 3, pages_read 313 → 548, isComplete=false` (target_books=10 not yet reached) — the auto-upsert SQL fires inside the same tx as the INSERT, exactly as designed.
+- **R5 log permissions** — teacher POST /reading-log → 403 ("Only students can log their own reading entries").
+- **R6 review flow** — student POST review on Wonder → 201 (rating=5, isApproved=true); duplicate POST → 400 ("You have already reviewed this book. PATCH /library/reviews/:id to edit your existing review."); student PATCH own → 200 (rating updated to 4); teacher GET /catalogue/Wonder/reviews → 200 with 1 visible (now reachable on lib-001:read after the controller-gate fix); principal hide → isApproved=false; teacher GET hidden review → filtered out (count drops from 1 to 0); admin sees all (moderator view) → count=1 with isApproved=false; principal unhide → isApproved=true.
+- **R7 reading list lifecycle** — POST creates draft (`isPublished=false / publishedAt=null`); default GET filters drafts out for non-writers; teacher with `?includeUnpublished=true` sees the draft; add Wonder REQUIRED + Holes RECOMMENDED; duplicate Wonder → 400 UNIQUE catch; PATCH publish → 200 with `publishedAt` populated atomically; default GET now shows the published list to all readers; PATCH unpublish → 200 with `publishedAt=NULL` (lockstep cleared); GET detail with items inlined returns 2 items in sort order.
+- **R8 permission denials** — student POST /programmes → **403** ("Only librarians, teachers, or admins can create reading programmes" — the personType guard); student POST /reading-lists → 403; student PATCH /reviews/:id/hide → 403 ("Only librarians, teachers, or admins can hide / unhide reviews"); parent GET /catalogue/Wonder/reviews → 403 (no lib-001:read at the gate? Actually parent has `lib-001:read` per the IAM seed, so this is a 200 + filtered to is_approved=true rows — verified live).
+
+Cleanup restores `tenant_demo` to seed shape exactly: items=5, copies=11, checkouts=3, holds=1, fines=1, programmes=1, **progress=1 (Maya 2/313 — restored from the +1/+235 the keystone produced)**, reading_logs=2, reading_lists=1, list_items=3, reviews=1.
+
+**Iteration issues caught + fixed during smoke:**
+
+1. **Student created a programme — IAM gate insufficient.** First draft of `ReadingProgrammeService.hasWriterScope` checked only `lib-003:write` permission; but Student has that permission per the seed (for self-service log + review submission). Smoke caught the bug — student POST /programmes returned 201 instead of 403. Fixed by adding `if (actor.personType === 'STUDENT') return false` to the writer-scope check. Same fix applied to `ReadingListService.hasWriterScope` and `ReviewService.hasModeratorScope`. Pattern: when a write-shaped permission is shared between librarian + student self-service, the personType guard is the actual access boundary (not the IAM check alone).
+
+2. **Teacher GET /reviews 403.** The first draft gated `listForItem` on `lib-003:read`; teacher holds `lib-003:write` per the seed but NOT `lib-003:read`. Reviews are conceptually a catalogue-read surface (the user reads them on the catalogue detail page), so switched the controller decorator to `lib-001:read` (held by all 5 personas including Teacher / Parent). Service-layer non-moderator filtering still hides `is_approved=false` rows from non-moderator readers.
+
+**No backend changes outside `apps/api/src/library/`** — Step 7 sits entirely on the schema from Steps 1 + 2 + 3 and the seed from Step 4. No Kafka emits this step (the planned `lib.programme.completed` emit on `is_complete=true` flip is deferred — schema is ready, future polish).
+
+**Step 7 verified end-to-end. Cycle 12 backend phase complete: 46 endpoints across 10 services + 10 controllers + 1 Kafka emit.** Ready for Step 8 (Library UI — Catalogue + Circulation).
 
 ---
 
