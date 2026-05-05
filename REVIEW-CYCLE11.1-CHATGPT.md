@@ -254,4 +254,17 @@ No web changes. No new Kafka emits. No new endpoints.
 
 - **Aggregate trend endpoint for teachers** — the MAJOR 3 fix denies row-level entirely. A dedicated `GET /counselling/wellbeing/trends` returning pre-aggregated per-template completion counts (and per-domain mean scores, anonymised) is a reasonable Phase 2 surface to give teachers something useful without leaking row-level data. Out of scope for the Round 2 fix.
 
-After Round 3 lands its verdict, tag `cycle11.1-approved` on the closeout commit.
+## Round 3 — APPROVED at `6d2b04c` (final gate)
+
+**Verdict:** APPROVED. _"Cycle 11.1 is clean from my review perspective. You can tag `cycle11.1-approved`."_
+
+Reviewer cache-busted the six fix paths in code on Round 3 and confirmed each:
+
+1. **BLOCKING 1** — `stripCheckinForStudent()` applied to list + detail; clears `flaggedForFollowUp` / `assignedCounselorId` / `assignedCounselorName`; preserves the student's own responses.
+2. **BLOCKING 2** — `assertResponseShape()` called in the submit pre-tx loop. Enforces YES_NO ∈ {0,1}; SCALE_1_5 + EMOJI_SCALE ∈ [1,5]; SCALE_1_10 ∈ [1,10]; FREE_TEXT non-blank text only; cross-shape rejected.
+3. **MAJOR 3** — Non-counsellor STAFF rejected on the row-level list + detail paths with `ForbiddenException`; aggregate-only endpoint preserved as a future surface.
+4. **MAJOR 4** — `DeploymentService.create()` pre-validates every supplied CUSTOM_LIST student id + CLASS class id; `resolveAudience()` revalidates count-match at activation time.
+5. **MAJOR 5** — SCHOOL targeting requires school-admin authority at both create + activate.
+6. **MAJOR 6** — Migration `042_svc_wellbeing_checkins_dedup.sql` partial UNIQUE INDEX on `(deployment_id, student_id) WHERE deployment_id IS NOT NULL`.
+
+Tagged `cycle11.1-complete` on `a5abe4e` (the original closeout commit + CAT) and `cycle11.1-approved` on `6d2b04c` (the Round 2 fix commit, after this APPROVED verdict).
