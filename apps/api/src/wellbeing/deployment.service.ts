@@ -179,6 +179,17 @@ export class DeploymentService {
     if (!actor.employeeId) {
       throw new ForbiddenException('Deployer must have an employee record');
     }
+    // REVIEW-CYCLE11.1 MAJOR 5 — locked product/security decision: a
+    // SCHOOL-wide wellbeing deployment fans out to every active student
+    // in the tenant and is too broad for an individual counsellor to
+    // launch on their own authority. Restrict to admin only at create
+    // time. Counsellors can still target their CASELOAD, individual
+    // CLASS rosters, or a CUSTOM_LIST of students.
+    if (input.targetType === 'SCHOOL' && !actor.isSchoolAdmin) {
+      throw new ForbiddenException(
+        'SCHOOL-wide deployments require school-admin authorisation. Counsellors should target CASELOAD, CLASS, or CUSTOM_LIST instead.',
+      );
+    }
     const tenant = getCurrentTenant();
 
     // Validate template (loadActiveOrFail throws on missing / inactive / no questions).
@@ -202,6 +213,18 @@ export class DeploymentService {
             ' deployments must NOT carry targetIds — the audience is resolved on activation',
         );
       }
+    }
+
+    // REVIEW-CYCLE11.1 MAJOR 4 — pre-flight validate every supplied
+    // target id exists in this tenant before persisting the deployment.
+    // The previous implementation silently dropped invalid ids at
+    // resolveAudience time, leaving a counsellor to discover the
+    // mismatch only on activation.
+    if (input.targetType === 'CUSTOM_LIST' && input.targetIds) {
+      await this.assertAllStudentsExist(input.targetIds);
+    }
+    if (input.targetType === 'CLASS' && input.targetIds) {
+      await this.assertAllClassesExist(input.targetIds);
     }
 
     // Validate window (the schema window_chk also catches this, but the
@@ -262,6 +285,10 @@ export class DeploymentService {
       throw new ForbiddenException('Activator must have an employee record');
     }
     const tenant = getCurrentTenant();
+    // REVIEW-CYCLE11.1 MAJOR 5 — SCHOOL targeting is admin-only on
+    // activate as well as create. Belt-and-braces: even if a row
+    // somehow exists with target_type='SCHOOL' and a non-admin
+    // activator, refuse the fan-out.
 
     let checkinsCreated = 0;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
@@ -286,6 +313,11 @@ export class DeploymentService {
       if (dep.status !== 'SCHEDULED') {
         throw new BadRequestException(
           'Deployment is in status ' + dep.status + '; only SCHEDULED can be activated',
+        );
+      }
+      if (dep.target_type === 'SCHOOL' && !actor.isSchoolAdmin) {
+        throw new ForbiddenException(
+          'SCHOOL-wide deployments require school-admin authorisation to activate.',
         );
       }
 
@@ -429,6 +461,23 @@ export class DeploymentService {
 
     if (targetType === 'CLASS') {
       if (!targetIds || targetIds.length === 0) return [];
+      // REVIEW-CYCLE11.1 MAJOR 4 — verify every supplied class id still
+      // exists in this tenant before expanding to enrollments.
+      // Counters changes between create-time pre-flight + activate.
+      const matched = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        'SELECT id::text AS id FROM sis_classes WHERE id = ANY($1::uuid[])',
+        targetIds,
+      );
+      if (matched.length !== targetIds.length) {
+        const found = new Set(matched.map((r) => r.id));
+        const missing = targetIds.filter((id) => !found.has(id));
+        throw new BadRequestException(
+          'CLASS targeting referenced ' +
+            missing.length +
+            ' class id(s) that do not exist in this tenant: ' +
+            missing.join(', '),
+        );
+      }
       const rows = await tx.$queryRawUnsafe<Array<{ student_id: string }>>(
         'SELECT DISTINCT e.student_id::text AS student_id ' +
           'FROM sis_enrollments e ' +
@@ -440,12 +489,26 @@ export class DeploymentService {
 
     if (targetType === 'CUSTOM_LIST') {
       if (!targetIds || targetIds.length === 0) return [];
-      // Validate every supplied id exists in this tenant.
-      const rows = await tx.$queryRawUnsafe<Array<{ student_id: string }>>(
-        'SELECT DISTINCT s.id::text AS student_id FROM sis_students s WHERE s.id = ANY($1::uuid[])',
+      // REVIEW-CYCLE11.1 MAJOR 4 — count-match. Every supplied id must
+      // resolve to an existing sis_students row in this tenant.
+      // Otherwise a typo silently targets fewer students than intended,
+      // which is dangerous for wellbeing where a missing student may be
+      // a student in need.
+      const matched = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        'SELECT id::text AS id FROM sis_students WHERE id = ANY($1::uuid[])',
         targetIds,
       );
-      return rows.map((r) => r.student_id);
+      if (matched.length !== targetIds.length) {
+        const found = new Set(matched.map((r) => r.id));
+        const missing = targetIds.filter((id) => !found.has(id));
+        throw new BadRequestException(
+          'CUSTOM_LIST targeting referenced ' +
+            missing.length +
+            ' student id(s) that do not exist in this tenant: ' +
+            missing.join(', '),
+        );
+      }
+      return matched.map((r) => r.id);
     }
 
     if (targetType === 'YEAR_GROUP') {
@@ -455,5 +518,54 @@ export class DeploymentService {
     }
 
     throw new BadRequestException('Unsupported target_type ' + targetType);
+  }
+
+  /**
+   * REVIEW-CYCLE11.1 MAJOR 4 — pre-flight validate every supplied
+   * sis_students.id exists in this tenant before persisting a
+   * CUSTOM_LIST deployment. Errors out 400 with the missing ids
+   * inlined.
+   */
+  private async assertAllStudentsExist(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const matched = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ id: string }>>(
+        'SELECT id::text AS id FROM sis_students WHERE id = ANY($1::uuid[])',
+        ids,
+      );
+    });
+    if (matched.length === ids.length) return;
+    const found = new Set(matched.map((r) => r.id));
+    const missing = ids.filter((id) => !found.has(id));
+    throw new BadRequestException(
+      'targetIds referenced ' +
+        missing.length +
+        ' student id(s) that do not exist in this tenant: ' +
+        missing.join(', '),
+    );
+  }
+
+  /**
+   * REVIEW-CYCLE11.1 MAJOR 4 — pre-flight validate every supplied
+   * sis_classes.id exists in this tenant before persisting a CLASS
+   * deployment.
+   */
+  private async assertAllClassesExist(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const matched = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ id: string }>>(
+        'SELECT id::text AS id FROM sis_classes WHERE id = ANY($1::uuid[])',
+        ids,
+      );
+    });
+    if (matched.length === ids.length) return;
+    const found = new Set(matched.map((r) => r.id));
+    const missing = ids.filter((id) => !found.has(id));
+    throw new BadRequestException(
+      'targetIds referenced ' +
+        missing.length +
+        ' class id(s) that do not exist in this tenant: ' +
+        missing.join(', '),
+    );
   }
 }

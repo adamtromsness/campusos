@@ -116,23 +116,30 @@ function rowToResponseDto(r: ResponseRow): WellbeingResponseDto {
 }
 
 /**
- * Apply the per-persona DTO strip. Teachers (cou-004:read holders that
- * are not counsellors and not students) see only aggregated trend
- * data — the service strips student name + assigned counsellor + the
- * `flagged_for_follow_up` flag from every check-in row before
- * returning. Pending vs completed status is preserved (`completedAt`)
- * so the teacher dashboard can still display "1 of 1 completed". The
- * Step 6 counsellor / admin UI receives the full DTO; Step 7 student UI
- * receives own-only DTOs unstripped.
+ * REVIEW-CYCLE11.1 MAJOR 3 — the previous `stripCheckinForTeacher` helper
+ * was removed because non-counsellor STAFF (teachers) no longer reach
+ * the row-level path at all. The list endpoint 403s at the service
+ * layer; getById was already 403 before loadOrFail. Any future
+ * aggregate-trend surface should be a separate endpoint that returns
+ * pre-aggregated counts, not row-level objects with identity scrubbed.
  */
-function stripCheckinForTeacher(dto: CheckinResponseDto): CheckinResponseDto {
+
+/**
+ * REVIEW-CYCLE11.1 BLOCKING 1 — strip the alert-derived `flaggedForFollowUp`
+ * flag (and the assigned-counsellor metadata) from a student's own
+ * check-in DTO before returning. The Step 7 student UI page intentionally
+ * doesn't render these fields per the privacy contract ("Students never
+ * see the flagged status or alert rows — the counsellor initiates any
+ * follow-up conversation naturally"); the API now matches the contract
+ * server-side so a custom client cannot read the flag. Responses are
+ * preserved — students legitimately see their own answers in /history.
+ */
+function stripCheckinForStudent(dto: CheckinResponseDto): CheckinResponseDto {
   return {
     ...dto,
-    studentId: '',
-    studentName: null,
+    flaggedForFollowUp: false,
     assignedCounselorId: null,
     assignedCounselorName: null,
-    flaggedForFollowUp: false,
   };
 }
 
@@ -181,6 +188,7 @@ export class CheckinService {
     const sql: string[] = [SELECT_CHECKIN_BASE, 'WHERE c.school_id = $1::uuid '];
     const params: unknown[] = [tenant.schoolId];
     let idx = 2;
+    let isStudentScope = false;
 
     if (actor.isSchoolAdmin) {
       // Admin sees everything in the school.
@@ -208,11 +216,19 @@ export class CheckinService {
       sql.push('AND c.student_id = $' + idx + '::uuid ');
       params.push(myStudentId);
       idx++;
+      isStudentScope = true;
     } else if (actor.personType === 'STAFF') {
-      // Non-counsellor STAFF (a teacher) — aggregated trends only.
-      // Service strips per-student detail at row mapping. Teachers see
-      // every row in the tenant (count + completed/pending status)
-      // but with student identity scrubbed.
+      // REVIEW-CYCLE11.1 MAJOR 3 — non-counsellor STAFF (a teacher) is
+      // NO LONGER given row-level access here. The previous
+      // strip-and-return behaviour leaked tenant-wide counts /
+      // completed-vs-pending timing / `flagged=true` filter
+      // observability via cardinality even though identity-bearing
+      // fields were scrubbed. Teachers now 403 with the redirect
+      // message; pre-aggregated trend data lives on a future
+      // dedicated endpoint.
+      throw new ForbiddenException(
+        'Teachers see aggregated wellbeing trends only — the per-check-in list is restricted to the counselling team.',
+      );
     } else {
       // Parent / unknown — should already 403 at the gate, but guard.
       return [];
@@ -237,8 +253,8 @@ export class CheckinService {
       return client.$queryRawUnsafe<CheckinRow[]>(sql.join(''), ...params);
     });
     const dtos = rows.map(rowToCheckinDto);
-    if (!actor.isSchoolAdmin && !isCounsellor && actor.personType === 'STAFF') {
-      return dtos.map(stripCheckinForTeacher);
+    if (isStudentScope) {
+      return dtos.map(stripCheckinForStudent);
     }
     return dtos;
   }
@@ -261,7 +277,13 @@ export class CheckinService {
       );
     });
     const responses = studentRows.map(rowToResponseDto);
-    return { ...dto, responses };
+    const full = { ...dto, responses };
+    // REVIEW-CYCLE11.1 BLOCKING 1 — strip flaggedForFollowUp +
+    // assigned-counsellor metadata for the student's own-detail view.
+    if (actor.personType === 'STUDENT') {
+      return { ...stripCheckinForStudent(full), responses };
+    }
+    return full;
   }
 
   /**
@@ -344,9 +366,17 @@ export class CheckinService {
     //   - every question_id in the template appears in the input
     //   - no foreign question_ids
     //   - response_shape: numeric or text required
+    //   - REVIEW-CYCLE11.1 BLOCKING 2 — response shape + numeric range
+    //     match the question_type. The DTO only validates that
+    //     numericResponse is an integer; the schema only requires at
+    //     least one of numeric/text to be populated. Without per-type
+    //     validation a client can store YES_NO=7, SCALE_1_5=999, or
+    //     answer FREE_TEXT with a number — corrupting the alert
+    //     evaluation + future analytics.
     const inputByQuestion = new Map<string, { numericResponse?: number; textResponse?: string }>();
     for (const r of input.responses) {
-      if (!questionsById.has(r.questionId)) {
+      const q = questionsById.get(r.questionId);
+      if (!q) {
         throw new BadRequestException(
           'Response references questionId ' +
             r.questionId +
@@ -363,6 +393,7 @@ export class CheckinService {
           'Response for question ' + r.questionId + ' must include numericResponse or textResponse',
         );
       }
+      assertResponseShape(q, r.numericResponse, r.textResponse);
       inputByQuestion.set(r.questionId, {
         numericResponse: r.numericResponse,
         textResponse: r.textResponse,
@@ -568,6 +599,81 @@ interface AlertTrigger {
  * 5-value alert_type CHECK in the schema accepts them but no service
  * generates them this cycle.
  */
+/**
+ * REVIEW-CYCLE11.1 BLOCKING 2 — per-question-type response shape +
+ * range validation. Called inside the submit pre-tx loop, throws a
+ * BadRequestException with a clear per-question error message on the
+ * first malformed response. This is the server-side gate; the Step 7
+ * student UI also constrains inputs but a custom client could bypass
+ * the UI and submit raw payloads.
+ *
+ * Shape rules (mirrors the question_type 5-value CHECK on
+ * svc_wellbeing_questions):
+ *   YES_NO       — numericResponse in {0, 1}; text not allowed.
+ *   SCALE_1_5    — numericResponse integer in [1, 5]; text not allowed.
+ *   EMOJI_SCALE  — numericResponse integer in [1, 5]; text not allowed.
+ *   SCALE_1_10   — numericResponse integer in [1, 10]; text not allowed.
+ *   FREE_TEXT    — non-blank textResponse; numeric not allowed.
+ */
+function assertResponseShape(
+  q: QuestionLookupRow,
+  numeric: number | null | undefined,
+  text: string | null | undefined,
+): void {
+  const qt = q.question_type;
+  const tag = '"' + q.question_text + '" (id ' + q.id + ')';
+  const hasNumeric = numeric !== undefined && numeric !== null;
+  const hasText = text !== undefined && text !== null && text.trim().length > 0;
+  if (qt === 'FREE_TEXT') {
+    if (hasNumeric) {
+      throw new BadRequestException(
+        'Question ' + tag + ' is FREE_TEXT and does not accept a numeric response.',
+      );
+    }
+    if (!hasText) {
+      throw new BadRequestException(
+        'Question ' + tag + ' is FREE_TEXT and requires a non-blank text response.',
+      );
+    }
+    return;
+  }
+  // Numeric-only question types.
+  if (hasText) {
+    throw new BadRequestException(
+      'Question ' + tag + ' is ' + qt + ' and does not accept a text response.',
+    );
+  }
+  if (!hasNumeric || !Number.isInteger(numeric)) {
+    throw new BadRequestException(
+      'Question ' + tag + ' is ' + qt + ' and requires an integer numericResponse.',
+    );
+  }
+  const n = numeric as number;
+  if (qt === 'YES_NO') {
+    if (n !== 0 && n !== 1) {
+      throw new BadRequestException(
+        'Question ' + tag + ' is YES_NO and requires numericResponse 0 (No) or 1 (Yes).',
+      );
+    }
+  } else if (qt === 'SCALE_1_5' || qt === 'EMOJI_SCALE') {
+    if (n < 1 || n > 5) {
+      throw new BadRequestException(
+        'Question ' + tag + ' is ' + qt + ' and requires numericResponse in [1, 5].',
+      );
+    }
+  } else if (qt === 'SCALE_1_10') {
+    if (n < 1 || n > 10) {
+      throw new BadRequestException(
+        'Question ' + tag + ' is SCALE_1_10 and requires numericResponse in [1, 10].',
+      );
+    }
+  } else {
+    // Unknown type — defensive; the schema CHECK would have rejected
+    // this on insert anyway.
+    throw new BadRequestException('Question ' + tag + ' has an unrecognised question_type ' + qt);
+  }
+}
+
 function evaluateResponse(
   domain: WellbeingDomain,
   questionType: QuestionType,

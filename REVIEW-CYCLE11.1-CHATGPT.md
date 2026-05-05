@@ -147,8 +147,111 @@ No web changes. No new Kafka emits. The race-loser surfaces as the same 409 the 
 
 ---
 
-## Round 2 — Cycle 11.1 review TBD
+## Round 2 — `b58e591` against `origin/main` (the actual Cycle 11.1 review)
 
-The Round 1 reviewer didn't actually see Cycle 11.1; only the Phase 2 Parent Polish tip. Re-trigger the review pointed at `origin/main` post-`a5abe4e` (and post-Phase 2 fix commit) so the reviewer reads the real Cycle 11.1 surface. The reviewer prompt at the top of this file is still valid — paste it into the review chat alongside the latest commit SHA on `origin/main`.
+**Verdict:** REJECT pending fixes — 2 BLOCKING + 4 MAJOR.
 
-After Round 2 lands its verdict + any fixes, tag `cycle11.1-approved` on the closeout commit.
+Reviewer confirmed the Round 1 misdirection had been corrected (`/api/v1/enrollment/search` exemption, `FamilyAccountService` joins `platform.schools`, child-link partial UNIQUE indexes all present), confirmed the wellbeing module is registered, schema is disciplined, submit concurrency lock is correct, alert evaluation precedence is correct, alert lifecycle locking is correct, and the ADR-057 envelopes capture cleanly.
+
+Found 2 BLOCKINGs (privacy gap on student `flaggedForFollowUp` + missing per-question-type response validation) plus 4 MAJORs (teacher row-level access leaks counts, CUSTOM_LIST/CLASS silently drops invalid IDs, SCHOOL targeting too broad for non-admin counsellors, no schema-side dedup on `(deployment_id, student_id)`).
+
+### Triage
+
+| #          | Severity                                        | Finding                                                                                                                                                                                                                                                                    | Status                              |
+| ---------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| BLOCKING 1 | PRIVACY (student-input contract)                | `CheckinService.list` + `getById` returned `flaggedForFollowUp=true` to the student who owns the check-in. The Step 7 student UI doesn't render it but a custom client could read it.                                                                                      | **FIXED**                           |
+| BLOCKING 2 | DATA INTEGRITY (server-side validation)         | Submit pre-tx validation only checked "has either numeric or text"; no per-question-type range. A custom client could store `YES_NO=7`, `SCALE_1_5=999`, or `FREE_TEXT` answered numeric-only.                                                                             | **FIXED**                           |
+| MAJOR 3    | PRIVACY (teacher row-level access)              | Teacher list returned row-level cross-tenant data with identity stripped, but counts / completed-vs-pending timing / `flagged=true` filter cardinality leaked. The reviewer's safest-fix path is "no row-level access for teachers; aggregate-only via a future endpoint." | **FIXED** (denied at service layer) |
+| MAJOR 4    | BUG (silent drop of invalid target ids)         | `CUSTOM_LIST` and `CLASS` activation resolved supplied ids by `WHERE id = ANY(...)` and silently used whatever rows came back. Mistyped or stale ids reduced the audience without erroring.                                                                                | **FIXED**                           |
+| MAJOR 5    | LOCKED PRODUCT/SECURITY DECISION (SCHOOL gate)  | Any counsellor with `cou-004:write` could create + activate a SCHOOL-wide deployment fanning out to every active student. Reviewer said "should be a locked product/security decision." Decision: admin only.                                                              | **FIXED**                           |
+| MAJOR 6    | SCHEMA (no `(deployment_id, student_id)` dedup) | The activate keystone's row lock prevents same-deployment double-activation but the schema didn't enforce uniqueness. Future backfills / repair jobs / manual inserts could land duplicate rows.                                                                           | **FIXED**                           |
+
+### Fix details
+
+**BLOCKING 1 — student-strip on `flaggedForFollowUp`.** New `stripCheckinForStudent` helper at `apps/api/src/wellbeing/checkin.service.ts` mirroring the teacher pattern. Applied in `list()` (when `actor.personType === 'STUDENT'`) and `getById()` (final-pass strip after responses are inlined; preserves `responses` because the student legitimately sees their own answers in `/wellbeing/history`). Strips `flaggedForFollowUp` (alert state — students never see follow-up flags) plus `assignedCounselorId` + `assignedCounselorName` (avoid leaking caseload assignments through the student API).
+
+**BLOCKING 2 — per-question-type validation.** New module-bottom `assertResponseShape(q, numeric, text)` helper at `checkin.service.ts`. Called inside the submit pre-tx loop, throws `BadRequestException` with a clear per-question error message on the first malformed response. Rules: `YES_NO` numeric in {0,1} text-not-allowed; `SCALE_1_5` + `EMOJI_SCALE` integer in [1,5] text-not-allowed; `SCALE_1_10` integer in [1,10] text-not-allowed; `FREE_TEXT` non-blank text numeric-not-allowed. The DTO `@IsInt()` decorator stays in place; the per-type range check is the new gate.
+
+**MAJOR 3 — deny teacher row-level entirely.** `CheckinService.list` now throws `ForbiddenException` ("Teachers see aggregated wellbeing trends only — the per-check-in list is restricted to the counselling team.") for any non-admin / non-counsellor STAFF actor. The previous `stripCheckinForTeacher` helper is documented as removed for this reason; future teacher-trend surfaces should land as a dedicated aggregate endpoint that returns pre-aggregated counts, not row-level objects with identity scrubbed.
+
+**MAJOR 4 — count-match validation on CUSTOM_LIST + CLASS.** New `assertAllStudentsExist(ids)` and `assertAllClassesExist(ids)` helpers on `DeploymentService` called from `create()` for the corresponding target types. Pre-flight pass selects matching rows, compares count to input length, and 400s with the missing ids inlined when the counts don't match. Belt-and-braces inside `resolveAudience` at activate time too — if rows changed between create and activate the activate path catches the mismatch.
+
+**MAJOR 5 — SCHOOL admin-only.** `DeploymentService.create()` rejects `target_type='SCHOOL'` from non-admin actors with `ForbiddenException("SCHOOL-wide deployments require school-admin authorisation. Counsellors should target CASELOAD, CLASS, or CUSTOM_LIST instead.")`. Belt-and-braces at activate time too — even if a row somehow exists with `target_type='SCHOOL'` and a non-admin activator, the activate path refuses the fan-out.
+
+**MAJOR 6 — partial UNIQUE INDEX on `(deployment_id, student_id) WHERE deployment_id IS NOT NULL`.** Tenant migration `042_svc_wellbeing_checkins_dedup.sql`. PARTIAL because ad-hoc check-ins (`deployment_id NULL`) intentionally allow multiple rows for the same student over time. The activate keystone's row lock already prevents double-activation; the index is the schema-side belt-and-braces against future backfill / repair / manual insert paths.
+
+### Live verification on `tenant_demo` 2026-05-05
+
+**BLOCKING 1 strip:**
+
+```
+Maya GET /checkins (own scope):
+  flaggedForFollowUp=False  assignedCounselorId=None  assignedCounselorName=None  (DB has true / Hayes — stripped server-side)
+Maya GET /checkins/:id (own detail):
+  flaggedForFollowUp=False  responses=5  (responses preserved)
+Counsellor GET same /:id:
+  flaggedForFollowUp=True  assignedCounselorName='Marcus Hayes'  (counsellor sees truth)
+```
+
+**BLOCKING 2 validation:**
+
+```
+T1 YES_NO=7              → 400 "is YES_NO and requires numericResponse 0 (No) or 1 (Yes)"
+T2 SCALE_1_5=999         → 400 "is SCALE_1_5 and requires numericResponse in [1, 5]"
+T3 SCALE_1_10=99         → 400 "is SCALE_1_10 and requires numericResponse in [1, 10]"
+T4 FREE_TEXT numeric-only → 400 "is FREE_TEXT and does not accept a numeric response"
+T5 SCALE_1_5 text-only   → 400 "is SCALE_1_5 and does not accept a text response"
+T6 EMOJI_SCALE=10        → 400 "is EMOJI_SCALE and requires numericResponse in [1, 5]"
+T7 happy path all in range → 201
+```
+
+**MAJOR 3 teacher row-level denial:**
+
+```
+teacher GET /checkins        → 403 "Teachers see aggregated wellbeing trends only — the per-check-in list is restricted to the counselling team"
+teacher GET /checkins/:id    → 403  (already in place pre-fix)
+```
+
+**MAJOR 4 count-match:**
+
+```
+Counsellor POST CUSTOM_LIST [Maya, BOGUS]:
+  → 400 "targetIds referenced 1 student id(s) that do not exist in this tenant: 11111111-2222-4333-8444-555555555555"
+Counsellor POST CUSTOM_LIST [BOGUS]:
+  → 400 (same shape)
+Counsellor POST CLASS [<real_class_id>, BOGUS]:
+  → 400 "targetIds referenced 1 class id(s) that do not exist in this tenant: 11111111-2222-4333-8444-555555555555"
+Counsellor POST CUSTOM_LIST [Maya] — happy path:
+  → 201 status=SCHEDULED
+```
+
+**MAJOR 5 SCHOOL gate:**
+
+```
+Counsellor POST SCHOOL → 403 "SCHOOL-wide deployments require school-admin authorisation. Counsellors should target CASELOAD, CLASS, or CUSTOM_LIST instead."
+School admin (principal@) POST SCHOOL → 201 (allowed)
+Synthetic Platform Admin (admin@) POST SCHOOL → 403 "Deployer must have an employee record" (Cycle 4 Step 0 design — admin@ is not bridged to hr_employees)
+```
+
+**MAJOR 6 partial UNIQUE:**
+
+```
+T1 INSERT 2nd row for (deployment_id, student_id) of seeded Maya check-in → REJECTED by svc_wellbeing_checkins_deployment_student_uq
+T2 INSERT 2 ad-hoc check-ins (deployment_id NULL) for same student → ACCEPTED (partial index excludes NULL — ad-hoc check-ins legitimately allow multiples over time)
+```
+
+Smoke residue cleaned (CAT smoke template + deployments + check-ins + responses + alerts dropped via `DELETE … WHERE template.name = 'R2 BLOCKING2 — Per-type smoke'` walking the graph in reverse). Tenant returns to post-Step-3 seed shape exactly: `templates=1 questions=5 deployments=1 checkins=2 responses=5 alerts=1`.
+
+### Files changed in the Round 2 fix commit
+
+- `apps/api/src/wellbeing/checkin.service.ts` — added `stripCheckinForStudent` helper; `list()` denies non-counsellor STAFF with 403, applies student strip; `getById()` applies student strip to the inlined-responses DTO; `submit()` calls new `assertResponseShape()` per response in the pre-tx validation loop. Removed unused `stripCheckinForTeacher` helper (MAJOR 3 path eliminated all callers).
+- `apps/api/src/wellbeing/deployment.service.ts` — `create()` rejects SCHOOL from non-admin (MAJOR 5) + pre-flights `assertAllStudentsExist` / `assertAllClassesExist` for CUSTOM_LIST / CLASS targets (MAJOR 4); `activate()` belt-and-braces SCHOOL admin-only check inside the locked tx; `resolveAudience()` count-match validation on CUSTOM_LIST + CLASS at audience-resolution time too.
+- `packages/database/prisma/tenant/migrations/042_svc_wellbeing_checkins_dedup.sql` — new migration: partial UNIQUE INDEX on `(deployment_id, student_id) WHERE deployment_id IS NOT NULL` (MAJOR 6).
+
+No web changes. No new Kafka emits. No new endpoints.
+
+### Open follow-ups carried to Wave 2 Phase 2 backlog
+
+- **Aggregate trend endpoint for teachers** — the MAJOR 3 fix denies row-level entirely. A dedicated `GET /counselling/wellbeing/trends` returning pre-aggregated per-template completion counts (and per-domain mean scores, anonymised) is a reasonable Phase 2 surface to give teachers something useful without leaking row-level data. Out of scope for the Round 2 fix.
+
+After Round 3 lands its verdict, tag `cycle11.1-approved` on the closeout commit.
