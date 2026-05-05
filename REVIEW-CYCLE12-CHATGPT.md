@@ -1,8 +1,8 @@
 # REVIEW-CYCLE12 — Cycle 12 (Library) Architecture Review
 
-**Reviewer verdict:** Round 1 against `cycle12-complete` at `41b8736` returned **Reject pending fixes**. 4 BLOCKING items + 3 MAJOR follow-ups (tracked as Phase 2 punch list per the reviewer's gate decision).
+**Reviewer verdict:** Round 1 against `cycle12-complete` at `41b8736` returned **Reject pending fixes** with 4 BLOCKING items + 3 MAJOR follow-ups. Round 2 against `e5620a9` returned **Approved** — _"Cycle 12 is clean from my review perspective. The four blockers are fixed, the fixes match the code, and the remaining items are appropriate Phase 2 hardening tasks."_ All 4 BLOCKING fixes verified live on `tenant_demo` 2026-05-05; CI green on the closeout commit.
 
-**Round 2 status:** all 4 BLOCKING fixes landed in the closeout commit, verified live on `tenant_demo` 2026-05-05. Resubmitting for review at the new HEAD of `main` after CI green.
+Tagged `cycle12-complete` on `41b8736` (the original closeout commit + first CAT) and `cycle12-approved` on `e5620a9` (the REVIEW-CYCLE12 fix commit, after Round 2 APPROVED).
 
 ## Round 1 finding triage
 
@@ -177,6 +177,15 @@ These three follow-ups are tracked in `CLAUDE.md`'s Wave 2 Phase 2 punch list an
 - [x] `pnpm test` 7/7 pass
 - [x] `tenant_demo` restored to post-Step-4 seed shape exactly (locations=3, items=5, copies=11, checkouts=3, holds=1, fines=1, programmes=1, progress=1, logs=2, lists=1, list_items=3, reviews=1)
 
-## Re-review request
+## Round 2 reviewer verdict (2026-05-05) — Approved
 
-Please re-review at the new HEAD of `main` after CI green. The four BLOCKING fixes are minimal-scope and verified live; the three MAJOR follow-ups are tracked as Phase 2 punch list per the reviewer's stated gate decision.
+Cycle 12 is clean from the reviewer's perspective. The reviewer cache-busted each affected file in code at `e5620a9` and confirmed:
+
+1. ✅ `GET /library/checkouts/:id` row scope — non-librarian patrons get 404 on rows they don't own
+2. ✅ `GET /library/holds/:id` row scope — same pattern, 404 on non-owner
+3. ✅ Barcode lookup patron-identity strip — `activeCheckout: null` for catalogue-only readers, `isCheckedOut` boolean shows availability without leaking patron identity
+4. ✅ Cross-tenant patron validation — `resolvePatronType` joins through tenant `sis_students`, `assertPatronInCurrentTenant` reused by checkout + hold-on-behalf
+
+The 3 MAJOR follow-ups (review-moderation scope / STAFF reading-log breadth / hold duplicate race) "do not block Cycle 12 approval" and are appropriate Phase 2 hardening tasks.
+
+**Final gate decision: Approved.** Tagged `cycle12-approved` on `e5620a9`.
