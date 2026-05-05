@@ -6,6 +6,7 @@ import {
   AcademicCapIcon,
   AttendanceIcon,
   BanknotesIcon,
+  BookIcon,
   CalendarIcon,
   ChatBubbleIcon,
   CheckCircleIcon,
@@ -40,7 +41,8 @@ export type AppKey =
   | 'behaviour'
   | 'health'
   | 'counselling'
-  | 'wellbeing';
+  | 'wellbeing'
+  | 'library';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -296,6 +298,29 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'School-wide training compliance',
       href: '/compliance',
       icon: CheckCircleIcon,
+    });
+  }
+
+  // Cycle 12 — Library tile gated on lib-001:read (held by every persona
+  // including parent). Persona-aware copy: librarian sees the
+  // circulation-desk shortcut; patrons see the catalogue browse +
+  // own checkouts/holds. The /library landing page branches on
+  // persona to show the right view, so the tile route is shared.
+  if (hasAnyPermission(user, ['lib-001:read'])) {
+    const isLibrarian = isAdmin || (isStaff && hasAnyPermission(user, ['lib-001:write']));
+    apps.push({
+      key: 'library',
+      label: 'Library',
+      description: isLibrarian
+        ? 'Catalogue, circulation desk, and fines'
+        : isStudent
+          ? 'Browse the catalogue, your checkouts, and reading log'
+          : isGuardian
+            ? 'Browse the school library catalogue'
+            : 'Catalogue and your checkouts',
+      href: '/library',
+      routePrefix: '/library',
+      icon: BookIcon,
     });
   }
 

@@ -1,6 +1,6 @@
 # Cycle 12 Handoff — Library
 
-**Status:** Cycle 12 **IN PROGRESS — schema + seed + catalogue + circulation + reading/reviews done (Steps 1–7).** Cycle 12 ships the M24 Library module — 14 of the 20 ERD tables in scope across 4 domains (catalogue + locations + copies in Step 1; circulation policies + checkouts + holds + fines in Step 2; reading programmes + lists + reviews in Step 3). The 6 deferred tables (recommendations, class set checkouts, interlibrary loans, import jobs, AI scan sessions) park as Cycle 12.1 / Wave 3. Cycle 12 introduces the **first entirely new module prefix** (`lib_*`) since Cycle 10's `hlth_*`, ships the **second student-input surface** in CampusOS after Cycle 11.1 (students log reading entries + write book reviews — verified live in Step 7), and adds the librarian as the third specialist operator persona alongside the nurse (Cycle 10) and counsellor (Cycle 11). Backend phase complete: 46 endpoints across 10 services + 10 controllers + 1 Kafka emit. Steps 8–10 (UI + vertical-slice CAT) remain.
+**Status:** Cycle 12 **IN PROGRESS — schema + seed + catalogue + circulation + reading/reviews + catalogue/circulation UI done (Steps 1–8).** Cycle 12 ships the M24 Library module — 14 of the 20 ERD tables in scope across 4 domains (catalogue + locations + copies in Step 1; circulation policies + checkouts + holds + fines in Step 2; reading programmes + lists + reviews in Step 3). The 6 deferred tables (recommendations, class set checkouts, interlibrary loans, import jobs, AI scan sessions) park as Cycle 12.1 / Wave 3. Cycle 12 introduces the **first entirely new module prefix** (`lib_*`) since Cycle 10's `hlth_*`, ships the **second student-input surface** in CampusOS after Cycle 11.1 (students log reading entries + write book reviews — verified live in Step 7), and adds the librarian as the third specialist operator persona alongside the nurse (Cycle 10) and counsellor (Cycle 11). Backend phase complete: 46 endpoints across 10 services + 10 controllers + 1 Kafka emit. Step 8 ships 5 web routes (`/library`, `/library/catalogue`, `/library/catalogue/[id]`, `/library/circulation`, `/library/fines`) + Library launchpad tile + `library-format.ts` helpers + `use-library.ts` hooks (~30 hooks) + ~300 lines of Library DTOs. Steps 9–10 (Reading + Reviews + Student Portal UI + vertical-slice CAT) remain.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle12-implementation-plan.html`
@@ -21,7 +21,7 @@ This document tracks the Cycle 12 build at the same level of detail as `HANDOFF-
 | 5    | Catalogue NestJS Module                                     | **DONE**    |
 | 6    | Circulation NestJS Module                                   | **DONE**    |
 | 7    | Reading + Reviews NestJS Module                             | **DONE**    |
-| 8    | Library UI — Catalogue + Circulation                        | **PENDING** |
+| 8    | Library UI — Catalogue + Circulation                        | **DONE**    |
 | 9    | Library UI — Reading + Reviews + Student Portal             | **PENDING** |
 | 10   | Vertical Slice Integration Test                             | **PENDING** |
 
@@ -599,15 +599,42 @@ Cleanup restores `tenant_demo` to seed shape exactly: items=5, copies=11, checko
 
 ## Step 8 — Library UI: Catalogue + Circulation
 
-**Status:** PENDING.
+**Status:** DONE.
 
-5 routes:
+5 routes shipped. Web build clean, 7/7 API tests pass, prettier clean.
 
-- `/library` — Library Dashboard with Library app tile. Librarian: scan barcode input + overdue / active-hold counters + today's checkouts. Student/parent: search + my checkouts + my holds + reading programme.
-- `/library/catalogue` — full-text search bar with real-time GIN-backed results. Filter chips by category + author. Per-result card with cover + availability + rating.
-- `/library/catalogue/:id` — full item metadata + copies table + Hold button + reviews + reading lists that include it.
-- `/library/circulation` — barcode scan input + checkout history with active / overdue / returned filters + per-row return / renew buttons.
-- `/library/fines` — outstanding fines list with pay / waive buttons.
+**Foundation:**
+
+- `apps/web/src/components/shell/icons.tsx` — added `BookIcon` (Heroicons book-open).
+- `apps/web/src/components/shell/apps.tsx` — `library` AppKey + tile gated on `lib-001:read` (every persona) with persona-aware description; `routePrefix: '/library'` keeps tile lit on every nested route.
+- `apps/web/src/lib/library-format.ts` — const arrays + label maps (LIBRARY_COPY_CONDITION_LABELS, LIBRARY_COPY_LOCATION_STATUS_LABELS, LIBRARY_CHECKOUT_STATUS_LABELS, LIBRARY_HOLD_STATUS_LABELS, LIBRARY_FINE_TYPE_LABELS, LIBRARY_FINE_STATUS_LABELS, LIBRARY_AUDIENCE_TYPE_LABELS) + pill class maps (CHECKOUT_STATUS_PILL, COPY_LOCATION_STATUS_PILL, HOLD_STATUS_PILL, FINE_STATUS_PILL, FINE_TYPE_PILL, COPY_CONDITION_PILL) + helpers (formatDate, formatCurrency, formatDaysUntilDue, isOverdue, formatRelative, isCheckoutLive).
+- `apps/web/src/hooks/use-library.ts` — React Query hooks for every Library endpoint shipped in Steps 5–7: locations, catalogue search + item + copies, checkouts (mine + barcode lookup + create + return + renew), holds (mine + place + cancel + collect), fines (list + pay + waive), reading programmes + my-progress, reading log, reading lists + items, item reviews + submit + update + hide/unhide.
+- `apps/web/src/lib/types.ts` — appended ~300 lines of Library DTOs (LibraryAudienceType / LibraryCopyCondition / LibraryCopyLocationStatus / LibraryCheckoutStatus / LibraryHoldStatus / LibraryFineStatus / LibraryFineType / LibraryReadingProgrammeStatus / LibraryReadingLogStatus / LibraryReadingListVisibility / LibraryReadingListSource / LibraryReviewStatus + 24 DTO + payload interfaces).
+
+**5 pages:**
+
+- `/library` — persona-aware. `LibrarianDashboard` (admin / `lib-001:write`): `BarcodeScanCard` with auto-focus input that on Enter runs `useBarcodeLookup` and routes to `/library/circulation?barcode=…`; 4-stat tiles (active checkouts / overdue / pending holds / open fines); recent active-checkouts list. `PatronDashboard` (student / parent / teacher fallback): my checkouts (live filtered with overdue tinting), my holds (with Cancel button when PENDING), my open fines.
+- `/library/catalogue` — search bar + author filter input + dynamic category facet chips derived from current result set; calls `useCatalogueSearch({q, category, author})` with React Query 30s staleTime so the GIN-backed search ranks live. Result cards show cover placeholder / title / author / Dewey decimal / availability colour-coded (emerald when ≥1 / rose when 0) / `★ rating (count)`. Cards link to `/library/catalogue/:id`.
+- `/library/catalogue/[id]` — `ItemHeader` (cover + title + author + category pill) + about grid + Availability aside (`PlaceHoldButton` shows only when `availableCopies===0`) + Reader-rating aside (when reviews exist) + `CopiesTable` (barcode / condition / location / status pills) + `ReviewsSection` with `SubmitReviewForm` (5-button 1–5 star + textarea, students only — `personType==='STUDENT'` gates render, service-layer keystone is the actual access boundary) and `myReview` short-circuit when student already submitted; teacher / admin / librarian get inline Hide / Unhide buttons on each review (calls `useHideReview` / `useUnhideReview`).
+- `/library/circulation` — librarian-only page (gated client-side on `sch-001:admin OR lib-001:write`; non-librarians get a redirect-message card pointing at `/library`). 3 sections: `CheckoutScanner` (auto-focused barcode input + patron id input + Lookup button calling `useBarcodeLookup` + 3 action buttons Checkout / Return / Renew with the active-checkout panel showing patron + due date + status); `ReadyHoldsBoard` (lists READY holds with patron + ready-since + "Mark collected" button via `useCollectHold`); `CheckoutHistory` (5 status filter chips All / Active / Overdue / Returned / Lost + table with status + days-until-due + per-row Return + Renew on active rows).
+- `/library/fines` — librarian + patron view. 3-stat header (Outstanding total in rose / Outstanding count / Total fines). 4 status filter chips (Outstanding / Paid / Waived / All). Per-row: item title + fine-type pill + status pill + patron + days-overdue + amount; librarian sees Mark-paid button (calls `usePayFine`); admin additionally sees Waive button that opens `WaiveForm` Modal with required reason (1–2000 chars) calling `useWaiveFine`.
+
+**Navigation:** Library tile lights up on `/library/*` via `routePrefix: '/library'`.
+
+**Build sizes** (web, all 5 routes):
+
+- `/library` 6.38 kB / 116 kB First Load JS
+- `/library/catalogue` 3.61 kB / 113 kB
+- `/library/catalogue/[id]` 7.35 kB / 117 kB
+- `/library/circulation` 6.93 kB / 116 kB
+- `/library/fines` 6.29 kB / 116 kB
+
+**Iteration issues caught + fixed during build:**
+
+1. Top-level `reviews` and `reviewsQ` declarations on `/library/catalogue/[id]/page.tsx` were unused (the `ReviewsSection` child component does its own fetch via `useItemReviews`); ESLint TS2322 flagged. Removed both, kept `const item = itemQ.data;` since it's used throughout the page.
+2. `FineRow` typed `fine` via `ReturnType<typeof useFines>['data'] extends Array<infer T> ? T : never` — TypeScript can't infer through `T[] | undefined`, resolved to `never`. Switched to importing `LibraryFineDto` directly.
+
+No backend changes — Step 8 sits entirely on the 36-endpoint surface from Steps 5–7. **Live verification deferred to Step 10 CAT** — page wiring matches the controller contracts already verified end-to-end in each module's smoke runs.
 
 ---
 

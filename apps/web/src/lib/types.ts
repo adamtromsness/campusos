@@ -3873,3 +3873,412 @@ export interface WellbeingAlertDto {
 export interface ResolveWellbeingAlertPayload {
   resolutionNotes: string;
 }
+
+// ─── Cycle 12 Library DTOs ────────────────────────────────────
+
+export type LibraryLocationType =
+  | 'SHELF'
+  | 'DISPLAY'
+  | 'BOOK_DROP'
+  | 'PROCESSING'
+  | 'REPAIR'
+  | 'STORAGE';
+
+export type LibraryCopyCondition = 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'LOST';
+
+export type LibraryCopyLocationStatus =
+  | 'ON_SHELF'
+  | 'IN_BOOK_DROP'
+  | 'IN_PROCESSING'
+  | 'CHECKED_OUT'
+  | 'ON_HOLD_SHELF'
+  | 'IN_REPAIR'
+  | 'LOST';
+
+export type LibraryPatronType = 'STUDENT' | 'STAFF';
+
+export type LibraryCheckoutStatus = 'ACTIVE' | 'RETURNED' | 'OVERDUE' | 'LOST';
+
+export type LibraryHoldStatus = 'PENDING' | 'READY' | 'COLLECTED' | 'EXPIRED' | 'CANCELLED';
+
+export type LibraryFineType = 'OVERDUE' | 'LOST' | 'DAMAGE';
+
+export type LibraryFineStatus = 'OUTSTANDING' | 'PAID' | 'WAIVED';
+
+export type ReadingProgrammeAudienceType = 'SCHOOL_WIDE' | 'YEAR_GROUP' | 'CLASS' | 'CUSTOM';
+
+export type ReadingListType =
+  | 'CLASS'
+  | 'YEAR_GROUP'
+  | 'CURRICULUM_UNIT'
+  | 'GENERAL'
+  | 'NEW_ARRIVALS';
+
+export type ReadingListItemType = 'REQUIRED' | 'RECOMMENDED' | 'EXTENSION' | 'REFERENCE';
+
+export interface LibraryLocationDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  locationType: LibraryLocationType;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLibraryLocationPayload {
+  name: string;
+  locationType: LibraryLocationType;
+  sortOrder?: number;
+}
+
+export interface UpdateLibraryLocationPayload {
+  name?: string;
+  locationType?: LibraryLocationType;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface LibraryCopyDto {
+  id: string;
+  catalogueItemId: string;
+  locationId: string | null;
+  locationName: string | null;
+  barcode: string;
+  condition: LibraryCopyCondition;
+  isAvailable: boolean;
+  replacementValue: number | null;
+  locationStatus: LibraryCopyLocationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLibraryCopyPayload {
+  barcode: string;
+  condition?: LibraryCopyCondition;
+  locationId?: string;
+  locationStatus?: LibraryCopyLocationStatus;
+  replacementValue?: number;
+}
+
+export interface UpdateLibraryCopyPayload {
+  condition?: LibraryCopyCondition;
+  locationId?: string | null;
+  locationStatus?: LibraryCopyLocationStatus;
+  isAvailable?: boolean;
+  replacementValue?: number;
+}
+
+export interface LibraryCatalogueItemSearchHitDto {
+  id: string;
+  title: string;
+  author: string | null;
+  isbn: string | null;
+  category: string | null;
+  deweyDecimal: string | null;
+  coverImageUrl: string | null;
+  totalCopies: number;
+  availableCopies: number;
+  averageRating: number | null;
+  reviewCount: number;
+}
+
+export interface LibraryCatalogueItemDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  author: string | null;
+  isbn: string | null;
+  publisher: string | null;
+  publishYear: number | null;
+  category: string | null;
+  deweyDecimal: string | null;
+  description: string | null;
+  coverImageUrl: string | null;
+  totalCopies: number;
+  availableCopies: number;
+  activeHoldsCount: number;
+  averageRating: number | null;
+  reviewCount: number;
+  copies?: LibraryCopyDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLibraryCatalogueItemPayload {
+  title: string;
+  author?: string;
+  isbn?: string;
+  publisher?: string;
+  publishYear?: number;
+  category?: string;
+  deweyDecimal?: string;
+  description?: string;
+  coverImageUrl?: string;
+}
+
+export interface UpdateLibraryCatalogueItemPayload extends Partial<CreateLibraryCatalogueItemPayload> {}
+
+export interface LibraryActiveCheckoutDto {
+  checkoutId: string;
+  patronId: string;
+  patronName: string | null;
+  checkoutDate: string;
+  dueDate: string;
+  daysUntilDue: number;
+  status: string;
+  renewalCount: number;
+}
+
+export interface LibraryBarcodeLookupDto {
+  copy: LibraryCopyDto;
+  item: LibraryCatalogueItemDto;
+  activeCheckout: LibraryActiveCheckoutDto | null;
+  pendingHoldsCount: number;
+}
+
+export interface LibraryCheckoutPolicyDto {
+  id: string;
+  schoolId: string;
+  patronType: LibraryPatronType;
+  maxCheckouts: number;
+  loanPeriodDays: number;
+  renewalsAllowed: number;
+  overdueFinePerDay: number;
+}
+
+export interface LibraryCheckoutDto {
+  id: string;
+  copyId: string;
+  copyBarcode: string;
+  itemTitle: string | null;
+  patronId: string;
+  patronName: string | null;
+  checkoutDate: string;
+  dueDate: string;
+  returnedAt: string | null;
+  renewalCount: number;
+  status: LibraryCheckoutStatus;
+  daysUntilDue: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLibraryCheckoutPayload {
+  barcode?: string;
+  copyId?: string;
+  patronId: string;
+  loanPeriodDays?: number;
+}
+
+export interface LibraryHoldDto {
+  id: string;
+  catalogueItemId: string;
+  itemTitle: string | null;
+  patronId: string;
+  patronName: string | null;
+  placedAt: string;
+  expiresAt: string | null;
+  status: LibraryHoldStatus;
+  notifiedAt: string | null;
+  queuePosition: number | null;
+}
+
+export interface CreateLibraryHoldPayload {
+  catalogueItemId: string;
+  patronId?: string;
+}
+
+export interface LibraryFineDto {
+  id: string;
+  checkoutId: string;
+  itemTitle: string | null;
+  patronId: string;
+  patronName: string | null;
+  fineType: LibraryFineType;
+  amount: number;
+  daysOverdue: number | null;
+  status: LibraryFineStatus;
+  invoiceId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WaiveLibraryFinePayload {
+  reason: string;
+}
+
+export interface ReadingProgrammeProgressDto {
+  programmeId: string;
+  studentId: string;
+  booksRead: number;
+  pagesRead: number;
+  isComplete: boolean;
+  lastUpdatedAt: string | null;
+}
+
+export interface ReadingProgrammeDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  academicYearId: string | null;
+  targetBooks: number | null;
+  targetPages: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  isActive: boolean;
+  targetAudienceType: ReadingProgrammeAudienceType;
+  targetId: string | null;
+  myProgress?: ReadingProgrammeProgressDto | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReadingProgrammePayload {
+  name: string;
+  description?: string;
+  academicYearId?: string;
+  targetBooks?: number;
+  targetPages?: number;
+  startDate?: string;
+  endDate?: string;
+  targetAudienceType: ReadingProgrammeAudienceType;
+  targetId?: string;
+}
+
+export interface UpdateReadingProgrammePayload {
+  name?: string;
+  description?: string;
+  targetBooks?: number;
+  targetPages?: number;
+  startDate?: string;
+  endDate?: string;
+  isActive?: boolean;
+}
+
+export interface ReadingProgrammeLeaderboardEntryDto {
+  studentId: string;
+  studentName: string | null;
+  booksRead: number;
+  pagesRead: number;
+  isComplete: boolean;
+}
+
+export interface ReadingLogDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  catalogueItemId: string;
+  itemTitle: string | null;
+  itemAuthor: string | null;
+  startedDate: string | null;
+  completedDate: string | null;
+  pagesRead: number | null;
+  rating: number | null;
+  reviewText: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReadingLogPayload {
+  catalogueItemId: string;
+  startedDate?: string;
+  completedDate?: string;
+  pagesRead?: number;
+  rating?: number;
+  reviewText?: string;
+}
+
+export interface UpdateReadingLogPayload {
+  startedDate?: string;
+  completedDate?: string;
+  pagesRead?: number;
+  rating?: number;
+  reviewText?: string;
+}
+
+export interface ReadingListItemDto {
+  id: string;
+  readingListId: string;
+  catalogueItemId: string;
+  itemTitle: string | null;
+  itemAuthor: string | null;
+  itemCoverImageUrl: string | null;
+  itemType: ReadingListItemType;
+  sortOrder: number;
+  notes: string | null;
+  addedById: string;
+  addedByName: string | null;
+  createdAt: string;
+}
+
+export interface ReadingListDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  listType: ReadingListType;
+  createdById: string;
+  createdByName: string | null;
+  targetClassId: string | null;
+  academicYearId: string | null;
+  isPublished: boolean;
+  publishedAt: string | null;
+  itemCount: number;
+  items?: ReadingListItemDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReadingListPayload {
+  name: string;
+  description?: string;
+  listType: ReadingListType;
+  targetClassId?: string;
+  academicYearId?: string;
+}
+
+export interface UpdateReadingListPayload {
+  name?: string;
+  description?: string;
+  listType?: ReadingListType;
+  targetClassId?: string;
+  isPublished?: boolean;
+}
+
+export interface CreateReadingListItemPayload {
+  catalogueItemId: string;
+  itemType?: ReadingListItemType;
+  sortOrder?: number;
+  notes?: string;
+}
+
+export interface UpdateReadingListItemPayload {
+  itemType?: ReadingListItemType;
+  sortOrder?: number;
+  notes?: string;
+}
+
+export interface LibraryReviewDto {
+  id: string;
+  itemId: string;
+  studentId: string;
+  studentName: string | null;
+  rating: number;
+  reviewText: string | null;
+  isApproved: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLibraryReviewPayload {
+  rating: number;
+  reviewText?: string;
+}
+
+export interface UpdateLibraryReviewPayload {
+  rating?: number;
+  reviewText?: string;
+}
