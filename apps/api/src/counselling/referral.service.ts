@@ -154,46 +154,50 @@ export class ReferralService {
   }
 
   /**
-   * Visibility model:
+   * Visibility model — split STAFF into counsellor vs non-counsellor
+   * branches per REVIEW-CYCLE11 BLOCKING 1. The previous implementation
+   * unioned (assigned | unassigned-triage-queue | own-submitted) for
+   * every STAFF actor with employeeId, which leaked the triage queue
+   * (and therefore every unassigned referral's reason text) to teachers
+   * who hold cou-002:write but not cou-001:write.
    *
-   * - Admin / counsellor (`isSchoolAdmin`)        → all referrals in tenant.
-   * - Counsellor (STAFF with employeeId, no admin scope) → referrals
-   *   assigned to me OR unassigned in this school (the triage queue).
-   *   The cou-002:write seed grant marks counsellors as having queue
-   *   visibility. Non-counsellor STAFF (a regular teacher) sees only
-   *   referrals they themselves submitted.
-   * - Teacher (STAFF without admin scope, no own caseloads) → own
-   *   submitted referrals (referred_by = me).
-   *   This is the same predicate the assigned_counselor branch falls
-   *   back to when the actor is not a counsellor; the assigned branch
-   *   has higher precedence so counsellors see the queue too.
+   * - Admin (`isSchoolAdmin`)                     → all referrals in tenant.
+   * - Counsellor (STAFF + holds cou-001:write)    → assigned to me OR
+   *   unassigned-triage-queue OR own-submitted. The triage queue
+   *   predicate is the gate that lets a counsellor pick up new work.
+   * - Non-counsellor STAFF (e.g. teacher with cou-002:write only)
+   *                                                → own-submitted only.
+   *   Teachers cannot enumerate the triage queue.
    * - Parent / Student / unknown                  → no rows.
    *
-   * Implementation: a single OR of the two staff predicates covers both
-   * Counsellor (assigned + unassigned) AND Teacher (own submitted)
-   * branches. Non-counsellor staff with no assigned rows simply see
-   * their own submissions and nothing in the queue (the assignment
-   * branch returns empty). Admin sees all.
+   * Async because the counsellor-scope check reads the IAM cache.
    */
-  private buildVisibility(
+  private async buildVisibility(
     actor: ResolvedActor,
     start: number,
-  ): { fragment: string; params: unknown[]; consumed: number } {
+  ): Promise<{ fragment: string; params: unknown[]; consumed: number }> {
     if (actor.isSchoolAdmin) {
       return { fragment: '', params: [], consumed: 0 };
     }
     if (actor.personType === 'STAFF' && actor.employeeId) {
-      // assigned_counselor_id = me OR (assigned_counselor_id IS NULL AND
-      // status='SUBMITTED' for the unassigned-triage queue) OR
-      // referred_by = me
+      const isCounsellor = await this.hasCounsellorScope(actor);
+      if (isCounsellor) {
+        // assigned_counselor_id = me OR unassigned-SUBMITTED triage queue OR own-submitted
+        return {
+          fragment:
+            'AND (r.assigned_counselor_id = $' +
+            start +
+            '::uuid OR (r.assigned_counselor_id IS NULL AND r.status = ' +
+            "'SUBMITTED') OR r.referred_by = $" +
+            start +
+            '::uuid) ',
+          params: [actor.employeeId],
+          consumed: 1,
+        };
+      }
+      // Non-counsellor STAFF: own-submitted only.
       return {
-        fragment:
-          'AND (r.assigned_counselor_id = $' +
-          start +
-          '::uuid OR (r.assigned_counselor_id IS NULL AND r.status = ' +
-          "'SUBMITTED') OR r.referred_by = $" +
-          start +
-          '::uuid) ',
+        fragment: 'AND r.referred_by = $' + start + '::uuid ',
         params: [actor.employeeId],
         consumed: 1,
       };
@@ -203,7 +207,7 @@ export class ReferralService {
 
   async list(query: ListReferralsQueryDto, actor: ResolvedActor): Promise<ReferralResponseDto[]> {
     const limit = Math.min(query.limit ?? 100, 200);
-    const visibility = this.buildVisibility(actor, 1);
+    const visibility = await this.buildVisibility(actor, 1);
     const sql: string[] = [SELECT_REFERRAL_BASE, 'WHERE 1=1 '];
     const params: unknown[] = [...visibility.params];
     let idx = 1 + visibility.consumed;
@@ -573,7 +577,7 @@ export class ReferralService {
   // ─── Internal helpers ─────────────────────────────────────────
 
   private async loadOrFail(id: string, actor: ResolvedActor): Promise<ReferralResponseDto> {
-    const visibility = this.buildVisibility(actor, 2);
+    const visibility = await this.buildVisibility(actor, 2);
     const sql = SELECT_REFERRAL_BASE + 'WHERE r.id = $1::uuid ' + visibility.fragment;
     const params: unknown[] = [id, ...visibility.params];
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {

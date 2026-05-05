@@ -132,10 +132,68 @@ export class InterventionService {
     ]);
   }
 
+  /**
+   * Per REVIEW-CYCLE11 MAJOR 5: non-admin counsellors can only view /
+   * mutate interventions whose parent tier's student is on their own
+   * active caseload. Admins bypass. Resolves the tier → student in
+   * one hop, then checks svc_caseloads for an ACTIVE row keyed on
+   * (counselor_id = actor.employeeId, student_id).
+   */
+  private async assertActorOwnsTier(actor: ResolvedActor, tierId: string): Promise<void> {
+    if (actor.isSchoolAdmin) return;
+    if (!actor.employeeId) {
+      throw new ForbiddenException('Counsellor must have an employee record');
+    }
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM svc_mtss_tiers t ' +
+          'JOIN svc_caseloads c ON c.student_id = t.student_id ' +
+          "WHERE t.id = $1::uuid AND c.counselor_id = $2::uuid AND c.status = 'ACTIVE' LIMIT 1",
+        tierId,
+        actor.employeeId,
+      );
+    });
+    if (rows.length === 0) {
+      throw new ForbiddenException(
+        'Non-admin counsellors can only access interventions for students on their own active caseload',
+      );
+    }
+  }
+
+  /**
+   * Per REVIEW-CYCLE11 MAJOR 5: same caseload check, but resolved from
+   * an intervention id (intervention → tier → student → caseload).
+   */
+  private async assertActorOwnsIntervention(
+    actor: ResolvedActor,
+    interventionId: string,
+  ): Promise<void> {
+    if (actor.isSchoolAdmin) return;
+    if (!actor.employeeId) {
+      throw new ForbiddenException('Counsellor must have an employee record');
+    }
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM svc_interventions i ' +
+          'JOIN svc_mtss_tiers t ON t.id = i.tier_id ' +
+          'JOIN svc_caseloads c ON c.student_id = t.student_id ' +
+          "WHERE i.id = $1::uuid AND c.counselor_id = $2::uuid AND c.status = 'ACTIVE' LIMIT 1",
+        interventionId,
+        actor.employeeId,
+      );
+    });
+    if (rows.length === 0) {
+      throw new ForbiddenException(
+        'Non-admin counsellors can only access interventions for students on their own active caseload',
+      );
+    }
+  }
+
   async listForTier(tierId: string, actor: ResolvedActor): Promise<InterventionResponseDto[]> {
     if (!(await this.hasCounsellorScope(actor))) {
       throw new ForbiddenException('Only counsellors or admins can view interventions');
     }
+    await this.assertActorOwnsTier(actor, tierId);
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<InterventionRow[]>(
         SELECT_INTERVENTION_BASE + 'WHERE i.tier_id = $1::uuid ORDER BY i.start_date DESC',
@@ -168,6 +226,7 @@ export class InterventionService {
     if (!(await this.hasCounsellorScope(actor))) {
       throw new ForbiddenException('Only counsellors or admins can view interventions');
     }
+    await this.assertActorOwnsIntervention(actor, id);
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<InterventionRow[]>(
         SELECT_INTERVENTION_BASE + 'WHERE i.id = $1::uuid',
@@ -205,6 +264,7 @@ export class InterventionService {
       if (r.length === 0)
         throw new BadRequestException('tierId does not match an MTSS tier in this school');
     });
+    await this.assertActorOwnsTier(actor, tierId);
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
@@ -233,6 +293,7 @@ export class InterventionService {
     if (!(await this.hasCounsellorScope(actor))) {
       throw new ForbiddenException('Only counsellors or admins can update interventions');
     }
+    await this.assertActorOwnsIntervention(actor, id);
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       const updates: string[] = [];
       const params: unknown[] = [id];
@@ -286,6 +347,7 @@ export class InterventionService {
     if (!actor.employeeId) {
       throw new ForbiddenException('Recorder must have an employee record');
     }
+    await this.assertActorOwnsIntervention(actor, interventionId);
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
@@ -317,6 +379,7 @@ export class InterventionService {
     if (!(await this.hasCounsellorScope(actor))) {
       throw new ForbiddenException('Only counsellors or admins can view intervention progress');
     }
+    await this.assertActorOwnsIntervention(actor, interventionId);
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<ProgressRow[]>(
         SELECT_PROGRESS_BASE +

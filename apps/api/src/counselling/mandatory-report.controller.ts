@@ -63,7 +63,7 @@ export class MandatoryReportController {
   @RequirePermission('cou-006:write')
   @ApiOperation({
     summary:
-      'File a new mandatory report. Any employee with cou-006:write can file — every staff member is a mandated reporter. Stamps reporter_person_id from actor.personId. status=FILED on creation.',
+      'File a new mandatory report. Locked product/security decision per REVIEW-CYCLE11 MAJOR 6: every employee is a mandated reporter under FERPA + state CPS statutes, so any staff actor with cou-006:write can file a report for ANY student in the school — there is intentionally no caseload / class-roster row-scope on the studentId. The legal duty to report runs against any student a staff member knows of, not just students within their day-to-day teaching scope. Stamps reporter_person_id from actor.personId. status=FILED on creation. Core fields are immutable once filed (see PATCH).',
   })
   async create(
     @Body() body: CreateMandatoryReportDto,

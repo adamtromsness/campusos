@@ -217,10 +217,21 @@ export class SessionService {
    *     shape — the session's identifying student lives on
    *     primary_caseload_id when set or on the participants list.
    * Validates referenced caseload + referral exist in this tenant.
+   *
+   * Per REVIEW-CYCLE11 BLOCKING 2: non-admin counsellors must own the
+   * row they are creating — `input.counselorId` must equal
+   * `actor.employeeId`. Admins may schedule on any counsellor's calendar.
    */
   async create(input: CreateSessionDto, actor: ResolvedActor): Promise<SessionResponseDto> {
     if (!(await this.hasCounsellorScope(actor))) {
       throw new ForbiddenException('Only counsellors or admins can create sessions');
+    }
+    if (!actor.isSchoolAdmin) {
+      if (!actor.employeeId || input.counselorId !== actor.employeeId) {
+        throw new ForbiddenException(
+          'Non-admin counsellors can only create sessions on their own calendar',
+        );
+      }
     }
     if (input.sessionType === 'INDIVIDUAL' && !input.primaryCaseloadId) {
       throw new BadRequestException(
@@ -286,6 +297,10 @@ export class SessionService {
    * status transitions cannot race; refuses updates to a CANCELLED or
    * COMPLETED+NO_SHOW row out of the box (set the row to SCHEDULED
    * first via a deliberate transition).
+   *
+   * Per REVIEW-CYCLE11 BLOCKING 2: non-admin counsellors can only
+   * update sessions where `counselor_id = actor.employeeId`. The check
+   * runs inside the same tx as the UPDATE so a race cannot bypass it.
    */
   async patch(
     id: string,
@@ -297,10 +312,13 @@ export class SessionService {
     }
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lockRows = (await tx.$queryRawUnsafe(
-        'SELECT id FROM svc_sessions WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id, counselor_id::text AS counselor_id FROM svc_sessions WHERE id = $1::uuid FOR UPDATE',
         id,
-      )) as Array<{ id: string }>;
+      )) as Array<{ id: string; counselor_id: string }>;
       if (lockRows.length === 0) throw new NotFoundException('Session ' + id);
+      if (!actor.isSchoolAdmin && lockRows[0]!.counselor_id !== actor.employeeId) {
+        throw new ForbiddenException('Non-admin counsellors can only update their own sessions');
+      }
       const updates: string[] = [];
       const params: unknown[] = [id];
       let idx = 2;
@@ -338,6 +356,9 @@ export class SessionService {
    * Add a student participant to a GROUP session (or pin an additional
    * student to a non-INDIVIDUAL session). UNIQUE(session_id,
    * student_id) catches duplicate adds with a friendly 400.
+   *
+   * Per REVIEW-CYCLE11 BLOCKING 2: non-admin counsellors can only add
+   * participants to sessions they own.
    */
   async addParticipant(
     sessionId: string,
@@ -347,13 +368,18 @@ export class SessionService {
     if (!(await this.hasCounsellorScope(actor))) {
       throw new ForbiddenException('Only counsellors or admins can manage session participants');
     }
-    // Validate session + student exist.
+    // Validate session exists + actor owns it (or is admin) + student exists.
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       const s = (await client.$queryRawUnsafe(
-        'SELECT 1 AS ok FROM svc_sessions WHERE id = $1::uuid LIMIT 1',
+        'SELECT counselor_id::text AS counselor_id FROM svc_sessions WHERE id = $1::uuid LIMIT 1',
         sessionId,
-      )) as Array<{ ok: number }>;
+      )) as Array<{ counselor_id: string }>;
       if (s.length === 0) throw new NotFoundException('Session ' + sessionId);
+      if (!actor.isSchoolAdmin && s[0]!.counselor_id !== actor.employeeId) {
+        throw new ForbiddenException(
+          'Non-admin counsellors can only add participants to their own sessions',
+        );
+      }
       const st = (await client.$queryRawUnsafe(
         'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid LIMIT 1',
         input.studentId,
@@ -390,6 +416,12 @@ export class SessionService {
     return rowToParticipantDto(rows[0]!);
   }
 
+  /**
+   * Per REVIEW-CYCLE11 BLOCKING 2: non-admin counsellors can only mark
+   * attendance for participants on sessions they own. Resolves the
+   * parent session's counselor_id and validates against actor.employeeId
+   * before mutating.
+   */
   async markAttendance(
     participantId: string,
     input: MarkAttendanceDto,
@@ -399,6 +431,18 @@ export class SessionService {
       throw new ForbiddenException('Only counsellors or admins can mark attendance');
     }
     await this.tenantPrisma.executeInTenantContext(async (client) => {
+      const sess = (await client.$queryRawUnsafe(
+        'SELECT s.counselor_id::text AS counselor_id FROM svc_session_participants sp ' +
+          'JOIN svc_sessions s ON s.id = sp.session_id ' +
+          'WHERE sp.id = $1::uuid LIMIT 1',
+        participantId,
+      )) as Array<{ counselor_id: string }>;
+      if (sess.length === 0) throw new NotFoundException('Session participant ' + participantId);
+      if (!actor.isSchoolAdmin && sess[0]!.counselor_id !== actor.employeeId) {
+        throw new ForbiddenException(
+          'Non-admin counsellors can only mark attendance for their own sessions',
+        );
+      }
       const r = await client.$executeRawUnsafe(
         'UPDATE svc_session_participants SET attendance_status = $2, notes = COALESCE($3, notes), updated_at = now() ' +
           'WHERE id = $1::uuid',

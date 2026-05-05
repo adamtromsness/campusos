@@ -195,6 +195,32 @@ export class MtssTierService {
   }
 
   /**
+   * Per REVIEW-CYCLE11 MAJOR 4: non-admin counsellors can only manage
+   * MTSS state for students on their own caseload. Admins bypass the
+   * check. Throws ForbiddenException when the caller is not the
+   * counsellor of record on any ACTIVE caseload row for the student.
+   */
+  private async assertActorOwnsStudent(actor: ResolvedActor, studentId: string): Promise<void> {
+    if (actor.isSchoolAdmin) return;
+    if (!actor.employeeId) {
+      throw new ForbiddenException('Counsellor must have an employee record');
+    }
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM svc_caseloads ' +
+          "WHERE counselor_id = $1::uuid AND student_id = $2::uuid AND status = 'ACTIVE' LIMIT 1",
+        actor.employeeId,
+        studentId,
+      );
+    });
+    if (rows.length === 0) {
+      throw new ForbiddenException(
+        'Non-admin counsellors can only manage MTSS state for students on their own active caseload',
+      );
+    }
+  }
+
+  /**
    * Visibility: admin sees school-wide. Counsellor (STAFF with
    * employeeId, no admin scope) sees only tiers for students linked to
    * their own caseloads (counselor_id = me on svc_caseloads). Anyone
@@ -309,6 +335,9 @@ export class MtssTierService {
     if (!actor.employeeId) {
       throw new ForbiddenException('Assigning counsellor must have an employee record');
     }
+    // Per REVIEW-CYCLE11 MAJOR 4: non-admin counsellors must own the
+    // student via an active caseload before assigning tier state.
+    await this.assertActorOwnsStudent(actor, input.studentId);
     const tenant = getCurrentTenant();
     const conflict = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ id: string; tier: string }>>(
@@ -380,11 +409,29 @@ export class MtssTierService {
     let newTier: string | null = null;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lockRows = (await tx.$queryRawUnsafe(
-        'SELECT tier, status FROM svc_mtss_tiers WHERE id = $1::uuid FOR UPDATE',
+        'SELECT tier, status, student_id::text AS student_id FROM svc_mtss_tiers WHERE id = $1::uuid FOR UPDATE',
         id,
-      )) as Array<{ tier: string; status: string }>;
+      )) as Array<{ tier: string; status: string; student_id: string }>;
       if (lockRows.length === 0) throw new NotFoundException('MTSS tier ' + id);
       oldTier = lockRows[0]!.tier;
+      // Per REVIEW-CYCLE11 MAJOR 4: non-admin counsellors can only patch
+      // tiers whose student is on their own active caseload.
+      if (!actor.isSchoolAdmin) {
+        if (!actor.employeeId) {
+          throw new ForbiddenException('Counsellor must have an employee record');
+        }
+        const own = (await tx.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM svc_caseloads ' +
+            "WHERE counselor_id = $1::uuid AND student_id = $2::uuid AND status = 'ACTIVE' LIMIT 1",
+          actor.employeeId,
+          lockRows[0]!.student_id,
+        )) as Array<{ ok: number }>;
+        if (own.length === 0) {
+          throw new ForbiddenException(
+            'Non-admin counsellors can only update MTSS tiers for students on their own active caseload',
+          );
+        }
+      }
       const updates: string[] = [];
       const params: unknown[] = [id];
       let idx = 2;
