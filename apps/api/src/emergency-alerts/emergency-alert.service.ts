@@ -276,34 +276,47 @@ export class EmergencyAlertService {
         input.incidentId ?? null,
       );
 
-      // Resolve recipients — every active platform_user with a
-      // role assignment scoped to the school OR platform-tier.
-      // Mirrors the audience-fan-out approach used by Cycle 3
-      // AudienceFanOutWorker for ALL_SCHOOL announcements.
+      // Resolve recipients — REVIEW-CYCLE14 MAJOR 3: drop the
+      // PLATFORM-scope branch so emergency alerts default to
+      // school-affiliated recipients only. Cross-tenant Platform
+      // Admin notification can be reintroduced as an explicit
+      // `includePlatformAdmins` option once a real-school operator
+      // workflow needs it. Today's recipient set = every active
+      // platform_user with at least one ACTIVE role assignment
+      // scoped to the issuing school.
       const recipients = (await tx.$queryRawUnsafe(
         'SELECT DISTINCT pu.id::text AS id FROM platform.platform_users pu ' +
           'JOIN platform.iam_role_assignment ra ON ra.account_id = pu.id ' +
           'JOIN platform.iam_scope sc ON sc.id = ra.scope_id ' +
           'JOIN platform.iam_scope_type st ON st.id = sc.scope_type_id ' +
-          "WHERE pu.is_active = true AND ra.is_active = true AND st.name IN ('SCHOOL', 'PLATFORM') " +
-          "AND (sc.scope_ref_id = $1::uuid OR st.name = 'PLATFORM')",
+          "WHERE pu.is_active = true AND ra.is_active = true AND st.name = 'SCHOOL' " +
+          'AND sc.scope_ref_id = $1::uuid',
         tenant.schoolId,
       )) as Array<{ id: string }>;
       recipientCount = recipients.length;
 
+      // REVIEW-CYCLE14 MAJOR 4: count actually-inserted rows via
+      // RETURNING so the emitted deliveryCount reflects the real
+      // delivery surface even when ON CONFLICT DO NOTHING short-
+      // circuits a duplicate (alert_id, recipient_id, channel)
+      // tuple. With a fresh alertId per call this is rare today,
+      // but a future deterministic-id retry path could rely on it.
       for (const r of recipients) {
         for (const channel of channels) {
           const delivId = generateId();
-          await tx.$executeRawUnsafe(
+          const inserted = (await tx.$queryRawUnsafe(
             'INSERT INTO msg_emergency_alert_deliveries (id, alert_id, recipient_id, channel, status) ' +
               "VALUES ($1::uuid, $2::uuid, $3::uuid, $4, 'PENDING') " +
-              'ON CONFLICT (alert_id, recipient_id, channel) DO NOTHING',
+              'ON CONFLICT (alert_id, recipient_id, channel) DO NOTHING ' +
+              'RETURNING id',
             delivId,
             alertId,
             r.id,
             channel,
-          );
-          deliveryCount += 1;
+          )) as Array<{ id: string }>;
+          if (inserted.length > 0) {
+            deliveryCount += 1;
+          }
         }
       }
     });

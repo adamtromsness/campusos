@@ -449,12 +449,15 @@ async function seedIam() {
         // banner + write for issuing emergency alerts via
         // EmergencyAlertService.
         'COM-003': ['read', 'write'],
-        // Cycle 14 — admin moderation queue + policy editor.
-        // ModerationReviewService is gated on COM-004:read for the
-        // queue list and COM-004:write for the release / confirm
-        // actions plus building-tier policy CRUD. Teachers,
-        // parents, and students never receive COM-004.
-        'COM-004': ['read', 'write'],
+        // REVIEW-CYCLE14 MAJOR 6 — COM-004 not granted to Staff
+        // because ModerationService.assertAdmin() requires
+        // actor.isSchoolAdmin specifically (a stricter contract
+        // than the permission gate on the controller). Moderation
+        // policy + queue + log are admin-only. Re-introducing
+        // COM-004 to Staff would require relaxing the service-side
+        // assertAdmin to accept tenant-scoped com-004:write — a
+        // locked product decision deferred to the AD/role-split
+        // pre-pilot work.
         'SCH-001': ['read'],
         'SCH-003': ['read'],
         // Cycle 5 — coverage read so VPs and counsellors who fill in as

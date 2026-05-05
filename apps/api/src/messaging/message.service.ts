@@ -263,15 +263,27 @@ export class MessageService {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var sql = SELECT_MESSAGE_BASE + 'WHERE m.thread_id = $1::uuid ';
       var params: any[] = [threadId];
-      if (query.before) {
-        sql += 'AND m.created_at < $2::timestamptz ';
-        params.push(query.before);
-        sql += 'ORDER BY m.created_at DESC LIMIT $3';
-        params.push(limit);
-      } else {
-        sql += 'ORDER BY m.created_at DESC LIMIT $2';
-        params.push(limit);
+      // REVIEW-CYCLE14 BLOCKING 1: hide BLOCKED / FLAGGED /
+      // ESCALATED messages from non-sender non-admin participants
+      // until the moderator releases them via PATCH
+      // /messaging/moderation/log/:id/review (which flips the
+      // parent message's moderation_status back to APPROVED).
+      // The original sender continues to see their own
+      // pending-moderation message. School admins see everything
+      // for moderation review purposes.
+      if (!actor.isSchoolAdmin) {
+        sql +=
+          "AND (m.moderation_status = 'APPROVED' OR m.sender_id = $" +
+          (params.length + 1) +
+          '::uuid) ';
+        params.push(actor.accountId);
       }
+      if (query.before) {
+        sql += 'AND m.created_at < $' + (params.length + 1) + '::timestamptz ';
+        params.push(query.before);
+      }
+      sql += 'ORDER BY m.created_at DESC LIMIT $' + (params.length + 1);
+      params.push(limit);
       return client.$queryRawUnsafe<MessageRow[]>(sql, ...params);
     });
     return rows.map(rowToDto);
@@ -289,6 +301,14 @@ export class MessageService {
     actor: ResolvedActor,
   ): Promise<MessageResponseDto> {
     var existing = await this.fetchByIdRaw(messageId);
+    // REVIEW-CYCLE14 BLOCKING 2: collapse non-participant access to
+    // 404 don't-leak-existence before the author check. School
+    // admins bypass for cross-thread moderation. Sender is implicitly
+    // a participant — verifying participation also covers them.
+    var isParticipant = await this.threads.isActiveParticipant(existing.thread_id, actor.accountId);
+    if (!isParticipant && !actor.isSchoolAdmin) {
+      throw new NotFoundException('Message ' + messageId + ' not found');
+    }
     if (existing.is_deleted) {
       throw new BadRequestException('Cannot edit a deleted message');
     }
@@ -357,6 +377,13 @@ export class MessageService {
    */
   async softDelete(messageId: string, actor: ResolvedActor): Promise<MessageResponseDto> {
     var existing = await this.fetchByIdRaw(messageId);
+    // REVIEW-CYCLE14 BLOCKING 2: collapse non-participant access to
+    // 404 don't-leak-existence before the sender / admin check.
+    // Admins bypass for cross-thread moderation reads.
+    var isParticipant = await this.threads.isActiveParticipant(existing.thread_id, actor.accountId);
+    if (!isParticipant && !actor.isSchoolAdmin) {
+      throw new NotFoundException('Message ' + messageId + ' not found');
+    }
     if (existing.is_deleted) {
       // Idempotent — already deleted.
       return this.fetchById(messageId, null);
