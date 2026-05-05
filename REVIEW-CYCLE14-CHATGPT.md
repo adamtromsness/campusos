@@ -2,14 +2,14 @@
 
 **Round 1 verdict:** **Reject pending fixes** (against `cycle14-complete` at `9d76abd`).
 
-The reviewer flagged 2 BLOCKING issues on the messaging surface (FLAGGED visibility + edit/delete row-scope leak) plus 5 MAJOR follow-ups (emergency fan-out audience scope, deliveryCount accuracy, msg_thread_stats drift on edit/delete, COM-004 grant vs assertAdmin contract, alert-headers-to-non-recipients). All actionable items either fixed in code in the closeout fix commit (`__FIX_SHA__`, live-verified on `tenant_demo` 2026-05-05) or documented as Phase 2 backlog items. MAJORs 5 + 7 are recommendation-class and require new event types / audience targeting — they move to the Wave 3 Phase 2 punch list.
+The reviewer flagged 2 BLOCKING issues on the messaging surface (FLAGGED visibility + edit/delete row-scope leak) plus 5 MAJOR follow-ups (emergency fan-out audience scope, deliveryCount accuracy, msg_thread_stats drift on edit/delete, COM-004 grant vs assertAdmin contract, alert-headers-to-non-recipients). All actionable items either fixed in code in the closeout fix commit (`b36ffc8`, live-verified on `tenant_demo` 2026-05-05) or documented as Phase 2 backlog items. MAJORs 5 + 7 are recommendation-class and require new event types / audience targeting — they move to the Wave 3 Phase 2 punch list.
 
-**Round 2 verdict:** _pending — to be filled in by the reviewer after re-review of the fix commit._
+**Round 2 verdict:** **Approved** (against `b36ffc8`, 2026-05-05). Reviewer confirmed both BLOCKING findings are closed in code (`MessageService.list()` filter + `edit()`/`softDelete()` participant-first row-scope) plus the three code-level MAJOR follow-ups (emergency fan-out audience scope, deliveryCount RETURNING accuracy, Staff COM-004 grant aligned with `assertAdmin()`). MAJORs 5 + 7 correctly carried as Phase 2 punch list items 18 + 19 (`msg_thread_stats` recompute on edit/delete + audience-targeted alert list filtering). **Cycle 14 ships clean. Wave 3 (Communications & Community) is now open.**
 
 Tag chain:
 
 - `cycle14-complete` on `9d76abd` (original closeout commit + first CAT)
-- `cycle14-approved` on `__FIX_SHA__` (Round 2 APPROVED, after the fix commit)
+- `cycle14-approved` on `b36ffc8` (Round 2 APPROVED, after the fix commit)
 
 ---
 
@@ -50,6 +50,22 @@ Two recommendation-class follow-ups are added to CLAUDE.md as items 18 + 19:
 
 ---
 
-## Reviewer Round 2 verdict slot
+## Reviewer Round 2 verdict (2026-05-05)
 
-> _Reviewer fills this in._
+> **Approved.**
+>
+> I reviewed the fix commit `b36ffc8` directly against the two blocking findings and the major follow-ups from Round 1. The two blockers are fixed, and the code-level major findings that were selected for Cycle 14 closeout are also addressed.
+>
+> **Confirmed fixes**
+>
+> 1. **Flagged/escalated message visibility — fixed.** `MessageService.list()` now hides non-approved messages from normal non-admin participants unless the caller is the sender. Non-admin readers get only messages where `m.moderation_status = 'APPROVED' OR m.sender_id = actor.accountId`. The sender can still see their own pending moderation message, school admins can still review everything, but recipients do not see FLAGGED, ESCALATED, or BLOCKED content before release. The moderation release action flips the parent message back to APPROVED, making it visible after review. **Blocker closed.**
+> 2. **Message edit/delete UUID probing — fixed.** `edit()` and `softDelete()` now check whether the actor is an active participant in the parent thread before applying sender/admin authorization. Non-participant, non-admin callers receive a collapsed 404 Not Found, rather than 403. Participant-but-not-sender still receives 403, which is appropriate because they are already allowed to know the message exists. **Blocker closed.**
+> 3. **Emergency fan-out audience scope — fixed.** `EmergencyAlertService.issue()` now resolves recipients only from active role assignments scoped to the issuing school. The previous PLATFORM-scope inclusion path is gone. **Major follow-up closed.**
+> 4. **Emergency delivery count accuracy — fixed.** Emergency delivery insertion now uses `RETURNING id`, and `deliveryCount` increments only when the delivery row was actually inserted. **Major follow-up closed.**
+> 5. **Moderation permission contract — fixed.** Stale COM-004 Staff grants were removed and the product decision is now explicit: moderation policy, queue, and log are admin-only until a dedicated Moderator role is introduced. **Major follow-up closed.**
+>
+> **Accepted Phase 2 follow-ups**
+>
+> Two items are appropriately deferred: `msg_thread_stats` recompute on edit/delete (requires new `msg.message.edited` + `msg.message.deleted` events + recompute logic) and audience-targeted emergency-alert list filtering (lands when alerts support non-schoolwide audiences). Both documented as Phase 2 / pre-pilot punch-list items 18 + 19.
+>
+> **Final Gate Decision: Approved.** Cycle 14 is clean from my review perspective.
