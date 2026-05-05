@@ -1,10 +1,23 @@
-# REVIEW-CYCLE11-CHATGPT — Round 1 verdict + fix log
+# REVIEW-CYCLE11-CHATGPT — Round 1 + Round 2 verdict + fix log
 
 **Round 1** (against `cycle11-complete` at `a46d905`) returned **Reject pending fixes** — 2 Cycle 11 blockers + 1 stale-report Cycle 10 carry-over + 4 majors. Reviewer scorecard: 7 PASS · 3 actionable BLOCKING (one already fixed in code) · 4 follow-ups.
 
-The two real Cycle 11 blockers are valid privacy / row-scope defects and are fixed in this commit. The third "blocker" (Cycle 10 medication administration history) was already corrected in commit `970a6b3` (REVIEW-CYCLE10 BLOCKING) — the controller is gated on `hlt-002:read`, not `hlt-001:read` — but the reviewer surfaced it again, so we re-verified live and it 403s for parents. Documented in the table below as DEVIATION-VERIFIED.
+**Round 2** (against the closeout fix commit `af2f1a2`) returned **APPROVED — final gate decision.** Reviewer cache-busted the six affected files in code on Round 2 and confirmed each fix:
 
-Three of the four MAJOR items were code-fixable and are addressed here (4 + 5 + 6). MAJOR 7 (Counsellor / Nurse / Lead-counsellor role split) joins the Wave 2 Phase 2 punch list — it's an architectural role-redesign task that should land before the platform onboards real schools, not a code fix on this cycle.
+> Cycle 11 is now clean from my review perspective. The privacy and row-scope blockers are closed, the MTSS/intervention follow-ups are fixed, and the medication-history issue is confirmed resolved.
+
+Reviewer's Round 2 confirmations (all 6 findings):
+
+1. **BLOCKING 1 — Referral triage queue leak — fixed.** `ReferralService.buildVisibility()` now splits STAFF visibility by counsellor scope. Counsellors see assigned + queue + own; non-counsellor staff see own-submitted only. The `hasCounsellorScope(actor)` check before the unassigned predicate is the gate.
+2. **BLOCKING 2 — Counselling session mutation row-scope — fixed.** Create / patch / addParticipant / markAttendance enforce owner-or-admin. `create()` rejects non-admin counsellors when `input.counselorId !== actor.employeeId`; `patch()` locks the row `FOR UPDATE` and checks the locked `counselor_id`; participant routes resolve the parent session counsellor.
+3. **BLOCKING 3 — Cycle 10 medication administration history — confirmed fixed.** Controller gated on `hlt-002:read`, service enforces `hasNurseScope()` with no guardian allow path. (Was already fixed in `970a6b3` per REVIEW-CYCLE10; reviewer re-confirmed against the current file.)
+4. **MAJOR 4 — MTSS tier row-scope — fixed.** `assertActorOwnsStudent()` checks active caseload ownership; called from create + patch.
+5. **MAJOR 5 — Intervention row-scope — fixed.** `assertActorOwnsTier()` + `assertActorOwnsIntervention()` applied across read + mutation paths.
+6. **MAJOR 6 — Mandatory reporter policy — documented.** Controller Swagger explicitly states the locked product/security decision and the immutable-after-FILED invariant.
+
+**Remaining accepted follow-up.** MAJOR 7 — Counsellor / Nurse / Lead-counsellor role split — confirmed deferred to **Wave 2 Phase 2 role-model hardening**: Counsellor / Nurse / VP / Student Support Admin / Teacher referral submitter / General Staff. _"Acceptable as a planned role-architecture hardening item, but it should be resolved before real-school onboarding."_ Already on the punch list in `CLAUDE.md` items 9 / 11.
+
+Tagged `cycle11-approved` on `af2f1a2`.
 
 ---
 
