@@ -56,20 +56,99 @@ The vertical slice is verified live on `tenant_demo` 2026-05-05 in `docs/cycle11
 
 ---
 
-## Round 1 verdict — TBD
+## Round 1 — misdirected review (reviewer read pre-`a5abe4e` `main`)
 
-> _(Paste reviewer's verdict here after the Round 1 response.)_
+The Round 1 review came back **REJECT pending fixes**, but the reviewer was reading `origin/main` _before_ `a5abe4e` was pushed (the Cycle 11.1 closeout commit was committed locally and not yet on the remote). The reviewer explicitly states: _"the numbered 11.1 handoff/review files were not present at the paths I checked."_ They reviewed the prior tip — `81f2be6` — which is the **Phase 2 Parent Polish** state, so all findings are about Phase 2 code (calendar RSVPs, add-child workflow, public enrollment search, multi-school billing) rather than Cycle 11.1.
+
+After the misdirected review, `a5abe4e` was pushed to `origin/main` so the next reviewer pass can read the actual Cycle 11.1 surface. The Phase 2 BLOCKING findings are spurious; the Phase 2 MAJOR 3 + 4 findings are real bugs and have been fixed in a follow-up commit.
+
+### Phase 2 BLOCKING findings — verified spurious against `origin/main`
+
+| Reviewer claim                                                                                                                    | Reality on `origin/main`                                                                                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **BLOCKING 1** — `TenantResolverMiddleware` doesn't exempt `/api/v1/enrollment/search` and uses `req.path` not `req.originalUrl`. | `apps/api/src/tenant/tenant-resolver.middleware.ts:34` reads `req.originalUrl ?? req.url ?? req.path`. Line 137 lists `/api/v1/enrollment/search` in `exemptPrefixes`. Both already correct. The reviewer was looking at a cached / stale view.                |
+| **BLOCKING 2** — `FamilyAccountService` doesn't populate `schoolName` / `sharedBillingGroupId`.                                   | `apps/api/src/payments/family-account.service.ts:72` — `SELECT_ACCOUNT_BASE` does `LEFT JOIN platform.schools sc ON sc.id = a.school_id` and selects `sc.name AS school_name, sc.shared_billing_group_id`. Lines 57–58 map both onto the DTO. Already correct. |
+
+### Phase 2 MAJOR findings — triage
+
+| #           | Severity                                                      | Finding                                                                                                                                                                                                                                                    | Status                                         |
+| ----------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **MAJOR 3** | BUG (race) — child-link LINK_EXISTING duplicate-pending.      | `submitLinkExisting` does pre-check + INSERT under `executeInTenantContext` (single-statement tx). Two concurrent submits can both pass the pre-check and both INSERT a PENDING row for the same `(guardian, target student)` pair. No schema-level dedup. | **FIXED** in this commit                       |
+| **MAJOR 4** | BUG — child-link ADD_NEW no duplicate guard.                  | `submitAddNew` does an unconditional INSERT with no duplicate check at all — accidental double-clicks create multiple PENDING rows for the same child.                                                                                                     | **FIXED** in this commit                       |
+| **MAJOR 5** | Scale — public enrollment search loops all active schools.    | Acceptable for demo per `HANDOFF-PHASE2-POLISH.md`. Add geospatial index + bounding-box prefilter + rate limiting before the public surface goes wide.                                                                                                     | **DEFERRED** to Phase 2 backlog (item carried) |
+| **MAJOR 6** | Operational — `enr_period_allows_public_search DEFAULT true`. | Convenient for demo; risky for production (existing OPEN periods auto-become public-search visible). Recommendation: flip default to `false` and require explicit publish-to-search before pilot.                                                          | **DEFERRED** to Phase 2 backlog (item carried) |
+| **MAJOR 7** | Acknowledged — calendar RSVP no audience targeting.           | Already documented in `HANDOFF-PHASE2-POLISH.md` as "audience targeting is deferred because calendar events do not yet carry audience columns." Any authenticated user with `sch-003:read` can RSVP to any published event.                                | **DEFERRED** (already on Phase 2 punch list)   |
+
+### Fix for MAJOR 3 + 4 — partial UNIQUE INDEXes + `isUniqueViolation` catch
+
+Tenant migration `041_sis_child_link_requests_dedup.sql` adds two partial UNIQUE indexes scoped to PENDING rows:
+
+```sql
+CREATE UNIQUE INDEX sis_child_link_requests_link_existing_pending_uq
+  ON sis_child_link_requests (requesting_guardian_id, existing_student_id)
+  WHERE status = 'PENDING' AND request_type = 'LINK_EXISTING';
+
+CREATE UNIQUE INDEX sis_child_link_requests_add_new_pending_uq
+  ON sis_child_link_requests (
+    requesting_guardian_id,
+    LOWER(new_child_first_name),
+    LOWER(new_child_last_name),
+    new_child_date_of_birth
+  )
+  WHERE status = 'PENDING' AND request_type = 'ADD_NEW';
+```
+
+The ADD_NEW index uses functional `LOWER()` on the names so case-flipped retypes (`Lily` / `lily` / `LILY`) hit the same dedup; DOB disambiguates otherwise-identical name pairs. Both indexes are PARTIAL on `status='PENDING'` so APPROVED / REJECTED rows release the slot for a re-submit.
+
+Service-side update — `apps/api/src/sis/child-link-request.service.ts`:
+
+- `submitLinkExisting` and `submitAddNew` now run the existence-check / pre-check + INSERT inside one `executeInTenantTransaction` so concurrent submits see the same snapshot.
+- New module-bottom helper `isUniqueViolation(err)` catches PostgreSQL SQLSTATE 23505 from the partial UNIQUE INDEX (matches the helper in `discipline/action.service.ts` and `payments/refund.service.ts` — driver-version-stable: checks Prisma's `P2010` plus the embedded `meta.code='23505'` plus a regex on the message text as belt-and-braces).
+- The race-loser path returns the exact same friendly 409 ("You already have a pending request for this student" / "You already have a pending request for this child") that the happy-path pre-check returns.
+
+### Live verification on `tenant_demo` 2026-05-05
+
+**Schema-side dedup smoke** (single BEGIN…ROLLBACK with savepoints, 7 assertions all green):
+
+```
+T1 LINK_EXISTING first row INSERT                       OK
+T2 LINK_EXISTING duplicate (same pair, PENDING)         REJECTED by sis_child_link_requests_link_existing_pending_uq
+T3 LINK_EXISTING same pair APPROVED status              ACCEPTED (slot released)
+T4 ADD_NEW first row INSERT                             OK
+T5 ADD_NEW exact duplicate                              REJECTED by sis_child_link_requests_add_new_pending_uq
+T6 ADD_NEW case-flipped names (LILY chen vs Lily Chen)  REJECTED (LOWER() works)
+T7 ADD_NEW same names but different DOB                 ACCEPTED
+```
+
+**End-to-end race smoke** (API live, parent submits, parallel curl):
+
+```
+LINK_EXISTING — 5 parallel POSTs for (David, Ethan):
+  R1..R4 http=409 msg=You already have a pending request for this student
+  R5     http=201 status=PENDING
+  → DB has exactly 1 PENDING row.
+
+ADD_NEW — 5 parallel POSTs for (David, Lily Chen, 2014-02-10):
+  A1..5 → exactly 1× 201 + 4× 409 ("You already have a pending request for this child")
+  → DB has exactly 1 PENDING row.
+  Case-flipped retype (LILY chen) → http=409 (LOWER() partial index catches it)
+```
+
+5 parallel-curl runs land exactly 1× 201 + 4× 409 on both code paths, with the friendly conflict message on every race-loser response — the schema-side partial UNIQUE INDEX is the load-bearing race protection and the service-layer `isUniqueViolation` translator surfaces the same 409 the happy-path pre-check returns.
+
+Smoke residue cleaned (`DELETE FROM sis_child_link_requests WHERE requesting_guardian_id ...`); tenant returns to seed shape (no PENDING child-link requests).
+
+### Files changed in the Phase 2 fix commit
+
+- `packages/database/prisma/tenant/migrations/041_sis_child_link_requests_dedup.sql` — new migration: 2 partial UNIQUE INDEXes scoped to PENDING.
+- `apps/api/src/sis/child-link-request.service.ts` — `submitLinkExisting` + `submitAddNew` wrapped in `executeInTenantTransaction`; new module-bottom `isUniqueViolation` helper translates SQLSTATE 23505 to a friendly 409 on the race-loser path.
+
+No web changes. No new Kafka emits. The race-loser surfaces as the same 409 the existing parent UI already handles via its standard error-toast path.
 
 ---
 
-## Triage table — TBD
+## Round 2 — Cycle 11.1 review TBD
 
-| #   | Severity | Finding | Status |
-| --- | -------- | ------- | ------ |
-| —   | —        | —       | —      |
+The Round 1 reviewer didn't actually see Cycle 11.1; only the Phase 2 Parent Polish tip. Re-trigger the review pointed at `origin/main` post-`a5abe4e` (and post-Phase 2 fix commit) so the reviewer reads the real Cycle 11.1 surface. The reviewer prompt at the top of this file is still valid — paste it into the review chat alongside the latest commit SHA on `origin/main`.
 
----
-
-## Files changed in the closeout fix commit — TBD
-
-> _(After Round 1 fixes, list the changed files + the Round 2 verdict here. Tag `cycle11.1-approved` after the Round 2 APPROVED verdict.)_
+After Round 2 lands its verdict + any fixes, tag `cycle11.1-approved` on the closeout commit.

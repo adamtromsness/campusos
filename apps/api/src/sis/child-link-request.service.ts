@@ -202,6 +202,12 @@ export class ChildLinkRequestService {
 
   /**
    * Submit a request to LINK an existing student to the guardian's account.
+   *
+   * REVIEW-PHASE2-POLISH MAJOR 3 — runs the existence-check + INSERT inside
+   * one tenant transaction so concurrent submits see the same snapshot, and
+   * catches SQLSTATE 23505 from the partial UNIQUE INDEX
+   * `sis_child_link_requests_link_existing_pending_uq` to surface the same
+   * friendly 409 even on the race-loser path.
    */
   async submitLinkExisting(
     existingStudentId: string,
@@ -210,49 +216,63 @@ export class ChildLinkRequestService {
     const guardianId = await this.resolveGuardianId(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      // Confirm the target student exists in this tenant.
-      const exists = await client.$queryRawUnsafe<Array<{ id: string }>>(
-        'SELECT id FROM sis_students WHERE id = $1::uuid',
-        existingStudentId,
-      );
-      if (exists.length === 0) {
-        throw new NotFoundException('Student ' + existingStudentId);
-      }
-      // Refuse if the guardian is already linked to this student.
-      const linked = await client.$queryRawUnsafe<Array<{ id: string }>>(
-        'SELECT sg.id FROM sis_student_guardians sg ' +
-          'WHERE sg.student_id = $1::uuid AND sg.guardian_id = $2::uuid',
-        existingStudentId,
-        guardianId,
-      );
-      if (linked.length > 0) {
-        throw new ConflictException('You are already linked to this student');
-      }
-      // Refuse if a PENDING request already exists for the same (guardian, student) pair.
-      const dup = await client.$queryRawUnsafe<Array<{ id: string }>>(
-        'SELECT id FROM sis_child_link_requests ' +
-          "WHERE requesting_guardian_id = $1::uuid AND existing_student_id = $2::uuid AND status = 'PENDING'",
-        guardianId,
-        existingStudentId,
-      );
-      if (dup.length > 0) {
+    try {
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        // Confirm the target student exists in this tenant.
+        const exists = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          'SELECT id FROM sis_students WHERE id = $1::uuid',
+          existingStudentId,
+        );
+        if (exists.length === 0) {
+          throw new NotFoundException('Student ' + existingStudentId);
+        }
+        // Refuse if the guardian is already linked to this student.
+        const linked = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          'SELECT sg.id FROM sis_student_guardians sg ' +
+            'WHERE sg.student_id = $1::uuid AND sg.guardian_id = $2::uuid',
+          existingStudentId,
+          guardianId,
+        );
+        if (linked.length > 0) {
+          throw new ConflictException('You are already linked to this student');
+        }
+        // Refuse if a PENDING request already exists for the same (guardian, student) pair.
+        const dup = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          'SELECT id FROM sis_child_link_requests ' +
+            "WHERE requesting_guardian_id = $1::uuid AND existing_student_id = $2::uuid AND status = 'PENDING'",
+          guardianId,
+          existingStudentId,
+        );
+        if (dup.length > 0) {
+          throw new ConflictException('You already have a pending request for this student');
+        }
+        await tx.$executeRawUnsafe(
+          'INSERT INTO sis_child_link_requests (id, school_id, requesting_guardian_id, request_type, existing_student_id) ' +
+            "VALUES ($1::uuid, $2::uuid, $3::uuid, 'LINK_EXISTING', $4::uuid)",
+          id,
+          tenant.schoolId,
+          guardianId,
+          existingStudentId,
+        );
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
         throw new ConflictException('You already have a pending request for this student');
       }
-      await client.$executeRawUnsafe(
-        'INSERT INTO sis_child_link_requests (id, school_id, requesting_guardian_id, request_type, existing_student_id) ' +
-          "VALUES ($1::uuid, $2::uuid, $3::uuid, 'LINK_EXISTING', $4::uuid)",
-        id,
-        tenant.schoolId,
-        guardianId,
-        existingStudentId,
-      );
-    });
+      throw err;
+    }
     return this.getById(id, actor);
   }
 
   /**
    * Submit a request to ADD a new child to the guardian's account.
+   *
+   * REVIEW-PHASE2-POLISH MAJOR 4 — pre-checks for an existing PENDING ADD_NEW
+   * row by (guardian, LOWER(first), LOWER(last), DOB) inside a tenant tx,
+   * then INSERTs. The schema-side partial UNIQUE INDEX
+   * `sis_child_link_requests_add_new_pending_uq` (case-insensitive on names)
+   * is the race-loser safety net; SQLSTATE 23505 is translated to the same
+   * friendly 409 via `isUniqueViolation`.
    */
   async submitAddNew(
     payload: {
@@ -267,21 +287,47 @@ export class ChildLinkRequestService {
     const guardianId = await this.resolveGuardianId(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        'INSERT INTO sis_child_link_requests (id, school_id, requesting_guardian_id, request_type, ' +
-          'new_child_first_name, new_child_last_name, new_child_date_of_birth, new_child_gender, new_child_grade_level) ' +
-          "VALUES ($1::uuid, $2::uuid, $3::uuid, 'ADD_NEW', $4, $5, $6::date, $7, $8)",
-        id,
-        tenant.schoolId,
-        guardianId,
-        payload.firstName.trim(),
-        payload.lastName.trim(),
-        payload.dateOfBirth,
-        payload.gender ?? null,
-        payload.gradeLevel,
-      );
-    });
+    const fn = payload.firstName.trim();
+    const ln = payload.lastName.trim();
+    try {
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        // Refuse if a PENDING ADD_NEW request already exists for the same
+        // (guardian, child name, DOB) tuple. Case-insensitive on names so
+        // 'Lily' / 'lily' / 'LILY' are all the same child.
+        const dup = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          'SELECT id FROM sis_child_link_requests ' +
+            "WHERE requesting_guardian_id = $1::uuid AND request_type = 'ADD_NEW' AND status = 'PENDING' " +
+            'AND LOWER(new_child_first_name) = LOWER($2) ' +
+            'AND LOWER(new_child_last_name) = LOWER($3) ' +
+            'AND new_child_date_of_birth = $4::date',
+          guardianId,
+          fn,
+          ln,
+          payload.dateOfBirth,
+        );
+        if (dup.length > 0) {
+          throw new ConflictException('You already have a pending request for this child');
+        }
+        await tx.$executeRawUnsafe(
+          'INSERT INTO sis_child_link_requests (id, school_id, requesting_guardian_id, request_type, ' +
+            'new_child_first_name, new_child_last_name, new_child_date_of_birth, new_child_gender, new_child_grade_level) ' +
+            "VALUES ($1::uuid, $2::uuid, $3::uuid, 'ADD_NEW', $4, $5, $6::date, $7, $8)",
+          id,
+          tenant.schoolId,
+          guardianId,
+          fn,
+          ln,
+          payload.dateOfBirth,
+          payload.gender ?? null,
+          payload.gradeLevel,
+        );
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictException('You already have a pending request for this child');
+      }
+      throw err;
+    }
     return this.getById(id, actor);
   }
 
@@ -506,4 +552,21 @@ export class ChildLinkRequestService {
     });
     return this.getById(id, actor);
   }
+}
+
+/**
+ * REVIEW-PHASE2-POLISH MAJOR 3 + 4 — recognise PostgreSQL SQLSTATE 23505
+ * (unique_violation) coming back through Prisma's raw query layer. Mirrors
+ * the helper in `apps/api/src/discipline/action.service.ts` and
+ * `apps/api/src/payments/refund.service.ts`. Driver-version-stable: checks
+ * Prisma's `P2010` plus the embedded `meta.code='23505'` plus a regex on
+ * the message text as belt-and-braces.
+ */
+function isUniqueViolation(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: string; meta?: { code?: string }; message?: string };
+  if (e.code === 'P2010' && e.meta?.code === '23505') return true;
+  if (e.meta?.code === '23505') return true;
+  if (typeof e.message === 'string' && /23505|duplicate key value/i.test(e.message)) return true;
+  return false;
 }
