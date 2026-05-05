@@ -1,6 +1,6 @@
 # Cycle 12 Handoff — Library
 
-**Status:** Cycle 12 **IN PROGRESS — schema + seed + catalogue + circulation + reading/reviews + catalogue/circulation UI done (Steps 1–8).** Cycle 12 ships the M24 Library module — 14 of the 20 ERD tables in scope across 4 domains (catalogue + locations + copies in Step 1; circulation policies + checkouts + holds + fines in Step 2; reading programmes + lists + reviews in Step 3). The 6 deferred tables (recommendations, class set checkouts, interlibrary loans, import jobs, AI scan sessions) park as Cycle 12.1 / Wave 3. Cycle 12 introduces the **first entirely new module prefix** (`lib_*`) since Cycle 10's `hlth_*`, ships the **second student-input surface** in CampusOS after Cycle 11.1 (students log reading entries + write book reviews — verified live in Step 7), and adds the librarian as the third specialist operator persona alongside the nurse (Cycle 10) and counsellor (Cycle 11). Backend phase complete: 46 endpoints across 10 services + 10 controllers + 1 Kafka emit. Step 8 ships 5 web routes (`/library`, `/library/catalogue`, `/library/catalogue/[id]`, `/library/circulation`, `/library/fines`) + Library launchpad tile + `library-format.ts` helpers + `use-library.ts` hooks (~30 hooks) + ~300 lines of Library DTOs. Steps 9–10 (Reading + Reviews + Student Portal UI + vertical-slice CAT) remain.
+**Status:** Cycle 12 **IN PROGRESS — schema + seed + backend + full Library UI done (Steps 1–9).** Cycle 12 ships the M24 Library module — 14 of the 20 ERD tables in scope across 4 domains (catalogue + locations + copies in Step 1; circulation policies + checkouts + holds + fines in Step 2; reading programmes + lists + reviews in Step 3). The 6 deferred tables (recommendations, class set checkouts, interlibrary loans, import jobs, AI scan sessions) park as Cycle 12.1 / Wave 3. Cycle 12 introduces the **first entirely new module prefix** (`lib_*`) since Cycle 10's `hlth_*`, ships the **second student-input surface** in CampusOS after Cycle 11.1 (students log reading entries + write book reviews — verified live in Step 7), and adds the librarian as the third specialist operator persona alongside the nurse (Cycle 10) and counsellor (Cycle 11). Backend phase complete: 46 endpoints across 10 services + 10 controllers + 1 Kafka emit. Step 8 ships 5 web routes (`/library`, `/library/catalogue`, `/library/catalogue/[id]`, `/library/circulation`, `/library/fines`) + Library launchpad tile + `library-format.ts` helpers + `use-library.ts` hooks (~30 hooks) + ~300 lines of Library DTOs. Steps 9–10 (Reading + Reviews + Student Portal UI + vertical-slice CAT) remain.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle12-implementation-plan.html`
@@ -22,7 +22,7 @@ This document tracks the Cycle 12 build at the same level of detail as `HANDOFF-
 | 6    | Circulation NestJS Module                                   | **DONE**    |
 | 7    | Reading + Reviews NestJS Module                             | **DONE**    |
 | 8    | Library UI — Catalogue + Circulation                        | **DONE**    |
-| 9    | Library UI — Reading + Reviews + Student Portal             | **PENDING** |
+| 9    | Library UI — Reading + Reviews + Student Portal             | **DONE**    |
 | 10   | Vertical Slice Integration Test                             | **PENDING** |
 
 ---
@@ -640,15 +640,35 @@ No backend changes — Step 8 sits entirely on the 36-endpoint surface from Step
 
 ## Step 9 — Library UI: Reading + Reviews + Student Portal
 
-**Status:** PENDING.
+**Status:** DONE.
 
-5 routes:
+5 new web routes shipped on the Cycle 12 backend (Steps 5–7, no API changes). Web build clean, 7/7 API tests pass, prettier clean.
 
-- `/library/programmes` — active programmes with progress bars + leaderboard. Librarian: create programme.
-- `/library/reading-log` — STUDENT-FACING reading log with log-a-book form + history.
-- `/library/reading-lists` — published reading lists with item type pills.
-- Book reviews inline on `/library/catalogue/:id` — student review submission + listing.
-- `/library/my` — student-only landing combining checkouts / holds / fines / reading log / programme progress.
+- **`/library/programmes`** — Reading programme list. Each card shows the programme name + audience pill (school-wide / year group / class / custom) + start→end dates + goal pills (target books / target pages). Students see their own progress bar inlined per card via the Step 7 backend's `myProgress` field. Librarians + admins (`sch-001:admin OR lib-003:write`) can toggle `Show inactive` and open the New-programme Modal — name + description + 4 audience types + target books OR target pages OR both + start/end dates with at-least-one-target client-side validation.
+- **`/library/programmes/[id]`** — programme detail. Header card with name + audience + status pills + 4-cell metadata grid (target books / target pages / status / last updated). Emerald "My progress" card for students showing books-read / pages-read / completion status with a deep-link to the reading log. Leaderboard table joining `programme_progress + sis_students + iam_person` sorted by `books_read DESC`, with rank #N + student name + books + pages + Complete pill (sourced from the Step 7 ReadingProgrammeService leaderboard endpoint). Librarians get an Edit Modal (name / description / target books / target pages / start / end / `isActive` toggle) that PATCHes the differential set so unchanged fields don't fire on the UPDATE.
+- **`/library/reading-log`** — **THE STUDENT-INPUT KEYSTONE web surface** (the second student-input surface in CampusOS after Cycle 11.1 wellbeing). Non-students see an amber redirect-message card pointing back to `/library`. Students see 3-stat header (books completed / in progress / pages read), Log-a-book button opening a Modal, then two grouped sections (In progress + Completed) with per-card title + author + dates + 5-star rating render + line-clamped notes + Edit button. The Log Modal embeds catalogue search powered by the Step 5 GIN-backed `useCatalogueSearch(q)` (debounced ≥2 chars), then renders started / completed / pages / 5-button rating picker / 2000-char notes textarea. Submit POSTs to the Step 7 ReadingLogService — which validates the catalogue item exists then INSERTs the log row, and on `completedDate` set runs the **programme-progress auto-upsert** via SCHOOL_WIDE / CLASS audience-matching SQL with `INSERT ... ON CONFLICT (programme_id, student_id) DO UPDATE` and a follow-up recompute of `is_complete` against programme thresholds, all inside one tenant tx. Edit Modal reuses the same form layout with the catalogue lookup short-circuited to the existing entry.
+- **`/library/reading-lists`** — Curated reading list browse. Drafts hidden by default; librarians + admins toggle `Show drafts` (the Step 7 backend's `?includeUnpublished=true`) and create new lists via the New Modal (name + 5-value list type + description). On successful create, route to the new list's detail page so the librarian can immediately add books before publishing. Per-card: name + Draft pill (when `!isPublished`) + list-type pill + book-count + line-clamped description + curator + relative published-at.
+- **`/library/reading-lists/[id]`** — list detail with the curated book table. Header card with name + Draft pill + list-type pill + curator + published date + writer-only Publish/Unpublish button hitting the Step 7 multi-column `published_chk` lockstep keystone (service stamps both atomically on publish + clears both on unpublish). Books section sorted by `sortOrder` ASC with cover placeholder + title (links to `/library/catalogue/<id>`) + author + 4-value item-type pill (REQUIRED rose / RECOMMENDED emerald / EXTENSION sky / REFERENCE violet) + notes + writer-only Remove button with confirm guard. Add-book Modal embeds the same catalogue search + 4-value type select + notes textarea.
+- **`/library/my`** — student-only combined library landing. Non-students see an amber redirect card pointing back to `/library`. Students see a 5-stat header (checked out / on hold / owed / books read / pages read), then per-section: Reading programmes (top 4 active with mini progress bars), Currently reading (top 4 in-progress entries), My active checkouts (overdue-tinted), My holds, and Outstanding fines (rose-tinted, only when present).
+- **Reviews stayed inline on `/library/catalogue/[id]` from Step 8** — the `ReviewsSection` child component there already drives `useItemReviews(itemId)` + `useSubmitReview` + `useHideReview`/`useUnhideReview`. The plan's Step 9 bullet 4 was already covered by Step 8.
+
+**Navigation wiring:** `/library` page extended with a `QuickNav` row right under `SearchBar` that adds chip-links per persona — Catalogue / Reading programmes / Reading lists for everyone; My reading log + My library for students; Circulation desk + Fines for librarians.
+
+**Build sizes** (web, all 5 new routes ship; values include format-pass):
+
+- `/library/programmes` 6.99 kB / 117 kB First Load JS
+- `/library/programmes/[id]` 7.17 kB / 117 kB
+- `/library/reading-log` 7.31 kB / 117 kB
+- `/library/reading-lists` 6.37 kB / 116 kB
+- `/library/reading-lists/[id]` 6.97 kB / 117 kB
+- `/library/my` 5.66 kB / 116 kB
+
+**Iteration issues caught + fixed during build:**
+
+1. Wrong DTO type name. First draft typed selected catalogue search results as `CatalogueItemDto` but the actual DTO returned by `useCatalogueSearch` is `LibraryCatalogueItemSearchHitDto`. Caught on both `/library/reading-log/page.tsx` and `/library/reading-lists/[id]/page.tsx`. Fixed.
+2. Unescaped apostrophe in JSX. `you've` in the `CreateForm` reading-list Modal hint triggered ESLint's `react/no-unescaped-entities`. Replaced with `&apos;`.
+
+**No backend changes** — Step 9 sits entirely on the 36-endpoint surface from Steps 5–7. **Live verification deferred to Step 10 CAT** — page wiring matches the controller contracts already verified end-to-end in each module's smoke runs.
 
 ---
 

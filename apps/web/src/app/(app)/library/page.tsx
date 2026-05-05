@@ -58,8 +58,44 @@ export default function LibraryDashboardPage() {
 
       <SearchBar />
 
+      <QuickNav />
+
       {isLibrarian ? <LibrarianDashboard /> : <PatronDashboard />}
     </div>
+  );
+}
+
+function QuickNav() {
+  const user = useAuthStore((s) => s.user);
+  const isStudent = user?.personType === 'STUDENT';
+  const isLibrarian = !!user && hasAnyPermission(user, ['sch-001:admin', 'lib-001:write']);
+
+  const links: { href: string; label: string }[] = [
+    { href: '/library/catalogue', label: 'Catalogue' },
+    { href: '/library/programmes', label: 'Reading programmes' },
+    { href: '/library/reading-lists', label: 'Reading lists' },
+  ];
+  if (isStudent) {
+    links.push({ href: '/library/reading-log', label: 'My reading log' });
+    links.push({ href: '/library/my', label: 'My library' });
+  }
+  if (isLibrarian) {
+    links.push({ href: '/library/circulation', label: 'Circulation desk' });
+    links.push({ href: '/library/fines', label: 'Fines' });
+  }
+
+  return (
+    <nav className="flex flex-wrap gap-2">
+      {links.map((l) => (
+        <Link
+          key={l.href}
+          href={l.href}
+          className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:border-campus-300 hover:text-campus-800"
+        >
+          {l.label}
+        </Link>
+      ))}
+    </nav>
   );
 }
 
