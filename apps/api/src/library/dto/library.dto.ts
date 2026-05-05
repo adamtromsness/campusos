@@ -599,3 +599,505 @@ export class WaiveFineDto {
   @MaxLength(2000)
   reason!: string;
 }
+
+// ── Reading programme + log + review enums ──────────────────────
+
+export const READING_PROGRAMME_AUDIENCE_TYPES = [
+  'SCHOOL_WIDE',
+  'YEAR_GROUP',
+  'CLASS',
+  'CUSTOM',
+] as const;
+export type ReadingProgrammeAudienceType = (typeof READING_PROGRAMME_AUDIENCE_TYPES)[number];
+
+export const READING_LIST_TYPES = [
+  'CLASS',
+  'YEAR_GROUP',
+  'CURRICULUM_UNIT',
+  'GENERAL',
+  'NEW_ARRIVALS',
+] as const;
+export type ReadingListType = (typeof READING_LIST_TYPES)[number];
+
+export const READING_LIST_ITEM_TYPES = [
+  'REQUIRED',
+  'RECOMMENDED',
+  'EXTENSION',
+  'REFERENCE',
+] as const;
+export type ReadingListItemType = (typeof READING_LIST_ITEM_TYPES)[number];
+
+// ── Reading programme DTOs ──────────────────────────────────────
+
+export class CreateReadingProgrammeDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  academicYearId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  targetBooks?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  targetPages?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+
+  @ApiProperty({ enum: READING_PROGRAMME_AUDIENCE_TYPES })
+  @IsIn(READING_PROGRAMME_AUDIENCE_TYPES as unknown as string[])
+  targetAudienceType!: ReadingProgrammeAudienceType;
+
+  @ApiPropertyOptional({
+    description:
+      'Polymorphic target ref interpreted by audience type. NULL for SCHOOL_WIDE. sis_classes.id for CLASS. Year-group label encoded as UUID for YEAR_GROUP.',
+  })
+  @IsOptional()
+  @IsUUID()
+  targetId?: string;
+}
+
+export class UpdateReadingProgrammeDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  targetBooks?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  targetPages?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class ReadingProgrammeProgressDto {
+  @ApiProperty()
+  programmeId!: string;
+  @ApiProperty()
+  studentId!: string;
+  @ApiProperty()
+  booksRead!: number;
+  @ApiProperty()
+  pagesRead!: number;
+  @ApiProperty()
+  isComplete!: boolean;
+  @ApiPropertyOptional()
+  lastUpdatedAt!: string | null;
+}
+
+export class ReadingProgrammeResponseDto {
+  @ApiProperty()
+  id!: string;
+  @ApiProperty()
+  schoolId!: string;
+  @ApiProperty()
+  name!: string;
+  @ApiPropertyOptional()
+  description!: string | null;
+  @ApiPropertyOptional()
+  academicYearId!: string | null;
+  @ApiPropertyOptional()
+  targetBooks!: number | null;
+  @ApiPropertyOptional()
+  targetPages!: number | null;
+  @ApiPropertyOptional()
+  startDate!: string | null;
+  @ApiPropertyOptional()
+  endDate!: string | null;
+  @ApiProperty()
+  isActive!: boolean;
+  @ApiProperty({ enum: READING_PROGRAMME_AUDIENCE_TYPES })
+  targetAudienceType!: ReadingProgrammeAudienceType;
+  @ApiPropertyOptional()
+  targetId!: string | null;
+  @ApiPropertyOptional({ type: ReadingProgrammeProgressDto })
+  myProgress?: ReadingProgrammeProgressDto | null;
+  @ApiProperty()
+  createdAt!: string;
+  @ApiProperty()
+  updatedAt!: string;
+}
+
+export class ReadingProgrammeLeaderboardEntryDto {
+  @ApiProperty()
+  studentId!: string;
+  @ApiPropertyOptional()
+  studentName!: string | null;
+  @ApiProperty()
+  booksRead!: number;
+  @ApiProperty()
+  pagesRead!: number;
+  @ApiProperty()
+  isComplete!: boolean;
+}
+
+// ── Reading log DTOs ────────────────────────────────────────────
+
+export class CreateReadingLogDto {
+  @ApiProperty()
+  @IsUUID()
+  catalogueItemId!: string;
+
+  @ApiPropertyOptional({
+    description:
+      "ISO date when the student started reading. Optional. The Step 7 service treats a populated startedDate as 'in progress' until completedDate is set.",
+  })
+  @IsOptional()
+  @IsString()
+  startedDate?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'ISO date when the student finished reading. Setting this triggers the programme-progress auto-upsert: every active programme covering this student gets books_read += 1 + pages_read += pages_read.',
+  })
+  @IsOptional()
+  @IsString()
+  completedDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  pagesRead?: number;
+
+  @ApiPropertyOptional({
+    description: 'Star rating 1..5. Optional until the student completes the read.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  reviewText?: string;
+}
+
+export class UpdateReadingLogDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  startedDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  completedDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  pagesRead?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  reviewText?: string;
+}
+
+export class ReadingLogResponseDto {
+  @ApiProperty()
+  id!: string;
+  @ApiProperty()
+  studentId!: string;
+  @ApiPropertyOptional()
+  studentName!: string | null;
+  @ApiProperty()
+  catalogueItemId!: string;
+  @ApiPropertyOptional()
+  itemTitle!: string | null;
+  @ApiPropertyOptional()
+  itemAuthor!: string | null;
+  @ApiPropertyOptional()
+  startedDate!: string | null;
+  @ApiPropertyOptional()
+  completedDate!: string | null;
+  @ApiPropertyOptional()
+  pagesRead!: number | null;
+  @ApiPropertyOptional()
+  rating!: number | null;
+  @ApiPropertyOptional()
+  reviewText!: string | null;
+  @ApiProperty()
+  createdAt!: string;
+  @ApiProperty()
+  updatedAt!: string;
+}
+
+// ── Reading list DTOs ───────────────────────────────────────────
+
+export class CreateReadingListDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
+
+  @ApiProperty({ enum: READING_LIST_TYPES })
+  @IsIn(READING_LIST_TYPES as unknown as string[])
+  listType!: ReadingListType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  targetClassId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  academicYearId?: string;
+}
+
+export class UpdateReadingListDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
+
+  @ApiPropertyOptional({ enum: READING_LIST_TYPES })
+  @IsOptional()
+  @IsIn(READING_LIST_TYPES as unknown as string[])
+  listType?: ReadingListType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  targetClassId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isPublished?: boolean;
+}
+
+export class CreateReadingListItemDto {
+  @ApiProperty()
+  @IsUUID()
+  catalogueItemId!: string;
+
+  @ApiPropertyOptional({ enum: READING_LIST_ITEM_TYPES })
+  @IsOptional()
+  @IsIn(READING_LIST_ITEM_TYPES as unknown as string[])
+  itemType?: ReadingListItemType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}
+
+export class UpdateReadingListItemDto {
+  @ApiPropertyOptional({ enum: READING_LIST_ITEM_TYPES })
+  @IsOptional()
+  @IsIn(READING_LIST_ITEM_TYPES as unknown as string[])
+  itemType?: ReadingListItemType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}
+
+export class ReadingListItemResponseDto {
+  @ApiProperty()
+  id!: string;
+  @ApiProperty()
+  readingListId!: string;
+  @ApiProperty()
+  catalogueItemId!: string;
+  @ApiPropertyOptional()
+  itemTitle!: string | null;
+  @ApiPropertyOptional()
+  itemAuthor!: string | null;
+  @ApiPropertyOptional()
+  itemCoverImageUrl!: string | null;
+  @ApiProperty({ enum: READING_LIST_ITEM_TYPES })
+  itemType!: ReadingListItemType;
+  @ApiProperty()
+  sortOrder!: number;
+  @ApiPropertyOptional()
+  notes!: string | null;
+  @ApiProperty()
+  addedById!: string;
+  @ApiPropertyOptional()
+  addedByName!: string | null;
+  @ApiProperty()
+  createdAt!: string;
+}
+
+export class ReadingListResponseDto {
+  @ApiProperty()
+  id!: string;
+  @ApiProperty()
+  schoolId!: string;
+  @ApiProperty()
+  name!: string;
+  @ApiPropertyOptional()
+  description!: string | null;
+  @ApiProperty({ enum: READING_LIST_TYPES })
+  listType!: ReadingListType;
+  @ApiProperty()
+  createdById!: string;
+  @ApiPropertyOptional()
+  createdByName!: string | null;
+  @ApiPropertyOptional()
+  targetClassId!: string | null;
+  @ApiPropertyOptional()
+  academicYearId!: string | null;
+  @ApiProperty()
+  isPublished!: boolean;
+  @ApiPropertyOptional()
+  publishedAt!: string | null;
+  @ApiProperty()
+  itemCount!: number;
+  @ApiPropertyOptional({ type: [ReadingListItemResponseDto] })
+  items?: ReadingListItemResponseDto[];
+  @ApiProperty()
+  createdAt!: string;
+  @ApiProperty()
+  updatedAt!: string;
+}
+
+// ── Review DTOs ─────────────────────────────────────────────────
+
+export class CreateReviewDto {
+  @ApiProperty()
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  reviewText?: string;
+}
+
+export class UpdateReviewDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  reviewText?: string;
+}
+
+export class ReviewResponseDto {
+  @ApiProperty()
+  id!: string;
+  @ApiProperty()
+  itemId!: string;
+  @ApiProperty()
+  studentId!: string;
+  @ApiPropertyOptional()
+  studentName!: string | null;
+  @ApiProperty()
+  rating!: number;
+  @ApiPropertyOptional()
+  reviewText!: string | null;
+  @ApiProperty()
+  isApproved!: boolean;
+  @ApiProperty()
+  createdAt!: string;
+  @ApiProperty()
+  updatedAt!: string;
+}

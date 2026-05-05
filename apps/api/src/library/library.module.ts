@@ -14,6 +14,14 @@ import { HoldService } from './hold.service';
 import { HoldController } from './hold.controller';
 import { FineService } from './fine.service';
 import { FineController } from './fine.controller';
+import { ReadingProgrammeService } from './reading-programme.service';
+import { ReadingProgrammeController } from './reading-programme.controller';
+import { ReadingLogService } from './reading-log.service';
+import { ReadingLogController } from './reading-log.controller';
+import { ReadingListService } from './reading-list.service';
+import { ReadingListController } from './reading-list.controller';
+import { ReviewService } from './review.service';
+import { ReviewController } from './review.controller';
 
 /**
  * Library Module — Cycle 12 Step 5.
@@ -68,6 +76,10 @@ import { FineController } from './fine.controller';
     CheckoutService,
     HoldService,
     FineService,
+    ReadingProgrammeService,
+    ReadingLogService,
+    ReadingListService,
+    ReviewService,
   ],
   controllers: [
     LocationController,
@@ -76,6 +88,10 @@ import { FineController } from './fine.controller';
     CheckoutController,
     HoldController,
     FineController,
+    ReadingProgrammeController,
+    ReadingLogController,
+    ReadingListController,
+    ReviewController,
   ],
   exports: [
     LocationService,
@@ -84,6 +100,10 @@ import { FineController } from './fine.controller';
     CheckoutService,
     HoldService,
     FineService,
+    ReadingProgrammeService,
+    ReadingLogService,
+    ReadingListService,
+    ReviewService,
   ],
 })
 export class LibraryModule {}
