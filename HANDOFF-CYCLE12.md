@@ -1,6 +1,6 @@
 # Cycle 12 Handoff — Library
 
-**Status:** Cycle 12 **IN PROGRESS — schema + seed + backend + full Library UI done (Steps 1–9).** Cycle 12 ships the M24 Library module — 14 of the 20 ERD tables in scope across 4 domains (catalogue + locations + copies in Step 1; circulation policies + checkouts + holds + fines in Step 2; reading programmes + lists + reviews in Step 3). The 6 deferred tables (recommendations, class set checkouts, interlibrary loans, import jobs, AI scan sessions) park as Cycle 12.1 / Wave 3. Cycle 12 introduces the **first entirely new module prefix** (`lib_*`) since Cycle 10's `hlth_*`, ships the **second student-input surface** in CampusOS after Cycle 11.1 (students log reading entries + write book reviews — verified live in Step 7), and adds the librarian as the third specialist operator persona alongside the nurse (Cycle 10) and counsellor (Cycle 11). Backend phase complete: 46 endpoints across 10 services + 10 controllers + 1 Kafka emit. Step 8 ships 5 web routes (`/library`, `/library/catalogue`, `/library/catalogue/[id]`, `/library/circulation`, `/library/fines`) + Library launchpad tile + `library-format.ts` helpers + `use-library.ts` hooks (~30 hooks) + ~300 lines of Library DTOs. Steps 9–10 (Reading + Reviews + Student Portal UI + vertical-slice CAT) remain.
+**Status:** Cycle 12 **COMPLETE pending architecture review — all 10 steps done.** Vertical-slice CAT at `docs/cycle12-cat-script.md` verified live on `tenant_demo` 2026-05-05; all 10 plan scenarios pass; `lib.fine.issued` envelope captured live on the wire with full ADR-057 shape. Ready for the post-cycle review pass. Cycle 12 ships the M24 Library module — 14 of the 20 ERD tables in scope across 4 domains (catalogue + locations + copies in Step 1; circulation policies + checkouts + holds + fines in Step 2; reading programmes + lists + reviews in Step 3). The 6 deferred tables (recommendations, class set checkouts, interlibrary loans, import jobs, AI scan sessions) park as Cycle 12.1 / Wave 3. Cycle 12 introduces the **first entirely new module prefix** (`lib_*`) since Cycle 10's `hlth_*`, ships the **second student-input surface** in CampusOS after Cycle 11.1 (students log reading entries + write book reviews — verified live in Step 7), and adds the librarian as the third specialist operator persona alongside the nurse (Cycle 10) and counsellor (Cycle 11). Backend phase complete: 46 endpoints across 10 services + 10 controllers + 1 Kafka emit. Step 8 ships 5 web routes (`/library`, `/library/catalogue`, `/library/catalogue/[id]`, `/library/circulation`, `/library/fines`) + Library launchpad tile + `library-format.ts` helpers + `use-library.ts` hooks (~30 hooks) + ~300 lines of Library DTOs. Steps 9–10 (Reading + Reviews + Student Portal UI + vertical-slice CAT) remain.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle12-implementation-plan.html`
@@ -12,18 +12,18 @@ This document tracks the Cycle 12 build at the same level of detail as `HANDOFF-
 
 ## Step status
 
-| Step | Title                                                       | Status      |
-| ---- | ----------------------------------------------------------- | ----------- |
-| 1    | Catalogue Schema — Locations + Items + Copies               | **DONE**    |
-| 2    | Circulation Schema — Policies + Checkouts + Holds + Fines   | **DONE**    |
-| 3    | Reading + Reviews Schema                                    | **DONE**    |
-| 4    | Seed Data — Catalogue, Copies, Policy, Checkouts, Programme | **DONE**    |
-| 5    | Catalogue NestJS Module                                     | **DONE**    |
-| 6    | Circulation NestJS Module                                   | **DONE**    |
-| 7    | Reading + Reviews NestJS Module                             | **DONE**    |
-| 8    | Library UI — Catalogue + Circulation                        | **DONE**    |
-| 9    | Library UI — Reading + Reviews + Student Portal             | **DONE**    |
-| 10   | Vertical Slice Integration Test                             | **PENDING** |
+| Step | Title                                                       | Status   |
+| ---- | ----------------------------------------------------------- | -------- |
+| 1    | Catalogue Schema — Locations + Items + Copies               | **DONE** |
+| 2    | Circulation Schema — Policies + Checkouts + Holds + Fines   | **DONE** |
+| 3    | Reading + Reviews Schema                                    | **DONE** |
+| 4    | Seed Data — Catalogue, Copies, Policy, Checkouts, Programme | **DONE** |
+| 5    | Catalogue NestJS Module                                     | **DONE** |
+| 6    | Circulation NestJS Module                                   | **DONE** |
+| 7    | Reading + Reviews NestJS Module                             | **DONE** |
+| 8    | Library UI — Catalogue + Circulation                        | **DONE** |
+| 9    | Library UI — Reading + Reviews + Student Portal             | **DONE** |
+| 10   | Vertical Slice Integration Test                             | **DONE** |
 
 ---
 
@@ -674,20 +674,31 @@ No backend changes — Step 8 sits entirely on the 36-endpoint surface from Step
 
 ## Step 10 — Vertical Slice Integration Test
 
-**Status:** PENDING.
+**Status:** DONE. CAT script at `docs/cycle12-cat-script.md` — 8-check schema preamble + 10 plan scenarios verified live on `tenant_demo` 2026-05-05 against the Step 9 build (commit `84527b5` on `main`). One ADR-057 wire envelope captured live on `dev.lib.fine.issued`. All scenarios pass. Cleanup script restores tenant to post-Step-4 seed shape exactly.
 
-Plan:
+**Live verification 2026-05-05** (10 plan scenarios all green):
 
-1. Catalogue lifecycle — librarian adds Bridge to Terabithia + 2 copies; verify GIN search.
-2. Checkout by barcode — Maya borrows copy 101; max_checkouts enforcement.
-3. Hold queue — Ethan places PENDING hold.
-4. Return + auto-fine — 2-day overdue → $0.50 fine + `lib.fine.issued` emit + Ethan's hold flips READY.
-5. Renewal — extend by 14 days; renewal limit enforcement.
-6. Reading programme — Maya logs Bridge to Terabithia → progress 2 → 3.
-7. Student review — Maya 5-stars Bridge to Terabithia; UNIQUE(item, student) catches duplicate.
-8. Reading list — teacher creates Grade 5 Adventure list + publishes.
-9. Visibility — student sees own checkouts/holds/fines/log; cannot see others'; parent sees child's; teacher cannot process checkouts.
-10. Fine management — librarian marks paid; admin waives; status transitions.
+- **S1 Catalogue lifecycle + GIN search** — Sarah adds Bridge to Terabithia + 2 copies (LIB-CAT-101 NEW + LIB-CAT-102 GOOD on Fiction Shelves). Search `?q=Terabithia` (title hit) and `?q=Paterson` (author surname hit via `COALESCE(author, '')` concatenation) both rank live. Item rollups: totalCopies=2, availableCopies=2, activeHoldsCount=0.
+- **S2 Checkout + max_checkouts enforcement** — Barcode lookup returns copy + item + activeCheckout=None in one round-trip. Principal scans LIB-CAT-101 for Maya → status=ACTIVE, dueDate=today+14d. Three more spare-copy checkouts bring Maya to the STUDENT max=5; the 6th attempt returns 400 "Patron has reached the maximum of 5 active checkouts for STUDENT patrons." Teacher POST /checkouts → 403 (lib-002:write controller gate).
+- **S3 Hold queue** — Sarah checks out LIB-CAT-102 to herself (STAFF patron — `resolvePatronType` joins hr_employees first when platform_students misses). Bridge availability now 0/2. Principal places PENDING hold on Bridge for Ethan → queuePosition=1, patronName="Ethan Rodriguez". Item rollups: activeHoldsCount=1.
+- **S4 Return + auto-fine + hold reassignment KEYSTONE** — Backdate Maya's LIB-CAT-101 to 2 days overdue. Return inside one tenant tx: status=RETURNED, returnedAt populated; OVERDUE fine auto-creates `amount=$0.50, days_overdue=2, status=OUTSTANDING`; Ethan's PENDING hold flips to READY with `notified_at` populated; copy LIB-CAT-101 walks to ON_HOLD_SHELF / is_available=false. **Wire envelope captured live on `dev.lib.fine.issued`** with full ADR-057 shape (event_id UUIDv7, source_module=library, tenant_id, payload.fineType=OVERDUE / amount=0.5 / daysOverdue=2 / status=OUTSTANDING / sourceRefId=fineId).
+- **S5 Renewal limit enforcement** — STUDENT policy renewals_allowed=2. Renew #1 → renewalCount=1 dueDate +14d; renew #2 → renewalCount=2; renew #3 → 400 "Renewal limit reached (2 for STUDENT patrons). The patron must return the book."
+- **S6 Reading programme auto-upsert KEYSTONE (student-input)** — Pre-state: Maya progress books_read=2, pages_read=313, is_complete=false. Maya POSTs reading log for Bridge with completedDate=today + pagesRead=128 + rating=5. Inside the same tenant tx the auto-upsert runs `INSERT ... ON CONFLICT DO UPDATE` against every active SCHOOL_WIDE / CLASS audience-matching programme. Post-state: books_read=3, pages_read=441 (313+128), is_complete=false (3/10 books).
+- **S7 Student review + UNIQUE catch** — Maya submits 5★ review on Bridge. Duplicate POST → 400 "You have already reviewed this book. PATCH /library/reviews/:id to edit your existing review." Teacher GETs reviews via `/library/catalogue/:id/reviews` which is gated on lib-001:read (catalogue surface) so teachers — who hold lib-003:write but not lib-003:read — see the review.
+- **S8 Reading list lifecycle + published_chk lockstep KEYSTONE** — Teacher creates "Grade 5 Adventure Reads" GENERAL DRAFT (isPublished=false, publishedAt=null). Student GET (drafts hidden by default) shows only the seed list. Teacher adds Bridge as REQUIRED. Teacher PATCHes isPublished=true → service stamps `is_published=true AND published_at=now()` atomically per the multi-column lockstep. Student GET now returns 2 lists.
+- **S9 Visibility model across 5 personas** — Maya GETs /checkouts → 6 own rows; /holds → 0 own; /fines → 2 own (seed Holes + new Bridge); /reading-log → 3 own (2 seed + 1 from S6). Parent GETs /fines → **403 INSUFFICIENT_PERMISSIONS required=[lib-002:read]** (no lib-002 in the seed). Parent + teacher both 403 on POST /checkouts. Student tries `?patronId=<Ethan>` query param — silently scoped back to own (6 rows, all Maya).
+- **S10 Fine management lifecycle** — Student PATCH pay → 403 (lib-002:write required). Principal marks Bridge fine PAID. School-admin waives the seeded Holes fine with required reason. Re-pay attempt on the PAID fine → 400 "Cannot pay a fine in status PAID — only OUTSTANDING."
+
+**Cleanup verified**: wholesale `DELETE FROM lib_*` in dependency order + `pnpm seed:library` re-run restores the post-Step-4 seed shape exactly (locations=3, items=5, copies=11, checkouts=3, holds=1, fines=1, programmes=1, progress=1 (Maya 2/313), logs=2, lists=1, list_items=3, reviews=1).
+
+**Reviewer attention items** (non-blocking, Phase 2 polish — listed in the CAT script):
+
+1. `lib.fine.issued` has no consumer. Emit lands cleanly with full ADR-057 envelope; no Cycle 6 PaymentService consumer subscribes today. Wiring is a polish item gated on a school-config `payment_integration_enabled` flag.
+2. Librarian role is the school-admin tier today. Real schools want a dedicated Librarian role; joins the Wave 2 Phase 2 punch list with the Counsellor / Nurse / Lead-counsellor splits from Cycles 9–11.
+3. Self-service hold placement gated on `lib-002:read` at the controller (not `:write`) because students hold `:read` only; `hasLibrarianScope` is the actual access boundary for cross-patron operations (mirrors Cycle 1 att-001:write self-service pattern).
+4. 6 deferred ERD tables — `lib_recommendations`, `lib_class_set_checkouts`, `lib_interlibrary_loans`, `lib_catalogue_import_jobs`, `lib_scan_sessions`, `lib_space_*` — park as Cycle 12.1 / Wave 3.
+5. `lib.programme.completed` Kafka emit + completion certificate worker — schema is ready, no service writes to it today.
+6. Parent visibility on `/children/[id]/library` — parents currently hold only `lib-001:read` (catalogue browse). Child-checkout visibility surface is a polish item.
 
 ---
 
