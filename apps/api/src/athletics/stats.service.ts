@@ -114,6 +114,35 @@ export class StatsService {
       throw new ForbiddenException('Stats entry requires an hr_employees identity');
     }
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-CYCLE13 MAJOR 5: validate every studentId is an
+      // active member of the game's parent roster. The schema
+      // enforces uniqueness on (game, student, category) but not
+      // membership, so this is the app-layer gate.
+      const gameRows = (await tx.$queryRawUnsafe(
+        'SELECT roster_id::text AS roster_id FROM ath_games WHERE id = $1::uuid',
+        gameId,
+      )) as Array<{ roster_id: string }>;
+      if (gameRows.length === 0) throw new NotFoundException('Game not found');
+      const rosterId = gameRows[0]!.roster_id;
+
+      const studentIds = Array.from(new Set(input.stats.map((line) => line.studentId)));
+      if (studentIds.length === 0) return;
+      const memberRows = (await tx.$queryRawUnsafe(
+        'SELECT student_id::text AS student_id FROM ath_roster_members ' +
+          'WHERE roster_id = $1::uuid AND removed_at IS NULL AND student_id = ANY($2::uuid[])',
+        rosterId,
+        studentIds,
+      )) as Array<{ student_id: string }>;
+      const allowed = new Set(memberRows.map((r) => r.student_id));
+      const missing = studentIds.filter((id) => !allowed.has(id));
+      if (missing.length > 0) {
+        throw new BadRequestException(
+          'The following studentId values are not active members of the game roster: ' +
+            missing.join(', ') +
+            '. Add them to the roster before entering stats, or remove the rows.',
+        );
+      }
+
       for (const line of input.stats) {
         const id = generateId();
         try {

@@ -87,21 +87,37 @@ export class InjuryService {
   ) {}
 
   /**
-   * Read scope: admins + Staff + students (own only) + teachers
-   * (own students). The Step 4 IAM seed grants ATH-004:read to
-   * Teacher / Student / Staff / Admin. Parents do NOT receive it.
-   * Row scope for non-admin students is enforced at the service
-   * layer by resolving the student_id through actor.personId.
+   * Build the row-scope predicate for an injury read. Returns:
+   *   - { sql: '', params: [] } — full access (admin / AD)
+   *   - { sql: 'AND i.student_id = $N::uuid ', params: [...] } — scoped
+   *   - null — caller is allowed by the gate but has no row scope
+   *     here (return [] / 404 rather than leaking)
+   *
+   * Scope contract per REVIEW-CYCLE13 BLOCKING 1:
+   *   - school admin / AD (hasAdScope) → all
+   *   - STUDENT → own injuries only via actor.personId →
+   *     platform_students → sis_students
+   *   - STAFF + employeeId → injuries for students enrolled in
+   *     classes they teach (sis_class_teachers + sis_enrollments
+   *     ACTIVE) OR for athletes on rosters they coach
+   *     (ath_coaching_assignments.coach_person_id, soft FK to
+   *     platform.iam_person)
+   *   - everyone else → no rows
+   *
+   * The ATH-004:read gate alone is not sufficient — it is held by
+   * Teacher / Student / Staff / Admin per the Step 4 seed, so
+   * generic STAFF without AD/teaching/coaching duties would
+   * otherwise enumerate all athletic injuries in the tenant. The
+   * service layer is the actual access gate.
    */
-  async list(
-    filters: { rosterId?: string; status?: ReturnToPlayStatus; studentId?: string },
+  private async buildVisibility(
     actor: ResolvedActor,
-  ): Promise<InjuryResponseDto[]> {
-    const sql: string[] = [SELECT_INJURY, 'WHERE 1=1 '];
-    const params: unknown[] = [];
+    nextParamPosition: number,
+  ): Promise<{ sql: string; params: unknown[] } | null> {
+    if (actor.isSchoolAdmin) return { sql: '', params: [] };
+    if (await this.programmes.hasAdScope(actor)) return { sql: '', params: [] };
 
     if (actor.personType === 'STUDENT') {
-      // Resolve actor.personId -> sis_students.id
       const own = (await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe(
           'SELECT s.id::text AS id FROM sis_students s ' +
@@ -110,9 +126,56 @@ export class InjuryService {
           actor.personId,
         );
       })) as Array<{ id: string }>;
-      if (own.length === 0) return [];
-      params.push(own[0]!.id);
-      sql.push('AND i.student_id = $' + params.length + '::uuid ');
+      if (own.length === 0) return null;
+      return {
+        sql: 'AND i.student_id = $' + nextParamPosition + '::uuid ',
+        params: [own[0]!.id],
+      };
+    }
+
+    if (actor.personType === 'STAFF' && actor.employeeId) {
+      // Teacher (own-class students) UNION coach (own-roster athletes)
+      const sql =
+        'AND i.student_id IN (' +
+        'SELECT e.student_id FROM sis_enrollments e ' +
+        'JOIN sis_class_teachers ct ON ct.class_id = e.class_id ' +
+        "WHERE e.status = 'ACTIVE' AND ct.teacher_employee_id = $" +
+        nextParamPosition +
+        '::uuid ' +
+        'UNION ' +
+        'SELECT m.student_id FROM ath_roster_members m ' +
+        'JOIN ath_coaching_assignments ca ON ca.roster_id = m.roster_id ' +
+        '  AND ca.is_active = true ' +
+        'WHERE m.removed_at IS NULL AND ca.coach_person_id = $' +
+        (nextParamPosition + 1) +
+        '::uuid' +
+        ') ';
+      return { sql, params: [actor.employeeId, actor.personId] };
+    }
+
+    return null;
+  }
+
+  /**
+   * Read scope per buildVisibility(). The Step 4 IAM seed grants
+   * ATH-004:read to Teacher / Student / Staff / Admin; the gate
+   * alone is insufficient for non-AD personas, so this service
+   * applies a row filter to keep injuries visible only to the
+   * student themselves and to staff with a teaching or coaching
+   * relationship to the student.
+   */
+  async list(
+    filters: { rosterId?: string; status?: ReturnToPlayStatus; studentId?: string },
+    actor: ResolvedActor,
+  ): Promise<InjuryResponseDto[]> {
+    const sql: string[] = [SELECT_INJURY, 'WHERE 1=1 '];
+    const params: unknown[] = [];
+
+    const visibility = await this.buildVisibility(actor, params.length + 1);
+    if (visibility === null) return [];
+    if (visibility.sql) {
+      sql.push(visibility.sql);
+      params.push(...visibility.params);
     }
 
     if (filters.studentId) {
@@ -130,9 +193,22 @@ export class InjuryService {
     return rows.map(rowToDto);
   }
 
-  async getById(id: string): Promise<InjuryResponseDto> {
+  async getById(id: string, actor: ResolvedActor): Promise<InjuryResponseDto> {
+    // Row scope is enforced inside the SELECT — non-authorized
+    // callers receive a collapsed 404 rather than leaking the
+    // existence of the row (per REVIEW-CYCLE13 BLOCKING 2).
+    const sql: string[] = [SELECT_INJURY, 'WHERE i.id = $1::uuid '];
+    const params: unknown[] = [id];
+
+    const visibility = await this.buildVisibility(actor, params.length + 1);
+    if (visibility === null) throw new NotFoundException('Injury not found');
+    if (visibility.sql) {
+      sql.push(visibility.sql);
+      params.push(...visibility.params);
+    }
+
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_INJURY + 'WHERE i.id = $1::uuid', id);
+      return client.$queryRawUnsafe(sql.join(''), ...params);
     })) as InjuryRow[];
     if (rows.length === 0) throw new NotFoundException('Injury not found');
     return rowToDto(rows[0]!);

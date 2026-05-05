@@ -146,6 +146,31 @@ export class ResultService {
     if (!(await this.games.hasResultScope(actor))) {
       throw new ForbiddenException('Only the AD or admin can correct game results');
     }
+    // REVIEW-CYCLE13 MAJOR 4: outcome changes are refused at this
+    // endpoint because flipping outcome (WIN/LOSS/DRAW/FORFEIT)
+    // would leave ath_season_records out of sync with the parent
+    // roster's actual win-loss-draw counters. Score / notes /
+    // score_by_period corrections are still allowed because they
+    // do not affect the aggregate. Full corrections that need to
+    // change the outcome should reverse + re-enter the result via
+    // a future AD-only correction workflow that reconciles the
+    // season record inside one tenant tx.
+    if (input.outcome !== undefined) {
+      const existing = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT outcome FROM ath_game_results WHERE id = $1::uuid',
+          resultId,
+        );
+      })) as Array<{ outcome: string }>;
+      if (existing.length === 0) throw new NotFoundException('Result not found');
+      if (existing[0]!.outcome !== input.outcome) {
+        throw new BadRequestException(
+          'Outcome cannot be changed via patchResult — it would leave the season ' +
+            'record out of sync. Use the dedicated correction workflow that reverses ' +
+            'and re-enters the result inside one tenant transaction.',
+        );
+      }
+    }
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.homeScore !== undefined) {
@@ -159,10 +184,6 @@ export class ResultService {
     if (input.scoreByPeriod !== undefined) {
       params.push(JSON.stringify(input.scoreByPeriod));
       sets.push('score_by_period = $' + params.length + '::jsonb');
-    }
-    if (input.outcome !== undefined) {
-      params.push(input.outcome);
-      sets.push('outcome = $' + params.length);
     }
     if (input.notes !== undefined) {
       params.push(input.notes);

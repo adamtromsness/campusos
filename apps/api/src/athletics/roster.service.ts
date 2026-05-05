@@ -334,43 +334,48 @@ export class RosterService {
     const programmeMinGpa = await this.loadProgrammeMinGpa(rosterId);
     const liveGpa = await this.computeLiveGpa(input.studentId);
 
-    // Check max roster size
-    const sizeChk = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
-        'SELECT p.max_roster_size_per_level, r.level FROM ath_rosters r ' +
-          'JOIN ath_seasons s ON s.id = r.season_id ' +
-          'JOIN ath_programmes p ON p.id = s.programme_id ' +
-          'WHERE r.id = $1::uuid',
-        rosterId,
-      );
-    })) as Array<{ max_roster_size_per_level: Record<string, number> | null; level: string }>;
-    if (sizeChk.length === 0) throw new NotFoundException('Roster not found');
-    const cap = sizeChk[0]!.max_roster_size_per_level?.[sizeChk[0]!.level];
-    if (cap !== undefined) {
-      const currentRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-        return client.$queryRawUnsafe(
-          'SELECT COUNT(*)::int AS c FROM ath_roster_members WHERE roster_id = $1::uuid AND removed_at IS NULL',
-          rosterId,
-        );
-      })) as Array<{ c: number }>;
-      if (currentRows[0]!.c >= cap) {
-        throw new BadRequestException(
-          'Roster has reached its cap of ' +
-            cap +
-            ' members for this level. Remove a member first.',
-        );
-      }
-    }
-
     let eligibilityStatus: EligibilityStatus = 'PENDING_PHYSICAL';
     if (programmeMinGpa !== null && liveGpa !== null) {
       eligibilityStatus = liveGpa >= programmeMinGpa ? 'ELIGIBLE' : 'INELIGIBLE';
     }
 
+    // Cap-check + insert run inside one tenant tx with the parent
+    // roster row locked FOR UPDATE so two concurrent adds cannot
+    // both observe available capacity and exceed the cap (per
+    // REVIEW-CYCLE13 MAJOR 3).
     const id = generateId();
-    try {
-      await this.tenantPrisma.executeInTenantContext(async (client) => {
-        await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const rosterLock = (await tx.$queryRawUnsafe(
+        'SELECT r.id::text AS id, r.level, p.max_roster_size_per_level ' +
+          'FROM ath_rosters r ' +
+          'JOIN ath_seasons s ON s.id = r.season_id ' +
+          'JOIN ath_programmes p ON p.id = s.programme_id ' +
+          'WHERE r.id = $1::uuid FOR UPDATE OF r',
+        rosterId,
+      )) as Array<{
+        id: string;
+        level: string;
+        max_roster_size_per_level: Record<string, number> | null;
+      }>;
+      if (rosterLock.length === 0) throw new NotFoundException('Roster not found');
+
+      const cap = rosterLock[0]!.max_roster_size_per_level?.[rosterLock[0]!.level];
+      if (cap !== undefined) {
+        const currentRows = (await tx.$queryRawUnsafe(
+          'SELECT COUNT(*)::int AS c FROM ath_roster_members WHERE roster_id = $1::uuid AND removed_at IS NULL',
+          rosterId,
+        )) as Array<{ c: number }>;
+        if (currentRows[0]!.c >= cap) {
+          throw new BadRequestException(
+            'Roster has reached its cap of ' +
+              cap +
+              ' members for this level. Remove a member first.',
+          );
+        }
+      }
+
+      try {
+        await tx.$executeRawUnsafe(
           'INSERT INTO ath_roster_members (id, roster_id, student_id, jersey_number, position, eligibility_status, eligibility_notes, joined_at) ' +
             'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, CURRENT_DATE)',
           id,
@@ -381,14 +386,14 @@ export class RosterService {
           eligibilityStatus,
           input.eligibilityNotes ?? null,
         );
-      });
-    } catch (e) {
-      const code = (e as { code?: string }).code;
-      if (code === '23505') {
-        throw new BadRequestException('Student is already on this roster.');
+      } catch (e) {
+        const code = (e as { code?: string }).code;
+        if (code === '23505') {
+          throw new BadRequestException('Student is already on this roster.');
+        }
+        throw e;
       }
-      throw e;
-    }
+    });
 
     const memberRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(SELECT_ROSTER_MEMBER + 'WHERE m.id = $1::uuid', id);

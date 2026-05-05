@@ -59,15 +59,10 @@ export class InjuryController {
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<InjuryResponseDto> {
-    const dto = await this.injuries.getById(id);
-    // For students viewing their own only — filter at row level
     const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
-    if (
-      actor.personType === 'STUDENT' &&
-      !(await this.injuries.list({ studentId: dto.studentId }, actor)).find((r) => r.id === id)
-    ) {
-      throw new Error('Injury not found');
-    }
+    // Row scope is enforced inside the service — non-authorized
+    // callers receive a 404 rather than leaking the row.
+    const dto = await this.injuries.getById(id, actor);
     dto.protocolSteps = await this.protocol.listForInjury(id);
     dto.clearances = await this.clearances.listForInjury(id);
     return dto;

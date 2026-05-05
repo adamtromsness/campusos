@@ -117,23 +117,24 @@ export class GameService {
   ) {}
 
   /**
-   * AD scope for game writes — admin OR holds ath-002:write.
+   * AD scope for game writes — admin OR holds ath-001:write
+   * (canonical AD signal) OR holds ath-002:write (game-write
+   * grant). Rewritten per REVIEW-CYCLE13 MAJOR 7 to avoid the
+   * brittle mixed-promise short-circuit.
    */
   async hasResultScope(actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
+    if (await this.programmes.hasAdScope(actor)) return true;
     const tenant = getCurrentTenant();
-    return (
-      (await this.programmes.hasAdScope(actor)) ||
-      this.tenantPrisma.executeInTenantContext(async (client) => {
-        const rows = (await client.$queryRawUnsafe(
-          'SELECT 1 FROM platform.iam_effective_access_cache WHERE account_id = $1::uuid AND $2::uuid = ANY(scope_ids) AND $3::text = ANY(permission_codes)',
-          actor.accountId,
-          tenant.schoolId,
-          'ath-002:write',
-        )) as unknown[];
-        return rows.length > 0;
-      })
-    );
+    return this.tenantPrisma.executeInTenantContext(async (client) => {
+      const rows = (await client.$queryRawUnsafe(
+        'SELECT 1 FROM platform.iam_effective_access_cache WHERE account_id = $1::uuid AND $2::uuid = ANY(scope_ids) AND $3::text = ANY(permission_codes)',
+        actor.accountId,
+        tenant.schoolId,
+        'ath-002:write',
+      )) as unknown[];
+      return rows.length > 0;
+    });
   }
 
   async list(filters: {
