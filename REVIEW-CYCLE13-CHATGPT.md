@@ -2,14 +2,14 @@
 
 **Round 1 verdict:** **Reject pending fixes** (against `cycle13-complete` at `7001205`).
 
-The reviewer flagged 2 BLOCKING privacy issues on the injury surface plus 5 MAJOR follow-ups. All actionable items addressed in the closeout fix commit `__FIX_SHA__` (live-verified on `tenant_demo` 2026-05-05). MAJOR 6 (`ATH-005:read` to generic Staff) is documented as a pre-pilot Wave 2 Phase 2 punch list item per the reviewer's gate decision.
+The reviewer flagged 2 BLOCKING privacy issues on the injury surface plus 5 MAJOR follow-ups. All actionable items addressed in the closeout fix commit `ec46e85` (live-verified on `tenant_demo` 2026-05-05). MAJOR 6 (`ATH-005:read` to generic Staff) is documented as a pre-pilot Wave 2 Phase 2 punch list item per the reviewer's gate decision.
 
-**Round 2 verdict:** _pending — to be filled in by the reviewer after re-review of the fix commit._
+**Round 2 verdict:** **Approved** (against `ec46e85`, 2026-05-05). Reviewer confirmed each Round 1 finding is closed in code: `buildVisibility` now correctly bounds the injury list, `getById(id, actor)` enforces row scope inside the SELECT and returns a collapsed 404, the roster cap is locked under `FOR UPDATE OF r`, `patchResult` refuses outcome changes (with the future reversal-and-re-entry workflow appropriately deferred to Phase 2), `bulkEnter` validates every studentId against active roster members, and `hasResultScope` was rewritten as explicit guard branches. The Athletic Director role split is correctly carried as a Wave 2 Phase 2 pre-pilot role-model hardening item. **Cycle 13 ships clean. Wave 2 (Student Services & Enrichment) closes here.**
 
 Tag chain:
 
 - `cycle13-complete` on `7001205` (original closeout commit + first CAT)
-- `cycle13-approved` on `__FIX_SHA__` (Round 2 APPROVED, after the fix commit)
+- `cycle13-approved` on `ec46e85` (Round 2 APPROVED, the REVIEW-CYCLE13 fix commit)
 
 ---
 
@@ -41,6 +41,23 @@ Smoke residue cleaned: tenant restored to post-Step-4 seed shape (programmes=2 /
 
 ---
 
-## Reviewer Round 2 verdict slot
+## Reviewer Round 2 verdict (2026-05-05)
 
-> _Reviewer fills this in._
+> **Approved.**
+>
+> I reviewed the fix commit `ec46e85` directly against the Round 1 findings and the verification trail above. The two blocking injury-visibility issues are fixed, and the main follow-ups were either fixed or properly deferred.
+>
+> **Confirmed fixes**
+>
+> 1. **Injury list row scope — fixed.** `InjuryService` now uses `buildVisibility(actor, nextParamPosition)` instead of relying on `ATH-004:read` alone. Implemented model: school admin / AD see all; student own only; staff only injuries for students in classes they teach or athletes on rosters where they have an active coaching assignment; everyone else no rows. Closes the prior issue where teachers or generic staff with `ATH-004:read` could enumerate all athletics injuries.
+> 2. **`GET /athletics/injuries/:id` row scope — fixed.** `InjuryController.getById()` now resolves the actor and passes it to `InjuryService.getById(id, actor)`. The service enforces the same visibility predicate inside the SQL query and returns a collapsed `404 Not Found` when unauthorized. The old post-fetch student-only check and raw `Error('Injury not found')` path are gone.
+> 3. **Roster cap concurrency — fixed.** `RosterService.addMember()` now runs the cap check and insert in a single tenant transaction and locks the parent roster row with `FOR UPDATE OF r`. Serializes concurrent adds and prevents the roster from exceeding `max_roster_size_per_level`.
+> 4. **Result correction / season record drift — fixed by restriction.** `ResultService.patchResult()` now refuses outcome changes at this endpoint, which prevents `ath_season_records` from drifting when someone tries to change a result from WIN to LOSS, DRAW, etc. Score / notes corrections remain allowed because they do not affect season aggregates. A future reversal/re-entry workflow for outcome corrections is appropriate as Phase 2.
+> 5. **Player stats roster validation — fixed.** `StatsService.bulkEnter()` now resolves the game's `roster_id` and validates every submitted `studentId` against active `ath_roster_members` for that roster. Invalid student IDs return a friendly `400` instead of allowing stats for non-roster students.
+> 6. **`hasResultScope()` readability — fixed.** Brittle async boolean composition rewritten into explicit branches. Maintainability issue, not a behavioral blocker.
+>
+> **Remaining accepted follow-up**
+>
+> The Athletic Director role split remains deferred: generic Staff still has broader athletics permissions than you would want before pilot. Correctly carried as a Wave 2 Phase 2 / pre-pilot role-model hardening item.
+>
+> **Final Gate Decision: Approved.** Cycle 13 is now clean from my review perspective.
