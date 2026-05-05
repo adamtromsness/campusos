@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 11.1 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
+.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
+.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
+.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
+.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
+.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
+.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}
+.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}
+.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}
+.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
+.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
+.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
+.step-title{font-size:19px;font-weight:700;color:var(--accent)}
+.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
+.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
+.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
+.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
+.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
+.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 2 &middot; Student Services</div>
+    <h1>Cycle 11.1: Wellbeing<br>Check-Ins</h1>
+    <div class="sub">Student-facing pulse surveys with counsellor-deployed targeting, multi-question-type responses, automatic flagging for follow-up, and a 5-type alert system with SELF_HARM_INDICATOR auto-escalation to administrators. The first student-input surface in the platform.</div>
+    <span class="version">May 2026 &middot; 8 Steps &middot; ERD v11 &middot; M27 Domain 5 (6 tables) &middot; COU-004</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 11.1 ships the 6 wellbeing tables deferred from Cycle 11. This is a self-contained sub-system with its own student-facing surface &mdash; the first time a student directly inputs data into CampusOS. The counsellor creates a survey template with questions across 5 domains (Academic, Social, Emotional, Physical, Safety), deploys it to a target audience (caseload, class, year group, school-wide, or custom list), and the platform generates individual check-in rows for each targeted student. Students complete check-ins via a dedicated student UI. Application logic flags concerning responses and generates alerts with a 5-type enum (FEELS_UNSAFE, WANTS_TO_TALK, SIGNIFICANT_SCORE_DROP, PERSISTENT_LOW_SCORE, SELF_HARM_INDICATOR). SELF_HARM_INDICATOR alerts auto-escalate to the school administrator.</p>
+
+  <p class="body-text">The data sensitivity model differs from Cycle 11's FERPA notes: wellbeing responses are student-generated self-report data visible to the counselling team and school administration. Students may view their own responses. Teachers see only aggregated trends (no individual responses) per the COU-004 function library. Parents do not see wellbeing data.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Safety &mdash; SELF_HARM_INDICATOR Auto-Escalation</div>
+    <p style="font-size:15px;line-height:1.8;">When a student's response matches the SELF_HARM_INDICATOR trigger criteria (configurable per template &mdash; e.g., SAFETY domain score &le; 1 on a 1&ndash;5 scale, or YES on "Do you feel like hurting yourself?"), the system automatically creates an alert row with <code>alert_type=SELF_HARM_INDICATOR</code> and emits <code>svc.wellbeing.alert.created</code>. This Kafka event should be consumed by the Cycle 3 NotificationConsumer (future wiring) to send an immediate IN_APP + EMAIL notification to the school administrator AND the assigned counsellor. The alert auto-escalation is <strong>not configurable by the school</strong> &mdash; it fires unconditionally whenever the trigger criteria match.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Counsellor creates a "Weekly Emotional Check-In" template with 5 questions across Emotional + Safety domains (3 SCALE_1_5, 1 YES_NO "Do you want to talk to someone?", 1 EMOJI_SCALE) &rarr; deploys to Maya's caseload targeting &rarr; platform generates a PENDING check-in for Maya &rarr; Maya opens the student wellbeing page, sees the pending check-in, and submits responses (Safety score=2, "Do you want to talk?"=YES) &rarr; application logic flags the check-in for follow-up and creates a WANTS_TO_TALK alert &rarr; counsellor sees the alert in the alert queue, acknowledges it, and documents follow-up &rarr; admin views the school-wide wellbeing dashboard showing aggregated domain scores and alert counts &rarr; Maya sees her own responses on the student portal &rarr; teacher sees only "1 check-in completed this week" aggregated trend &mdash; no individual responses.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (6 tables):</strong> svc_wellbeing_survey_templates, svc_wellbeing_questions, svc_wellbeing_deployments, svc_wellbeing_checkins, svc_wellbeing_responses, svc_wellbeing_alerts. COU-004 function (read + write + admin tiers).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Response RANGE-partitioning by month (tagged in ERD &mdash; ships as a simple table now; partitioning is a Phase 3 ops concern when data volume warrants it). Scheduled deployment auto-activation (manual activation this cycle; a cron/worker that flips SCHEDULED &rarr; ACTIVE at deploy_at is a future enhancement). Score-drop detection across deployments (SIGNIFICANT_SCORE_DROP and PERSISTENT_LOW_SCORE alerts require historical comparison &mdash; this cycle implements FEELS_UNSAFE, WANTS_TO_TALK, and SELF_HARM_INDICATOR which can fire on single-response evaluation). Cycle 3 NotificationConsumer wiring for <code>svc.wellbeing.alert.created</code> (emit lands on Kafka; no consumer yet).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Wellbeing Survey Schema &mdash; Templates + Questions + Deployments</td><td>Schema</td><td>svc_wellbeing_survey_templates, svc_wellbeing_questions, svc_wellbeing_deployments</td></tr>
+    <tr><td><strong>2</strong></td><td>Check-In + Responses + Alerts Schema</td><td>Schema</td><td>svc_wellbeing_checkins, svc_wellbeing_responses, svc_wellbeing_alerts</td></tr>
+    <tr><td><strong>3</strong></td><td>Seed Data &mdash; Template, Deployment, Check-In, Responses, Alert</td><td>Seed</td><td>1 template + 5 questions, 1 deployment, 2 check-ins (Maya completed + Ethan pending), responses + 1 WANTS_TO_TALK alert, COU-004 permissions</td></tr>
+    <tr><td><strong>4</strong></td><td>Survey Template + Deployment NestJS Module</td><td>Code</td><td>SurveyTemplateService, DeploymentService. Template CRUD. Deploy to target audience with check-in row generation.</td></tr>
+    <tr><td><strong>5</strong></td><td>Check-In + Response + Alert NestJS Module</td><td>Code</td><td>CheckInService, AlertService. Student submits responses. Auto-flag + alert generation. <code>svc.wellbeing.alert.created</code> Kafka emit.</td></tr>
+    <tr><td><strong>6</strong></td><td>Counsellor Wellbeing UI &mdash; Templates + Deployments + Alerts</td><td>UI</td><td>Survey builder, deployment manager, alert queue with triage, per-student response detail</td></tr>
+    <tr><td><strong>7</strong></td><td>Student Wellbeing UI &mdash; Check-In Completion</td><td>UI</td><td>Student-facing check-in page. Pending surveys list. Question-by-question completion flow. Own-response history.</td></tr>
+    <tr><td><strong>8</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Template &rarr; deploy &rarr; student completes &rarr; alert generated &rarr; counsellor triages &rarr; FERPA denials</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Wellbeing Survey Schema &mdash; Templates + Questions + Deployments</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The counsellor-authored survey infrastructure: reusable templates with ordered questions across 5 wellbeing domains, and the deployment mechanism that targets student audiences.</p>
+
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>svc_wellbeing_survey_templates</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>frequency_recommendation TEXT NOT NULL</code> 4-value CHECK (DAILY, WEEKLY, MONTHLY, AS_NEEDED), <code>is_active BOOLEAN DEFAULT true</code>, <code>created_by UUID FK(hr_employees) NOT NULL</code>. UNIQUE(school_id, name). INDEX(school_id, is_active). The template is the reusable survey definition; each deployment creates a fresh batch of check-ins from it.</li>
+      <li><strong>svc_wellbeing_questions</strong> &mdash; <code>template_id UUID FK NOT NULL</code>, <code>question_text TEXT NOT NULL</code>, <code>question_type TEXT NOT NULL</code> 5-value CHECK (SCALE_1_5, SCALE_1_10, YES_NO, FREE_TEXT, EMOJI_SCALE), <code>domain TEXT NOT NULL</code> 5-value CHECK (ACADEMIC, SOCIAL, EMOTIONAL, PHYSICAL, SAFETY), <code>sort_order INT NOT NULL</code>. INDEX(template_id, sort_order). The SAFETY domain questions are the trigger surface for SELF_HARM_INDICATOR and FEELS_UNSAFE alerts.</li>
+      <li><strong>svc_wellbeing_deployments</strong> &mdash; <code>school_id UUID</code>, <code>template_id UUID FK(svc_wellbeing_survey_templates) NOT NULL</code>, <code>deployed_by UUID FK(hr_employees) NOT NULL</code>, <code>deploy_at TIMESTAMPTZ NOT NULL</code>, <code>expires_at TIMESTAMPTZ</code> nullable, <code>target_type TEXT NOT NULL</code> 5-value CHECK (CASELOAD, CLASS, YEAR_GROUP, SCHOOL, CUSTOM_LIST), <code>target_ids UUID[]</code> nullable (null for CASELOAD which auto-targets the deploying counsellor's active caseload; class IDs, year group IDs, or specific student IDs otherwise), <code>status TEXT NOT NULL DEFAULT 'SCHEDULED'</code> 4-value CHECK (SCHEDULED, ACTIVE, COMPLETED, CANCELLED), <code>total_targeted INT</code> nullable, <code>total_completed INT</code> nullable. INDEX(school_id, status). On SCHEDULED &rarr; ACTIVE: Step 4 service generates <code>svc_wellbeing_checkins</code> rows for all targeted students.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 3 new tables. Migration: <code>039_svc_wellbeing_templates.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Check-In + Responses + Alerts Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The student-facing check-in instances, per-question responses, and the alert system that flags concerning answers for counsellor triage.</p>
+
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>svc_wellbeing_checkins</strong> &mdash; One row per student per deployment (or ad-hoc). <code>school_id UUID</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>template_id UUID FK(svc_wellbeing_survey_templates) NOT NULL</code>, <code>deployment_id UUID FK(svc_wellbeing_deployments)</code> nullable (null for ad-hoc check-ins), <code>completed_at TIMESTAMPTZ</code> nullable (null = not yet completed; the student UI renders these as PENDING), <code>flagged_for_follow_up BOOLEAN DEFAULT false</code> (set by application logic in Step 5 when responses indicate concern), <code>assigned_counselor_id UUID FK(hr_employees)</code> nullable. INDEX(student_id, completed_at DESC). Partial INDEX(flagged_for_follow_up, completed_at) WHERE flagged_for_follow_up=true &mdash; the counsellor follow-up queue. Partial INDEX(deployment_id, completed_at) WHERE deployment_id IS NOT NULL.</li>
+      <li><strong>svc_wellbeing_responses</strong> &mdash; Per-question response within a check-in. <code>checkin_id UUID FK NOT NULL</code>, <code>question_id UUID FK(svc_wellbeing_questions) NOT NULL</code>, <code>numeric_response SMALLINT</code> nullable (SCALE_1_5, SCALE_1_10, EMOJI_SCALE map to numeric; YES_NO maps to 1/0), <code>text_response TEXT</code> nullable (FREE_TEXT answers). UNIQUE(checkin_id, question_id) &mdash; one response per question per check-in. Student-generated self-report data. Access restricted to counselling team + admin. Students may view own responses only.</li>
+      <li><strong>svc_wellbeing_alerts</strong> &mdash; <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>response_id UUID FK(svc_wellbeing_responses) NOT NULL</code> (the specific response that triggered the alert), <code>alert_type TEXT NOT NULL</code> 5-value CHECK (FEELS_UNSAFE, WANTS_TO_TALK, SIGNIFICANT_SCORE_DROP, PERSISTENT_LOW_SCORE, SELF_HARM_INDICATOR), <code>status TEXT NOT NULL DEFAULT 'NEW'</code> 4-value CHECK (NEW, ACKNOWLEDGED, IN_PROGRESS, RESOLVED), <code>acknowledged_by UUID FK(hr_employees)</code> nullable, <code>acknowledged_at TIMESTAMPTZ</code> nullable, <code>resolution_notes TEXT</code> nullable. INDEX(student_id, status). Partial INDEX(status) WHERE status IN ('NEW','ACKNOWLEDGED','IN_PROGRESS') &mdash; the open-alerts queue. SELF_HARM_INDICATOR auto-escalates to administrator via Kafka emit.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 3 new tables. Migration: <code>040_svc_wellbeing_checkins.sql</code>. Total Cycle 11.1 tables: 6.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Seed Data &mdash; Template, Deployment, Check-In, Responses, Alert</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>1 survey template:</strong> "Weekly Emotional Check-In" by Hayes, frequency_recommendation=WEEKLY, is_active=true. 5 questions: Q1 EMOTIONAL SCALE_1_5 "How are you feeling today?", Q2 SOCIAL SCALE_1_5 "Do you feel connected to your classmates?", Q3 SAFETY YES_NO "Do you want to talk to someone about something?", Q4 EMOTIONAL EMOJI_SCALE "How was your week overall?", Q5 ACADEMIC SCALE_1_5 "How confident do you feel about your schoolwork?"</li>
+      <li><strong>1 deployment:</strong> CASELOAD targeting (auto-targets Hayes's active caseload = Maya), status=ACTIVE, deployed last week, total_targeted=1, total_completed=1.</li>
+      <li><strong>2 check-ins:</strong> (1) Maya, COMPLETED last week, flagged_for_follow_up=true, assigned_counselor=Hayes. (2) Ethan (second student to exercise multi-student deployment), completed_at=null (PENDING &mdash; demonstrates the student UI pending state).</li>
+      <li><strong>5 responses for Maya's completed check-in:</strong> Q1=3 (mid-range), Q2=4 (connected), Q3=1 (YES &mdash; wants to talk, mapped to numeric 1), Q4=3 (mid emoji), Q5=4 (confident). The Q3 YES response triggers the WANTS_TO_TALK alert.</li>
+      <li><strong>1 alert:</strong> WANTS_TO_TALK for Maya, linked to the Q3 response, status=ACKNOWLEDGED, acknowledged_by=Hayes, resolution_notes "Scheduled a 1:1 session to discuss."</li>
+      <li><strong>Permissions:</strong> COU-004:read to Teacher (aggregated trends only &mdash; no individual responses; the Step 5 service strips individual data for non-counsellor readers). COU-004:write to Staff (counsellor creates templates + deploys + triages alerts). COU-004:admin to Admin (configure templates + view school-wide analytics). COU-004:read to Student (own check-ins + own responses only). COU-004:read to Parent (denied &mdash; wellbeing data is student-counsellor confidential; parent does NOT receive COU-004:read). Admin gets all via everyFunction.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Wellbeing demo data with a completed check-in, WANTS_TO_TALK alert, and a pending check-in for the student UI to render. COU-004 permissions granted.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Survey Template + Deployment NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>SurveyTemplateService</strong> &mdash; <code>GET /counselling/wellbeing/templates</code> (counsellor + admin: active templates for the school), <code>GET /counselling/wellbeing/templates/:id</code> (with inlined questions ordered by sort_order), <code>POST /counselling/wellbeing/templates</code> (admin or counsellor; creates template + questions in one tx), <code>PATCH /counselling/wellbeing/templates/:id</code> (update name, description, frequency, is_active; deactivate rather than delete so historical deployments retain their FK), <code>POST /counselling/wellbeing/templates/:id/questions</code> (add question), <code>PATCH /counselling/wellbeing/questions/:id</code> (update question text, type, domain, sort_order), <code>DELETE /counselling/wellbeing/questions/:id</code> (only when no responses reference it yet).</li>
+      <li><strong>DeploymentService</strong> &mdash; <code>GET /counselling/wellbeing/deployments</code> (counsellor: own; admin: all; filters on status, template), <code>GET /counselling/wellbeing/deployments/:id</code> (with inlined completion stats: total_targeted, total_completed, completion_rate), <code>POST /counselling/wellbeing/deployments</code> (counsellor or admin; validates target_type constraints; stamps deployed_by from actor.employeeId), <code>PATCH /counselling/wellbeing/deployments/:id/activate</code> (SCHEDULED &rarr; ACTIVE; resolves target audience into student IDs and bulk-INSERTs <code>svc_wellbeing_checkins</code> rows with completed_at=null; stamps total_targeted; assigns counsellor from deployer's caseload ownership where applicable), <code>PATCH /counselling/wellbeing/deployments/:id/complete</code> (ACTIVE &rarr; COMPLETED), <code>PATCH /counselling/wellbeing/deployments/:id/cancel</code> (any non-terminal &rarr; CANCELLED).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; WellbeingModule with 2 services, ~13 endpoints. The activate endpoint is the keystone &mdash; it resolves the target audience and bulk-generates check-in rows.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Check-In + Response + Alert NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>CheckInService</strong> &mdash; <code>GET /counselling/wellbeing/checkins</code> (counsellor: for caseload students; admin: school-wide; student: own only; filters on completed/pending, flagged, deployment), <code>GET /counselling/wellbeing/checkins/:id</code> (with inlined responses; student sees own; counsellor sees caseload; admin sees all), <code>POST /counselling/wellbeing/checkins/:id/submit</code> (<strong>STUDENT-FACING keystone.</strong> Accepts an array of <code>{questionId, numericResponse?, textResponse?}</code>. Validates every question in the template has a response. Bulk-INSERTs <code>svc_wellbeing_responses</code> inside one tx. Stamps <code>completed_at=now()</code>. Runs the flag + alert evaluation logic &mdash; see below. Updates the deployment's <code>total_completed</code> counter).</li>
+      <li><strong>Alert evaluation logic</strong> (inside the submit tx): after responses are persisted, the service scans for trigger conditions: (a) <strong>WANTS_TO_TALK</strong> &mdash; any YES_NO question with <code>numeric_response=1</code> (YES) in the SAFETY or EMOTIONAL domain, (b) <strong>FEELS_UNSAFE</strong> &mdash; any SAFETY-domain SCALE question with <code>numeric_response &le; 1</code> (lowest rating), (c) <strong>SELF_HARM_INDICATOR</strong> &mdash; any SAFETY-domain question with text matching a configurable keyword list OR numeric_response=1 on a specifically-tagged question (the template author tags a question as a self-harm indicator via a future <code>is_safety_critical</code> flag &mdash; for this cycle, the trigger fires on SAFETY+SCALE_1_5 &le; 1). When a trigger matches: flag the check-in (<code>flagged_for_follow_up=true</code>), create a <code>svc_wellbeing_alerts</code> row with the matching response_id, and emit <code>svc.wellbeing.alert.created</code> on Kafka. SELF_HARM_INDICATOR additionally auto-escalates by emitting with <code>autoEscalate=true</code> in the payload.</li>
+      <li><strong>AlertService</strong> &mdash; <code>GET /counselling/wellbeing/alerts</code> (counsellor: own caseload students; admin: school-wide; filters on status, alert_type), <code>PATCH /counselling/wellbeing/alerts/:id/acknowledge</code> (NEW &rarr; ACKNOWLEDGED; stamps acknowledged_by + acknowledged_at), <code>PATCH /counselling/wellbeing/alerts/:id/resolve</code> (any open state &rarr; RESOLVED with resolution_notes). Teachers see alert counts only (no student-level detail). Students and parents never see alerts.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 2 services, ~8 endpoints, 1 Kafka emit (<code>svc.wellbeing.alert.created</code>). Total Cycle 11.1 endpoints: ~21.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Counsellor Wellbeing UI &mdash; Templates + Deployments + Alerts</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Wellbeing Dashboard</strong> <code>/counselling/wellbeing</code> &mdash; extends the existing Counselling app tile. Three panels: (1) Active deployments with completion progress bars (total_completed / total_targeted), (2) Open alerts queue (NEW + ACKNOWLEDGED, sorted by alert_type severity: SELF_HARM_INDICATOR first, then FEELS_UNSAFE, then WANTS_TO_TALK), (3) Recent completed check-ins with flagged/unflagged pills.</li>
+      <li><strong>Template Builder</strong> <code>/counselling/wellbeing/templates/:id</code> &mdash; template header (name, description, frequency). Draggable question list with type pill + domain pill per row. Add-question form with type dropdown, domain dropdown, question text. Question edit inline. Delete question (blocked when responses exist).</li>
+      <li><strong>Deployment Manager</strong> <code>/counselling/wellbeing/deployments/:id</code> &mdash; deployment card with target_type pill + status pill + deploy/expire dates + completion stats. Student check-in list with completed/pending status per row. Activate / Complete / Cancel buttons per status. For completed check-ins: click to see per-student responses (counsellor detail view).</li>
+      <li><strong>Alert Queue</strong> <code>/counselling/wellbeing/alerts</code> &mdash; filter chips: New / Acknowledged / In progress / Resolved / All. Per-row: student name, alert_type pill (rose gradient: SELF_HARM_INDICATOR deepest red), linked response preview, status pill. Acknowledge + resolve buttons. Resolution notes modal.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Wellbeing dashboard, template builder, deployment detail, alert queue. Extends the /counselling route family.</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Student Wellbeing UI &mdash; Check-In Completion</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Student Check-In Page</strong> <code>/wellbeing</code> &mdash; <strong>The first student-input surface in CampusOS.</strong> New "Wellbeing" tile on the student launchpad gated on COU-004:read (granted to students in the Step 3 seed). Lists pending check-ins (completed_at IS NULL) with template name + counsellor name + due info. "Start check-in" button opens the completion flow.</li>
+      <li><strong>Check-In Completion Flow</strong> <code>/wellbeing/checkins/:id</code> &mdash; question-by-question card layout with appropriate input per question_type: SCALE_1_5 renders 5 radio buttons (1 = "Not at all" to 5 = "Very much"); SCALE_1_10 renders a slider; YES_NO renders two large toggle buttons; FREE_TEXT renders a textarea (500 char limit); EMOJI_SCALE renders 5 emoji faces (maps to 1&ndash;5 numeric). Submit button validates all questions answered. On submit: POST /checkins/:id/submit with the full response array. Success confirmation shows "Thank you for checking in" with a warm illustration.</li>
+      <li><strong>My Responses</strong> <code>/wellbeing/history</code> &mdash; student sees their own completed check-ins (newest first) with date + template name. Click to see own responses (read-only). Students do NOT see their alert status (they do not know they were flagged &mdash; the counsellor initiates any follow-up conversation naturally).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Student wellbeing tile + check-in completion flow + response history. The first student-input surface in the platform.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Template creation:</strong> Hayes creates "Weekly Emotional Check-In" with 5 questions. Verify questions ordered by sort_order. Verify UNIQUE(school_id, name) rejects duplicates.</li>
+      <li><strong>Deployment + activation:</strong> Hayes deploys to CASELOAD target (auto-resolves Maya). Activates: verify svc_wellbeing_checkins row created for Maya with completed_at=null. Verify total_targeted=1.</li>
+      <li><strong>Student submits check-in:</strong> Maya submits responses (Safety Q3 YES = wants to talk). Verify completed_at stamped. Verify 5 response rows. Verify total_completed incremented to 1.</li>
+      <li><strong>Alert generation:</strong> Verify WANTS_TO_TALK alert created (Q3 YES in SAFETY/EMOTIONAL domain). Verify flagged_for_follow_up=true on the check-in. Verify <code>svc.wellbeing.alert.created</code> fires on Kafka.</li>
+      <li><strong>SELF_HARM_INDICATOR trigger:</strong> In a separate check-in, submit a SAFETY SCALE_1_5 score=1. Verify SELF_HARM_INDICATOR alert created with autoEscalate=true in the Kafka payload.</li>
+      <li><strong>Alert triage:</strong> Hayes acknowledges the WANTS_TO_TALK alert. Admin resolves it with notes. Verify status progression NEW &rarr; ACKNOWLEDGED &rarr; RESOLVED.</li>
+      <li><strong>Student visibility:</strong> Maya sees own completed check-ins and own responses. Maya does NOT see alert status or flagged_for_follow_up. Student cannot see other students' check-ins.</li>
+      <li><strong>Teacher visibility:</strong> Rivera sees aggregated completion count only (e.g., "1 of 1 completed"). Rivera cannot see individual responses or alert details. COU-004:read grants trend access; the service strips individual data for non-counsellor readers.</li>
+      <li><strong>Parent visibility:</strong> David Chen cannot access wellbeing endpoints (COU-004:read not granted to parents). 403 on all wellbeing routes.</li>
+      <li><strong>Counsellor visibility:</strong> Hayes sees full detail &mdash; individual responses, alert queue, per-student check-in history. Admin sees school-wide dashboard.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Verified wellbeing lifecycle: template &rarr; deploy &rarr; student completes &rarr; alert fires &rarr; counsellor triages. Every persona boundary tested.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 11.1 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 6 new tables (3 template/deployment + 3 checkin/response/alert). Tenant table count: ~175.</li>
+      <li>Wellbeing API: ~21 endpoints with per-persona visibility (counsellor full detail, student own-only, teacher aggregated, parent denied).</li>
+      <li>Student-facing check-in submission &mdash; the first student-input surface in CampusOS.</li>
+      <li>Alert auto-generation on concerning responses. SELF_HARM_INDICATOR auto-escalation via <code>svc.wellbeing.alert.created</code> Kafka emit.</li>
+      <li>Alert triage: NEW &rarr; ACKNOWLEDGED &rarr; RESOLVED lifecycle.</li>
+      <li>Deployment activation generates check-in rows for targeted students.</li>
+      <li>COU-004 permission grants across 7 personas (student gets read for own check-ins; parent denied).</li>
+      <li>HANDOFF-CYCLE11.1.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">After Cycle 11.1, CampusOS has the complete M27 Student Services module: caseloads, referrals, FERPA-protected sessions, MTSS/RTI tiered interventions, wellbeing check-ins with auto-alert escalation, coordinated care, and mandatory reporting. Cycles 12&ndash;13 (Library + Athletics &amp; Clubs) complete Wave 2.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 11.1 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M27 Student Services Domain 5, 6 tables), Function Library (COU-004 Wellbeing Check-Ins), Architecture Review (Kafka event svc.wellbeing.alert.created with SELF_HARM_INDICATOR auto-escalation).</p>
+  </div>
+</div>
+
+</body>
+</html>
