@@ -79,7 +79,7 @@ export class CopyService {
    * scan and uses it to validate availability before flipping the
    * copy state.
    */
-  async lookupByBarcode(barcode: string): Promise<BarcodeLookupResponseDto> {
+  async lookupByBarcode(barcode: string, actor?: ResolvedActor): Promise<BarcodeLookupResponseDto> {
     const tenant = getCurrentTenant();
     const copyRows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<CopyRow[]>(
@@ -99,34 +99,46 @@ export class CopyService {
     // the pending hold count, in two more round-trips.
     const item = await this.catalogue.loadItemOrFail(copy.catalogueItemId);
 
-    const checkoutRows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<CheckoutLookupRow[]>(
-        'SELECT co.id::text AS checkout_id, co.patron_id::text AS patron_id, ' +
-          'p.first_name AS patron_first, p.last_name AS patron_last, ' +
-          "TO_CHAR(co.checkout_date, 'YYYY-MM-DD') AS checkout_date, " +
-          "TO_CHAR(co.due_date, 'YYYY-MM-DD') AS due_date, " +
-          'co.status, co.renewal_count, ' +
-          '(co.due_date - CURRENT_DATE)::int AS days_until_due ' +
-          'FROM lib_checkouts co ' +
-          'LEFT JOIN platform.iam_person p ON p.id = co.patron_id ' +
-          'WHERE co.copy_id = $1::uuid AND co.returned_at IS NULL ' +
-          'ORDER BY co.checkout_date DESC LIMIT 1',
-        copy.id,
-      );
-    });
+    // Identity strip per REVIEW-CYCLE12 BLOCKING 3: the barcode lookup
+    // is gated on lib-001:read (catalogue read, held by every persona).
+    // Returning `activeCheckout` with patron_id + patron_name to a
+    // student / parent / general-staff caller leaks who has the book.
+    // Only librarians (lib-002:write) and admins see the full
+    // circulation-desk shape with active-checkout patron identity. Other
+    // readers get the same DTO with `activeCheckout: null` plus a sentinel
+    // `isCheckedOut` boolean derived from copy.is_available — they can
+    // still tell the book is unavailable, but not who has it.
+    const isLibrarian = actor ? await this.isLibrarian(actor) : false;
     let activeCheckout: ActiveCheckoutDto | null = null;
-    if (checkoutRows.length > 0) {
-      const r = checkoutRows[0]!;
-      activeCheckout = {
-        checkoutId: r.checkout_id,
-        patronId: r.patron_id,
-        patronName: r.patron_first && r.patron_last ? r.patron_first + ' ' + r.patron_last : null,
-        checkoutDate: r.checkout_date,
-        dueDate: r.due_date,
-        daysUntilDue: r.days_until_due,
-        status: r.status,
-        renewalCount: r.renewal_count,
-      };
+    if (isLibrarian) {
+      const checkoutRows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe<CheckoutLookupRow[]>(
+          'SELECT co.id::text AS checkout_id, co.patron_id::text AS patron_id, ' +
+            'p.first_name AS patron_first, p.last_name AS patron_last, ' +
+            "TO_CHAR(co.checkout_date, 'YYYY-MM-DD') AS checkout_date, " +
+            "TO_CHAR(co.due_date, 'YYYY-MM-DD') AS due_date, " +
+            'co.status, co.renewal_count, ' +
+            '(co.due_date - CURRENT_DATE)::int AS days_until_due ' +
+            'FROM lib_checkouts co ' +
+            'LEFT JOIN platform.iam_person p ON p.id = co.patron_id ' +
+            'WHERE co.copy_id = $1::uuid AND co.returned_at IS NULL ' +
+            'ORDER BY co.checkout_date DESC LIMIT 1',
+          copy.id,
+        );
+      });
+      if (checkoutRows.length > 0) {
+        const r = checkoutRows[0]!;
+        activeCheckout = {
+          checkoutId: r.checkout_id,
+          patronId: r.patron_id,
+          patronName: r.patron_first && r.patron_last ? r.patron_first + ' ' + r.patron_last : null,
+          checkoutDate: r.checkout_date,
+          dueDate: r.due_date,
+          daysUntilDue: r.days_until_due,
+          status: r.status,
+          renewalCount: r.renewal_count,
+        };
+      }
     }
 
     return {
@@ -134,7 +146,20 @@ export class CopyService {
       item,
       activeCheckout,
       pendingHoldsCount: item.activeHoldsCount,
+      isCheckedOut: !copy.isAvailable,
     };
+  }
+
+  /**
+   * Public for the controller — keeps the librarian-scope check in
+   * one place. Mirrors the convention in checkout.service.ts.
+   */
+  async isLibrarian(actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    const tenant = getCurrentTenant();
+    return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'lib-002:write',
+    ]);
   }
 
   async create(

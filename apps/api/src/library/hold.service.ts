@@ -10,6 +10,7 @@ import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import { CreateHoldDto, HoldResponseDto, HoldStatus } from './dto/library.dto';
+import { CheckoutService } from './checkout.service';
 
 interface HoldRow {
   id: string;
@@ -61,6 +62,7 @@ export class HoldService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permissions: PermissionCheckService,
+    private readonly checkouts: CheckoutService,
   ) {}
 
   private async hasLibrarianScope(actor: ResolvedActor): Promise<boolean> {
@@ -96,6 +98,17 @@ export class HoldService {
 
     if (!patronId) {
       throw new BadRequestException('patronId required (no actor.personId resolved)');
+    }
+
+    // Cross-tenant guard per REVIEW-CYCLE12 BLOCKING 4. The default
+    // self-service path (patronId = actor.personId) is implicitly
+    // tenant-scoped because the Auth + Tenant guard chain already
+    // proved the actor belongs to this tenant. The librarian-on-
+    // behalf path needs the explicit projection check so a librarian
+    // can't place a hold for a person who is a `platform_students`
+    // row in a different school but not enrolled here.
+    if (input.patronId && input.patronId !== actor.personId) {
+      await this.checkouts.assertPatronInCurrentTenant(input.patronId);
     }
 
     const id = generateId();
@@ -173,12 +186,27 @@ export class HoldService {
     return rows.map(rowToDto);
   }
 
-  async getById(id: string): Promise<HoldResponseDto> {
+  /**
+   * Fetch a single hold. When `actor` is supplied (controller path)
+   * this enforces row scope — librarians/admins see any hold in
+   * tenant, patrons see only their own, non-owners get a 404
+   * (don't-leak-existence per REVIEW-CYCLE12 BLOCKING 2). The
+   * actor-less overload remains for internal post-mutation reloads
+   * (placeHold / cancel / collect already passed authorisation).
+   */
+  async getById(id: string, actor?: ResolvedActor): Promise<HoldResponseDto> {
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<HoldRow[]>(SELECT_HOLD_BASE + 'WHERE h.id = $1::uuid', id);
     });
     if (rows.length === 0) throw new NotFoundException('Hold ' + id);
-    return rowToDto(rows[0]!);
+    const dto = rowToDto(rows[0]!);
+    if (actor) {
+      const isLibrarian = await this.hasLibrarianScope(actor);
+      if (!isLibrarian && dto.patronId !== actor.personId) {
+        throw new NotFoundException('Hold ' + id);
+      }
+    }
+    return dto;
   }
 
   /**

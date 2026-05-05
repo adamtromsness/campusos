@@ -51,10 +51,15 @@ export class HoldController {
   @Get(':id')
   @RequirePermission('lib-002:read')
   @ApiOperation({
-    summary: 'Fetch a single hold with its queue position when status=PENDING.',
+    summary:
+      "Fetch a single hold with its queue position when status=PENDING. Row-scoped at the service layer: librarians and admins see any hold in tenant; patrons see only their own; non-owners get a 404 (don't-leak-existence per REVIEW-CYCLE12 BLOCKING 2).",
   })
-  async getById(@Param('id', ParseUUIDPipe) id: string): Promise<HoldResponseDto> {
-    return this.holds.getById(id);
+  async getById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<HoldResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.holds.getById(id, actor);
   }
 
   @Post()

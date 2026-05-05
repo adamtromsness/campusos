@@ -111,11 +111,30 @@ export class CheckoutService {
    * (has an hr_employees row with matching person_id). Used to look
    * up the matching lib_checkout_policies row at checkout time.
    */
-  private async resolvePatronType(personId: string): Promise<PatronType | null> {
+  /**
+   * Patron type resolution — STUDENT branch joins through the
+   * current-tenant `sis_students` row (per REVIEW-CYCLE12 BLOCKING 4)
+   * so a person who exists in `platform.platform_students` from a
+   * different school cannot be checked out as a student in this
+   * tenant. STAFF branch is already tenant-scoped via `hr_employees`
+   * (a tenant-local table). When the person belongs to neither, the
+   * caller raises a `BadRequestException` documenting why — keeping
+   * the error message generic so a librarian probing IDs cannot
+   * distinguish "exists in another tenant" from "doesn't exist
+   * anywhere".
+   *
+   * Public (not private) so HoldService can reuse it for the
+   * cross-patron hold-on-behalf path.
+   */
+  async resolvePatronType(personId: string): Promise<PatronType | null> {
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
         'SELECT ' +
-          '(EXISTS (SELECT 1 FROM platform.platform_students WHERE person_id = $1::uuid)) AS is_student, ' +
+          '(EXISTS (' +
+          '  SELECT 1 FROM sis_students s ' +
+          '  JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+          '  WHERE ps.person_id = $1::uuid' +
+          ')) AS is_student, ' +
           '(EXISTS (SELECT 1 FROM hr_employees WHERE person_id = $1::uuid)) AS is_staff',
         personId,
       )) as Array<{ is_student: boolean; is_staff: boolean }>;
@@ -124,6 +143,24 @@ export class CheckoutService {
       if (rows[0]!.is_staff) return 'STAFF';
       return null;
     });
+  }
+
+  /**
+   * Reject patron IDs that don't belong to the current tenant as
+   * either a student (sis_students) or staff (hr_employees). Used by
+   * checkout + hold-on-behalf to close the cross-tenant
+   * soft-reference gap surfaced in REVIEW-CYCLE12 BLOCKING 4. Returns
+   * the resolved patron type so the caller can reuse it without a
+   * second round-trip.
+   */
+  async assertPatronInCurrentTenant(personId: string): Promise<PatronType> {
+    const patronType = await this.resolvePatronType(personId);
+    if (!patronType) {
+      throw new BadRequestException(
+        'Patron is neither a student nor a staff member in this school',
+      );
+    }
+    return patronType;
   }
 
   /**
@@ -197,12 +234,10 @@ export class CheckoutService {
       throw new BadRequestException('Provide either barcode or copyId');
     }
 
-    const patronType = await this.resolvePatronType(input.patronId);
-    if (!patronType) {
-      throw new BadRequestException(
-        'Patron is neither a student nor a staff member in this school',
-      );
-    }
+    // Cross-tenant guard per REVIEW-CYCLE12 BLOCKING 4 — assert the
+    // patron is a student or staff member of THIS school before
+    // creating the soft-FK lib_checkouts.patron_id reference.
+    const patronType = await this.assertPatronInCurrentTenant(input.patronId);
     const policy = await this.loadPolicy(patronType);
     const loanDays = input.loanPeriodDays ?? policy.loanPeriodDays;
 
@@ -542,7 +577,15 @@ export class CheckoutService {
     return rows.map(rowToCheckoutDto);
   }
 
-  async getById(id: string): Promise<CheckoutResponseDto> {
+  /**
+   * Fetch a single checkout. When `actor` is supplied (controller path)
+   * this enforces row scope — librarians/admins see any checkout in
+   * tenant, patrons see only their own, non-owners get a 404
+   * (don't-leak-existence per REVIEW-CYCLE12 BLOCKING 1). The
+   * actor-less overload remains for internal post-mutation reloads
+   * (checkout / return / renew already passed authorisation).
+   */
+  async getById(id: string, actor?: ResolvedActor): Promise<CheckoutResponseDto> {
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<CheckoutRow[]>(
         SELECT_CHECKOUT_BASE + 'WHERE co.id = $1::uuid',
@@ -550,6 +593,14 @@ export class CheckoutService {
       );
     });
     if (rows.length === 0) throw new NotFoundException('Checkout ' + id);
-    return rowToCheckoutDto(rows[0]!);
+    const dto = rowToCheckoutDto(rows[0]!);
+    if (actor) {
+      const isLibrarian = await this.hasLibrarianScope(actor);
+      if (!isLibrarian && dto.patronId !== actor.personId) {
+        // Don't-leak-existence: a 404 here makes uuid probing useless.
+        throw new NotFoundException('Checkout ' + id);
+      }
+    }
+    return dto;
   }
 }

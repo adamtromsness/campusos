@@ -396,11 +396,28 @@ export class BarcodeLookupResponseDto {
   @ApiProperty({ type: CatalogueItemResponseDto })
   item!: CatalogueItemResponseDto;
 
+  /**
+   * Active-checkout details (checkoutId, patronId, patronName, dates,
+   * renewal count) — populated only for librarians and admins per
+   * REVIEW-CYCLE12 BLOCKING 3. Catalogue-only readers (students /
+   * parents / general staff) get `null` here even when a checkout
+   * exists. Use `isCheckedOut` to know whether the copy is currently
+   * out without leaking the patron identity.
+   */
   @ApiPropertyOptional({ type: ActiveCheckoutDto })
   activeCheckout!: ActiveCheckoutDto | null;
 
   @ApiProperty()
   pendingHoldsCount!: number;
+
+  /**
+   * Whether the copy is currently checked out — derived from
+   * `copy.isAvailable`. Visible to all callers regardless of librarian
+   * scope so the patron-facing UI can render an "On loan" badge
+   * without seeing who has it.
+   */
+  @ApiProperty()
+  isCheckedOut!: boolean;
 }
 
 // ── Circulation enums ────────────────────────────────────────────

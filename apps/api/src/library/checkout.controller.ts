@@ -70,9 +70,16 @@ export class CheckoutController {
 
   @Get('checkouts/:id')
   @RequirePermission('lib-002:read')
-  @ApiOperation({ summary: 'Fetch a single checkout by id.' })
-  async getById(@Param('id', ParseUUIDPipe) id: string): Promise<CheckoutResponseDto> {
-    return this.checkouts.getById(id);
+  @ApiOperation({
+    summary:
+      "Fetch a single checkout by id. Row-scoped at the service layer: librarians and admins see any checkout in tenant; patrons see only their own; non-owners get a 404 (don't-leak-existence per REVIEW-CYCLE12 BLOCKING 1).",
+  })
+  async getById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<CheckoutResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.checkouts.getById(id, actor);
   }
 
   @Post('checkouts')

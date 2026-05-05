@@ -28,10 +28,14 @@ export class CopyController {
   @RequirePermission('lib-001:read')
   @ApiOperation({
     summary:
-      'Barcode lookup keystone — the circulation desk scans a spine and the service resolves the copy + parent catalogue item + active checkout (if any) + pending hold count in one round-trip. The Step 6 CheckoutService.checkout reads this same shape on every scan to validate availability before flipping the copy state. Patron name is joined through platform.iam_person.',
+      'Barcode lookup — circulation desk scans a spine and the service resolves the copy + parent catalogue item + pending hold count in one round-trip. **Active-checkout patron identity (checkoutId, patronId, patronName, dates) is included only for librarians and admins** per REVIEW-CYCLE12 BLOCKING 3; catalogue-only readers (students / parents / general staff) see `activeCheckout: null` regardless of whether the copy is on loan. Use `isCheckedOut` to know whether the copy is currently out without leaking the patron identity. The Step 6 CheckoutService.checkout reads this same shape on every scan to validate availability before flipping the copy state.',
   })
-  async lookupByBarcode(@Param('barcode') barcode: string): Promise<BarcodeLookupResponseDto> {
-    return this.copies.lookupByBarcode(barcode);
+  async lookupByBarcode(
+    @Param('barcode') barcode: string,
+    @Req() req: AuthedRequest,
+  ): Promise<BarcodeLookupResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.copies.lookupByBarcode(barcode, actor);
   }
 
   @Post('library/catalogue/:itemId/copies')
