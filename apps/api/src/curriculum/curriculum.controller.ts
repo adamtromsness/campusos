@@ -209,14 +209,22 @@ export class CurriculumController {
 
   @Get('curriculum/maps/:id/units')
   @RequirePermission('tch-008:read')
-  async listUnitsForMap(@Param('id') id: string): Promise<UnitDto[]> {
-    return this.units.listForMap(id);
+  @ApiOperation({
+    summary:
+      'List units in a curriculum map — propagates parent map visibility (REVIEW-CYCLE23 BLOCKING 2). Read-only personas only see units under PUBLISHED maps.',
+  })
+  async listUnitsForMap(@Param('id') id: string, @Req() req: AuthedRequest): Promise<UnitDto[]> {
+    return this.units.listForMap(id, await this.resolveActor(req));
   }
 
   @Get('curriculum/units/:id')
   @RequirePermission('tch-008:read')
-  async getUnit(@Param('id') id: string): Promise<UnitDetailDto> {
-    return this.units.getById(id);
+  @ApiOperation({
+    summary:
+      'Unit detail — actor-aware (REVIEW-CYCLE23 BLOCKING 1+2). Filters teacher-only resources for non-staff actors and 404s on units under non-PUBLISHED maps for read-only personas.',
+  })
+  async getUnit(@Param('id') id: string, @Req() req: AuthedRequest): Promise<UnitDetailDto> {
+    return this.units.getById(id, await this.resolveActor(req));
   }
 
   @Post('curriculum/maps/:id/units')
@@ -292,19 +300,30 @@ export class CurriculumController {
   // ── Delivery Gaps ──
 
   @Get('curriculum/delivery-gaps')
-  @RequirePermission('tch-008:read')
+  @RequirePermission('tch-008:write')
+  @ApiOperation({
+    summary:
+      'Delivery gap analytics — STAFF/ADMIN only (REVIEW-CYCLE23 BLOCKING 3). Read-only personas (parents/students) cannot enumerate internal coverage analytics. Restricted to tch-008:write so only teachers / curriculum coordinators / school admins can read.',
+  })
   async listGaps(
+    @Req() req: AuthedRequest,
     @Query('curriculumMapId') curriculumMapId?: string,
     @Query('unitId') unitId?: string,
     @Query('gapType') gapType?: GapType,
   ): Promise<DeliveryGapDto[]> {
-    return this.gaps.list({ curriculumMapId, unitId, gapType });
+    return this.gaps.list({ curriculumMapId, unitId, gapType }, await this.resolveActor(req));
   }
 
   @Get('curriculum/units/:id/gaps')
-  @RequirePermission('tch-008:read')
-  async listGapsForUnit(@Param('id') unitId: string): Promise<DeliveryGapDto[]> {
-    return this.gaps.list({ unitId });
+  @RequirePermission('tch-008:write')
+  @ApiOperation({
+    summary: 'Per-unit delivery gaps — STAFF/ADMIN only (REVIEW-CYCLE23 BLOCKING 3).',
+  })
+  async listGapsForUnit(
+    @Param('id') unitId: string,
+    @Req() req: AuthedRequest,
+  ): Promise<DeliveryGapDto[]> {
+    return this.gaps.list({ unitId }, await this.resolveActor(req));
   }
 
   @Post('curriculum/delivery-gaps/refresh')

@@ -85,7 +85,19 @@ export class DeliveryGapService {
       unitId?: string;
       gapType?: GapType;
     } = {},
+    actor?: ResolvedActor,
   ): Promise<DeliveryGapDto[]> {
+    // REVIEW-CYCLE23 BLOCKING 3 — delivery gap analytics are
+    // internal coverage data. Read-only personas (parents/students)
+    // cannot enumerate. Internal callers (UnitService.getById
+    // hydrates per-unit gaps for the unit detail surface) pass no
+    // actor and bypass this gate; the parent UnitService method
+    // already gates teacher-only and parent-map visibility.
+    if (actor && !actor.isSchoolAdmin && actor.personType !== 'STAFF') {
+      throw new ForbiddenException(
+        'Only teachers, curriculum coordinators, or school admins can read delivery gap analytics',
+      );
+    }
     const params: unknown[] = [];
     const wheres: string[] = [];
     if (filters.unitId) {

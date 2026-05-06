@@ -211,6 +211,51 @@ export class CurriculumMapService {
     return found;
   }
 
+  /**
+   * REVIEW-CYCLE23 MAJOR 4 — frameworkId validation on map
+   * create/patch. Validates the supplied frameworkId resolves to
+   * EITHER:
+   *   (a) a current-tenant cur_standards_frameworks row that's
+   *       active and belongs to this school; OR
+   *   (b) an adopted platform.cur_standards_frameworks_platform
+   *       framework — verified via cur_school_framework_adoptions
+   *       for the supplied academic_year_id.
+   *
+   * Mirrors the soft-integrity validation pattern from prior
+   * cycles (Cycle 6.1 ProfileService.assertTargetInCurrentTenant,
+   * Cycle 22 assertAccountInCurrentTenant).
+   */
+  private async assertFrameworkVisibleForMap(
+    frameworkId: string,
+    academicYearId: string,
+  ): Promise<void> {
+    const tenant = getCurrentTenant();
+    // (a) tenant custom framework
+    const tenantRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM cur_standards_frameworks ' +
+          'WHERE id = $1::uuid AND school_id = $2::uuid AND is_active = true LIMIT 1',
+        frameworkId,
+        tenant.schoolId,
+      );
+    })) as Array<{ ok: number }>;
+    if (tenantRows.length > 0) return;
+    // (b) adopted platform framework for this school + year
+    const platformRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM cur_school_framework_adoptions ' +
+          'WHERE platform_framework_id = $1::uuid AND school_id = $2::uuid AND academic_year_id = $3::uuid LIMIT 1',
+        frameworkId,
+        tenant.schoolId,
+        academicYearId,
+      );
+    })) as Array<{ ok: number }>;
+    if (platformRows.length > 0) return;
+    throw new BadRequestException(
+      'frameworkId must reference a current-tenant custom framework OR a platform framework adopted for this school + academic year',
+    );
+  }
+
   async create(input: CreateCurriculumMapDto, actor: ResolvedActor): Promise<CurriculumMapDto> {
     await assertCurriculumWriter(actor, this.permCheck);
     const tenant = getCurrentTenant();
@@ -224,6 +269,9 @@ export class CurriculumMapService {
     })) as Array<{ ok: number }>;
     if (yearRows.length === 0) {
       throw new BadRequestException('academicYearId does not match a year in this school');
+    }
+    if (input.frameworkId) {
+      await this.assertFrameworkVisibleForMap(input.frameworkId, input.academicYearId);
     }
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -252,11 +300,18 @@ export class CurriculumMapService {
     await assertCurriculumWriter(actor, this.permCheck);
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lockRows = (await tx.$queryRawUnsafe(
-        'SELECT status FROM cur_curriculum_maps WHERE id = $1::uuid FOR UPDATE',
+        'SELECT status, academic_year_id::text AS academic_year_id FROM cur_curriculum_maps WHERE id = $1::uuid FOR UPDATE',
         id,
-      )) as Array<{ status: CurriculumMapStatus }>;
+      )) as Array<{ status: CurriculumMapStatus; academic_year_id: string }>;
       if (lockRows.length === 0) throw new NotFoundException('Curriculum map not found');
       const cur = lockRows[0]!.status;
+      const curYearId = lockRows[0]!.academic_year_id;
+      // REVIEW-CYCLE23 MAJOR 4 — validate frameworkId against the
+      // current academic year (the academic year column itself is
+      // not editable via this DTO).
+      if (input.frameworkId !== undefined) {
+        await this.assertFrameworkVisibleForMap(input.frameworkId, curYearId);
+      }
       const sets: string[] = [];
       const params: unknown[] = [];
 
@@ -324,7 +379,40 @@ export class UnitService {
     private readonly standards: StandardService,
   ) {}
 
-  async listForMap(mapId: string): Promise<UnitDto[]> {
+  /**
+   * REVIEW-CYCLE23 BLOCKING 2 — propagate the parent map visibility
+   * down to unit reads. Read-only personas (Parent, Student) can
+   * only see units under PUBLISHED maps. Staff + admins see all.
+   * Non-staff actors trying to read units under a DRAFT/ARCHIVED
+   * map (or a map that doesn't exist in this tenant) get a
+   * collapsed 404.
+   */
+  private async assertCanReadMap(mapId: string, actor: ResolvedActor): Promise<void> {
+    const tenant = getCurrentTenant();
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT status FROM cur_curriculum_maps WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        mapId,
+        tenant.schoolId,
+      );
+    })) as Array<{ status: CurriculumMapStatus }>;
+    if (rows.length === 0) {
+      throw new NotFoundException('Curriculum map not found');
+    }
+    if (actor.isSchoolAdmin) return;
+    const isWriter = await this.permCheck.hasAnyPermissionInTenant(
+      actor.accountId,
+      tenant.schoolId,
+      ['tch-008:write'],
+    );
+    if (isWriter) return;
+    if (rows[0]!.status !== 'PUBLISHED') {
+      throw new NotFoundException('Curriculum map not found');
+    }
+  }
+
+  async listForMap(mapId: string, actor: ResolvedActor): Promise<UnitDto[]> {
+    await this.assertCanReadMap(mapId, actor);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT u.id::text AS id, u.curriculum_map_id::text AS curriculum_map_id, u.title, u.description, ' +
@@ -377,7 +465,7 @@ export class UnitService {
     }));
   }
 
-  async getById(id: string): Promise<UnitDetailDto> {
+  async getById(id: string, actor: ResolvedActor): Promise<UnitDetailDto> {
     const list = await this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
         'SELECT u.id::text AS id, u.curriculum_map_id::text AS curriculum_map_id, u.title, u.description, ' +
@@ -399,9 +487,21 @@ export class UnitService {
       return rows;
     });
     if (list.length === 0) throw new NotFoundException('Unit not found');
+    if (list.length === 0) {
+      throw new NotFoundException('Unit not found');
+    }
     const u = list[0]!;
-    const summary = await this.listForMap(u.curriculum_map_id);
+    // REVIEW-CYCLE23 BLOCKING 2 — propagate parent map visibility.
+    // Read-only personas (Parent, Student) cannot see units under
+    // DRAFT/ARCHIVED maps even if they obtain the unit id.
+    await this.assertCanReadMap(u.curriculum_map_id, actor);
+    const summary = await this.listForMap(u.curriculum_map_id, actor);
     const summaryRow = summary.find((s) => s.id === id);
+
+    // REVIEW-CYCLE23 BLOCKING 1 — non-staff actors must not see
+    // is_teacher_only resources via the unit-detail endpoint either.
+    // Mirrors the ResourceLinkService.listForUnit visibility rule.
+    const isStaffActor = actor.isSchoolAdmin || actor.personType === 'STAFF';
 
     // Standards
     const stdLinks = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -451,12 +551,14 @@ export class UnitService {
       lessonStatus: r.lesson_status ?? 'UNKNOWN',
     }));
 
-    // Resources (raw — controller filters by actor)
+    // Resources — non-staff actors never see is_teacher_only=true rows
     const resRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT id::text AS id, resource_type, title, description, url, s3_key, is_teacher_only, ' +
           'uploaded_by::text AS uploaded_by, created_at::text AS created_at ' +
-          'FROM cur_resource_links WHERE unit_id = $1::uuid ORDER BY created_at DESC',
+          'FROM cur_resource_links WHERE unit_id = $1::uuid' +
+          (isStaffActor ? '' : ' AND is_teacher_only = false') +
+          ' ORDER BY created_at DESC',
         id,
       );
     })) as Array<{
@@ -584,7 +686,7 @@ export class UnitService {
         throw err;
       }
     });
-    const list = await this.listForMap(mapId);
+    const list = await this.listForMap(mapId, actor);
     const found = list.find((u) => u.id === id);
     if (!found) throw new NotFoundException('Unit not found after create');
     return found;
@@ -628,7 +730,7 @@ export class UnitService {
         );
       });
     }
-    return this.getById(id);
+    return this.getById(id, actor);
   }
 
   /**
@@ -639,7 +741,7 @@ export class UnitService {
    */
   async reorder(mapId: string, input: ReorderUnitsDto, actor: ResolvedActor): Promise<UnitDto[]> {
     await assertCurriculumWriter(actor, this.permCheck);
-    if (input.order.length === 0) return this.listForMap(mapId);
+    if (input.order.length === 0) return this.listForMap(mapId, actor);
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // Phase 1: bump all referenced units to a high temp offset
       for (const o of input.order) {
@@ -661,7 +763,7 @@ export class UnitService {
         );
       }
     });
-    return this.listForMap(mapId);
+    return this.listForMap(mapId, actor);
   }
 
   // ── Standards alignment ──
