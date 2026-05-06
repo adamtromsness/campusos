@@ -3,8 +3,12 @@
 **Cycle:** 22 — IT Infrastructure (Wave 4 closeout).
 **Round 1 verdict:** Reject pending fixes — 6 BLOCKING + 4 MAJOR.
 **Round 1 commit:** `cycle22-complete` (`6638090`).
-**Round 1 fix commit:** this commit.
+**Round 1 fix commit:** `7669eb5`.
+**Round 2 verdict:** **Approved.**
+**Final tag:** `cycle22-approved` at `7669eb5`.
 **Live verification:** `tenant_demo` 2026-05-06.
+
+Round 2 reviewer cache-busted each affected file on the latest GitHub state and confirmed: device-selection actor scope correctly distinguishes IT admin (school admin OR `it-006:read`) from generic Teacher; asset subresource visibility via `assertCanAccessAsset` matches `AssetService.getById`; `assertAccountInCurrentTenant` shared helper applied to both asset and licence seat assignment; vault key fail-closed in production; access-log tier check matches decrypt path. The 4 MAJORs are correctly carried as Phase 2 punch list items 34 / 35 / 36 / 37, joining the broader role-split work before pilot. **Cycle 22 ships clean. Wave 4 (Campus Operations) closes here.**
 
 ## Triage table
 
@@ -165,7 +169,9 @@ These join the existing Wave 2-4 Phase 2 punch list (items 9 / 11 / 13 / 14 / 16
 
 - 2026-05-06 11:00 — `cycle22-complete` (6638090) submitted for review.
 - 2026-05-06 — Round 1 verdict: **Reject pending fixes** (6 BLOCKING + 4 MAJOR).
-- 2026-05-06 — All 6 BLOCKING fixes landed in this commit, live-verified on `tenant_demo`.
+- 2026-05-06 — All 6 BLOCKING fixes landed in `7669eb5`, live-verified on `tenant_demo`.
 - 4 MAJORs carried as Phase 2 punch list items 34 / 35 / 36 / 37.
+- 2026-05-06 — Round 2 verdict: **Approved.** Reviewer confirmed all 6 fixes in code; remaining items correctly classified as Phase 2 / pre-pilot role and metadata hardening.
+- 2026-05-06 — Tagged `cycle22-approved` at `7669eb5`.
 
-**Cycle 22 ships clean to Round 2.** Tagging `cycle22-approved` on this commit after Round 2 APPROVED.
+**Cycle 22 ships clean. Wave 4 (Campus Operations) closes here.**
