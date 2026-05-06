@@ -10,6 +10,7 @@ import {
   BusIcon,
   CalendarIcon,
   UtensilsIcon,
+  WrenchIcon,
   ChatBubbleIcon,
   CheckCircleIcon,
   ChecklistIcon,
@@ -51,7 +52,8 @@ export type AppKey =
   | 'clubs'
   | 'groups'
   | 'transport'
-  | 'food-service';
+  | 'food-service'
+  | 'facilities';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -433,6 +435,23 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/food-service',
       routePrefix: '/food-service',
       icon: UtensilsIcon,
+    });
+  }
+
+  // Cycle 21 — Facilities Management. The Facilities Manager (FM) is the
+  // eighth specialist operator persona. Teachers + staff hold FAC-001:read
+  // (browse buildings, book spaces). FM holds FAC-001..004 read+write per
+  // the Step 4 IAM grant on the Staff role. Persona-aware copy.
+  if (hasAnyPermission(user, ['fac-001:read'])) {
+    apps.push({
+      key: 'facilities',
+      label: 'Facilities',
+      description: isStaff
+        ? 'Buildings, work orders, PM, inspections, zones, supply'
+        : 'Buildings and space booking',
+      href: '/facilities',
+      routePrefix: '/facilities',
+      icon: WrenchIcon,
     });
   }
 

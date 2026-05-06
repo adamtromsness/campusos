@@ -6283,3 +6283,426 @@ export interface CreateFdsEligibilityApplicationPayload {
   applicationType: FdsEligibilityApplicationType;
   academicYearId?: string;
 }
+
+// ============================================================
+// Cycle 21 — Facilities Management types
+// ============================================================
+
+export type FacSpaceType =
+  | 'CLASSROOM'
+  | 'BATHROOM'
+  | 'CORRIDOR'
+  | 'STAIRWELL'
+  | 'MECHANICAL'
+  | 'STORAGE'
+  | 'OFFICE'
+  | 'GROUNDS'
+  | 'COMMON_AREA'
+  | 'GYM'
+  | 'CAFETERIA'
+  | 'OTHER';
+
+export type FacBookingStatus = 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+
+export type FacWorkOrderType =
+  | 'REPAIR'
+  | 'INSTALLATION'
+  | 'INSPECTION_PREP'
+  | 'DEEP_CLEAN'
+  | 'RENOVATION';
+
+export type FacWorkOrderPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export type FacWorkOrderStatus =
+  | 'OPEN'
+  | 'IN_PROGRESS'
+  | 'VENDOR_ASSIGNED'
+  | 'ON_HOLD'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export type FacWorkOrderActivityType = 'STATUS_CHANGE' | 'REASSIGNMENT' | 'COMMENT' | 'ATTACHMENT';
+
+export type FacPmTargetType = 'BUILDING' | 'SPACE' | 'SYSTEM';
+export type FacPmTaskStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE';
+export type FacInspectionOutcome = 'PENDING' | 'PASSED' | 'PASSED_WITH_CONDITIONS' | 'FAILED';
+export type FacViolationSeverity = 'MINOR' | 'MAJOR' | 'CRITICAL';
+export type FacZoneShift = 'MORNING' | 'AFTERNOON' | 'EVENING' | 'OVERNIGHT';
+
+export interface FacBuildingDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  code: string | null;
+  yearBuilt: number | null;
+  totalFloors: number | null;
+  address: string | null;
+  isActive: boolean;
+  spaceCount: number;
+  openWorkOrders: number;
+}
+
+export interface FacCreateBuildingPayload {
+  name: string;
+  code?: string;
+  yearBuilt?: number;
+  totalFloors?: number;
+  address?: string;
+}
+
+export interface FacUpdateBuildingPayload {
+  name?: string;
+  code?: string;
+  yearBuilt?: number;
+  totalFloors?: number;
+  address?: string;
+  isActive?: boolean;
+}
+
+export interface FacSpaceDto {
+  id: string;
+  buildingId: string;
+  name: string;
+  floor: string | null;
+  spaceType: FacSpaceType;
+  areaSqft: number | null;
+  isActive: boolean;
+  schRoomId: string | null;
+  schRoomName: string | null;
+}
+
+export interface FacCreateSpacePayload {
+  name: string;
+  floor?: string;
+  spaceType: FacSpaceType;
+  areaSqft?: number;
+  schRoomId?: string | null;
+}
+
+export interface FacUpdateSpacePayload {
+  name?: string;
+  floor?: string;
+  spaceType?: FacSpaceType;
+  areaSqft?: number;
+  isActive?: boolean;
+  schRoomId?: string | null;
+}
+
+export interface FacBookingDto {
+  id: string;
+  spaceId: string;
+  spaceName: string;
+  bookedBy: string;
+  bookedByName: string | null;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  status: FacBookingStatus;
+  notes: string | null;
+}
+
+export interface FacCreateBookingPayload {
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  notes?: string;
+}
+
+export interface FacUpdateBookingPayload {
+  status?: FacBookingStatus;
+  notes?: string;
+}
+
+export interface FacClosureDto {
+  id: string;
+  spaceId: string;
+  spaceName: string;
+  closureReason: string;
+  startsAt: string;
+  endsAt: string | null;
+  affectsScheduling: boolean;
+  linkedWorkOrderId: string | null;
+  createdBy: string;
+}
+
+export interface FacCreateClosurePayload {
+  spaceId: string;
+  closureReason: string;
+  startsAt: string;
+  endsAt?: string;
+  affectsScheduling?: boolean;
+  linkedWorkOrderId?: string;
+}
+
+export interface FacUpdateClosurePayload {
+  endsAt?: string;
+  closureReason?: string;
+  affectsScheduling?: boolean;
+}
+
+export interface FacWorkOrderActivityDto {
+  id: string;
+  workOrderId: string;
+  actorId: string;
+  actorName: string | null;
+  activityType: FacWorkOrderActivityType;
+  metadata: unknown;
+  createdAt: string;
+}
+
+export interface FacWorkOrderDto {
+  id: string;
+  schoolId: string;
+  workOrderType: FacWorkOrderType;
+  priority: FacWorkOrderPriority;
+  spaceId: string | null;
+  spaceName: string | null;
+  buildingId: string | null;
+  buildingName: string | null;
+  assignedToId: string | null;
+  assignedToName: string | null;
+  vendorId: string | null;
+  vendorName: string | null;
+  scheduledDate: string | null;
+  completedAt: string | null;
+  status: FacWorkOrderStatus;
+  tktTicketId: string | null;
+  cost: number | null;
+  description: string | null;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+  activity?: FacWorkOrderActivityDto[];
+}
+
+export interface FacCreateWorkOrderPayload {
+  workOrderType: FacWorkOrderType;
+  priority: FacWorkOrderPriority;
+  spaceId?: string;
+  buildingId?: string;
+  assignedToId?: string;
+  vendorId?: string;
+  scheduledDate?: string;
+  description?: string;
+  tktTicketId?: string;
+}
+
+export interface FacUpdateWorkOrderPayload {
+  status?: FacWorkOrderStatus;
+  priority?: FacWorkOrderPriority;
+  assignedToId?: string | null;
+  vendorId?: string | null;
+  scheduledDate?: string;
+  cost?: number;
+  description?: string;
+  notes?: string;
+}
+
+export interface FacPmChecklistItemDto {
+  id: string;
+  planId: string;
+  itemName: string;
+  description: string | null;
+  sortOrder: number;
+}
+
+export interface FacPmPlanDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  frequencyMonths: number;
+  targetType: FacPmTargetType;
+  targetId: string | null;
+  isActive: boolean;
+  items: FacPmChecklistItemDto[];
+}
+
+export interface FacCreatePmPlanPayload {
+  name: string;
+  description?: string;
+  frequencyMonths: number;
+  targetType: FacPmTargetType;
+  targetId?: string;
+  items?: Array<{ itemName: string; description?: string; sortOrder?: number }>;
+}
+
+export interface FacGeneratePmTasksPayload {
+  fromDate: string;
+  toDate: string;
+}
+
+export interface FacPmTaskDto {
+  id: string;
+  planId: string;
+  planName: string;
+  scheduledDate: string;
+  assignedTo: string | null;
+  assignedToName: string | null;
+  status: FacPmTaskStatus;
+  completedAt: string | null;
+  completedBy: string | null;
+  notes: string | null;
+}
+
+export interface FacUpdatePmTaskPayload {
+  status?: FacPmTaskStatus;
+  assignedTo?: string | null;
+  notes?: string;
+}
+
+export interface FacChecklistResultDto {
+  id: string;
+  taskId: string;
+  checklistItemId: string;
+  itemName: string;
+  passed: boolean;
+  notes: string | null;
+  photoS3Keys: string[];
+  followUpWorkOrderId: string | null;
+  submittedBy: string;
+  submittedAt: string;
+}
+
+export interface FacSubmitChecklistResultsPayload {
+  results: Array<{
+    checklistItemId: string;
+    passed: boolean;
+    notes?: string;
+    photoS3Keys?: string[];
+  }>;
+}
+
+export interface FacInspectionTypeDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  authority: string;
+  frequencyMonths: number;
+  isMandatory: boolean;
+  failureEscalationDays: number | null;
+}
+
+export interface FacCreateInspectionTypePayload {
+  name: string;
+  authority: string;
+  frequencyMonths: number;
+  isMandatory?: boolean;
+  failureEscalationDays?: number;
+}
+
+export interface FacInspectionDto {
+  id: string;
+  schoolId: string;
+  inspectionTypeId: string;
+  inspectionTypeName: string;
+  authority: string;
+  buildingId: string;
+  buildingName: string;
+  scheduledDate: string | null;
+  conductedDate: string | null;
+  inspectorName: string | null;
+  inspectorAgency: string | null;
+  outcome: FacInspectionOutcome;
+  certificateS3Key: string | null;
+  nextDueDate: string | null;
+  notes: string | null;
+}
+
+export interface FacCreateInspectionPayload {
+  inspectionTypeId: string;
+  buildingId: string;
+  scheduledDate?: string;
+  conductedDate?: string;
+  inspectorName?: string;
+  inspectorAgency?: string;
+  outcome: FacInspectionOutcome;
+  certificateS3Key?: string;
+  nextDueDate?: string;
+  notes?: string;
+}
+
+export interface FacViolationDto {
+  id: string;
+  inspectionId: string;
+  description: string;
+  severity: FacViolationSeverity;
+  dueDate: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  resolvedByName: string | null;
+  resolutionNotes: string | null;
+  linkedWorkOrderId: string | null;
+}
+
+export interface FacCreateViolationPayload {
+  description: string;
+  severity: FacViolationSeverity;
+  dueDate: string;
+}
+
+export interface FacResolveViolationPayload {
+  resolutionNotes: string;
+  linkedWorkOrderId?: string;
+}
+
+export interface FacZoneAssignmentDto {
+  id: string;
+  zoneId: string;
+  employeeId: string;
+  employeeName: string | null;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  shift: FacZoneShift;
+  notes: string | null;
+}
+
+export interface FacZoneDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  assignments: FacZoneAssignmentDto[];
+}
+
+export interface FacCreateZonePayload {
+  name: string;
+  description?: string;
+  color?: string;
+}
+
+export interface FacCreateZoneAssignmentPayload {
+  employeeId: string;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  shift: FacZoneShift;
+  notes?: string;
+}
+
+export interface FacSupplyDto {
+  id: string;
+  buildingId: string;
+  itemName: string;
+  unit: string;
+  currentQuantity: number;
+  reorderThreshold: number | null;
+  preferredSupplier: string | null;
+  lastRestockedAt: string | null;
+  belowThreshold: boolean;
+}
+
+export interface FacCreateSupplyPayload {
+  buildingId: string;
+  itemName: string;
+  unit: string;
+  currentQuantity?: number;
+  reorderThreshold?: number;
+  preferredSupplier?: string;
+}
+
+export interface FacAdjustSupplyPayload {
+  currentQuantity: number;
+  reorderThreshold?: number;
+  notes?: string;
+}

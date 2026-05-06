@@ -35,6 +35,7 @@
     "seed:groups": "tsx src/seed-groups.ts",
     "seed:transport": "tsx src/seed-transport.ts",
     "seed:food-service": "tsx src/seed-food-service.ts",
+    "seed:facilities": "tsx src/seed-facilities.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

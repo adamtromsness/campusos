@@ -307,6 +307,10 @@ async function seedIam() {
         'TRN-001': ['read'],
         // Cycle 20 — Food Service. Teachers view menus only.
         'FDS-001': ['read'],
+        // Cycle 21 — Facilities. Teachers can view buildings + book
+        // spaces (FAC-001:read+write). Work order management, PM,
+        // inspections, zones, and supply remain Staff-only.
+        'FAC-001': ['read', 'write'],
       },
     },
     {
@@ -712,6 +716,21 @@ async function seedIam() {
         'FDS-002': ['read', 'write'],
         'FDS-003': ['read', 'write'],
         'FDS-004': ['read', 'write'],
+        // Cycle 21 — Facilities Management. Staff covers the
+        // Facilities Manager (FM) — the eighth specialist operator
+        // persona. FAC-001..004 read+write covers building + space
+        // management, preventive maintenance, custodial zones, and
+        // compliance inspections. FAC-005 (energy / sustainability)
+        // is schema-ready but deferred this cycle. Joins the
+        // role-split work in the Wave 2 Phase 2 punch list — a
+        // dedicated FM role should hold the FAC-* codes alone
+        // before pilot. School Admin and Platform Admin pick up
+        // the admin tier (hard delete, immutable record corrections)
+        // via everyFunction.
+        'FAC-001': ['read', 'write'],
+        'FAC-002': ['read', 'write'],
+        'FAC-003': ['read', 'write'],
+        'FAC-004': ['read', 'write'],
       },
     },
   ];
