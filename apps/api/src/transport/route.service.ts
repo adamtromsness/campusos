@@ -165,6 +165,8 @@ export class RouteService {
 
   async create(input: CreateRouteDto, actor: ResolvedActor): Promise<RouteResponseDto> {
     this.assertCanManage(actor);
+    if (input.vehicleId) await this.assertVehicleAssignable(input.vehicleId);
+    if (input.driverId) await this.assertDriverAssignable(input.driverId);
     const tenant = getCurrentTenant();
     const id = generateId();
 
@@ -214,6 +216,12 @@ export class RouteService {
     actor: ResolvedActor,
   ): Promise<RouteResponseDto> {
     this.assertCanManage(actor);
+    if (input.vehicleId !== undefined && input.vehicleId !== null) {
+      await this.assertVehicleAssignable(input.vehicleId);
+    }
+    if (input.driverId !== undefined && input.driverId !== null) {
+      await this.assertDriverAssignable(input.driverId);
+    }
 
     const before = await this.getById(routeId, actor);
     const sets: string[] = [];
@@ -280,6 +288,68 @@ export class RouteService {
    */
   assertManagerScope(actor: ResolvedActor): void {
     this.assertCanManage(actor);
+  }
+
+  /**
+   * REVIEW-CYCLE19 BLOCKING 5 — every route create/patch that
+   * specifies a vehicleId must verify the vehicle exists in the
+   * current tenant + status=ACTIVE. The schema doesn't enforce a
+   * cross-table FK on trn_routes.vehicle_id (soft polymorphic-ish),
+   * so the application layer is the gate.
+   */
+  private async assertVehicleAssignable(vehicleId: string): Promise<void> {
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT status FROM trn_vehicles WHERE id = $1::uuid LIMIT 1',
+        vehicleId,
+      );
+    })) as Array<{ status: string }>;
+    if (rows.length === 0) {
+      throw new BadRequestException('vehicleId does not match a vehicle in this school');
+    }
+    if (rows[0]!.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'Vehicle is in status ' + rows[0]!.status + '; only ACTIVE vehicles can be assigned',
+      );
+    }
+  }
+
+  /**
+   * REVIEW-CYCLE19 BLOCKING 5 — every route create/patch that
+   * specifies a driverId must verify the driver exists in
+   * hr_employees + carries VALID CDL + MEDICAL_CERTIFICATE
+   * credentials. The Step 7 RunLogService.start re-checks at run
+   * time too; the route-assignment gate catches misconfiguration
+   * upstream.
+   */
+  private async assertDriverAssignable(driverId: string): Promise<void> {
+    const empRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM hr_employees WHERE id = $1::uuid LIMIT 1',
+        driverId,
+      );
+    })) as Array<{ ok: number }>;
+    if (empRows.length === 0) {
+      throw new BadRequestException('driverId does not match an employee in this school');
+    }
+    const credRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        "SELECT credential_type, status FROM trn_driver_credentials WHERE driver_id = $1::uuid AND credential_type IN ('CDL', 'MEDICAL_CERTIFICATE')",
+        driverId,
+      );
+    })) as Array<{ credential_type: string; status: string }>;
+    const byType = new Map(credRows.map((r) => [r.credential_type, r.status]));
+    const cdl = byType.get('CDL');
+    const med = byType.get('MEDICAL_CERTIFICATE');
+    if (cdl !== 'VALID' || med !== 'VALID') {
+      throw new BadRequestException(
+        'Driver credentials are not VALID (CDL=' +
+          (cdl ?? 'MISSING') +
+          ', MEDICAL_CERTIFICATE=' +
+          (med ?? 'MISSING') +
+          '). Verify or refresh credentials before assigning to a route.',
+      );
+    }
   }
 }
 

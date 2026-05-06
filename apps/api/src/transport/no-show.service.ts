@@ -1,4 +1,10 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
@@ -106,6 +112,12 @@ export class NoShowService {
     return rows.map(rowToDto);
   }
 
+  /**
+   * REVIEW-CYCLE19 MAJOR 8 — lock the alert row + reject if a
+   * resolution is already set (unless admin overrides). Two TC users
+   * resolving the same alert at the same time now serialise on the
+   * row lock instead of last-writer-wins.
+   */
   async resolve(
     alertId: string,
     input: ResolveNoShowDto,
@@ -114,8 +126,23 @@ export class NoShowService {
     if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
       throw new ForbiddenException('Only admins or staff can resolve no-show alerts');
     }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const locked = (await tx.$queryRawUnsafe(
+        'SELECT id, resolution FROM trn_no_show_alerts WHERE id = $1::uuid FOR UPDATE',
+        alertId,
+      )) as Array<{ id: string; resolution: string | null }>;
+      if (locked.length === 0) throw new NotFoundException('Alert not found');
+      if (locked[0]!.resolution !== null && !actor.isSchoolAdmin) {
+        // Idempotent same-resolution noop is OK; otherwise reject.
+        if (locked[0]!.resolution !== input.resolution) {
+          throw new BadRequestException(
+            'Alert is already resolved with ' +
+              locked[0]!.resolution +
+              '. Only a school admin can change the resolution.',
+          );
+        }
+      }
+      await tx.$executeRawUnsafe(
         'UPDATE trn_no_show_alerts SET resolution = $1, resolved_by = $2::uuid, resolved_at = now(), ' +
           ' parent_notified_at = CASE WHEN $1 = $3 THEN now() ELSE parent_notified_at END, ' +
           ' resolution_notes = $4, updated_at = now() ' +
@@ -153,13 +180,32 @@ export class NoShowService {
     const inserted: string[] = [];
 
     // Pull all (route, student, stop, direction) tuples expected today.
+    //
+    // REVIEW-CYCLE19 BLOCKING 1 — exclude students with an APPROVED
+    // route-change request for the date so:
+    //   - NO_BUS opt-outs do not generate false-positive safeguarding
+    //     alerts for the permanent assignment;
+    //   - DIFFERENT_STOP / DIFFERENT_ROUTE approvals materialise an
+    //     `is_override = true` row (with parent_request_id set) AND
+    //     the permanent assignment is suppressed for that day, so a
+    //     student isn't paged at both their original AND override stop.
+    //
+    // The override row itself drives the expectation when present.
     const expected = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT a.student_id::text AS student_id, a.route_id::text AS route_id, a.stop_id::text AS stop_id, a.direction ' +
           'FROM trn_student_assignments a ' +
           'JOIN trn_routes r ON r.id = a.route_id ' +
           "WHERE r.school_id = $1::uuid AND r.status = 'ACTIVE' " +
-          ' AND a.effective_from <= $2::date AND (a.effective_to IS NULL OR a.effective_to >= $2::date)',
+          ' AND a.effective_from <= $2::date AND (a.effective_to IS NULL OR a.effective_to >= $2::date) ' +
+          ' AND NOT (' +
+          '   a.is_override = false AND EXISTS (' +
+          '     SELECT 1 FROM trn_route_change_requests rcr ' +
+          '     WHERE rcr.student_id = a.student_id ' +
+          '       AND rcr.change_date = $2::date ' +
+          "       AND rcr.status = 'APPROVED'" +
+          '   )' +
+          ' )',
         tenant.schoolId,
         today,
       );

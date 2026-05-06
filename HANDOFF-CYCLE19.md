@@ -1,6 +1,8 @@
 # Cycle 19 Handoff — Transportation
 
-**Status:** Cycle 19 **IN PROGRESS** — Wave 4 (Campus Operations) opens here. Cycle 19 ships the M61 Transportation module — 16 of the 38 ERD tables in scope (22 deferred to Cycle 19.1: real-time GPS telemetry, deep fleet maintenance, driver hours logs, route optimisation engine, and the materialised fleet status dashboard). The Transportation Coordinator (TC) is the sixth specialist operator persona after the nurse, counsellor, librarian, athletic director, and enrolment officer.
+**Status:** Cycle 19 **COMPLETE — REVIEW Round 1 fixes landed; awaiting Round 2.** Wave 4 (Campus Operations) opens here. All 10 steps shipped + the post-cycle peer review (REVIEW-CYCLE19-CHATGPT) Round 1 returned **Reject pending fixes** at `dfca32b` with 5 BLOCKING + 5 MAJOR findings. The fix commit closes all 5 BLOCKING items + 3 of the actionable MAJORs (6 — handoff completion + fix log; 7 — staff/admin route-change soft-ref validation; 8 — no-show resolve row-lock + idempotent status). MAJORs 9 + 10 are recommendation-class and move to the Phase 2 punch list. All 8 fixes verified live on `tenant_demo` 2026-05-06.
+
+Cycle 19 ships the M61 Transportation module — 16 of the 38 ERD tables in scope (22 deferred to Cycle 19.1: real-time GPS telemetry, deep fleet maintenance, driver hours logs, route optimisation engine, and the materialised fleet status dashboard). The Transportation Coordinator (TC) is the sixth specialist operator persona after the nurse, counsellor, librarian, athletic director, and enrolment officer.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle19-implementation-plan.html`
@@ -12,18 +14,18 @@ This document is the source of truth that external architecture reviewers read a
 
 ## Step status
 
-| Step | Title                                            | Status  |
-| ---- | ------------------------------------------------ | ------- |
-| 1    | Routes + Stops + Assignments + Change Log Schema | Pending |
-| 2    | Fleet + Inspections + Driver Schema              | Pending |
-| 3    | Ridership + Passes + Operations Schema           | Pending |
-| 4    | Seed Data + TRN-001..005 IAM grants              | Pending |
-| 5    | Routes + Assignments NestJS Module               | Pending |
-| 6    | Fleet + Inspections + Driver NestJS Module       | Pending |
-| 7    | Ridership + Operations NestJS Module             | Pending |
-| 8    | Transportation UI — Routes + Fleet + Drivers     | Pending |
-| 9    | Transportation UI — Ridership + Parent Portal    | Pending |
-| 10   | Vertical Slice Integration Test                  | Pending |
+| Step | Title                                            | Status   |
+| ---- | ------------------------------------------------ | -------- |
+| 1    | Routes + Stops + Assignments + Change Log Schema | Complete |
+| 2    | Fleet + Inspections + Driver Schema              | Complete |
+| 3    | Ridership + Passes + Operations Schema           | Complete |
+| 4    | Seed Data + TRN-001..005 IAM grants              | Complete |
+| 5    | Routes + Assignments NestJS Module               | Complete |
+| 6    | Fleet + Inspections + Driver NestJS Module       | Complete |
+| 7    | Ridership + Operations NestJS Module             | Complete |
+| 8    | Transportation UI — Routes + Fleet + Drivers     | Complete |
+| 9    | Transportation UI — Ridership + Parent Portal    | Complete |
+| 10   | Vertical Slice Integration Test                  | Complete |
 
 ---
 
@@ -189,3 +191,106 @@ Cleanup section restores tenant to post-Step-4 seed shape.
 ## Wave 4 status — OPEN
 
 Cycle 19 is the **first cycle of Wave 4 (Campus Operations)**. Cycle 20 (Food Service) continues Wave 4. The deferred 22 tables (real-time GPS telemetry, deep fleet maintenance, driver hours logs, route optimisation engine, materialised fleet status dashboard) move to Cycle 19.1.
+
+---
+
+## REVIEW-CYCLE19 Round 1 — fix log
+
+**Round 1 verdict** at `dfca32b`: **Reject pending fixes** with 5 BLOCKING + 5 MAJOR findings. The fix commit closes all 5 BLOCKING items + 3 of the actionable MAJORs (6 / 7 / 8). MAJORs 9 (vehicle/driver detail row-scope tightening) and 10 (driver-as-inspector match) are recommendation-class and move to the Phase 2 punch list as items 30 + 31. All 8 fixes verified live on `tenant_demo` 2026-05-06.
+
+**Tenant migration `067_trn_review_cycle19_indexes.sql`** lands two belt-and-braces partial UNIQUE indexes:
+
+- `trn_runs_active_uq` on `trn_route_run_logs(route_id, run_date) WHERE status='IN_PROGRESS'` (F3 schema-side dedup gate)
+- `trn_assignments_permanent_null_year_uq` on `trn_student_assignments(student_id) WHERE is_override=false AND academic_year_id IS NULL` (F4 schema-side belt-and-braces against future repair paths)
+
+### F1 — NO_BUS approved requests must suppress no-show alerts (BLOCKING 1)
+
+**Issue:** `RouteChangeRequestService.approve()` for change_type=`NO_BUS` deliberately did not create an override row, but the no-show worker still pulled every effective assignment for the day, so an approved NO_BUS opt-out still generated a safeguarding alert.
+
+**Fix:** `NoShowService.runOnce` query extended with `NOT EXISTS` against `trn_route_change_requests` filtered to APPROVED rows for the date — generalised to suppress the permanent assignment whenever ANY approved change request exists for that (student, date), so DIFFERENT_STOP / DIFFERENT_ROUTE overrides correctly drive expectation while the permanent stop drops out.
+
+**Live verification on `tenant_demo` 2026-05-06:**
+
+- Sweep before NO_BUS → `inserted=2` (Maya + Ethan).
+- Parent submits NO_BUS for Maya, TC approves → `status=APPROVED`.
+- Sweep after → `inserted=1`. DB read confirms only Ethan in the alert table.
+
+### F2 — QR scan validates expected assignment (BLOCKING 2)
+
+**Issue:** `RidershipService.scan()` resolved a student via the QR token's UNIQUE constraint and wrote a ridership record without verifying the student was assigned to that route + stop + direction for the date. A valid pass scanned at any stop on any active route would corrupt ridership / no-show / parent visibility data.
+
+**Fix:** Added a SELECT against `trn_student_assignments` joined to today's date and (route, stop) before INSERT. Permanent OR override row qualifies; APPROVED `NO_BUS` for today excludes (a NO_BUS student should not be on the bus). Direction mismatch (e.g. ALIGHTING on AM-only assignment) returns a separate 400.
+
+**Live verification:**
+
+- Maya QR at her stop #2, BOARDING → 200 with full DTO.
+- Maya QR at stop #3 (Elm & Oakridge — not assigned) → 400 "Scanned student is not assigned to this stop for today".
+- Maya QR at stop #2, ALIGHTING (AM route) → 400 "Scan direction does not match the assignment direction (AM)".
+
+### F3 — Run start authorization + duplicate-run prevention (BLOCKING 3)
+
+**Issue:** `RunLogService.start()` only required `actor.employeeId`; any active employee could start a run for any route, even when another driver was assigned. No prevention of multiple IN_PROGRESS runs for the same (route, date).
+
+**Fix:** Wrapped the safety + authorization gate in `executeInTenantTransaction` with `SELECT ... FOR UPDATE` on the route row. New checks: route status=ACTIVE, route has assigned vehicle + driver, `route.driver_id === actor.employeeId` unless `actor.isSchoolAdmin`, assigned driver has VALID CDL + MEDICAL_CERTIFICATE, no existing IN_PROGRESS run for (route, date). Schema-side belt-and-braces via `trn_runs_active_uq` partial UNIQUE.
+
+**Live verification:**
+
+- Teacher Rivera (not the assigned driver) → 403 at the permission gate (he doesn't hold `trn-003:write` either; the gate fires before the driver check, which is fine — defense in depth).
+- Admin Sarah Mitchell (school admin override) → 200 with new run row.
+- Admin tries to start a SECOND IN_PROGRESS run → 400 "An IN_PROGRESS run already exists for this route on this date."
+
+### F4 — Permanent assignment requires academic_year_id (BLOCKING 4)
+
+**Issue:** Schema's partial UNIQUE on `(student_id, academic_year_id) WHERE is_override=false` is non-deterministic when `academic_year_id` is NULL because PostgreSQL treats NULLs as distinct. Worse, `AssignmentService.create` did not even SET `academic_year_id` in the INSERT — every API-created assignment had a NULL year, so the UNIQUE was effectively non-existent.
+
+**Fix:**
+
+- `CreateStudentAssignmentDto` adds `academicYearId` (UUID, optional in the type but enforced as required for non-override at the service layer).
+- `AssignmentService.create` validates `academicYearId` is supplied for permanent assignments + that it matches an existing `sis_academic_years` row + writes it into the INSERT.
+- Migration 067 adds `trn_assignments_permanent_null_year_uq` partial UNIQUE on `(student_id) WHERE is_override=false AND academic_year_id IS NULL` as a defensive net.
+
+**Live verification:** POST `/transport/routes/<id>/students` for Ethan without `academicYearId` → 400 "academicYearId is required for permanent assignments".
+
+### F5 — Route create/patch validates vehicle + driver (BLOCKING 5)
+
+**Issue:** `RouteService.create/patch` accepted any `vehicleId` / `driverId` UUID with no existence or status check, so an inactive vehicle, a nonexistent UUID, or a driver with expired credentials could be assigned.
+
+**Fix:** Two new private helpers on `RouteService`:
+
+- `assertVehicleAssignable(vehicleId)` — vehicle exists + status=ACTIVE
+- `assertDriverAssignable(driverId)` — employee exists + carries VALID CDL + MEDICAL_CERTIFICATE in `trn_driver_credentials`
+
+Both called from `create()` and `patch()` paths whenever the relevant id is supplied.
+
+**Live verification:**
+
+- POST `/transport/routes` with `driverId=00000000-…` → 400 "driverId does not match an employee in this school".
+- POST `/transport/routes` with `vehicleId=00000000-…` → 400 "vehicleId does not match a vehicle in this school".
+
+### F7 — Staff/admin route-change soft-ref validation (MAJOR 7)
+
+**Issue:** Parent submissions row-scoped to own children, but staff/admin submissions on behalf bypassed soft-ref existence checks for `studentId`, `requestedRouteId`, `requestedStopId`.
+
+**Fix:** `RouteChangeRequestService.submit` now runs three soft-ref existence queries unconditionally. `requestedStopId` validates against the resolved route when both are supplied. Live verified during the F1 smoke (admin-on-behalf NO_BUS submit happy path).
+
+### F8 — No-show resolve row-lock + idempotent status check (MAJOR 8)
+
+**Issue:** `NoShowService.resolve()` updated by id without locking the row or validating current resolution state; two TC users could overwrite each other.
+
+**Fix:** Wrapped in `executeInTenantTransaction` with `SELECT ... FOR UPDATE`. Idempotent same-resolution noop is OK; different resolution from non-admin is rejected with 400; school admin can override.
+
+**Live verification:**
+
+- Admin resolves alert with PARENT_NOTIFIED → 200.
+- VP Linda Park (Staff, non-admin) tries to flip to FALSE_ALARM → 400 "Alert is already resolved with PARENT_NOTIFIED. Only a school admin can change the resolution."
+- VP repeats PARENT_NOTIFIED (idempotent) → 200.
+
+### MAJORs 9 + 10 — carried to Phase 2 punch list (items 30 + 31)
+
+- **MAJOR 9** (Vehicle / driver credential detail row-scope tightening) — pre-pilot polish; the broad TRN permission grant on Staff is acceptable for the demo phase, joins the Wave 2 Phase 2 role-split work (item 9 / 11 / 13 / 16 / 22).
+- **MAJOR 10** (Run start should match the inspection driver) — driver accountability model refinement; today the inspection is vehicle-level only, the run may legitimately be driven by a different person who certified the vehicle. Phase 2 polish.
+
+### Tag chain
+
+- `cycle19-complete` on the closeout commit `2bb4cb3` (original push that triggered Round 1)
+- `cycle19-approved` will follow the Round 2 verdict

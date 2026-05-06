@@ -23,40 +23,106 @@ export class RunLogService {
   ) {}
 
   async start(input: CreateRunLogDto, actor: ResolvedActor): Promise<RunLogResponseDto> {
-    if (!actor.employeeId) {
+    if (!actor.employeeId && !actor.isSchoolAdmin) {
       throw new ForbiddenException('Only an active employee (driver) can start a route run.');
     }
-    // Resolve the assigned vehicle from the route
-    const routeRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
-        'SELECT vehicle_id::text AS vehicle_id, status FROM trn_routes WHERE id = $1::uuid LIMIT 1',
-        input.routeId,
-      );
-    })) as Array<{ vehicle_id: string | null; status: string }>;
-    if (routeRows.length === 0) throw new NotFoundException('Route not found');
-    if (routeRows[0]!.status !== 'ACTIVE') {
-      throw new BadRequestException('Route is not ACTIVE; cannot start a run');
-    }
-    const vehicleId = routeRows[0]!.vehicle_id;
-    if (!vehicleId) {
-      throw new BadRequestException('Route has no assigned vehicle');
-    }
 
-    // Pre-trip safety gate
-    await this.inspections.assertVehicleInspectedAndPassing(vehicleId, input.runDate);
-
+    // REVIEW-CYCLE19 BLOCKING 3 — wrap the safety + authorization
+    // gate + INSERT in one tenant transaction with a row lock on the
+    // route. Steps:
+    //  1. Lock the trn_routes row.
+    //  2. Verify status=ACTIVE + has assigned vehicle.
+    //  3. Verify caller is the assigned driver (or school admin).
+    //  4. Verify caller has VALID CDL + MEDICAL_CERTIFICATE in
+    //     trn_driver_credentials (the assigned driver may differ
+    //     from the actor only when the actor is a school admin).
+    //  5. Pre-trip inspection PASS gate (existing).
+    //  6. Reject if an IN_PROGRESS run already exists for this
+    //     (route, run_date) — backed by the schema-side partial
+    //     UNIQUE in migration 067 as belt-and-braces.
     const id = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        'INSERT INTO trn_route_run_logs (id, route_id, vehicle_id, driver_id, run_date, departure_time, odometer_start, status) ' +
-          "VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::date, now(), $6, 'IN_PROGRESS')",
-        id,
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const routeRows = (await tx.$queryRawUnsafe(
+        'SELECT vehicle_id::text AS vehicle_id, driver_id::text AS driver_id, status FROM trn_routes WHERE id = $1::uuid FOR UPDATE',
         input.routeId,
-        vehicleId,
-        actor.employeeId,
+      )) as Array<{ vehicle_id: string | null; driver_id: string | null; status: string }>;
+      if (routeRows.length === 0) throw new NotFoundException('Route not found');
+      if (routeRows[0]!.status !== 'ACTIVE') {
+        throw new BadRequestException('Route is not ACTIVE; cannot start a run');
+      }
+      const vehicleId = routeRows[0]!.vehicle_id;
+      const assignedDriverId = routeRows[0]!.driver_id;
+      if (!vehicleId) {
+        throw new BadRequestException('Route has no assigned vehicle');
+      }
+      if (!assignedDriverId) {
+        throw new BadRequestException('Route has no assigned driver');
+      }
+      if (!actor.isSchoolAdmin && assignedDriverId !== actor.employeeId) {
+        throw new ForbiddenException(
+          "Only the route's assigned driver (or a school admin) can start this run",
+        );
+      }
+
+      // Verify the assigned driver carries valid CDL + medical
+      const credRows = (await tx.$queryRawUnsafe(
+        "SELECT credential_type, status FROM trn_driver_credentials WHERE driver_id = $1::uuid AND credential_type IN ('CDL', 'MEDICAL_CERTIFICATE')",
+        assignedDriverId,
+      )) as Array<{ credential_type: string; status: string }>;
+      const byType = new Map(credRows.map((r) => [r.credential_type, r.status]));
+      const cdl = byType.get('CDL');
+      const med = byType.get('MEDICAL_CERTIFICATE');
+      if (cdl !== 'VALID' || med !== 'VALID') {
+        throw new BadRequestException(
+          "Assigned driver's credentials are not VALID (CDL=" +
+            (cdl ?? 'MISSING') +
+            ', MEDICAL_CERTIFICATE=' +
+            (med ?? 'MISSING') +
+            '). Verify or refresh credentials before starting a run.',
+        );
+      }
+
+      // Reject duplicate IN_PROGRESS run for (route, date) — service
+      // pre-check; the partial UNIQUE in migration 067 is the
+      // schema-side belt-and-braces.
+      const dupRows = (await tx.$queryRawUnsafe(
+        "SELECT id FROM trn_route_run_logs WHERE route_id = $1::uuid AND run_date = $2::date AND status = 'IN_PROGRESS' LIMIT 1",
+        input.routeId,
         input.runDate,
-        input.odometerStart ?? null,
-      );
+      )) as Array<{ id: string }>;
+      if (dupRows.length > 0) {
+        throw new BadRequestException(
+          'An IN_PROGRESS run already exists for this route on this date. Complete or cancel it before starting a new one.',
+        );
+      }
+
+      // Pre-trip safety gate (existing)
+      await this.inspections.assertVehicleInspectedAndPassing(vehicleId, input.runDate);
+
+      try {
+        await tx.$executeRawUnsafe(
+          'INSERT INTO trn_route_run_logs (id, route_id, vehicle_id, driver_id, run_date, departure_time, odometer_start, status) ' +
+            "VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::date, now(), $6, 'IN_PROGRESS')",
+          id,
+          input.routeId,
+          vehicleId,
+          assignedDriverId,
+          input.runDate,
+          input.odometerStart ?? null,
+        );
+      } catch (err: unknown) {
+        const e = err as { code?: string; meta?: { code?: string }; message?: string };
+        if (
+          e.code === '23505' ||
+          e.meta?.code === '23505' ||
+          (typeof e.message === 'string' && e.message.includes('23505'))
+        ) {
+          throw new BadRequestException(
+            'An IN_PROGRESS run already exists for this route on this date.',
+          );
+        }
+        throw err;
+      }
     });
     return this.getById(id);
   }

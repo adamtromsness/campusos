@@ -168,20 +168,44 @@ export class AssignmentService {
       throw new BadRequestException('studentId does not match a student in this school');
     }
 
+    // REVIEW-CYCLE19 BLOCKING 4 — every permanent assignment must
+    // carry an academicYearId so the partial UNIQUE(student_id,
+    // academic_year_id) WHERE is_override=false index is meaningful.
+    // Override rows can omit it because they're date-bounded by
+    // their parent change request.
+    const isOverride = input.isOverride ?? false;
+    if (!isOverride && !input.academicYearId) {
+      throw new BadRequestException('academicYearId is required for permanent assignments');
+    }
+    if (input.academicYearId) {
+      const yearCheck = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM sis_academic_years WHERE id = $1::uuid LIMIT 1',
+          input.academicYearId,
+        );
+      })) as Array<{ ok: number }>;
+      if (yearCheck.length === 0) {
+        throw new BadRequestException(
+          'academicYearId does not match an academic year in this school',
+        );
+      }
+    }
+
     const id = generateId();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       try {
         await tx.$executeRawUnsafe(
-          'INSERT INTO trn_student_assignments (id, student_id, route_id, stop_id, direction, effective_from, effective_to, is_override, notes, created_by) ' +
-            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::date, $7::date, $8, $9, $10::uuid)',
+          'INSERT INTO trn_student_assignments (id, student_id, route_id, stop_id, academic_year_id, direction, effective_from, effective_to, is_override, notes, created_by) ' +
+            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6, $7::date, $8::date, $9, $10, $11::uuid)',
           id,
           input.studentId,
           routeId,
           input.stopId,
+          input.academicYearId ?? null,
           input.direction,
           input.effectiveFrom ?? new Date().toISOString().slice(0, 10),
           input.effectiveTo ?? null,
-          input.isOverride ?? false,
+          isOverride,
           input.notes ?? null,
           actor.accountId,
         );

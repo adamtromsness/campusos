@@ -225,6 +225,17 @@ export class CreateStudentAssignmentDto {
   @IsIn(['AM', 'PM', 'BOTH'])
   direction!: AssignmentDirection;
 
+  /**
+   * Required for permanent assignments. The Step 5 service rejects
+   * non-override assignments without an academicYearId because the
+   * partial UNIQUE(student_id, academic_year_id) WHERE is_override=false
+   * gate is meaningful only when the year is set (REVIEW-CYCLE19 BLOCKING 4).
+   */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  academicYearId?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsISO8601()

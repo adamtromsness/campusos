@@ -80,6 +80,57 @@ export class RidershipService {
     }
     const routeId = stopRows[0]!.route_id;
 
+    // REVIEW-CYCLE19 BLOCKING 2 — verify the resolved student is
+    // actually expected on this (route, stop) for today. Accepts a
+    // permanent assignment OR an `is_override = true` row from an
+    // approved route-change request. The assignment direction must
+    // match the scan direction or be `BOTH`. Excludes students with
+    // an APPROVED `NO_BUS` change request for today (those students
+    // are not on the bus by parent request — a scan is operator
+    // error).
+    const today = new Date().toISOString().slice(0, 10);
+    const assigned = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT a.id::text AS id, a.is_override, a.direction ' +
+          'FROM trn_student_assignments a ' +
+          'WHERE a.student_id = $1::uuid ' +
+          '  AND a.route_id = $2::uuid ' +
+          '  AND a.stop_id = $3::uuid ' +
+          '  AND a.effective_from <= $4::date ' +
+          '  AND (a.effective_to IS NULL OR a.effective_to >= $4::date) ' +
+          '  AND NOT EXISTS (' +
+          '    SELECT 1 FROM trn_route_change_requests rcr ' +
+          '    WHERE rcr.student_id = a.student_id ' +
+          '      AND rcr.change_date = $4::date ' +
+          "      AND rcr.status = 'APPROVED' " +
+          "      AND rcr.change_type = 'NO_BUS'" +
+          '  ) ' +
+          'ORDER BY a.is_override DESC ' +
+          'LIMIT 1',
+        resolution.studentId,
+        routeId,
+        input.stopId,
+        today,
+      );
+    })) as Array<{ id: string; is_override: boolean; direction: string }>;
+    if (assigned.length === 0) {
+      throw new BadRequestException(
+        'Scanned student is not assigned to this stop for today. Verify the bus pass + stop, or submit a route-change request.',
+      );
+    }
+    const assignmentDirection = assigned[0]!.direction;
+    if (assignmentDirection !== 'BOTH') {
+      const wantsBoarding = input.scanDirection === 'BOARDING';
+      const isAm = assignmentDirection === 'AM';
+      // AM routes board in the morning + alight at school. PM routes
+      // are reversed. Mismatched scan direction is operator error.
+      if ((isAm && !wantsBoarding) || (!isAm && wantsBoarding)) {
+        throw new BadRequestException(
+          'Scan direction does not match the assignment direction (' + assignmentDirection + ').',
+        );
+      }
+    }
+
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(

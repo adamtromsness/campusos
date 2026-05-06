@@ -172,6 +172,56 @@ export class RouteChangeRequestService {
       throw new BadRequestException('requestedRouteId is required for DIFFERENT_ROUTE change type');
     }
 
+    // REVIEW-CYCLE19 MAJOR 7 — validate every soft-ref input
+    // regardless of actor (parents are already row-scoped to own
+    // children above, but staff/admin submitting on behalf bypassed
+    // soft-ref existence checks). Validates studentId in tenant +
+    // requestedRouteId active + requestedStopId belongs to that
+    // route (or to the student's current permanent route when
+    // changeType=DIFFERENT_STOP and requestedRouteId is omitted).
+    const studentExists = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid LIMIT 1',
+        input.studentId,
+      );
+    })) as Array<{ ok: number }>;
+    if (studentExists.length === 0) {
+      throw new BadRequestException('studentId does not match a student in this school');
+    }
+    if (input.requestedRouteId) {
+      const routeExists = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT status FROM trn_routes WHERE id = $1::uuid LIMIT 1',
+          input.requestedRouteId,
+        );
+      })) as Array<{ status: string }>;
+      if (routeExists.length === 0) {
+        throw new BadRequestException('requestedRouteId does not match a route in this school');
+      }
+      if (routeExists[0]!.status !== 'ACTIVE') {
+        throw new BadRequestException(
+          'requestedRouteId points at a non-ACTIVE route (' + routeExists[0]!.status + ')',
+        );
+      }
+    }
+    if (input.requestedStopId) {
+      const stopRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT route_id::text AS route_id FROM trn_stops WHERE id = $1::uuid LIMIT 1',
+          input.requestedStopId,
+        );
+      })) as Array<{ route_id: string }>;
+      if (stopRows.length === 0) {
+        throw new BadRequestException('requestedStopId does not match a stop in this school');
+      }
+      // If requestedRouteId is set, verify the stop belongs to it
+      if (input.requestedRouteId && stopRows[0]!.route_id !== input.requestedRouteId) {
+        throw new BadRequestException(
+          'requestedStopId does not belong to the supplied requestedRouteId',
+        );
+      }
+    }
+
     const tenant = getCurrentTenant();
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
