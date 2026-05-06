@@ -38,6 +38,7 @@
     "seed:facilities": "tsx src/seed-facilities.ts",
     "seed:it": "tsx src/seed-it.ts",
     "seed:curriculum": "tsx src/seed-curriculum.ts",
+    "seed:portfolio": "tsx src/seed-portfolio.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

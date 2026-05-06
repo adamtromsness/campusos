@@ -193,6 +193,14 @@ async function seedIam() {
         // at the Step 5 service layer binds non-admin teachers to
         // maps for subjects they teach.
         'TCH-008': ['read', 'write'],
+        // Cycle 24 — Achievements + Student Portfolio. Teachers
+        // award achievements (ACH-001:write — ACADEMIC, LEADERSHIP,
+        // COMMUNITY, etc.) to students in their classes. Portfolio
+        // read for browsing student portfolios at TEACHER+
+        // visibility (annotation surface deferred — write tier
+        // gates the future teacher-comment feature only).
+        'ACH-001': ['read', 'write'],
+        'ACH-002': ['read', 'write'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read', 'write'],
         // Cycle 14 — emergency alert read so the persistent banner
@@ -344,6 +352,14 @@ async function seedIam() {
         // Cycle 23 — Curriculum Management. Parents browse
         // PUBLISHED curriculum maps + non-teacher-only resources.
         'TCH-008': ['read'],
+        // Cycle 24 — Achievements + Student Portfolio. Parents
+        // view their child's achievements (ACH-001:read row-scoped
+        // via sis_student_guardians) and the child's portfolio
+        // when visibility is PARENT or PUBLIC (read-only at the
+        // service layer — parents cannot edit a student's curated
+        // portfolio).
+        'ACH-001': ['read'],
+        'ACH-002': ['read'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
         // Cycle 14 — emergency alert read so the dismiss-proof
@@ -476,6 +492,18 @@ async function seedIam() {
         // Cycle 23 — students view PUBLISHED curriculum maps for
         // their classes + non-teacher-only resources.
         'TCH-008': ['read'],
+        // Cycle 24 — Achievements + Student Portfolio. THE FOURTH
+        // student-input surface in CampusOS after wellbeing check-
+        // ins (Cycle 11.1), library reading logs / reviews (Cycle
+        // 12), and clubs service hours (Cycle 17) — and the FIRST
+        // truly student-owned surface. ACH-001:read for own
+        // achievement gallery. ACH-002:read+write for portfolio
+        // CRUD: curate items, set visibility (PRIVATE / TEACHER /
+        // PARENT / PUBLIC), and generate share links. Row scope at
+        // the Step 4 service layer binds students to their own
+        // portfolio + own achievements only.
+        'ACH-001': ['read'],
+        'ACH-002': ['read', 'write'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
         // Cycle 14 — students see emergency alerts on their devices.
@@ -607,6 +635,11 @@ async function seedIam() {
         'HR-001': ['read'],
         'HR-003': ['read', 'write'],
         'HR-004': ['read'],
+        // Cycle 24 — Staff covers VP / counsellor / admin assistant who
+        // award achievements (LEADERSHIP, COMMUNITY) and review portfolios
+        // for at-risk students. Same scope as Teacher.
+        'ACH-001': ['read', 'write'],
+        'ACH-002': ['read', 'write'],
         // Profile & Household mini-cycle — every persona self-services
         // their own profile (covers VP, counsellor, admin assistant).
         'USR-001': ['read', 'write'],

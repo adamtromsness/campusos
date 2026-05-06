@@ -7439,3 +7439,164 @@ export interface CurUpdateResourcePayload {
   url?: string;
   isTeacherOnly?: boolean;
 }
+
+// ── Cycle 24: Student Portfolio ────────────────────────────────────
+
+export type PortfolioVisibility = 'PRIVATE' | 'TEACHER' | 'PARENT' | 'PUBLIC';
+export type PortfolioItemType =
+  | 'SUBMISSION'
+  | 'GRADE'
+  | 'ACHIEVEMENT'
+  | 'REFLECTION'
+  | 'EXTERNAL_FILE'
+  | 'CERTIFICATE';
+export type ShareStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+export type AchievementType =
+  | 'ACADEMIC'
+  | 'SPORTING'
+  | 'MUSICAL'
+  | 'LEADERSHIP'
+  | 'COMMUNITY'
+  | 'CUSTOM';
+export type AchievementSharePlatform = 'EMAIL' | 'SOCIAL' | 'PORTFOLIO';
+
+export interface PortfolioItemDto {
+  id: string;
+  portfolioId: string;
+  itemType: PortfolioItemType;
+  sourceRefId: string | null;
+  sourceTitle: string | null;
+  title: string;
+  description: string | null;
+  s3Key: string | null;
+  isFeatured: boolean;
+  addedAt: string;
+}
+
+export interface PortfolioDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  schoolId: string;
+  title: string;
+  description: string | null;
+  visibility: PortfolioVisibility;
+  shareLinkEnabled: boolean;
+  itemCount: number;
+  achievementCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PortfolioDetailDto extends PortfolioDto {
+  items: PortfolioItemDto[];
+}
+
+export interface CreatePortfolioPayload {
+  title: string;
+  description?: string;
+  visibility?: PortfolioVisibility;
+}
+
+export interface UpdatePortfolioPayload {
+  title?: string;
+  description?: string;
+  visibility?: PortfolioVisibility;
+  shareLinkEnabled?: boolean;
+}
+
+export interface CreatePortfolioItemPayload {
+  itemType: PortfolioItemType;
+  sourceRefId?: string;
+  title: string;
+  description?: string;
+  s3Key?: string;
+  isFeatured?: boolean;
+}
+
+export interface UpdatePortfolioItemPayload {
+  title?: string;
+  description?: string;
+  isFeatured?: boolean;
+}
+
+export interface ItemSourceCandidateDto {
+  itemType: PortfolioItemType;
+  sourceRefId: string;
+  title: string;
+  subtitle: string | null;
+}
+
+export interface ShareDto {
+  id: string;
+  portfolioId: string;
+  shareToken: string;
+  expiresAt: string | null;
+  recipientEmail: string | null;
+  viewedAt: string | null;
+  status: ShareStatus;
+  createdAt: string;
+}
+
+export interface CreateSharePayload {
+  expiresAt?: string;
+  recipientEmail?: string;
+}
+
+export interface AchievementDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  schoolId: string;
+  title: string;
+  achievementType: AchievementType;
+  sourceModule: string | null;
+  sourceRefId: string | null;
+  awardedAt: string;
+  awardedById: string | null;
+  awardedByName: string | null;
+  description: string | null;
+  badgeImageUrl: string | null;
+  shareCount: number;
+  createdAt: string;
+}
+
+export interface CreateAchievementPayload {
+  studentId: string;
+  title: string;
+  achievementType: AchievementType;
+  sourceModule?: string;
+  sourceRefId?: string;
+  awardedAt?: string;
+  description?: string;
+  badgeImageUrl?: string;
+}
+
+export interface UpdateAchievementPayload {
+  title?: string;
+  description?: string;
+  badgeImageUrl?: string;
+}
+
+export interface AchievementShareDto {
+  id: string;
+  achievementId: string;
+  sharedById: string;
+  platform: AchievementSharePlatform;
+  sharedAt: string;
+}
+
+export interface CreateAchievementSharePayload {
+  platform: AchievementSharePlatform;
+}
+
+export interface PublicPortfolioViewDto {
+  portfolioId: string;
+  studentName: string | null;
+  title: string;
+  description: string | null;
+  schoolName: string | null;
+  featuredItems: PortfolioItemDto[];
+  items: PortfolioItemDto[];
+  achievements: AchievementDto[];
+}

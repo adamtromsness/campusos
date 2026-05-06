@@ -25,6 +25,7 @@ import {
   MegaphoneIcon,
   PeopleIcon,
   ShieldExclamationIcon,
+  SparklesIcon,
   TrophyIcon,
 } from './icons';
 
@@ -57,7 +58,8 @@ export type AppKey =
   | 'food-service'
   | 'facilities'
   | 'it'
-  | 'curriculum';
+  | 'curriculum'
+  | 'portfolio';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -497,6 +499,28 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/it',
       routePrefix: '/it',
       icon: ComputerIcon,
+    });
+  }
+
+  // Cycle 24 — Student Portfolio (Wave 5). The fourth student-input
+  // surface in CampusOS and the FIRST truly student-owned surface.
+  // Students curate their own portfolio (ach-002:write); teachers and
+  // parents view via row scope + the student-controlled visibility
+  // setting. Achievement gallery on every persona via ach-001:read.
+  if (hasAnyPermission(user, ['ach-002:read', 'ach-001:read'])) {
+    apps.push({
+      key: 'portfolio',
+      label: 'Portfolio',
+      description: isStudent
+        ? 'Your academic journey — items, achievements, share links'
+        : isGuardian
+          ? "Your child's portfolio + achievements"
+          : isStaff
+            ? 'Student portfolios + award achievements'
+            : 'Achievements and portfolios',
+      href: '/portfolio',
+      routePrefix: '/portfolio',
+      icon: SparklesIcon,
     });
   }
 

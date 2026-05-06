@@ -370,20 +370,14 @@ async function seedCurriculum() {
     '2010',
     CCSS_ELA_STANDARDS,
   );
-  const ccssMathId = await ensureFramework(
+  void (await ensureFramework(
     ccssMathName,
     'National Governors Association Center for Best Practices, Council of Chief State School Officers',
     'United States',
     '2010',
     CCSS_MATH_STANDARDS,
-  );
-  const ngssId = await ensureFramework(
-    ngssName,
-    'Achieve Inc.',
-    'United States',
-    '2013',
-    NGSS_STANDARDS,
-  );
+  ));
+  void (await ensureFramework(ngssName, 'Achieve Inc.', 'United States', '2013', NGSS_STANDARDS));
 
   const totalPlatformStandards =
     CCSS_ELA_STANDARDS.length + CCSS_MATH_STANDARDS.length + NGSS_STANDARDS.length;
