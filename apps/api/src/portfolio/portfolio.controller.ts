@@ -107,8 +107,12 @@ export class PortfolioController {
 
   @Get('portfolio/:id/items')
   @RequirePermission('ach-002:read')
-  async listItems(@Param('id') id: string): Promise<PortfolioItemDto[]> {
-    return this.portfolios.listItemsForPortfolio(id);
+  @ApiOperation({
+    summary:
+      'List portfolio items — actor-aware (REVIEW-CYCLE24 BLOCKING 1). Inherits the parent portfolio visibility lattice; non-authorised callers get a collapsed 404.',
+  })
+  async listItems(@Param('id') id: string, @Req() req: AuthedRequest): Promise<PortfolioItemDto[]> {
+    return this.portfolios.listItemsForPortfolio(id, await this.resolveActor(req));
   }
 
   @Post('portfolio/:id/items')

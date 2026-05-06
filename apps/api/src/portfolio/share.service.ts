@@ -51,7 +51,27 @@ export class ShareService {
   }
 
   async listForPortfolio(actor: ResolvedActor, portfolioId: string): Promise<ShareDto[]> {
+    // BLOCKING 2 (REVIEW-CYCLE24) — gate the share-token list to owner+admin
+    // BEFORE returning rows. share_token is a bearer credential; even one
+    // existing share row would have leaked the active token to any reader
+    // with ach-002:read. Now: load the portfolio first, validate caller is
+    // the owning student or admin, and only then surface the rows.
     const tenant = getCurrentTenant();
+    const exists = await this.portfolios.loadByIdRaw(portfolioId);
+    if (!exists) throw new NotFoundException('Portfolio not found');
+    const ownerStudentId = exists.student_id;
+    const callerStudentRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT s.id::text AS id FROM sis_students s JOIN platform.platform_students ps ON ps.id = s.platform_student_id WHERE ps.person_id = $1::uuid LIMIT 1',
+        actor.personId,
+      );
+    })) as Array<{ id: string }>;
+    const callerStudentId = callerStudentRows[0]?.id;
+    if (!actor.isSchoolAdmin && callerStudentId !== ownerStudentId) {
+      // Collapse to 404 don't-leak-existence — non-owner non-admin should
+      // not be able to distinguish a portfolio with shares from one without.
+      throw new NotFoundException('Portfolio not found');
+    }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT s.id::text AS id, s.portfolio_id::text AS portfolio_id, s.share_token, s.expires_at::text AS expires_at, s.recipient_email, s.viewed_at::text AS viewed_at, s.status, s.created_at::text AS created_at FROM pfl_portfolio_shares s JOIN pfl_portfolios p ON p.id = s.portfolio_id WHERE s.portfolio_id = $1::uuid AND p.school_id = $2::uuid ORDER BY s.created_at DESC',
@@ -59,24 +79,6 @@ export class ShareService {
         tenant.schoolId,
       );
     })) as ShareRow[];
-    if (rows.length === 0) {
-      // 404 if portfolio not found OR not owned. Otherwise empty array means no shares yet.
-      const exists = await this.portfolios.loadByIdRaw(portfolioId);
-      if (!exists) throw new NotFoundException('Portfolio not found');
-      // Owner-only — can the actor read?
-      const ownerStudentId = exists.student_id;
-      const callerStudentRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-        return client.$queryRawUnsafe(
-          'SELECT s.id::text AS id FROM sis_students s JOIN platform.platform_students ps ON ps.id = s.platform_student_id WHERE ps.person_id = $1::uuid LIMIT 1',
-          actor.personId,
-        );
-      })) as Array<{ id: string }>;
-      const callerStudentId = callerStudentRows[0]?.id;
-      if (!actor.isSchoolAdmin && callerStudentId !== ownerStudentId) {
-        throw new ForbiddenException('Only the owning student or admin can list shares.');
-      }
-      return [];
-    }
     return rows.map((r) => this.rowToDto(r));
   }
 
@@ -218,7 +220,18 @@ export class ShareService {
       }
       const p = portfolioRows[0]!;
 
-      const items = await this.portfolios.listItemsForPortfolio(p.portfolio_id);
+      // MAJOR 6 (REVIEW-CYCLE24) — public share view strips internal-only
+      // fields. Raw S3 keys are internal storage paths (not signed URLs);
+      // sourceRefId would let an unauthenticated viewer probe internal
+      // tenant UUIDs. Both are nulled for the public surface. When file
+      // download lands as a future polish, the public API should sign a
+      // short-lived URL on demand, never expose the raw key.
+      const rawItems = await this.portfolios.listItemsInternal(p.portfolio_id);
+      const items = rawItems.map((i) => ({
+        ...i,
+        s3Key: null,
+        sourceRefId: null,
+      }));
       const featuredItems = items.filter((i) => i.isFeatured);
 
       const achievementRows = (await client.$queryRawUnsafe(

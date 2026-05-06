@@ -92,6 +92,101 @@ export class AchievementService {
     };
   }
 
+  // BLOCKING 5 (REVIEW-CYCLE24) — validate that the supplied (sourceModule,
+  // sourceRefId) pair refers to a real prior-cycle row that belongs to the
+  // awarded student. The four supported modules cover the cross-cycle
+  // integration points documented in the Cycle 24 handoff:
+  //
+  //   - 'library'   -> lib_programme_completions (Cycle 12)
+  //   - 'clubs'     -> ext_service_progress (Cycle 17)
+  //   - 'athletics' -> ath_player_game_stats / ath_all_time_records (Cycle 13)
+  //   - 'classroom' -> cls_grades (Cycle 2)
+  //
+  // For 'classroom' we resolve via cls_grades.student_id (matches the
+  // PortfolioItemService SUBMISSION/GRADE source-resolution pattern). For
+  // 'athletics' we walk ath_player_game_stats first (per-game stats are
+  // student-scoped); ath_all_time_records is school-scoped, so we accept
+  // the row by school match without student ownership for that table.
+  // Unknown modules fall through to BadRequestException.
+  private async assertSourceOwnedBy(
+    sourceModule: string,
+    sourceRefId: string,
+    studentId: string,
+  ): Promise<void> {
+    const tenant = getCurrentTenant();
+    if (sourceModule === 'library') {
+      const ok = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM lib_programme_completions WHERE id = $1::uuid AND student_id = $2::uuid LIMIT 1',
+          sourceRefId,
+          studentId,
+        );
+      })) as Array<unknown>;
+      if (ok.length === 0) {
+        throw new BadRequestException(
+          'sourceRefId does not match a library programme completion belonging to this student.',
+        );
+      }
+      return;
+    }
+    if (sourceModule === 'clubs') {
+      const ok = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM ext_service_progress WHERE id = $1::uuid AND student_id = $2::uuid LIMIT 1',
+          sourceRefId,
+          studentId,
+        );
+      })) as Array<unknown>;
+      if (ok.length === 0) {
+        throw new BadRequestException(
+          'sourceRefId does not match a service progress row belonging to this student.',
+        );
+      }
+      return;
+    }
+    if (sourceModule === 'classroom') {
+      const ok = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM cls_grades WHERE id = $1::uuid AND student_id = $2::uuid LIMIT 1',
+          sourceRefId,
+          studentId,
+        );
+      })) as Array<unknown>;
+      if (ok.length === 0) {
+        throw new BadRequestException(
+          'sourceRefId does not match a classroom grade belonging to this student.',
+        );
+      }
+      return;
+    }
+    if (sourceModule === 'athletics') {
+      // Try per-game stats (student-scoped) first.
+      const stats = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM ath_player_game_stats WHERE id = $1::uuid AND student_id = $2::uuid LIMIT 1',
+          sourceRefId,
+          studentId,
+        );
+      })) as Array<unknown>;
+      if (stats.length > 0) return;
+      // Fall back to all-time records (school-scoped — confirm at school level).
+      const allTime = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM ath_all_time_records WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+          sourceRefId,
+          tenant.schoolId,
+        );
+      })) as Array<unknown>;
+      if (allTime.length > 0) return;
+      throw new BadRequestException(
+        'sourceRefId does not match an athletics record in this school.',
+      );
+    }
+    throw new BadRequestException(
+      `sourceModule '${sourceModule}' is not a supported cross-cycle achievement source. Supported: library, clubs, classroom, athletics.`,
+    );
+  }
+
   // Visibility for the achievement list:
   //   - admin: all
   //   - staff (teacher/counsellor with ach-001:write): students in their tenant
@@ -201,6 +296,19 @@ export class AchievementService {
       throw new BadRequestException('studentId does not match a student in this school.');
     }
 
+    // BLOCKING 5 (REVIEW-CYCLE24) — when sourceModule + sourceRefId are
+    // supplied, validate the source row exists AND belongs to the awarded
+    // student AND matches the source module. The 4 supported modules below
+    // are the cross-cycle integration points the handoff documents; an
+    // unknown sourceModule with a sourceRefId is rejected. Manual teacher-
+    // awarded achievements with neither field set are accepted as-is.
+    if (input.sourceRefId && !input.sourceModule) {
+      throw new BadRequestException('sourceModule must be supplied when sourceRefId is provided.');
+    }
+    if (input.sourceModule && input.sourceRefId) {
+      await this.assertSourceOwnedBy(input.sourceModule, input.sourceRefId, input.studentId);
+    }
+
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
@@ -230,8 +338,11 @@ export class AchievementService {
       key: dto.id,
       sourceModule: 'portfolio',
       payload: {
+        // achievementId is the new pfl_achievements row; sourceRefId is the
+        // ORIGINATING module reference (lib_programme_completions.id, etc.) —
+        // null for manual teacher awards. Fixes REVIEW-CYCLE24 MAJOR 8.
         achievementId: dto.id,
-        sourceRefId: dto.id,
+        sourceRefId: dto.sourceRefId,
         studentId: dto.studentId,
         studentName: dto.studentName,
         schoolId: dto.schoolId,
@@ -262,13 +373,24 @@ export class AchievementService {
       )) as Array<{ awarded_by: string | null }>;
       if (rows.length === 0) throw new NotFoundException('Achievement not found');
       // Owner-edit OR admin override. Owner = the awarding teacher.
+      // MAJOR 9 (REVIEW-CYCLE24) — when awarded_by IS NULL the achievement
+      // was created by a system path (Cycle 12 lib_programme_completions
+      // backfill, Cycle 17 service-hour milestone, etc.) and has no
+      // human awarder to defer to. Restrict edits to school admin in that
+      // case so a generic ach-001:write holder can't rewrite a system-
+      // generated cross-module achievement.
       if (!actor.isSchoolAdmin) {
+        if (rows[0]!.awarded_by === null) {
+          throw new ForbiddenException(
+            'System-generated achievements (no awarding teacher) can only be edited by a school admin.',
+          );
+        }
         const ok = await this.permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
           'ach-001:write',
         ]);
         if (!ok)
           throw new ForbiddenException('Only the awarder or admin can edit this achievement.');
-        if (actor.employeeId && rows[0]!.awarded_by && actor.employeeId !== rows[0]!.awarded_by) {
+        if (!actor.employeeId || actor.employeeId !== rows[0]!.awarded_by) {
           throw new ForbiddenException(
             'Only the awarding teacher or a school admin can edit this achievement.',
           );

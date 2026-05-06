@@ -64,7 +64,7 @@ COMMENT ON TABLE pfl_achievements IS
   'Cycle 24 — cross-module achievements. SET NULL on awarded_by so the achievement survives a teacher leaving the school. source_module + source_ref_id are DISPLAY-ONLY polymorphic refs per ADR-001/020 — they can point at lib_programme_completions, ath_all_time_records, ext_service_progress, or any other prior-cycle source.';
 
 COMMENT ON COLUMN pfl_achievements.student_id IS
-  'Soft FK to platform.platform_students(id) per ADR-001/020. Validated at the application layer.';
+  'Tenant-local soft reference to sis_students(id) per ADR-001/020 — validated at the application layer. Matches the pfl_portfolios.student_id convention.';
 
 COMMENT ON COLUMN pfl_achievements.source_module IS
   'DISPLAY-ONLY pointer to the originating module — library, athletics, clubs, classroom, manual, etc. Null for teacher-awarded custom achievements with no source.';

@@ -95,36 +95,59 @@ export class PortfolioService {
     return rows[0]?.id ?? null;
   }
 
+  // Returns true when the actor is an assigned teacher of the given student —
+  // i.e. teaches a class in which the student has an ACTIVE enrolment. Mirrors
+  // the row-scope pattern used by Cycle 9 BehaviorPlanService and Cycle 10
+  // hlth_health_records visibility, keyed on actor.employeeId. Non-teaching
+  // staff (counsellors, VPs, admin assistants) are intentionally NOT granted
+  // teacher-tier visibility on portfolios — they reach the surface via
+  // school-admin override or via the dedicated counselling cycle gates.
+  private async isAssignedTeacherOf(actor: ResolvedActor, studentId: string): Promise<boolean> {
+    if (actor.personType !== 'STAFF' || !actor.employeeId) return false;
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        "SELECT 1 FROM sis_class_teachers ct JOIN sis_enrollments e ON e.class_id = ct.class_id WHERE ct.teacher_employee_id = $1::uuid AND e.student_id = $2::uuid AND e.status = 'ACTIVE' LIMIT 1",
+        actor.employeeId,
+        studentId,
+      );
+    })) as Array<unknown>;
+    return rows.length > 0;
+  }
+
+  private async isLinkedGuardianOf(actor: ResolvedActor, studentId: string): Promise<boolean> {
+    if (actor.personType !== 'GUARDIAN') return false;
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 FROM sis_student_guardians sg JOIN sis_guardians g ON g.id = sg.guardian_id WHERE g.person_id = $1::uuid AND sg.student_id = $2::uuid LIMIT 1',
+        actor.personId,
+        studentId,
+      );
+    })) as Array<unknown>;
+    return rows.length > 0;
+  }
+
   // Visibility check: returns true if actor can read the portfolio of the given student.
-  // Decision matrix: PRIVATE -> owner only; TEACHER -> owner + teachers + admin;
-  // PARENT -> owner + teachers + linked guardians + admin; PUBLIC -> any auth user.
+  // Decision matrix: PRIVATE -> owner only (admin override); TEACHER -> owner +
+  // assigned teachers + admin; PARENT -> owner + assigned teachers + linked
+  // guardians + admin; PUBLIC -> any authenticated user (admin override is
+  // implicit). Generic STAFF without a teaching relationship is NOT granted
+  // TEACHER-tier visibility — fixes REVIEW-CYCLE24 BLOCKING 4.
   private async canRead(
     actor: ResolvedActor,
     studentId: string,
     visibility: PortfolioVisibility,
   ): Promise<boolean> {
-    // Owner check
     const ownerStudentId = await this.resolveStudentIdForActor(actor);
     if (ownerStudentId === studentId) return true;
     if (actor.isSchoolAdmin) return true;
     if (visibility === 'PRIVATE') return false;
     if (visibility === 'PUBLIC') return true;
     if (visibility === 'TEACHER') {
-      if (actor.personType === 'STAFF') return true;
-      return false;
+      return this.isAssignedTeacherOf(actor, studentId);
     }
     if (visibility === 'PARENT') {
-      if (actor.personType === 'STAFF') return true;
-      if (actor.personType === 'GUARDIAN') {
-        const linked = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-          return client.$queryRawUnsafe(
-            'SELECT 1 FROM sis_student_guardians sg JOIN sis_guardians g ON g.id = sg.guardian_id WHERE g.person_id = $1::uuid AND sg.student_id = $2::uuid LIMIT 1',
-            actor.personId,
-            studentId,
-          );
-        })) as Array<unknown>;
-        return linked.length > 0;
-      }
+      if (await this.isAssignedTeacherOf(actor, studentId)) return true;
+      return this.isLinkedGuardianOf(actor, studentId);
     }
     return false;
   }
@@ -189,7 +212,7 @@ export class PortfolioService {
     if (!(await this.canRead(actor, studentId, row.visibility))) {
       throw new NotFoundException('Portfolio not found');
     }
-    const items = await this.listItemsForPortfolio(row.id);
+    const items = await this.listItemsInternal(row.id);
     return { ...this.rowToDto(row), items };
   }
 
@@ -284,7 +307,36 @@ export class PortfolioService {
 
   // ── Items ─────────────────────────────────────────────────
 
-  async listItemsForPortfolio(portfolioId: string): Promise<PortfolioItemDto[]> {
+  // Public entry point for /portfolio/:id/items. Resolves the actor, loads the
+  // parent portfolio, enforces the same visibility lattice as getByStudent —
+  // including don't-leak-existence collapsed 404 for non-authorised actors —
+  // then defers to the internal listItemsInternal. Fixes REVIEW-CYCLE24
+  // BLOCKING 1.
+  async listItemsForPortfolio(
+    portfolioId: string,
+    actor: ResolvedActor,
+  ): Promise<PortfolioItemDto[]> {
+    const tenant = getCurrentTenant();
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT student_id::text AS student_id, visibility FROM pfl_portfolios WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        portfolioId,
+        tenant.schoolId,
+      );
+    })) as Array<{ student_id: string; visibility: PortfolioVisibility }>;
+    if (rows.length === 0) {
+      throw new NotFoundException('Portfolio not found');
+    }
+    if (!(await this.canRead(actor, rows[0]!.student_id, rows[0]!.visibility))) {
+      throw new NotFoundException('Portfolio not found');
+    }
+    return this.listItemsInternal(portfolioId);
+  }
+
+  // Internal — bypasses visibility because the caller has already authorised.
+  // Used by getByStudent (which gates on canRead) and by ShareService.viewByToken
+  // (where the share token is the access gate).
+  async listItemsInternal(portfolioId: string): Promise<PortfolioItemDto[]> {
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT id::text AS id, portfolio_id::text AS portfolio_id, item_type, source_ref_id::text AS source_ref_id, title, description, s3_key, is_featured, added_at::text AS added_at FROM pfl_portfolio_items WHERE portfolio_id = $1::uuid ORDER BY is_featured DESC, added_at DESC',
@@ -366,34 +418,42 @@ export class PortfolioService {
           'Only the owning student or a school admin can add items to this portfolio.',
         );
       }
-      // Validate source_ref_id resolves in tenant when item is source-typed.
+      // Validate source_ref_id exists AND belongs to the owning student.
+      // Existence-only would let a student paste another student's
+      // submission / grade / achievement UUID into their own portfolio.
+      // BLOCKING 3 (REVIEW-CYCLE24) — match against portfolio.student_id.
       if (input.sourceRefId) {
         if (input.itemType === 'SUBMISSION') {
           const ok = (await client.$queryRawUnsafe(
-            'SELECT 1 FROM cls_submissions WHERE id = $1::uuid LIMIT 1',
+            'SELECT 1 FROM cls_submissions WHERE id = $1::uuid AND student_id = $2::uuid LIMIT 1',
             input.sourceRefId,
+            studentId,
           )) as Array<unknown>;
           if (ok.length === 0) {
             throw new BadRequestException(
-              'sourceRefId does not match a submission in this tenant.',
+              'sourceRefId does not match a submission belonging to the portfolio owner.',
             );
           }
         } else if (input.itemType === 'GRADE') {
           const ok = (await client.$queryRawUnsafe(
-            'SELECT 1 FROM cls_grades WHERE id = $1::uuid LIMIT 1',
+            'SELECT 1 FROM cls_grades WHERE id = $1::uuid AND student_id = $2::uuid LIMIT 1',
             input.sourceRefId,
-          )) as Array<unknown>;
-          if (ok.length === 0) {
-            throw new BadRequestException('sourceRefId does not match a grade in this tenant.');
-          }
-        } else if (input.itemType === 'ACHIEVEMENT') {
-          const ok = (await client.$queryRawUnsafe(
-            'SELECT 1 FROM pfl_achievements WHERE id = $1::uuid LIMIT 1',
-            input.sourceRefId,
+            studentId,
           )) as Array<unknown>;
           if (ok.length === 0) {
             throw new BadRequestException(
-              'sourceRefId does not match an achievement in this tenant.',
+              'sourceRefId does not match a grade belonging to the portfolio owner.',
+            );
+          }
+        } else if (input.itemType === 'ACHIEVEMENT') {
+          const ok = (await client.$queryRawUnsafe(
+            'SELECT 1 FROM pfl_achievements WHERE id = $1::uuid AND student_id = $2::uuid LIMIT 1',
+            input.sourceRefId,
+            studentId,
+          )) as Array<unknown>;
+          if (ok.length === 0) {
+            throw new BadRequestException(
+              'sourceRefId does not match an achievement belonging to the portfolio owner.',
             );
           }
         }
