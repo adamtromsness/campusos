@@ -114,7 +114,8 @@ These join the existing Wave 2-4 Phase 2 punch list (items 9 / 11 / 13 / 14 / 16
 
 - 2026-05-06 — `cycle23-complete` (7e0d427) submitted for review.
 - 2026-05-06 — Round 1 verdict: **Reject pending fixes** (3 BLOCKING + 4 MAJOR).
-- 2026-05-06 — All 3 BLOCKING + MAJOR 4 landed in this commit, live-verified on `tenant_demo`.
+- 2026-05-06 — All 3 BLOCKING + MAJOR 4 landed in fix commit `13e8484`, live-verified on `tenant_demo`.
+- 2026-05-06 — Round 2 verdict: **Approved** at `13e8484`. Reviewer cache-busted each affected file in code and confirmed all 4 fixes — actor-aware unit detail with `is_teacher_only` filter, `assertCanReadMap` parent-visibility propagation with collapsed 404, `tch-008:write` re-gating + service-tier defence on delivery-gap analytics, and `assertFrameworkVisibleForMap` validating either active tenant custom framework OR adopted platform framework via `cur_school_framework_adoptions`.
 - 3 remaining MAJORs (5 / 6 / 7) carried as Phase 2 punch list items 38 / 39 / 40.
 
-**Cycle 23 ships clean to Round 2.** Tagging `cycle23-approved` after Round 2 APPROVED.
+**Cycle 23 APPROVED.** Tagged `cycle23-complete` at `7e0d427` and `cycle23-approved` at `13e8484`.
