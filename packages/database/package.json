@@ -30,6 +30,7 @@
     "seed:athletics": "tsx src/seed-athletics.ts",
     "seed:emergency": "tsx src/seed-emergency.ts",
     "seed:meetings": "tsx src/seed-meetings.ts",
+    "seed:onboarding": "tsx src/seed-onboarding.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

@@ -10,6 +10,7 @@ import { getCurrentTenant } from '../tenant/tenant.context';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { CapacitySummaryService } from './capacity-summary.service';
+import { OnboardingService } from './onboarding.service';
 import {
   CreateOfferDto,
   OfferResponseDto,
@@ -81,6 +82,7 @@ export class OfferService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
     private readonly capacity: CapacitySummaryService,
+    private readonly onboarding: OnboardingService,
   ) {}
 
   async list(actor: ResolvedActor): Promise<OfferResponseDto[]> {
@@ -361,6 +363,24 @@ export class OfferService {
           offer.application_id,
         );
         await this.capacity.recompute(tx, offer.enrollment_period_id, offer.applying_for_grade);
+        // Cycle 16 — auto-generate onboarding progress row in the
+        // same tenant tx so offer-accept and checklist-creation are
+        // atomic. Skips silently when no STANDARD_INTAKE checklist
+        // is configured (real-school operators add one before their
+        // first accepted offer).
+        try {
+          const targetStart = new Date();
+          targetStart.setDate(targetStart.getDate() + 30);
+          await this.onboarding.generateProgressForApplicationInTx(
+            tx,
+            offer.application_id,
+            targetStart,
+            actor.accountId,
+          );
+        } catch {
+          // Onboarding generation is best-effort — never block an
+          // accepted offer because the checklist plumbing failed.
+        }
       } else if (body.familyResponse === 'DECLINED') {
         await tx.$executeRawUnsafe(
           "UPDATE enr_offers SET family_response = 'DECLINED', family_responded_at = $1::timestamptz, status = 'DECLINED', updated_at = now() WHERE id = $2::uuid",

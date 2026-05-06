@@ -8,51 +8,52 @@ import { OfferService } from './offer.service';
 import { WaitlistService } from './waitlist.service';
 import { CapacitySummaryService } from './capacity-summary.service';
 import { EnrollmentSearchService } from './enrollment-search.service';
+import { ApplicationStageService } from './application-stage.service';
+import { ApplicationScoringService } from './application-scoring.service';
+import { OnboardingService } from './onboarding.service';
 import { EnrollmentPeriodController } from './enrollment-period.controller';
 import { ApplicationController } from './application.controller';
 import { OfferController } from './offer.controller';
 import { WaitlistController } from './waitlist.controller';
 import { EnrollmentSearchController } from './enrollment-search.controller';
+import { ApplicationStageController } from './application-stage.controller';
+import { ApplicationScoringController } from './application-scoring.controller';
+import { OnboardingController } from './onboarding.controller';
 
 /**
- * Enrollment Module — M81 Admissions (Cycle 6 Step 6).
+ * Enrollment Module — M81 Admissions.
  *
- * Five services + four controllers + 16 endpoints. Three Kafka emits
- * (enr.application.submitted, enr.application.status_changed,
- * enr.student.enrolled) plus two supplementary topics
- * (enr.offer.issued, enr.offer.responded) used by the future
- * notification + enrollment confirmation flows.
+ * Cycle 6 shipped the bulk of M81 (period CRUD, application
+ * lifecycle, offer/waitlist, capacity summary, public search). Cycle
+ * 16 layers in:
+ *   - ApplicationStageService — multi-stage review pipeline (UNDER_REVIEW
+ *       → INTERVIEW → ASSESSMENT → OFFERED → ACCEPTED) with locked-row
+ *       transition gate + immutable enr_application_stages audit.
+ *   - ApplicationScoringService — per-criterion scores with UNIQUE
+ *       (application, criterion) catch.
+ *   - OnboardingService — checklist templates + per-student progress
+ *       generation (inside the offer-accept tx) + task completion
+ *       with auto-flip-to-COMPLETE + enr.student.onboarded emit when
+ *       the last mandatory task lands.
  *
- * - EnrollmentPeriodService — period CRUD + nested streams + capacities.
- *                             Admin writes lock the row FOR UPDATE.
- * - ApplicationService      — submit (parent or admin), list (row-scoped),
- *                             get, admin status transitions (locked),
- *                             admin notes timeline. Notes flagged
- *                             is_confidential=true are filtered from the
- *                             non-admin payload.
- * - OfferService            — issue (admin), set conditions met (admin
- *                             on CONDITIONAL only), respond (parent or
- *                             admin acting for parent). On parent ACCEPT,
- *                             flips the application to ENROLLED and
- *                             emits enr.student.enrolled — the future
- *                             PaymentAccountWorker (Step 7) is the
- *                             consumer.
- * - WaitlistService         — admin-only list + offer-from-waitlist.
- *                             Promote rotates the entry through OFFERED
- *                             status while issuing the new offer in one
- *                             tx.
- * - CapacitySummaryService  — internal-only UPSERT helper. Called by
- *                             ApplicationService and OfferService inside
- *                             the same tx as every status flip.
+ * OfferService is hooked: on parent ACCEPT it now auto-generates the
+ * onboarding progress row inside the same tenant tx that flips the
+ * application to ENROLLED. enr.student.enrolled (Cycle 6) keeps
+ * firing on offer-accept; enr.student.onboarded (Cycle 16) fires
+ * only when the school finishes onboarding the student.
  *
  * Authorisation contract:
  *   - stu-003:read   — read enrollment periods, own application(s) (parent
- *                       row-scope on guardian_person_id), or all (admin).
+ *                       row-scope), or all (admin); read stages, scores,
+ *                       onboarding progress.
  *   - stu-003:write  — submit applications (parent or admin); respond to
- *                       offers (parent or admin acting for parent).
+ *                       offers (parent or admin acting for parent);
+ *                       advance stages; record scores; complete onboarding
+ *                       tasks (EO / admin only — service-side check).
  *   - stu-003:admin  — period / stream / capacity CRUD; admin status
  *                       transitions; offer issue + conditions verify;
- *                       waitlist read + promote.
+ *                       waitlist read + promote; checklist template CRUD;
+ *                       waive onboarding tasks.
  */
 @Module({
   imports: [TenantModule, IamModule, KafkaModule],
@@ -63,6 +64,9 @@ import { EnrollmentSearchController } from './enrollment-search.controller';
     WaitlistService,
     CapacitySummaryService,
     EnrollmentSearchService,
+    ApplicationStageService,
+    ApplicationScoringService,
+    OnboardingService,
   ],
   controllers: [
     EnrollmentPeriodController,
@@ -70,6 +74,9 @@ import { EnrollmentSearchController } from './enrollment-search.controller';
     OfferController,
     WaitlistController,
     EnrollmentSearchController,
+    ApplicationStageController,
+    ApplicationScoringController,
+    OnboardingController,
   ],
   exports: [
     EnrollmentPeriodService,
@@ -78,6 +85,9 @@ import { EnrollmentSearchController } from './enrollment-search.controller';
     WaitlistService,
     CapacitySummaryService,
     EnrollmentSearchService,
+    ApplicationStageService,
+    ApplicationScoringService,
+    OnboardingService,
   ],
 })
 export class EnrollmentModule {}

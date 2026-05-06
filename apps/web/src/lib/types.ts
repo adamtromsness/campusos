@@ -4985,3 +4985,171 @@ export interface CreateIepMeetingRecordPayload {
   outcomesSummary?: string;
   nextReviewDate?: string;
 }
+
+// ── Cycle 16: Application stages, scores, and onboarding ──
+
+export const APPLICATION_STAGE_TARGETS = [
+  'UNDER_REVIEW',
+  'INTERVIEW',
+  'ASSESSMENT',
+  'OFFERED',
+  'ACCEPTED',
+  'REJECTED',
+  'WAITLISTED',
+  'WITHDRAWN',
+  'ENROLLED',
+] as const;
+export type ApplicationStageTarget = (typeof APPLICATION_STAGE_TARGETS)[number];
+
+export interface ApplicationStageDto {
+  id: string;
+  applicationId: string;
+  fromStatus: string | null;
+  toStatus: string;
+  changedBy: string;
+  changedByName: string | null;
+  notes: string | null;
+  changedAt: string;
+}
+
+export interface AdvanceStagePayload {
+  toStatus: ApplicationStageTarget;
+  notes?: string;
+}
+
+export interface ApplicationScoreDto {
+  id: string;
+  applicationId: string;
+  criterionName: string;
+  score: number;
+  maxScore: number | null;
+  scoredBy: string;
+  scoredByName: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateScorePayload {
+  criterionName: string;
+  score: number;
+  maxScore?: number;
+  notes?: string;
+}
+
+export interface UpdateScorePayload {
+  score?: number;
+  maxScore?: number;
+  notes?: string;
+}
+
+export const ONBOARDING_ADMISSION_TYPES = [
+  'STANDARD_INTAKE',
+  'MID_YEAR_ADMISSION',
+  'TRANSFER_IN',
+  'RETURNING_STUDENT',
+  'INTERNATIONAL',
+] as const;
+export type OnboardingAdmissionType = (typeof ONBOARDING_ADMISSION_TYPES)[number];
+
+export const ONBOARDING_TASK_CATEGORIES = [
+  'ADMINISTRATIVE',
+  'HEALTH',
+  'IT',
+  'FACILITIES',
+  'TRANSPORT',
+  'COMMUNICATIONS',
+  'FINANCE',
+] as const;
+export type OnboardingTaskCategory = (typeof ONBOARDING_TASK_CATEGORIES)[number];
+
+export const ONBOARDING_TASK_STATUSES = ['PENDING', 'COMPLETED', 'WAIVED', 'OVERDUE'] as const;
+export type OnboardingTaskStatus = (typeof ONBOARDING_TASK_STATUSES)[number];
+
+export type OnboardingProgressStatus = 'IN_PROGRESS' | 'COMPLETE' | 'OVERDUE';
+
+export interface OnboardingTaskTemplateDto {
+  id: string;
+  checklistId: string;
+  taskName: string;
+  description: string | null;
+  taskCategory: OnboardingTaskCategory;
+  isMandatory: boolean;
+  responsibleRole: string | null;
+  sortOrder: number;
+  dueDaysBeforeStart: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OnboardingChecklistDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  admissionType: OnboardingAdmissionType;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  tasks?: OnboardingTaskTemplateDto[];
+}
+
+export interface OnboardingTaskCompletionDto {
+  id: string;
+  progressId: string;
+  taskId: string;
+  taskName: string | null;
+  taskCategory: OnboardingTaskCategory | null;
+  responsibleRole: string | null;
+  isMandatory?: boolean;
+  sortOrder?: number;
+  status: OnboardingTaskStatus;
+  completedBy: string | null;
+  completedByName: string | null;
+  completedAt: string | null;
+  notes: string | null;
+}
+
+export interface OnboardingProgressDto {
+  id: string;
+  applicationId: string;
+  checklistId: string;
+  checklistName: string | null;
+  studentId: string | null;
+  startedDate: string;
+  targetStartDate: string;
+  overallStatus: OnboardingProgressStatus;
+  tasksTotal: number;
+  tasksCompleted: number;
+  completedAt: string | null;
+  taskCompletions?: OnboardingTaskCompletionDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompleteTaskPayload {
+  notes?: string;
+}
+
+export interface CompleteTaskResponse {
+  completion: OnboardingTaskCompletionDto;
+  progress: OnboardingProgressDto;
+  onboarded: boolean;
+}
+
+export interface CreateChecklistTaskInput {
+  taskName: string;
+  description?: string;
+  taskCategory: OnboardingTaskCategory;
+  responsibleRole?: string;
+  sortOrder?: number;
+  dueDaysBeforeStart?: number;
+  isMandatory?: boolean;
+}
+
+export interface CreateChecklistPayload {
+  name: string;
+  description?: string;
+  admissionType: OnboardingAdmissionType;
+  tasks?: CreateChecklistTaskInput[];
+}

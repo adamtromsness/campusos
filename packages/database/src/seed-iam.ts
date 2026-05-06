@@ -466,6 +466,11 @@ async function seedIam() {
         // into PTC schedules.
         'MTG-001': ['read', 'write'],
         'MTG-002': ['read'],
+        // Cycle 16 — Enrolment Officer (EO) reviews applications,
+        // advances stages, scores criteria, issues offers, and
+        // manages onboarding. Held by Staff (covers EO) so the
+        // pipeline endpoints clear the @RequirePermission gate.
+        'STU-003': ['read', 'write'],
         // REVIEW-CYCLE14 MAJOR 6 — COM-004 not granted to Staff
         // because ModerationService.assertAdmin() requires
         // actor.isSchoolAdmin specifically (a stricter contract

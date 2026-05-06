@@ -17,6 +17,9 @@ import {
   useSetOfferConditionsMet,
   useUpdateApplicationStatus,
 } from '@/hooks/use-enrollment';
+import { StagesPanel } from '@/components/admissions/StagesPanel';
+import { ScoresPanel } from '@/components/admissions/ScoresPanel';
+import { OnboardingPanel } from '@/components/admissions/OnboardingPanel';
 import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
 import {
   APPLICATION_STATUS_LABELS,
@@ -246,6 +249,12 @@ export default function ApplicationDetailPage({ params }: { params: Promise<{ id
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="mt-6 space-y-6">
+        <StagesPanel applicationId={a.id} currentStatus={a.status} canEdit={isAdmin} />
+        <ScoresPanel applicationId={a.id} canEdit={isAdmin} />
+        <OnboardingPanel applicationId={a.id} canEdit={isAdmin} isAdmin={isAdmin} />
       </section>
 
       <section className="mt-6">

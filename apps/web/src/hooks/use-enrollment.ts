@@ -298,3 +298,173 @@ export function useOfferFromWaitlist(id: string) {
     },
   });
 }
+
+// ── Cycle 16: Stages, scores, onboarding ──
+
+import type {
+  AdvanceStagePayload,
+  ApplicationScoreDto,
+  ApplicationStageDto,
+  CompleteTaskPayload,
+  CompleteTaskResponse,
+  CreateChecklistPayload,
+  CreateScorePayload,
+  OnboardingChecklistDto,
+  OnboardingProgressDto,
+  OnboardingTaskCompletionDto,
+  UpdateScorePayload,
+} from '@/lib/types';
+
+export function useApplicationStages(applicationId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['enrollment', 'stages', applicationId],
+    queryFn: () => apiFetch<ApplicationStageDto[]>(`/api/v1/applications/${applicationId}/stages`),
+    enabled: enabled && !!applicationId,
+  });
+}
+
+export function useAdvanceApplicationStage(applicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AdvanceStagePayload) =>
+      apiFetch<ApplicationStageDto>(`/api/v1/applications/${applicationId}/stages/advance`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['enrollment', 'stages', applicationId] });
+      void qc.invalidateQueries({ queryKey: ['enrollment', 'application', applicationId] });
+      void qc.invalidateQueries({ queryKey: ['enrollment', 'applications'] });
+    },
+  });
+}
+
+export function useApplicationScores(applicationId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['enrollment', 'scores', applicationId],
+    queryFn: () => apiFetch<ApplicationScoreDto[]>(`/api/v1/applications/${applicationId}/scores`),
+    enabled: enabled && !!applicationId,
+  });
+}
+
+export function useCreateApplicationScore(applicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateScorePayload) =>
+      apiFetch<ApplicationScoreDto>(`/api/v1/applications/${applicationId}/scores`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['enrollment', 'scores', applicationId] });
+    },
+  });
+}
+
+export function useUpdateApplicationScore(scoreId: string, applicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateScorePayload) =>
+      apiFetch<ApplicationScoreDto>(`/api/v1/application-scores/${scoreId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['enrollment', 'scores', applicationId] });
+    },
+  });
+}
+
+export function useDeleteApplicationScore(scoreId: string, applicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<void>(`/api/v1/application-scores/${scoreId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['enrollment', 'scores', applicationId] });
+    },
+  });
+}
+
+export function useOnboardingChecklists(includeInactive = false, enabled = true) {
+  const qs = includeInactive ? '?includeInactive=true' : '';
+  return useQuery({
+    queryKey: ['enrollment', 'onboarding-checklists', includeInactive],
+    queryFn: () => apiFetch<OnboardingChecklistDto[]>(`/api/v1/onboarding-checklists${qs}`),
+    enabled,
+  });
+}
+
+export function useOnboardingChecklist(id: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['enrollment', 'onboarding-checklist', id],
+    queryFn: () => apiFetch<OnboardingChecklistDto>(`/api/v1/onboarding-checklists/${id}`),
+    enabled: enabled && !!id,
+  });
+}
+
+export function useCreateOnboardingChecklist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateChecklistPayload) =>
+      apiFetch<OnboardingChecklistDto>(`/api/v1/onboarding-checklists`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['enrollment', 'onboarding-checklists'] });
+    },
+  });
+}
+
+export function useApplicationOnboarding(applicationId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['enrollment', 'onboarding-progress-for-app', applicationId],
+    queryFn: () =>
+      apiFetch<OnboardingProgressDto | null>(`/api/v1/applications/${applicationId}/onboarding`),
+    enabled: enabled && !!applicationId,
+  });
+}
+
+export function useOnboardingProgress(progressId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['enrollment', 'onboarding-progress', progressId],
+    queryFn: () => apiFetch<OnboardingProgressDto>(`/api/v1/onboarding-progress/${progressId}`),
+    enabled: enabled && !!progressId,
+  });
+}
+
+export function useCompleteOnboardingTask(progressId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskCompletionId, notes }: { taskCompletionId: string; notes?: string }) =>
+      apiFetch<CompleteTaskResponse>(
+        `/api/v1/onboarding-task-completions/${taskCompletionId}/complete`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ notes } satisfies CompleteTaskPayload),
+        },
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['enrollment', 'onboarding-progress', progressId] });
+      void qc.invalidateQueries({ queryKey: ['enrollment', 'onboarding-progress-for-app'] });
+    },
+  });
+}
+
+export function useWaiveOnboardingTask(progressId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskCompletionId, notes }: { taskCompletionId: string; notes?: string }) =>
+      apiFetch<OnboardingTaskCompletionDto>(
+        `/api/v1/onboarding-task-completions/${taskCompletionId}/waive`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ notes } satisfies CompleteTaskPayload),
+        },
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['enrollment', 'onboarding-progress', progressId] });
+      void qc.invalidateQueries({ queryKey: ['enrollment', 'onboarding-progress-for-app'] });
+    },
+  });
+}
