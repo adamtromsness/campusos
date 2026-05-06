@@ -305,6 +305,8 @@ async function seedIam() {
         // info but do not manage routes or fleet. TRN-001:read covers
         // the read-only Transportation app tile.
         'TRN-001': ['read'],
+        // Cycle 20 — Food Service. Teachers view menus only.
+        'FDS-001': ['read'],
       },
     },
     {
@@ -420,6 +422,18 @@ async function seedIam() {
         // children via sis_student_guardians keyed on actor.personId.
         'TRN-001': ['read'],
         'TRN-005': ['read', 'write'],
+        // Cycle 20 — Food Service. Parents view today's menu (FDS-001:read)
+        // + their child's dietary profile and NSLP eligibility status
+        // (FDS-003:read). The DietaryProfileService row-scopes parent
+        // reads to own children via sis_student_guardians keyed on
+        // actor.personId. Parents submit dietary update requests via the
+        // same FDS-003:read gate; the row-scope check at the service
+        // layer is the actual access boundary, mirroring the Cycle 19
+        // route-change request and Cycle 1 attendance self-service
+        // patterns. Parents do NOT receive FDS-002 (POS) or FDS-004
+        // (food safety / USDA) — those are FSM-only.
+        'FDS-001': ['read'],
+        'FDS-003': ['read'],
       },
     },
     {
@@ -509,6 +523,10 @@ async function seedIam() {
         // BusPassService row-scopes my-pass reads to the calling
         // student's iam_person.id.
         'TRN-001': ['read'],
+        // Cycle 20 — Food Service. Students view today's menu via
+        // FDS-001:read so the per-item allergen pills surface in the
+        // student dashboard.
+        'FDS-001': ['read'],
       },
     },
     {
@@ -682,6 +700,18 @@ async function seedIam() {
         'TRN-003': ['read', 'write'],
         'TRN-004': ['read', 'write'],
         'TRN-005': ['read', 'write'],
+        // Cycle 20 — Food Service. Staff covers the Food Service
+        // Manager (FSM) — the seventh specialist operator persona.
+        // FDS-001..004 read+write covers menus / POS / dietary /
+        // safety operations. Joins the broader role-split work in
+        // the Wave 2 Phase 2 punch list — a dedicated FSM role
+        // should hold the FDS-* codes alone before pilot. School
+        // Admin and Platform Admin pick up the admin tier (USDA
+        // claim approval, hard delete) via everyFunction.
+        'FDS-001': ['read', 'write'],
+        'FDS-002': ['read', 'write'],
+        'FDS-003': ['read', 'write'],
+        'FDS-004': ['read', 'write'],
       },
     },
   ];

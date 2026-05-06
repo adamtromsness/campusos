@@ -5971,3 +5971,315 @@ export interface DelayReportDto {
   parentNotificationSent: boolean;
   reportedAt: string;
 }
+
+// ── Cycle 20 Food Service ──
+
+export type FdsMenuItemCategory = 'MAIN' | 'SIDE' | 'DESSERT' | 'DRINK' | 'SNACK';
+export type FdsMealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK';
+export type FdsPosDeviceType = 'CASHIER_STAFFED' | 'SELF_SERVICE_KIOSK' | 'MOBILE_CART';
+export type FdsPaymentMethod = 'LUNCH_ACCOUNT' | 'INVOICE' | 'CASH' | 'FREE_MEAL' | 'STAFF_ACCOUNT';
+export type FdsPatronType = 'STUDENT' | 'STAFF';
+export type FdsReconciliationStatus = 'OPEN' | 'RECONCILED' | 'VARIANCE_FLAGGED';
+export type FdsAllergenSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
+export type FdsDietaryMealPlan = 'STANDARD' | 'VEGETARIAN' | 'VEGAN' | 'HALAL' | 'KOSHER' | 'OTHER';
+export type FdsDietaryUpdateChangeType =
+  | 'ADD_RESTRICTION'
+  | 'REMOVE_RESTRICTION'
+  | 'ADD_ALLERGEN'
+  | 'REMOVE_ALLERGEN'
+  | 'CHANGE_MEAL_PLAN'
+  | 'UPDATE_ELIGIBILITY';
+export type FdsDietaryUpdateStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type FdsEligibilityApplicationType = 'INCOME_BASED' | 'CATEGORICAL' | 'DIRECT_CERTIFICATION';
+export type FdsEligibilityStatus =
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'DENIED'
+  | 'WITHDRAWN';
+export type FdsEligibilityCategory = 'FREE' | 'REDUCED' | 'PAID' | 'DENIED';
+export type FdsUsdaClaimStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+export type FdsTempCheckLocation =
+  | 'DELIVERY'
+  | 'REFRIGERATOR'
+  | 'FREEZER'
+  | 'SERVING_LINE'
+  | 'HOT_HOLD'
+  | 'COLD_HOLD'
+  | 'COOK_TEMP';
+
+export interface FdsMenuCycleDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  cycleLengthDays: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface FdsMenuItemDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  category: FdsMenuItemCategory;
+  unitCost: number | null;
+  calories: number | null;
+  allergens: string[];
+  allergenCodes: string[];
+  isVegetarian: boolean;
+  isVegan: boolean;
+  isGlutenFree: boolean;
+  isPreorderable: boolean;
+  isActive: boolean;
+}
+
+export interface FdsDailyMenuItemDto {
+  id: string;
+  dailyMenuId: string;
+  menuItemId: string;
+  menuItemName: string | null;
+  category: FdsMenuItemCategory | null;
+  unitCost: number | null;
+  allergenCodes: string[];
+  quantityPrepared: number | null;
+  quantityServed: number | null;
+  quantityWasted: number | null;
+  isAvailable: boolean;
+}
+
+export interface FdsDailyMenuDto {
+  id: string;
+  schoolId: string;
+  menuDate: string;
+  cycleId: string | null;
+  mealType: FdsMealType;
+  notes: string | null;
+  items?: FdsDailyMenuItemDto[];
+}
+
+export interface CreateFdsMenuItemPayload {
+  name: string;
+  description?: string;
+  category: FdsMenuItemCategory;
+  unitCost?: number;
+  calories?: number;
+  allergens?: string[];
+  allergenCodes?: string[];
+  isVegetarian?: boolean;
+  isVegan?: boolean;
+  isGlutenFree?: boolean;
+  isPreorderable?: boolean;
+}
+
+export interface CreateFdsDailyMenuPayload {
+  menuDate: string;
+  mealType: FdsMealType;
+  cycleId?: string;
+  notes?: string;
+}
+
+export interface FdsPosDeviceDto {
+  id: string;
+  schoolId: string;
+  deviceName: string;
+  location: string | null;
+  deviceType: FdsPosDeviceType;
+  isActive: boolean;
+}
+
+export interface FdsSessionDto {
+  id: string;
+  schoolId: string;
+  serviceDate: string;
+  mealType: FdsMealType;
+  openedBy: string;
+  openedByName: string | null;
+  openedAt: string;
+  closedBy: string | null;
+  closedAt: string | null;
+  transactionCount: number;
+  totalSales: number;
+}
+
+export interface FdsAllergenMatchDto {
+  itemId: string;
+  itemName: string | null;
+  matchedAllergens: string[];
+  severity: FdsAllergenSeverity;
+}
+
+export interface FdsTransactionItem {
+  itemId: string;
+  name?: string;
+  price: number;
+}
+
+export interface FdsTransactionDto {
+  id: string;
+  patronId: string;
+  patronName: string | null;
+  patronType: FdsPatronType;
+  sessionId: string;
+  posDeviceId: string;
+  items: unknown;
+  total: number;
+  paymentMethod: FdsPaymentMethod;
+  allergenOverrideRequired: boolean;
+  supervisorOverrideId: string | null;
+  overrideReason: string | null;
+  servedAt: string;
+  warnings?: FdsAllergenMatchDto[];
+}
+
+export interface CreateFdsTransactionPayload {
+  patronId: string;
+  patronType?: FdsPatronType;
+  sessionId: string;
+  posDeviceId: string;
+  items: FdsTransactionItem[];
+  paymentMethod: FdsPaymentMethod;
+  supervisorOverrideId?: string;
+  overrideReason?: string;
+}
+
+export interface FdsAllergenCheckDto {
+  patronId: string;
+  activeAllergens: string[];
+  criticalCount: number;
+  warningCount: number;
+  infoCount: number;
+}
+
+export interface FdsReconciliationDto {
+  id: string;
+  sessionId: string;
+  posDeviceId: string;
+  openingBalance: number;
+  expectedClosingBalance: number;
+  actualClosingBalance: number | null;
+  variance: number | null;
+  reconciledBy: string | null;
+  reconciledAt: string | null;
+  status: FdsReconciliationStatus;
+}
+
+export interface FdsDietaryProfileDto {
+  id: string;
+  studentId: string;
+  schoolId: string;
+  dietaryRestrictions: string[];
+  allergens: string[];
+  freeMealEligible: boolean;
+  mealPlanType: FdsDietaryMealPlan;
+}
+
+export interface FdsDietaryUpdateRequestDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  submittedBy: string;
+  submittedByName: string | null;
+  changeType: FdsDietaryUpdateChangeType;
+  proposedValue: string;
+  reason: string | null;
+  status: FdsDietaryUpdateStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  createdAt: string;
+}
+
+export interface FdsAllergenAlertDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  schoolId: string;
+  allergenCode: string;
+  allergenDisplayName: string;
+  severity: FdsAllergenSeverity;
+  sourceHealthAlertId: string;
+  isActive: boolean;
+  lastSyncedAt: string;
+}
+
+export interface FdsEligibilityApplicationDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentName: string | null;
+  submittedBy: string;
+  householdSize: number;
+  annualHouseholdIncome: number | null;
+  snapBenefitCaseNumber: string | null;
+  applicationType: FdsEligibilityApplicationType;
+  status: FdsEligibilityStatus;
+  submittedAt: string;
+  determination?: FdsEligibilityDeterminationDto;
+}
+
+export interface FdsEligibilityDeterminationDto {
+  id: string;
+  applicationId: string;
+  determinedBy: string;
+  determinedAt: string;
+  eligibilityCategory: FdsEligibilityCategory;
+  effectiveFrom: string;
+  effectiveTo: string;
+  notificationSent: boolean;
+}
+
+export interface FdsUsdaClaimDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string | null;
+  monthYear: string;
+  freeMealsCount: number;
+  reducedMealsCount: number;
+  paidMealsCount: number;
+  reimbursementAmount: number | null;
+  status: FdsUsdaClaimStatus;
+  submittedAt: string | null;
+}
+
+export interface FdsTemperatureLogDto {
+  id: string;
+  schoolId: string;
+  checkLocation: FdsTempCheckLocation;
+  locationName: string;
+  temperatureCelsius: number;
+  safeRangeMin: number;
+  safeRangeMax: number;
+  isCompliant: boolean;
+  correctiveAction: string | null;
+  loggedBy: string;
+  loggedByName: string | null;
+  loggedAt: string;
+}
+
+export interface CreateFdsTemperatureLogPayload {
+  checkLocation: FdsTempCheckLocation;
+  locationName: string;
+  temperatureCelsius: number;
+  safeRangeMin: number;
+  safeRangeMax: number;
+  correctiveAction?: string;
+  notes?: string;
+}
+
+export interface CreateFdsDietaryUpdateRequestPayload {
+  studentId: string;
+  changeType: FdsDietaryUpdateChangeType;
+  proposedValue: string;
+  reason?: string;
+}
+
+export interface CreateFdsEligibilityApplicationPayload {
+  studentId: string;
+  householdSize: number;
+  annualHouseholdIncome?: number;
+  snapBenefitCaseNumber?: string;
+  applicationType: FdsEligibilityApplicationType;
+  academicYearId?: string;
+}

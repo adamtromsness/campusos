@@ -9,6 +9,7 @@ import {
   BookIcon,
   BusIcon,
   CalendarIcon,
+  UtensilsIcon,
   ChatBubbleIcon,
   CheckCircleIcon,
   ChecklistIcon,
@@ -49,7 +50,8 @@ export type AppKey =
   | 'meetings'
   | 'clubs'
   | 'groups'
-  | 'transport';
+  | 'transport'
+  | 'food-service';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -410,6 +412,27 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/transport',
       routePrefix: '/transport',
       icon: BusIcon,
+    });
+  }
+
+  // Food Service — every persona who can read menus (Cycle 20). Wave 4 cycle 2.
+  // Food Service Manager (FSM, Staff role) drives menu planning + POS + dietary +
+  // safety operations. Parents see their child's dietary profile + meal plan via
+  // FDS-003:read; students see today's menu via FDS-001:read.
+  if (hasAnyPermission(user, ['fds-001:read'])) {
+    apps.push({
+      key: 'food-service',
+      label: 'Food Service',
+      description: isStaff
+        ? 'Menus, POS, dietary, food safety'
+        : isStudent
+          ? "Today's menu + my dietary profile"
+          : isGuardian
+            ? "Your child's menu, dietary profile, and meal history"
+            : 'Menus and food service',
+      href: '/food-service',
+      routePrefix: '/food-service',
+      icon: UtensilsIcon,
     });
   }
 

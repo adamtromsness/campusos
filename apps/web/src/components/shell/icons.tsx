@@ -322,3 +322,16 @@ export function BusIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function UtensilsIcon(props: SVGProps<SVGSVGElement>) {
+  // Custom fork+knife — used for the Food Service tile.
+  return (
+    <svg {...base} {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5 3v8a2 2 0 0 0 2 2v8M9 3v8a2 2 0 0 1-2 2M14 11h6M14 15h6m-6-12c2.21 0 4 1.79 4 4v3M16 19v2"
+      />
+    </svg>
+  );
+}

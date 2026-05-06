@@ -33,6 +33,7 @@ import { MeetingsModule } from './meetings/meetings.module';
 import { ClubsModule } from './clubs/clubs.module';
 import { GroupsModule } from './groups/groups.module';
 import { TransportModule } from './transport/transport.module';
+import { FoodServiceModule } from './food-service/food-service.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -92,6 +93,7 @@ var devOnlyControllers: Type<unknown>[] =
     ClubsModule,
     GroupsModule,
     TransportModule,
+    FoodServiceModule,
   ],
   controllers: devOnlyControllers,
   providers: [
