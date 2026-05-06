@@ -29,6 +29,7 @@ import { WellbeingModule } from './wellbeing/wellbeing.module';
 import { LibraryModule } from './library/library.module';
 import { AthleticsModule } from './athletics/athletics.module';
 import { EmergencyAlertsModule } from './emergency-alerts/emergency-alerts.module';
+import { MeetingsModule } from './meetings/meetings.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -84,6 +85,7 @@ var devOnlyControllers: Type<unknown>[] =
     LibraryModule,
     AthleticsModule,
     EmergencyAlertsModule,
+    MeetingsModule,
   ],
   controllers: devOnlyControllers,
   providers: [

@@ -44,7 +44,8 @@ export type AppKey =
   | 'counselling'
   | 'wellbeing'
   | 'library'
-  | 'athletics';
+  | 'athletics'
+  | 'meetings';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -331,6 +332,25 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
   // AD/admin see programmes + rosters management; students see "My
   // sports" + game schedule; teachers + parents see programme
   // browse + game schedule.
+  // Cycle 15 — Meetings tile gated on mtg-001:read (held by every
+  // persona since Step 3). Persona-aware copy.
+  if (hasAnyPermission(user, ['mtg-001:read'])) {
+    apps.push({
+      key: 'meetings',
+      label: 'Meetings',
+      description: isAdmin
+        ? 'Conferences, meetings, action items, IEP records'
+        : isStaff
+          ? 'My meetings, agenda, notes, action items'
+          : isGuardian
+            ? 'Conferences, my appointments, action items'
+            : 'My meetings and action items',
+      href: '/meetings',
+      routePrefix: '/meetings',
+      icon: CalendarIcon,
+    });
+  }
+
   if (hasAnyPermission(user, ['ath-001:read'])) {
     const isAthleticDirector = isAdmin || (isStaff && hasAnyPermission(user, ['ath-001:write']));
     apps.push({

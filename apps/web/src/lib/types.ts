@@ -4724,3 +4724,264 @@ export interface ReviewModerationLogPayload {
   outcome: ModerationReviewOutcome;
   notes?: string;
 }
+
+// ============================================================================
+// Cycle 15 — Meetings & Conferences
+// ============================================================================
+
+export type ConferenceType = 'PARENT_TEACHER' | 'STAFF' | 'BOARD' | 'IEP' | 'TRAINING';
+export type ConferenceStatus = 'SCHEDULED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+export type MeetingStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type ParticipantRole = 'HOST' | 'PRESENTER' | 'ATTENDEE' | 'OBSERVER';
+export type ActionItemStatus = 'OPEN' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+export type RecordingStatus = 'PROCESSING' | 'AVAILABLE' | 'FAILED';
+
+export interface ConferenceEventDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  description: string | null;
+  conferenceType: ConferenceType;
+  startDate: string;
+  endDate: string;
+  status: ConferenceStatus;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  meetingCount?: number;
+  totalSlots?: number;
+  bookedSlots?: number;
+}
+
+export interface CreateConferenceEventPayload {
+  title: string;
+  description?: string;
+  conferenceType: ConferenceType;
+  startDate: string;
+  endDate: string;
+}
+
+export interface UpdateConferenceEventPayload {
+  title?: string;
+  description?: string;
+  status?: ConferenceStatus;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface MeetingTypeDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  defaultDurationMinutes: number;
+  isVideo: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MeetingParticipantDto {
+  id: string;
+  meetingId: string;
+  participantId: string;
+  participantName: string | null;
+  role: ParticipantRole;
+  attended: boolean;
+  joinAt: string | null;
+  leaveAt: string | null;
+  notes: string | null;
+}
+
+export interface MeetingDto {
+  id: string;
+  schoolId: string;
+  meetingTypeId: string;
+  meetingTypeName: string | null;
+  conferenceEventId: string | null;
+  conferenceEventTitle: string | null;
+  title: string;
+  description: string | null;
+  scheduledAt: string;
+  durationMinutes: number;
+  meetingUrl: string | null;
+  status: MeetingStatus;
+  organiserId: string;
+  organiserName: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  participants?: MeetingParticipantDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateMeetingPayload {
+  meetingTypeId: string;
+  conferenceEventId?: string;
+  title: string;
+  description?: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  meetingUrl?: string;
+  participantIds?: string[];
+}
+
+export interface UpdateMeetingPayload {
+  title?: string;
+  description?: string;
+  scheduledAt?: string;
+  durationMinutes?: number;
+  meetingUrl?: string;
+  status?: MeetingStatus;
+}
+
+export interface MeetingSlotDto {
+  id: string;
+  meetingId: string;
+  startTime: string;
+  endTime: string;
+  isBooked: boolean;
+  bookedBy: string | null;
+  bookedByName: string | null;
+  bookedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSlotsPayload {
+  slots: { startTime: string; endTime: string }[];
+}
+
+export interface MeetingNotesDto {
+  id: string;
+  meetingId: string;
+  notesText: string | null;
+  isApproved: boolean;
+  approvedBy: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  isParentVisible: boolean;
+  parentVisibleSummary: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertMeetingNotesPayload {
+  notesText?: string;
+  isParentVisible?: boolean;
+  parentVisibleSummary?: string;
+}
+
+export interface AgendaItemDto {
+  id: string;
+  meetingId: string;
+  title: string;
+  description: string | null;
+  presenterId: string | null;
+  presenterName: string | null;
+  durationMinutes: number | null;
+  sortOrder: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAgendaItemPayload {
+  title: string;
+  description?: string;
+  presenterId?: string;
+  durationMinutes?: number;
+  sortOrder?: number;
+  notes?: string;
+}
+
+export interface ActionItemDto {
+  id: string;
+  meetingId: string;
+  meetingTitle: string | null;
+  assigneeId: string;
+  assigneeName: string | null;
+  description: string;
+  dueDate: string | null;
+  status: ActionItemStatus;
+  completedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateActionItemPayload {
+  assigneeId: string;
+  description: string;
+  dueDate?: string;
+}
+
+export interface UpdateActionItemPayload {
+  description?: string;
+  dueDate?: string;
+  status?: ActionItemStatus;
+}
+
+export interface RecordingConsentDto {
+  id: string;
+  recordingId: string;
+  participantId: string;
+  participantName: string | null;
+  consentGiven: boolean;
+  consentedAt: string;
+  notes: string | null;
+}
+
+export interface RecordingDto {
+  id: string;
+  meetingId: string;
+  s3Key: string | null;
+  signedUrl: string | null;
+  durationSeconds: number | null;
+  fileSizeBytes: number | null;
+  status: RecordingStatus;
+  consentConfirmed: boolean;
+  consents?: RecordingConsentDto[];
+  consentedCount?: number;
+  totalParticipants?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRecordingPayload {
+  s3Key?: string;
+  durationSeconds?: number;
+  fileSizeBytes?: number;
+}
+
+export interface GiveConsentPayload {
+  consentGiven: boolean;
+  notes?: string;
+}
+
+export interface IepMeetingRecordDto {
+  id: string;
+  meetingId: string;
+  studentId: string;
+  studentName: string | null;
+  iepPlanId: string | null;
+  iepPlanType: string | null;
+  iepPlanStatus: string | null;
+  attendeeRoles: { personId: string; role: string; name: string }[];
+  outcomesSummary: string | null;
+  nextReviewDate: string | null;
+  recordedBy: string | null;
+  recordedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateIepMeetingRecordPayload {
+  studentId: string;
+  iepPlanId?: string;
+  attendeeRoles?: { personId: string; role: string; name: string }[];
+  outcomesSummary?: string;
+  nextReviewDate?: string;
+}

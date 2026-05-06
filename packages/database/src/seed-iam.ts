@@ -194,6 +194,10 @@ async function seedIam() {
         // alert. Acknowledgement is row-scoped to own deliveries at
         // the EmergencyAlertService layer.
         'COM-003': ['read'],
+        // Cycle 15 — Meetings & Conferences. Teachers create meetings,
+        // manage agendas, set PTC availability, and write notes.
+        'MTG-001': ['read', 'write'],
+        'MTG-002': ['read', 'write'],
         'SCH-001': ['read'],
         'SCH-003': ['read'],
         // Cycle 5 — coverage read so a teacher sees their own coverage,
@@ -302,6 +306,12 @@ async function seedIam() {
         // Cycle 14 — emergency alert read so the dismiss-proof
         // banner reaches parents.
         'COM-003': ['read'],
+        // Cycle 15 — Meetings. Parents view meeting schedule and
+        // book PTC slots. Action items + parent-visible notes are
+        // accessed via row scope on assignee_id and the
+        // is_parent_visible + is_approved gate respectively.
+        'MTG-001': ['read'],
+        'MTG-002': ['read'],
         'SCH-003': ['read'],
         // Cycle 6 — Enrollment write so a parent can submit + track an
         // application (row-scoped to their own apps in ApplicationService).
@@ -390,6 +400,8 @@ async function seedIam() {
         'COM-002': ['read'],
         // Cycle 14 — students see emergency alerts on their devices.
         'COM-003': ['read'],
+        // Cycle 15 — students view meetings they are participants in.
+        'MTG-001': ['read'],
         'SCH-003': ['read'],
         // Profile & Household mini-cycle — students self-service their
         // own profile + Demographics tab. Household is read-only for
@@ -449,6 +461,11 @@ async function seedIam() {
         // banner + write for issuing emergency alerts via
         // EmergencyAlertService.
         'COM-003': ['read', 'write'],
+        // Cycle 15 — Staff covers VP / counsellor and creates
+        // staff + IEP review meetings. MTG-002:read for visibility
+        // into PTC schedules.
+        'MTG-001': ['read', 'write'],
+        'MTG-002': ['read'],
         // REVIEW-CYCLE14 MAJOR 6 — COM-004 not granted to Staff
         // because ModerationService.assertAdmin() requires
         // actor.isSchoolAdmin specifically (a stricter contract
