@@ -309,3 +309,16 @@ export function TrophyIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function BusIcon(props: SVGProps<SVGSVGElement>) {
+  // Heroicons "truck" reshaped — used for the Transportation tile.
+  return (
+    <svg {...base} {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m0 0a1.5 1.5 0 0 0 3 0m-3 0a1.5 1.5 0 0 1 3 0M3 4.5h13.5a1.5 1.5 0 0 1 1.5 1.5v9.75H3.75V6a1.5 1.5 0 0 1 1.5-1.5h-2.25Zm15 6h2.25a1.5 1.5 0 0 1 1.5 1.5v3.75a1.5 1.5 0 0 1-1.5 1.5H18m0-6.75H3.75M9 7.5h6"
+      />
+    </svg>
+  );
+}

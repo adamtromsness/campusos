@@ -33,6 +33,7 @@
     "seed:onboarding": "tsx src/seed-onboarding.ts",
     "seed:clubs": "tsx src/seed-clubs.ts",
     "seed:groups": "tsx src/seed-groups.ts",
+    "seed:transport": "tsx src/seed-transport.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

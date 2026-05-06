@@ -5597,3 +5597,377 @@ export interface UpdateGroupNotificationPrefsPayload {
   preferredChannel?: GroupNotificationChannel;
   quietHoursOverride?: boolean;
 }
+
+// ── Cycle 19 Transportation ──
+
+export type RouteDirection = 'AM' | 'PM';
+export type RouteStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+export type AssignmentDirection = 'AM' | 'PM' | 'BOTH';
+export type TransportChangeRequestType = 'DIFFERENT_STOP' | 'NO_BUS' | 'DIFFERENT_ROUTE';
+export type TransportChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type RouteChangeLogType =
+  | 'STOP_ADDED'
+  | 'STOP_REMOVED'
+  | 'STOP_REORDERED'
+  | 'STOP_TIME_CHANGED'
+  | 'STUDENT_ADDED'
+  | 'STUDENT_REMOVED'
+  | 'ROUTE_ACTIVATED'
+  | 'ROUTE_DEACTIVATED';
+export type VehicleType = 'BUS' | 'MINIBUS' | 'VAN';
+export type VehicleStatus = 'ACTIVE' | 'MAINTENANCE' | 'RETIRED';
+export type DocumentType = 'INSURANCE' | 'REGISTRATION' | 'MOT' | 'INSPECTION';
+export type InspectionStatus = 'PASS' | 'FAIL' | 'CONDITIONAL';
+export type InspectionItemStatus = 'PASS' | 'FAIL' | 'NOT_APPLICABLE';
+export type CredentialType = 'CDL' | 'MEDICAL_CERTIFICATE' | 'BACKGROUND_CHECK' | 'FIRST_AID';
+export type CredentialStatus = 'VALID' | 'EXPIRING_SOON' | 'EXPIRED';
+export type ScanDirection = 'BOARDING' | 'ALIGHTING';
+export type ScanMethod = 'QR_CODE' | 'MANUAL' | 'RFID';
+export type PassType = 'ANNUAL' | 'TERM' | 'DAILY';
+export type RunStatus = 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type NoShowResolution =
+  | 'ABSENT_CONFIRMED'
+  | 'LATE_ARRIVAL'
+  | 'PARENT_NOTIFIED'
+  | 'FALSE_ALARM';
+
+export interface TransportStopDto {
+  id: string;
+  routeId: string;
+  name: string;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  sequenceOrder: number;
+  scheduledTime: string | null;
+  notes: string | null;
+}
+
+export interface TransportRouteDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  direction: RouteDirection;
+  status: RouteStatus;
+  vehicleId: string | null;
+  vehicleRegistration: string | null;
+  driverId: string | null;
+  driverName: string | null;
+  academicYearId: string | null;
+  academicYearName: string | null;
+  stopCount: number;
+  studentCount: number;
+  createdAt: string;
+  stops?: TransportStopDto[];
+}
+
+export interface CreateTransportRoutePayload {
+  name: string;
+  description?: string;
+  direction: RouteDirection;
+  vehicleId?: string;
+  driverId?: string;
+  academicYearId?: string;
+}
+
+export interface UpdateTransportRoutePayload {
+  name?: string;
+  description?: string;
+  status?: RouteStatus;
+  vehicleId?: string | null;
+  driverId?: string | null;
+}
+
+export interface TransportStudentAssignmentDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  routeId: string;
+  stopId: string;
+  stopName: string | null;
+  stopSequence: number | null;
+  direction: AssignmentDirection;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  isOverride: boolean;
+  parentRequestId: string | null;
+  createdAt: string;
+}
+
+export interface CreateTransportAssignmentPayload {
+  studentId: string;
+  stopId: string;
+  direction: AssignmentDirection;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  isOverride?: boolean;
+  notes?: string;
+}
+
+export interface TransportRouteChangeRequestDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  submittedBy: string;
+  submittedByName: string | null;
+  changeDate: string;
+  changeType: TransportChangeRequestType;
+  requestedRouteId: string | null;
+  requestedStopId: string | null;
+  reason: string | null;
+  status: TransportChangeRequestStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  overrideAssignmentId: string | null;
+  createdAt: string;
+}
+
+export interface CreateTransportChangeRequestPayload {
+  studentId: string;
+  changeDate: string;
+  changeType: TransportChangeRequestType;
+  requestedStopId?: string;
+  requestedRouteId?: string;
+  reason?: string;
+}
+
+export interface ApproveChangeRequestPayload {
+  reviewNotes?: string;
+}
+
+export interface RejectChangeRequestPayload {
+  reviewNotes: string;
+}
+
+export interface RouteChangeLogDto {
+  id: string;
+  routeId: string;
+  changedBy: string;
+  changedByName: string | null;
+  changedAt: string;
+  changeType: RouteChangeLogType;
+  stopId: string | null;
+  studentId: string | null;
+  oldValue: Record<string, unknown> | null;
+  newValue: Record<string, unknown> | null;
+  reason: string | null;
+}
+
+export interface TransportVehicleDto {
+  id: string;
+  schoolId: string;
+  registration: string;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  capacity: number;
+  vehicleType: VehicleType;
+  status: VehicleStatus;
+  documentSummary: { total: number; current: number; expiringSoon: number; expired: number };
+  createdAt: string;
+}
+
+export interface CreateTransportVehiclePayload {
+  registration: string;
+  make?: string;
+  model?: string;
+  year?: number;
+  capacity: number;
+  vehicleType: VehicleType;
+}
+
+export interface TransportVehicleDocumentDto {
+  id: string;
+  vehicleId: string;
+  documentType: DocumentType;
+  documentNumber: string | null;
+  s3Key: string | null;
+  issuedDate: string | null;
+  expiryDate: string;
+  isCurrent: boolean;
+  expiryStatus: 'CURRENT' | 'EXPIRING_SOON' | 'EXPIRED';
+  daysUntilExpiry: number;
+}
+
+export interface CreateVehicleDocumentPayload {
+  documentType: DocumentType;
+  documentNumber?: string;
+  s3Key?: string;
+  issuedDate?: string;
+  expiryDate: string;
+}
+
+export interface TransportInspectionItemDto {
+  id: string;
+  inspectionId: string;
+  itemName: string;
+  status: InspectionItemStatus;
+  notes: string | null;
+}
+
+export interface TransportInspectionDto {
+  id: string;
+  vehicleId: string;
+  driverId: string;
+  driverName: string | null;
+  inspectionDate: string;
+  overallStatus: InspectionStatus;
+  notes: string | null;
+  completedAt: string;
+  items?: TransportInspectionItemDto[];
+}
+
+export interface CreateInspectionItemPayload {
+  itemName: string;
+  status: InspectionItemStatus;
+  notes?: string;
+}
+
+export interface CreateInspectionPayload {
+  inspectionDate: string;
+  notes?: string;
+  items: CreateInspectionItemPayload[];
+}
+
+export interface DriverCredentialDto {
+  id: string;
+  driverId: string;
+  credentialType: CredentialType;
+  credentialNumber: string | null;
+  issuedDate: string;
+  expiryDate: string;
+  s3Key: string | null;
+  status: CredentialStatus;
+  daysUntilExpiry: number;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+}
+
+export interface DriverDto {
+  id: string;
+  name: string | null;
+  credentials: DriverCredentialDto[];
+}
+
+export interface CreateDriverCredentialPayload {
+  credentialType: CredentialType;
+  credentialNumber?: string;
+  issuedDate: string;
+  expiryDate: string;
+  s3Key?: string;
+}
+
+export interface UpdateDriverCredentialPayload {
+  credentialNumber?: string;
+  issuedDate?: string;
+  expiryDate?: string;
+  s3Key?: string;
+  verify?: boolean;
+}
+
+export interface TransportBusPassDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  passType: PassType;
+  qrCodeToken: string;
+  isActive: boolean;
+  validFrom: string;
+  validTo: string;
+  issuedAt: string;
+}
+
+export interface CreateBusPassPayload {
+  studentId: string;
+  passType: PassType;
+  validFrom: string;
+  validTo: string;
+  academicYearId?: string;
+}
+
+export interface ScanRidershipPayload {
+  qrCodeToken: string;
+  stopId: string;
+  scanDirection: ScanDirection;
+}
+
+export interface RidershipRecordDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  routeId: string;
+  stopId: string;
+  stopName: string | null;
+  scanDirection: ScanDirection;
+  scannedAt: string;
+  scanMethod: ScanMethod;
+}
+
+export interface NoShowAlertDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  routeId: string;
+  expectedDate: string;
+  expectedStopId: string;
+  expectedStopName: string | null;
+  alertTime: string;
+  resolution: NoShowResolution | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  parentNotifiedAt: string | null;
+  resolutionNotes: string | null;
+}
+
+export interface ResolveNoShowPayload {
+  resolution: NoShowResolution;
+  resolutionNotes?: string;
+}
+
+export interface CreateRunLogPayload {
+  routeId: string;
+  runDate: string;
+  odometerStart?: number;
+}
+
+export interface CompleteRunLogPayload {
+  odometerEnd?: number;
+  status?: 'COMPLETED' | 'CANCELLED';
+  notes?: string;
+}
+
+export interface RunLogDto {
+  id: string;
+  routeId: string;
+  vehicleId: string;
+  driverId: string;
+  runDate: string;
+  departureTime: string | null;
+  arrivalTime: string | null;
+  odometerStart: number | null;
+  odometerEnd: number | null;
+  studentsBoarded: number;
+  status: RunStatus;
+}
+
+export interface CreateDelayReportPayload {
+  routeId: string;
+  runDate: string;
+  delayMinutes: number;
+  reason: string;
+  affectedStops?: string[];
+}
+
+export interface DelayReportDto {
+  id: string;
+  routeId: string;
+  runDate: string;
+  reportedBy: string;
+  delayMinutes: number;
+  reason: string;
+  affectedStops: string[] | null;
+  parentNotificationSent: boolean;
+  reportedAt: string;
+}

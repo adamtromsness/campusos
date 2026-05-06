@@ -7,6 +7,7 @@ import {
   AttendanceIcon,
   BanknotesIcon,
   BookIcon,
+  BusIcon,
   CalendarIcon,
   ChatBubbleIcon,
   CheckCircleIcon,
@@ -47,7 +48,8 @@ export type AppKey =
   | 'athletics'
   | 'meetings'
   | 'clubs'
-  | 'groups';
+  | 'groups'
+  | 'transport';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -386,6 +388,28 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: isStudent ? '/clubs/my' : '/clubs',
       routePrefix: '/clubs',
       icon: PeopleIcon,
+    });
+  }
+
+  // Transportation — every persona who can read routes / passes (Cycle 19).
+  // Opens Wave 4 (Campus Operations). Transportation Coordinator (TC, Staff
+  // role) drives the management surface; parents and students see the
+  // route + bus pass + ridership-history view via row-scoped backend
+  // endpoints.
+  if (hasAnyPermission(user, ['trn-001:read'])) {
+    apps.push({
+      key: 'transport',
+      label: 'Transportation',
+      description: isStaff
+        ? 'Routes, fleet, drivers, ridership'
+        : isStudent
+          ? 'My route + bus pass'
+          : isGuardian
+            ? "Your child's route + bus pass + change requests"
+            : 'Routes and bus passes',
+      href: '/transport',
+      routePrefix: '/transport',
+      icon: BusIcon,
     });
   }
 

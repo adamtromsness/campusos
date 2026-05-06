@@ -301,6 +301,10 @@ async function seedIam() {
         // groups + post announcements + create events on groups they
         // own/admin. Cross-role social fabric.
         'GRP-001': ['read', 'write'],
+        // Cycle 19 — Transportation. Teachers see route + assignment
+        // info but do not manage routes or fleet. TRN-001:read covers
+        // the read-only Transportation app tile.
+        'TRN-001': ['read'],
       },
     },
     {
@@ -408,6 +412,14 @@ async function seedIam() {
         // groups they're invited to. Service-layer row scope binds
         // membership-derived reads to actor.personId.
         'GRP-001': ['read', 'write'],
+        // Cycle 19 — Transportation. Parents view their child's route +
+        // bus pass + ridership history (TRN-001:read), and submit
+        // route-change requests with the parent-portal flow
+        // (TRN-005:read+write — parent-active feature). The Step 5
+        // RouteChangeRequestService row-scopes parent reads to own
+        // children via sis_student_guardians keyed on actor.personId.
+        'TRN-001': ['read'],
+        'TRN-005': ['read', 'write'],
       },
     },
     {
@@ -492,6 +504,11 @@ async function seedIam() {
         // scope at the Step 5 GroupService binds member-derived
         // reads to actor.personId.
         'GRP-001': ['read', 'write'],
+        // Cycle 19 — Transportation. Students view their own bus
+        // pass + route info via TRN-001:read. The Step 7
+        // BusPassService row-scopes my-pass reads to the calling
+        // student's iam_person.id.
+        'TRN-001': ['read'],
       },
     },
     {
@@ -650,6 +667,21 @@ async function seedIam() {
         // groups school-wide; admins additionally hold GRP-001:admin
         // via everyFunction.
         'GRP-001': ['read', 'write'],
+        // Cycle 19 — Transportation. Staff covers the Transportation
+        // Coordinator (TC) — the sixth specialist operator persona.
+        // TRN-001..005 read+write covers the full TC operational
+        // surface (route management, fleet management, driver
+        // operations, driver credentials, field-trip + special-trip
+        // approval). School Admin and Platform Admin pick up the
+        // admin tier (catalogue import, hard delete) via
+        // everyFunction. Joins the broader role-split work in the
+        // Wave 2 Phase 2 punch list — a dedicated TC role should
+        // hold the TRN-* codes alone before pilot.
+        'TRN-001': ['read', 'write'],
+        'TRN-002': ['read', 'write'],
+        'TRN-003': ['read', 'write'],
+        'TRN-004': ['read', 'write'],
+        'TRN-005': ['read', 'write'],
       },
     },
   ];
