@@ -508,9 +508,16 @@ export class ClubsController {
 
   @Get('clubs/service-programmes/:id/leaderboard')
   @RequirePermission('clb-004:read')
-  @ApiOperation({ summary: 'Per-programme leaderboard sorted by approved hours desc' })
-  async leaderboard(@Param('id') id: string): Promise<ServiceProgressDto[]> {
-    return this.programmes.getLeaderboard(id);
+  @ApiOperation({
+    summary:
+      'Per-programme leaderboard sorted by approved hours desc. Admin / staff only — student-name leaderboard data is restricted (REVIEW-CYCLE17 MAJOR 6).',
+  })
+  async leaderboard(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<ServiceProgressDto[]> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.programmes.getLeaderboard(id, actor);
   }
 
   // ── Service Hours (student-input keystone) ──

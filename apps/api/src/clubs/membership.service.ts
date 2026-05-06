@@ -7,6 +7,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { ActivityService } from './activity.service';
 import {
   ActivityMemberDto,
   AddMemberDto,
@@ -52,7 +53,10 @@ function memberRowToDto(r: MemberRow): ActivityMemberDto {
 
 @Injectable()
 export class MembershipService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly activities: ActivityService,
+  ) {}
 
   /**
    * Resolve the calling student's sis_students.id from
@@ -147,6 +151,8 @@ export class MembershipService {
     if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
       throw new ForbiddenException('Only Staff or admins can add members');
     }
+    // REVIEW-CYCLE17 BLOCKING 1 — only the activity advisor or admin
+    await this.activities.assertCanManageActivity(activityId, actor);
     const memberId = generateId();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const activity = (await tx.$queryRawUnsafe(
@@ -195,6 +201,10 @@ export class MembershipService {
     if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
       throw new ForbiddenException('Only Staff or admins can update members');
     }
+    // REVIEW-CYCLE17 BLOCKING 1 — only the activity advisor or admin
+    const activityId = await this.activities.loadActivityIdForMember(id);
+    if (!activityId) throw new NotFoundException('Member not found');
+    await this.activities.assertCanManageActivity(activityId, actor);
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.role !== undefined) {

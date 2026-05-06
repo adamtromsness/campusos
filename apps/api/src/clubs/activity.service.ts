@@ -76,6 +76,56 @@ export class ActivityService {
     return actor.isSchoolAdmin || actor.personType === 'STAFF';
   }
 
+  /**
+   * REVIEW-CYCLE17 BLOCKING 1 — activity ownership row-scope.
+   *
+   * School admins manage any activity. Other staff manage only
+   * activities where ext_activities.advisor_id matches the caller's
+   * hr_employees.id. Shared across MembershipService and
+   * ScheduleService so all four mutation surfaces enforce the same
+   * rule.
+   */
+  async assertCanManageActivity(activityId: string, actor: ResolvedActor): Promise<void> {
+    if (actor.isSchoolAdmin) return;
+    if (!actor.employeeId) {
+      throw new ForbiddenException(
+        'Only school admins or the activity advisor can manage this activity',
+      );
+    }
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT advisor_id::text AS advisor_id FROM ext_activities WHERE id = $1::uuid',
+        activityId,
+      );
+    })) as Array<{ advisor_id: string | null }>;
+    if (rows.length === 0) throw new NotFoundException('Activity not found');
+    if (rows[0]!.advisor_id !== actor.employeeId) {
+      throw new ForbiddenException(
+        'Only the assigned advisor or a school admin can manage this activity',
+      );
+    }
+  }
+
+  async loadActivityIdForMember(memberId: string): Promise<string | null> {
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT activity_id::text AS activity_id FROM ext_activity_members WHERE id = $1::uuid',
+        memberId,
+      );
+    })) as Array<{ activity_id: string }>;
+    return rows.length === 0 ? null : rows[0]!.activity_id;
+  }
+
+  async loadActivityIdForSchedule(scheduleId: string): Promise<string | null> {
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT activity_id::text AS activity_id FROM ext_activity_schedules WHERE id = $1::uuid',
+        scheduleId,
+      );
+    })) as Array<{ activity_id: string }>;
+    return rows.length === 0 ? null : rows[0]!.activity_id;
+  }
+
   // ── Activity Types ──
 
   async listTypes(includeInactive = false): Promise<ActivityTypeResponseDto[]> {
@@ -278,6 +328,8 @@ export class ActivityService {
     if (!this.isManager(actor)) {
       throw new ForbiddenException('Only Staff or admins can update activities');
     }
+    // REVIEW-CYCLE17 BLOCKING 1 — activity ownership row-scope
+    await this.assertCanManageActivity(id, actor);
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.name !== undefined) {

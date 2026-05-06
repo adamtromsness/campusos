@@ -55,7 +55,18 @@ const SELECT_HOUR =
   'TO_CHAR(h.created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at ' +
   'FROM ext_service_hours h ';
 
+/**
+ * REVIEW-CYCLE17 MAJOR 4 — hide approver identity while approval is
+ * still PENDING. The `ext_service_hour_approvals.approved_by` column
+ * is NOT NULL on the schema, so `ServiceHourService.log()` writes a
+ * placeholder hr_employees row id at insert time; the actual reviewer
+ * stamps over that on review. Until then, the DTO suppresses
+ * `approvedByName` so callers cannot read a fake approver name as
+ * part of a pending row.
+ */
 function rowToDto(r: HourRow): ServiceHourDto {
+  const status = (r.approval_status as ServiceHourStatus) ?? null;
+  const isPending = status === 'PENDING' || status === null;
   return {
     id: r.id,
     studentId: r.student_id,
@@ -69,9 +80,9 @@ function rowToDto(r: HourRow): ServiceHourDto {
     supervisorName: r.supervisor_name,
     supervisorContact: r.supervisor_contact,
     evidenceS3Key: r.evidence_s3_key,
-    approvalStatus: (r.approval_status as ServiceHourStatus) ?? null,
+    approvalStatus: status,
     approvalNotes: r.approval_notes,
-    approvedByName: r.approved_by_name,
+    approvedByName: isPending ? null : r.approved_by_name,
     reviewedAt: r.reviewed_at,
     createdAt: r.created_at,
   };

@@ -141,68 +141,120 @@ export class FieldTripService {
     }
 
     const dto = tripRowToDto(rows[0]!);
+    const isManager = this.isManager(actor);
 
-    // Inline participants + chaperones
-    const partRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
-        'SELECT p.id::text AS id, p.field_trip_id::text AS field_trip_id, ' +
-          'p.student_id::text AS student_id, ' +
-          "(SELECT (ip.first_name || ' ' || ip.last_name) FROM sis_students s " +
-          '  JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-          '  JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-          '  WHERE s.id = p.student_id) AS student_name, ' +
-          'p.attendance_status, ' +
-          'EXISTS (SELECT 1 FROM ext_field_trip_consent_records cr WHERE cr.field_trip_id = p.field_trip_id AND cr.student_id = p.student_id) AS consent_signed, ' +
-          '(SELECT cr.consent_given FROM ext_field_trip_consent_records cr WHERE cr.field_trip_id = p.field_trip_id AND cr.student_id = p.student_id ORDER BY cr.signed_at DESC LIMIT 1) AS consent_given ' +
-          'FROM ext_field_trip_participants p WHERE p.field_trip_id = $1::uuid ORDER BY student_name',
-        id,
-      );
-    })) as Array<{
-      id: string;
-      field_trip_id: string;
-      student_id: string;
-      student_name: string | null;
-      attendance_status: string;
-      consent_signed: boolean;
-      consent_given: boolean | null;
-    }>;
-    dto.participants = partRows.map((p) => ({
-      id: p.id,
-      fieldTripId: p.field_trip_id,
-      studentId: p.student_id,
-      studentName: p.student_name,
-      attendanceStatus: p.attendance_status as AttendanceStatus,
-      consentSigned: p.consent_signed,
-      consentGiven: p.consent_given,
-    }));
+    // REVIEW-CYCLE17 BLOCKING 3 — guardians see only their own
+    // children's participant rows. The full participant list and the
+    // chaperone roster (with names + background-check status + role
+    // + confirmation) stay staff-only.
+    if (isManager) {
+      const partRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT p.id::text AS id, p.field_trip_id::text AS field_trip_id, ' +
+            'p.student_id::text AS student_id, ' +
+            "(SELECT (ip.first_name || ' ' || ip.last_name) FROM sis_students s " +
+            '  JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            '  JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
+            '  WHERE s.id = p.student_id) AS student_name, ' +
+            'p.attendance_status, ' +
+            'EXISTS (SELECT 1 FROM ext_field_trip_consent_records cr WHERE cr.field_trip_id = p.field_trip_id AND cr.student_id = p.student_id) AS consent_signed, ' +
+            '(SELECT cr.consent_given FROM ext_field_trip_consent_records cr WHERE cr.field_trip_id = p.field_trip_id AND cr.student_id = p.student_id ORDER BY cr.signed_at DESC LIMIT 1) AS consent_given ' +
+            'FROM ext_field_trip_participants p WHERE p.field_trip_id = $1::uuid ORDER BY student_name',
+          id,
+        );
+      })) as Array<{
+        id: string;
+        field_trip_id: string;
+        student_id: string;
+        student_name: string | null;
+        attendance_status: string;
+        consent_signed: boolean;
+        consent_given: boolean | null;
+      }>;
+      dto.participants = partRows.map((p) => ({
+        id: p.id,
+        fieldTripId: p.field_trip_id,
+        studentId: p.student_id,
+        studentName: p.student_name,
+        attendanceStatus: p.attendance_status as AttendanceStatus,
+        consentSigned: p.consent_signed,
+        consentGiven: p.consent_given,
+      }));
 
-    const chapRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
-        'SELECT c.id::text AS id, c.field_trip_id::text AS field_trip_id, ' +
-          'c.person_id::text AS person_id, ' +
-          "(SELECT (ip.first_name || ' ' || ip.last_name) FROM platform.iam_person ip WHERE ip.id = c.person_id) AS person_name, " +
-          'c.role, c.background_check_status, c.confirmed ' +
-          'FROM ext_field_trip_chaperones c WHERE c.field_trip_id = $1::uuid ORDER BY c.role',
-        id,
-      );
-    })) as Array<{
-      id: string;
-      field_trip_id: string;
-      person_id: string;
-      person_name: string | null;
-      role: string;
-      background_check_status: string;
-      confirmed: boolean;
-    }>;
-    dto.chaperones = chapRows.map((c) => ({
-      id: c.id,
-      fieldTripId: c.field_trip_id,
-      personId: c.person_id,
-      personName: c.person_name,
-      role: c.role as ChaperoneRole,
-      backgroundCheckStatus: c.background_check_status as BackgroundCheckStatus,
-      confirmed: c.confirmed,
-    }));
+      const chapRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT c.id::text AS id, c.field_trip_id::text AS field_trip_id, ' +
+            'c.person_id::text AS person_id, ' +
+            "(SELECT (ip.first_name || ' ' || ip.last_name) FROM platform.iam_person ip WHERE ip.id = c.person_id) AS person_name, " +
+            'c.role, c.background_check_status, c.confirmed ' +
+            'FROM ext_field_trip_chaperones c WHERE c.field_trip_id = $1::uuid ORDER BY c.role',
+          id,
+        );
+      })) as Array<{
+        id: string;
+        field_trip_id: string;
+        person_id: string;
+        person_name: string | null;
+        role: string;
+        background_check_status: string;
+        confirmed: boolean;
+      }>;
+      dto.chaperones = chapRows.map((c) => ({
+        id: c.id,
+        fieldTripId: c.field_trip_id,
+        personId: c.person_id,
+        personName: c.person_name,
+        role: c.role as ChaperoneRole,
+        backgroundCheckStatus: c.background_check_status as BackgroundCheckStatus,
+        confirmed: c.confirmed,
+      }));
+    } else {
+      // Guardian path. Participants list is filtered to children
+      // linked to this guardian via sis_student_guardians; consent
+      // status is reported as boolean only (whether the guardian
+      // themselves has signed) so other guardians' decisions stay
+      // private. Chaperones are NOT inlined — chaperone names plus
+      // background-check status are staff-only data.
+      const partRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT p.id::text AS id, p.field_trip_id::text AS field_trip_id, ' +
+            'p.student_id::text AS student_id, ' +
+            "(SELECT (ip.first_name || ' ' || ip.last_name) FROM sis_students s " +
+            '  JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            '  JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
+            '  WHERE s.id = p.student_id) AS student_name, ' +
+            'p.attendance_status, ' +
+            'EXISTS (SELECT 1 FROM ext_field_trip_consent_records cr WHERE cr.field_trip_id = p.field_trip_id AND cr.student_id = p.student_id AND cr.guardian_person_id = $2::uuid) AS consent_signed, ' +
+            '(SELECT cr.consent_given FROM ext_field_trip_consent_records cr WHERE cr.field_trip_id = p.field_trip_id AND cr.student_id = p.student_id AND cr.guardian_person_id = $2::uuid ORDER BY cr.signed_at DESC LIMIT 1) AS consent_given ' +
+            'FROM ext_field_trip_participants p ' +
+            'JOIN sis_student_guardians sg ON sg.student_id = p.student_id ' +
+            'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+            'WHERE p.field_trip_id = $1::uuid AND g.person_id = $2::uuid ORDER BY student_name',
+          id,
+          actor.personId,
+        );
+      })) as Array<{
+        id: string;
+        field_trip_id: string;
+        student_id: string;
+        student_name: string | null;
+        attendance_status: string;
+        consent_signed: boolean;
+        consent_given: boolean | null;
+      }>;
+      dto.participants = partRows.map((p) => ({
+        id: p.id,
+        fieldTripId: p.field_trip_id,
+        studentId: p.student_id,
+        studentName: p.student_name,
+        attendanceStatus: p.attendance_status as AttendanceStatus,
+        consentSigned: p.consent_signed,
+        consentGiven: p.consent_given,
+      }));
+      // Strip chaperones for guardians — chaperone names + background
+      // check status + confirmation state are staff-only data.
+      dto.chaperones = [];
+    }
 
     return dto;
   }
@@ -298,9 +350,31 @@ export class FieldTripService {
       throw new ForbiddenException('Only Staff or admins can add trip participants');
     }
     const id = generateId();
+    // REVIEW-CYCLE17 MAJOR 7 — lock the trip row + count active
+    // (non-WITHDRAWN) participants under the lock. Concurrent
+    // POSTs serialise on the trip row, and the cap check sees the
+    // freshest count. Mirrors the MembershipService.joinAsStudent
+    // pattern for student self-registration.
     try {
-      await this.tenantPrisma.executeInTenantContext(async (client) => {
-        await client.$executeRawUnsafe(
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        const trip = (await tx.$queryRawUnsafe(
+          'SELECT id, max_participants FROM ext_field_trips WHERE id = $1::uuid FOR UPDATE',
+          tripId,
+        )) as Array<{ id: string; max_participants: number | null }>;
+        if (trip.length === 0) throw new NotFoundException('Field trip not found');
+        const max = trip[0]!.max_participants;
+        if (max !== null) {
+          const countRows = (await tx.$queryRawUnsafe(
+            "SELECT COUNT(*)::int AS c FROM ext_field_trip_participants WHERE field_trip_id = $1::uuid AND attendance_status <> 'WITHDRAWN'",
+            tripId,
+          )) as Array<{ c: number }>;
+          if (countRows[0]!.c >= max) {
+            throw new BadRequestException(
+              'Field trip has reached its max_participants cap of ' + max,
+            );
+          }
+        }
+        await tx.$executeRawUnsafe(
           'INSERT INTO ext_field_trip_participants (id, field_trip_id, student_id) ' +
             'VALUES ($1::uuid, $2::uuid, $3::uuid)',
           id,

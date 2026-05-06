@@ -33,11 +33,19 @@ export default function ChildFieldTripsPage({ params }: { params: Promise<{ id: 
 
   if (!user) return null;
 
-  const trips = (tripsQ.data ?? []).filter((t) =>
-    (t.participants ?? []).some((p) => p.studentId === studentId),
-  );
+  // Backend `useFieldTrips` already row-scopes guardians to trips
+  // where at least one of their children is a participant.
+  // REVIEW-CYCLE17 BLOCKING 3 — guardians get a filtered participant
+  // list per trip from `useFieldTrip(:id)`, but the list endpoint
+  // returns only aggregate counts. So we render the list without a
+  // participants check and consult the per-trip detail when a parent
+  // opens the consent modal.
+  const trips = tripsQ.data ?? [];
 
-  // Helper: was consent already signed for this child?
+  // Helper: was consent already signed for this child? Read from the
+  // backend-projected participants on the per-trip GET — for a
+  // guardian, only their own children appear, and consentSigned
+  // reflects whether THIS guardian has signed for THIS child.
   function isAlreadySigned(trip: {
     participants?: { studentId: string; consentSigned?: boolean }[];
   }) {

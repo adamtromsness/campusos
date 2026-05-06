@@ -52,6 +52,36 @@ export class ChaperoneService {
     return actor.isSchoolAdmin || actor.personType === 'STAFF';
   }
 
+  /**
+   * REVIEW-CYCLE17 MAJOR 5 — validate the chaperone's person_id is
+   * affiliated with the current tenant before insert. Mirrors the
+   * Cycle 6.1 ProfileService.assertTargetInCurrentTenant pattern —
+   * the soft FK to platform.iam_person needs an app-layer check
+   * because the schema cannot enforce it. Accepts staff
+   * (hr_employees), guardians (sis_guardians), and platform_users
+   * who hold a role in this school's scope chain — covering parent
+   * volunteers and approved chaperone candidates.
+   */
+  private async assertPersonInCurrentTenant(personId: string): Promise<void> {
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 FROM hr_employees WHERE person_id = $1::uuid LIMIT 1',
+        personId,
+      );
+    })) as Array<unknown>;
+    if (rows.length > 0) return;
+    const guardianRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 FROM sis_guardians WHERE person_id = $1::uuid LIMIT 1',
+        personId,
+      );
+    })) as Array<unknown>;
+    if (guardianRows.length > 0) return;
+    throw new BadRequestException(
+      'personId does not match a staff member or guardian in this school',
+    );
+  }
+
   async add(
     tripId: string,
     input: AddChaperoneDto,
@@ -60,6 +90,8 @@ export class ChaperoneService {
     if (!this.isManager(actor)) {
       throw new ForbiddenException('Only Staff or admins can assign chaperones');
     }
+    // REVIEW-CYCLE17 MAJOR 5 — soft-ref tenant validation
+    await this.assertPersonInCurrentTenant(input.personId);
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {

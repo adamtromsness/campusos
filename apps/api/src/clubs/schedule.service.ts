@@ -7,6 +7,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { ActivityService } from './activity.service';
 import { ActivityScheduleDto, CreateScheduleDto, UpdateScheduleDto } from './dto/clubs.dto';
 
 interface ScheduleRow {
@@ -39,7 +40,10 @@ function rowToDto(r: ScheduleRow): ActivityScheduleDto {
 
 @Injectable()
 export class ScheduleService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly activities: ActivityService,
+  ) {}
 
   private isManager(actor: ResolvedActor): boolean {
     return actor.isSchoolAdmin || actor.personType === 'STAFF';
@@ -63,6 +67,8 @@ export class ScheduleService {
     if (!this.isManager(actor)) {
       throw new ForbiddenException('Only Staff or admins can add schedule entries');
     }
+    // REVIEW-CYCLE17 BLOCKING 1 — only the activity advisor or admin
+    await this.activities.assertCanManageActivity(activityId, actor);
     if (input.dayOfWeek < 0 || input.dayOfWeek > 6) {
       throw new BadRequestException('dayOfWeek must be 0..6');
     }
@@ -95,6 +101,12 @@ export class ScheduleService {
   ): Promise<ActivityScheduleDto> {
     if (!this.isManager(actor)) {
       throw new ForbiddenException('Only Staff or admins can update schedule entries');
+    }
+    // REVIEW-CYCLE17 BLOCKING 1 — only the activity advisor or admin
+    {
+      const activityId = await this.activities.loadActivityIdForSchedule(id);
+      if (!activityId) throw new NotFoundException('Schedule not found');
+      await this.activities.assertCanManageActivity(activityId, actor);
     }
     const sets: string[] = [];
     const params: unknown[] = [];
@@ -148,6 +160,10 @@ export class ScheduleService {
     if (!this.isManager(actor)) {
       throw new ForbiddenException('Only Staff or admins can delete schedule entries');
     }
+    // REVIEW-CYCLE17 BLOCKING 1 — only the activity advisor or admin
+    const activityId = await this.activities.loadActivityIdForSchedule(id);
+    if (!activityId) throw new NotFoundException('Schedule not found');
+    await this.activities.assertCanManageActivity(activityId, actor);
     const removed = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$executeRawUnsafe('DELETE FROM ext_activity_schedules WHERE id = $1::uuid', id);
     });

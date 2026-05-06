@@ -263,3 +263,79 @@ Tagged `cycle17-complete` after CI green; `cycle17-approved` after the post-cycl
 - 6 deferred ERD tables (club charters + amendments, club budgets + transactions, student government positions + members) move to Cycle 17.1 once M2 Approval Workflows + M84 Payments tie-ins are scheduled.
 
 Tagged `cycle17-complete` after CI green. Cycle 18 (Groups & Communities) is next and closes Wave 3.
+
+---
+
+## REVIEW-CYCLE17 Round 1 fixes (2026-05-06)
+
+Round 1 of REVIEW-CYCLE17-CHATGPT (against `cycle17-complete` at `b6c67df`) returned **Reject pending fixes** with 3 BLOCKING + 4 MAJOR follow-ups. All 7 fixes landed in this commit with live verification on `tenant_demo` 2026-05-06.
+
+### BLOCKING 1 — Activity advisor / admin row-scope
+
+**Reviewer's finding:** `ActivityService.isManager()` returned true for any STAFF actor, so any staff user with `CLB-001:write` could PATCH any activity, add members to any roster, manage any schedule. The handoff contract said advisor or admin only.
+
+**Fix:** New `ActivityService.assertCanManageActivity(activityId, actor)` helper — admin OR `actor.employeeId === activity.advisor_id` else 403. Plus `loadActivityIdForMember()` and `loadActivityIdForSchedule()` so the same check runs from membership + schedule writes.
+
+Applied to:
+
+- `ActivityService.patch`
+- `MembershipService.addMember` + `patchMember` (MembershipService now injects ActivityService)
+- `ScheduleService.create` + `patch` + `remove` (ScheduleService now injects ActivityService)
+
+Verified live: VP (Staff but no advisor link) PATCH Chess Club → 403; Rivera (Chess Club advisor) PATCH Chess Club → 200; Rivera PATCH Drama Club (Mitchell's) → 403; principal as school admin overrides everywhere.
+
+### BLOCKING 2 — Candidate impersonation prevention
+
+**Reviewer's finding:** `ElectionService.registerCandidate()` accepted `input.studentId` from a STUDENT actor without verifying the submitted id matched the calling student. A student could register another student under their name (with `is_approved=false`, but the audit trail stored false data).
+
+**Fix:** For non-admin students, resolve the caller's `sis_students.id` via `actor.personId → platform_students → sis_students` and reject any submission where `input.studentId !== callerStudentId`. Admin still registers on behalf with auto-approve.
+
+Verified live: Maya tries to register Sofia → 403 "Students can only register themselves as candidates"; Maya registers herself → 201 with `is_approved=false`; admin registers Sofia on behalf → 201 with `is_approved=true`.
+
+### BLOCKING 3 — Parent field-trip projection
+
+**Reviewer's finding:** `FieldTripService.getById()` correctly checked guardian access but then inlined every participant's name + consent state plus every chaperone's name + role + background-check status. A parent with one child on a trip could enumerate the whole roster.
+
+**Fix:** Branch the DTO projection on `isManager(actor)`. Staff/admin keep the full inline. Guardians get:
+
+- `participants[]` filtered to children linked via `sis_student_guardians.guardian_person_id = actor.personId`.
+- `consentSigned` / `consentGiven` reflect only THIS guardian's signature for THIS child (other guardians' decisions stay private).
+- `chaperones[]` returned as `[]` — chaperone names + background-check status + confirmation are staff-only data.
+
+Frontend `/children/[id]/field-trips` page updated — the list endpoint already row-scopes for guardians, so the redundant client-side participants filter on the list response was removed; the per-trip detail provides the parent-safe participants needed for the consent modal.
+
+Verified live: parent David Chen GET /clubs/field-trips/:id returned 1 participant (Maya only) + 0 chaperones; VP (Staff) GET same trip returned 2 participants + 2 chaperones. The full-roster leak is closed.
+
+### MAJOR 4 — Hide approver while PENDING
+
+**Reviewer's finding:** `ext_service_hour_approvals.approved_by` is NOT NULL on the schema, so `ServiceHourService.log()` had to write a placeholder `hr_employees` id. The DTO surfaced `approvedByName` for the placeholder, misleading callers and downstream analytics.
+
+**Fix:** `rowToDto` in ServiceHourService now sets `approvedByName: null` when `approvalStatus` is PENDING (or null). The placeholder approver row stays in the schema (no migration this cycle) but the DTO never exposes it. A future schema migration can split into `assigned_reviewer_id` + `reviewed_by` properly.
+
+Verified live: Maya's seed Library Volunteer entry (PENDING) returned `approvedByName=null`; the APPROVED Park Cleanup entry returned `approvedByName='Marcus Hayes'`.
+
+### MAJOR 5 — Chaperone soft-ref tenant validation
+
+**Reviewer's finding:** `ChaperoneService.add()` inserted `input.personId` directly into `ext_field_trip_chaperones.person_id` (a soft FK to `platform.iam_person`) without verifying the person belonged to the calling tenant.
+
+**Fix:** New private `assertPersonInCurrentTenant(personId)` helper queries `hr_employees.person_id` (covers staff) then `sis_guardians.person_id` (covers parent volunteers); throws 400 if neither matches. Mirrors the Cycle 6.1 ProfileService.assertTargetInCurrentTenant pattern.
+
+Verified live: POST `/clubs/field-trips/:id/chaperones` with `personId='00000000-0000-0000-0000-000000000000'` returned 400 "personId does not match a staff member or guardian in this school".
+
+### MAJOR 6 — Leaderboard restricted to admin / staff
+
+**Reviewer's finding:** `GET /clubs/service-programmes/:id/leaderboard` was gated only on `clb-004:read` and exposed student names + approved hours + completion state to anyone with that permission, including students and parents.
+
+**Fix:** `ServiceProgrammeService.getLeaderboard(programmeId, actor)` now rejects with 403 unless `actor.isSchoolAdmin || actor.personType === 'STAFF'`. Students see their own progress via `useMyServiceProgress`; an anonymised student-visible class ranking can land in Phase 2 if a school product decision approves it.
+
+Verified live: Student GET → 403; Parent GET → 403; VP (Staff) GET → 200.
+
+### MAJOR 7 — Field trip max_participants enforcement
+
+**Reviewer's finding:** `ext_field_trips.max_participants` was schema-defined but `FieldTripService.addParticipant()` only caught duplicates; no capacity check.
+
+**Fix:** Wrapped `addParticipant()` in `executeInTenantTransaction` with `SELECT ... FOR UPDATE` on the trip row. Inside the lock, count active (non-WITHDRAWN) participants and reject with 400 if at cap. Mirrors the `MembershipService.joinAsStudent` capacity-check pattern. Concurrent POSTs serialise on the trip row.
+
+Verified live: Set Natural History Museum trip max=2 (already had 2 participants) and POSTed a third → 400 "Field trip has reached its max_participants cap of 2". Restored max=NULL.
+
+CI parity green: prettier ✓, all builds ✓, tests ✓ (7/7 passed). Tagged `cycle17-approved` after Round 2 verdict.

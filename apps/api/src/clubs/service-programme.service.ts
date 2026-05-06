@@ -118,7 +118,19 @@ export class ServiceProgrammeService {
     return this.getById(id);
   }
 
-  async getLeaderboard(programmeId: string): Promise<ServiceProgressDto[]> {
+  /**
+   * REVIEW-CYCLE17 MAJOR 6 — restrict the leaderboard to admin/staff.
+   * Service-hour progress (student names + completion state) is
+   * sensitive enough that the per-programme leaderboard is a
+   * coordinator surface only. Students see their own progress via
+   * ServiceHourService.myProgress; an anonymised student-visible
+   * class ranking can land in Phase 2 if a school product decision
+   * approves it.
+   */
+  async getLeaderboard(programmeId: string, actor: ResolvedActor): Promise<ServiceProgressDto[]> {
+    if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
+      throw new ForbiddenException('Service hour leaderboards are restricted to staff and admins');
+    }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT pr.id::text AS id, pr.programme_id::text AS programme_id, ' +

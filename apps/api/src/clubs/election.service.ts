@@ -242,6 +242,27 @@ export class ElectionService {
         'Only students can register themselves as candidates, or admins can register on behalf',
       );
     }
+    // REVIEW-CYCLE17 BLOCKING 2 — candidate impersonation prevention.
+    // Non-admin students must register themselves only. Resolve the
+    // caller's sis_students.id from actor.personId via the
+    // platform_students bridge and reject any submission that
+    // names a different student. Admin still registers on behalf.
+    if (!actor.isSchoolAdmin) {
+      if (!actor.personId) {
+        throw new ForbiddenException('Cannot resolve calling student');
+      }
+      const own = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT s.id::text AS id FROM sis_students s ' +
+            'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            'WHERE ps.person_id = $1::uuid LIMIT 1',
+          actor.personId,
+        );
+      })) as Array<{ id: string }>;
+      if (own.length === 0 || own[0]!.id !== input.studentId) {
+        throw new ForbiddenException('Students can only register themselves as candidates');
+      }
+    }
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
