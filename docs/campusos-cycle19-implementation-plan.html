@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 19 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 4 &middot; Campus Operations</div>
+    <h1>Cycle 19: Transportation</h1>
+    <div class="sub">Route planning with ordered stops and student assignments, fleet management with vehicle documents and daily pre-trip inspections, driver credential tracking with expiry alerts, ridership scanning with boarding/alighting records, QR-code bus passes, parent route-change requests, and a no-show detection worker. The Transportation Coordinator (TC) is the sixth specialist operator persona. Opens Wave 4.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M61 Transportation (38 tables &mdash; 16 core in scope, 22 deferred) &middot; TRN-001 through TRN-005 &middot; Opens Wave 4</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 19 builds the M61 Transportation module &mdash; 16 of the 38 ERD tables. This is the first Campus Operations module and the first module that extends beyond the school building into the physical world &mdash; routes, vehicles, and GPS coordinates. The Transportation Coordinator (TC) is the sixth specialist operator persona after the nurse, counsellor, librarian, athletic director, and enrolment officer.</p>
+
+  <p class="body-text">The module spans 4 domains: (1) route definitions with ordered stops + student-to-route assignments + parent route-change requests, (2) vehicle fleet with documents, pre-trip inspections, and maintenance schedules, (3) driver credentials with CDL/medical/background-check expiry tracking, and (4) ridership scanning with boarding/alighting records + QR-code bus passes + a no-show detection worker. The parent route-change request surface is the fourth parent-active feature (after messaging, conference booking, and application submission).</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Safety &mdash; Student Safeguarding</div>
+    <p style="font-size:15px;line-height:1.8;">The no-show detection worker compares expected ridership (<code>trn_student_assignments</code>) against actual boarding scans (<code>trn_ridership_records</code>) each morning. Students expected on a route but not scanned within the configurable window trigger a <code>trn_no_show_alerts</code> record and a parent notification via Cycle 14's messaging. The <code>trn_route_change_log</code> is an immutable audit trail (no UPDATE, no DELETE) of every modification to route definitions &mdash; FERPA safeguarding record with 7-year retention.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">TC creates Route 7 "Elm Street AM" with 5 stops in sequence &rarr; assigns Bus #42 (capacity 48) to the route &rarr; assigns Driver Martinez with verified CDL + medical cert &rarr; assigns Maya and Ethan to stops #2 and #4 with AM direction &rarr; generates QR-code bus passes for both students &rarr; Driver Martinez completes the pre-trip inspection (tyres, brakes, lights, mirrors &mdash; all PASS) &rarr; morning run begins &rarr; Maya scans her QR pass at stop #2 (BOARDING recorded) &rarr; Ethan does NOT board &rarr; no-show worker fires after the grace window, creates <code>trn_no_show_alerts</code> row, and sends parent notification &rarr; David Chen submits a route-change request for Maya (different stop for Thursday) &rarr; TC approves &rarr; one-day override created &rarr; the route change log captures every modification with before/after snapshots.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (16 tables):</strong> trn_routes, trn_stops, trn_student_assignments, trn_vehicles, trn_vehicle_documents, trn_pre_trip_inspections, trn_pre_trip_inspection_items, trn_maintenance_schedules, trn_driver_credentials, trn_ridership_records, trn_bus_passes, trn_route_run_logs, trn_no_show_alerts, trn_route_change_requests, trn_route_change_log, trn_delay_reports. Functions TRN-001 through TRN-005.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to Cycle 19.1 (22 tables):</strong> trn_vehicle_positions (real-time GPS telemetry &mdash; requires Transport Dispatch extracted service), trn_vehicle_repairs + trn_parts_inventory + trn_vehicle_components + trn_fuel_logs (deep fleet maintenance), trn_driver_hours_logs (regulatory compliance hours tracking), trn_route_constraints + trn_generation_requests + trn_generation_candidates + trn_generation_candidate_stops (route optimisation engine &mdash; requires Scheduling Solver extracted service), rpt_fleet_status (materialised dashboard), remaining fleet/field-trip/GPS tables.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Also deferred:</strong> Real-time vehicle tracking UI (requires GPS telemetry). Route optimisation solver integration (OR-Tools). RANGE partitioning on trn_ridership_records (partition-ready this cycle). Field trip transport request integration with Cycle 17 (soft FK ready on ext_field_trips.transport_request_id).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Routes + Stops + Assignments Schema</td><td>Schema</td><td>trn_routes, trn_stops, trn_student_assignments, trn_route_change_requests, trn_route_change_log</td></tr>
+    <tr><td><strong>2</strong></td><td>Fleet + Inspections + Driver Schema</td><td>Schema</td><td>trn_vehicles, trn_vehicle_documents, trn_pre_trip_inspections, trn_pre_trip_inspection_items, trn_maintenance_schedules, trn_driver_credentials</td></tr>
+    <tr><td><strong>3</strong></td><td>Ridership + Passes + Operations Schema</td><td>Schema</td><td>trn_ridership_records, trn_bus_passes, trn_route_run_logs, trn_no_show_alerts, trn_delay_reports</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Routes, Fleet, Drivers, Ridership, Passes</td><td>Seed</td><td>2 routes with stops, 2 vehicles, 1 driver with credentials, student assignments, bus passes, 1 run log, TRN-001..005 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Routes + Assignments NestJS Module</td><td>Code</td><td>RouteService, StopService, AssignmentService, RouteChangeRequestService. Immutable change log.</td></tr>
+    <tr><td><strong>6</strong></td><td>Fleet + Inspections + Driver NestJS Module</td><td>Code</td><td>VehicleService, InspectionService, DriverCredentialService. Pre-trip checklist. Expiry alerts.</td></tr>
+    <tr><td><strong>7</strong></td><td>Ridership + Operations NestJS Module</td><td>Code</td><td>RidershipService, BusPassService, RunLogService, NoShowWorker, DelayReportService. QR scan + no-show detection. <code>trn.no_show.detected</code> Kafka emit.</td></tr>
+    <tr><td><strong>8</strong></td><td>Transportation UI &mdash; Routes + Fleet + Drivers</td><td>UI</td><td>"Transportation" app tile, route map, stop editor, fleet dashboard, inspection log, driver credentials</td></tr>
+    <tr><td><strong>9</strong></td><td>Transportation UI &mdash; Ridership + Parent Portal</td><td>UI</td><td>Ridership scanner, bus pass viewer, no-show alert dashboard, parent route-change request portal, delay notification</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Route &rarr; assignment &rarr; inspection &rarr; ridership scan &rarr; no-show &rarr; route change request &rarr; change log audit</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Routes + Stops + Assignments Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Route definitions with ordered stops, student-to-stop assignments with direction and date ranges, parent route-change requests with approval workflow, and the immutable route change audit log.</p>
+
+    <div class="detail-heading">Tables (5)</div>
+    <ol class="detail-list">
+      <li><strong>trn_routes</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>direction TEXT NOT NULL</code> 2-value CHECK (AM, PM), <code>vehicle_id UUID</code> nullable (soft to trn_vehicles), <code>driver_id UUID</code> nullable (soft to hr_employees), <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, INACTIVE, ARCHIVED), <code>academic_year_id UUID FK</code>. UNIQUE(school_id, name, direction, academic_year_id).</li>
+      <li><strong>trn_stops</strong> &mdash; <code>route_id UUID FK NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>latitude NUMERIC(9,6)</code>, <code>longitude NUMERIC(9,6)</code>, <code>sequence_order INT NOT NULL</code>, <code>scheduled_time TIME</code>, <code>address TEXT</code>. INDEX(route_id, sequence_order). The sequence defines the stop-by-stop pickup/dropoff order.</li>
+      <li><strong>trn_student_assignments</strong> &mdash; <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>route_id UUID FK NOT NULL</code>, <code>stop_id UUID FK NOT NULL</code>, <code>academic_year_id UUID FK</code>, <code>direction TEXT NOT NULL</code> 3-value CHECK (AM, PM, BOTH), <code>effective_from DATE NOT NULL</code>, <code>effective_to DATE</code> nullable, <code>is_override BOOLEAN DEFAULT false</code> (true for one-day overrides from route-change requests). UNIQUE(student_id, academic_year_id) WHERE is_override=false (one permanent assignment per student per year). INDEX(route_id, stop_id) for per-stop roster.</li>
+      <li><strong>trn_route_change_requests</strong> &mdash; Parent-submitted temporary change request. <code>school_id UUID</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>submitted_by UUID FK NOT NULL</code>, <code>change_date DATE NOT NULL</code>, <code>change_type TEXT NOT NULL</code> 3-value CHECK (DIFFERENT_STOP, NO_BUS, DIFFERENT_ROUTE), <code>requested_stop_id UUID FK</code> nullable, <code>requested_route_id UUID FK</code> nullable, <code>reason TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, APPROVED, REJECTED), <code>reviewed_by UUID FK</code> nullable, <code>reviewed_at TIMESTAMPTZ</code>. INDEX(student_id, change_date). On APPROVED: creates one-day override assignment.</li>
+      <li><strong>trn_route_change_log</strong> &mdash; <strong>IMMUTABLE AUDIT.</strong> <code>route_id UUID FK NOT NULL</code>, <code>changed_by UUID FK NOT NULL</code>, <code>changed_at TIMESTAMPTZ NOT NULL</code>, <code>change_type TEXT NOT NULL</code> 8-value CHECK (STOP_ADDED, STOP_REMOVED, STOP_REORDERED, STOP_TIME_CHANGED, STUDENT_ADDED, STUDENT_REMOVED, ROUTE_ACTIVATED, ROUTE_DEACTIVATED), <code>stop_id UUID FK</code> nullable, <code>student_id UUID</code> nullable, <code>old_value JSONB</code>, <code>new_value JSONB</code>, <code>reason TEXT</code>. NO UPDATE, NO DELETE at the service layer. FERPA safeguarding record. INDEX(route_id, changed_at DESC). Partition-ready for RANGE(changed_at) monthly.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 5 new tables. Migration: <code>061_trn_routes_stops.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Fleet + Inspections + Driver Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Vehicle fleet with registration documents and expiry tracking, daily pre-trip safety inspections with per-item pass/fail checklist, scheduled maintenance, and driver credential management with CDL/medical/background check verification.</p>
+
+    <div class="detail-heading">Tables (6)</div>
+    <ol class="detail-list">
+      <li><strong>trn_vehicles</strong> &mdash; <code>school_id UUID</code>, <code>registration TEXT NOT NULL</code>, <code>make TEXT</code>, <code>model TEXT</code>, <code>year INT</code>, <code>capacity INT NOT NULL</code>, <code>vehicle_type TEXT NOT NULL</code> 3-value CHECK (BUS, MINIBUS, VAN), <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, MAINTENANCE, RETIRED). UNIQUE(school_id, registration).</li>
+      <li><strong>trn_vehicle_documents</strong> &mdash; <code>vehicle_id UUID FK NOT NULL</code>, <code>document_type TEXT NOT NULL</code> 4-value CHECK (INSURANCE, REGISTRATION, MOT, INSPECTION), <code>s3_key TEXT NOT NULL</code>, <code>issued_date DATE</code>, <code>expiry_date DATE NOT NULL</code>, <code>is_current BOOLEAN DEFAULT true</code>. INDEX(vehicle_id, document_type, is_current). Expiry alerts drive the TC dashboard.</li>
+      <li><strong>trn_pre_trip_inspections</strong> &mdash; Daily safety check header. <code>vehicle_id UUID FK NOT NULL</code>, <code>driver_id UUID FK(hr_employees) NOT NULL</code>, <code>inspection_date DATE NOT NULL</code>, <code>overall_status TEXT NOT NULL</code> 3-value CHECK (PASS, FAIL, CONDITIONAL), <code>notes TEXT</code>, <code>completed_at TIMESTAMPTZ</code>. UNIQUE(vehicle_id, inspection_date). A FAIL blocks the vehicle from service until resolved.</li>
+      <li><strong>trn_pre_trip_inspection_items</strong> &mdash; Per-checklist-item row. <code>inspection_id UUID FK NOT NULL</code>, <code>item_name TEXT NOT NULL</code> (e.g., "Tyres", "Brakes", "Lights", "Mirrors", "Emergency exit", "First aid kit"), <code>status TEXT NOT NULL</code> 3-value CHECK (PASS, FAIL, NOT_APPLICABLE), <code>notes TEXT</code>. INDEX(inspection_id).</li>
+      <li><strong>trn_maintenance_schedules</strong> &mdash; <code>vehicle_id UUID FK NOT NULL</code>, <code>service_type TEXT NOT NULL</code>, <code>interval_miles INT</code>, <code>interval_months INT</code>, <code>last_service_date DATE</code>, <code>last_service_mileage INT</code>, <code>next_due_date DATE</code>, <code>next_due_mileage INT</code>, <code>status TEXT NOT NULL DEFAULT 'ON_SCHEDULE'</code> 3-value CHECK (ON_SCHEDULE, DUE_SOON, OVERDUE). INDEX(vehicle_id, next_due_date).</li>
+      <li><strong>trn_driver_credentials</strong> &mdash; <code>driver_id UUID FK(hr_employees) NOT NULL</code>, <code>credential_type TEXT NOT NULL</code> 4-value CHECK (CDL, MEDICAL_CERTIFICATE, BACKGROUND_CHECK, FIRST_AID), <code>credential_number TEXT</code>, <code>issued_date DATE NOT NULL</code>, <code>expiry_date DATE NOT NULL</code>, <code>s3_key TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'VALID'</code> 3-value CHECK (VALID, EXPIRING_SOON, EXPIRED), <code>verified_by UUID FK</code> nullable, <code>verified_at TIMESTAMPTZ</code>. UNIQUE(driver_id, credential_type). Expiry status auto-computed: EXPIRING_SOON when within 30 days, EXPIRED when past.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 6 new tables. Migration: <code>062_trn_fleet_inspections.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Ridership + Passes + Operations Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Student boarding/alighting scan records, QR-code bus passes, route run execution logs, no-show alert records, and delay reports.</p>
+
+    <div class="detail-heading">Tables (5)</div>
+    <ol class="detail-list">
+      <li><strong>trn_ridership_records</strong> &mdash; <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>route_id UUID FK NOT NULL</code>, <code>stop_id UUID FK NOT NULL</code>, <code>scan_direction TEXT NOT NULL</code> 2-value CHECK (BOARDING, ALIGHTING), <code>scanned_at TIMESTAMPTZ NOT NULL</code>, <code>scan_method TEXT NOT NULL DEFAULT 'QR_CODE'</code> 3-value CHECK (QR_CODE, MANUAL, RFID). INDEX(student_id, scanned_at DESC). Partition-ready for RANGE(scanned_at) monthly.</li>
+      <li><strong>trn_bus_passes</strong> &mdash; <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>academic_year_id UUID FK</code>, <code>pass_type TEXT NOT NULL</code> 3-value CHECK (ANNUAL, TERM, DAILY), <code>qr_code_token TEXT NOT NULL UNIQUE</code> (the scannable token embedded in the QR code), <code>is_active BOOLEAN DEFAULT true</code>, <code>valid_from DATE NOT NULL</code>, <code>valid_to DATE NOT NULL</code>. INDEX(qr_code_token) for the scan-lookup hot path.</li>
+      <li><strong>trn_route_run_logs</strong> &mdash; One row per route execution. <code>route_id UUID FK NOT NULL</code>, <code>vehicle_id UUID FK NOT NULL</code>, <code>driver_id UUID FK(hr_employees) NOT NULL</code>, <code>run_date DATE NOT NULL</code>, <code>departure_time TIMESTAMPTZ</code>, <code>arrival_time TIMESTAMPTZ</code>, <code>odometer_start INT</code>, <code>odometer_end INT</code>, <code>students_boarded INT DEFAULT 0</code>, <code>status TEXT NOT NULL DEFAULT 'IN_PROGRESS'</code> 3-value CHECK (IN_PROGRESS, COMPLETED, CANCELLED). INDEX(route_id, run_date DESC).</li>
+      <li><strong>trn_no_show_alerts</strong> &mdash; <strong>SAFEGUARDING KEYSTONE.</strong> <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>route_id UUID FK NOT NULL</code>, <code>expected_date DATE NOT NULL</code>, <code>expected_stop_id UUID FK NOT NULL</code>, <code>alert_time TIMESTAMPTZ NOT NULL</code>, <code>resolution TEXT</code> nullable 4-value CHECK (ABSENT_CONFIRMED, LATE_ARRIVAL, PARENT_NOTIFIED, FALSE_ALARM), <code>resolved_by UUID</code> nullable, <code>resolved_at TIMESTAMPTZ</code> nullable, <code>parent_notified_at TIMESTAMPTZ</code> nullable. INDEX(expected_date, resolution). Emits <code>trn.no_show.detected</code> on creation.</li>
+      <li><strong>trn_delay_reports</strong> &mdash; <code>route_id UUID FK NOT NULL</code>, <code>run_date DATE NOT NULL</code>, <code>reported_by UUID FK NOT NULL</code>, <code>delay_minutes INT NOT NULL</code>, <code>reason TEXT NOT NULL</code>, <code>affected_stops TEXT[]</code>, <code>parent_notification_sent BOOLEAN DEFAULT false</code>, <code>reported_at TIMESTAMPTZ NOT NULL</code>. INDEX(route_id, run_date DESC). Emits <code>trn.delay.reported</code> for parent notification.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 5 new tables. Migration: <code>063_trn_ridership_operations.sql</code>. Total Cycle 19 tables: 16.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Seed Data &mdash; Routes, Fleet, Drivers, Ridership</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>2 routes + 8 stops:</strong> Route 7 "Elm Street AM" (5 stops, Maya at #2, Ethan at #4) + Route 8 "Oak Lane PM" (3 stops). Each stop with lat/lng, sequence, and scheduled time.</li>
+      <li><strong>2 vehicles:</strong> Bus #42 (BUS, capacity 48, ACTIVE) + Van #3 (VAN, capacity 12, ACTIVE). 2 vehicle documents each (insurance + MOT with expiry dates).</li>
+      <li><strong>1 driver + 3 credentials:</strong> Martinez assigned to Route 7. CDL (valid 2 years), Medical Certificate (valid 1 year), Background Check (valid 3 years). All VALID.</li>
+      <li><strong>2 student assignments:</strong> Maya &rarr; Route 7 Stop #2 AM. Ethan &rarr; Route 7 Stop #4 AM.</li>
+      <li><strong>2 bus passes:</strong> Maya ANNUAL QR pass (active). Ethan ANNUAL QR pass (active).</li>
+      <li><strong>1 pre-trip inspection:</strong> Bus #42 yesterday, all 6 items PASS, overall=PASS.</li>
+      <li><strong>1 route run log:</strong> Route 7 yesterday, COMPLETED, students_boarded=15.</li>
+      <li><strong>2 ridership records:</strong> Maya BOARDING at stop #2 yesterday. Ethan BOARDING at stop #4 yesterday.</li>
+      <li><strong>1 maintenance schedule:</strong> Bus #42 "Oil Change" every 5000 miles, next due in 2 months.</li>
+      <li><strong>Permissions:</strong> TRN-001:read to Teacher, Parent, Student (view routes + assignments). TRN-001:write to Staff (TC manages routes). TRN-002:read+write to Staff (fleet management). TRN-003:read+write to Staff (driver operations). TRN-004:read+write to Staff (driver credentials). TRN-005:read to Parent (view child's ridership + submit change requests). TRN-005:write to Staff (manage ridership, resolve no-shows). Admin gets all via everyFunction.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich transportation demo data across all 16 tables. TRN-001..005 permissions.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Routes + Assignments NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>RouteService</strong> &mdash; <code>GET /transport/routes</code>, <code>GET /transport/routes/:id</code> (with stops + assignments + vehicle + driver inlined), <code>POST /transport/routes</code>, <code>PATCH /transport/routes/:id</code>. Every mutation writes to <code>trn_route_change_log</code> with old_value/new_value JSONB snapshots.</li>
+      <li><strong>StopService</strong> &mdash; <code>GET /transport/routes/:id/stops</code>, <code>POST /transport/routes/:id/stops</code>, <code>PATCH /transport/stops/:id</code>, <code>DELETE /transport/stops/:id</code>. Reorder endpoint: <code>PATCH /transport/routes/:id/stops/reorder</code> (batch update sequence_order). All mutations logged to change log.</li>
+      <li><strong>AssignmentService</strong> &mdash; <code>GET /transport/routes/:id/students</code> (per-stop roster), <code>POST /transport/routes/:id/students</code> (assign student to stop), <code>DELETE /transport/student-assignments/:id</code>. <code>GET /transport/my-route</code> (parent/student: own assignment). All mutations logged.</li>
+      <li><strong>RouteChangeRequestService</strong> &mdash; <code>GET /transport/route-changes</code> (TC: pending requests), <code>POST /transport/route-changes</code> (parent submits), <code>PATCH /transport/route-changes/:id/approve</code> (TC approves; creates one-day override assignment), <code>PATCH /transport/route-changes/:id/reject</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; TransportModule with 4 services, ~14 endpoints. Immutable change log on every route mutation.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Fleet + Inspections + Driver NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>VehicleService</strong> &mdash; <code>GET /transport/vehicles</code> (fleet dashboard with document expiry indicators), <code>GET /transport/vehicles/:id</code>, <code>POST /transport/vehicles</code>, <code>PATCH /transport/vehicles/:id</code>. <code>POST /transport/vehicles/:id/documents</code> (upload with expiry). <code>GET /transport/vehicles/:id/maintenance</code> (schedule + upcoming alerts).</li>
+      <li><strong>InspectionService</strong> &mdash; <code>GET /transport/vehicles/:id/inspections</code>, <code>POST /transport/vehicles/:id/inspections</code> (driver submits daily pre-trip: header + items in one tx; FAIL blocks vehicle), <code>GET /transport/inspections/:id</code> (with items inlined).</li>
+      <li><strong>DriverCredentialService</strong> &mdash; <code>GET /transport/drivers</code> (drivers with credential status), <code>GET /transport/drivers/:id/credentials</code>, <code>POST /transport/drivers/:id/credentials</code>, <code>PATCH /transport/driver-credentials/:id</code> (verify, update). Expiry auto-computation: EXPIRING_SOON within 30 days, EXPIRED past date.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services, ~12 endpoints.</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Ridership + Operations NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>RidershipService</strong> &mdash; <code>POST /transport/ridership/scan</code> (<strong>QR SCAN KEYSTONE:</strong> accepts qr_code_token + stop_id + direction; resolves student from trn_bus_passes; validates pass active + valid date range; creates ridership record), <code>GET /transport/ridership</code> (TC: per-route per-date ridership report), <code>GET /transport/my-ridership</code> (parent: child's scan history).</li>
+      <li><strong>BusPassService</strong> &mdash; <code>GET /transport/bus-passes</code> (TC: all active passes), <code>POST /transport/bus-passes</code> (TC generates pass with unique QR token), <code>PATCH /transport/bus-passes/:id</code> (activate/deactivate). <code>GET /transport/my-bus-pass</code> (student/parent: own pass with QR code).</li>
+      <li><strong>RunLogService</strong> &mdash; <code>POST /transport/runs</code> (driver starts run), <code>PATCH /transport/runs/:id</code> (complete run with odometer + arrival time).</li>
+      <li><strong>NoShowWorker</strong> &mdash; Internal service triggered on a configurable schedule (default: 30 min after first stop scheduled_time). Compares trn_student_assignments (expected) against trn_ridership_records (actual) for the current date. Missing students generate trn_no_show_alerts + emit <code>trn.no_show.detected</code> for parent notification via Cycle 14's messaging.</li>
+      <li><strong>DelayReportService</strong> &mdash; <code>POST /transport/delays</code> (driver reports delay), <code>GET /transport/delays</code> (TC: delay history). Emits <code>trn.delay.reported</code> for parent notification.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 5 services, ~12 endpoints, 2 Kafka emits (<code>trn.no_show.detected</code> + <code>trn.delay.reported</code>). Total Cycle 19 endpoints: ~38.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Transportation UI &mdash; Routes + Fleet + Drivers</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Transportation Dashboard</strong> <code>/transport</code> &mdash; "Transportation" app tile gated on TRN-001:read. TC view: route list with vehicle + driver assignments, fleet status cards (vehicles active/maintenance/retired + document expiry alerts), pending route-change requests count, today's no-show alerts. Parent view: my child's route + stop + bus pass QR code.</li>
+      <li><strong>Route Manager</strong> <code>/transport/routes/:id</code> &mdash; route map with numbered stops. Stop editor (add/remove/reorder with drag). Student roster per stop. Vehicle + driver assignment dropdowns. Change log timeline (immutable audit).</li>
+      <li><strong>Fleet Dashboard</strong> <code>/transport/fleet</code> &mdash; vehicle cards with status pills, document expiry warnings (amber &lt;30 days, rose expired), maintenance schedule with due-date indicators. Vehicle detail with inspection history.</li>
+      <li><strong>Driver Credentials</strong> <code>/transport/drivers</code> &mdash; driver list with credential status pills per type. Expiry alerts. Upload/verify workflow.</li>
+    </ol>
+    <div class="produces">Produces &rarr; "Transportation" app tile + dashboard, route manager with stop editor, fleet dashboard, driver credentials.</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Transportation UI &mdash; Ridership + Parent Portal</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Ridership Scanner</strong> <code>/transport/scan</code> &mdash; driver-facing: QR scan input (camera or manual entry) + stop selector + direction toggle. Per-scan: student name confirmation + timestamp. Run-level boarding count.</li>
+      <li><strong>No-Show Dashboard</strong> <code>/transport/no-shows</code> &mdash; TC: today's unresolved no-shows with student name + expected stop + alert time. Resolution buttons: Absent Confirmed / Late Arrival / Parent Notified / False Alarm.</li>
+      <li><strong>Parent Transport Portal</strong> <code>/children/:id/transport</code> &mdash; parent sees: child's route + stop + scheduled time, bus pass with QR code display, ridership scan history (last 30 days), submit route-change request form (date + change type + alternative stop/route), request status tracker.</li>
+      <li><strong>Delay Notification</strong> &mdash; inline on parent portal: when a delay is reported on the child's route, the portal shows an amber alert card with delay minutes + reason.</li>
+      <li><strong>Pre-Trip Inspection Form</strong> <code>/transport/inspections/new</code> &mdash; driver-facing: vehicle selector, date, 6+ checklist items with PASS/FAIL/N/A toggles + notes per item. Submit with overall status auto-computed (any FAIL item = overall FAIL).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Ridership scanner, no-show dashboard, parent transport portal with QR pass, pre-trip inspection form.</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Route + stops + assignments:</strong> TC creates route with 5 stops. Assigns Maya to stop #2. Verify change log captures STUDENT_ADDED with student_id + new_value.</li>
+      <li><strong>Fleet + documents:</strong> TC registers Bus #42. Uploads insurance document with expiry in 25 days. Verify status auto-computes to EXPIRING_SOON on the fleet dashboard.</li>
+      <li><strong>Driver credentials:</strong> TC adds Martinez with CDL + Medical Cert. CDL expires in 15 days. Verify EXPIRING_SOON status. Expired credential blocks route assignment (service-layer warning).</li>
+      <li><strong>Pre-trip inspection:</strong> Driver completes 6-item inspection on Bus #42. All PASS &rarr; overall PASS. Repeat with one FAIL item &rarr; overall FAIL. Verify FAIL blocks the vehicle from starting a run.</li>
+      <li><strong>Bus pass + QR scan:</strong> TC generates Maya's annual QR pass. Driver scans Maya's QR at stop #2 (BOARDING). Verify ridership record created. Invalid/expired QR &rarr; 400.</li>
+      <li><strong>No-show detection:</strong> Ethan has an assignment but no ridership scan for today. NoShowWorker fires. Verify trn_no_show_alerts row created + <code>trn.no_show.detected</code> Kafka emit.</li>
+      <li><strong>Route change request:</strong> David submits DIFFERENT_STOP request for Maya (Thursday). TC approves. Verify one-day override assignment created. Change log captures STUDENT_ADDED with is_override=true.</li>
+      <li><strong>Delay report:</strong> Driver reports 15-minute delay on Route 7. Verify <code>trn.delay.reported</code> fires. Parent portal shows delay notification.</li>
+      <li><strong>Visibility:</strong> Parent sees own child's route + ridership + bus pass. Cannot see other students. TC sees all routes + fleet. Teacher sees route info but cannot modify. Student sees own bus pass + route info.</li>
+      <li><strong>Immutable audit:</strong> Attempt to UPDATE trn_route_change_log &rarr; service rejects (no UPDATE method exposed). Verify all route mutations from S1&ndash;S7 are captured in chronological order.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified transportation lifecycle: route &rarr; fleet + inspection &rarr; assignment &rarr; QR scan &rarr; no-show detection &rarr; route change &rarr; immutable audit.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 19 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 16 new tables (5 routes/stops + 6 fleet/inspections + 5 ridership/operations). Tenant table count: ~284.</li>
+      <li>Transportation API: ~38 endpoints with route management + QR ridership scanning + no-show detection.</li>
+      <li>Immutable route change log with before/after JSONB snapshots (FERPA safeguarding).</li>
+      <li>Pre-trip inspection with per-item checklist; FAIL blocks vehicle from service.</li>
+      <li>Driver credential tracking with auto-computed expiry status.</li>
+      <li>QR-code bus pass scanning with active/valid-date validation.</li>
+      <li>No-show detection worker comparing expected vs actual ridership.</li>
+      <li>Parent route-change requests with TC approval + one-day override.</li>
+      <li><code>trn.no_show.detected</code> + <code>trn.delay.reported</code> Kafka emits.</li>
+      <li>HANDOFF-CYCLE19.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave 4 open.</strong></li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 19 opens Wave 4 (Campus Operations) and delivers the first module that operates beyond the school building. The no-show detection worker and immutable route change log are the safeguarding keystones. Cycle 20 (Food Service) continues Wave 4.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 19 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M61 Transportation, 38 tables &mdash; 16 core in scope), Function Library (TRN-001 through TRN-005). Opens Wave 4.</p>
+  </div>
+</div>
+
+</body>
+</html>

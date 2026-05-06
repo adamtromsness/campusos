@@ -114,11 +114,11 @@ a.card{text-decoration:none;color:inherit}
   <h1>Design Hub</h1>
   <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38 modules, 76 ADRs across 8 delivery waves.</p>
   <div class="stats-row">
-    <div class="stat"><span class="num">261</span><span class="label">Tables Built</span></div>
-    <div class="stat"><span class="num">~552</span><span class="label">Endpoints</span></div>
-    <div class="stat"><span class="num">155+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">268</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">~580</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">160+</span><span class="label">UI Pages</span></div>
     <div class="stat"><span class="num">16</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">20</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">21</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -135,31 +135,31 @@ a.card{text-decoration:none;color:inherit}
 <div id="overview" class="tab-content active">
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Cycles 0&ndash;17 Complete</h4>
-      <p>Waves 1&ndash;2 complete + Wave 3 in progress. 261 tenant tables, ~552 endpoints, 155+ UI pages. Clubs, elections, field trips with consent, community service hours all live.</p>
+      <h4>Waves 1&ndash;3 Complete &mdash; Cycles 0&ndash;18</h4>
+      <p>Core Ops + Student Services + Communications &amp; Community. 268 tenant tables, ~580 endpoints, 160+ UI pages. Groups, clubs, elections, enrolment, messaging all live.</p>
     </div>
     <div class="status-card sc-blue">
-      <h4>Cycle 18: Groups &amp; Communities &mdash; Next</h4>
-      <p>Cross-role community groups with scope-aware binding, membership hierarchy, ownership transfer handshake, announcements with read tracking, events with RSVP. 7 tables, ~28 endpoints. Closes Wave 3.</p>
+      <h4>Cycle 19: Transportation &mdash; Next</h4>
+      <p>Routes, fleet, driver credentials, QR ridership scanning, no-show detection, parent route-change requests. 16 tables, ~38 endpoints. Opens Wave 4.</p>
     </div>
     <div class="status-card sc-amber">
-      <h4>Wave 4 Up Next</h4>
-      <p>Transportation (19), Food Service (20), Facilities (21), IT Infrastructure (22).</p>
+      <h4>Wave 4 Continues</h4>
+      <p>Food Service (20), Facilities (21), IT Infrastructure (22).</p>
     </div>
   </div>
 
   <h2 class="sec">Build Progress</h2>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Tables Built</span><span>261 / 840 (31%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:31%"></div></div>
+    <div class="progress-label"><span>Tables Built</span><span>268 / 840 (32%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:32%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Cycles Complete</span><span>20 / 32 planned (63%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:63%"></div></div>
+    <div class="progress-label"><span>Cycles Complete</span><span>21 / 32 planned (66%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:66%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>2 of 8 (Wave 3 nearly done)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:31%"></div></div>
+    <div class="progress-label"><span>Waves Complete</span><span>3 of 8 (Wave 4 starting)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:37%"></div></div>
   </div>
 
   <h2 class="sec">What is CampusOS?</h2>
@@ -275,7 +275,7 @@ a.card{text-decoration:none;color:inherit}
     <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
       <tr><td>M15 Task Management</td><td><code>wsk_</code></td><td>12</td><td><span class="pill pill-green">Built</span></td><td>Tasks, workflows, approval chains, SLA tracking</td></tr>
       <tr><td>M67 School Store</td><td><code>str_</code></td><td>14</td><td><span class="pill pill-gray">Planned</span></td><td>Products, inventory, orders, fulfilment</td></tr>
-      <tr><td>M103 Groups &amp; Communities</td><td><code>grp_</code></td><td>13</td><td><span class="pill pill-gray">Planned</span></td><td>Groups, announcements, events, communities</td></tr>
+      <tr><td>M103 Groups &amp; Communities</td><td><code>grp_</code></td><td>13</td><td><span class="pill pill-green">Built (7/13)</span></td><td>Groups, announcements, events, communities</td></tr>
       <tr><td>M110 Analytics</td><td><code>rpt_</code></td><td>34</td><td><span class="pill pill-gray">Planned</span></td><td>Read models, dashboards, district analytics, reporting</td></tr>
     </table>
   </div>
@@ -327,7 +327,7 @@ a.card{text-decoration:none;color:inherit}
   <div class="wave w-purple open">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>Wave 3 &mdash; Communications &amp; Community</h3>
-      <span class="wave-meta">5 cycles &middot; IN PROGRESS</span>
+      <span class="wave-meta">5 cycles &middot; COMPLETE</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
@@ -335,19 +335,19 @@ a.card{text-decoration:none;color:inherit}
       <div class="cycle-row"><span class="cycle-num">15</span><span class="cycle-title">Meetings &amp; Conferences <span class="pill pill-green">Done</span></span><span class="cycle-tables">11 tenant</span><span class="cycle-links"><a href="campusos-cycle15-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle15-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">16</span><span class="cycle-title">Enrolment &amp; Admissions <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle16-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle16-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">17</span><span class="cycle-title">Clubs &amp; Student Life <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle17-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle17-cat-script.md" class="cl-cat">CAT</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">18</span><span class="cycle-title">Groups &amp; Communities <span class="pill pill-blue">Next</span></span><span class="cycle-tables">7 tenant</span><span class="cycle-links"><a href="campusos-cycle18-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">18</span><span class="cycle-title">Groups &amp; Communities <span class="pill pill-green">Done</span></span><span class="cycle-tables">7 tenant</span><span class="cycle-links"><a href="campusos-cycle18-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle18-cat-script.md" class="cl-cat">CAT</a></span></div>
     </div>
   </div>
 
   <!-- WAVE 4 -->
-  <div class="wave w-amber">
+  <div class="wave w-amber open">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>Wave 4 &mdash; Campus Operations</h3>
-      <span class="wave-meta">4 cycles &middot; PLANNED</span>
+      <span class="wave-meta">4 cycles &middot; IN PROGRESS</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">19</span><span class="cycle-title">Transportation</span><span class="cycle-tables">~38 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">19</span><span class="cycle-title">Transportation <span class="pill pill-blue">Next</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle19-implementation-plan.html" class="cl-plan">Plan</a></span></div>
       <div class="cycle-row"><span class="cycle-num">20</span><span class="cycle-title">Food Service</span><span class="cycle-tables">~32 tenant</span><span class="cycle-links"></span></div>
       <div class="cycle-row"><span class="cycle-num">21</span><span class="cycle-title">Facilities Management</span><span class="cycle-tables">~27 tenant</span><span class="cycle-links"></span></div>
       <div class="cycle-row"><span class="cycle-num">22</span><span class="cycle-title">IT Infrastructure</span><span class="cycle-tables">~34 tenant</span><span class="cycle-links"></span></div>
@@ -413,6 +413,13 @@ a.card{text-decoration:none;color:inherit}
 <div id="buildlog" class="tab-content">
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>Cycle 18: Groups &amp; Communities <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">7 tables &middot; ~28 endpoints &middot; 2 Kafka emits &middot; ~7 web routes &middot; Wave 3 complete</div>
+    <div class="log-desc">Cross-role community groups with 5 scope types (CLASS/YEAR_GROUP/SCHOOL/CUSTOM/ACTIVITY), 3-tier membership hierarchy with OWNER/ADMIN/MEMBER, two-party ownership transfer handshake, group-scoped announcements with read tracking + pinning, group events with RSVP.</div>
+    <div class="log-links"><a href="campusos-cycle18-implementation-plan.html">Plan</a> <a href="cycle18-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>Cycle 17: Clubs &amp; Student Life <span class="pill pill-green">Approved</span></h4>
@@ -514,6 +521,7 @@ a.card{text-decoration:none;color:inherit}
     <a href="cycle15-cat-script.md" class="card"><h4>Cycle 15 CAT</h4><div class="desc">Conference + slot grid, parent booking, meeting lifecycle, notes parent-visibility, action items, IEP meeting record, recording consent.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle16-cat-script.md" class="card"><h4>Cycle 16 CAT</h4><div class="desc">Enrolment period, parent application, multi-stage review, offer + accept, onboarding checklist, waitlist auto-advance, enr.student.enrolled.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle17-cat-script.md" class="card"><h4>Cycle 17 CAT</h4><div class="desc">Activity + membership, field trip + consent, anonymous election vote, service hours + approval, max-participants, scope gating.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle18-cat-script.md" class="card"><h4>Cycle 18 CAT</h4><div class="desc">Group creation + scope binding, membership lifecycle, ownership transfer handshake, announcements + reads, events + RSVP, cross-module group_id resolution.</div><div class="meta">8 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 2 Punch List</h2>
