@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 28 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 6 &middot; Finance &amp; Commerce</div>
+    <h1>Cycle 28: School Store</h1>
+    <div class="sub">Dual-mode school store: a STUDENT store with parent approval before checkout and family account billing, and a PUBLIC store for external customers with shipping. Product catalogue with SKU management and multi-location inventory, order lifecycle with backorder support, automatic procurement reorder when inventory hits threshold, revenue tracking materialised by StoreRevenueWorker, and the <code>str.order.completed</code> Kafka emit that Cycle 6's payment module consumes. Closes Wave 6.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M67 School Store (9 tables &mdash; all in scope) &middot; ADR-062 &middot; STR-001 through STR-003 &middot; Closes Wave 6</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 28 builds the M67 School Store module &mdash; all 9 ERD tables. Per ADR-062, the store has two modes: a <strong>STUDENT store</strong> where students browse and order (uniforms, PE kits, textbooks, school supplies) but every order requires parent approval before payment is charged to the family account, and a <strong>PUBLIC store</strong> where external visitors (alumni, community members) can purchase school merchandise with shipping and direct payment.</p>
+
+  <p class="body-text">The module sits at the intersection of 3 prior cycles: Cycle 6 Payments (the store emits <code>str.order.completed</code>; M84 consumes it to charge the family account &mdash; the store never writes to pay_ tables), Cycle 27 Procurement (when inventory falls below reorder_point, the system can auto-generate a prc_requisition), and Cycle 26 Finance (str_store_revenue is a materialised read model that feeds into the financial reporting layer). The parent approval gate is the fifth parent-active feature.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin creates a STUDENT store "Lincoln Academy Shop" + a PUBLIC store "Eagle Merchandise" &rarr; adds products: School Polo ($25, SKU: POLO-BLU-M, category: Uniform), PE Kit ($35, SKU: PE-KIT-S), Yearbook ($20, SKU: YRB-2026), Eagle Hoodie ($45, SKU: HDY-GRY-L, PUBLIC store) &rarr; sets inventory: 50 Polos, 30 PE Kits, 100 Yearbooks, 25 Hoodies &rarr; Maya (student) browses the STUDENT store, adds 1 Polo + 1 Yearbook to her order &rarr; order status=PENDING_APPROVAL &rarr; David Chen (parent) receives notification, approves &rarr; order advances to PROCESSING, payment charged to family account via <code>str.order.completed</code> &rarr; staff fulfils &rarr; status=READY_FOR_PICKUP &rarr; Maya picks up &rarr; COMPLETED &rarr; inventory decrements (49 Polos, 99 Yearbooks) &rarr; meanwhile, an alumni visits the PUBLIC store, orders 2 Eagle Hoodies ($90 + $5 shipping), pays by card &rarr; order SHIPPED with tracking &rarr; PE Kit inventory drops to 5 (at reorder_point), triggering a procurement reorder signal &rarr; StoreRevenueWorker materialises: April total $170 revenue, $85 cost, $85 margin.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (all 9 tables):</strong> str_stores, str_products, str_product_inventory, str_orders, str_order_lines, str_order_approvals, str_external_customers, str_shipping_options, str_store_revenue. Functions STR-001 (Products + Inventory), STR-002 (Orders), STR-003 (Store Management).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Shopping cart persistence (in-memory session cart this cycle; persistent str_carts is Phase 2). Product variants (size/colour matrix with per-variant inventory). Discount codes / coupon engine. Bundle products (buy uniform set = polo + trousers + tie at bundle price). Store analytics dashboard (beyond the materialised revenue summary). Stripe Checkout integration for PUBLIC store (manual payment recording this cycle). Auto-generation of prc_requisitions from reorder_point (schema signals ready; the Kafka consumer bridge to procurement is Phase 2).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Stores + Products + Inventory Schema</td><td>Schema</td><td>str_stores, str_products, str_product_inventory</td></tr>
+    <tr><td><strong>2</strong></td><td>Orders + Lines + Approvals Schema</td><td>Schema</td><td>str_orders, str_order_lines, str_order_approvals</td></tr>
+    <tr><td><strong>3</strong></td><td>External Customers + Shipping + Revenue Schema</td><td>Schema</td><td>str_external_customers, str_shipping_options, str_store_revenue</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Stores, Products, Inventory, Orders, Revenue</td><td>Seed</td><td>2 stores, 6 products, inventory, 2 orders (student + external), 1 approval, shipping options, revenue snapshot, STR-001..003 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Products + Inventory NestJS Module</td><td>Code</td><td>StoreService, ProductService, InventoryService. Catalogue with category browse. Reorder threshold signal.</td></tr>
+    <tr><td><strong>6</strong></td><td>Orders + Approvals NestJS Module</td><td>Code</td><td>OrderService, ApprovalService. Student → parent approval gate. Fulfilment lifecycle. <code>str.order.completed</code> Kafka emit.</td></tr>
+    <tr><td><strong>7</strong></td><td>External Customers + Shipping + Revenue NestJS Module</td><td>Code</td><td>ExternalCustomerService, ShippingService, RevenueService (StoreRevenueWorker). PUBLIC store checkout. Revenue materialisation.</td></tr>
+    <tr><td><strong>8</strong></td><td>Store UI &mdash; Catalogue + Checkout + Admin</td><td>UI</td><td>"Store" app tile, product catalogue, student checkout with approval, admin product manager, inventory dashboard</td></tr>
+    <tr><td><strong>9</strong></td><td>Store UI &mdash; Public Store + Parent Approval + Fulfilment</td><td>UI</td><td>Public storefront, parent approval portal, order fulfilment queue, shipping manager, revenue summary</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Product &rarr; student order &rarr; parent approval &rarr; payment emit &rarr; fulfilment &rarr; inventory decrement &rarr; external order + shipping &rarr; reorder signal &rarr; revenue</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Stores + Products + Inventory Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Dual-mode store registry (STUDENT + PUBLIC), product catalogue with SKU + category + cost tracking + image support, and multi-location inventory with reorder thresholds.</p>
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>str_stores</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>store_type TEXT NOT NULL</code> 2-value CHECK (STUDENT, PUBLIC), <code>name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, store_type). One STUDENT store + one PUBLIC store per school.</li>
+      <li><strong>str_products</strong> &mdash; <code>store_id UUID FK NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>sku TEXT</code>, <code>category TEXT</code>, <code>price NUMERIC(8,2) NOT NULL</code>, <code>cost NUMERIC(8,2)</code>, <code>image_s3_keys TEXT[]</code>, <code>is_active BOOLEAN DEFAULT true</code>, <code>backorder_allowed BOOLEAN DEFAULT false</code>. INDEX(store_id, category, is_active).</li>
+      <li><strong>str_product_inventory</strong> &mdash; <code>product_id UUID FK NOT NULL</code>, <code>location_type TEXT NOT NULL</code> 2-value CHECK (BUILDING, DISTRICT), <code>location_id UUID NOT NULL</code>, <code>quantity_on_hand INT DEFAULT 0</code>, <code>quantity_reserved INT DEFAULT 0</code>, <code>reorder_point INT DEFAULT 0</code>, <code>reorder_quantity INT DEFAULT 0</code>. UNIQUE(product_id, location_type, location_id). When quantity_on_hand &le; reorder_point: signal for procurement reorder.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>086_str_stores_products.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Orders + Lines + Approvals Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Order headers with customer polymorphism (internal person OR external customer), per-line item tracking with backorder support, and the parent approval gate for student orders.</p>
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>str_orders</strong> &mdash; <code>store_id UUID FK NOT NULL</code>, <code>order_type TEXT NOT NULL</code> 3-value CHECK (STUDENT, PARENT, EXTERNAL), <code>customer_person_id UUID</code> (soft to iam_person; for STUDENT/PARENT orders), <code>external_customer_id UUID FK</code> nullable (for EXTERNAL orders), <code>student_id UUID</code> (soft to sis_students; for STUDENT orders &mdash; the student who will receive the items), <code>order_date TIMESTAMPTZ NOT NULL</code>, <code>status TEXT NOT NULL</code> 8-value CHECK (PENDING_APPROVAL, APPROVED, PROCESSING, READY_FOR_PICKUP, SHIPPED, COMPLETED, CANCELLED, BACKORDERED), <code>subtotal NUMERIC(10,2)</code>, <code>shipping_cost NUMERIC(8,2) DEFAULT 0</code>, <code>total NUMERIC(10,2)</code>, <code>shipping_method TEXT DEFAULT 'PICKUP'</code> 2-value CHECK (PICKUP, SHIPPED), <code>payment_status TEXT DEFAULT 'PENDING'</code> 4-value CHECK (PENDING, CHARGED, DEFERRED_BACKORDER, REFUNDED). INDEX(store_id, status). INDEX(customer_person_id) WHERE customer_person_id IS NOT NULL.</li>
+      <li><strong>str_order_lines</strong> &mdash; <code>order_id UUID FK NOT NULL</code>, <code>product_id UUID FK NOT NULL</code>, <code>quantity INT NOT NULL</code>, <code>unit_price NUMERIC(8,2) NOT NULL</code>, <code>line_status TEXT DEFAULT 'IN_STOCK'</code> 4-value CHECK (IN_STOCK, BACKORDERED, FULFILLED, CANCELLED). INDEX(order_id).</li>
+      <li><strong>str_order_approvals</strong> &mdash; <strong>PARENT APPROVAL GATE.</strong> <code>order_id UUID FK NOT NULL UNIQUE</code>, <code>parent_person_id UUID NOT NULL</code> (soft to iam_person), <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, APPROVED, DECLINED), <code>requested_at TIMESTAMPTZ NOT NULL</code>, <code>responded_at TIMESTAMPTZ</code>, <code>decline_reason TEXT</code>. On APPROVED: order advances to PROCESSING, payment charged. On DECLINED: order CANCELLED, inventory released.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>087_str_orders.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">External Customers + Shipping + Revenue Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Non-CampusOS customer records for the public store, shipping method options with flat-rate pricing, and materialised periodic revenue summaries.</p>
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>str_external_customers</strong> &mdash; <code>name TEXT NOT NULL</code>, <code>email TEXT NOT NULL</code>, <code>phone TEXT</code>, <code>shipping_address TEXT</code>. INDEX(email). Non-CampusOS users who purchase from the PUBLIC store.</li>
+      <li><strong>str_shipping_options</strong> &mdash; <code>store_id UUID FK NOT NULL</code>, <code>method_name TEXT NOT NULL</code>, <code>estimated_days INT</code>, <code>flat_rate NUMERIC(8,2) NOT NULL</code>, <code>is_active BOOLEAN DEFAULT true</code>. INDEX(store_id, is_active). Only applies to PUBLIC store orders with shipping_method=SHIPPED.</li>
+      <li><strong>str_store_revenue</strong> &mdash; Materialised by StoreRevenueWorker. <code>store_id UUID FK NOT NULL</code>, <code>period_start DATE NOT NULL</code>, <code>period_end DATE NOT NULL</code>, <code>total_orders INT</code>, <code>total_revenue NUMERIC(12,2)</code>, <code>total_cost NUMERIC(12,2)</code>, <code>gross_margin NUMERIC(12,2)</code>. UNIQUE(store_id, period_start, period_end).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>088_str_external_shipping.sql</code>. Total Cycle 28 tables: 9.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>2 stores:</strong> "Lincoln Academy Shop" (STUDENT) + "Eagle Merchandise" (PUBLIC).</li>
+      <li><strong>6 products:</strong> Student store: School Polo ($25, POLO-BLU-M, Uniform), PE Kit ($35, PE-KIT-S, Sportswear), Yearbook ($20, YRB-2026, Publications), Calculator ($15, CALC-SCI, Supplies). Public store: Eagle Hoodie ($45, HDY-GRY-L, Merchandise), Alumni Mug ($12, MUG-ALM, Merchandise).</li>
+      <li><strong>6 inventory rows:</strong> Polo 50, PE Kit 30 (reorder_point=5), Yearbook 100, Calculator 25, Hoodie 25, Mug 40.</li>
+      <li><strong>2 orders:</strong> Maya's student order (1 Polo + 1 Yearbook, $45, COMPLETED, approved by David). External alumni order (2 Hoodies, $90 + $5 shipping, SHIPPED).</li>
+      <li><strong>1 approval:</strong> David approved Maya's order.</li>
+      <li><strong>1 external customer:</strong> "Jane Smith" alumni, email + shipping address.</li>
+      <li><strong>2 shipping options:</strong> "Standard Shipping" ($5, 5-7 days). "Express Shipping" ($12, 2-3 days).</li>
+      <li><strong>1 revenue snapshot:</strong> Student store April: 8 orders, $320 revenue, $160 cost, $160 margin.</li>
+      <li><strong>Permissions:</strong> STR-001:read to Student, Parent, Teacher (browse catalogue). STR-001:write to Staff (manage products + inventory). STR-002:read to Student, Parent (view own orders). STR-002:write to Student (place orders), Parent (approve/decline). STR-003:read+write to Staff (fulfilment + store management). Admin gets all via everyFunction.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich store demo data with dual-mode stores, student + external orders, parent approval. STR-001..003 permissions.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Products + Inventory NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>StoreService</strong> &mdash; <code>GET /store/stores</code> (returns STUDENT store for authenticated internal users; PUBLIC store for all), <code>POST /store/stores</code> (admin creates), <code>PATCH /store/stores/:id</code>.</li>
+      <li><strong>ProductService</strong> &mdash; <code>GET /store/stores/:id/products</code> (catalogue browse with category filter; only is_active products), <code>GET /store/products/:id</code> (with inventory inlined), <code>POST /store/products</code>, <code>PATCH /store/products/:id</code>.</li>
+      <li><strong>InventoryService</strong> &mdash; <code>GET /store/inventory</code> (admin: all products with stock levels + reorder alerts), <code>PATCH /store/inventory/:id</code> (adjust quantity). When quantity_on_hand falls to reorder_point: emits <code>str.inventory.reorder_needed</code> (future: consumed by procurement to auto-create requisition).</li>
+    </ol>
+    <div class="produces">Produces &rarr; StoreModule with 3 services, ~10 endpoints.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Orders + Approvals NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>OrderService</strong> &mdash; <code>POST /store/orders</code> (<strong>DUAL-MODE KEYSTONE:</strong> STUDENT orders auto-create str_order_approvals row with status=PENDING + reserve inventory; PARENT orders charge family account directly; EXTERNAL orders require external_customer_id + shipping_option_id). <code>GET /store/orders</code> (student: own; parent: child's; admin: all), <code>GET /store/orders/:id</code>. <code>PATCH /store/orders/:id/fulfil</code> (staff: PROCESSING &rarr; READY_FOR_PICKUP or SHIPPED), <code>PATCH /store/orders/:id/complete</code> (READY_FOR_PICKUP &rarr; COMPLETED; decrements inventory; emits <code>str.order.completed</code>), <code>PATCH /store/orders/:id/cancel</code> (releases reserved inventory). Backorder: if product.backorder_allowed and insufficient stock, line_status=BACKORDERED, payment_status=DEFERRED_BACKORDER.</li>
+      <li><strong>ApprovalService</strong> &mdash; <code>GET /store/approvals</code> (parent: pending approvals for my children), <code>PATCH /store/approvals/:id/approve</code> (parent approves &rarr; order advances to PROCESSING; emits <code>str.order.completed</code> for family account billing), <code>PATCH /store/approvals/:id/decline</code> (parent declines &rarr; order CANCELLED, inventory released).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 services, ~10 endpoints, 2 Kafka emits (<code>str.order.completed</code> + <code>str.inventory.reorder_needed</code>).</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">External Customers + Shipping + Revenue NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>ExternalCustomerService</strong> &mdash; <code>POST /store/external-customers</code> (create during PUBLIC checkout), <code>GET /store/external-customers/:id</code>.</li>
+      <li><strong>ShippingService</strong> &mdash; <code>GET /store/stores/:id/shipping-options</code>, <code>POST /store/shipping-options</code>, <code>PATCH /store/shipping-options/:id</code>.</li>
+      <li><strong>RevenueService</strong> &mdash; <code>GET /store/revenue</code> (admin: per-store per-period revenue summary). <strong>StoreRevenueWorker:</strong> nightly materialisation: aggregates completed orders per store per month into str_store_revenue (total_orders, total_revenue from order totals, total_cost from product costs × quantities, gross_margin = revenue − cost).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services, ~6 endpoints. Total Cycle 28 endpoints: ~26.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Store UI &mdash; Catalogue + Checkout + Admin</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Store Dashboard</strong> <code>/store</code> &mdash; "Store" app tile. Student: product catalogue grid with category filter, prices, images, "Add to Order" buttons. Admin: revenue summary + inventory alerts + pending orders count.</li>
+      <li><strong>Product Catalogue</strong> <code>/store/:storeId/products</code> &mdash; grid/list view with category filter chips. Per-product: image, name, price, stock indicator (In Stock / Low Stock / Out of Stock / Backorder Available). Product detail page with description + images.</li>
+      <li><strong>Student Checkout</strong> <code>/store/checkout</code> &mdash; order summary with items + quantities + prices. "This order requires parent approval before payment" banner. Place Order button creates PENDING_APPROVAL order.</li>
+      <li><strong>Admin Product Manager</strong> <code>/store/admin/products</code> &mdash; product CRUD with SKU, category, price, cost, images, backorder toggle. Inventory adjustment form. Reorder alerts highlighted.</li>
+    </ol>
+    <div class="produces">Produces &rarr; "Store" app tile, product catalogue, student checkout, admin product manager.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">Store UI &mdash; Public Store + Parent Approval + Fulfilment</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Public Storefront</strong> <code>/store/public/:storeId</code> &mdash; unauthenticated product catalogue for the PUBLIC store. Checkout form: name, email, phone, shipping address, shipping method selector, order summary + total. Payment recording (manual this cycle; Stripe Checkout deferred).</li>
+      <li><strong>Parent Approval Portal</strong> <code>/store/approvals</code> &mdash; parent sees: pending approval cards for children's orders with item list + total. Approve / Decline buttons. Decline requires reason.</li>
+      <li><strong>Order Fulfilment Queue</strong> <code>/store/admin/orders</code> &mdash; staff: orders by status (PROCESSING &rarr; READY_FOR_PICKUP / SHIPPED &rarr; COMPLETED). Per-order: customer, items, payment status. Fulfil / Ship buttons. Tracking number input for shipped orders.</li>
+      <li><strong>Revenue Summary</strong> <code>/store/admin/revenue</code> &mdash; per-store per-month: total orders, revenue, cost, gross margin. Chart showing revenue trend.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Public storefront, parent approval portal, order fulfilment queue, revenue summary.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Store setup:</strong> Admin creates STUDENT + PUBLIC stores. UNIQUE(school_id, store_type) enforced. Adds 4 products to STUDENT store + 2 to PUBLIC store with inventory.</li>
+      <li><strong>Student order + parent approval:</strong> Maya orders 1 Polo + 1 Yearbook ($45). Status=PENDING_APPROVAL. Inventory reserved (quantity_reserved += quantities). David approves. Status→PROCESSING. <code>str.order.completed</code> fires. Verify payment_status=CHARGED.</li>
+      <li><strong>Parent decline:</strong> Ethan orders a Calculator. Parent declines with reason. Status=CANCELLED. Verify inventory released (quantity_reserved decremented).</li>
+      <li><strong>Fulfilment + inventory:</strong> Staff fulfils Maya's order → READY_FOR_PICKUP. Maya picks up → COMPLETED. Verify quantity_on_hand decremented (49 Polos, 99 Yearbooks).</li>
+      <li><strong>External order + shipping:</strong> Alumni creates external customer record. Orders 2 Hoodies from PUBLIC store with Standard Shipping. Total=$95. Staff ships with tracking number. Status=SHIPPED→COMPLETED.</li>
+      <li><strong>Backorder:</strong> Product with 0 stock + backorder_allowed=true. Student orders. Verify line_status=BACKORDERED, payment_status=DEFERRED_BACKORDER. When stock arrives (inventory adjusted), line_status→IN_STOCK.</li>
+      <li><strong>Reorder threshold:</strong> Adjust PE Kit inventory to reorder_point (5). Verify <code>str.inventory.reorder_needed</code> fires.</li>
+      <li><strong>Revenue materialisation:</strong> Trigger StoreRevenueWorker. Verify str_store_revenue reflects completed orders: correct total_orders, total_revenue, total_cost, gross_margin.</li>
+      <li><strong>Visibility:</strong> Student sees STUDENT catalogue + own orders. Cannot see PUBLIC store admin. Parent sees approval queue + child's order history. External customer can only access PUBLIC storefront. Staff manages fulfilment + products. Admin sees all.</li>
+      <li><strong>Cross-module:</strong> Verify <code>str.order.completed</code> payload matches the contract M84 expects (family_account_id, amount, line items). Verify <code>str.inventory.reorder_needed</code> payload includes product + quantity + preferred supplier for procurement bridge.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified store lifecycle: product catalogue &rarr; student order &rarr; parent approval &rarr; payment emit &rarr; fulfilment &rarr; inventory decrement &rarr; external order + shipping &rarr; backorder &rarr; reorder signal &rarr; revenue. Wave 6 complete.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 28 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 9 new tables. Tenant table count: ~390.</li>
+      <li>Store API: ~26 endpoints with dual-mode stores + parent approval + public checkout.</li>
+      <li>Dual-mode store: STUDENT (parent approval, family billing) + PUBLIC (external customers, shipping).</li>
+      <li>Parent approval gate: student orders require explicit parent approve/decline before payment.</li>
+      <li>Inventory management with reorder_point threshold signalling.</li>
+      <li>Backorder support: deferred payment until stock arrives.</li>
+      <li><code>str.order.completed</code> Kafka emit for Cycle 6 payment billing.</li>
+      <li><code>str.inventory.reorder_needed</code> Kafka emit for procurement bridge.</li>
+      <li>StoreRevenueWorker materialising periodic revenue summaries.</li>
+      <li>HANDOFF-CYCLE28.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave 6 complete.</strong></li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 28 closes Wave 6 (Finance &amp; Commerce). The platform now handles the complete commercial surface: general ledger, budgets, accounts payable, procurement, and the school store. Wave 7 (Analytics &amp; Governance) begins with Analytics &amp; Reporting.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 28 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M67 School Store, 9 tables), ADR-062 School Store Module. Cross-cycle: Cycle 6 pay.* billing via str.order.completed, Cycle 27 procurement via str.inventory.reorder_needed. Closes Wave 6.</p>
+  </div>
+</div>
+
+</body>
+</html>

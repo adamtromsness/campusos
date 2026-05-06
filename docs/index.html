@@ -114,11 +114,11 @@ a.card{text-decoration:none;color:inherit}
   <h1>Design Hub</h1>
   <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38 modules, 76 ADRs across 8 delivery waves.</p>
   <div class="stats-row">
-    <div class="stat"><span class="num">357</span><span class="label">Tables Built</span></div>
-    <div class="stat"><span class="num">~818</span><span class="label">Endpoints</span></div>
-    <div class="stat"><span class="num">225+</span><span class="label">UI Pages</span></div>
-    <div class="stat"><span class="num">16</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">28</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">381</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">~880</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">245+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">17</span><span class="label">Kafka Consumers</span></div>
+    <div class="stat"><span class="num">30</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -135,31 +135,31 @@ a.card{text-decoration:none;color:inherit}
 <div id="overview" class="tab-content active">
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Waves 1&ndash;5 Complete &mdash; Cycles 0&ndash;25</h4>
-      <p>Core Ops + Student Services + Communications + Campus Ops + Academic Advanced. 357 tables, ~818 endpoints, 225+ pages. Curriculum, portfolios, publications all live.</p>
+      <h4>Cycles 0&ndash;27 Complete</h4>
+      <p>Waves 1&ndash;5 + Wave 6 nearly done. 381 tables, ~880 endpoints, 245+ pages. Procurement with budget commitment, multi-level approval, distribution to 8 modules all live.</p>
     </div>
     <div class="status-card sc-blue">
-      <h4>Cycle 26: Finance &amp; Accounting &mdash; Next</h4>
-      <p>Double-entry GL with DB-validated balance, Kafka consumer on payment events, budget variance, AP lifecycle, bank reconciliation, board reports. 14 tables, ~34 endpoints. Opens Wave 6.</p>
+      <h4>Cycle 28: School Store &mdash; Next</h4>
+      <p>Dual-mode store (STUDENT + PUBLIC), parent approval gate, family billing, external customers, shipping, inventory reorder, revenue tracking. 9 tables, ~26 endpoints. Closes Wave 6.</p>
     </div>
     <div class="status-card sc-amber">
-      <h4>Wave 6 Continues</h4>
-      <p>Procurement (27), School Store (28). Then Waves 7&ndash;8.</p>
+      <h4>Waves 7&ndash;8 Up Next</h4>
+      <p>Analytics (29), Data Governance (30), Performance (31), Multi-Region (32).</p>
     </div>
   </div>
 
   <h2 class="sec">Build Progress</h2>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Tables Built</span><span>357 / 840 (42%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:42%"></div></div>
+    <div class="progress-label"><span>Tables Built</span><span>381 / 840 (45%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:45%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Cycles Complete</span><span>28 / 32 planned (88%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:88%"></div></div>
+    <div class="progress-label"><span>Cycles Complete</span><span>30 / 32 planned (94%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:94%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>5 of 8 (Wave 6 starting)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:62%"></div></div>
+    <div class="progress-label"><span>Waves Complete</span><span>5 of 8 (Wave 6 nearly done)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:68%"></div></div>
   </div>
 
   <h2 class="sec">What is CampusOS?</h2>
@@ -265,8 +265,8 @@ a.card{text-decoration:none;color:inherit}
     <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
       <tr><td>M81 Enrolment</td><td><code>enr_</code></td><td>28</td><td><span class="pill pill-green">Built (16/25)</span></td><td>Applications, tours, admission workflow, lottery, waitlist</td></tr>
       <tr><td>M84 Payments &amp; Billing</td><td><code>pay_</code></td><td>28</td><td><span class="pill pill-green">Partial (Cycle 6)</span></td><td>Family accounts, invoices, payments, fee schedules, Stripe</td></tr>
-      <tr><td>M83 Finance &amp; Accounting</td><td><code>fin_</code></td><td>9</td><td><span class="pill pill-gray">Planned</span></td><td>GL, AP, AR, fund accounting, budget management</td></tr>
-      <tr><td>M86 Procurement</td><td><code>prc_</code></td><td>12</td><td><span class="pill pill-gray">Planned</span></td><td>Requisitions, POs, goods receipt, budget commitments</td></tr>
+      <tr><td>M83 Finance &amp; Accounting</td><td><code>fin_</code></td><td>9</td><td><span class="pill pill-green">Built (14/14)</span></td><td>GL, AP, AR, fund accounting, budget management</td></tr>
+      <tr><td>M86 Procurement</td><td><code>prc_</code></td><td>12</td><td><span class="pill pill-green">Built (12/12)</span></td><td>Requisitions, POs, goods receipt, budget commitments</td></tr>
     </table>
   </div>
 
@@ -376,9 +376,9 @@ a.card{text-decoration:none;color:inherit}
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">26</span><span class="cycle-title">Finance &amp; Accounting <span class="pill pill-blue">Next</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="campusos-cycle26-implementation-plan.html" class="cl-plan">Plan</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">27</span><span class="cycle-title">Procurement</span><span class="cycle-tables">~12 tenant</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">28</span><span class="cycle-title">School Store</span><span class="cycle-tables">~14 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">26</span><span class="cycle-title">Finance &amp; Accounting <span class="pill pill-green">Done</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="campusos-cycle26-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle26-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">27</span><span class="cycle-title">Procurement <span class="pill pill-green">Done</span></span><span class="cycle-tables">12 tenant</span><span class="cycle-links"><a href="campusos-cycle27-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle27-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">28</span><span class="cycle-title">School Store <span class="pill pill-blue">Next</span></span><span class="cycle-tables">9 tenant</span><span class="cycle-links"><a href="campusos-cycle28-implementation-plan.html" class="cl-plan">Plan</a></span></div>
     </div>
   </div>
 
@@ -413,6 +413,20 @@ a.card{text-decoration:none;color:inherit}
 <div id="buildlog" class="tab-content">
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>Cycle 27: Procurement <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">12 tables &middot; ~28 endpoints &middot; 2 Kafka emits &middot; ~8 web routes</div>
+    <div class="log-desc">Purchase requisitions with multi-level approval via wsk_approval_requests, formal POs with budget commitment on issuance (encumbers fin_budget_lines), goods receipt with per-line inspection + discrepancy logging, automated inventory distribution to 8 operational modules via prc.distribution.completed Kafka event, returns/warranty claims, vendor performance scoring.</div>
+    <div class="log-links"><a href="campusos-cycle27-implementation-plan.html">Plan</a> <a href="cycle27-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 26: Finance &amp; Accounting <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">14 tables &middot; ~34 endpoints &middot; 1 Kafka consumer (GLConsumer on 5 pay.* topics) &middot; ~10 web routes &middot; Wave 6 open</div>
+    <div class="log-desc">Double-entry GL with DB-validated balanced batches (validate_batch_balance procedure, ADR-059), Kafka consumer auto-posting from Cycle 6 payment events with idempotent source_event_id, permanently lockable accounting periods, budget management with variance tracking, accounts payable lifecycle, bank reconciliation, board-ready financial report snapshots.</div>
+    <div class="log-links"><a href="campusos-cycle26-implementation-plan.html">Plan</a> <a href="cycle26-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>Cycle 25: Publications <span class="pill pill-green">Approved</span></h4>
@@ -578,6 +592,8 @@ a.card{text-decoration:none;color:inherit}
     <a href="cycle23-cat-script.md" class="card"><h4>Cycle 23 CAT</h4><div class="desc">Framework adoption + GIN search, curriculum map + units, dual-resolution standards alignment, lesson linking (Cycle 2), delivery gap materialisation, resources, lib cross-link (Cycle 12).</div><div class="meta">10 scenarios</div></a>
     <a href="cycle24-cat-script.md" class="card"><h4>Cycle 24 CAT</h4><div class="desc">Portfolio creation (student-owned), item sourcing from Cycle 2, featured items, 4-tier visibility, share link + view tracking, teacher achievement award, cross-module achievement resolution, transfer privacy reset.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle25-cat-script.md" class="card"><h4>Cycle 25 CAT</h4><div class="desc">Series + edition, collaborative authoring, ADR-035 section approval, editorial comments, distribution rules + audience, publish + delivery tracking, subscription opt-out.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle26-cat-script.md" class="card"><h4>Cycle 26 CAT</h4><div class="desc">Chart of accounts, GL posting + balance validation, Kafka GLConsumer, budget variance, AP lifecycle, bank reconciliation, board report, period lock permanence.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle27-cat-script.md" class="card"><h4>Cycle 27 CAT</h4><div class="desc">Requisition + approval, budget commitment on PO, receiving + inspection, distribution + Kafka emit, return/warranty, vendor performance, commitment release.</div><div class="meta">10 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 2 Punch List</h2>
