@@ -141,11 +141,11 @@ a.card{text-decoration:none;color:inherit}
   <h1>Design Hub</h1>
   <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38 modules, 76 ADRs across 8 delivery waves.</p>
   <div class="stats-row">
-    <div class="stat"><span class="num">229</span><span class="label">Tables Built</span></div>
-    <div class="stat"><span class="num">~480</span><span class="label">Endpoints</span></div>
-    <div class="stat"><span class="num">136+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">245</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">~516</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">146+</span><span class="label">UI Pages</span></div>
     <div class="stat"><span class="num">16</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">18</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">19</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -166,31 +166,31 @@ a.card{text-decoration:none;color:inherit}
 
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Cycles 0&ndash;15 Complete</h4>
-      <p>Waves 1&ndash;2 complete + Wave 3 in progress. 229 tenant tables, ~480 endpoints, 136+ UI pages. Meetings with parent conference booking, IEP meeting records, and recording consent live.</p>
+      <h4>Cycles 0&ndash;16 Complete</h4>
+      <p>Waves 1&ndash;2 + Wave 3 progressing. 245 tenant tables, ~516 endpoints, 146+ UI pages. Admissions pipeline with parent application portal, scored waitlists, onboarding checklists live.</p>
     </div>
     <div class="status-card sc-blue">
-      <h4>Cycle 16: Enrolment &mdash; Next</h4>
-      <p>Student lifecycle gate: admissions pipeline with multi-stage review, scored waitlists, offers with deadline enforcement, onboarding checklists. 16 tables, ~36 endpoints. First prospective-parent surface.</p>
+      <h4>Cycle 17: Clubs &amp; Student Life &mdash; Next</h4>
+      <p>Clubs, field trips with parent consent, structurally anonymous elections, community service hour logging. 16 tables, ~36 endpoints. Third student-input surface.</p>
     </div>
     <div class="status-card sc-amber">
-      <h4>Wave 3 Continues</h4>
-      <p>Clubs &amp; Student Life (17), Groups (18).</p>
+      <h4>Wave 3 Closing</h4>
+      <p>Groups &amp; Communities (18) closes Wave 3. Then Wave 4: Campus Operations.</p>
     </div>
   </div>
 
   <h2 class="sec">Build Progress</h2>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Tables Built</span><span>229 / 840 (27%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:27%"></div></div>
+    <div class="progress-label"><span>Tables Built</span><span>245 / 840 (29%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:29%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Cycles Complete</span><span>18 / 32 planned (56%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:56%"></div></div>
+    <div class="progress-label"><span>Cycles Complete</span><span>19 / 32 planned (59%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:59%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>2 of 8 (Wave 3 in progress)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:25%"></div></div>
+    <div class="progress-label"><span>Waves Complete</span><span>2 of 8 (Wave 3 nearly done)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:31%"></div></div>
   </div>
 
   <h2 class="sec">What is CampusOS?</h2>
@@ -334,7 +334,7 @@ a.card{text-decoration:none;color:inherit}
     <div class="mod-group-header"><h3>Commerce &amp; Finance</h3><span class="count">4 modules &middot; 77 tables</span></div>
     <table class="mod-table">
       <tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
-      <tr><td>M81 Enrolment</td><td><code>enr_</code></td><td>28</td><td><span class="pill pill-gray">Planned</span></td><td>Applications, tours, admission workflow, lottery, waitlist</td></tr>
+      <tr><td>M81 Enrolment</td><td><code>enr_</code></td><td>28</td><td><span class="pill pill-green">Built (16/25)</span></td><td>Applications, tours, admission workflow, lottery, waitlist</td></tr>
       <tr><td>M84 Payments &amp; Billing</td><td><code>pay_</code></td><td>28</td><td><span class="pill pill-green">Partial (Cycle 6)</span></td><td>Family accounts, invoices, payments, fee schedules, Stripe</td></tr>
       <tr><td>M83 Finance &amp; Accounting</td><td><code>fin_</code></td><td>9</td><td><span class="pill pill-gray">Planned</span></td><td>GL, AP, AR, fund accounting, budget management</td></tr>
       <tr><td>M86 Procurement</td><td><code>prc_</code></td><td>12</td><td><span class="pill pill-gray">Planned</span></td><td>Requisitions, POs, goods receipt, budget commitments</td></tr>
@@ -408,8 +408,8 @@ a.card{text-decoration:none;color:inherit}
     <div class="wave-body">
       <div class="cycle-row"><span class="cycle-num">14</span><span class="cycle-title">Communications &amp; Messaging <span class="pill pill-green">Done</span></span><span class="cycle-tables">15 tenant</span><span class="cycle-links"><a href="campusos-cycle14-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle14-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">15</span><span class="cycle-title">Meetings &amp; Conferences <span class="pill pill-green">Done</span></span><span class="cycle-tables">11 tenant</span><span class="cycle-links"><a href="campusos-cycle15-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle15-cat-script.md" class="cl-cat">CAT</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">16</span><span class="cycle-title">Enrolment &amp; Admissions <span class="pill pill-blue">Next</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle16-implementation-plan.html" class="cl-plan">Plan</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">17</span><span class="cycle-title">Clubs &amp; Student Life</span><span class="cycle-tables">~22 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">16</span><span class="cycle-title">Enrolment &amp; Admissions <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle16-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle16-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">17</span><span class="cycle-title">Clubs &amp; Student Life <span class="pill pill-blue">Next</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle17-implementation-plan.html" class="cl-plan">Plan</a></span></div>
       <div class="cycle-row"><span class="cycle-num">18</span><span class="cycle-title">Groups &amp; Communities</span><span class="cycle-tables">~13 tenant</span><span class="cycle-links"></span></div>
     </div>
   </div>
@@ -491,6 +491,13 @@ a.card{text-decoration:none;color:inherit}
 
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>Cycle 16: Enrolment &amp; Admissions <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">16 tables &middot; ~36 endpoints &middot; 3 Kafka emits &middot; ~10 web routes</div>
+    <div class="log-desc">Admissions pipeline with multi-stage review, scored waitlists with auto-advance, conditional/unconditional offers with deadline enforcement, onboarding checklists with cross-staff task completion, enr.student.enrolled lifecycle trigger. First prospective-parent surface.</div>
+    <div class="log-links"><a href="campusos-cycle16-implementation-plan.html">Plan</a> <a href="cycle16-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>Cycle 15: Meetings &amp; Conferences <span class="pill pill-green">Approved</span></h4>
@@ -576,6 +583,7 @@ a.card{text-decoration:none;color:inherit}
     <a href="cycle13-cat-script.md" class="card"><h4>Cycle 13 CAT</h4><div class="desc">Programme + roster + GPA eligibility, game schedule + results + stats, season records, concussion protocol 6-step, medical clearance, return-to-play.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle14-cat-script.md" class="card"><h4>Cycle 14 CAT</h4><div class="desc">Thread creation, message send + moderation pipeline, read receipts, announcement publish + audience, emergency alert lifecycle, admin review queue.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle15-cat-script.md" class="card"><h4>Cycle 15 CAT</h4><div class="desc">Conference + slot grid, parent booking, meeting lifecycle, notes parent-visibility, action items, IEP meeting record, recording consent.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle16-cat-script.md" class="card"><h4>Cycle 16 CAT</h4><div class="desc">Enrolment period, parent application, multi-stage review, offer + accept, onboarding checklist, waitlist auto-advance, enr.student.enrolled.</div><div class="meta">10 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 2 Punch List</h2>
