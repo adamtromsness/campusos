@@ -339,3 +339,26 @@ Verified live: Student GET → 403; Parent GET → 403; VP (Staff) GET → 200.
 Verified live: Set Natural History Museum trip max=2 (already had 2 participants) and POSTed a third → 400 "Field trip has reached its max_participants cap of 2". Restored max=NULL.
 
 CI parity green: prettier ✓, all builds ✓, tests ✓ (7/7 passed). Tagged `cycle17-approved` after Round 2 verdict.
+
+---
+
+## Round 2 verdict — APPROVED at `21435fe` (2026-05-06)
+
+REVIEW-CYCLE17-CHATGPT Round 2 confirmed all 3 BLOCKING fixes are properly closed in code:
+
+1. **Advisor / admin row-scope on activity management.** `ActivityService.assertCanManageActivity()` allows school admins to manage any activity but restricts non-admin staff to activities where `ext_activities.advisor_id = actor.employeeId`. The helper is reused by membership and schedule mutation paths.
+2. **Student candidate impersonation prevention.** `ElectionService.registerCandidate()` resolves the caller's `sis_students.id` from `actor.personId` for non-admin students and requires it to match `input.studentId`. Admins still register on behalf.
+3. **Parent field-trip projection.** `FieldTripService.getById()` branches the DTO between manager and guardian readers; guardians get filtered participants (own children only) and an empty chaperones array.
+
+Plus the two most important MAJOR follow-ups:
+
+- **MAJOR 4 mitigation.** DTO suppresses `approvedByName` while approval is PENDING. The schema cleanup to drop `approved_by NOT NULL` is appropriate later but acceptable for Cycle 17.
+- **MAJOR 5 fix.** `ChaperoneService.add()` validates the submitted `personId` is an `hr_employees` staff person or `sis_guardians` guardian in the calling tenant before insert.
+
+**Phase 2 follow-ups carried from Round 2 (non-blocking):**
+
+1. Anonymised student-visible service-hour ranking — Phase 2 punch list item 23.
+2. Schema cleanup for `ext_service_hour_approvals.approved_by NOT NULL` — Phase 2 punch list item 24.
+3. Continue the broader Staff role split (Activities Coordinator / Service Hour Reviewer / etc.) so generic Staff does not become the long-term owner for every student-life operational workflow — Phase 2 punch list item 25, joining the existing Counsellor / Nurse / Librarian / AD / EO chain.
+
+**Cycle 17 ships clean.** Wave 3 cycle 4 is closed. Tagged `cycle17-approved` at `21435fe`. Cycle 18 (Groups & Communities) is next and closes Wave 3.
