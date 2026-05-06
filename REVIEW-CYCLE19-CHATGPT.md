@@ -4,12 +4,12 @@
 
 The reviewer flagged 5 BLOCKING items + 5 MAJOR follow-ups. Cycle 19 ships M61 Transportation core; because this cycle touches student transportation, no-show safeguarding, QR scan identity, and driver/vehicle safety, the reviewer applied a stricter standard. The fix commit closes all 5 BLOCKING items + 3 of the actionable MAJORs (6 docs, 7 staff/admin route-change validation, 8 no-show resolve lock). MAJORs 9 + 10 are recommendation-class and move to the Phase 2 punch list as items 30 + 31.
 
-**Round 2 verdict:** _pending_ (against the fix commit).
+**Round 2 verdict:** **Approved** (against `c309bd4`, 2026-05-06). Reviewer cache-busted each affected file in code and confirmed every BLOCKING fix landed (NO_BUS suppression on the no-show worker; QR-scan expected-assignment validation; run-start route lock + driver match + duplicate prevention; permanent-assignment academic_year_id required + written into the INSERT + defensive partial UNIQUE; route create/patch vehicle + driver safety) plus the three actionable MAJORs (HANDOFF status updated; staff/admin route-change soft-ref validation; no-show resolve row-lock + idempotent status). MAJORs 9 + 10 correctly carried as Phase 2 punch list items 30 + 31. **Cycle 19 ships clean — Wave 4 opens here.**
 
 Tag chain:
 
 - `cycle19-complete` on `2bb4cb3` (original closeout — triggered Round 1)
-- `cycle19-approved` will follow the Round 2 verdict
+- `cycle19-approved` on `c309bd4` (Round 2 APPROVED — after the fix commit)
 
 ---
 
@@ -48,4 +48,19 @@ All 8 code-level fixes verified live on `tenant_demo` 2026-05-06.
 
 ## Round 2 verdict
 
-(Fill in after the fix commit + reviewer Round 2.)
+**Approved at `c309bd4`** (2026-05-06).
+
+Reviewer's confirmed fix list:
+
+- BLOCKING 1 — `NoShowService.runOnce` suppresses permanent-assignment alerts when an APPROVED route-change request exists for (student, date), including NO_BUS opt-outs and same-day route/stop overrides. Verified live (sweep before 2 → after 1).
+- BLOCKING 2 — `RidershipService.scan` resolves student via QR token, resolves route from stop, verifies effective assignment for that (student, route, stop, date), rejects NO_BUS-suppressed students, validates direction.
+- BLOCKING 3 — `RunLogService.start` runs in tenant tx, locks route, requires assigned driver (or admin), verifies CDL + MEDICAL_CERTIFICATE valid, rejects duplicate IN_PROGRESS runs, catches unique violations with friendly error.
+- BLOCKING 4 — `AssignmentService.create` requires academicYearId for non-override permanents, validates the academic year exists, writes the column. Migration 067 adds the defensive null-year partial UNIQUE.
+- BLOCKING 5 — `RouteService.create` and `patch` validate vehicleId (exists + ACTIVE) and driverId (employee + VALID CDL + MEDICAL_CERTIFICATE).
+- MAJOR 6 — HANDOFF-CYCLE19.md marks Cycle 19 COMPLETE with Round 1 fixes landed, all 10 steps Complete, plus the live verification fix log.
+- MAJOR 7 — `RouteChangeRequestService.submit` validates studentId / requestedRouteId (active) / requestedStopId (belongs to route) regardless of submitter persona.
+- MAJOR 8 — `NoShowService.resolve` locks the alert row with FOR UPDATE, idempotent same-resolution accepted, mismatched resolution rejected unless school admin.
+
+Reviewer's deferred items (not Cycle 19 blockers): MAJORs 9 + 10 — vehicle/driver credential detail row scope tightening (joins the broader role-split work), and run-start should match the inspection driver to route driver (delegated certification policy). Phase 2 punch list items 30 + 31.
+
+**Final gate:** Approved. Tag `cycle19-approved` lives at `c309bd4`.

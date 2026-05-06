@@ -1,6 +1,6 @@
 # Cycle 19 Handoff — Transportation
 
-**Status:** Cycle 19 **COMPLETE — REVIEW Round 1 fixes landed; awaiting Round 2.** Wave 4 (Campus Operations) opens here. All 10 steps shipped + the post-cycle peer review (REVIEW-CYCLE19-CHATGPT) Round 1 returned **Reject pending fixes** at `dfca32b` with 5 BLOCKING + 5 MAJOR findings. The fix commit closes all 5 BLOCKING items + 3 of the actionable MAJORs (6 — handoff completion + fix log; 7 — staff/admin route-change soft-ref validation; 8 — no-show resolve row-lock + idempotent status). MAJORs 9 + 10 are recommendation-class and move to the Phase 2 punch list. All 8 fixes verified live on `tenant_demo` 2026-05-06.
+**Status:** Cycle 19 **COMPLETE + APPROVED at `c309bd4`** (REVIEW-CYCLE19-CHATGPT — final verdict). Round 1 against `cycle19-complete` at `2bb4cb3`/`dfca32b` returned **Reject pending fixes** with 5 BLOCKING + 5 MAJOR; Round 2 against `c309bd4` returned **Approved** after all 5 BLOCKING + 3 actionable MAJORs (6 / 7 / 8) landed and were live-verified. MAJORs 9 + 10 carried to the Phase 2 punch list as items 30 + 31. **Wave 4 (Campus Operations) opens here.** Tagged `cycle19-complete` at `2bb4cb3` and `cycle19-approved` at `c309bd4`.
 
 Cycle 19 ships the M61 Transportation module — 16 of the 38 ERD tables in scope (22 deferred to Cycle 19.1: real-time GPS telemetry, deep fleet maintenance, driver hours logs, route optimisation engine, and the materialised fleet status dashboard). The Transportation Coordinator (TC) is the sixth specialist operator persona after the nurse, counsellor, librarian, athletic director, and enrolment officer.
 
@@ -292,5 +292,5 @@ Both called from `create()` and `patch()` paths whenever the relevant id is supp
 
 ### Tag chain
 
-- `cycle19-complete` on the closeout commit `2bb4cb3` (original push that triggered Round 1)
-- `cycle19-approved` will follow the Round 2 verdict
+- `cycle19-complete` on `2bb4cb3` (original closeout — triggered Round 1)
+- `cycle19-approved` on `c309bd4` (Round 2 APPROVED — after the fix commit)
