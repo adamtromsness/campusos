@@ -5418,3 +5418,182 @@ export interface ServiceProgressDto {
   pendingHours: number;
   isComplete: boolean;
 }
+
+// ── Cycle 18: Groups & Communities ──
+
+export type GroupScopeType = 'CLASS' | 'YEAR_GROUP' | 'SCHOOL' | 'CUSTOM' | 'ACTIVITY';
+export type GroupStatus = 'ACTIVE' | 'ARCHIVED' | 'DISSOLVED';
+export type JoinPolicy = 'OPEN' | 'APPROVAL_REQUIRED' | 'INVITE_ONLY';
+export type GroupMemberRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+export type GroupMemberStatus =
+  | 'ACTIVE'
+  | 'INVITED'
+  | 'PENDING_APPROVAL'
+  | 'SUSPENDED'
+  | 'LEFT'
+  | 'REMOVED';
+export type GroupTransferStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | 'CANCELLED';
+export type GroupEventType =
+  | 'PRACTICE'
+  | 'MATCH'
+  | 'MEETING'
+  | 'SOCIAL'
+  | 'PERFORMANCE'
+  | 'COMPETITION'
+  | 'OTHER';
+export type GroupRsvpStatus = 'GOING' | 'NOT_GOING' | 'MAYBE';
+export type GroupNotificationChannel = 'IN_APP' | 'EMAIL' | 'PUSH' | 'ALL' | 'NONE';
+
+export interface GroupDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  scopeType: GroupScopeType;
+  scopeId: string | null;
+  scopeLabel: string | null;
+  status: GroupStatus;
+  joinPolicy: JoinPolicy;
+  autoDissolveAt: string | null;
+  createdBy: string;
+  avatarUrl: string | null;
+  memberCount: number;
+  pendingCount: number;
+  myMembership: { id: string; role: GroupMemberRole; status: GroupMemberStatus } | null;
+  createdAt: string;
+}
+
+export interface CreateGroupPayload {
+  name: string;
+  description?: string;
+  scopeType: GroupScopeType;
+  scopeId?: string;
+  joinPolicy?: JoinPolicy;
+  autoDissolveAt?: string;
+  avatarUrl?: string;
+}
+
+export interface UpdateGroupPayload {
+  name?: string;
+  description?: string;
+  status?: GroupStatus;
+  joinPolicy?: JoinPolicy;
+  autoDissolveAt?: string;
+  avatarUrl?: string;
+}
+
+export interface GroupMemberDto {
+  id: string;
+  groupId: string;
+  personId: string;
+  personName: string | null;
+  role: GroupMemberRole;
+  status: GroupMemberStatus;
+  joinedAt: string | null;
+  invitedBy: string | null;
+  leftAt: string | null;
+  suspensionReason: string | null;
+}
+
+export interface InviteGroupMemberPayload {
+  personId: string;
+  role?: 'ADMIN' | 'MEMBER';
+}
+
+export interface GroupTransferDto {
+  id: string;
+  groupId: string;
+  fromMemberId: string;
+  fromName: string | null;
+  toMemberId: string;
+  toName: string | null;
+  reason: string | null;
+  status: GroupTransferStatus;
+  initiatedAt: string;
+  expiresAt: string;
+  respondedAt: string | null;
+}
+
+export interface InitiateGroupTransferPayload {
+  toMemberId: string;
+  reason?: string;
+  expiryHours?: number;
+}
+
+export interface GroupAnnouncementDto {
+  id: string;
+  groupId: string;
+  authorId: string;
+  authorName: string | null;
+  title: string;
+  body: string;
+  pinned: boolean;
+  attachments: unknown[] | null;
+  publishAt: string;
+  expiresAt: string | null;
+  readCount: number;
+  iHaveRead: boolean;
+  createdAt: string;
+}
+
+export interface CreateGroupAnnouncementPayload {
+  title: string;
+  body: string;
+  pinned?: boolean;
+  attachments?: unknown[];
+  expiresAt?: string;
+}
+
+export interface GroupEventDto {
+  id: string;
+  groupId: string;
+  createdBy: string;
+  createdByName: string | null;
+  title: string;
+  description: string | null;
+  location: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  eventType: GroupEventType;
+  requiresRsvp: boolean;
+  rsvpDeadline: string | null;
+  maxAttendees: number | null;
+  isPublic: boolean;
+  goingCount: number;
+  maybeCount: number;
+  notGoingCount: number;
+  myRsvp: GroupRsvpStatus | null;
+  createdAt: string;
+}
+
+export interface CreateGroupEventPayload {
+  title: string;
+  description?: string;
+  location?: string;
+  startsAt: string;
+  endsAt?: string;
+  eventType: GroupEventType;
+  requiresRsvp?: boolean;
+  rsvpDeadline?: string;
+  maxAttendees?: number;
+  isPublic?: boolean;
+}
+
+export interface GroupNotificationPrefsDto {
+  membershipId: string;
+  notifyAnnouncements: boolean;
+  notifyEvents: boolean;
+  notifyMembershipChanges: boolean;
+  notifyResults: boolean;
+  preferredChannel: GroupNotificationChannel;
+  quietHoursOverride: boolean;
+}
+
+export interface UpdateGroupNotificationPrefsPayload {
+  notifyAnnouncements?: boolean;
+  notifyEvents?: boolean;
+  notifyMembershipChanges?: boolean;
+  notifyResults?: boolean;
+  preferredChannel?: GroupNotificationChannel;
+  quietHoursOverride?: boolean;
+}

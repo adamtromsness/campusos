@@ -121,6 +121,11 @@
       "group": "Clubs & Student Life"
     },
     {
+      "code": "GRP-001",
+      "name": "Groups & Communities",
+      "group": "Communications"
+    },
+    {
       "code": "COM-001",
       "name": "Messaging",
       "group": "Communications"

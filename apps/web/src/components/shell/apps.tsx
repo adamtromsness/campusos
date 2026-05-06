@@ -46,7 +46,8 @@ export type AppKey =
   | 'library'
   | 'athletics'
   | 'meetings'
-  | 'clubs';
+  | 'clubs'
+  | 'groups';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -385,6 +386,27 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: isStudent ? '/clubs/my' : '/clubs',
       routePrefix: '/clubs',
       icon: PeopleIcon,
+    });
+  }
+
+  // Groups & Communities — every persona who can read groups (Cycle 18).
+  // Universal community fabric: scope-aware groups (CLASS / YEAR_GROUP /
+  // SCHOOL / CUSTOM / ACTIVITY), 3-tier role hierarchy, two-party
+  // ownership transfer handshake, group announcements + events with RSVP.
+  if (hasAnyPermission(user, ['grp-001:read'])) {
+    apps.push({
+      key: 'groups',
+      label: 'Groups',
+      description: isStaff
+        ? 'Communities, announcements, and events'
+        : isStudent
+          ? 'My groups + announcements'
+          : isGuardian
+            ? 'Parent groups and community events'
+            : 'Groups and communities',
+      href: '/groups',
+      routePrefix: '/groups',
+      icon: ChatBubbleIcon,
     });
   }
 

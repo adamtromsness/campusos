@@ -297,6 +297,10 @@ async function seedIam() {
         // role's broader CLB grants below.
         'CLB-001': ['read', 'write'],
         'CLB-003': ['read', 'write'],
+        // Cycle 18 — Groups & Communities. Teachers browse + create
+        // groups + post announcements + create events on groups they
+        // own/admin. Cross-role social fabric.
+        'GRP-001': ['read', 'write'],
       },
     },
     {
@@ -400,6 +404,10 @@ async function seedIam() {
         // (guardian_person_id == actor.personId) is the access boundary.
         'CLB-001': ['read'],
         'CLB-003': ['read'],
+        // Cycle 18 — Groups & Communities. Parents browse + join
+        // groups they're invited to. Service-layer row scope binds
+        // membership-derived reads to actor.personId.
+        'GRP-001': ['read', 'write'],
       },
     },
     {
@@ -479,6 +487,11 @@ async function seedIam() {
         'CLB-001': ['read'],
         'CLB-002': ['read'],
         'CLB-004': ['read', 'write'],
+        // Cycle 18 — Groups & Communities. Students browse + join
+        // groups (open or approval-required). Service-layer row
+        // scope at the Step 5 GroupService binds member-derived
+        // reads to actor.personId.
+        'GRP-001': ['read', 'write'],
       },
     },
     {
@@ -633,6 +646,10 @@ async function seedIam() {
         'CLB-002': ['read', 'write'],
         'CLB-003': ['read', 'write'],
         'CLB-004': ['read', 'write'],
+        // Cycle 18 — Groups & Communities. Staff create + manage
+        // groups school-wide; admins additionally hold GRP-001:admin
+        // via everyFunction.
+        'GRP-001': ['read', 'write'],
       },
     },
   ];
