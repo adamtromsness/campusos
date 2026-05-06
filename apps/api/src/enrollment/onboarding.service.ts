@@ -281,11 +281,41 @@ export class OnboardingService {
 
   // ── Progress ──
 
-  async getProgress(id: string): Promise<StudentOnboardingProgressResponseDto> {
+  /**
+   * Row-scope: admin/EO see every onboarding progress row;
+   * guardian sees own children's rows only (matched on
+   * enr_applications.guardian_person_id = actor.personId);
+   * everyone else gets a collapsed 404 — REVIEW-CYCLE16 BLOCKING 1.
+   */
+  private async assertCanReadApplication(
+    applicationId: string,
+    actor: ResolvedActor,
+  ): Promise<void> {
+    if (actor.isSchoolAdmin || actor.personType === 'STAFF') return;
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT guardian_person_id::text AS gpid FROM enr_applications WHERE id = $1::uuid',
+        applicationId,
+      );
+    })) as Array<{ gpid: string | null }>;
+    if (rows.length === 0) throw new NotFoundException('Application not found');
+    const gpid = rows[0]!.gpid;
+    const isOwnGuardian =
+      actor.personType === 'GUARDIAN' && gpid !== null && gpid === actor.personId;
+    if (!isOwnGuardian) {
+      throw new NotFoundException('Application not found');
+    }
+  }
+
+  async getProgress(
+    id: string,
+    actor: ResolvedActor,
+  ): Promise<StudentOnboardingProgressResponseDto> {
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(SELECT_PROGRESS + 'WHERE p.id = $1::uuid', id);
     })) as ProgressRow[];
     if (rows.length === 0) throw new NotFoundException('Progress row not found');
+    await this.assertCanReadApplication(rows[0]!.application_id, actor);
     const dto = progressRowToDto(rows[0]!);
     const completions = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
@@ -299,7 +329,9 @@ export class OnboardingService {
 
   async getProgressForApplication(
     applicationId: string,
+    actor: ResolvedActor,
   ): Promise<StudentOnboardingProgressResponseDto | null> {
+    await this.assertCanReadApplication(applicationId, actor);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_PROGRESS + 'WHERE p.application_id = $1::uuid LIMIT 1',
@@ -307,7 +339,7 @@ export class OnboardingService {
       );
     })) as ProgressRow[];
     if (rows.length === 0) return null;
-    return this.getProgress(rows[0]!.id);
+    return this.getProgress(rows[0]!.id, actor);
   }
 
   /**
@@ -320,22 +352,28 @@ export class OnboardingService {
   /**
    * Tx-aware variant called by OfferService.respond inside the
    * already-open tenant tx so offer-accept and progress-row creation
-   * are atomic. Returns the new progress id, or null if no STANDARD_INTAKE
-   * checklist is configured (the school will create one before the
-   * next intake).
+   * are atomic. Returns a typed result so the caller can distinguish
+   * the legitimate "no checklist configured for this school yet"
+   * branch from real failures (which must be rethrown so the
+   * offer-accept tx rolls back together) — REVIEW-CYCLE16 BLOCKING 3.
    */
   async generateProgressForApplicationInTx(
     tx: Parameters<Parameters<TenantPrismaService['executeInTenantTransaction']>[0]>[0],
     applicationId: string,
     targetStartDate: Date,
     actorAccountId: string,
-  ): Promise<string | null> {
+  ): Promise<
+    | { status: 'CREATED'; progressId: string }
+    | { status: 'EXISTS'; progressId: string }
+    | { status: 'NO_CHECKLIST' }
+    | { status: 'NO_APPLICATION' }
+  > {
     void actorAccountId;
     const appRows = (await tx.$queryRawUnsafe(
       'SELECT school_id::text AS school_id FROM enr_applications WHERE id = $1::uuid',
       applicationId,
     )) as Array<{ school_id: string }>;
-    if (appRows.length === 0) return null;
+    if (appRows.length === 0) return { status: 'NO_APPLICATION' };
     const schoolId = appRows[0]!.school_id;
 
     const checklistRows = (await tx.$queryRawUnsafe(
@@ -344,7 +382,7 @@ export class OnboardingService {
       schoolId,
     )) as Array<{ id: string }>;
     if (checklistRows.length === 0) {
-      return null;
+      return { status: 'NO_CHECKLIST' };
     }
     const checklistId = checklistRows[0]!.id;
 
@@ -354,7 +392,7 @@ export class OnboardingService {
       checklistId,
     )) as Array<{ id: string }>;
     if (existing.length > 0) {
-      return existing[0]!.id;
+      return { status: 'EXISTS', progressId: existing[0]!.id };
     }
 
     const taskRows = (await tx.$queryRawUnsafe(
@@ -382,7 +420,7 @@ export class OnboardingService {
         t.id,
       );
     }
-    return newProgressId;
+    return { status: 'CREATED', progressId: newProgressId };
   }
 
   async generateProgressForApplication(
@@ -392,36 +430,39 @@ export class OnboardingService {
   ): Promise<string | null> {
     let progressId: string | null = null;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      progressId = await this.generateProgressForApplicationInTx(
+      const result = await this.generateProgressForApplicationInTx(
         tx,
         applicationId,
         targetStartDate,
         actorAccountId,
       );
+      if (result.status === 'CREATED' || result.status === 'EXISTS') {
+        progressId = result.progressId;
+      }
     });
     return progressId;
   }
 
   /**
-   * Complete a task. Stamps completed_at + completed_by, bumps
-   * progress.tasks_completed, and when the last mandatory task is
-   * complete flips overall_status to COMPLETE atomically inside the
-   * same tx and emits enr.student.onboarded AFTER tx commit. The
-   * onboarded topic is the Cycle 16 cross-module signal; Cycle 6's
-   * enr.student.enrolled stays untouched on offer-accept.
+   * Shared task-lifecycle helper used by both `completeTask()` and
+   * `waiveTask()` per REVIEW-CYCLE16 BLOCKING 2. Both endpoints flow
+   * through the same locking + recompute + auto-flip-to-COMPLETE +
+   * emit pipeline so a waived mandatory task can also fire
+   * `enr.student.onboarded` when it is the last gating task.
+   * Mandatory tasks require status IN (COMPLETED, WAIVED) — see the
+   * Step 3 schema for the matching exclusion in
+   * `enr_student_onboarding_task_completions_open_idx`.
    */
-  async completeTask(
+  private async transitionTask(
     completionId: string,
-    input: CompleteTaskDto,
+    newStatus: 'COMPLETED' | 'WAIVED',
+    notes: string | null,
     actor: ResolvedActor,
   ): Promise<{
     completion: TaskCompletionResponseDto;
     progress: StudentOnboardingProgressResponseDto;
     onboarded: boolean;
   }> {
-    if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
-      throw new ForbiddenException('Only Staff or admins can complete onboarding tasks');
-    }
     let onboarded = false;
     let progressIdResolved: string | null = null;
     let kafkaPayload: Record<string, unknown> | null = null as Record<string, unknown> | null;
@@ -432,15 +473,17 @@ export class OnboardingService {
         completionId,
       )) as Array<{ id: string; progress_id: string; task_id: string; status: string }>;
       if (lock.length === 0) throw new NotFoundException('Task completion not found');
-      if (lock[0]!.status === 'COMPLETED') {
-        throw new BadRequestException('Task is already completed');
+      const currentStatus = lock[0]!.status;
+      if (currentStatus === 'COMPLETED' || currentStatus === 'WAIVED') {
+        throw new BadRequestException('Task is already in terminal state ' + currentStatus);
       }
       progressIdResolved = lock[0]!.progress_id;
 
       await tx.$executeRawUnsafe(
-        "UPDATE enr_student_onboarding_task_completions SET status = 'COMPLETED', completed_by = $1::uuid, completed_at = now(), notes = $2, updated_at = now() WHERE id = $3::uuid",
+        'UPDATE enr_student_onboarding_task_completions SET status = $1, completed_by = $2::uuid, completed_at = now(), notes = $3, updated_at = now() WHERE id = $4::uuid',
+        newStatus,
         actor.accountId,
-        input.notes ?? null,
+        notes,
         completionId,
       );
 
@@ -509,13 +552,12 @@ export class OnboardingService {
 
     // Emit AFTER tx commit. enr.student.onboarded is the Cycle 16
     // keystone signal — fires when the last mandatory onboarding task
-    // lands. Cycle 6's enr.student.enrolled emit on offer-accept stays
-    // in place (PaymentAccountWorker consumes it for the billing
-    // account allocation); enr.student.onboarded is the new
-    // cross-module trigger for downstream consumers that should react
-    // only after the school has actually completed the new-student
-    // onboarding checklist (e.g. provisioning IT accounts, ordering
-    // uniforms, sending the welcome packet).
+    // lands (COMPLETED or WAIVED). Cycle 6's enr.student.enrolled
+    // emit on offer-accept stays in place (PaymentAccountWorker
+    // consumes it for the billing account allocation);
+    // enr.student.onboarded is the cross-module trigger for
+    // downstream consumers that should react only after the school
+    // has actually completed the new-student onboarding checklist.
     if (kafkaPayload) {
       try {
         await this.kafka.emit({
@@ -538,34 +580,53 @@ export class OnboardingService {
     })) as TaskCompletionRow[];
     return {
       completion: completionRowToDto(completionRows[0]!),
-      progress: await this.getProgress(progressIdResolved),
+      progress: await this.getProgress(progressIdResolved, actor),
       onboarded,
     };
   }
 
+  /**
+   * Complete a task. Stamps completed_at + completed_by, bumps
+   * progress.tasks_completed, and when the last mandatory task is
+   * complete flips overall_status to COMPLETE atomically inside the
+   * same tx and emits enr.student.onboarded AFTER tx commit. The
+   * onboarded topic is the Cycle 16 cross-module signal; Cycle 6's
+   * enr.student.enrolled stays untouched on offer-accept.
+   */
+  async completeTask(
+    completionId: string,
+    input: CompleteTaskDto,
+    actor: ResolvedActor,
+  ): Promise<{
+    completion: TaskCompletionResponseDto;
+    progress: StudentOnboardingProgressResponseDto;
+    onboarded: boolean;
+  }> {
+    if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
+      throw new ForbiddenException('Only Staff or admins can complete onboarding tasks');
+    }
+    return this.transitionTask(completionId, 'COMPLETED', input.notes ?? null, actor);
+  }
+
+  /**
+   * Waive a task. Counts toward tasks_completed but flagged as
+   * WAIVED in audit. Admin only. Reuses the same lifecycle path as
+   * completeTask so that waiving the LAST mandatory task correctly
+   * flips overall_status to COMPLETE and emits enr.student.onboarded
+   * — REVIEW-CYCLE16 BLOCKING 2.
+   */
   async waiveTask(
     completionId: string,
     input: CompleteTaskDto,
     actor: ResolvedActor,
-  ): Promise<TaskCompletionResponseDto> {
+  ): Promise<{
+    completion: TaskCompletionResponseDto;
+    progress: StudentOnboardingProgressResponseDto;
+    onboarded: boolean;
+  }> {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can waive an onboarding task');
     }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        "UPDATE enr_student_onboarding_task_completions SET status = 'WAIVED', completed_by = $1::uuid, completed_at = now(), notes = $2, updated_at = now() WHERE id = $3::uuid",
-        actor.accountId,
-        input.notes ?? null,
-        completionId,
-      );
-    });
-    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
-        SELECT_TASK_COMPLETION + 'WHERE tc.id = $1::uuid',
-        completionId,
-      );
-    })) as TaskCompletionRow[];
-    if (rows.length === 0) throw new NotFoundException('Task completion not found');
-    return completionRowToDto(rows[0]!);
+    return this.transitionTask(completionId, 'WAIVED', input.notes ?? null, actor);
   }
 }

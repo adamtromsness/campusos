@@ -21,10 +21,15 @@ export class ApplicationStageController {
   @Get('applications/:applicationId/stages')
   @RequirePermission('stu-003:read')
   @ApiOperation({
-    summary: 'List the stage history for an application (audit timeline).',
+    summary:
+      "List the stage history for an application (audit timeline). Admin/EO see every application; guardian sees own children's applications only; everyone else gets a collapsed 404 (REVIEW-CYCLE16 BLOCKING 1).",
   })
-  list(@Param('applicationId') applicationId: string): Promise<ApplicationStageResponseDto[]> {
-    return this.stages.list(applicationId);
+  async list(
+    @Param('applicationId') applicationId: string,
+    @Req() req: AuthedRequest,
+  ): Promise<ApplicationStageResponseDto[]> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.stages.list(applicationId, actor);
   }
 
   @Post('applications/:applicationId/stages/advance')

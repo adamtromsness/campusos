@@ -365,22 +365,31 @@ export class OfferService {
         await this.capacity.recompute(tx, offer.enrollment_period_id, offer.applying_for_grade);
         // Cycle 16 — auto-generate onboarding progress row in the
         // same tenant tx so offer-accept and checklist-creation are
-        // atomic. Skips silently when no STANDARD_INTAKE checklist
-        // is configured (real-school operators add one before their
-        // first accepted offer).
-        try {
-          const targetStart = new Date();
-          targetStart.setDate(targetStart.getDate() + 30);
-          await this.onboarding.generateProgressForApplicationInTx(
-            tx,
-            offer.application_id,
-            targetStart,
-            actor.accountId,
+        // atomic per REVIEW-CYCLE16 BLOCKING 3. The helper returns a
+        // typed result so we can distinguish the legitimate "no
+        // checklist configured for this school yet" branch (silently
+        // skip — the school will add a STANDARD_INTAKE checklist
+        // before pilot) from real failures (which fall through and
+        // roll back the offer-accept tx).
+        const targetStart = new Date();
+        targetStart.setDate(targetStart.getDate() + 30);
+        const onboardingResult = await this.onboarding.generateProgressForApplicationInTx(
+          tx,
+          offer.application_id,
+          targetStart,
+          actor.accountId,
+        );
+        if (onboardingResult.status === 'NO_APPLICATION') {
+          // Should not happen — the offer-accept tx already locked
+          // the application row above. If we reach here something
+          // is genuinely wrong; rethrow so the tx rolls back.
+          throw new Error(
+            'enr_applications row vanished mid-tx for application ' + offer.application_id,
           );
-        } catch {
-          // Onboarding generation is best-effort — never block an
-          // accepted offer because the checklist plumbing failed.
         }
+        // NO_CHECKLIST and EXISTS / CREATED are all acceptable;
+        // unexpected SQL errors propagate naturally and roll back
+        // the entire offer-accept tx.
       } else if (body.familyResponse === 'DECLINED') {
         await tx.$executeRawUnsafe(
           "UPDATE enr_offers SET family_response = 'DECLINED', family_responded_at = $1::timestamptz, status = 'DECLINED', updated_at = now() WHERE id = $2::uuid",

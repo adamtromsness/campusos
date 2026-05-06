@@ -73,7 +73,37 @@ const ALLOWED_TRANSITIONS: Record<string, StageTarget[]> = {
 export class ApplicationStageService {
   constructor(private readonly tenantPrisma: TenantPrismaService) {}
 
-  async list(applicationId: string): Promise<ApplicationStageResponseDto[]> {
+  /**
+   * Row-scope: admin/EO see every stage on every application;
+   * guardian sees own children's applications only (matched on
+   * enr_applications.guardian_person_id = actor.personId);
+   * everyone else (teacher with stu-003:read, student) gets a
+   * collapsed 404 — REVIEW-CYCLE16 BLOCKING 1. The schema-side
+   * permission gate (`stu-003:read`) is permissive across personas;
+   * the actual access boundary lives in the service layer.
+   */
+  private async assertCanReadApplication(
+    applicationId: string,
+    actor: ResolvedActor,
+  ): Promise<void> {
+    if (actor.isSchoolAdmin || actor.personType === 'STAFF') return;
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT guardian_person_id::text AS gpid FROM enr_applications WHERE id = $1::uuid',
+        applicationId,
+      );
+    })) as Array<{ gpid: string | null }>;
+    if (rows.length === 0) throw new NotFoundException('Application not found');
+    const gpid = rows[0]!.gpid;
+    const isOwnGuardian =
+      actor.personType === 'GUARDIAN' && gpid !== null && gpid === actor.personId;
+    if (!isOwnGuardian) {
+      throw new NotFoundException('Application not found');
+    }
+  }
+
+  async list(applicationId: string, actor: ResolvedActor): Promise<ApplicationStageResponseDto[]> {
+    await this.assertCanReadApplication(applicationId, actor);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_STAGE + 'WHERE s.application_id = $1::uuid ORDER BY s.changed_at ASC',

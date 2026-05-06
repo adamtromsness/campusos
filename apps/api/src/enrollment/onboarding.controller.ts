@@ -62,21 +62,28 @@ export class OnboardingController {
   @RequirePermission('stu-003:read')
   @ApiOperation({
     summary:
-      'Get the onboarding progress row for an application (with task completions inlined). Returns null when no row exists yet.',
+      "Get the onboarding progress row for an application (with task completions inlined). Admin/EO see all; guardian sees own children's applications only; everyone else gets a collapsed 404 (REVIEW-CYCLE16 BLOCKING 1). Returns null when no row exists yet.",
   })
-  getProgressForApplication(
+  async getProgressForApplication(
     @Param('applicationId') applicationId: string,
+    @Req() req: AuthedRequest,
   ): Promise<StudentOnboardingProgressResponseDto | null> {
-    return this.onboarding.getProgressForApplication(applicationId);
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.onboarding.getProgressForApplication(applicationId, actor);
   }
 
   @Get('onboarding-progress/:id')
   @RequirePermission('stu-003:read')
   @ApiOperation({
-    summary: 'Get an onboarding progress row by id (with task completions inlined).',
+    summary:
+      'Get an onboarding progress row by id (with task completions inlined). Same row-scope contract as the per-application read (REVIEW-CYCLE16 BLOCKING 1).',
   })
-  getProgress(@Param('id') id: string): Promise<StudentOnboardingProgressResponseDto> {
-    return this.onboarding.getProgress(id);
+  async getProgress(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<StudentOnboardingProgressResponseDto> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.onboarding.getProgress(id, actor);
   }
 
   @Post('onboarding-task-completions/:id/complete')
@@ -102,13 +109,17 @@ export class OnboardingController {
   @RequirePermission('stu-003:admin')
   @ApiOperation({
     summary:
-      'Waive a task — counts toward tasks_completed but flagged as WAIVED in audit. Admin only.',
+      'Waive a task — counts toward tasks_completed but flagged as WAIVED in audit. Admin only. Reuses the same lifecycle path as /complete: bumps tasks_completed, flips overall_status=COMPLETE when the last mandatory task lands, emits enr.student.onboarded (REVIEW-CYCLE16 BLOCKING 2).',
   })
   async waive(
     @Param('id') id: string,
     @Body() body: CompleteTaskDto,
     @Req() req: AuthedRequest,
-  ): Promise<TaskCompletionResponseDto> {
+  ): Promise<{
+    completion: TaskCompletionResponseDto;
+    progress: StudentOnboardingProgressResponseDto;
+    onboarded: boolean;
+  }> {
     var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     return this.onboarding.waiveTask(id, body, actor);
   }

@@ -205,3 +205,59 @@ Cycle 6 already shipped `/apply` parent landing + `/apply/new` form + `/offers/[
 5. **Score CRUD with UNIQUE(application, criterion) + check-violation translation** — duplicate scores return 400 with PATCH-redirect message; bogus `score < 0` or `max_score < score` returns 400 with check-constraint context. Mirrors the Cycle 12 reading-list duplicate-handling pattern.
 
 Tagged `cycle16-complete` after CI green.
+
+---
+
+## REVIEW-CYCLE16 Round 1 fixes (2026-05-06)
+
+Round 1 of REVIEW-CYCLE16-CHATGPT (against `cycle16-complete` at `1b19c6c`) returned **Reject pending fixes** with 3 BLOCKING items + 3 MAJOR follow-ups. All 3 BLOCKING fixes landed in this commit with live verification on `tenant_demo` 2026-05-06.
+
+### BLOCKING 1 — Row-scope on stage / score / onboarding reads
+
+**Reviewer's finding:** `GET /applications/:id/stages`, `GET /applications/:id/scores`, `GET /applications/:id/onboarding`, `GET /onboarding-progress/:id` were gated only by `stu-003:read`. Parents (who hold `stu-003:read` for their own children) could read other applications' stage timelines / admissions scores / onboarding progress by guessing UUIDs.
+
+**Fix:** Made the services actor-aware. New `assertCanReadApplication(applicationId, actor)` helper on both `ApplicationStageService` and `OnboardingService` — admin OR `personType=STAFF` (covers Enrolment Officer) sees every application; guardian sees own children's applications only (matched on `enr_applications.guardian_person_id = actor.personId`); everyone else gets a collapsed `404 NotFoundException`. The schema-side permission gate (`stu-003:read`) stays permissive across personas; the actual access boundary now lives in the service layer.
+
+**MAJOR 4 implementation (admissions scoring privacy):** `ApplicationScoringService.listForApplication(applicationId, actor)` now calls `assertEoOrAdmin(actor)` — admissions scores are restricted to admin / Enrolment Officer only because the rows carry ranked-selection criteria + scorer notes that must not be visible to guardians or students. Even guardians who hold `stu-003:read` for their own application get a `403 Forbidden` from the score read endpoint. The `403` (vs the stage/onboarding `404`) signals "permission denied" rather than "not found" because the parent already legitimately knows the application exists.
+
+**Live verified on `tenant_demo` 2026-05-06:**
+
+- Parent `GET /applications/<Maya>/stages` → 200 (own child)
+- Parent `GET /applications/<Aiden>/stages` → 404 (don't-leak-existence)
+- Parent `GET /applications/<Maya>/scores` → 403 (admin/EO only)
+- Parent `GET /applications/<Maya>/onboarding` → 200
+- Parent `GET /applications/<Aiden>/onboarding` → 404
+- VP (Staff persona, holds `stu-003:read`) GETs every read across both applications → 200 × 4
+
+### BLOCKING 2 — `waiveTask()` lifecycle
+
+**Reviewer's finding:** `waiveTask()` only updated the individual task-completion row; it did not lock the parent progress row, recompute counters, check whether all mandatory tasks were done, flip `overall_status=COMPLETE`, or emit `enr.student.onboarded`. If the last remaining mandatory onboarding task was waived, the student would stay stuck in `IN_PROGRESS` and the cross-module `enr.student.onboarded` signal would never fire — directly breaking the Cycle 16 keystone behaviour.
+
+**Fix:** Extracted the shared lifecycle into a private `transitionTask(completionId, newStatus, notes, actor)` helper used by both `completeTask()` and `waiveTask()`. The helper locks the task-completion row, updates status to either `COMPLETED` or `WAIVED`, locks the parent progress row, recomputes `tasks_completed` from the live row count (UNION of `COMPLETED + WAIVED` since both states satisfy the `is_mandatory` predicate), checks whether every mandatory task is in a terminal state, flips `overall_status=COMPLETE` + `completed_at=now()` atomically inside the same tx, and emits `enr.student.onboarded` after commit. `waiveTask()` is now a 3-line wrapper that gates on `actor.isSchoolAdmin` then delegates to `transitionTask(..., 'WAIVED', ...)`. Both methods now return the same `{ completion, progress, onboarded }` shape so the UI can render a unified "this just landed" toast.
+
+**Live verified on `tenant_demo` 2026-05-06:** completed 4 of 5 PENDING tasks via `/complete` (progress 4/8 → 7/8, `onboarded=False`); waived the 5th task `Enrolment deposit paid` via `/waive` → progress flipped to 8/8 / `overall_status=COMPLETE` / `onboarded=True`; envelope captured live on `dev.enr.student.onboarded` showing the waiver completed onboarding correctly.
+
+### BLOCKING 3 — Offer-accept onboarding generation atomicity
+
+**Reviewer's finding:** `OfferService.respond()` ACCEPTED branch wrapped `generateProgressForApplicationInTx(...)` in `try { … } catch { /* swallow */ }`. The handoff documented atomic offer-accept + checklist creation, but a real generation failure (constraint violation, SQL error, runtime issue) would be silently swallowed while the offer-accept itself committed — leaving the student enrolled but without an onboarding checklist.
+
+**Fix:** `generateProgressForApplicationInTx()` now returns a typed result discriminated union:
+
+```ts
+| { status: 'CREATED'; progressId: string }
+| { status: 'EXISTS'; progressId: string }
+| { status: 'NO_CHECKLIST' }
+| { status: 'NO_APPLICATION' }
+```
+
+`OfferService.respond()` removed the swallowing `try/catch` and inspects the typed result. Only `NO_CHECKLIST` (legitimate "school has not configured a STANDARD_INTAKE checklist yet" branch) and the success cases (`CREATED` / `EXISTS`) are accepted. `NO_APPLICATION` is treated as a transactional anomaly (the offer-accept tx already locked the application row above; if it vanishes mid-tx, throw to roll back the entire tx). Any unexpected SQL or runtime error from the helper now propagates naturally up the `executeInTenantTransaction` callback and rolls back the offer-accept atomically, so the offer never lands as `ACCEPTED` when its onboarding row failed to create.
+
+**Live verified on `tenant_demo` 2026-05-06:** Sophia's UNCONDITIONAL ISSUED offer accepted → application flips ACCEPTED → ENROLLED + 1 progress row + 8 task completion rows materialised in the same tenant tx. The two writes are observable as a single atomic commit in `tenant_demo`. Smoke residue cleaned.
+
+### MAJOR follow-ups
+
+- **MAJOR 4 — admissions scoring visibility:** addressed inline with BLOCKING 1 (scores restricted to admin / EO only).
+- **MAJOR 5 — stage audit immutability via DB role hardening:** carried to Phase 2 punch list. Service-side discipline is enforced today (no UPDATE / DELETE methods exposed); a future Phase 2 trigger or DB role harden is appropriate before pilot.
+- **MAJOR 6 — onboarding checklist read visibility:** carried to Phase 2 punch list. `GET /onboarding-checklists` is gated by `stu-003:read` today, which the reviewer notes may be appropriate for school-level operational templates but could be tightened to admin / EO if task names / responsible roles reveal internal processes.
+
+CI parity green: prettier ✓, all builds ✓, tests ✓ (7/7 passed). Tagged `cycle16-approved` after Round 2 verdict.

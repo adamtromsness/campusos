@@ -78,7 +78,20 @@ export class ApplicationScoringService {
     }
   }
 
-  async listForApplication(applicationId: string): Promise<ApplicationScoreResponseDto[]> {
+  /**
+   * Score reads are restricted to admin / Enrolment Officer per
+   * REVIEW-CYCLE16 BLOCKING 1 + MAJOR 4 — admissions scoring rows
+   * carry ranked-selection criteria + scorer notes that must not be
+   * visible to guardians or students. The permission gate
+   * (stu-003:read) is the same surface guardians use for their own
+   * applications, so the actual access boundary is the
+   * actor.personType check at the service layer.
+   */
+  async listForApplication(
+    applicationId: string,
+    actor: ResolvedActor,
+  ): Promise<ApplicationScoreResponseDto[]> {
+    this.assertEoOrAdmin(actor);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_SCORE + 'WHERE s.application_id = $1::uuid ORDER BY s.criterion_name ASC',

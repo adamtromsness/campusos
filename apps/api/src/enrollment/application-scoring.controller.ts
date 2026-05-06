@@ -20,9 +20,16 @@ export class ApplicationScoringController {
 
   @Get('applications/:applicationId/scores')
   @RequirePermission('stu-003:read')
-  @ApiOperation({ summary: 'List per-criterion scores for an application.' })
-  list(@Param('applicationId') applicationId: string): Promise<ApplicationScoreResponseDto[]> {
-    return this.scores.listForApplication(applicationId);
+  @ApiOperation({
+    summary:
+      'List per-criterion scores for an application. Admin / Enrolment Officer only — admissions scores are not visible to guardians or students (REVIEW-CYCLE16 BLOCKING 1 + MAJOR 4).',
+  })
+  async list(
+    @Param('applicationId') applicationId: string,
+    @Req() req: AuthedRequest,
+  ): Promise<ApplicationScoreResponseDto[]> {
+    var actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.scores.listForApplication(applicationId, actor);
   }
 
   @Post('applications/:applicationId/scores')
