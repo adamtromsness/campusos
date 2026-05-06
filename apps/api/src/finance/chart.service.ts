@@ -301,19 +301,29 @@ export class ChartOfAccountsService {
       throw new ForbiddenException('Only school admins can update chart of accounts entries');
     }
     const tenant = getCurrentTenant();
-    // Refuse deactivation of is_system accounts.
-    if (input.isActive === false) {
-      const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-        return client.$queryRawUnsafe(
-          `SELECT is_system FROM fin_chart_of_accounts WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
-          id,
-          tenant.schoolId,
-        );
-      })) as Array<{ is_system: boolean }>;
-      if (rows.length === 0) throw new NotFoundException('Account not found');
-      if (rows[0]!.is_system) {
+    // REVIEW-CYCLE26 MAJOR 7 — is_system accounts (Cash 1000, AR
+    // 1100, AP 2000) are protected control accounts. Restrict edits
+    // to description-only — name / parent / fund / isActive must
+    // not change without an explicit migration path. The seed marks
+    // the canonical accounts is_system=true; all other accounts
+    // remain freely editable.
+    const targetRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        `SELECT is_system FROM fin_chart_of_accounts WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
+        id,
+        tenant.schoolId,
+      );
+    })) as Array<{ is_system: boolean }>;
+    if (targetRows.length === 0) throw new NotFoundException('Account not found');
+    if (targetRows[0]!.is_system) {
+      const restricted: string[] = [];
+      if (input.accountName !== undefined) restricted.push('accountName');
+      if (input.isActive !== undefined) restricted.push('isActive');
+      if (input.parentAccountId !== undefined) restricted.push('parentAccountId');
+      if (input.fundId !== undefined) restricted.push('fundId');
+      if (restricted.length > 0) {
         throw new BadRequestException(
-          'System accounts (Cash, AR, AP) cannot be deactivated. Mark child sub-accounts inactive instead.',
+          `System accounts (Cash, AR, AP) only accept description updates. The following fields are restricted: ${restricted.join(', ')}.`,
         );
       }
     }

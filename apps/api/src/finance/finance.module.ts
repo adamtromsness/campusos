@@ -13,6 +13,7 @@ import {
   ReconciliationService,
   SupplierService,
 } from './budgets.service';
+import { FinanceValidationService } from './validation';
 import { GLConsumer } from './gl.consumer';
 import { FinanceController } from './finance.controller';
 
@@ -41,6 +42,7 @@ import { FinanceController } from './finance.controller';
 @Module({
   imports: [TenantModule, IamModule, KafkaModule],
   providers: [
+    FinanceValidationService,
     FundService,
     ChartOfAccountsService,
     PeriodService,

@@ -11,6 +11,7 @@ import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { isUniqueViolation } from './chart.service';
 import { PostingService } from './posting.service';
+import { FinanceValidationService } from './validation';
 import type {
   APPaymentDto,
   APVoucherDto,
@@ -155,7 +156,10 @@ export class SupplierService {
 
 @Injectable()
 export class BudgetService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly validation: FinanceValidationService,
+  ) {}
 
   private async loadLines(budgetId: string): Promise<BudgetLineDto[]> {
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -253,6 +257,8 @@ export class BudgetService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only school admins can create budgets');
     }
+    // REVIEW-CYCLE26 BLOCKING 5 — fund must exist + be active in this tenant.
+    await this.validation.assertActiveFund(input.fundId, 'fundId');
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
@@ -332,6 +338,13 @@ export class BudgetService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only school admins can add budget lines');
     }
+    // REVIEW-CYCLE26 BLOCKING 5 — account must exist + be active.
+    // Allow REVENUE / EXPENSE / ASSET so prepaid expense lines work.
+    await this.validation.assertActiveAccount(
+      input.accountId,
+      ['REVENUE', 'EXPENSE', 'ASSET'],
+      'accountId',
+    );
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
         await client.$executeRawUnsafe(
@@ -355,7 +368,10 @@ export class BudgetService {
 
 @Injectable()
 export class APVoucherService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly validation: FinanceValidationService,
+  ) {}
 
   private async loadPaid(voucherId: string): Promise<number> {
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -437,6 +453,21 @@ export class APVoucherService {
   async create(actor: ResolvedActor, input: CreateAPVoucherDto): Promise<APVoucherDto> {
     if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
       throw new ForbiddenException('Only finance staff or admins may create AP vouchers');
+    }
+    // REVIEW-CYCLE26 BLOCKING 5 — pre-flight finance validation:
+    //   supplier must exist + be active in this tenant
+    //   gl_account (when supplied) must be EXPENSE / ASSET / LIABILITY
+    //   fund (when supplied) must exist + be active
+    await this.validation.assertActiveSupplier(input.supplierId, 'supplierId');
+    if (input.glAccountId) {
+      await this.validation.assertActiveAccount(
+        input.glAccountId,
+        ['EXPENSE', 'ASSET', 'LIABILITY'],
+        'glAccountId',
+      );
+    }
+    if (input.fundId) {
+      await this.validation.assertActiveFund(input.fundId, 'fundId');
     }
     const tenant = getCurrentTenant();
     const id = generateId();
@@ -575,8 +606,18 @@ export class APPaymentService {
   }
 
   /**
-   * Pay an AP voucher — creates the payment record AND posts a balanced
-   * GL batch (DEBIT GL account / CREDIT Cash) inside one tenant tx.
+   * Pay an AP voucher — REVIEW-CYCLE26 BLOCKING 2 + 4 atomicity fix.
+   *
+   * Locks the voucher row inside ONE tenant tx, recomputes
+   * amount_paid under the lock, validates status + balance,
+   * resolves Cash account inside the tx, calls
+   * PostingService.createAndPostInTx (in-tx GL post), INSERTs the
+   * fin_ap_payments row, flips voucher to PAID — all in one
+   * transaction. If any step fails the entire tx rolls back so the
+   * GL batch + ap_payment + voucher status flip stay consistent.
+   * Two concurrent admins paying the same voucher serialise on the
+   * FOR UPDATE lock; the loser re-reads the bumped amount_paid and
+   * rejects overpay.
    */
   async pay(
     actor: ResolvedActor,
@@ -590,92 +631,86 @@ export class APPaymentService {
       throw new BadRequestException('AP payment requires an employee actor');
     }
     const tenant = getCurrentTenant();
+    const paymentId = generateId();
 
-    // Look up voucher + cash account up-front (outside the tx for read clarity).
-    const voucherRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
-        `SELECT v.id::text AS id, v.status, v.total_amount, v.description, v.voucher_number, v.gl_account_id::text AS gl_account_id, v.fund_id::text AS fund_id, COALESCE((SELECT SUM(amount) FROM fin_ap_payments WHERE voucher_id = v.id), 0) AS paid FROM fin_ap_vouchers v WHERE v.id = $1::uuid AND v.school_id = $2::uuid LIMIT 1`,
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // 1. Lock the voucher row.
+      const voucherRows = (await tx.$queryRawUnsafe(
+        `SELECT v.id::text AS id, v.status, v.total_amount, v.description, v.voucher_number, v.gl_account_id::text AS gl_account_id, v.fund_id::text AS fund_id, COALESCE((SELECT SUM(amount) FROM fin_ap_payments WHERE voucher_id = v.id), 0) AS paid FROM fin_ap_vouchers v WHERE v.id = $1::uuid AND v.school_id = $2::uuid FOR UPDATE OF v`,
         voucherId,
         tenant.schoolId,
-      );
-    })) as Array<{
-      id: string;
-      status: string;
-      total_amount: string | number;
-      description: string | null;
-      voucher_number: string;
-      gl_account_id: string | null;
-      fund_id: string | null;
-      paid: string | number;
-    }>;
-    if (voucherRows.length === 0) throw new NotFoundException('AP voucher not found');
-    const v = voucherRows[0]!;
-    if (v.status !== 'APPROVED') {
-      throw new BadRequestException(`Only APPROVED vouchers can be paid (current: ${v.status})`);
-    }
-    if (!v.gl_account_id || !v.fund_id) {
-      throw new BadRequestException(
-        'Voucher must have a GL account and fund pinned before payment can post',
-      );
-    }
-    const total = Number(v.total_amount);
-    const alreadyPaid = Number(v.paid);
-    if (alreadyPaid + input.amount > total + 0.005) {
-      throw new BadRequestException(
-        `Payment would exceed voucher balance (paying ${input.amount}, balance ${(total - alreadyPaid).toFixed(2)})`,
-      );
-    }
+      )) as Array<{
+        id: string;
+        status: string;
+        total_amount: string | number;
+        description: string | null;
+        voucher_number: string;
+        gl_account_id: string | null;
+        fund_id: string | null;
+        paid: string | number;
+      }>;
+      if (voucherRows.length === 0) throw new NotFoundException('AP voucher not found');
+      const v = voucherRows[0]!;
 
-    // Resolve Cash account.
-    const cashRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
+      // 2. Recompute paid balance under lock + validate status.
+      if (v.status !== 'APPROVED') {
+        throw new BadRequestException(`Only APPROVED vouchers can be paid (current: ${v.status})`);
+      }
+      if (!v.gl_account_id || !v.fund_id) {
+        throw new BadRequestException(
+          'Voucher must have a GL account and fund pinned before payment can post',
+        );
+      }
+      const total = Number(v.total_amount);
+      const alreadyPaid = Number(v.paid);
+      if (alreadyPaid + input.amount > total + 0.005) {
+        throw new BadRequestException(
+          `Payment would exceed voucher balance (paying ${input.amount}, balance ${(total - alreadyPaid).toFixed(2)})`,
+        );
+      }
+
+      // 3. Resolve Cash account inside the tx.
+      const cashRows = (await tx.$queryRawUnsafe(
         `SELECT id::text AS id FROM fin_chart_of_accounts WHERE school_id = $1::uuid AND account_code = '1000' AND is_active = true LIMIT 1`,
         tenant.schoolId,
-      );
-    })) as Array<{ id: string }>;
-    if (cashRows.length === 0) {
-      throw new BadRequestException('Cash account (1000) not found in chart');
-    }
-    const cashAccountId = cashRows[0]!.id;
+      )) as Array<{ id: string }>;
+      if (cashRows.length === 0) {
+        throw new BadRequestException('Cash account (1000) not found in chart');
+      }
+      const cashAccountId = cashRows[0]!.id;
 
-    // Post the GL batch first (it locks its own row), then write the
-    // ap_payment row referencing the batch. Both happen in separate
-    // transactions; the AP payment INSERT after the GL batch POSTed
-    // means a subsequent retry on this method sees the GL batch
-    // exists (idempotency on a manual retry would create a 2nd batch
-    // — acceptable for AP-pay since voucher status flips to PAID at
-    // the end and blocks further calls).
-    const batch = await this.posting.createAndPost(actor, {
-      batchNumber: `AP-${v.voucher_number}-${Date.now().toString().slice(-6)}`,
-      description: `AP payment ${v.voucher_number} - ${input.paymentMethod}`,
-      batchType: 'MANUAL',
-      sourceModule: 'finance.ap',
-      accountingPeriodId: '00000000-0000-0000-0000-000000000000',
-      entries: [
-        {
-          accountId: v.gl_account_id,
-          fundId: v.fund_id,
-          debit: input.amount,
-          credit: 0,
-          description: `Expense recognised — ${v.description ?? v.voucher_number}`,
-          referenceType: 'fin_ap_vouchers',
-          referenceId: voucherId,
-        },
-        {
-          accountId: cashAccountId,
-          fundId: v.fund_id,
-          debit: 0,
-          credit: input.amount,
-          description: `Cash paid via ${input.paymentMethod}`,
-          referenceType: 'fin_ap_vouchers',
-          referenceId: voucherId,
-        },
-      ],
-    });
+      // 4. Post GL inside the same tx via createAndPostInTx — on
+      //    imbalance or period error the throw rolls back the
+      //    voucher lock + payment INSERT below atomically.
+      const batchId = await this.posting.createAndPostInTx(tx, actor, {
+        batchNumber: `AP-${v.voucher_number}-${Date.now().toString().slice(-6)}`,
+        description: `AP payment ${v.voucher_number} - ${input.paymentMethod}`,
+        batchType: 'MANUAL',
+        sourceModule: 'finance.ap',
+        accountingPeriodId: '00000000-0000-0000-0000-000000000000',
+        entries: [
+          {
+            accountId: v.gl_account_id,
+            fundId: v.fund_id,
+            debit: input.amount,
+            credit: 0,
+            description: `Expense recognised — ${v.description ?? v.voucher_number}`,
+            referenceType: 'fin_ap_vouchers',
+            referenceId: voucherId,
+          },
+          {
+            accountId: cashAccountId,
+            fundId: v.fund_id,
+            debit: 0,
+            credit: input.amount,
+            description: `Cash paid via ${input.paymentMethod}`,
+            referenceType: 'fin_ap_vouchers',
+            referenceId: voucherId,
+          },
+        ],
+      });
 
-    // Insert payment + flip voucher to PAID inside one tx.
-    const paymentId = generateId();
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // 5. INSERT ap_payment row inside the same tx, linking the batch.
       await tx.$executeRawUnsafe(
         `INSERT INTO fin_ap_payments (id, voucher_id, payment_method, payment_reference, amount, paid_at, paid_by, journal_batch_id, notes) VALUES ($1::uuid, $2::uuid, $3, $4, $5, now(), $6::uuid, $7::uuid, $8)`,
         paymentId,
@@ -684,10 +719,11 @@ export class APPaymentService {
         input.paymentReference ?? null,
         input.amount,
         actor.employeeId,
-        batch.id,
+        batchId,
         input.notes ?? null,
       );
-      // If fully paid, flip voucher status.
+
+      // 6. Flip voucher to PAID atomically when fully paid.
       const newPaid = alreadyPaid + input.amount;
       if (newPaid >= total - 0.005) {
         await tx.$executeRawUnsafe(
@@ -706,7 +742,10 @@ export class APPaymentService {
 
 @Injectable()
 export class ReconciliationService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly validation: FinanceValidationService,
+  ) {}
 
   private rowToDto(r: Record<string, unknown>): ReconciliationDto {
     return {
@@ -756,6 +795,10 @@ export class ReconciliationService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only school admins can start a reconciliation');
     }
+    // REVIEW-CYCLE26 BLOCKING 5 — reconciliation account must be an
+    // ASSET (Cash / AR / Prepaid) and active; period must exist.
+    await this.validation.assertActiveAccount(input.accountId, ['ASSET'], 'accountId');
+    await this.validation.assertPeriodInState(input.periodId, undefined, 'periodId');
     const tenant = getCurrentTenant();
     // Compute current GL balance for the account.
     const balRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -968,7 +1011,10 @@ export class BoardReportService {
 
 @Injectable()
 export class GrantService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly validation: FinanceValidationService,
+  ) {}
 
   private rowToDto(r: Record<string, unknown>): GrantDto {
     const award = Number(r.award_amount ?? 0);
@@ -1022,6 +1068,10 @@ export class GrantService {
     }
     if (input.endDate < input.startDate) {
       throw new BadRequestException('endDate must be on or after startDate');
+    }
+    // REVIEW-CYCLE26 BLOCKING 5 — fund (when supplied) must be active.
+    if (input.fundId) {
+      await this.validation.assertActiveFund(input.fundId, 'fundId');
     }
     const tenant = getCurrentTenant();
     const id = generateId();

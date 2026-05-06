@@ -122,13 +122,19 @@ export class GLConsumer implements OnModuleInit {
     const prefix = process.env.KAFKA_TOPIC_ENV || 'dev';
     const logical = topic.startsWith(`${prefix}.`) ? topic.slice(prefix.length + 1) : topic;
 
-    // Resolve the chart of accounts mapping once per event.
+    // Resolve the chart of accounts mapping once per event. If the
+    // canonical accounts (Cash 1000 + AR 1100 + Tuition 4000) are
+    // missing OR inactive, THROW — financial events must not be
+    // silently dropped on configuration failure (REVIEW-CYCLE26
+    // BLOCKING 3). The thrown error propagates up through
+    // processWithIdempotency which leaves the event unclaimed; the
+    // standard consumer retry/DLQ path then catches it and parks
+    // it into platform.platform_dlq_messages for operator action.
     const accounts = await this.loadAccountMapping();
     if (!accounts) {
-      this.logger.warn(
-        `[${CONSUMER_GROUP}] cannot resolve canonical accounts (Cash + Tuition + AR) for tenant ${event.tenant.schoolId} — drop event`,
+      throw new Error(
+        `[${CONSUMER_GROUP}] cannot resolve canonical accounts (Cash 1000 + AR 1100 + Tuition 4000) for tenant ${event.tenant.schoolId} — finance configuration must be completed before payment events can land`,
       );
-      return;
     }
     const cashAccount = accounts.cash;
     const tuitionAccount = accounts.tuition;
@@ -137,13 +143,13 @@ export class GLConsumer implements OnModuleInit {
 
     // Resolve a synthetic CFO-equivalent actor for the GL post —
     // the PostingService requires an employee actor. We pick the
-    // first ACTIVE hr_employee in the tenant.
+    // first ACTIVE hr_employee in the tenant. THROW on miss — see
+    // the loadAccountMapping comment above for the same reasoning.
     const cfo = await this.resolveSyntheticActor();
     if (!cfo) {
-      this.logger.warn(
-        `[${CONSUMER_GROUP}] no hr_employees row available for tenant ${event.tenant.schoolId} — drop event`,
+      throw new Error(
+        `[${CONSUMER_GROUP}] no ACTIVE hr_employees row available for tenant ${event.tenant.schoolId} — at least one staff member must exist before payment events can post to the GL`,
       );
-      return;
     }
 
     const eventId = event.eventId;
@@ -165,6 +171,11 @@ export class GLConsumer implements OnModuleInit {
       description = `Family payment $${amt.toFixed(2)} (paymentId=${p.paymentId.slice(0, 8)})`;
       referenceType = 'pay_payments';
       referenceId = p.paymentId;
+      // ACCRUAL MODEL (REVIEW-CYCLE26 BLOCKING 1) — payment.received
+      // is DR Cash / CR AR. Revenue was already recognised when the
+      // invoice landed (pay.invoice.created → DR AR / CR Tuition).
+      // The earlier mapping double-credited Tuition Revenue and left
+      // AR un-cleared; now Cash goes up and AR clears in lockstep.
       entries = [
         {
           accountId: cashAccount,
@@ -176,11 +187,11 @@ export class GLConsumer implements OnModuleInit {
           referenceId,
         },
         {
-          accountId: tuitionAccount,
+          accountId: arAccount,
           fundId,
           debit: 0,
           credit: amt,
-          description: 'Tuition revenue earned',
+          description: 'Accounts receivable cleared',
           referenceType,
           referenceId,
         },
@@ -227,13 +238,24 @@ export class GLConsumer implements OnModuleInit {
       description = `Refund issued $${amt.toFixed(2)} (refundId=${p.refundId.slice(0, 8)})`;
       referenceType = 'pay_refunds';
       referenceId = p.refundId;
+      // ACCRUAL MODEL (REVIEW-CYCLE26 BLOCKING 1) — refund reverses
+      // the cash leg of the original payment by restoring AR (a
+      // credit-balance receivable signals a refund-credit owed to
+      // the family for application to a future invoice). Revenue
+      // recognised when the original invoice was issued is NOT
+      // automatically reversed — the school may want to apply the
+      // refund-credit to a future invoice (in which case revenue
+      // stays recognised), or write off the original revenue via
+      // an explicit MANUAL adjustment batch (Phase 2 follow-up:
+      // category-based refund routing — restock fees, programme
+      // cancellations, withdrawals would each post differently).
       entries = [
         {
-          accountId: tuitionAccount,
+          accountId: arAccount,
           fundId,
           debit: amt,
           credit: 0,
-          description: 'Tuition revenue reversal',
+          description: 'Accounts receivable restored (refund-credit owed to family)',
           referenceType,
           referenceId,
         },

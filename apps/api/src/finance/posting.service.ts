@@ -363,15 +363,25 @@ export class PostingService {
   }
 
   /**
-   * Public helper for the GLConsumer + APPaymentService —
-   * idempotently create + post a balanced batch in one shot.
-   * Returns the existing batch when source_event_id has already
-   * landed (Kafka redelivery path).
+   * In-tx helper that creates + posts a balanced batch using the
+   * supplied transaction client (REVIEW-CYCLE26 BLOCKING 2). Lets
+   * cross-service callers like APPaymentService.pay run the GL post
+   * AND their own bookkeeping (ap_payment INSERT + voucher status
+   * flip) inside ONE tenant transaction so a downstream failure
+   * rolls the whole thing back atomically. Returns the new batch's
+   * id; the caller reloads via getById outside the tx if it needs
+   * the full DTO.
+   *
+   * Idempotency: source_event_id is checked inside the tx; if the
+   * id already maps to a batch we return that id without re-posting.
+   * Period validation + balance validation + budget rollup all run
+   * inside the supplied tx.
    */
-  async createAndPost(
+  async createAndPostInTx(
+    tx: PrismaClient,
     actor: ResolvedActor,
     input: CreateJournalBatchDto & { sourceEventId?: string; periodId?: string },
-  ): Promise<JournalBatchDto> {
+  ): Promise<string> {
     this.assertCanPost(actor);
     if (!actor.employeeId) {
       throw new BadRequestException('Posting must be performed by an employee actor');
@@ -379,7 +389,90 @@ export class PostingService {
     this.validateLineShape(input.entries);
     const tenant = getCurrentTenant();
 
-    // Idempotency check: if source_event_id already mapped to a batch, return it.
+    // Idempotency check inside the supplied tx.
+    if (input.sourceEventId) {
+      const existing = (await tx.$queryRawUnsafe(
+        `SELECT id::text AS id FROM fin_journal_batches WHERE source_event_id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
+        input.sourceEventId,
+        tenant.schoolId,
+      )) as Array<{ id: string }>;
+      if (existing.length > 0) {
+        return existing[0]!.id;
+      }
+    }
+
+    const batchId = generateId();
+    let periodId = input.periodId;
+    if (!periodId) {
+      const todayPeriods = (await tx.$queryRawUnsafe(
+        `SELECT id::text AS id FROM fin_accounting_periods WHERE school_id = $1::uuid AND status = 'OPEN' AND CURRENT_DATE BETWEEN start_date AND end_date LIMIT 1`,
+        tenant.schoolId,
+      )) as Array<{ id: string }>;
+      if (todayPeriods.length === 0) {
+        throw new BadRequestException(
+          'No OPEN accounting period covers today — a CFO must open the current period before automated postings can land',
+        );
+      }
+      periodId = todayPeriods[0]!.id;
+    } else {
+      const targetPeriod = (await tx.$queryRawUnsafe(
+        `SELECT status FROM fin_accounting_periods WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
+        periodId,
+        tenant.schoolId,
+      )) as Array<{ status: string }>;
+      if (targetPeriod.length === 0) throw new BadRequestException('Target period not found');
+      const ps = targetPeriod[0]!.status;
+      if (ps === 'CLOSED' || ps === 'LOCKED') {
+        throw new BadRequestException(`Cannot post to a ${ps} period`);
+      }
+    }
+    await tx.$executeRawUnsafe(
+      `INSERT INTO fin_journal_batches (id, school_id, batch_number, description, batch_type, source_module, source_event_id, accounting_period_id, posted_by, posted_at, status) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid, $8::uuid, $9::uuid, now(), 'POSTED')`,
+      batchId,
+      tenant.schoolId,
+      input.batchNumber,
+      input.description,
+      input.batchType,
+      input.sourceModule ?? null,
+      input.sourceEventId ?? null,
+      periodId,
+      actor.employeeId,
+    );
+    await this.insertEntries(tx, batchId, input.entries);
+    // ADR-059 validation — throws on imbalance, caller's tx rolls back
+    await this.validateBalance(tx, batchId);
+    // Update budget actuals
+    await tx.$executeRawUnsafe(
+      `UPDATE fin_budget_lines bl SET actual_amount = bl.actual_amount + sub.delta, updated_at = now()
+       FROM (
+         SELECT e.account_id,
+                CASE WHEN a.normal_balance = 'DEBIT' THEN SUM(e.debit) ELSE SUM(e.credit) END AS delta
+         FROM fin_gl_entries e
+         JOIN fin_chart_of_accounts a ON a.id = e.account_id
+         WHERE e.batch_id = $1::uuid
+         GROUP BY e.account_id, a.normal_balance
+       ) sub
+       WHERE bl.account_id = sub.account_id`,
+      batchId,
+    );
+    return batchId;
+  }
+
+  /**
+   * Public helper for the GLConsumer — idempotently create + post a
+   * balanced batch in one shot, opening its own tenant transaction.
+   * Returns the existing batch when source_event_id has already
+   * landed (Kafka redelivery path). Wraps createAndPostInTx.
+   */
+  async createAndPost(
+    actor: ResolvedActor,
+    input: CreateJournalBatchDto & { sourceEventId?: string; periodId?: string },
+  ): Promise<JournalBatchDto> {
+    const tenant = getCurrentTenant();
+
+    // Fast-path idempotency check outside the tx — if source_event_id
+    // already mapped, return without locking. The in-tx check inside
+    // createAndPostInTx is the authoritative one.
     if (input.sourceEventId) {
       const existing = (await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe(
@@ -393,67 +486,10 @@ export class PostingService {
       }
     }
 
-    const batchId = generateId();
+    let batchId: string;
     try {
-      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-        // Choose target period — explicit periodId override OR auto-resolve
-        // first OPEN period covering today. The GLConsumer passes a placeholder
-        // accountingPeriodId in CreateJournalBatchDto (the DTO requires the
-        // field non-null) so we deliberately ignore that field here and only
-        // honour the explicit periodId override.
-        let periodId = input.periodId;
-        if (!periodId) {
-          const todayPeriods = (await tx.$queryRawUnsafe(
-            `SELECT id::text AS id FROM fin_accounting_periods WHERE school_id = $1::uuid AND status = 'OPEN' AND CURRENT_DATE BETWEEN start_date AND end_date LIMIT 1`,
-            tenant.schoolId,
-          )) as Array<{ id: string }>;
-          if (todayPeriods.length === 0) {
-            throw new BadRequestException(
-              'No OPEN accounting period covers today — a CFO must open the current period before automated postings can land',
-            );
-          }
-          periodId = todayPeriods[0]!.id;
-        } else {
-          const targetPeriod = (await tx.$queryRawUnsafe(
-            `SELECT status FROM fin_accounting_periods WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
-            periodId,
-            tenant.schoolId,
-          )) as Array<{ status: string }>;
-          if (targetPeriod.length === 0) throw new BadRequestException('Target period not found');
-          const ps = targetPeriod[0]!.status;
-          if (ps === 'CLOSED' || ps === 'LOCKED') {
-            throw new BadRequestException(`Cannot post to a ${ps} period`);
-          }
-        }
-        await tx.$executeRawUnsafe(
-          `INSERT INTO fin_journal_batches (id, school_id, batch_number, description, batch_type, source_module, source_event_id, accounting_period_id, posted_by, posted_at, status) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid, $8::uuid, $9::uuid, now(), 'POSTED')`,
-          batchId,
-          tenant.schoolId,
-          input.batchNumber,
-          input.description,
-          input.batchType,
-          input.sourceModule ?? null,
-          input.sourceEventId ?? null,
-          periodId,
-          actor.employeeId,
-        );
-        await this.insertEntries(tx, batchId, input.entries);
-        // ADR-059 validation
-        await this.validateBalance(tx, batchId);
-        // Update budget actuals
-        await tx.$executeRawUnsafe(
-          `UPDATE fin_budget_lines bl SET actual_amount = bl.actual_amount + sub.delta, updated_at = now()
-           FROM (
-             SELECT e.account_id,
-                    CASE WHEN a.normal_balance = 'DEBIT' THEN SUM(e.debit) ELSE SUM(e.credit) END AS delta
-             FROM fin_gl_entries e
-             JOIN fin_chart_of_accounts a ON a.id = e.account_id
-             WHERE e.batch_id = $1::uuid
-             GROUP BY e.account_id, a.normal_balance
-           ) sub
-           WHERE bl.account_id = sub.account_id`,
-          batchId,
-        );
+      batchId = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        return this.createAndPostInTx(tx, actor, input);
       });
     } catch (err) {
       if (isUniqueViolation(err)) {
