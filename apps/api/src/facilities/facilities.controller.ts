@@ -103,7 +103,7 @@ export class FacilitiesController {
   }
 
   @Post('facilities/buildings')
-  @RequirePermission('fac-001:write')
+  @RequirePermission('fac-001:admin')
   async createBuilding(
     @Body() body: CreateBuildingDto,
     @Req() req: AuthedRequest,
@@ -113,7 +113,7 @@ export class FacilitiesController {
   }
 
   @Patch('facilities/buildings/:id')
-  @RequirePermission('fac-001:write')
+  @RequirePermission('fac-001:admin')
   async patchBuilding(
     @Param('id') id: string,
     @Body() body: UpdateBuildingDto,
@@ -137,7 +137,7 @@ export class FacilitiesController {
   }
 
   @Post('facilities/buildings/:id/spaces')
-  @RequirePermission('fac-001:write')
+  @RequirePermission('fac-001:admin')
   async createSpace(
     @Param('id') id: string,
     @Body() body: CreateSpaceDto,
@@ -148,7 +148,7 @@ export class FacilitiesController {
   }
 
   @Patch('facilities/spaces/:id')
-  @RequirePermission('fac-001:write')
+  @RequirePermission('fac-001:admin')
   async patchSpace(
     @Param('id') id: string,
     @Body() body: UpdateSpaceDto,
@@ -163,10 +163,12 @@ export class FacilitiesController {
   @RequirePermission('fac-001:read')
   async listSpaceBookings(
     @Param('id') id: string,
+    @Req() req: AuthedRequest,
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
   ): Promise<BookingResponseDto[]> {
-    return this.bookings.listForSpace(id, { fromDate, toDate });
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.bookings.listForSpace(id, actor, { fromDate, toDate });
   }
 
   @Get('facilities/bookings/my')
@@ -210,7 +212,7 @@ export class FacilitiesController {
   }
 
   @Post('facilities/closures')
-  @RequirePermission('fac-001:write')
+  @RequirePermission('fac-001:admin')
   async createClosure(
     @Body() body: CreateClosureDto,
     @Req() req: AuthedRequest,
@@ -220,7 +222,7 @@ export class FacilitiesController {
   }
 
   @Patch('facilities/closures/:id')
-  @RequirePermission('fac-001:write')
+  @RequirePermission('fac-001:admin')
   async patchClosure(
     @Param('id') id: string,
     @Body() body: UpdateClosureDto,

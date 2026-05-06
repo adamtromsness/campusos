@@ -718,19 +718,20 @@ async function seedIam() {
         'FDS-004': ['read', 'write'],
         // Cycle 21 — Facilities Management. Staff covers the
         // Facilities Manager (FM) — the eighth specialist operator
-        // persona. FAC-001..004 read+write covers building + space
-        // management, preventive maintenance, custodial zones, and
-        // compliance inspections. FAC-005 (energy / sustainability)
-        // is schema-ready but deferred this cycle. Joins the
-        // role-split work in the Wave 2 Phase 2 punch list — a
-        // dedicated FM role should hold the FAC-* codes alone
-        // before pilot. School Admin and Platform Admin pick up
-        // the admin tier (hard delete, immutable record corrections)
-        // via everyFunction.
-        'FAC-001': ['read', 'write'],
-        'FAC-002': ['read', 'write'],
-        'FAC-003': ['read', 'write'],
-        'FAC-004': ['read', 'write'],
+        // persona. Per REVIEW-CYCLE21 BLOCKING 1, the FAC-001 admin
+        // tier separates FM authority (manage buildings + spaces +
+        // closures) from the broader teacher booking authority
+        // (FAC-001:read+write). Staff therefore carries
+        // FAC-001..004 read+write+admin for the FM stand-in.
+        // FAC-005 (energy / sustainability) is schema-ready but
+        // deferred this cycle. Joins the role-split work in the
+        // Phase 2 punch list — a dedicated FM role should hold the
+        // FAC-* codes alone before pilot. School Admin / Platform
+        // Admin pick up admin tier via everyFunction.
+        'FAC-001': ['read', 'write', 'admin'],
+        'FAC-002': ['read', 'write', 'admin'],
+        'FAC-003': ['read', 'write', 'admin'],
+        'FAC-004': ['read', 'write', 'admin'],
       },
     },
   ];

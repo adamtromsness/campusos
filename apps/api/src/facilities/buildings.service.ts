@@ -9,6 +9,7 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import {
   BookingResponseDto,
   BookingStatus,
@@ -26,11 +27,31 @@ import {
   UpdateSpaceDto,
 } from './dto/facilities.dto';
 
-function assertCanManage(actor: ResolvedActor): void {
+/**
+ * Facilities Manager (FM) scope — admin-tier on FAC-001.
+ *
+ * Per REVIEW-CYCLE21 BLOCKING 1: management of buildings, spaces, and
+ * closures is FM authority, not generic STAFF. Booking authority is
+ * separate (assertCanBook below) and is held by every actor with
+ * fac-001:write — including teachers.
+ *
+ * The check uses the hasAnyPermissionInTenant helper (matches the
+ * Cycle 9 / Cycle 11 hasCounsellorScope pattern) so it follows the
+ * standard scope-chain resolution and respects the everyFunction grant
+ * on School Admin / Platform Admin.
+ */
+export async function assertCanManage(
+  actor: ResolvedActor,
+  permCheck: PermissionCheckService,
+): Promise<void> {
   if (actor.isSchoolAdmin) return;
-  if (actor.personType === 'STAFF') return;
+  const tenant = getCurrentTenant();
+  const hasFmScope = await permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+    'fac-001:admin',
+  ]);
+  if (hasFmScope) return;
   throw new ForbiddenException(
-    'Only school admins or facilities staff can manage buildings, spaces, and closures',
+    'Only school admins or the Facilities Manager can manage buildings, spaces, and closures',
   );
 }
 
@@ -40,6 +61,95 @@ function assertCanBook(actor: ResolvedActor): void {
   // Teachers carry FAC-001:write per the IAM seed and can book spaces.
   if (actor.personType === 'STUDENT' || actor.personType === 'GUARDIAN') {
     throw new ForbiddenException('Only staff and teachers can book spaces');
+  }
+}
+
+/**
+ * REVIEW-CYCLE21 BLOCKING 3 — soft-reference tenant validation helpers.
+ *
+ * Cycle 21 carries soft FKs to sch_rooms (DISPLAY-ONLY), hr_employees,
+ * tkt_tickets, tkt_vendors, and self-references to fac_work_orders.
+ * Validating these at the service layer prevents accidental or
+ * malicious cross-tenant writes.
+ */
+export async function assertRoomInCurrentTenant(
+  tenantPrisma: TenantPrismaService,
+  schRoomId: string,
+): Promise<void> {
+  const rows = (await tenantPrisma.executeInTenantContext(async (client) => {
+    return client.$queryRawUnsafe(
+      'SELECT 1 AS ok FROM sch_rooms WHERE id = $1::uuid LIMIT 1',
+      schRoomId,
+    );
+  })) as Array<{ ok: number }>;
+  if (rows.length === 0) {
+    throw new BadRequestException('schRoomId does not match a room in this school');
+  }
+}
+
+export async function assertEmployeeInCurrentTenant(
+  tenantPrisma: TenantPrismaService,
+  employeeId: string,
+): Promise<void> {
+  const rows = (await tenantPrisma.executeInTenantContext(async (client) => {
+    return client.$queryRawUnsafe(
+      'SELECT 1 AS ok FROM hr_employees WHERE id = $1::uuid LIMIT 1',
+      employeeId,
+    );
+  })) as Array<{ ok: number }>;
+  if (rows.length === 0) {
+    throw new BadRequestException('employeeId does not match an employee in this school');
+  }
+}
+
+export async function assertTicketInCurrentTenant(
+  tenantPrisma: TenantPrismaService,
+  ticketId: string,
+): Promise<void> {
+  const tenant = getCurrentTenant();
+  const rows = (await tenantPrisma.executeInTenantContext(async (client) => {
+    return client.$queryRawUnsafe(
+      'SELECT 1 AS ok FROM tkt_tickets WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+      ticketId,
+      tenant.schoolId,
+    );
+  })) as Array<{ ok: number }>;
+  if (rows.length === 0) {
+    throw new BadRequestException('tktTicketId does not match a ticket in this school');
+  }
+}
+
+export async function assertVendorInCurrentTenant(
+  tenantPrisma: TenantPrismaService,
+  vendorId: string,
+): Promise<void> {
+  const tenant = getCurrentTenant();
+  const rows = (await tenantPrisma.executeInTenantContext(async (client) => {
+    return client.$queryRawUnsafe(
+      'SELECT 1 AS ok FROM tkt_vendors WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+      vendorId,
+      tenant.schoolId,
+    );
+  })) as Array<{ ok: number }>;
+  if (rows.length === 0) {
+    throw new BadRequestException('vendorId does not match a vendor in this school');
+  }
+}
+
+export async function assertWorkOrderInCurrentTenant(
+  tenantPrisma: TenantPrismaService,
+  workOrderId: string,
+): Promise<void> {
+  const tenant = getCurrentTenant();
+  const rows = (await tenantPrisma.executeInTenantContext(async (client) => {
+    return client.$queryRawUnsafe(
+      'SELECT 1 AS ok FROM fac_work_orders WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+      workOrderId,
+      tenant.schoolId,
+    );
+  })) as Array<{ ok: number }>;
+  if (rows.length === 0) {
+    throw new BadRequestException('workOrderId does not match a work order in this school');
   }
 }
 
@@ -61,7 +171,10 @@ function isExclusionViolation(err: unknown): boolean {
 
 @Injectable()
 export class BuildingService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
   async list(): Promise<BuildingResponseDto[]> {
     const tenant = getCurrentTenant();
@@ -107,7 +220,7 @@ export class BuildingService {
   }
 
   async create(input: CreateBuildingDto, actor: ResolvedActor): Promise<BuildingResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
@@ -138,7 +251,7 @@ export class BuildingService {
     input: UpdateBuildingDto,
     actor: ResolvedActor,
   ): Promise<BuildingResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.name !== undefined) {
@@ -185,7 +298,10 @@ export class BuildingService {
 
 @Injectable()
 export class SpaceService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
   async listForBuilding(buildingId: string): Promise<SpaceResponseDto[]> {
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -238,7 +354,10 @@ export class SpaceService {
     input: CreateSpaceDto,
     actor: ResolvedActor,
   ): Promise<SpaceResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
+    if (input.schRoomId) {
+      await assertRoomInCurrentTenant(this.tenantPrisma, input.schRoomId);
+    }
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -264,7 +383,10 @@ export class SpaceService {
   }
 
   async patch(id: string, input: UpdateSpaceDto, actor: ResolvedActor): Promise<SpaceResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
+    if (input.schRoomId !== undefined && input.schRoomId !== null) {
+      await assertRoomInCurrentTenant(this.tenantPrisma, input.schRoomId);
+    }
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.name !== undefined) {
@@ -307,10 +429,36 @@ export class SpaceService {
 
 @Injectable()
 export class BookingService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
+
+  /**
+   * Per-actor identity strip on booking responses.
+   *
+   * REVIEW-CYCLE21 BLOCKING 2: parent-safe / teacher-safe projection —
+   * a non-FM actor that did not place the booking sees availability
+   * (title + window + status) but not the booker's identity.
+   */
+  private async stripIfNotOwnerOrFm(
+    rows: BookingResponseDto[],
+    actor: ResolvedActor,
+  ): Promise<BookingResponseDto[]> {
+    if (actor.isSchoolAdmin) return rows;
+    const tenant = getCurrentTenant();
+    const isFm = await this.permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'fac-001:admin',
+    ]);
+    if (isFm) return rows;
+    return rows.map((r) =>
+      r.bookedBy === actor.personId ? r : { ...r, bookedBy: '', bookedByName: null, notes: null },
+    );
+  }
 
   async listForSpace(
     spaceId: string,
+    actor: ResolvedActor,
     args: { fromDate?: string; toDate?: string },
   ): Promise<BookingResponseDto[]> {
     const where: string[] = ['b.space_id = $1::uuid'];
@@ -329,7 +477,7 @@ export class BookingService {
         ...params,
       );
     })) as BookingRow[];
-    return rows.map(bookingRowToDto);
+    return this.stripIfNotOwnerOrFm(rows.map(bookingRowToDto), actor);
   }
 
   async listMine(actor: ResolvedActor): Promise<BookingResponseDto[]> {
@@ -394,12 +542,28 @@ export class BookingService {
     input: UpdateBookingDto,
     actor: ResolvedActor,
   ): Promise<BookingResponseDto> {
-    // Patch lifecycle: own booking can be cancelled by booker; manager can cancel/complete any.
+    // REVIEW-CYCLE21 BLOCKING 2 — booking lifecycle authority:
+    //   * booking owner: may CANCEL their own booking (no other transitions)
+    //   * FM / school admin: may CANCEL or COMPLETE any booking
+    //   * other actors with fac-001:write (other teachers / staff): no
+    //     mutation authority on someone else's booking
     const existing = await this.getById(id);
     const isOwner = !!actor.personId && existing.bookedBy === actor.personId;
-    const isManager = actor.isSchoolAdmin || actor.personType === 'STAFF';
-    if (!isOwner && !isManager) {
-      throw new ForbiddenException('Only the booker or a facilities manager can edit this booking');
+    const tenant = getCurrentTenant();
+    const isFm =
+      actor.isSchoolAdmin ||
+      (await this.permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+        'fac-001:admin',
+      ]));
+    if (!isOwner && !isFm) {
+      throw new ForbiddenException(
+        'Only the booker or the Facilities Manager can edit this booking',
+      );
+    }
+    if (input.status !== undefined && input.status !== 'CANCELLED' && !isFm) {
+      throw new ForbiddenException(
+        'Only the Facilities Manager can mark a booking COMPLETED. Booking owners can CANCEL only.',
+      );
     }
     const sets: string[] = [];
     const params: unknown[] = [];
@@ -440,7 +604,10 @@ export class BookingService {
 
 @Injectable()
 export class ClosureService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
   async list(args: { activeOnly?: boolean }): Promise<ClosureResponseDto[]> {
     const tenant = getCurrentTenant();
@@ -485,9 +652,12 @@ export class ClosureService {
   }
 
   async create(input: CreateClosureDto, actor: ResolvedActor): Promise<ClosureResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     if (!actor.personId) {
       throw new ForbiddenException('Closure requires an authenticated person');
+    }
+    if (input.linkedWorkOrderId) {
+      await assertWorkOrderInCurrentTenant(this.tenantPrisma, input.linkedWorkOrderId);
     }
     if (input.endsAt && new Date(input.endsAt) <= new Date(input.startsAt)) {
       throw new BadRequestException('endsAt must be after startsAt');
@@ -518,7 +688,7 @@ export class ClosureService {
     input: UpdateClosureDto,
     actor: ResolvedActor,
   ): Promise<ClosureResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.endsAt !== undefined) {

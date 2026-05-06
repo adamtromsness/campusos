@@ -1,6 +1,6 @@
 # Cycle 21 Handoff — Facilities Management
 
-**Status:** Cycle 21 **IN PROGRESS** — Wave 4 (Campus Operations) cycle 3. Cycle 21 ships the M65 Facilities Management module — 16 of the 37 ERD tables in scope (21 deferred to Cycle 21.1: detailed cleaning route tracking, supply transactions + stocktakes, work order attachments + parts, fire drills, facilities asset lifecycle, energy / utility tracking, space utilisation analytics). The Facilities Manager (FM) is the **eighth specialist operator persona** after the nurse, counsellor, librarian, athletic director, enrolment officer, transportation coordinator, and food service manager.
+**Status:** Cycle 21 **COMPLETE + REVIEW-CYCLE21 Round 1 fixes landed** — Round 2 pending. Wave 4 (Campus Operations) cycle 3. Cycle 21 ships the M65 Facilities Management module — 16 of the 37 ERD tables in scope (21 deferred to Cycle 21.1: detailed cleaning route tracking, supply transactions + stocktakes, work order attachments + parts, fire drills, facilities asset lifecycle, energy / utility tracking, space utilisation analytics). The Facilities Manager (FM) is the **eighth specialist operator persona** after the nurse, counsellor, librarian, athletic director, enrolment officer, transportation coordinator, and food service manager.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle21-implementation-plan.html`
@@ -12,18 +12,34 @@ This document is the source of truth that external architecture reviewers read a
 
 ## Step status
 
-| Step | Title                                        | Status   |
-| ---- | -------------------------------------------- | -------- |
-| 1    | Buildings + Spaces + Bookings Schema         | Complete |
-| 2    | Work Orders + Preventive Maintenance Schema  | Complete |
-| 3    | Inspections + Zones + Supply Schema          | Complete |
-| 4    | Seed Data + FAC-001..005 IAM grants          | Complete |
-| 5    | Buildings + Spaces NestJS Module             | Complete |
-| 6    | Work Orders + PM NestJS Module               | Complete |
-| 7    | Inspections + Zones + Supply NestJS Module   | Complete |
-| 8    | Facilities UI — Buildings + Work Orders + PM | Complete |
-| 9    | Facilities UI — Inspections + Zones + Supply | Complete |
-| 10   | Vertical Slice Integration Test              | Complete |
+| Step | Title                                               | Status   |
+| ---- | --------------------------------------------------- | -------- |
+| 1    | Buildings + Spaces + Bookings Schema                | Complete |
+| 2    | Work Orders + Preventive Maintenance Schema         | Complete |
+| 3    | Inspections + Zones + Supply Schema                 | Complete |
+| 4    | Seed Data + FAC-001..005 IAM grants                 | Complete |
+| 5    | Buildings + Spaces NestJS Module                    | Complete |
+| 6    | Work Orders + PM NestJS Module                      | Complete |
+| 7    | Inspections + Zones + Supply NestJS Module          | Complete |
+| 8    | Facilities UI — Buildings + Work Orders + PM        | Complete |
+| 9    | Facilities UI — Inspections + Zones + Supply        | Complete |
+| 10   | Vertical Slice Integration Test                     | Complete |
+| —    | REVIEW-CYCLE21 Round 1 fixes (3 BLOCKING + 4 MAJOR) | Complete |
+
+---
+
+## REVIEW-CYCLE21 fix log (Round 1, 2026-05-06)
+
+The reviewer flagged 3 BLOCKING + 4 actionable MAJORs. The fix commit lands all 3 BLOCKING + 3 actionable MAJORs (4 / 6 / 7) with live verification on `tenant_demo`. MAJOR 5 (two-step inspection model with explicit `recordOutcome`) is recommendation-class — current single-step `create()` already refuses post-creation updates since the service exposes no UPDATE endpoint; carried as Phase 2 punch list item 33.
+
+- **BLOCKING 1** — `assertCanManage(actor, permCheck)` now resolves FM scope via `permissionCheckService.hasAnyPermissionInTenant(accountId, schoolId, ['fac-001:admin'])`. The controller gates POST/PATCH `/buildings`, POST/PATCH `/spaces`, POST/PATCH `/closures` on `fac-001:admin`. Teacher (FAC-001:read+write) keeps booking authority but loses building/space/closure management. Staff (FM stand-in) granted FAC-001..004:admin in the IAM seed. Verified live: teacher POST `/buildings` 403, teacher POST `/spaces` 403, teacher POST `/closures` 403, VP (Staff/FM) POST `/buildings` 201.
+- **BLOCKING 2** — `BookingService.patch` enforces three-tier authority: booking owner can CANCEL own only (no COMPLETED transition); FM/admin can CANCEL or COMPLETE any; other actors with `fac-001:write` are refused. `BookingService.listForSpace` runs the response through `stripIfNotOwnerOrFm` so a non-FM actor sees title + window for other people's bookings but `bookedBy=''`, `bookedByName=null`, `notes=null`. Verified live across 5 paths: teacher CANCEL own 200, teacher COMPLETE own 403, FM CANCEL/COMPLETE other 200, identity strip — teacher sees Principal's booking as ANON.
+- **BLOCKING 3 + MAJOR 6** — 5 new shared validation helpers exported from `buildings.service.ts`: `assertRoomInCurrentTenant`, `assertEmployeeInCurrentTenant`, `assertTicketInCurrentTenant`, `assertVendorInCurrentTenant`, `assertWorkOrderInCurrentTenant`. Applied to: SpaceService.create/patch (schRoomId), WorkOrderService.create/patch (assignedToId, vendorId, tktTicketId), ZoneService.createAssignment (employeeId), ViolationService.resolve (linkedWorkOrderId — same-school check), ClosureService.create (linkedWorkOrderId), MaintenanceTaskService.patch (assignedTo). All return 400 BadRequest with the field name on mismatch. Verified live: 6 separate endpoints each rejected a bogus / cross-tenant UUID with 400.
+- **MAJOR 4** — `MaintenanceTaskService.patch` now reads the prior task state inside the `executeInTenantTransaction` callback with `SELECT … FOR UPDATE OF t` so the OVERDUE emit decision is based on the locked snapshot, not a stale read. The post-tx Kafka emit reads from local variables captured inside the lock. Concurrent status flips serialise on the row lock.
+- **MAJOR 5** — _Carried to Phase 2 punch list item 33._ Inspection two-step model (create as PENDING then `recordOutcome()` with FOR UPDATE) is a recommendation-class consistency improvement; `InspectionService.create()` already refuses post-creation updates since the service exposes no UPDATE method.
+- **MAJOR 7** — Handoff header status updated from "IN PROGRESS" to "COMPLETE + REVIEW-CYCLE21 Round 1 fixes landed"; this fix log section appended.
+
+**No new migrations required** — all fixes are service-layer + IAM-grant-side. The Staff role grant in `seed-iam.ts` widens to include the `admin` tier on FAC-001..004 (Staff perms 108 → 112). Effective access cache rebuilt cleanly. Both `tenant_demo` and `tenant_test` continue to provision idempotently.
 
 ---
 

@@ -8,7 +8,14 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import {
+  assertCanManage,
+  assertEmployeeInCurrentTenant,
+  assertTicketInCurrentTenant,
+  assertVendorInCurrentTenant,
+} from './buildings.service';
 import {
   AddWorkOrderCommentDto,
   ChecklistResultResponseDto,
@@ -32,12 +39,6 @@ import {
   WorkOrderType,
 } from './dto/facilities.dto';
 
-function assertCanManage(actor: ResolvedActor): void {
-  if (actor.isSchoolAdmin) return;
-  if (actor.personType === 'STAFF') return;
-  throw new ForbiddenException('Only school admins or facilities staff can manage work orders');
-}
-
 interface TxClient {
   $queryRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown>;
   $executeRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown>;
@@ -48,6 +49,7 @@ export class WorkOrderService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
+    private readonly permCheck: PermissionCheckService,
   ) {}
 
   async list(args: {
@@ -128,9 +130,18 @@ export class WorkOrderService {
   }
 
   async create(input: CreateWorkOrderDto, actor: ResolvedActor): Promise<WorkOrderResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     if (!actor.personId) {
       throw new ForbiddenException('Work order creation requires an authenticated person');
+    }
+    if (input.assignedToId) {
+      await assertEmployeeInCurrentTenant(this.tenantPrisma, input.assignedToId);
+    }
+    if (input.vendorId) {
+      await assertVendorInCurrentTenant(this.tenantPrisma, input.vendorId);
+    }
+    if (input.tktTicketId) {
+      await assertTicketInCurrentTenant(this.tenantPrisma, input.tktTicketId);
     }
     const tenant = getCurrentTenant();
     const id = generateId();
@@ -178,9 +189,15 @@ export class WorkOrderService {
     input: UpdateWorkOrderDto,
     actor: ResolvedActor,
   ): Promise<WorkOrderResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     if (!actor.personId) {
       throw new ForbiddenException('Work order edit requires an authenticated person');
+    }
+    if (input.assignedToId) {
+      await assertEmployeeInCurrentTenant(this.tenantPrisma, input.assignedToId);
+    }
+    if (input.vendorId) {
+      await assertVendorInCurrentTenant(this.tenantPrisma, input.vendorId);
     }
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const locked = (await tx.$queryRawUnsafe(
@@ -268,7 +285,7 @@ export class WorkOrderService {
     input: AddWorkOrderCommentDto,
     actor: ResolvedActor,
   ): Promise<WorkOrderResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await this.recordActivityInTx(client as TxClient, id, actor.accountId, 'COMMENT', {
         body: input.body,
@@ -298,7 +315,10 @@ export class WorkOrderService {
 
 @Injectable()
 export class MaintenancePlanService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
   async list(): Promise<PmPlanResponseDto[]> {
     const tenant = getCurrentTenant();
@@ -368,7 +388,7 @@ export class MaintenancePlanService {
   }
 
   async create(input: CreatePmPlanDto, actor: ResolvedActor): Promise<PmPlanResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     if (!actor.personId) {
       throw new ForbiddenException('PM plan creation requires an authenticated person');
     }
@@ -409,7 +429,7 @@ export class MaintenancePlanService {
     input: UpdatePmPlanDto,
     actor: ResolvedActor,
   ): Promise<PmPlanResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.name !== undefined) {
@@ -450,7 +470,7 @@ export class MaintenancePlanService {
     input: GeneratePmTasksDto,
     actor: ResolvedActor,
   ): Promise<{ created: number; skipped: number; firstId: string | null }> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     const plan = await this.getById(planId);
     if (!plan.isActive) {
       throw new BadRequestException('Cannot generate tasks for an inactive PM plan');
@@ -507,6 +527,7 @@ export class MaintenanceTaskService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
     private readonly workOrders: WorkOrderService,
+    private readonly permCheck: PermissionCheckService,
   ) {}
 
   async list(args: {
@@ -556,12 +577,43 @@ export class MaintenanceTaskService {
     input: UpdatePmTaskDto,
     actor: ResolvedActor,
   ): Promise<PmTaskResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     if (!actor.personId) {
       throw new ForbiddenException('PM task update requires an authenticated person');
     }
-    const before = await this.getById(id);
+    if (input.assignedTo) {
+      await assertEmployeeInCurrentTenant(this.tenantPrisma, input.assignedTo);
+    }
+    // REVIEW-CYCLE21 MAJOR 4 — read prior task state inside the tx with
+    // FOR UPDATE so the OVERDUE emit decision is based on the locked
+    // pre-update row, not a stale read.
+    let priorStatus: string = 'SCHEDULED';
+    let priorPlanId = '';
+    let priorPlanName = '';
+    let priorScheduled = '';
+    let priorAssigned: string | null = null;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const locked = (await tx.$queryRawUnsafe(
+        'SELECT t.id, t.status, t.plan_id::text AS plan_id, t.scheduled_date, t.assigned_to::text AS assigned_to, p.name AS plan_name ' +
+          'FROM fac_preventive_maintenance_tasks t JOIN fac_preventive_maintenance_plans p ON p.id = t.plan_id ' +
+          'WHERE t.id = $1::uuid FOR UPDATE OF t',
+        id,
+      )) as Array<{
+        id: string;
+        status: string;
+        plan_id: string;
+        scheduled_date: Date;
+        assigned_to: string | null;
+        plan_name: string;
+      }>;
+      if (locked.length === 0) throw new NotFoundException('PM task not found');
+      const before = locked[0]!;
+      priorStatus = before.status as PmTaskStatus;
+      priorPlanId = before.plan_id;
+      priorPlanName = before.plan_name;
+      priorScheduled = before.scheduled_date.toISOString().slice(0, 10);
+      priorAssigned = before.assigned_to;
+
       const sets: string[] = [];
       const params: unknown[] = [];
       if (input.status !== undefined) {
@@ -571,7 +623,7 @@ export class MaintenanceTaskService {
           sets.push('completed_at = now()');
           sets.push('completed_by = $' + (params.length + 1) + '::uuid');
           params.push(actor.personId);
-        } else if (before.status === 'COMPLETED') {
+        } else if (priorStatus === 'COMPLETED') {
           sets.push('completed_at = NULL');
           sets.push('completed_by = NULL');
         }
@@ -597,7 +649,7 @@ export class MaintenanceTaskService {
         );
       }
     });
-    if (input.status === 'OVERDUE' && before.status !== 'OVERDUE') {
+    if (input.status === 'OVERDUE' && priorStatus !== 'OVERDUE') {
       await this.kafka.emit({
         topic: 'fac.maintenance_task.overdue',
         key: id,
@@ -605,10 +657,10 @@ export class MaintenanceTaskService {
         payload: {
           taskId: id,
           sourceRefId: id,
-          planId: before.planId,
-          planName: before.planName,
-          scheduledDate: before.scheduledDate,
-          assignedTo: before.assignedTo,
+          planId: priorPlanId,
+          planName: priorPlanName,
+          scheduledDate: priorScheduled,
+          assignedTo: priorAssigned,
         },
       });
     }
@@ -620,7 +672,7 @@ export class MaintenanceTaskService {
     input: SubmitChecklistResultsDto,
     actor: ResolvedActor,
   ): Promise<{ task: PmTaskResponseDto; followUpWorkOrders: string[] }> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     if (!actor.personId) {
       throw new ForbiddenException('Submitting results requires an authenticated person');
     }

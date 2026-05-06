@@ -9,7 +9,13 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import {
+  assertCanManage,
+  assertEmployeeInCurrentTenant,
+  assertWorkOrderInCurrentTenant,
+} from './buildings.service';
 import {
   AdjustSupplyDto,
   CreateInspectionDto,
@@ -31,14 +37,6 @@ import {
   ZoneShift,
 } from './dto/facilities.dto';
 
-function assertCanManage(actor: ResolvedActor): void {
-  if (actor.isSchoolAdmin) return;
-  if (actor.personType === 'STAFF') return;
-  throw new ForbiddenException(
-    'Only school admins or facilities staff can manage inspections, zones, and supply',
-  );
-}
-
 function isUniqueViolation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; meta?: { code?: string }; message?: string };
@@ -52,6 +50,7 @@ export class InspectionService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
+    private readonly permCheck: PermissionCheckService,
   ) {}
 
   async listTypes(): Promise<InspectionTypeResponseDto[]> {
@@ -86,7 +85,7 @@ export class InspectionService {
     input: CreateInspectionTypeDto,
     actor: ResolvedActor,
   ): Promise<InspectionTypeResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
@@ -142,7 +141,7 @@ export class InspectionService {
   }
 
   async create(input: CreateInspectionDto, actor: ResolvedActor): Promise<InspectionResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     if (!actor.personId) {
       throw new ForbiddenException('Inspection creation requires an authenticated person');
     }
@@ -196,6 +195,7 @@ export class ViolationService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
+    private readonly permCheck: PermissionCheckService,
   ) {}
 
   async listForInspection(inspectionId: string): Promise<ViolationResponseDto[]> {
@@ -234,7 +234,7 @@ export class ViolationService {
     input: CreateViolationDto,
     actor: ResolvedActor,
   ): Promise<ViolationResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
@@ -255,9 +255,16 @@ export class ViolationService {
     input: ResolveViolationDto,
     actor: ResolvedActor,
   ): Promise<ViolationResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     if (!actor.personId) {
       throw new ForbiddenException('Resolution requires an authenticated person');
+    }
+    // REVIEW-CYCLE21 BLOCKING 3 + MAJOR 6 — validate linkedWorkOrderId
+    // belongs to the same school. The DB FK only checks existence;
+    // assertWorkOrderInCurrentTenant adds the same-school check via
+    // school_id match.
+    if (input.linkedWorkOrderId) {
+      await assertWorkOrderInCurrentTenant(this.tenantPrisma, input.linkedWorkOrderId);
     }
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const locked = (await tx.$queryRawUnsafe(
@@ -317,7 +324,10 @@ export class ViolationService {
 
 @Injectable()
 export class ZoneService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
   async list(): Promise<ZoneResponseDto[]> {
     const tenant = getCurrentTenant();
@@ -380,7 +390,7 @@ export class ZoneService {
   }
 
   async create(input: CreateZoneDto, actor: ResolvedActor): Promise<ZoneResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
@@ -409,13 +419,17 @@ export class ZoneService {
     input: CreateZoneAssignmentDto,
     actor: ResolvedActor,
   ): Promise<ZoneAssignmentResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     if (!actor.personId) {
       throw new ForbiddenException('Zone assignment requires an authenticated person');
     }
     if (input.effectiveTo && new Date(input.effectiveTo) < new Date(input.effectiveFrom)) {
       throw new BadRequestException('effectiveTo must be on or after effectiveFrom');
     }
+    // REVIEW-CYCLE21 BLOCKING 3 — validate employeeId belongs to the
+    // calling tenant before insert. Schema soft FK is permissive by
+    // design (cross-cycle audit trail) so the service is the gate.
+    await assertEmployeeInCurrentTenant(this.tenantPrisma, input.employeeId);
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -449,7 +463,7 @@ export class ZoneService {
     input: UpdateZoneAssignmentDto,
     actor: ResolvedActor,
   ): Promise<ZoneAssignmentResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.effectiveTo !== undefined) {
@@ -491,6 +505,7 @@ export class SupplyService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
+    private readonly permCheck: PermissionCheckService,
   ) {}
 
   async listForBuilding(buildingId: string): Promise<SupplyResponseDto[]> {
@@ -525,7 +540,7 @@ export class SupplyService {
   }
 
   async create(input: CreateSupplyDto, actor: ResolvedActor): Promise<SupplyResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -555,7 +570,7 @@ export class SupplyService {
     input: AdjustSupplyDto,
     actor: ResolvedActor,
   ): Promise<SupplyResponseDto> {
-    assertCanManage(actor);
+    await assertCanManage(actor, this.permCheck);
     let crossedBelow = false;
     let buildingId = '';
     let itemName = '';

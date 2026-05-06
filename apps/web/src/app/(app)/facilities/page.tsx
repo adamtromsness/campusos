@@ -19,7 +19,10 @@ import {
 
 export default function FacilitiesLandingPage() {
   const user = useAuthStore((s) => s.user);
-  const isManager = !!user && hasAnyPermission(user, ['fac-001:write']);
+  // FM scope = fac-001:admin (Cycle 21 BLOCKING 1 split). Teachers carry
+  // fac-001:read+write — they can view the dashboard, browse buildings,
+  // and book spaces, but they do NOT see the FM management actions.
+  const isManager = !!user && hasAnyPermission(user, ['fac-001:admin']);
 
   const buildingsQ = useFacBuildings();
   const openWosQ = useFacWorkOrders({ status: 'OPEN' });
