@@ -44,7 +44,91 @@ export class DistributionService {
     }
   }
 
-  async listForPublication(publicationId: string): Promise<DistributionListDto[]> {
+  // MAJOR 6 (REVIEW-CYCLE25) — distribution reads (list + delivery status)
+  // gated to admin OR pub-003:write OR EDITOR collaborator on the publication.
+  private async assertCanReadDistribution(
+    actor: ResolvedActor,
+    publicationId: string,
+  ): Promise<void> {
+    if (actor.isSchoolAdmin) return;
+    const tenant = getCurrentTenant();
+    const writerOk = await this.permCheck.hasAnyPermissionInTenant(
+      actor.accountId,
+      tenant.schoolId,
+      ['pub-003:write'],
+    );
+    if (writerOk) return;
+    const editorRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        "SELECT 1 FROM pub_publication_collaborators WHERE publication_id = $1::uuid AND user_id = $2::uuid AND role = 'EDITOR' LIMIT 1",
+        publicationId,
+        actor.accountId,
+      );
+    })) as Array<unknown>;
+    if (editorRows.length === 0) {
+      throw new ForbiddenException(
+        'Only distribution managers, EDITOR collaborators, or school admins can read distribution data.',
+      );
+    }
+  }
+
+  // MAJOR 7 (REVIEW-CYCLE25) — validate rule_value before insert.
+  private async validateRule(ruleType: string, ruleValue: string): Promise<void> {
+    if (ruleType === 'ROLE') {
+      const allowed = ['PARENT', 'STAFF', 'STUDENT', 'TEACHER', 'SCHOOL_ADMIN', 'PLATFORM_ADMIN'];
+      if (!allowed.includes(ruleValue)) {
+        throw new BadRequestException(`ROLE rule_value must be one of ${allowed.join(', ')}.`);
+      }
+      return;
+    }
+    if (ruleType === 'GRADE') {
+      // Validate the grade label exists for at least one current-tenant student.
+      const exists = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM sis_students WHERE grade_level = $1 LIMIT 1',
+          ruleValue,
+        );
+      })) as Array<unknown>;
+      if (exists.length === 0) {
+        throw new BadRequestException(
+          `GRADE rule_value '${ruleValue}' has no enrolled students in this school.`,
+        );
+      }
+      return;
+    }
+    if (ruleType === 'CLASS') {
+      const exists = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM sis_classes WHERE id = $1::uuid LIMIT 1',
+          ruleValue,
+        );
+      })) as Array<unknown>;
+      if (exists.length === 0) {
+        throw new BadRequestException('CLASS rule_value does not match a class in this school.');
+      }
+      return;
+    }
+    if (ruleType === 'GROUP_MEMBERSHIP') {
+      const exists = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM grp_groups WHERE id = $1::uuid LIMIT 1',
+          ruleValue,
+        );
+      })) as Array<unknown>;
+      if (exists.length === 0) {
+        throw new BadRequestException(
+          'GROUP_MEMBERSHIP rule_value does not match a group in this school.',
+        );
+      }
+      return;
+    }
+  }
+
+  async listForPublication(
+    actor: ResolvedActor,
+    publicationId: string,
+  ): Promise<DistributionListDto[]> {
+    await this.assertCanReadDistribution(actor, publicationId);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT id::text AS id, publication_id::text AS publication_id, list_name, is_active FROM pub_distribution_lists WHERE publication_id = $1::uuid ORDER BY created_at',
@@ -84,6 +168,10 @@ export class DistributionService {
         tenant.schoolId,
       )) as Array<unknown>;
       if (exists.length === 0) throw new NotFoundException('Publication not found');
+      // MAJOR 7 — validate every supplied rule before any INSERT.
+      for (const rule of input.rules ?? []) {
+        await this.validateRule(rule.ruleType, rule.ruleValue);
+      }
       const listId = generateId();
       await client.$executeRawUnsafe(
         'INSERT INTO pub_distribution_lists (id, publication_id, list_name) VALUES ($1::uuid, $2::uuid, $3)',
@@ -100,7 +188,7 @@ export class DistributionService {
           rule.ruleValue,
         );
       }
-      const lists = await this.listForPublication(publicationId);
+      const lists = await this.listForPublication(actor, publicationId);
       return lists.find((l) => l.id === listId)!;
     });
   }
@@ -111,6 +199,8 @@ export class DistributionService {
     input: CreateDistributionRuleDto,
   ): Promise<DistributionRuleDto> {
     await this.assertDistributor(actor);
+    // MAJOR 7 — validate before insert.
+    await this.validateRule(input.ruleType, input.ruleValue);
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       const exists = (await client.$queryRawUnsafe(
@@ -189,8 +279,12 @@ export class DistributionService {
           )) as Array<{ account_id: string }>;
           for (const a of teachers) matched.add(a.account_id);
         } else if (r.rule_type === 'GROUP_MEMBERSHIP') {
+          // BLOCKING 5 (REVIEW-CYCLE25) — grp_members.person_id stores
+          // platform_users.id despite the column name (Cycle 18 carry-over,
+          // documented in CLAUDE.md). The previous join through iam_person
+          // returned zero rows. Use person_id directly as account_id.
           const accounts = (await client.$queryRawUnsafe(
-            "SELECT DISTINCT pu.id::text AS account_id FROM grp_members m JOIN platform.iam_person ip ON ip.id = m.person_id JOIN platform.platform_users pu ON pu.person_id = ip.id WHERE m.group_id = $1::uuid AND m.status = 'ACTIVE'",
+            "SELECT DISTINCT m.person_id::text AS account_id FROM grp_members m WHERE m.group_id = $1::uuid AND m.status = 'ACTIVE'",
             r.rule_value,
           )) as Array<{ account_id: string }>;
           for (const a of accounts) matched.add(a.account_id);
@@ -320,7 +414,11 @@ export class DistributionService {
     };
   }
 
-  async deliveryStatus(publicationId: string): Promise<DistributionStatusDto> {
+  async deliveryStatus(
+    actor: ResolvedActor,
+    publicationId: string,
+  ): Promise<DistributionStatusDto> {
+    await this.assertCanReadDistribution(actor, publicationId);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT delivery_status, COUNT(*)::int AS n FROM pub_distribution_recipients WHERE publication_id = $1::uuid GROUP BY delivery_status',
@@ -398,6 +496,14 @@ export class SubscriptionService {
 
   async subscribe(actor: ResolvedActor, seriesId: string): Promise<SubscriptionDto> {
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      // MAJOR 8 — series existence check before insert/update.
+      const seriesRows = (await client.$queryRawUnsafe(
+        'SELECT 1 FROM pub_series WHERE id = $1::uuid AND is_active = true LIMIT 1',
+        seriesId,
+      )) as Array<unknown>;
+      if (seriesRows.length === 0) {
+        throw new NotFoundException('Series not found or inactive');
+      }
       // Idempotent: if already subscribed, no-op. If unsubscribed, re-subscribe.
       const existing = (await client.$queryRawUnsafe(
         'SELECT id::text AS id, status FROM pub_series_subscriptions WHERE series_id = $1::uuid AND subscriber_id = $2::uuid LIMIT 1',
@@ -429,6 +535,14 @@ export class SubscriptionService {
 
   async unsubscribe(actor: ResolvedActor, seriesId: string): Promise<SubscriptionDto> {
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      // MAJOR 8 — series existence check.
+      const seriesRows = (await client.$queryRawUnsafe(
+        'SELECT 1 FROM pub_series WHERE id = $1::uuid LIMIT 1',
+        seriesId,
+      )) as Array<unknown>;
+      if (seriesRows.length === 0) {
+        throw new NotFoundException('Series not found');
+      }
       const existing = (await client.$queryRawUnsafe(
         'SELECT id::text AS id FROM pub_series_subscriptions WHERE series_id = $1::uuid AND subscriber_id = $2::uuid LIMIT 1',
         seriesId,

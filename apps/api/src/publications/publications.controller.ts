@@ -151,11 +151,16 @@ export class PublicationsController {
 
   @Get('publications')
   @RequirePermission('pub-001:read')
+  @ApiOperation({
+    summary:
+      'List publications. REVIEW-CYCLE25 BLOCKING 1 — non-writer non-collaborator readers see only PUBLISHED publications.',
+  })
   async listPublications(
+    @Req() req: AuthedRequest,
     @Query('status') status?: PublicationStatus,
     @Query('seriesId') seriesId?: string,
   ): Promise<PublicationDto[]> {
-    return this.publications.list({ status, seriesId });
+    return this.publications.list(await this.resolveActor(req), { status, seriesId });
   }
 
   // Static segments must be declared BEFORE the /publications/:id wildcard so
@@ -168,8 +173,15 @@ export class PublicationsController {
 
   @Get('publications/:id')
   @RequirePermission('pub-001:read')
-  async getPublication(@Param('id') id: string): Promise<PublicationDetailDto> {
-    return this.publications.getById(id);
+  @ApiOperation({
+    summary:
+      'Publication detail. REVIEW-CYCLE25 BLOCKING 1 — non-writer non-collaborator readers receive a collapsed 404 on non-PUBLISHED publications.',
+  })
+  async getPublication(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<PublicationDetailDto> {
+    return this.publications.getById(id, await this.resolveActor(req));
   }
 
   @Post('publications')
@@ -218,8 +230,12 @@ export class PublicationsController {
 
   @Get('publications/:id/sections')
   @RequirePermission('pub-001:read')
-  async listSections(@Param('id') id: string): Promise<SectionDto[]> {
-    return this.sections.listForPublication(id);
+  @ApiOperation({
+    summary:
+      'List sections. REVIEW-CYCLE25 BLOCKING 1 — non-writer non-collaborator readers see only approved sections under PUBLISHED publications.',
+  })
+  async listSections(@Param('id') id: string, @Req() req: AuthedRequest): Promise<SectionDto[]> {
+    return this.sections.listForPublication(id, await this.resolveActor(req));
   }
 
   @Post('publications/:id/sections')
@@ -281,9 +297,16 @@ export class PublicationsController {
   // ── Section comments ──
 
   @Get('publication-sections/:id/comments')
-  @RequirePermission('pub-001:read')
-  async listSectionComments(@Param('id') id: string): Promise<SectionCommentDto[]> {
-    return this.comments.listForSection(id);
+  @RequirePermission('pub-002:write')
+  @ApiOperation({
+    summary:
+      'Section comments — REVIEW-CYCLE25 BLOCKING 1: editorial review surface restricted to staff writers + collaborators on the parent publication. Non-writer non-collaborator readers receive a collapsed 404.',
+  })
+  async listSectionComments(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<SectionCommentDto[]> {
+    return this.comments.listForSection(id, await this.resolveActor(req));
   }
 
   @Post('publication-sections/:id/comments')
@@ -309,8 +332,15 @@ export class PublicationsController {
 
   @Get('publications/:id/distribution-lists')
   @RequirePermission('pub-003:read')
-  async listDistributionLists(@Param('id') id: string): Promise<DistributionListDto[]> {
-    return this.distribution.listForPublication(id);
+  @ApiOperation({
+    summary:
+      'List distribution lists. REVIEW-CYCLE25 MAJOR 6 — gated to admin OR pub-003:write OR EDITOR collaborator on the publication.',
+  })
+  async listDistributionLists(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<DistributionListDto[]> {
+    return this.distribution.listForPublication(await this.resolveActor(req), id);
   }
 
   @Post('publications/:id/distribution-lists')
@@ -361,8 +391,15 @@ export class PublicationsController {
 
   @Get('publications/:id/distribution-status')
   @RequirePermission('pub-003:read')
-  async distributionStatus(@Param('id') id: string): Promise<DistributionStatusDto> {
-    return this.distribution.deliveryStatus(id);
+  @ApiOperation({
+    summary:
+      'Delivery rollup. REVIEW-CYCLE25 MAJOR 6 — gated to admin / pub-003:write / EDITOR collaborator.',
+  })
+  async distributionStatus(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<DistributionStatusDto> {
+    return this.distribution.deliveryStatus(await this.resolveActor(req), id);
   }
 
   // ── Subscriptions ──

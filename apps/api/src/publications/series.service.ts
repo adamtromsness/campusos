@@ -10,6 +10,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
+import { assertAccountInCurrentTenant } from './access';
 import type {
   CollaboratorRole,
   CreateEditionDto,
@@ -470,12 +471,34 @@ export class PublicationService {
     };
   }
 
+  // REVIEW-CYCLE25 BLOCKING 1 — non-writer non-collaborator readers see
+  // only PUBLISHED publications. Writers (admin / pub-001:write +
+  // pub-002:write STAFF) and collaborators see every status.
+  private async isWriterPersona(actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    if (actor.personType !== 'STAFF') return false;
+    const tenant = getCurrentTenant();
+    return this.permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'pub-001:write',
+      'pub-002:write',
+    ]);
+  }
+
   async list(
+    actor: ResolvedActor,
     filters: { status?: PublicationStatus; seriesId?: string } = {},
   ): Promise<PublicationDto[]> {
     const tenant = getCurrentTenant();
+    const isWriter = await this.isWriterPersona(actor);
     const params: unknown[] = [tenant.schoolId];
     let where = ' WHERE p.school_id = $1::uuid';
+    if (!isWriter) {
+      // Non-writer readers see PUBLISHED only OR publications they
+      // collaborate on. PUB-001:read is held by parents and students; this
+      // is the privacy boundary between reader and editor surfaces.
+      params.push(actor.accountId);
+      where += ` AND (p.status = 'PUBLISHED' OR EXISTS (SELECT 1 FROM pub_publication_collaborators c WHERE c.publication_id = p.id AND c.user_id = $${params.length}::uuid))`;
+    }
     if (filters.status) {
       params.push(filters.status);
       where += ` AND p.status = $${params.length}`;
@@ -493,7 +516,7 @@ export class PublicationService {
     return rows.map((r) => this.rowToDto(r));
   }
 
-  async getById(id: string): Promise<PublicationDetailDto> {
+  async getById(id: string, actor: ResolvedActor): Promise<PublicationDetailDto> {
     const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
@@ -503,6 +526,22 @@ export class PublicationService {
       );
     })) as PublicationRow[];
     if (rows.length === 0) throw new NotFoundException('Publication not found');
+    // BLOCKING 1 — non-writer non-collaborator can only read PUBLISHED.
+    const row = rows[0]!;
+    const isWriter = await this.isWriterPersona(actor);
+    if (!isWriter && row.status !== 'PUBLISHED') {
+      const collab = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM pub_publication_collaborators WHERE publication_id = $1::uuid AND user_id = $2::uuid LIMIT 1',
+          id,
+          actor.accountId,
+        );
+      })) as Array<unknown>;
+      if (collab.length === 0) {
+        // Don't-leak-existence collapsed 404.
+        throw new NotFoundException('Publication not found');
+      }
+    }
     const collaborators = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         "SELECT c.id::text AS id, c.publication_id::text AS publication_id, c.user_id::text AS user_id, c.role, c.invited_by::text AS invited_by, c.invited_at::text AS invited_at, c.accepted_at::text AS accepted_at, (SELECT ip.first_name || ' ' || ip.last_name FROM platform.platform_users pu JOIN platform.iam_person ip ON ip.id = pu.person_id WHERE pu.id = c.user_id LIMIT 1) AS user_name FROM pub_publication_collaborators c WHERE c.publication_id = $1::uuid ORDER BY c.invited_at",
@@ -519,7 +558,7 @@ export class PublicationService {
       accepted_at: string | null;
     }>;
     return {
-      ...this.rowToDto(rows[0]!),
+      ...this.rowToDto(row),
       collaborators: collaborators.map((c) => ({
         id: c.id,
         publicationId: c.publication_id,
@@ -552,7 +591,7 @@ export class PublicationService {
         actor.accountId,
       );
     });
-    const detail = await this.getById(id);
+    const detail = await this.getById(id, actor);
     return detail;
   }
 
@@ -601,7 +640,7 @@ export class PublicationService {
         `UPDATE pub_publications SET ${sets.join(', ')} WHERE id = $${params.length}::uuid`,
         ...params,
       );
-      return this.getById(id);
+      return this.getById(id, actor);
     });
   }
 }
@@ -623,6 +662,9 @@ export class CollaboratorService {
         tenant.schoolId,
       )) as Array<unknown>;
       if (exists.length === 0) throw new NotFoundException('Publication not found');
+      // BLOCKING 4 — soft platform_users.id ref must point at a current-
+      // tenant user (sis_students / sis_guardians / hr_employees projection).
+      await assertAccountInCurrentTenant(this.tenantPrisma, input.userId, 'userId');
       const id = generateId();
       try {
         await client.$executeRawUnsafe(

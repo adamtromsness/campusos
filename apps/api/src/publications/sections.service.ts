@@ -10,6 +10,13 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { isUniqueViolation } from './series.service';
+import {
+  assertAccountInCurrentTenant,
+  canApproveSection,
+  canEditPublication,
+  isStudentCollaborator,
+} from './access';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import type {
   AddContributorDto,
   CreateCommentDto,
@@ -53,7 +60,10 @@ const SELECT_SECTION_BASE = `
 
 @Injectable()
 export class SectionService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
   private async loadContributors(sectionId: string): Promise<SectionContributorDto[]> {
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -96,11 +106,40 @@ export class SectionService {
     };
   }
 
-  async listForPublication(publicationId: string): Promise<SectionDto[]> {
+  async listForPublication(publicationId: string, actor: ResolvedActor): Promise<SectionDto[]> {
+    // BLOCKING 1 (REVIEW-CYCLE25) — actor-aware. Load parent publication's
+    // status; non-writer non-collaborator readers see only PUBLISHED
+    // publications, and only approved sections within them.
+    const tenant = getCurrentTenant();
+    const pubRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT status FROM pub_publications WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        publicationId,
+        tenant.schoolId,
+      );
+    })) as Array<{ status: string }>;
+    if (pubRows.length === 0) {
+      throw new NotFoundException('Publication not found');
+    }
+    const isWriter = await canEditPublication(
+      this.tenantPrisma,
+      this.permCheck,
+      actor,
+      publicationId,
+    );
+    if (!isWriter && pubRows[0]!.status !== 'PUBLISHED') {
+      throw new NotFoundException('Publication not found');
+    }
+    const params: unknown[] = [publicationId];
+    let where = ' WHERE s.publication_id = $1::uuid';
+    if (!isWriter) {
+      // Non-writer readers do not see pending sections.
+      where += ' AND s.is_approved = true';
+    }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        SELECT_SECTION_BASE + ' WHERE s.publication_id = $1::uuid ORDER BY s.sort_order',
-        publicationId,
+        SELECT_SECTION_BASE + where + ' ORDER BY s.sort_order',
+        ...params,
       );
     })) as SectionRow[];
     const out: SectionDto[] = [];
@@ -109,11 +148,24 @@ export class SectionService {
   }
 
   async create(
-    _actor: ResolvedActor,
+    actor: ResolvedActor,
     publicationId: string,
     input: CreateSectionDto,
   ): Promise<SectionDto> {
     const tenant = getCurrentTenant();
+    // BLOCKING 2 (REVIEW-CYCLE25) — students may only create sections on
+    // publications where they hold an active EDITOR or CONTRIBUTOR
+    // collaborator row. This blocks the "any student with PUB-002:write
+    // can pollute any publication by UUID" attack while keeping the
+    // student-input keystone alive for legitimate authoring flows.
+    if (actor.personType === 'STUDENT' && !actor.isSchoolAdmin) {
+      const ok = await isStudentCollaborator(this.tenantPrisma, actor, publicationId);
+      if (!ok) {
+        throw new ForbiddenException(
+          'Students must be invited as a CONTRIBUTOR or EDITOR collaborator on the publication before adding a section.',
+        );
+      }
+    }
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
       const pubRows = (await client.$queryRawUnsafe(
         'SELECT status FROM pub_publications WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
@@ -201,18 +253,27 @@ export class SectionService {
     });
   }
 
-  // ADR-035 approval flip — editor / admin lifts the pending flag on a
-  // student-authored section.
+  // ADR-035 approval flip — editor / reviewer / admin lifts the pending
+  // flag on a section. BLOCKING 3 (REVIEW-CYCLE25) — generic PUB-002:write
+  // is no longer enough; the actor must be school admin, the publication
+  // creator, or an EDITOR/REVIEWER collaborator.
   async approve(actor: ResolvedActor, sectionId: string): Promise<SectionDto> {
     if (!actor.isSchoolAdmin && actor.personType === 'STUDENT') {
       throw new ForbiddenException('Students cannot approve their own sections.');
     }
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
       const rows = (await client.$queryRawUnsafe(
-        'SELECT id::text AS id FROM pub_sections WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id::text AS id, publication_id::text AS publication_id FROM pub_sections WHERE id = $1::uuid FOR UPDATE',
         sectionId,
-      )) as Array<{ id: string }>;
+      )) as Array<{ id: string; publication_id: string }>;
       if (rows.length === 0) throw new NotFoundException('Section not found');
+      const publicationId = rows[0]!.publication_id;
+      const ok = await canApproveSection(this.tenantPrisma, actor, publicationId);
+      if (!ok) {
+        throw new ForbiddenException(
+          'Only the publication creator, an EDITOR/REVIEWER collaborator, or a school admin can approve this section.',
+        );
+      }
       await client.$executeRawUnsafe(
         'UPDATE pub_sections SET is_approved = true, updated_at = now() WHERE id = $1::uuid',
         sectionId,
@@ -235,6 +296,9 @@ export class ContributorService {
     sectionId: string,
     input: AddContributorDto,
   ): Promise<SectionContributorDto> {
+    // BLOCKING 4 (REVIEW-CYCLE25) — validate the soft platform_users.id ref
+    // points at a current-tenant user before insert.
+    await assertAccountInCurrentTenant(this.tenantPrisma, input.contributorId, 'contributorId');
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -288,9 +352,35 @@ export class ContributorService {
 
 @Injectable()
 export class CommentService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
-  async listForSection(sectionId: string): Promise<SectionCommentDto[]> {
+  async listForSection(sectionId: string, actor: ResolvedActor): Promise<SectionCommentDto[]> {
+    // BLOCKING 1 (REVIEW-CYCLE25) — comments are an editorial-review
+    // surface. Restricted to staff writers + collaborators on the parent
+    // publication. Resolve the publication id from the section, then
+    // gate via canEditPublication.
+    const sectionRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT publication_id::text AS publication_id FROM pub_sections WHERE id = $1::uuid LIMIT 1',
+        sectionId,
+      );
+    })) as Array<{ publication_id: string }>;
+    if (sectionRows.length === 0) {
+      throw new NotFoundException('Section not found');
+    }
+    const ok = await canEditPublication(
+      this.tenantPrisma,
+      this.permCheck,
+      actor,
+      sectionRows[0]!.publication_id,
+    );
+    if (!ok) {
+      // Don't-leak-existence — collapsed 404.
+      throw new NotFoundException('Section not found');
+    }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         "SELECT c.id::text AS id, c.section_id::text AS section_id, c.author_id::text AS author_id, c.body, c.is_resolved, c.resolved_by::text AS resolved_by, c.resolved_at::text AS resolved_at, c.parent_comment_id::text AS parent_comment_id, c.created_at::text AS created_at, (SELECT ip.first_name || ' ' || ip.last_name FROM platform.platform_users pu JOIN platform.iam_person ip ON ip.id = pu.person_id WHERE pu.id = c.author_id LIMIT 1) AS author_name FROM pub_section_comments c WHERE c.section_id = $1::uuid ORDER BY c.created_at",
@@ -338,7 +428,7 @@ export class CommentService {
         input.parentCommentId ?? null,
       );
     });
-    const list = await this.listForSection(sectionId);
+    const list = await this.listForSection(sectionId, actor);
     return list.find((c) => c.id === id)!;
   }
 
@@ -357,7 +447,7 @@ export class CommentService {
         actor.accountId,
         commentId,
       );
-      const list = await this.listForSection(rows[0]!.section_id);
+      const list = await this.listForSection(rows[0]!.section_id, actor);
       return list.find((c) => c.id === commentId)!;
     });
   }
