@@ -143,7 +143,8 @@ These join the existing Wave 2-5 Phase 2 punch list (items 9 / 11 / 13 / 14 / 16
 
 - 2026-05-06 — `cycle25-complete` (`5aee99c`) submitted for review.
 - 2026-05-06 — Round 1 verdict: **Reject pending fixes** (5 BLOCKING + 4 MAJOR).
-- 2026-05-06 — All 5 BLOCKING + 3 actionable MAJORs (6 / 7 / 8) landed in this commit, live-verified on `tenant_demo`.
+- 2026-05-06 — All 5 BLOCKING + 3 actionable MAJORs (6 / 7 / 8) landed in `bfd393f`, live-verified on `tenant_demo`.
 - 1 remaining MAJOR (9) acknowledged + carried to Phase 2 punch list.
+- 2026-05-06 — Round 2 verdict: **Approved.** Reviewer cache-busted each affected file in code on Round 2 and confirmed every fix matches.
 
-**Cycle 25 ships clean to Round 2.** Tagging `cycle25-approved` after Round 2 APPROVED.
+**Cycle 25 is clean from the review perspective.** Tagged `cycle25-approved` at `bfd393f`.
