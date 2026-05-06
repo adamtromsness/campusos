@@ -114,11 +114,11 @@ a.card{text-decoration:none;color:inherit}
   <h1>Design Hub</h1>
   <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38 modules, 76 ADRs across 8 delivery waves.</p>
   <div class="stats-row">
-    <div class="stat"><span class="num">346</span><span class="label">Tables Built</span></div>
-    <div class="stat"><span class="num">~784</span><span class="label">Endpoints</span></div>
-    <div class="stat"><span class="num">215+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">357</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">~818</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">225+</span><span class="label">UI Pages</span></div>
     <div class="stat"><span class="num">16</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">27</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">28</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -135,31 +135,31 @@ a.card{text-decoration:none;color:inherit}
 <div id="overview" class="tab-content active">
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Cycles 0&ndash;24 Complete</h4>
-      <p>Waves 1&ndash;4 + Wave 5 in progress. 346 tenant tables, ~784 endpoints, 215+ UI pages. Student-owned portfolios with cross-module achievements, 4-tier visibility, and share links live.</p>
+      <h4>Waves 1&ndash;5 Complete &mdash; Cycles 0&ndash;25</h4>
+      <p>Core Ops + Student Services + Communications + Campus Ops + Academic Advanced. 357 tables, ~818 endpoints, 225+ pages. Curriculum, portfolios, publications all live.</p>
     </div>
     <div class="status-card sc-blue">
-      <h4>Cycle 25: Publications &mdash; Next</h4>
-      <p>Recurring series, collaborative authoring with ADR-035 approval, targeted distribution with rule-based audience, subscription opt-out, delivery tracking. 11 tables, ~34 endpoints. Closes Wave 5.</p>
+      <h4>Cycle 26: Finance &amp; Accounting &mdash; Next</h4>
+      <p>Double-entry GL with DB-validated balance, Kafka consumer on payment events, budget variance, AP lifecycle, bank reconciliation, board reports. 14 tables, ~34 endpoints. Opens Wave 6.</p>
     </div>
     <div class="status-card sc-amber">
-      <h4>Wave 6 Up Next</h4>
-      <p>Finance (26), Procurement (27), School Store (28). Then Waves 7&ndash;8.</p>
+      <h4>Wave 6 Continues</h4>
+      <p>Procurement (27), School Store (28). Then Waves 7&ndash;8.</p>
     </div>
   </div>
 
   <h2 class="sec">Build Progress</h2>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Tables Built</span><span>346 / 840 (41%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:41%"></div></div>
+    <div class="progress-label"><span>Tables Built</span><span>357 / 840 (42%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:42%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Cycles Complete</span><span>27 / 32 planned (84%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:84%"></div></div>
+    <div class="progress-label"><span>Cycles Complete</span><span>28 / 32 planned (88%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:88%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>4 of 8 (Wave 5 nearly done)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:56%"></div></div>
+    <div class="progress-label"><span>Waves Complete</span><span>5 of 8 (Wave 6 starting)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:62%"></div></div>
   </div>
 
   <h2 class="sec">What is CampusOS?</h2>
@@ -238,7 +238,7 @@ a.card{text-decoration:none;color:inherit}
     <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
       <tr><td>M40 Communications</td><td><code>msg_</code></td><td>28</td><td><span class="pill pill-green">Built (Cycle 3+14)</span></td><td>Messaging, announcements, notifications, push tokens, content moderation</td></tr>
       <tr><td>M41 Meetings</td><td><code>mtg_</code></td><td>18</td><td><span class="pill pill-green">Built (11/13)</span></td><td>Video meetings, AI minutes, parent-teacher conferences</td></tr>
-      <tr><td>M42 Publications</td><td><code>pub_</code></td><td>11</td><td><span class="pill pill-gray">Planned</span></td><td>School publications, newsletters, collaborative publishing</td></tr>
+      <tr><td>M42 Publications</td><td><code>pub_</code></td><td>11</td><td><span class="pill pill-green">Built (11/15)</span></td><td>School publications, newsletters, collaborative publishing</td></tr>
     </table>
   </div>
 
@@ -355,28 +355,28 @@ a.card{text-decoration:none;color:inherit}
   </div>
 
   <!-- WAVE 5 -->
-  <div class="wave w-teal open">
+  <div class="wave w-teal">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>Wave 5 &mdash; Academic Advanced</h3>
-      <span class="wave-meta">3 cycles &middot; IN PROGRESS</span>
+      <span class="wave-meta">3 cycles &middot; COMPLETE</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
       <div class="cycle-row"><span class="cycle-num">23</span><span class="cycle-title">Curriculum &amp; Standards <span class="pill pill-green">Done</span></span><span class="cycle-tables">11 tenant</span><span class="cycle-links"><a href="campusos-cycle23-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle23-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">24</span><span class="cycle-title">Student Portfolio <span class="pill pill-green">Done</span></span><span class="cycle-tables">5 tenant</span><span class="cycle-links"><a href="campusos-cycle24-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle24-cat-script.md" class="cl-cat">CAT</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">25</span><span class="cycle-title">Publications <span class="pill pill-blue">Next</span></span><span class="cycle-tables">11 tenant</span><span class="cycle-links"><a href="campusos-cycle25-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">25</span><span class="cycle-title">Publications <span class="pill pill-green">Done</span></span><span class="cycle-tables">11 tenant</span><span class="cycle-links"><a href="campusos-cycle25-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle25-cat-script.md" class="cl-cat">CAT</a></span></div>
     </div>
   </div>
 
   <!-- WAVE 6 -->
-  <div class="wave w-red">
+  <div class="wave w-red open">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>Wave 6 &mdash; Finance &amp; Commerce</h3>
-      <span class="wave-meta">3 cycles &middot; PLANNED</span>
+      <span class="wave-meta">3 cycles &middot; IN PROGRESS</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">26</span><span class="cycle-title">Finance &amp; Accounting</span><span class="cycle-tables">~9 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">26</span><span class="cycle-title">Finance &amp; Accounting <span class="pill pill-blue">Next</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="campusos-cycle26-implementation-plan.html" class="cl-plan">Plan</a></span></div>
       <div class="cycle-row"><span class="cycle-num">27</span><span class="cycle-title">Procurement</span><span class="cycle-tables">~12 tenant</span><span class="cycle-links"></span></div>
       <div class="cycle-row"><span class="cycle-num">28</span><span class="cycle-title">School Store</span><span class="cycle-tables">~14 tenant</span><span class="cycle-links"></span></div>
     </div>
@@ -413,6 +413,13 @@ a.card{text-decoration:none;color:inherit}
 <div id="buildlog" class="tab-content">
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>Cycle 25: Publications <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">11 tables &middot; ~34 endpoints &middot; 1 Kafka emit &middot; ~9 web routes &middot; Wave 5 complete</div>
+    <div class="log-desc">Recurring series with auto-incremented editions, collaborative multi-section authoring with contributor attribution, ADR-035 approval gate (staff direct / student requires approval), rule-based targeted distribution with subscription opt-out, delivery tracking with open/bounce status, editorial comment threads.</div>
+    <div class="log-links"><a href="campusos-cycle25-implementation-plan.html">Plan</a> <a href="cycle25-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>Cycle 24: Student Portfolio <span class="pill pill-green">Approved</span></h4>
@@ -570,6 +577,7 @@ a.card{text-decoration:none;color:inherit}
     <a href="cycle22-cat-script.md" class="card"><h4>Cycle 22 CAT</h4><div class="desc">Asset lifecycle, damage + repair, licence seats + capacity alert, credential vault tier enforcement + immutable audit, MDM alerts, procurement, device selection (ADR-066).</div><div class="meta">10 scenarios</div></a>
     <a href="cycle23-cat-script.md" class="card"><h4>Cycle 23 CAT</h4><div class="desc">Framework adoption + GIN search, curriculum map + units, dual-resolution standards alignment, lesson linking (Cycle 2), delivery gap materialisation, resources, lib cross-link (Cycle 12).</div><div class="meta">10 scenarios</div></a>
     <a href="cycle24-cat-script.md" class="card"><h4>Cycle 24 CAT</h4><div class="desc">Portfolio creation (student-owned), item sourcing from Cycle 2, featured items, 4-tier visibility, share link + view tracking, teacher achievement award, cross-module achievement resolution, transfer privacy reset.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle25-cat-script.md" class="card"><h4>Cycle 25 CAT</h4><div class="desc">Series + edition, collaborative authoring, ADR-035 section approval, editorial comments, distribution rules + audience, publish + delivery tracking, subscription opt-out.</div><div class="meta">10 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 2 Punch List</h2>
