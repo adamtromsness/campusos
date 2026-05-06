@@ -261,3 +261,17 @@ Round 1 of REVIEW-CYCLE16-CHATGPT (against `cycle16-complete` at `1b19c6c`) retu
 - **MAJOR 6 — onboarding checklist read visibility:** carried to Phase 2 punch list. `GET /onboarding-checklists` is gated by `stu-003:read` today, which the reviewer notes may be appropriate for school-level operational templates but could be tightened to admin / EO if task names / responsible roles reveal internal processes.
 
 CI parity green: prettier ✓, all builds ✓, tests ✓ (7/7 passed). Tagged `cycle16-approved` after Round 2 verdict.
+
+---
+
+## Round 2 verdict — APPROVED at `850fc6d` (2026-05-06)
+
+REVIEW-CYCLE16-CHATGPT Round 2 confirmed all 3 BLOCKING fixes are properly closed in code:
+
+1. **Application stage / score / onboarding reads are actor-aware.** Stage controller passes the actor through; `ApplicationStageService.list(applicationId, actor)` enforces row-scope. `ApplicationScoringService` is restricted to admin/EO only — guardians and students no longer inherit read access to admissions scoring just because they have `stu-003:read`. Onboarding progress reads (`GET /applications/:applicationId/onboarding` + `GET /onboarding-progress/:id`) check application ownership before returning progress / task data.
+2. **`waiveTask()` follows the same lifecycle path as `completeTask()`.** Both methods delegate to the shared `transitionTask()` helper which locks the task-completion row, locks the parent progress row, recomputes `tasks_completed`, checks mandatory completion via `status IN ('COMPLETED','WAIVED')`, flips the progress row to `COMPLETE` when appropriate, and emits `enr.student.onboarded` after commit.
+3. **Offer-accept onboarding generation is no longer silently swallowed.** `generateProgressForApplicationInTx()` returns the typed discriminated union; `OfferService.respond()` only treats `NO_CHECKLIST` as an intentional skip; unexpected SQL / runtime errors propagate naturally and roll back the acceptance transaction.
+
+**Accepted follow-up (Phase 2 punch list item 22):** the implementation treats `actor.personType === 'STAFF'` as the Enrolment Officer authority because the IAM seed grants `STU-003:read+write` to the generic Staff role. Real schools likely want a distinct EO role rather than generic Staff. Joins the broader Counsellor / Nurse / Librarian / Athletic Director role-split punch list items (9 + 11 + 13 + 14 + 16) before pilot.
+
+**Cycle 16 ships clean.** Wave 3 cycle 3 is closed. Tagged `cycle16-approved` at `850fc6d`.
