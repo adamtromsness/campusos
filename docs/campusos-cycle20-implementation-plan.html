@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 20 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 4 &middot; Campus Operations</div>
+    <h1>Cycle 20: Food Service</h1>
+    <div class="sub">Menu planning with rotating cycles, POS transactions with real-time allergen safety enforcement (CRITICAL allergens block the sale and require supervisor override), NSLP free/reduced meal eligibility with USDA reimbursement claims, student dietary profiles, food safety temperature logging, cash drawer reconciliation, and parent dietary update requests. The Food Service Manager (FSM) is the seventh specialist operator persona.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M63 Food Service (31 tables &mdash; 16 core in scope, 15 deferred) &middot; FDS-001 through FDS-004</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 20 builds the M63 Food Service module &mdash; 16 of the 31 ERD tables. This is the second Campus Operations module and the most safety-critical surface outside of Health (Cycle 10). The allergen safety enforcement at the POS is a life-safety feature: when a student scans their ID at the checkout, the system cross-references their <code>fds_student_allergen_alerts</code> (a read model populated from Cycle 10's health module via Kafka) against the <code>allergen_codes[]</code> on each menu item in the transaction. CRITICAL allergens (anaphylactic) BLOCK the sale and require a supervisor override with audit trail.</p>
+
+  <p class="body-text">The module spans 4 domains: (1) menu planning with rotating cycles + daily menus + item catalogue with GIN-indexed allergen codes, (2) POS operations with device registry + meal service sessions + transactions with allergen cross-check + cash reconciliation, (3) student dietary profiles + health-module allergen read model + parent dietary update requests, and (4) NSLP eligibility determination + USDA monthly reimbursement claims + food safety temperature logging + production records. The Cycle 10 health module integration (via <code>hlth.allergy_alert.changed</code> Kafka event) is the cross-module keystone.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Safety &mdash; Allergen Enforcement at POS</div>
+    <p style="font-size:15px;line-height:1.8;"><code>fds_student_allergen_alerts</code> is a read model populated by a Kafka consumer listening to <code>hlth.allergy_alert.changed</code> from the Cycle 10 health module (ADR-030 pattern &mdash; Food Service never reads hlth_* tables directly). Each alert has a <code>severity</code>: <strong>CRITICAL</strong> (anaphylactic/life-threatening) blocks the POS transaction and requires <code>supervisor_override_id</code> on the <code>fds_meal_transactions</code> row; <strong>WARNING</strong> (serious) alerts but allows with acknowledgement; <strong>INFO</strong> (intolerance/preference) displays only. The POS cross-check runs on every transaction: <code>SELECT allergen_codes FROM fds_student_allergen_alerts WHERE student_id=$1 AND is_active=true</code>, then intersects with each item's <code>allergen_codes[]</code>.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">FSM creates a 5-day menu cycle &rarr; adds menu items (Chicken Nuggets with allergen_codes=[WHEAT, SOYBEANS], Grilled Cheese with [MILK, WHEAT], Fresh Fruit Salad with []) &rarr; builds Monday's lunch menu from the cycle &rarr; registers POS device "Main Cafeteria Register" &rarr; opens a LUNCH service session &rarr; Maya scans her student ID at the POS &rarr; allergen cross-check fires: Maya has a CRITICAL PEANUTS alert (from Cycle 10 health data), but today's items don't contain PEANUTS &mdash; transaction proceeds normally &rarr; Ethan scans, orders Grilled Cheese &mdash; Ethan has a CRITICAL MILK alert &rarr; <strong>POS BLOCKS the transaction</strong> &rarr; supervisor Rivera overrides with audit trail &rarr; a second student with FREE meal eligibility scans &mdash; payment_method=FREE_MEAL, $0.00 total &rarr; FSM closes the session &rarr; cash drawer reconciliation shows $0.15 variance &rarr; FSM logs food safety temperature checks (walk-in fridge at 3.2&deg;C, compliant) &rarr; David Chen submits a dietary update request to add HALAL restriction for Maya &rarr; FSM approves &rarr; admin submits the monthly USDA reimbursement claim (42 free meals, 18 reduced, 120 paid).</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (16 tables):</strong> fds_menu_cycles, fds_menu_items, fds_daily_menus, fds_daily_menu_items, fds_pos_devices, fds_meal_service_sessions, fds_meal_transactions, fds_student_dietary_profiles, fds_student_allergen_alerts, fds_dietary_update_requests, fds_eligibility_applications, fds_eligibility_determinations, fds_usda_reimbursement_claims, fds_temperature_logs, fds_cash_drawer_reconciliation, fds_production_records. Functions FDS-001 through FDS-004.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to Cycle 20.1 (15 tables):</strong> fds_recipes + fds_recipe_ingredients (recipe costing engine), fds_inventory_groups + fds_inventory_items + fds_inventory_levels + fds_inventory_transactions + fds_inventory_transfer_requests (full inventory management), fds_preorder_windows + fds_meal_preorders + fds_meal_preorder_items + fds_preorder_production_reports (student pre-order system), fds_staff_meal_accounts (staff meal tracking), plus 2 additional tables.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Also deferred:</strong> Kafka consumer for <code>hlth.allergy_alert.changed</code> (schema + read model ships; manual seed sync this cycle; the consumer wiring is Phase 2). Self-service kiosk student PIN entry workflow. Receipt printing integration. Barcode scanning for items. RANGE partitioning on fds_meal_transactions and fds_temperature_logs.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Menu + Item Catalogue Schema</td><td>Schema</td><td>fds_menu_cycles, fds_menu_items, fds_daily_menus, fds_daily_menu_items</td></tr>
+    <tr><td><strong>2</strong></td><td>POS + Transactions + Reconciliation Schema</td><td>Schema</td><td>fds_pos_devices, fds_meal_service_sessions, fds_meal_transactions, fds_cash_drawer_reconciliation</td></tr>
+    <tr><td><strong>3</strong></td><td>Dietary + Allergen + Eligibility + Safety Schema</td><td>Schema</td><td>fds_student_dietary_profiles, fds_student_allergen_alerts, fds_dietary_update_requests, fds_eligibility_applications, fds_eligibility_determinations, fds_usda_reimbursement_claims, fds_temperature_logs, fds_production_records</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Menus, Devices, Dietary Profiles, Allergen Alerts, Eligibility</td><td>Seed</td><td>1 menu cycle + 8 items + 2 daily menus, 1 POS device, dietary profiles for Maya + Ethan, allergen alerts from Cycle 10, 1 NSLP application, FDS-001..004 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Menu + Item Catalogue NestJS Module</td><td>Code</td><td>MenuCycleService, MenuItemService, DailyMenuService. Allergen GIN index search. Cycle-to-daily auto-generation.</td></tr>
+    <tr><td><strong>6</strong></td><td>POS + Transaction NestJS Module</td><td>Code</td><td>PosService, SessionService, TransactionService. <strong>Allergen cross-check keystone.</strong> Supervisor override. Cash reconciliation. <code>fds.transaction.completed</code> Kafka emit.</td></tr>
+    <tr><td><strong>7</strong></td><td>Dietary + Eligibility + Safety NestJS Module</td><td>Code</td><td>DietaryProfileService, AllergenAlertService, EligibilityService, TemperatureLogService, ProductionRecordService. Parent dietary update requests. USDA claims.</td></tr>
+    <tr><td><strong>8</strong></td><td>Food Service UI &mdash; Menus + POS + Sessions</td><td>UI</td><td>"Food Service" app tile, menu planner, POS checkout with allergen warnings, session management, cash reconciliation</td></tr>
+    <tr><td><strong>9</strong></td><td>Food Service UI &mdash; Dietary + Eligibility + Safety + Parent Portal</td><td>UI</td><td>Dietary profile viewer, allergen dashboard, NSLP application form, eligibility determination, temperature log, parent dietary update portal</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Menu &rarr; POS scan &rarr; allergen block &rarr; supervisor override &rarr; free meal &rarr; reconciliation &rarr; temperature log &rarr; USDA claim</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Menu + Item Catalogue Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Rotating menu cycles, food item catalogue with structured allergen codes and GIN index, daily menus, and daily menu item assignments with prepared/served/wasted tracking.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>fds_menu_cycles</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>cycle_length_days INT DEFAULT 5</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name). The cycle defines a rotating pattern (e.g., 5-day week, 10-day fortnight).</li>
+      <li><strong>fds_menu_items</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>category TEXT NOT NULL</code> 5-value CHECK (MAIN, SIDE, DESSERT, DRINK, SNACK), <code>unit_cost NUMERIC(5,2)</code>, <code>calories INT</code>, <code>allergens TEXT[]</code> (free-text for display), <code>allergen_codes TEXT[] NOT NULL DEFAULT '{}'</code> (structured: MILK, EGG, FISH, SHELLFISH, TREE_NUTS, PEANUTS, WHEAT, SOYBEANS, SESAME &mdash; used for machine-readable POS cross-check against fds_student_allergen_alerts), <code>is_vegetarian BOOLEAN</code>, <code>is_vegan BOOLEAN</code>, <code>is_gluten_free BOOLEAN</code>, <code>is_preorderable BOOLEAN DEFAULT true</code>. INDEX(school_id, category). <strong>GIN INDEX(school_id, allergen_codes)</strong> for allergen cross-reference queries.</li>
+      <li><strong>fds_daily_menus</strong> &mdash; <code>school_id UUID</code>, <code>menu_date DATE NOT NULL</code>, <code>cycle_id UUID FK</code>, <code>meal_type TEXT NOT NULL</code> 4-value CHECK (BREAKFAST, LUNCH, DINNER, SNACK). UNIQUE(school_id, menu_date, meal_type).</li>
+      <li><strong>fds_daily_menu_items</strong> &mdash; <code>daily_menu_id UUID FK NOT NULL</code>, <code>menu_item_id UUID FK NOT NULL</code>, <code>quantity_prepared INT</code>, <code>quantity_served INT</code> nullable, <code>quantity_wasted INT</code> nullable, <code>is_available BOOLEAN DEFAULT true</code>. UNIQUE(daily_menu_id, menu_item_id).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>064_fds_menus.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">POS + Transactions + Reconciliation Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>POS device registry, meal service session lifecycle (open/close), transaction records with allergen safety override tracking, and cash drawer reconciliation.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>fds_pos_devices</strong> &mdash; <code>school_id UUID</code>, <code>device_name TEXT NOT NULL</code>, <code>location TEXT</code>, <code>device_type TEXT NOT NULL DEFAULT 'CASHIER_STAFFED'</code> 3-value CHECK (CASHIER_STAFFED, SELF_SERVICE_KIOSK, MOBILE_CART), <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, device_name).</li>
+      <li><strong>fds_meal_service_sessions</strong> &mdash; <code>school_id UUID</code>, <code>service_date DATE NOT NULL</code>, <code>meal_type TEXT NOT NULL</code> 4-value CHECK (BREAKFAST, LUNCH, DINNER, SNACK), <code>opened_by UUID FK NOT NULL</code>, <code>opened_at TIMESTAMPTZ NOT NULL</code>, <code>closed_at TIMESTAMPTZ</code> nullable. UNIQUE(school_id, service_date, meal_type).</li>
+      <li><strong>fds_meal_transactions</strong> &mdash; <strong>POS TRANSACTION with ALLERGEN SAFETY.</strong> <code>patron_id UUID NOT NULL</code> (soft to iam_person &mdash; students + staff), <code>patron_type TEXT NOT NULL DEFAULT 'STUDENT'</code> 2-value CHECK (STUDENT, STAFF), <code>session_id UUID FK NOT NULL</code>, <code>pos_device_id UUID FK NOT NULL</code>, <code>items JSONB NOT NULL</code>, <code>total NUMERIC(6,2) NOT NULL</code>, <code>payment_method TEXT NOT NULL</code> 5-value CHECK (LUNCH_ACCOUNT, INVOICE, CASH, FREE_MEAL, STAFF_ACCOUNT), <code>allergen_override_required BOOLEAN DEFAULT false</code>, <code>supervisor_override_id UUID</code> nullable (required when allergen_override_required=true), <code>served_at TIMESTAMPTZ NOT NULL</code>. INDEX(patron_id, served_at DESC). INDEX(session_id, served_at). Partition-ready for RANGE(served_at) monthly.</li>
+      <li><strong>fds_cash_drawer_reconciliation</strong> &mdash; <code>session_id UUID FK NOT NULL</code>, <code>pos_device_id UUID FK NOT NULL</code>, <code>opening_balance NUMERIC(8,2) NOT NULL</code>, <code>expected_closing_balance NUMERIC(8,2) NOT NULL</code>, <code>actual_closing_balance NUMERIC(8,2)</code> nullable, <code>variance NUMERIC(8,2)</code> nullable, <code>reconciled_by UUID</code> nullable, <code>reconciled_at TIMESTAMPTZ</code>, <code>status TEXT NOT NULL DEFAULT 'OPEN'</code> 3-value CHECK (OPEN, RECONCILED, VARIANCE_FLAGGED). UNIQUE(session_id, pos_device_id).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>065_fds_pos_transactions.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Dietary + Allergen + Eligibility + Safety Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Student dietary profiles, the health-to-food allergen read model (ADR-030), parent dietary change requests, NSLP eligibility applications + determinations, USDA reimbursement claims, food safety temperature logs, and USDA production records.</p>
+
+    <div class="detail-heading">Tables (8)</div>
+    <ol class="detail-list">
+      <li><strong>fds_student_dietary_profiles</strong> &mdash; <code>student_id UUID FK(sis_students) UNIQUE NOT NULL</code>, <code>school_id UUID</code>, <code>dietary_restrictions TEXT[]</code>, <code>allergens TEXT[]</code> (preference-based display only &mdash; NOT used for POS safety), <code>free_meal_eligible BOOLEAN DEFAULT false</code>, <code>meal_plan_type TEXT NOT NULL DEFAULT 'STANDARD'</code> 6-value CHECK (STANDARD, VEGETARIAN, VEGAN, HALAL, KOSHER, OTHER). POS safety comes from fds_student_allergen_alerts, not this table.</li>
+      <li><strong>fds_student_allergen_alerts</strong> &mdash; <strong>SAFETY KEYSTONE.</strong> Health-to-Food read model (ADR-030). <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>school_id UUID NOT NULL</code>, <code>allergen_code TEXT NOT NULL</code> (MILK, EGG, PEANUTS, etc.), <code>allergen_display_name TEXT NOT NULL</code>, <code>severity TEXT NOT NULL</code> 3-value CHECK (INFO, WARNING, CRITICAL), <code>source_health_alert_id UUID NOT NULL</code> (soft to hlth_health_alerts), <code>is_active BOOLEAN DEFAULT true</code>, <code>last_synced_at TIMESTAMPTZ</code>. <strong>Partial UNIQUE(student_id, allergen_code) WHERE is_active=true.</strong> INDEX(student_id, is_active). INDEX(school_id, allergen_code) WHERE is_active=true.</li>
+      <li><strong>fds_dietary_update_requests</strong> &mdash; Parent-submitted request. <code>school_id UUID</code>, <code>submitted_by UUID FK NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>change_type TEXT NOT NULL</code> 6-value CHECK (ADD_RESTRICTION, REMOVE_RESTRICTION, ADD_ALLERGEN, REMOVE_ALLERGEN, CHANGE_MEAL_PLAN, UPDATE_ELIGIBILITY), <code>proposed_value TEXT NOT NULL</code>, <code>reason TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, APPROVED, REJECTED), <code>reviewed_by UUID</code> nullable, <code>reviewed_at TIMESTAMPTZ</code>. INDEX(school_id, status) WHERE status='PENDING'.</li>
+      <li><strong>fds_eligibility_applications</strong> &mdash; NSLP free/reduced price meal application. <code>school_id UUID</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>submitted_by UUID FK NOT NULL</code>, <code>academic_year_id UUID FK</code>, <code>household_size INT NOT NULL</code>, <code>annual_household_income NUMERIC(10,2)</code> nullable (encrypted at rest), <code>snap_benefit_case_number TEXT</code> nullable, <code>application_type TEXT NOT NULL</code> 3-value CHECK (INCOME_BASED, CATEGORICAL, DIRECT_CERTIFICATION), <code>status TEXT NOT NULL DEFAULT 'SUBMITTED'</code> 5-value CHECK (SUBMITTED, UNDER_REVIEW, APPROVED, DENIED, WITHDRAWN). INDEX(school_id, academic_year_id, status).</li>
+      <li><strong>fds_eligibility_determinations</strong> &mdash; <code>application_id UUID FK UNIQUE NOT NULL</code>, <code>determined_by UUID FK NOT NULL</code>, <code>determined_at DATE NOT NULL</code>, <code>eligibility_category TEXT NOT NULL</code> 4-value CHECK (FREE, REDUCED, PAID, DENIED), <code>effective_from DATE NOT NULL</code>, <code>effective_to DATE NOT NULL</code>, <code>notification_sent BOOLEAN DEFAULT false</code>. On FREE or REDUCED: auto-update fds_student_dietary_profiles.free_meal_eligible.</li>
+      <li><strong>fds_usda_reimbursement_claims</strong> &mdash; Monthly USDA claim. <code>school_id UUID</code>, <code>academic_year_id UUID FK</code>, <code>month_year DATE NOT NULL</code>, <code>free_meals_count INT NOT NULL</code>, <code>reduced_meals_count INT NOT NULL</code>, <code>paid_meals_count INT NOT NULL</code>, <code>reimbursement_amount NUMERIC(10,2)</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 4-value CHECK (DRAFT, SUBMITTED, APPROVED, REJECTED). INDEX(school_id, month_year DESC).</li>
+      <li><strong>fds_temperature_logs</strong> &mdash; Food safety HACCP compliance. <code>school_id UUID</code>, <code>check_location TEXT NOT NULL</code> 7-value CHECK (DELIVERY, REFRIGERATOR, FREEZER, SERVING_LINE, HOT_HOLD, COLD_HOLD, COOK_TEMP), <code>location_name TEXT NOT NULL</code>, <code>temperature_celsius NUMERIC(4,1) NOT NULL</code>, <code>safe_range_min NUMERIC(4,1) NOT NULL</code>, <code>safe_range_max NUMERIC(4,1) NOT NULL</code>, <code>is_compliant BOOLEAN NOT NULL</code>, <code>corrective_action TEXT</code> (required when non-compliant), <code>logged_by UUID FK NOT NULL</code>, <code>logged_at TIMESTAMPTZ NOT NULL</code>. INDEX(school_id, is_compliant, logged_at DESC) WHERE is_compliant=false. Partition-ready RANGE(logged_at).</li>
+      <li><strong>fds_production_records</strong> &mdash; USDA compliance production documentation. <code>school_id UUID</code>, <code>meal_service_date DATE NOT NULL</code>, <code>meal_type TEXT NOT NULL</code>, <code>menu_item_id UUID FK NOT NULL</code>, <code>quantity_prepared INT NOT NULL</code>, <code>quantity_served INT NOT NULL</code>, <code>quantity_leftover INT DEFAULT 0</code>, <code>quantity_wasted INT DEFAULT 0</code>, <code>meets_meal_pattern BOOLEAN NOT NULL</code>. UNIQUE(school_id, meal_service_date, meal_type, menu_item_id).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 new tables. Migration: <code>066_fds_dietary_eligibility.sql</code>. Total Cycle 20 tables: 16.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Seed Data &mdash; Menus, Devices, Dietary, Allergen Alerts, Eligibility</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>1 menu cycle + 8 menu items:</strong> "Week A" 5-day cycle. Items: Chicken Nuggets (MAIN, [WHEAT,SOYBEANS]), Grilled Cheese (MAIN, [MILK,WHEAT]), PBJ Sandwich (MAIN, [PEANUTS,WHEAT]), Pasta Marinara (MAIN, [WHEAT]), Fresh Fruit Salad (SIDE, []), Garden Salad (SIDE, []), Apple Juice (DRINK, []), Chocolate Milk (DRINK, [MILK]).</li>
+      <li><strong>2 daily menus + items:</strong> Monday lunch (Chicken Nuggets + Pasta + Fruit + Apple Juice). Tuesday lunch (Grilled Cheese + Garden Salad + Chocolate Milk).</li>
+      <li><strong>1 POS device + 1 session:</strong> "Main Cafeteria Register" CASHIER_STAFFED. Monday lunch session COMPLETED with 3 transactions.</li>
+      <li><strong>3 sample transactions:</strong> Maya (LUNCH_ACCOUNT $3.50), Ethan (CASH $3.50), free-meal student (FREE_MEAL $0.00).</li>
+      <li><strong>3 dietary profiles:</strong> Maya (STANDARD, free_meal_eligible=false). Ethan (STANDARD). A third student (VEGETARIAN, free_meal_eligible=true).</li>
+      <li><strong>2 allergen alerts (SAFETY KEYSTONE SEED):</strong> Maya: PEANUTS CRITICAL (from Cycle 10 health data). Ethan: MILK CRITICAL. These mirror the Cycle 10 hlth_health_alerts data via manual seed sync.</li>
+      <li><strong>1 NSLP application + determination:</strong> Third student: CATEGORICAL (SNAP), APPROVED as FREE, effective current year.</li>
+      <li><strong>2 temperature logs:</strong> Walk-in Fridge (3.2&deg;C, compliant). Hot Hold Counter (58&deg;C, NON-COMPLIANT with corrective action "Reheated to 74&deg;C").</li>
+      <li><strong>1 cash reconciliation:</strong> Monday session: opening $50, expected $57, actual $56.85, variance -$0.15, VARIANCE_FLAGGED.</li>
+      <li><strong>Permissions:</strong> FDS-001:read to Teacher, Student, Parent (view menus). FDS-001:write to Staff (FSM manages menus). FDS-002:read+write to Staff (POS operations). FDS-003:read to Parent (view child's dietary profile + eligibility). FDS-003:write to Staff (manage dietary profiles, process eligibility). FDS-004:read+write to Staff (food safety, USDA claims, production). Admin gets all via everyFunction.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich food service demo data with allergen alerts tied to Cycle 10 health data. FDS-001..004 permissions.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Menu + Item Catalogue NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>MenuCycleService</strong> &mdash; <code>GET /food-service/menu-cycles</code>, <code>POST /food-service/menu-cycles</code>, <code>PATCH /food-service/menu-cycles/:id</code>.</li>
+      <li><strong>MenuItemService</strong> &mdash; <code>GET /food-service/menu-items</code> (browse with category + allergen filters using GIN index), <code>GET /food-service/menu-items/:id</code>, <code>POST /food-service/menu-items</code>, <code>PATCH /food-service/menu-items/:id</code>. <code>GET /food-service/menu-items/allergen-check?codes=MILK,WHEAT</code> (returns items containing any of the specified allergens).</li>
+      <li><strong>DailyMenuService</strong> &mdash; <code>GET /food-service/daily-menus</code> (by date range), <code>GET /food-service/daily-menus/:date/:mealType</code> (today's menu with items inlined), <code>POST /food-service/daily-menus</code>, <code>POST /food-service/daily-menus/:id/items</code> (add items). <code>POST /food-service/daily-menus/generate-from-cycle</code> (auto-generate daily menus from a cycle for a date range).</li>
+    </ol>
+    <div class="produces">Produces &rarr; FoodServiceModule with 3 services, ~12 endpoints.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">POS + Transaction NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>PosService</strong> &mdash; <code>GET /food-service/pos-devices</code>, <code>POST /food-service/pos-devices</code>, <code>PATCH /food-service/pos-devices/:id</code>.</li>
+      <li><strong>SessionService</strong> &mdash; <code>POST /food-service/sessions/open</code> (opens a meal service session), <code>PATCH /food-service/sessions/:id/close</code> (closes + triggers reconciliation), <code>GET /food-service/sessions</code> (by date range), <code>GET /food-service/sessions/:id</code> (with transaction count + totals).</li>
+      <li><strong>TransactionService</strong> &mdash; <strong>ALLERGEN CROSS-CHECK KEYSTONE.</strong> <code>POST /food-service/transactions</code> (accepts patron_id + items; step 1: resolve allergen alerts for patron; step 2: cross-check item allergen_codes[] against alert allergen_codes; step 3: if CRITICAL match &rarr; reject with 422 + matched allergens + require supervisor_override_id; if WARNING match &rarr; return 200 with warnings array; step 4: INSERT transaction). <code>GET /food-service/transactions</code> (by session, patron, date). <code>GET /food-service/patron/:patronId/check-allergens</code> (pre-scan allergen check before transaction). Emits <code>fds.transaction.completed</code> on every successful transaction.</li>
+      <li><strong>ReconciliationService</strong> &mdash; <code>GET /food-service/reconciliation/:sessionId</code>, <code>PATCH /food-service/reconciliation/:id</code> (enter actual closing balance; auto-compute variance; flag if |variance| > threshold).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~12 endpoints, 1 Kafka emit (<code>fds.transaction.completed</code>). Allergen cross-check is the safety keystone.</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Dietary + Eligibility + Safety NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>DietaryProfileService</strong> &mdash; <code>GET /food-service/dietary-profiles/:studentId</code>, <code>PATCH /food-service/dietary-profiles/:studentId</code>. <code>GET /food-service/dietary-update-requests</code> (FSM: pending requests), <code>POST /food-service/dietary-update-requests</code> (parent submits), <code>PATCH /food-service/dietary-update-requests/:id</code> (FSM approves/rejects).</li>
+      <li><strong>AllergenAlertService</strong> &mdash; <code>GET /food-service/allergen-alerts/:studentId</code> (active alerts for a student), <code>GET /food-service/allergen-alerts</code> (FSM: all active alerts grouped by allergen for school-wide analysis). Manual sync endpoint for Phase 2 consumer wiring: <code>POST /food-service/allergen-alerts/sync</code> (admin-only; reads from hlth_health_alerts and upserts fds_student_allergen_alerts).</li>
+      <li><strong>EligibilityService</strong> &mdash; <code>GET /food-service/eligibility-applications</code>, <code>POST /food-service/eligibility-applications</code> (parent submits NSLP application), <code>PATCH /food-service/eligibility-applications/:id/determine</code> (FSM determines: FREE/REDUCED/PAID/DENIED; on FREE or REDUCED: auto-update dietary profile). <code>GET /food-service/usda-claims</code>, <code>POST /food-service/usda-claims</code> (admin generates monthly claim from transaction data).</li>
+      <li><strong>TemperatureLogService</strong> &mdash; <code>GET /food-service/temperature-logs</code> (by date, location, compliance status), <code>POST /food-service/temperature-logs</code> (staff logs check; is_compliant auto-computed from range). <code>GET /food-service/temperature-logs/non-compliant</code> (dashboard of recent non-compliant readings).</li>
+      <li><strong>ProductionRecordService</strong> &mdash; <code>GET /food-service/production-records</code>, <code>POST /food-service/production-records</code> (FSM enters production data for USDA meal pattern compliance).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 5 services, ~14 endpoints. Total Cycle 20 endpoints: ~38.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Food Service UI &mdash; Menus + POS + Sessions</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Food Service Dashboard</strong> <code>/food-service</code> &mdash; "Food Service" app tile. FSM view: today's menu, active session status, transaction count, non-compliant temperature alerts, pending dietary requests. Student/parent view: today's menu with allergen indicators per item.</li>
+      <li><strong>Menu Planner</strong> <code>/food-service/menus</code> &mdash; cycle editor (drag items into day slots), daily menu viewer/editor. Item catalogue with allergen filter chips. Auto-generate daily menus from cycle.</li>
+      <li><strong>POS Checkout</strong> <code>/food-service/pos</code> &mdash; <strong>SAFETY KEYSTONE UI.</strong> Student ID scan input. Allergen warning panel (amber for WARNING, rose banner for CRITICAL with "BLOCKED &mdash; Supervisor Override Required" message + supervisor PIN input). Item selector from today's menu. Payment method picker. Transaction total. Receipt summary.</li>
+      <li><strong>Session Manager</strong> <code>/food-service/sessions</code> &mdash; open/close sessions. Per-session: transaction count + totals + payment method breakdown. Cash drawer reconciliation form (enter actual closing balance, auto-compute variance, flag if |variance| > $1.00).</li>
+    </ol>
+    <div class="produces">Produces &rarr; "Food Service" app tile, menu planner, POS checkout with allergen safety, session manager with reconciliation.</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Food Service UI &mdash; Dietary + Eligibility + Safety + Parent Portal</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Dietary Dashboard</strong> <code>/food-service/dietary</code> &mdash; FSM: student dietary profiles with allergen alert indicators (CRITICAL rose / WARNING amber). Allergen heatmap: which allergens are most prevalent across the student body. Dietary update request queue.</li>
+      <li><strong>NSLP Eligibility</strong> <code>/food-service/eligibility</code> &mdash; FSM: applications list with status filter. Determination form (income-based threshold calculator or categorical auto-approve). Effective date range.</li>
+      <li><strong>Food Safety</strong> <code>/food-service/safety</code> &mdash; temperature log entry form with location picker + safe range auto-fill. Non-compliant readings dashboard with corrective action tracking. Production record entry for USDA compliance.</li>
+      <li><strong>USDA Claims</strong> <code>/food-service/usda-claims</code> &mdash; monthly claim generator: aggregates FREE/REDUCED/PAID meal counts from transactions. Status workflow (DRAFT &rarr; SUBMITTED &rarr; APPROVED).</li>
+      <li><strong>Parent Food Service Portal</strong> <code>/children/:id/food-service</code> &mdash; parent sees: child's dietary profile + meal plan type, active allergen alerts, today's menu with allergen indicators for their child, submit dietary update request, NSLP application form, meal transaction history.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Dietary dashboard, NSLP eligibility, food safety + temperature logs, USDA claims, parent portal.</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Menu setup:</strong> FSM creates "Week B" cycle. Adds 4 menu items with allergen codes. Generates Wednesday lunch menu from cycle. Verify GIN allergen query returns correct items.</li>
+      <li><strong>POS session + clean transaction:</strong> FSM opens LUNCH session. Maya scans &mdash; allergen check fires: PEANUTS CRITICAL, but today's items have no PEANUTS &rarr; transaction proceeds. Verify <code>fds.transaction.completed</code> fires.</li>
+      <li><strong>Allergen BLOCK keystone:</strong> Ethan scans, orders Grilled Cheese &mdash; MILK CRITICAL alert + Grilled Cheese has [MILK] &rarr; <strong>422 BLOCKED</strong> with matched allergens. Retry with supervisor_override_id &rarr; 201 with allergen_override_required=true on the transaction row.</li>
+      <li><strong>Free meal:</strong> Free-eligible student scans &mdash; payment_method=FREE_MEAL, total=$0.00. Verify transaction recorded.</li>
+      <li><strong>Cash reconciliation:</strong> FSM closes session. Enters actual closing $56.85 vs expected $57.00. Verify variance=-$0.15, status=VARIANCE_FLAGGED.</li>
+      <li><strong>Temperature log:</strong> Staff logs fridge at 3.2&deg;C (range 0&ndash;5) &rarr; is_compliant=true. Logs hot hold at 58&deg;C (range 63&ndash;74) &rarr; is_compliant=false, corrective_action required.</li>
+      <li><strong>Parent dietary update:</strong> David submits ADD_RESTRICTION HALAL for Maya. FSM approves. Verify dietary profile updated.</li>
+      <li><strong>NSLP eligibility:</strong> Parent submits INCOME_BASED application. FSM determines FREE. Verify dietary profile.free_meal_eligible flips to true.</li>
+      <li><strong>USDA claim:</strong> Admin generates monthly claim from transaction data. Verify free/reduced/paid counts match transaction records.</li>
+      <li><strong>Visibility:</strong> Student sees today's menu with allergen indicators. Parent sees child's profile + meal history + can submit dietary requests. Teacher sees menu. FSM sees all. Teacher cannot process POS transactions or eligibility.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified food service lifecycle: menu &rarr; POS scan &rarr; allergen block &rarr; supervisor override &rarr; free meal &rarr; reconciliation &rarr; temperature safety &rarr; NSLP eligibility &rarr; USDA claim.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 20 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 16 new tables (4 menu + 4 POS + 8 dietary/eligibility/safety). Tenant table count: ~300.</li>
+      <li>Food Service API: ~38 endpoints with POS allergen cross-check + NSLP eligibility + USDA claims.</li>
+      <li>Allergen safety enforcement: CRITICAL blocks transaction, requires supervisor override with audit trail.</li>
+      <li>Health-to-Food read model (fds_student_allergen_alerts) seeded from Cycle 10 data (ADR-030 pattern).</li>
+      <li>Menu cycle planning with daily menu auto-generation.</li>
+      <li>Cash drawer reconciliation with variance flagging.</li>
+      <li>HACCP-compliant food safety temperature logging with corrective action tracking.</li>
+      <li>USDA monthly reimbursement claims aggregated from transaction data.</li>
+      <li>Parent dietary update request + NSLP application portals.</li>
+      <li><code>fds.transaction.completed</code> Kafka emit.</li>
+      <li>HANDOFF-CYCLE20.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 20 delivers the food service infrastructure with the strongest safety enforcement since the concussion protocol (Cycle 13). The allergen cross-check at POS is a life-safety feature that blocks potentially dangerous meal combinations and requires supervisor override with audit trail. Cycle 21 (Facilities Management) continues Wave 4.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 20 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M63 Food Service, 31 tables &mdash; 16 core in scope), Function Library (FDS-001 through FDS-004). Cross-cycle: Cycle 10 hlth_health_alerts &rarr; fds_student_allergen_alerts (ADR-030 read model pattern).</p>
+  </div>
+</div>
+
+</body>
+</html>

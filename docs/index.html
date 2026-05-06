@@ -114,11 +114,11 @@ a.card{text-decoration:none;color:inherit}
   <h1>Design Hub</h1>
   <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38 modules, 76 ADRs across 8 delivery waves.</p>
   <div class="stats-row">
-    <div class="stat"><span class="num">268</span><span class="label">Tables Built</span></div>
-    <div class="stat"><span class="num">~580</span><span class="label">Endpoints</span></div>
-    <div class="stat"><span class="num">160+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">284</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">~618</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">170+</span><span class="label">UI Pages</span></div>
     <div class="stat"><span class="num">16</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">21</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">22</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -135,30 +135,30 @@ a.card{text-decoration:none;color:inherit}
 <div id="overview" class="tab-content active">
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Waves 1&ndash;3 Complete &mdash; Cycles 0&ndash;18</h4>
-      <p>Core Ops + Student Services + Communications &amp; Community. 268 tenant tables, ~580 endpoints, 160+ UI pages. Groups, clubs, elections, enrolment, messaging all live.</p>
+      <h4>Cycles 0&ndash;19 Complete</h4>
+      <p>Waves 1&ndash;3 complete + Wave 4 in progress. 284 tenant tables, ~618 endpoints, 170+ UI pages. Transportation with QR ridership, no-show detection, and immutable route audit live.</p>
     </div>
     <div class="status-card sc-blue">
-      <h4>Cycle 19: Transportation &mdash; Next</h4>
-      <p>Routes, fleet, driver credentials, QR ridership scanning, no-show detection, parent route-change requests. 16 tables, ~38 endpoints. Opens Wave 4.</p>
+      <h4>Cycle 20: Food Service &mdash; Next</h4>
+      <p>Menu planning, POS with real-time allergen safety enforcement, NSLP eligibility, USDA claims, food safety temperature logs, cash reconciliation. 16 tables, ~38 endpoints.</p>
     </div>
     <div class="status-card sc-amber">
       <h4>Wave 4 Continues</h4>
-      <p>Food Service (20), Facilities (21), IT Infrastructure (22).</p>
+      <p>Facilities (21), IT Infrastructure (22).</p>
     </div>
   </div>
 
   <h2 class="sec">Build Progress</h2>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Tables Built</span><span>268 / 840 (32%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:32%"></div></div>
+    <div class="progress-label"><span>Tables Built</span><span>284 / 840 (34%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:34%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Cycles Complete</span><span>21 / 32 planned (66%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:66%"></div></div>
+    <div class="progress-label"><span>Cycles Complete</span><span>22 / 32 planned (69%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:69%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>3 of 8 (Wave 4 starting)</span></div>
+    <div class="progress-label"><span>Waves Complete</span><span>3 of 8 (Wave 4 in progress)</span></div>
     <div class="progress-bar"><div class="progress-fill" style="width:37%"></div></div>
   </div>
 
@@ -246,7 +246,7 @@ a.card{text-decoration:none;color:inherit}
     <div class="mod-group-header"><h3>Campus Operations</h3><span class="count">5 modules &middot; 145 tables</span></div>
     <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
       <tr><td>M60 Service Tickets</td><td><code>tkt_</code></td><td>14</td><td><span class="pill pill-green">Built</span></td><td>Shared reactive ticketing &mdash; IT, facilities, HR</td></tr>
-      <tr><td>M61 Transportation</td><td><code>trn_</code></td><td>38</td><td><span class="pill pill-gray">Planned</span></td><td>Routes, vehicles, driver app, fleet management, trip logs</td></tr>
+      <tr><td>M61 Transportation</td><td><code>trn_</code></td><td>38</td><td><span class="pill pill-green">Built (16/38)</span></td><td>Routes, vehicles, driver app, fleet management, trip logs</td></tr>
       <tr><td>M62 IT Infrastructure</td><td><code>tech_</code></td><td>34</td><td><span class="pill pill-gray">Planned</span></td><td>Device fleet, MDM, licensing, credential vault, VOIP</td></tr>
       <tr><td>M63 Food Service</td><td><code>fds_</code></td><td>32</td><td><span class="pill pill-gray">Planned</span></td><td>POS, menus, dietary profiles, NSLP eligibility, production</td></tr>
       <tr><td>M65 Facilities</td><td><code>fac_</code></td><td>27</td><td><span class="pill pill-gray">Planned</span></td><td>Spaces, work orders, inspections, safety, occupancy</td></tr>
@@ -347,8 +347,8 @@ a.card{text-decoration:none;color:inherit}
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">19</span><span class="cycle-title">Transportation <span class="pill pill-blue">Next</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle19-implementation-plan.html" class="cl-plan">Plan</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">20</span><span class="cycle-title">Food Service</span><span class="cycle-tables">~32 tenant</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">19</span><span class="cycle-title">Transportation <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle19-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle19-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">20</span><span class="cycle-title">Food Service <span class="pill pill-blue">Next</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle20-implementation-plan.html" class="cl-plan">Plan</a></span></div>
       <div class="cycle-row"><span class="cycle-num">21</span><span class="cycle-title">Facilities Management</span><span class="cycle-tables">~27 tenant</span><span class="cycle-links"></span></div>
       <div class="cycle-row"><span class="cycle-num">22</span><span class="cycle-title">IT Infrastructure</span><span class="cycle-tables">~34 tenant</span><span class="cycle-links"></span></div>
     </div>
@@ -413,6 +413,13 @@ a.card{text-decoration:none;color:inherit}
 <div id="buildlog" class="tab-content">
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>Cycle 19: Transportation <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">16 tables &middot; ~38 endpoints &middot; 2 Kafka emits &middot; ~10 web routes &middot; Wave 4 open</div>
+    <div class="log-desc">Route planning with ordered stops and student assignments, fleet management with pre-trip inspections, driver credential tracking with expiry alerts, QR-code bus pass ridership scanning, no-show detection worker with parent notification, parent route-change requests with one-day overrides, immutable route change audit log (FERPA safeguarding).</div>
+    <div class="log-links"><a href="campusos-cycle19-implementation-plan.html">Plan</a> <a href="cycle19-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>Cycle 18: Groups &amp; Communities <span class="pill pill-green">Approved</span></h4>
@@ -522,6 +529,7 @@ a.card{text-decoration:none;color:inherit}
     <a href="cycle16-cat-script.md" class="card"><h4>Cycle 16 CAT</h4><div class="desc">Enrolment period, parent application, multi-stage review, offer + accept, onboarding checklist, waitlist auto-advance, enr.student.enrolled.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle17-cat-script.md" class="card"><h4>Cycle 17 CAT</h4><div class="desc">Activity + membership, field trip + consent, anonymous election vote, service hours + approval, max-participants, scope gating.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle18-cat-script.md" class="card"><h4>Cycle 18 CAT</h4><div class="desc">Group creation + scope binding, membership lifecycle, ownership transfer handshake, announcements + reads, events + RSVP, cross-module group_id resolution.</div><div class="meta">8 scenarios</div></a>
+    <a href="cycle19-cat-script.md" class="card"><h4>Cycle 19 CAT</h4><div class="desc">Route + stops, fleet + inspection, driver credentials, QR scan ridership, no-show detection, route change request, immutable audit log.</div><div class="meta">10 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 2 Punch List</h2>
