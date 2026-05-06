@@ -4,12 +4,12 @@
 
 The reviewer flagged 3 BLOCKING row-scope / sensitive-data issues plus 5 MAJOR follow-ups. The fix commit closes all 3 BLOCKING items + 4 of the 5 MAJORs in code; MAJOR 6 (participant-row source marker so cancel doesn't remove manually-added participants) and MAJOR 8 (CAT live-output capture) are recommendation-class and move to the Phase 2 punch list. Live verification on `tenant_demo` 2026-05-06.
 
-**Round 2 verdict:** _pending — to be filled in by the reviewer after re-review of the fix commit._
+**Round 2 verdict:** **Approved** (against `39b0d90`, 2026-05-06). Reviewer confirmed all 3 BLOCKING findings are closed in code (`IepMeetingRecordService.canReadRecord` three-tier scope, slot identity stripping for non-organiser non-admin readers, agenda actor-scope with collapsed 404) plus the four code-level MAJOR follow-ups (tenant validation, slot booking authority restricted to GUARDIAN/admin/organiser, recording consent participation requirement). MAJOR 6 (`mtg_meeting_participants.source` marker) + MAJOR 8 (CAT live-output capture) correctly carried as Phase 2 punch list items 20 + 21. **Cycle 15 ships clean.**
 
 Tag chain:
 
 - `cycle15-complete` on `93b1bd5` (original closeout commit + first CAT)
-- `cycle15-approved` on `__FIX_SHA__` (Round 2 APPROVED, after the fix commit)
+- `cycle15-approved` on `39b0d90` (Round 2 APPROVED, after the fix commit)
 
 ---
 
@@ -52,6 +52,22 @@ CLAUDE.md gains items 20 + 21:
 
 ---
 
-## Reviewer Round 2 verdict slot
+## Reviewer Round 2 verdict (2026-05-06)
 
-> _Reviewer fills this in._
+> **Approved.**
+>
+> I reviewed commit `39b0d90` directly against the Round 1 findings and the triage/verification trail above. The three blocking findings are fixed, and four of the five major code-level follow-ups were also addressed. The remaining items are appropriately documented as Phase 2 / pre-pilot polish.
+>
+> **Confirmed fixes**
+>
+> 1. **IEP meeting record row-scope — fixed.** `IepMeetingRecordService` no longer uses broad `hlt-001:read` as a tenant-wide read gate. Explicit `canReadRecord()` logic: school admin all / counsellor own active caseload / non-counsellor staff with health read AND meeting participation / parents+teachers+students excluded. Create + patch restricted to admin or counsellor with the student on own active caseload. **Blocker closed.**
+> 2. **Parent slot-grid identity leak — fixed.** `SlotService.listForMeeting()` is actor-aware; admins + organisers see full booking identity, normal readers see only their own booking identity, other booked slots return `bookedBy` / `bookedByName` / `bookedAt` / `notes` as null. Booking restricted to guardians, admins, or the meeting organiser. **Blocker closed.**
+> 3. **Agenda listing row-scope — fixed.** `AgendaService.listForMeeting()` requires admin or participant/organiser visibility; non-participants get a collapsed 404. Presenter ID validation also added on create/patch. **Blocker closed.**
+> 4. **Tenant validation for meeting-related account references — fixed.** `MeetingService.assertAccountInCurrentTenant()` validates request-supplied `platform_users.id` values through `sis_students` / `sis_guardians` / `hr_employees` projections. Applied to meeting participants, added participants, agenda presenter ids, and action-item assignees. **Major follow-up closed.**
+> 5. **Recording consent admin bypass — fixed.** Admin bypass removed; consent now requires actual meeting participation or organiser status, with future admin override deferred to a separate audited path. **Major follow-up closed.**
+>
+> **Deferred follow-ups**
+>
+> Two items remain properly deferred: `mtg_meeting_participants.source` marker so slot cancellation never removes a manually-curated participant row, and CAT documentation improvements for sensitive cycles. Both are reasonable Phase 2 / pre-pilot polish items.
+>
+> **Final Gate Decision: Approved.** Cycle 15 is clean from my review perspective.
