@@ -12,7 +12,7 @@ import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
-import { isUniqueViolation } from './assets.service';
+import { assertAccountInCurrentTenant, isUniqueViolation } from './assets.service';
 import type {
   AccessTier,
   AssignLicenceDto,
@@ -41,15 +41,23 @@ function tierRank(t: AccessTier): number {
 /**
  * Vault encryption helpers (AES-256-GCM via Node crypto).
  *
- * The seed key is derived from process.env.IT_VAULT_KEY. In dev
- * we fall back to a deterministic seed string so the seeded
- * ciphertext decrypts cleanly through the same module — real
- * deployments MUST set IT_VAULT_KEY (a separate key from the
- * student-data key per ADR-065).
+ * The seed key is derived from process.env.IT_VAULT_KEY. In
+ * development and test we fall back to a deterministic seed
+ * string so the seeded ciphertext decrypts cleanly through the
+ * same module. Production environments MUST set IT_VAULT_KEY
+ * (a separate key from the student-data key per ADR-065) — the
+ * REVIEW-CYCLE22 BLOCKING 5 fail-closed check throws at module
+ * load time when NODE_ENV=production and the env var is missing.
  *
  * Wire format: base64(iv).base64(authTag).base64(ciphertext).
  * 12-byte iv is recommended for GCM. The auth tag is 16 bytes.
  */
+const NODE_ENV = process.env.NODE_ENV || 'development';
+if (NODE_ENV === 'production' && !process.env.IT_VAULT_KEY) {
+  throw new Error(
+    'IT_VAULT_KEY is required in production — falling back to a deterministic seed key would defeat ADR-065.',
+  );
+}
 const KEY_MATERIAL = process.env.IT_VAULT_KEY || 'campusos-demo-vault-seed-key-2026';
 const KEY_SALT = 'campusos-demo-salt';
 
@@ -291,6 +299,12 @@ export class LicenceService {
     actor: ResolvedActor,
   ): Promise<LicenceAssignmentDto> {
     await assertItAdmin(actor, this.permCheck, 'IT-004');
+    // REVIEW-CYCLE22 BLOCKING 4 — validate assignee belongs to the
+    // current tenant via sis_students / sis_guardians / hr_employees
+    // projection. tech_software_assignments.assignee_id is a soft FK
+    // to platform.platform_users so the schema cannot enforce tenant
+    // scope; this is the actual gate.
+    await assertAccountInCurrentTenant(this.tenantPrisma, input.assigneeId, 'assigneeId');
     const id = generateId();
     type NearCapacity = { total: number; used: number; pct: number; softwareName: string };
     let near: NearCapacity | undefined;
@@ -755,6 +769,28 @@ export class CredentialVaultService {
     ]);
     if (!ok) {
       throw new ForbiddenException('Insufficient permissions on the credential vault');
+    }
+    // REVIEW-CYCLE22 BLOCKING 6 — apply the same tier-rank check
+    // used by getByIdWithPassword. A STANDARD-tier operator who
+    // cannot decrypt a CRITICAL credential must not be able to see
+    // the access log either — that is metadata leakage around
+    // privileged credentials (who looked, when).
+    const credRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT access_tier FROM tech_credential_vault WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        id,
+        tenant.schoolId,
+      );
+    })) as Array<{ access_tier: string }>;
+    if (credRows.length === 0) {
+      throw new NotFoundException('Credential not found');
+    }
+    const credTier = credRows[0]!.access_tier as AccessTier;
+    const myTier = await this.actorTier(actor);
+    if (tierRank(myTier) < tierRank(credTier)) {
+      throw new ForbiddenException(
+        'Insufficient access tier — this credential requires ' + credTier + ' tier',
+      );
     }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(

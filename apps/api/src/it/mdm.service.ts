@@ -684,6 +684,7 @@ export class DeviceSelectionService {
       status?: string;
       personId?: string;
     } = {},
+    actor?: ResolvedActor,
   ): Promise<DeviceSelectionDto[]> {
     const params: unknown[] = [];
     const wheres: string[] = [];
@@ -694,6 +695,51 @@ export class DeviceSelectionService {
     if (filters.personId) {
       params.push(filters.personId);
       wheres.push('s.person_id = $' + params.length + '::uuid');
+    }
+    // REVIEW-CYCLE22 BLOCKING 1 — actor-aware row scope.
+    //   IT admin (school admin OR holds it-006:read — the IT admin
+    //     signal that distinguishes IT staff from generic teachers):
+    //     every selection in the tenant
+    //   STUDENT: only s.person_id = actor.personId
+    //   GUARDIAN: only selections for children linked via
+    //     sis_student_guardians + sis_guardians on the actor
+    //   TEACHER + non-IT-admin staff + everyone else: empty list
+    //     (the device-selection workflow is between the
+    //     student/parent and IT staff)
+    //
+    // The internal helpers downstream (createSelection /
+    // approveSelection / rejectSelection) call listSelections({
+    // personId }) WITHOUT an actor — they bypass the row scope on
+    // purpose because they have already validated row access via
+    // their own checks. The caller-supplied actor is only honoured
+    // when actually present.
+    if (actor) {
+      const tenant = getCurrentTenant();
+      const isItAdmin =
+        actor.isSchoolAdmin ||
+        (await this.permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+          'it-006:read',
+        ]));
+      if (!isItAdmin) {
+        if (actor.personType === 'STUDENT') {
+          params.push(actor.personId);
+          wheres.push('s.person_id = $' + params.length + '::uuid');
+        } else if (actor.personType === 'GUARDIAN') {
+          params.push(actor.personId);
+          wheres.push(
+            's.person_id IN (SELECT ps.person_id FROM platform.platform_students ps ' +
+              'JOIN sis_students st ON st.platform_student_id = ps.id ' +
+              'JOIN sis_student_guardians sg ON sg.student_id = st.id ' +
+              'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+              'WHERE g.person_id = $' +
+              params.length +
+              '::uuid)',
+          );
+        } else {
+          // Teacher (or any other non-IT-admin actor) gets empty
+          wheres.push('FALSE');
+        }
+      }
     }
     const where = wheres.length === 0 ? '' : ' WHERE ' + wheres.join(' AND ');
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {

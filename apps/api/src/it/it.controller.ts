@@ -174,8 +174,15 @@ export class ItController {
 
   @Get('it/assets/:id/assignments')
   @RequirePermission('it-002:read')
-  async listAssetAssignments(@Param('id') id: string): Promise<AssignmentDto[]> {
-    return this.assignments.listForAsset(id);
+  @ApiOperation({
+    summary:
+      'Asset assignment history — IT staff/admin all; non-staff actors only when the asset is currently assigned to them (REVIEW-CYCLE22 BLOCKING 2)',
+  })
+  async listAssetAssignments(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<AssignmentDto[]> {
+    return this.assignments.listForAsset(id, await this.resolveActor(req));
   }
 
   @Get('it/me/assignments')
@@ -209,8 +216,15 @@ export class ItController {
 
   @Get('it/assets/:id/documents')
   @RequirePermission('it-002:read')
-  async listDocuments(@Param('id') id: string): Promise<AssetDocumentDto[]> {
-    return this.documents.listForAsset(id);
+  @ApiOperation({
+    summary:
+      'Asset documents — IT staff/admin all; non-staff actors only when the asset is currently assigned to them (REVIEW-CYCLE22 BLOCKING 2)',
+  })
+  async listDocuments(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<AssetDocumentDto[]> {
+    return this.documents.listForAsset(id, await this.resolveActor(req));
   }
 
   @Post('it/assets/:id/documents')
@@ -227,8 +241,15 @@ export class ItController {
 
   @Get('it/damage-reports')
   @RequirePermission('it-002:read')
-  async listDamage(@Query('assetId') assetId?: string): Promise<DamageReportDto[]> {
-    return this.damages.list({ assetId });
+  @ApiOperation({
+    summary:
+      'Damage reports — IT staff/admin all; non-staff actors only see reports they filed OR reports on their currently-assigned asset (REVIEW-CYCLE22 BLOCKING 2)',
+  })
+  async listDamage(
+    @Req() req: AuthedRequest,
+    @Query('assetId') assetId?: string,
+  ): Promise<DamageReportDto[]> {
+    return this.damages.list({ assetId }, await this.resolveActor(req));
   }
 
   @Post('it/damage-reports')
@@ -248,8 +269,15 @@ export class ItController {
 
   @Get('it/repairs')
   @RequirePermission('it-002:read')
-  async listRepairs(@Query('assetId') assetId?: string): Promise<RepairRecordDto[]> {
-    return this.repairs.list({ assetId });
+  @ApiOperation({
+    summary:
+      'Repair records — IT staff/admin only; non-staff actors receive an empty list (REVIEW-CYCLE22 BLOCKING 2)',
+  })
+  async listRepairs(
+    @Req() req: AuthedRequest,
+    @Query('assetId') assetId?: string,
+  ): Promise<RepairRecordDto[]> {
+    return this.repairs.list({ assetId }, await this.resolveActor(req));
   }
 
   @Post('it/repairs')
@@ -535,11 +563,16 @@ export class ItController {
 
   @Get('it/device-selections')
   @RequirePermission('it-003:read')
+  @ApiOperation({
+    summary:
+      'List device selections — IT staff/admin see all; students see own; guardians see linked children; teachers receive empty list (REVIEW-CYCLE22 BLOCKING 1 row scope)',
+  })
   async listSelections(
+    @Req() req: AuthedRequest,
     @Query('status') status?: string,
     @Query('personId') personId?: string,
   ): Promise<DeviceSelectionDto[]> {
-    return this.selections.listSelections({ status, personId });
+    return this.selections.listSelections({ status, personId }, await this.resolveActor(req));
   }
 
   @Post('it/device-selections')

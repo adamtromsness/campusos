@@ -69,6 +69,103 @@ export function isUniqueViolation(err: unknown): boolean {
   return typeof e.message === 'string' && e.message.includes('23505');
 }
 
+/**
+ * REVIEW-CYCLE22 BLOCKING 2 — asset subresource row-scope helper.
+ *
+ * The core asset list / get path is row-scoped via
+ * AssetService.buildVisibility — non-staff actors only see assets
+ * currently assigned to them. The subresource read endpoints
+ * (assignments, documents, damage reports, repairs) need to honour
+ * the same boundary or a teacher with IT-002:read could enumerate
+ * by asset id.
+ *
+ * Caveat: teachers carry personType=STAFF (they're in hr_employees)
+ * but are NOT IT admins. The IT-admin signal is `it-006:read` —
+ * granted to the Staff role for IT admins per the Cycle 22 IAM seed
+ * but NOT held by Teacher. School admins always pass.
+ *
+ * Throws NotFoundException (collapsed 404) for non-IT-admin actors
+ * whose accountId does not match an active assignment on the asset.
+ */
+export async function isItAdminActor(
+  permCheck: PermissionCheckService,
+  actor: ResolvedActor,
+): Promise<boolean> {
+  if (actor.isSchoolAdmin) return true;
+  const tenant = getCurrentTenant();
+  return permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, ['it-006:read']);
+}
+
+export async function assertCanAccessAsset(
+  tenantPrisma: TenantPrismaService,
+  permCheck: PermissionCheckService,
+  assetId: string,
+  actor: ResolvedActor,
+): Promise<void> {
+  if (await isItAdminActor(permCheck, actor)) {
+    // Confirm the asset exists in this tenant (defence-in-depth)
+    const exists = (await tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM tech_assets WHERE id = $1::uuid LIMIT 1',
+        assetId,
+      );
+    })) as Array<{ ok: number }>;
+    if (exists.length === 0) {
+      throw new NotFoundException('Asset not found');
+    }
+    return;
+  }
+  // Non-IT-admin actors (teachers, students, parents) must have an
+  // active assignment for this asset.
+  const rows = (await tenantPrisma.executeInTenantContext(async (client) => {
+    return client.$queryRawUnsafe(
+      'SELECT 1 AS ok FROM tech_asset_assignments WHERE asset_id = $1::uuid AND assigned_to_id = $2::uuid AND returned_at IS NULL LIMIT 1',
+      assetId,
+      actor.accountId,
+    );
+  })) as Array<{ ok: number }>;
+  if (rows.length === 0) {
+    throw new NotFoundException('Asset not found');
+  }
+}
+
+/**
+ * REVIEW-CYCLE22 BLOCKING 3+4 — current-tenant account validation.
+ *
+ * Cycle 22 carries soft FKs to platform.platform_users on
+ * tech_asset_assignments.assigned_to_id and
+ * tech_software_assignments.assignee_id per ADR-001/020. Without an
+ * app-layer check, an IT staff actor in school A could write an
+ * assignment row pointing at a platform_users row that lives in
+ * school B.
+ *
+ * Mirrors the Cycle 6.1 ProfileService.assertTargetInCurrentTenant
+ * + Cycle 14 messaging participant validation pattern: the supplied
+ * platform_users.id must have a current-tenant projection in
+ * sis_students / sis_guardians / hr_employees.
+ */
+export async function assertAccountInCurrentTenant(
+  tenantPrisma: TenantPrismaService,
+  accountId: string,
+  fieldName = 'assigneeId',
+): Promise<void> {
+  const rows = (await tenantPrisma.executeInTenantContext(async (client) => {
+    return client.$queryRawUnsafe(
+      'SELECT 1 AS ok FROM platform.platform_users pu WHERE pu.id = $1::uuid AND (' +
+        'EXISTS (SELECT 1 FROM platform.platform_students ps ' +
+        '          JOIN sis_students st ON st.platform_student_id = ps.id ' +
+        '          WHERE ps.person_id = pu.person_id) OR ' +
+        'EXISTS (SELECT 1 FROM sis_guardians g WHERE g.person_id = pu.person_id) OR ' +
+        'EXISTS (SELECT 1 FROM hr_employees e WHERE e.person_id = pu.person_id)' +
+        ') LIMIT 1',
+      accountId,
+    );
+  })) as Array<{ ok: number }>;
+  if (rows.length === 0) {
+    throw new BadRequestException(fieldName + ' does not match a user in this school');
+  }
+}
+
 @Injectable()
 export class AssetCategoryService {
   constructor(
@@ -405,7 +502,15 @@ export class AssignmentService {
     private readonly permCheck: PermissionCheckService,
   ) {}
 
-  async listForAsset(assetId: string): Promise<AssignmentDto[]> {
+  async listForAsset(assetId: string, actor?: ResolvedActor): Promise<AssignmentDto[]> {
+    // REVIEW-CYCLE22 BLOCKING 2 — caller-supplied actor gates the
+    // read at the asset boundary. Internal callers (e.g. the
+    // assignAsset / returnAssignment flows that re-read after
+    // mutating) bypass when no actor is supplied since they have
+    // already verified IT admin scope.
+    if (actor) {
+      await assertCanAccessAsset(this.tenantPrisma, this.permCheck, assetId, actor);
+    }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT aa.id::text AS id, aa.asset_id::text AS asset_id, a.asset_tag, ' +
@@ -511,16 +616,10 @@ export class AssignmentService {
     actor: ResolvedActor,
   ): Promise<AssignmentDto> {
     await assertItAdminScope(actor, this.permCheck);
-    // Validate assignee is a platform user
-    const userRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
-        'SELECT 1 AS ok FROM platform.platform_users pu WHERE pu.id = $1::uuid LIMIT 1',
-        input.assigneeId,
-      );
-    })) as Array<{ ok: number }>;
-    if (userRows.length === 0) {
-      throw new BadRequestException('assigneeId does not match a platform user');
-    }
+    // REVIEW-CYCLE22 BLOCKING 3 — validate assignee is a platform
+    // user with a projection in the current tenant. The schema soft FK
+    // does not enforce tenant scope; this helper is the actual gate.
+    await assertAccountInCurrentTenant(this.tenantPrisma, input.assigneeId, 'assigneeId');
     const id = generateId();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lockRows = (await tx.$queryRawUnsafe(
@@ -608,7 +707,11 @@ export class AssetDocumentService {
     private readonly permCheck: PermissionCheckService,
   ) {}
 
-  async listForAsset(assetId: string): Promise<AssetDocumentDto[]> {
+  async listForAsset(assetId: string, actor?: ResolvedActor): Promise<AssetDocumentDto[]> {
+    // REVIEW-CYCLE22 BLOCKING 2 — same row scope as assignments.
+    if (actor) {
+      await assertCanAccessAsset(this.tenantPrisma, this.permCheck, assetId, actor);
+    }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT id::text AS id, asset_id::text AS asset_id, document_type, s3_key, file_name, ' +
@@ -664,16 +767,43 @@ export class AssetDocumentService {
 
 @Injectable()
 export class DamageReportService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
-  async list(filters: { assetId?: string } = {}): Promise<DamageReportDto[]> {
+  async list(
+    filters: { assetId?: string } = {},
+    actor?: ResolvedActor,
+  ): Promise<DamageReportDto[]> {
+    // REVIEW-CYCLE22 BLOCKING 2 — non-IT-admin actors must only see
+    // damage reports they filed OR damage reports on assets they
+    // currently own. Internal callers (post-mutation re-reads)
+    // omit the actor. The IT-admin signal is `it-006:read`, which
+    // distinguishes IT staff from generic teachers (both have
+    // personType=STAFF).
+    const isItAdmin = actor ? await isItAdminActor(this.permCheck, actor) : true;
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       const params: unknown[] = [];
-      let where = '';
+      const wheres: string[] = [];
       if (filters.assetId) {
         params.push(filters.assetId);
-        where = ' WHERE d.asset_id = $1::uuid';
+        wheres.push('d.asset_id = $' + params.length + '::uuid');
       }
+      if (actor && !isItAdmin) {
+        params.push(actor.accountId);
+        const own = '$' + params.length + '::uuid';
+        wheres.push(
+          '(d.reported_by = ' +
+            own +
+            ' OR EXISTS (SELECT 1 FROM tech_asset_assignments aa ' +
+            '            WHERE aa.asset_id = d.asset_id ' +
+            '              AND aa.assigned_to_id = ' +
+            own +
+            ' AND aa.returned_at IS NULL))',
+        );
+      }
+      const where = wheres.length === 0 ? '' : ' WHERE ' + wheres.join(' AND ');
       return client.$queryRawUnsafe(
         'SELECT d.id::text AS id, d.asset_id::text AS asset_id, a.asset_tag, ' +
           "d.reported_by::text AS reported_by, ip.first_name || ' ' || ip.last_name AS reported_by_name, " +
@@ -758,7 +888,18 @@ export class RepairRecordService {
     private readonly permCheck: PermissionCheckService,
   ) {}
 
-  async list(filters: { assetId?: string } = {}): Promise<RepairRecordDto[]> {
+  async list(
+    filters: { assetId?: string } = {},
+    actor?: ResolvedActor,
+  ): Promise<RepairRecordDto[]> {
+    // REVIEW-CYCLE22 BLOCKING 2 — repair details (vendor, cost,
+    // status notes) are IT-internal. Non-IT-admin actors (incl
+    // teachers, who have personType=STAFF but lack it-006:read)
+    // get an empty list. Internal callers (post-mutation re-reads)
+    // omit the actor and bypass the gate.
+    if (actor && !(await isItAdminActor(this.permCheck, actor))) {
+      return [];
+    }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       const params: unknown[] = [];
       let where = '';
@@ -771,7 +912,7 @@ export class RepairRecordService {
           'r.damage_report_id::text AS damage_report_id, r.vendor_id::text AS vendor_id, v.vendor_name, ' +
           'r.repair_type, r.sent_for_repair_at::text AS sent_for_repair_at, ' +
           'r.estimated_return_date::text AS estimated_return_date, r.returned_at::text AS returned_at, ' +
-          'r.cost_estimate::text AS cost_estimate, r.final_cost::text AS final_cost, r.status, r.notes ' +
+          'r.cost::text AS cost, r.status, r.resolution_notes ' +
           'FROM tech_repair_records r ' +
           'JOIN tech_assets a ON a.id = r.asset_id ' +
           'LEFT JOIN tkt_vendors v ON v.id = r.vendor_id' +
@@ -790,10 +931,9 @@ export class RepairRecordService {
       sent_for_repair_at: string | null;
       estimated_return_date: string | null;
       returned_at: string | null;
-      cost_estimate: string | null;
-      final_cost: string | null;
+      cost: string | null;
       status: string;
-      notes: string | null;
+      resolution_notes: string | null;
     }>;
     return rows.map((r) => ({
       id: r.id,
@@ -806,10 +946,23 @@ export class RepairRecordService {
       sentForRepairAt: r.sent_for_repair_at,
       estimatedReturnDate: r.estimated_return_date,
       returnedAt: r.returned_at,
-      costEstimate: r.cost_estimate === null ? null : Number(r.cost_estimate),
-      finalCost: r.final_cost === null ? null : Number(r.final_cost),
+      // Schema has a single `cost` column; we surface it as both
+      // costEstimate (when status=PENDING/IN_REPAIR) and finalCost
+      // (when status=COMPLETED) so the DTO contract is unchanged.
+      costEstimate:
+        r.cost === null
+          ? null
+          : r.status === 'COMPLETED' || r.status === 'UNREPAIRABLE'
+            ? null
+            : Number(r.cost),
+      finalCost:
+        r.cost === null
+          ? null
+          : r.status === 'COMPLETED' || r.status === 'UNREPAIRABLE'
+            ? Number(r.cost)
+            : null,
       status: r.status as RepairRecordDto['status'],
-      notes: r.notes,
+      notes: r.resolution_notes,
     }));
   }
 
@@ -821,7 +974,7 @@ export class RepairRecordService {
     const id = generateId();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
-        'INSERT INTO tech_repair_records (id, asset_id, damage_report_id, vendor_id, repair_type, sent_for_repair_at, estimated_return_date, cost_estimate, status, created_by) ' +
+        'INSERT INTO tech_repair_records (id, asset_id, damage_report_id, vendor_id, repair_type, sent_for_repair_at, estimated_return_date, cost, status, created_by) ' +
           "VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, now(), $6::date, $7, 'IN_REPAIR', $8::uuid)",
         id,
         input.assetId,
@@ -878,11 +1031,11 @@ export class RepairRecordService {
         params.push(input.returnedAt);
       }
       if (input.finalCost !== undefined) {
-        sets.push('final_cost = $' + (params.length + 1));
+        sets.push('cost = $' + (params.length + 1));
         params.push(input.finalCost);
       }
       if (input.notes !== undefined) {
-        sets.push('notes = $' + (params.length + 1));
+        sets.push('resolution_notes = $' + (params.length + 1));
         params.push(input.notes);
       }
       if (sets.length > 0) {
