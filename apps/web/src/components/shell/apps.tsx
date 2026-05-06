@@ -16,6 +16,7 @@ import {
   ChecklistIcon,
   ChildrenIcon,
   ClassesIcon,
+  ComputerIcon,
   GavelIcon,
   HeartHandIcon,
   HeartIcon,
@@ -53,7 +54,8 @@ export type AppKey =
   | 'groups'
   | 'transport'
   | 'food-service'
-  | 'facilities';
+  | 'facilities'
+  | 'it';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -452,6 +454,28 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/facilities',
       routePrefix: '/facilities',
       icon: WrenchIcon,
+    });
+  }
+
+  // Cycle 22 — IT Infrastructure. The IT Administrator (IT admin)
+  // is the ninth specialist operator persona. Teachers + students
+  // hold IT-002:read (own assigned device); IT admin holds
+  // IT-002..006 read+write per the Step 4 IAM grant on the Staff
+  // role. Vault tier check (CredentialVaultService.getById) is
+  // the actual SECURITY KEYSTONE — STANDARD-tier Staff cannot
+  // decrypt CRITICAL credentials even with IT-005:read.
+  if (hasAnyPermission(user, ['it-002:read', 'it-003:read'])) {
+    apps.push({
+      key: 'it',
+      label: 'IT',
+      description: isStaff
+        ? 'Assets, licences, vault, MDM, infrastructure, procurement'
+        : isStudent
+          ? 'Your device + select a device during onboarding'
+          : 'Device selection for your child',
+      href: '/it',
+      routePrefix: '/it',
+      icon: ComputerIcon,
     });
   }
 

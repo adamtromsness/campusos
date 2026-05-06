@@ -311,6 +311,19 @@ async function seedIam() {
         // spaces (FAC-001:read+write). Work order management, PM,
         // inspections, zones, and supply remain Staff-only.
         'FAC-001': ['read', 'write'],
+        // Cycle 22 — IT Infrastructure. Teachers see their own
+        // assigned devices (IT-002:read row-scopes to assigned_to_id
+        // = me at the service layer) and can file damage reports
+        // (IT-002:write). The Cycle 22 plan also gives staff visibility
+        // into installed software via IT-004:read (used by the future
+        // self-service licence picker). Credential vault (IT-005),
+        // MDM (IT-006), and Device Selection management (IT-003)
+        // remain IT-admin only — teachers can SELECT a device during
+        // onboarding via IT-003:write (parent-active path) but the
+        // approve / provision pipeline is Staff/admin.
+        'IT-002': ['read', 'write'],
+        'IT-003': ['read', 'write'],
+        'IT-004': ['read'],
       },
     },
     {
@@ -531,6 +544,12 @@ async function seedIam() {
         // FDS-001:read so the per-item allergen pills surface in the
         // student dashboard.
         'FDS-001': ['read'],
+        // Cycle 22 — IT Infrastructure. Students see their own
+        // assigned devices (IT-002:read row-scoped at the service
+        // layer) and select a device during onboarding via
+        // IT-003:write (parent-active path).
+        'IT-002': ['read'],
+        'IT-003': ['read', 'write'],
       },
     },
     {
@@ -732,6 +751,24 @@ async function seedIam() {
         'FAC-002': ['read', 'write', 'admin'],
         'FAC-003': ['read', 'write', 'admin'],
         'FAC-004': ['read', 'write', 'admin'],
+        // Cycle 22 — IT Infrastructure. Staff covers the IT
+        // Administrator (IT admin) — the ninth specialist operator
+        // persona. IT-002..006 read+write covers asset fleet
+        // management, device selection workflow approval / provisioning,
+        // licence + seat tracking, credential vault management
+        // (CredentialVaultService.getById refuses to decrypt when
+        // actor tier < credential tier so STANDARD-tier Staff still
+        // can't read CRITICAL credentials), and MDM compliance
+        // dashboard. Joins the role-split work in the Phase 2 punch
+        // list — a dedicated IT admin role should hold the IT-* codes
+        // alone before pilot. School Admin / Platform Admin pick up
+        // the admin tier (DELETE on credentials, hard-clean operations)
+        // via everyFunction.
+        'IT-002': ['read', 'write'],
+        'IT-003': ['read', 'write'],
+        'IT-004': ['read', 'write'],
+        'IT-005': ['read', 'write'],
+        'IT-006': ['read', 'write'],
       },
     },
   ];

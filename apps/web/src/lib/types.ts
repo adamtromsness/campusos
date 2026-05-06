@@ -6706,3 +6706,510 @@ export interface FacAdjustSupplyPayload {
   reorderThreshold?: number;
   notes?: string;
 }
+
+// ──────────────────────────────────────────────────────────────
+// Cycle 22 — IT Infrastructure (M62)
+// ──────────────────────────────────────────────────────────────
+
+export type ItAssetStatus = 'AVAILABLE' | 'ASSIGNED' | 'REPAIR' | 'LOST' | 'RETIRED';
+export type ItAssetCondition = 'EXCELLENT' | 'GOOD' | 'FAIR' | 'DAMAGED';
+export type ItAssetDocumentType = 'WARRANTY' | 'INVOICE' | 'MANUAL' | 'OTHER';
+export type ItDamageSeverity = 'MINOR' | 'MODERATE' | 'SEVERE' | 'TOTAL_LOSS';
+export type ItRepairType = 'INTERNAL' | 'VENDOR' | 'WARRANTY_CLAIM';
+export type ItRepairStatus = 'PENDING' | 'IN_REPAIR' | 'COMPLETED' | 'UNREPAIRABLE';
+export type ItLicenceType = 'PER_SEAT' | 'SITE' | 'SUBSCRIPTION';
+export type ItCredentialType =
+  | 'VENDOR_PORTAL'
+  | 'SERVICE_ACCOUNT'
+  | 'API_KEY'
+  | 'SSL_CERTIFICATE'
+  | 'WIFI_CREDENTIAL'
+  | 'ADMIN_SHARED'
+  | 'OTHER';
+export type ItAccessTier = 'STANDARD' | 'ELEVATED' | 'CRITICAL';
+export type ItCredentialAccessType = 'VIEW' | 'COPY' | 'MODIFY' | 'CREATE' | 'DELETE';
+export type ItMdmProvider = 'GOOGLE' | 'APPLE' | 'INTUNE' | 'JAMF';
+export type ItMdmAlertType =
+  | 'NON_COMPLIANT'
+  | 'STALE_CHECKIN'
+  | 'OS_OUTDATED'
+  | 'POLICY_VIOLATION'
+  | 'JAILBREAK_DETECTED'
+  | 'OTHER';
+export type ItInfraItemType =
+  | 'SWITCH'
+  | 'ROUTER'
+  | 'ACCESS_POINT'
+  | 'FIREWALL'
+  | 'SERVER'
+  | 'STORAGE_ARRAY'
+  | 'UPS'
+  | 'PRINTER'
+  | 'OTHER';
+export type ItProcurementStatus =
+  | 'DRAFT'
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'ORDERED'
+  | 'DELIVERED'
+  | 'CANCELLED';
+export type ItDeviceType = 'LAPTOP' | 'DESKTOP' | 'TABLET' | 'PHONE' | 'OTHER';
+export type ItSelectionContext = 'ENROLMENT' | 'REFRESH' | 'REPLACEMENT';
+export type ItSelectionStatus = 'PENDING' | 'SELECTED' | 'APPROVED' | 'PROVISIONED' | 'REJECTED';
+
+export interface ItAssetCategoryDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  depreciationYears: number | null;
+  maintenanceIntervalMonths: number | null;
+  isActive: boolean;
+  assetCount: number;
+}
+
+export interface ItCreateAssetCategoryPayload {
+  name: string;
+  description?: string;
+  depreciationYears?: number;
+  maintenanceIntervalMonths?: number;
+}
+
+export interface ItUpdateAssetCategoryPayload {
+  name?: string;
+  description?: string;
+  depreciationYears?: number;
+  maintenanceIntervalMonths?: number;
+  isActive?: boolean;
+}
+
+export interface ItAssetDto {
+  id: string;
+  schoolId: string;
+  categoryId: string;
+  categoryName: string;
+  assetTag: string;
+  serialNumber: string | null;
+  make: string | null;
+  model: string | null;
+  purchaseDate: string | null;
+  purchaseCost: number | null;
+  warrantyExpiry: string | null;
+  status: ItAssetStatus;
+  notes: string | null;
+  currentAssigneeId: string | null;
+  currentAssigneeName: string | null;
+}
+
+export interface ItCreateAssetPayload {
+  categoryId: string;
+  assetTag: string;
+  serialNumber?: string;
+  make?: string;
+  model?: string;
+  purchaseDate?: string;
+  purchaseCost?: number;
+  warrantyExpiry?: string;
+  notes?: string;
+}
+
+export interface ItUpdateAssetPayload {
+  categoryId?: string;
+  assetTag?: string;
+  serialNumber?: string;
+  make?: string;
+  model?: string;
+  purchaseDate?: string;
+  purchaseCost?: number;
+  warrantyExpiry?: string;
+  status?: ItAssetStatus;
+  notes?: string;
+}
+
+export interface ItAssignmentDto {
+  id: string;
+  assetId: string;
+  assetTag: string;
+  assigneeId: string;
+  assigneeName: string;
+  assignedBy: string;
+  assignedAt: string;
+  returnedAt: string | null;
+  conditionAtAssign: ItAssetCondition | null;
+  conditionAtReturn: ItAssetCondition | null;
+  notes: string | null;
+}
+
+export interface ItAssignAssetPayload {
+  assigneeId: string;
+  conditionAtAssign?: ItAssetCondition;
+  notes?: string;
+}
+
+export interface ItReturnAssetPayload {
+  conditionAtReturn?: ItAssetCondition;
+  notes?: string;
+}
+
+export interface ItAssetDocumentDto {
+  id: string;
+  assetId: string;
+  documentType: ItAssetDocumentType;
+  s3Key: string;
+  fileName: string;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+export interface ItCreateAssetDocumentPayload {
+  documentType: ItAssetDocumentType;
+  s3Key: string;
+  fileName: string;
+}
+
+export interface ItDamageReportDto {
+  id: string;
+  assetId: string;
+  assetTag: string;
+  reportedBy: string;
+  reportedByName: string;
+  description: string;
+  severity: ItDamageSeverity;
+  photoS3Keys: string[];
+  reportedAt: string;
+  repairRecordId: string | null;
+}
+
+export interface ItCreateDamageReportPayload {
+  assetId: string;
+  description: string;
+  severity: ItDamageSeverity;
+  photoS3Keys?: string[];
+}
+
+export interface ItRepairRecordDto {
+  id: string;
+  assetId: string;
+  assetTag: string;
+  damageReportId: string | null;
+  vendorId: string | null;
+  vendorName: string | null;
+  repairType: ItRepairType;
+  sentForRepairAt: string | null;
+  estimatedReturnDate: string | null;
+  returnedAt: string | null;
+  costEstimate: number | null;
+  finalCost: number | null;
+  status: ItRepairStatus;
+  notes: string | null;
+}
+
+export interface ItCreateRepairPayload {
+  assetId: string;
+  damageReportId?: string;
+  vendorId?: string;
+  repairType: ItRepairType;
+  estimatedReturnDate?: string;
+  costEstimate?: number;
+}
+
+export interface ItUpdateRepairPayload {
+  status?: ItRepairStatus;
+  estimatedReturnDate?: string;
+  returnedAt?: string;
+  finalCost?: number;
+  notes?: string;
+}
+
+export interface ItLicenceDto {
+  id: string;
+  schoolId: string;
+  softwareName: string;
+  vendor: string | null;
+  licenceType: ItLicenceType;
+  totalSeats: number | null;
+  usedSeats: number;
+  utilisationPct: number | null;
+  expiryDate: string | null;
+  annualCost: number | null;
+  notes: string | null;
+  isActive: boolean;
+}
+
+export interface ItCreateLicencePayload {
+  softwareName: string;
+  vendor?: string;
+  licenceType: ItLicenceType;
+  totalSeats?: number;
+  expiryDate?: string;
+  annualCost?: number;
+  notes?: string;
+}
+
+export interface ItUpdateLicencePayload {
+  softwareName?: string;
+  vendor?: string;
+  totalSeats?: number;
+  expiryDate?: string;
+  annualCost?: number;
+  notes?: string;
+  isActive?: boolean;
+}
+
+export interface ItLicenceAssignmentDto {
+  id: string;
+  licenceId: string;
+  softwareName: string;
+  assigneeId: string;
+  assigneeName: string;
+  assignedBy: string;
+  assignedAt: string;
+  lastUsedAt: string | null;
+  notes: string | null;
+}
+
+export interface ItAssignLicencePayload {
+  assigneeId: string;
+  notes?: string;
+}
+
+export interface ItCredentialSummaryDto {
+  id: string;
+  schoolId: string;
+  serviceName: string;
+  credentialType: ItCredentialType;
+  username: string | null;
+  url: string | null;
+  accessTier: ItAccessTier;
+  lastRotatedAt: string | null;
+  rotationDueAt: string | null;
+  expiryDate: string | null;
+  notes: string | null;
+  hasPassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ItCredentialDetailDto extends ItCredentialSummaryDto {
+  password: string;
+}
+
+export interface ItCreateCredentialPayload {
+  serviceName: string;
+  credentialType: ItCredentialType;
+  username?: string;
+  password: string;
+  url?: string;
+  expiryDate?: string;
+  rotationDueAt?: string;
+  accessTier?: ItAccessTier;
+  notes?: string;
+}
+
+export interface ItUpdateCredentialPayload {
+  serviceName?: string;
+  username?: string;
+  password?: string;
+  url?: string;
+  expiryDate?: string;
+  rotationDueAt?: string;
+  accessTier?: ItAccessTier;
+  notes?: string;
+}
+
+export interface ItCredentialAccessLogDto {
+  id: string;
+  credentialId: string;
+  serviceName: string;
+  accessedBy: string;
+  accessedByName: string;
+  accessType: ItCredentialAccessType;
+  accessedAt: string;
+}
+
+export interface ItMdmSyncDto {
+  id: string;
+  assetId: string;
+  assetTag: string;
+  mdmProvider: ItMdmProvider;
+  syncAt: string;
+  deviceName: string | null;
+  osVersion: string | null;
+  lastCheckIn: string | null;
+  isCompliant: boolean;
+  complianceDetails: Record<string, unknown> | null;
+}
+
+export interface ItCreateMdmSyncPayload {
+  assetId: string;
+  mdmProvider: ItMdmProvider;
+  deviceName?: string;
+  osVersion?: string;
+  lastCheckIn?: string;
+  isCompliant?: boolean;
+  complianceDetails?: Record<string, unknown>;
+}
+
+export interface ItMdmAlertDto {
+  id: string;
+  assetId: string;
+  assetTag: string;
+  alertType: ItMdmAlertType;
+  alertDetail: string | null;
+  firstDetectedAt: string;
+  lastDetectedAt: string;
+  isResolved: boolean;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  resolutionNotes: string | null;
+}
+
+export interface ItCreateMdmAlertPayload {
+  assetId: string;
+  alertType: ItMdmAlertType;
+  alertDetail?: string;
+}
+
+export interface ItResolveMdmAlertPayload {
+  resolutionNotes?: string;
+}
+
+export interface ItInfrastructureItemDto {
+  id: string;
+  schoolId: string;
+  itemName: string;
+  itemType: ItInfraItemType;
+  location: string | null;
+  ipAddress: string | null;
+  macAddress: string | null;
+  make: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  purchaseDate: string | null;
+  warrantyExpiry: string | null;
+  status: string;
+  notes: string | null;
+}
+
+export interface ItCreateInfrastructureItemPayload {
+  itemName: string;
+  itemType: ItInfraItemType;
+  location?: string;
+  ipAddress?: string;
+  macAddress?: string;
+  make?: string;
+  model?: string;
+  serialNumber?: string;
+  purchaseDate?: string;
+  warrantyExpiry?: string;
+  notes?: string;
+}
+
+export interface ItUpdateInfrastructureItemPayload {
+  itemName?: string;
+  location?: string;
+  ipAddress?: string;
+  macAddress?: string;
+  status?: string;
+  notes?: string;
+}
+
+export interface ItProcurementOrderDto {
+  id: string;
+  schoolId: string;
+  orderTitle: string;
+  vendorId: string | null;
+  vendorName: string | null;
+  purchaseOrderNumber: string | null;
+  orderedBy: string | null;
+  orderedByName: string | null;
+  orderDate: string | null;
+  expectedDeliveryDate: string | null;
+  deliveredAt: string | null;
+  totalCost: number | null;
+  status: ItProcurementStatus;
+  notes: string | null;
+}
+
+export interface ItCreateProcurementOrderPayload {
+  orderTitle: string;
+  vendorId?: string;
+  purchaseOrderNumber?: string;
+  orderDate?: string;
+  expectedDeliveryDate?: string;
+  totalCost?: number;
+  notes?: string;
+}
+
+export interface ItUpdateProcurementOrderPayload {
+  orderTitle?: string;
+  status?: ItProcurementStatus;
+  expectedDeliveryDate?: string;
+  totalCost?: number;
+  notes?: string;
+}
+
+export interface ItMarkDeliveredPayload {
+  deliveredAt?: string;
+  notes?: string;
+}
+
+export interface ItDeviceOptionDto {
+  id: string;
+  schoolId: string;
+  optionName: string;
+  deviceType: ItDeviceType;
+  operatingSystem: string | null;
+  specifications: string | null;
+  softwareAvailable: string[];
+  costDifference: number | null;
+  isActive: boolean;
+}
+
+export interface ItCreateDeviceOptionPayload {
+  optionName: string;
+  deviceType: ItDeviceType;
+  operatingSystem?: string;
+  specifications?: string;
+  softwareAvailable?: string[];
+  costDifference?: number;
+}
+
+export interface ItUpdateDeviceOptionPayload {
+  optionName?: string;
+  operatingSystem?: string;
+  specifications?: string;
+  softwareAvailable?: string[];
+  costDifference?: number;
+  isActive?: boolean;
+}
+
+export interface ItDeviceSelectionDto {
+  id: string;
+  personId: string;
+  personName: string;
+  optionId: string;
+  optionName: string;
+  selectionContext: ItSelectionContext;
+  selectedAt: string;
+  status: ItSelectionStatus;
+  approvedBy: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  assetId: string | null;
+  assetTag: string | null;
+  notes: string | null;
+}
+
+export interface ItCreateDeviceSelectionPayload {
+  personId: string;
+  optionId: string;
+  selectionContext: ItSelectionContext;
+  assetId?: string;
+  notes?: string;
+}
+
+export interface ItApproveSelectionPayload {
+  assetId?: string;
+  notes?: string;
+}
