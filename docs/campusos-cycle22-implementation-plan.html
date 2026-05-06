@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 22 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 4 &middot; Campus Operations</div>
+    <h1>Cycle 22: IT Infrastructure</h1>
+    <div class="sub">Device fleet management with asset tagging and lifecycle tracking, device-to-person assignments with condition recording, software licence management with seat utilisation alerts, an encrypted credential vault with tiered access and immutable audit log (ADR-065), MDM sync status with compliance alerts, device damage + repair workflow, procurement orders, network infrastructure registry, and a device selection workflow for new students and staff (ADR-066). The IT Administrator is the ninth specialist operator persona. Closes Wave 4.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M62 IT Infrastructure (26 tables &mdash; 16 core in scope, 10 deferred) &middot; TECH-001 through TECH-004 &middot; ADR-065, ADR-066 &middot; Closes Wave 4</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 22 builds the M62 IT Infrastructure module &mdash; 16 of the 26 ERD tables. This is the fourth and final Campus Operations module, closing Wave 4. It manages the technology fleet that supports every other module: the laptops teachers use for gradebooks, the tablets students use in classrooms, the servers running the network, and the software licences that make it all work.</p>
+
+  <p class="body-text">The module spans 4 domains: (1) device asset management with categories, asset tags, assignments, documents, and damage/repair workflow, (2) software licence tracking with seat utilisation and per-user assignments, (3) the encrypted credential vault (ADR-065) with tiered access control and immutable audit logging, and (4) MDM integration surface with sync logs + compliance alerts, network infrastructure registry, procurement orders, and the device selection workflow (ADR-066) for onboarding.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Security &mdash; Credential Vault (ADR-065)</div>
+    <p style="font-size:15px;line-height:1.8;"><code>tech_credential_vault</code> stores shared service credentials (vendor portals, API keys, SSL certificates, Wi-Fi passwords) encrypted with AES-256 using a <strong>separate encryption key from student data</strong>. Access is tiered: STANDARD (most staff), ELEVATED (IT team leads), CRITICAL (IT admin only). Every credential access &mdash; view, copy, modify, create, delete &mdash; writes an immutable <code>tech_credential_access_log</code> row. Rotation alerts fire at 60/30/14/3 days before expiry. The credential vault is the only surface in CampusOS that stores secrets beyond authentication tokens.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">IT admin creates asset categories ("Chromebook", depreciation 4 years; "iPad", 3 years) &rarr; registers 30 Chromebooks with sequential asset tags (IT-CB-001 through IT-CB-030) &rarr; assigns IT-CB-001 to Maya (condition: EXCELLENT) &rarr; uploads warranty document &rarr; Maya drops the Chromebook; teacher files a damage report (MODERATE, photo attached) &rarr; IT admin creates a repair record (WARRANTY_CLAIM, sent to vendor) &rarr; device status flips to REPAIR &rarr; IT admin registers "Google Workspace for Education" licence (SITE, unlimited seats, expires Dec 2026) + "Adobe Creative Suite" (PER_SEAT, 25 seats, 18 used) &rarr; assigns Adobe to Rivera &rarr; used_seats increments to 19 &rarr; IT admin stores the school Wi-Fi admin credential in the vault (CRITICAL tier, AES-256 encrypted) &rarr; Rivera views the credential &rarr; immutable access_log row captures the VIEW with timestamp &rarr; MDM sync shows IT-CB-015 has STALE_CHECKIN alert (hasn't checked in for 7 days) &rarr; admin registers the network infrastructure (2 switches, 4 access points, 1 server) &rarr; creates a procurement order for 10 replacement Chromebooks &rarr; new student selects a Chromebook from the device options catalogue during onboarding (ADR-066).</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (16 tables):</strong> tech_asset_categories, tech_assets, tech_asset_assignments, tech_asset_documents, tech_software_licences, tech_software_assignments, tech_credential_vault, tech_credential_access_log, tech_infrastructure_items, tech_mdm_sync_logs, tech_mdm_alerts, tech_damage_reports, tech_repair_records, tech_procurement_orders, tech_device_options, tech_device_selections. Functions TECH-001 through TECH-004.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to Cycle 22.1 (10 tables):</strong> tech_remote_actions (MDM lock/wipe/restart commands), tech_licence_renewals (renewal history), tech_device_usage_summaries (screen time + app usage analytics), tech_inventory_audits + tech_inventory_audit_items (formal physical audits), tech_phone_extensions (VOIP directory), tech_config_documentation (system documentation wiki), tech_monitoring_checks + tech_monitoring_alerts (uptime monitoring).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Also deferred:</strong> Real MDM provider integration (Jamf/Intune/Mosyle/Google &mdash; sync logs are manually populated this cycle). Automated warranty expiry alerts (schema ready; cron worker is Phase 3 ops). VOIP call log integration. Automated procurement from M86 Procurement module.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Asset + Assignment + Documents Schema</td><td>Schema</td><td>tech_asset_categories, tech_assets, tech_asset_assignments, tech_asset_documents</td></tr>
+    <tr><td><strong>2</strong></td><td>Licences + Credential Vault Schema</td><td>Schema</td><td>tech_software_licences, tech_software_assignments, tech_credential_vault, tech_credential_access_log</td></tr>
+    <tr><td><strong>3</strong></td><td>MDM + Infrastructure + Procurement + Device Selection Schema</td><td>Schema</td><td>tech_infrastructure_items, tech_mdm_sync_logs, tech_mdm_alerts, tech_damage_reports, tech_repair_records, tech_procurement_orders, tech_device_options, tech_device_selections</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Assets, Licences, Credentials, Infrastructure</td><td>Seed</td><td>2 categories + 10 assets + assignments, 3 licences, 2 vault entries, 5 infrastructure items, 1 procurement order, TECH-001..004 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Asset + Assignment NestJS Module</td><td>Code</td><td>AssetService, AssignmentService, DocumentService, DamageService, RepairService. Lifecycle tracking.</td></tr>
+    <tr><td><strong>6</strong></td><td>Licences + Credential Vault NestJS Module</td><td>Code</td><td>LicenceService, CredentialVaultService. Seat tracking. Tiered vault access. Immutable audit. <code>tech.licence.near_capacity</code> Kafka emit.</td></tr>
+    <tr><td><strong>7</strong></td><td>MDM + Infrastructure + Procurement + Selection NestJS Module</td><td>Code</td><td>MdmService, InfrastructureService, ProcurementService, DeviceSelectionService. MDM alerts. Device onboarding selection (ADR-066).</td></tr>
+    <tr><td><strong>8</strong></td><td>IT UI &mdash; Assets + Licences + Vault</td><td>UI</td><td>"IT" app tile, asset fleet dashboard, assignment manager, licence tracker, credential vault with access log</td></tr>
+    <tr><td><strong>9</strong></td><td>IT UI &mdash; MDM + Infrastructure + Procurement + Selection</td><td>UI</td><td>MDM compliance dashboard, infrastructure registry, procurement orders, device selection portal</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Asset &rarr; assignment &rarr; damage &rarr; repair &rarr; licence + seats &rarr; vault access + audit &rarr; MDM alert &rarr; procurement &rarr; device selection</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Asset + Assignment + Documents Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Asset category catalogue with depreciation, the device fleet registry with asset tags and warranty tracking, device-to-person assignments with condition recording, and asset documentation.</p>
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>tech_asset_categories</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>depreciation_years INT</code>, <code>maintenance_interval_months INT</code>. UNIQUE(school_id, name).</li>
+      <li><strong>tech_assets</strong> &mdash; <code>school_id UUID</code>, <code>category_id UUID FK</code>, <code>asset_tag TEXT NOT NULL</code>, <code>serial_number TEXT</code>, <code>make TEXT</code>, <code>model TEXT</code>, <code>purchase_date DATE</code>, <code>purchase_cost NUMERIC(10,2)</code>, <code>status TEXT NOT NULL DEFAULT 'AVAILABLE'</code> 5-value CHECK (AVAILABLE, ASSIGNED, REPAIR, RETIRED, LOST), <code>warranty_expiry DATE</code>, <code>procurement_order_id UUID</code> nullable (soft to tech_procurement_orders). UNIQUE(school_id, asset_tag). INDEX(school_id, status).</li>
+      <li><strong>tech_asset_assignments</strong> &mdash; <code>asset_id UUID FK NOT NULL</code>, <code>assigned_to_id UUID FK(platform_users) NOT NULL</code>, <code>assigned_at TIMESTAMPTZ NOT NULL</code>, <code>returned_at TIMESTAMPTZ</code> nullable, <code>condition_at_assign TEXT</code> 4-value CHECK (EXCELLENT, GOOD, FAIR, DAMAGED), <code>condition_at_return TEXT</code> same CHECK nullable, <code>notes TEXT</code>. INDEX(assigned_to_id) WHERE returned_at IS NULL for active assignments.</li>
+      <li><strong>tech_asset_documents</strong> &mdash; <code>asset_id UUID FK NOT NULL</code>, <code>document_type TEXT NOT NULL</code> 4-value CHECK (INVOICE, WARRANTY, INSURANCE, MANUAL), <code>s3_key TEXT NOT NULL</code>, <code>uploaded_at TIMESTAMPTZ</code>. INDEX(asset_id, document_type).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>070_tech_assets.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Licences + Credential Vault Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Software licence tracking with seat counts and utilisation alerts, per-user licence assignments, the encrypted credential vault with tiered access (ADR-065), and the immutable credential access audit log.</p>
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>tech_software_licences</strong> &mdash; <code>school_id UUID</code>, <code>software_name TEXT NOT NULL</code>, <code>vendor TEXT</code>, <code>licence_type TEXT NOT NULL</code> 3-value CHECK (PER_SEAT, SITE, SUBSCRIPTION), <code>total_seats INT</code> nullable (null for SITE), <code>used_seats INT DEFAULT 0</code>, <code>expiry_date DATE</code>, <code>annual_cost NUMERIC(10,2)</code>. INDEX(school_id, expiry_date). Alert at 80% seat usage + 30 days before expiry.</li>
+      <li><strong>tech_software_assignments</strong> &mdash; <code>licence_id UUID FK NOT NULL</code>, <code>assignee_id UUID NOT NULL</code> (soft to platform_users), <code>assigned_at TIMESTAMPTZ</code>, <code>last_used_at TIMESTAMPTZ</code>. UNIQUE(licence_id, assignee_id). On INSERT: tech_software_licences.used_seats++. On DELETE: used_seats--.</li>
+      <li><strong>tech_credential_vault</strong> &mdash; <strong>SECURITY KEYSTONE (ADR-065).</strong> <code>school_id UUID NOT NULL</code>, <code>service_name TEXT NOT NULL</code>, <code>credential_type TEXT NOT NULL</code> 7-value CHECK (VENDOR_PORTAL, SERVICE_ACCOUNT, API_KEY, SSL_CERTIFICATE, WIFI_CREDENTIAL, ADMIN_SHARED, OTHER), <code>username TEXT</code>, <code>encrypted_password TEXT NOT NULL</code> (AES-256, separate key from student data), <code>url TEXT</code>, <code>last_rotated_at TIMESTAMPTZ</code>, <code>rotation_due_at TIMESTAMPTZ</code>, <code>expiry_date DATE</code>, <code>access_tier TEXT NOT NULL DEFAULT 'STANDARD'</code> 3-value CHECK (STANDARD, ELEVATED, CRITICAL), <code>notes TEXT</code>. INDEX(school_id, credential_type). INDEX(expiry_date) WHERE expiry_date IS NOT NULL for rotation alerts.</li>
+      <li><strong>tech_credential_access_log</strong> &mdash; <strong>IMMUTABLE.</strong> <code>credential_id UUID FK NOT NULL</code>, <code>accessed_by UUID FK(platform_users) NOT NULL</code>, <code>access_type TEXT NOT NULL</code> 5-value CHECK (VIEW, COPY, MODIFY, CREATE, DELETE), <code>accessed_at TIMESTAMPTZ NOT NULL</code>. NO UPDATE, NO DELETE. RANGE-partition-ready by accessed_at. INDEX(credential_id, accessed_at DESC).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>071_tech_licences_vault.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">MDM + Infrastructure + Procurement + Device Selection Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>MDM device sync status with compliance alerts, network infrastructure registry, device damage reports and repair workflow, procurement orders, and the device selection catalogue + workflow for onboarding (ADR-066).</p>
+    <div class="detail-heading">Tables (8)</div>
+    <ol class="detail-list">
+      <li><strong>tech_mdm_sync_logs</strong> &mdash; <code>asset_id UUID FK NOT NULL</code>, <code>mdm_provider TEXT NOT NULL</code> 4-value CHECK (JAMF, INTUNE, MOSYLE, GOOGLE), <code>sync_at TIMESTAMPTZ NOT NULL</code>, <code>device_name TEXT</code>, <code>os_version TEXT</code>, <code>last_check_in TIMESTAMPTZ</code>, <code>is_compliant BOOLEAN</code>, <code>compliance_details JSONB</code>. INDEX(asset_id, sync_at DESC).</li>
+      <li><strong>tech_mdm_alerts</strong> &mdash; <code>asset_id UUID FK NOT NULL</code>, <code>alert_type TEXT NOT NULL</code> 6-value CHECK (STALE_CHECKIN, POLICY_VIOLATION, JAILBREAK_DETECTED, ENCRYPTION_DISABLED, UNAUTHORISED_APP, LOW_STORAGE), <code>alert_detail TEXT</code>, <code>first_detected_at TIMESTAMPTZ</code>, <code>last_detected_at TIMESTAMPTZ</code>, <code>is_resolved BOOLEAN DEFAULT false</code>, <code>resolved_by UUID</code> nullable, <code>resolved_at TIMESTAMPTZ</code>. INDEX(asset_id, is_resolved) WHERE is_resolved=false.</li>
+      <li><strong>tech_damage_reports</strong> &mdash; <code>asset_id UUID FK NOT NULL</code>, <code>reported_by UUID FK NOT NULL</code>, <code>description TEXT NOT NULL</code>, <code>severity TEXT NOT NULL</code> 4-value CHECK (MINOR, MODERATE, MAJOR, WRITE_OFF), <code>photo_s3_keys TEXT[]</code>, <code>reported_at TIMESTAMPTZ</code>, <code>repair_record_id UUID</code> nullable. INDEX(asset_id, reported_at DESC).</li>
+      <li><strong>tech_repair_records</strong> &mdash; <code>asset_id UUID FK NOT NULL</code>, <code>damage_report_id UUID FK</code> nullable, <code>vendor_id UUID FK(tkt_vendors)</code> nullable, <code>repair_type TEXT NOT NULL</code> 3-value CHECK (INTERNAL, EXTERNAL_VENDOR, WARRANTY_CLAIM), <code>cost NUMERIC(8,2)</code>, <code>estimated_return_date DATE</code>, <code>sent_for_repair_at TIMESTAMPTZ</code>, <code>returned_at TIMESTAMPTZ</code>, <code>resolution_notes TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 4-value CHECK (PENDING, IN_REPAIR, COMPLETE, WRITTEN_OFF). On INSERT with vendor: tech_assets.status &rarr; REPAIR.</li>
+      <li><strong>tech_infrastructure_items</strong> &mdash; <code>school_id UUID</code>, <code>item_name TEXT NOT NULL</code>, <code>item_type TEXT NOT NULL</code> 9-value CHECK (SWITCH, ACCESS_POINT, SERVER, ROUTER, FIREWALL, PRINTER, NAS, UPS, OTHER), <code>location TEXT NOT NULL</code>, <code>ip_address TEXT</code>, <code>mac_address TEXT</code>, <code>make TEXT</code>, <code>model TEXT</code>, <code>serial_number TEXT</code>, <code>purchase_date DATE</code>, <code>warranty_expiry DATE</code>, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, MAINTENANCE, DECOMMISSIONED). UNIQUE(school_id, serial_number) WHERE serial_number IS NOT NULL.</li>
+      <li><strong>tech_procurement_orders</strong> &mdash; <code>school_id UUID</code>, <code>order_title TEXT NOT NULL</code>, <code>vendor_id UUID FK(tkt_vendors)</code> nullable, <code>purchase_order_number TEXT</code>, <code>ordered_by UUID FK(hr_employees) NOT NULL</code>, <code>order_date DATE NOT NULL</code>, <code>expected_delivery_date DATE</code>, <code>total_cost NUMERIC(10,2)</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 6-value CHECK (DRAFT, SUBMITTED, APPROVED, ORDERED, DELIVERED, CANCELLED), <code>linked_approval_id UUID FK(wsk_approval_requests)</code> nullable. INDEX(school_id, status).</li>
+      <li><strong>tech_device_options</strong> &mdash; School-configurable device selection catalogue (ADR-066). <code>school_id UUID</code>, <code>option_name TEXT NOT NULL</code>, <code>device_type TEXT NOT NULL</code>, <code>operating_system TEXT NOT NULL</code>, <code>specifications TEXT</code>, <code>software_available TEXT[]</code>, <code>cost_difference NUMERIC(8,2) DEFAULT 0</code>, <code>is_active BOOLEAN DEFAULT true</code>. INDEX(school_id, is_active).</li>
+      <li><strong>tech_device_selections</strong> &mdash; Per-person device selection during onboarding (ADR-066). <code>person_id UUID FK(iam_person) NOT NULL</code>, <code>option_id UUID FK(tech_device_options) NOT NULL</code>, <code>selection_context TEXT NOT NULL</code> 3-value CHECK (ENROLMENT, REFRESH, NEW_HIRE), <code>selected_at TIMESTAMPTZ NOT NULL</code>, <code>approved_by UUID FK(platform_users)</code> nullable, <code>approved_at TIMESTAMPTZ</code>, <code>status TEXT NOT NULL DEFAULT 'SELECTED'</code> 5-value CHECK (SELECTED, APPROVED, PROVISIONING, PROVISIONED, CANCELLED). INDEX(status) WHERE status IN ('SELECTED', 'APPROVED', 'PROVISIONING').</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 new tables. Migration: <code>072_tech_mdm_procurement.sql</code>. Total Cycle 22 tables: 16.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>2 asset categories + 10 assets:</strong> "Chromebook" (depreciation 4yr) + "iPad" (3yr). 8 Chromebooks (IT-CB-001..008, 6 ASSIGNED + 1 AVAILABLE + 1 REPAIR) + 2 iPads (IT-IP-001..002, both ASSIGNED).</li>
+      <li><strong>6 assignments:</strong> Maya has IT-CB-001 (EXCELLENT). Rivera has IT-CB-002 (GOOD). 4 more staff/students.</li>
+      <li><strong>2 asset documents:</strong> Warranty PDFs for IT-CB-001 and IT-IP-001.</li>
+      <li><strong>3 licences + 4 assignments:</strong> "Google Workspace" (SITE, unlimited). "Adobe Creative Suite" (PER_SEAT, 25 seats, used=4). "Zoom" (SUBSCRIPTION, expires Dec 2026). Adobe assigned to Rivera + 3 others.</li>
+      <li><strong>2 vault entries:</strong> "School Wi-Fi Admin" (WIFI_CREDENTIAL, CRITICAL tier). "Google Admin Console" (ADMIN_SHARED, ELEVATED tier). 2 access_log rows (admin viewed Wi-Fi credential, IT lead viewed Google console).</li>
+      <li><strong>5 infrastructure items:</strong> 2 switches, 2 access points, 1 server with IP addresses + locations.</li>
+      <li><strong>1 MDM sync + 1 alert:</strong> IT-CB-003 last synced yesterday (compliant). IT-CB-005 STALE_CHECKIN alert (no check-in for 7 days).</li>
+      <li><strong>1 damage report + 1 repair:</strong> IT-CB-007 MODERATE damage (dropped). WARRANTY_CLAIM repair IN_REPAIR.</li>
+      <li><strong>1 procurement order:</strong> "Q3 Chromebook Refresh" (10 units, ORDERED, expected next month).</li>
+      <li><strong>2 device options + 1 selection:</strong> "Chromebook 14in" + "iPad 10th Gen". New student selected Chromebook during ENROLMENT (status=SELECTED).</li>
+      <li><strong>Permissions:</strong> TECH-001:read to Teacher, Staff (view assets). TECH-001:write to Staff (IT admin manages assets). TECH-002:read+write to Staff (licence management). TECH-003:read to Staff (view vault entries per tier). TECH-003:write to Admin (manage vault). TECH-004:read+write to Staff (MDM + infrastructure). Admin gets all via everyFunction.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich IT demo data across all 16 tables. TECH-001..004 permissions.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Asset + Assignment NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>AssetService</strong> &mdash; <code>GET /it/assets</code> (fleet dashboard with status filters + warranty expiry alerts), <code>GET /it/assets/:id</code> (with assignments + documents + damage + repair inlined), <code>POST /it/assets</code> (bulk-create with sequential tags), <code>PATCH /it/assets/:id</code>. <code>GET /it/asset-categories</code>, <code>POST /it/asset-categories</code>.</li>
+      <li><strong>AssignmentService</strong> &mdash; <code>POST /it/assets/:id/assign</code> (assigns to person; flips status to ASSIGNED; records condition), <code>POST /it/asset-assignments/:id/return</code> (records return condition; flips status to AVAILABLE). <code>GET /it/my-devices</code> (staff/student: my assigned devices).</li>
+      <li><strong>DocumentService</strong> &mdash; <code>POST /it/assets/:id/documents</code> (upload with type), <code>GET /it/assets/:id/documents</code>.</li>
+      <li><strong>DamageService</strong> &mdash; <code>POST /it/assets/:id/damage</code> (file report with photos), <code>GET /it/damage-reports</code>.</li>
+      <li><strong>RepairService</strong> &mdash; <code>POST /it/assets/:id/repair</code> (create repair record; flips status to REPAIR), <code>PATCH /it/repairs/:id</code> (complete/write-off; restores status). <code>GET /it/repairs</code> (active repairs).</li>
+    </ol>
+    <div class="produces">Produces &rarr; ITModule with 5 services, ~16 endpoints.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Licences + Credential Vault NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>LicenceService</strong> &mdash; <code>GET /it/licences</code> (with utilisation percentage + expiry alerts), <code>POST /it/licences</code>, <code>PATCH /it/licences/:id</code>. <code>POST /it/licences/:id/assign</code> (assigns user; increments used_seats; emits <code>tech.licence.near_capacity</code> when &ge; 80%), <code>DELETE /it/licence-assignments/:id</code> (unassign; decrements).</li>
+      <li><strong>CredentialVaultService</strong> &mdash; <strong>SECURITY KEYSTONE.</strong> <code>GET /it/credentials</code> (lists metadata only &mdash; encrypted_password never in list responses; filtered by actor's access tier), <code>GET /it/credentials/:id</code> (decrypts and returns password; writes immutable VIEW access_log row; refuses if actor's tier &lt; credential's access_tier), <code>POST /it/credentials</code> (create; writes CREATE access_log), <code>PATCH /it/credentials/:id</code> (rotate password; writes MODIFY access_log; stamps last_rotated_at), <code>DELETE /it/credentials/:id</code> (admin-only; writes DELETE access_log). <code>GET /it/credentials/:id/access-log</code> (admin: who accessed when).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 services, ~10 endpoints, 1 Kafka emit (<code>tech.licence.near_capacity</code>). Credential vault access is the security keystone.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">MDM + Infrastructure + Procurement + Selection NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>MdmService</strong> &mdash; <code>GET /it/mdm/status</code> (compliance dashboard: devices by compliance state), <code>POST /it/mdm/sync</code> (manual sync log entry; real MDM integration deferred), <code>GET /it/mdm/alerts</code> (active alerts), <code>PATCH /it/mdm/alerts/:id/resolve</code>.</li>
+      <li><strong>InfrastructureService</strong> &mdash; <code>GET /it/infrastructure</code>, <code>POST /it/infrastructure</code>, <code>PATCH /it/infrastructure/:id</code>.</li>
+      <li><strong>ProcurementService</strong> &mdash; <code>GET /it/procurement</code>, <code>POST /it/procurement</code>, <code>PATCH /it/procurement/:id</code> (status transitions). On DELIVERED: IT admin creates asset records from the order.</li>
+      <li><strong>DeviceSelectionService</strong> &mdash; <code>GET /it/device-options</code> (active options for the school), <code>POST /it/device-options</code> (admin configures). <code>POST /it/device-selections</code> (student/staff selects during onboarding &mdash; ADR-066), <code>PATCH /it/device-selections/:id</code> (approve &rarr; provisioning &rarr; provisioned).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~12 endpoints. Total Cycle 22 endpoints: ~38.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">IT UI &mdash; Assets + Licences + Vault</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>IT Dashboard</strong> <code>/it</code> &mdash; "IT" app tile. Fleet summary (total/assigned/available/repair/retired), licence utilisation cards, MDM compliance pie, warranty expiry alerts, active repairs count.</li>
+      <li><strong>Asset Fleet</strong> <code>/it/assets</code> &mdash; asset list with status + category filters. Per-asset: tag, make/model, status pill, assigned-to, warranty expiry. Click to detail with full history.</li>
+      <li><strong>Licence Tracker</strong> <code>/it/licences</code> &mdash; licence cards with utilisation bar (used/total). Expiry countdown. Assign/unassign users.</li>
+      <li><strong>Credential Vault</strong> <code>/it/credentials</code> &mdash; <strong>SECURITY UI.</strong> List shows service name + type + tier pill (STANDARD gray / ELEVATED amber / CRITICAL rose) + last rotated. View button decrypts + shows password (with "Copied" confirmation) + logs access. Rotation alert indicators. Access log viewer (admin).</li>
+    </ol>
+    <div class="produces">Produces &rarr; "IT" app tile, asset fleet, licence tracker, credential vault with audit.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">IT UI &mdash; MDM + Infrastructure + Procurement + Selection</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>MDM Compliance</strong> <code>/it/mdm</code> &mdash; device compliance dashboard. Alert list with resolve buttons. Per-device: last check-in, OS version, compliance status.</li>
+      <li><strong>Infrastructure Registry</strong> <code>/it/infrastructure</code> &mdash; network device list by type + location. IP/MAC directory. Status indicators.</li>
+      <li><strong>Procurement</strong> <code>/it/procurement</code> &mdash; order list with status workflow. Create order form. On DELIVERED: "Create Assets" button to register received devices.</li>
+      <li><strong>Device Selection Portal</strong> <code>/it/device-selection</code> &mdash; for onboarding: device option cards with specs + OS + cost difference. Select button. Admin: approval queue + provisioning tracker.</li>
+      <li><strong>My Devices</strong> <code>/it/my-devices</code> &mdash; staff/student: assigned devices with condition, warranty status, damage report button.</li>
+    </ol>
+    <div class="produces">Produces &rarr; MDM dashboard, infrastructure registry, procurement orders, device selection portal, my devices.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Asset lifecycle:</strong> IT admin creates "Chromebook" category. Registers 5 assets. Assigns IT-CB-001 to Maya (EXCELLENT). Verify status=ASSIGNED. Maya returns (GOOD). Verify status=AVAILABLE.</li>
+      <li><strong>Damage + repair:</strong> Teacher files damage report on IT-CB-003 (MODERATE, photo). IT admin creates WARRANTY_CLAIM repair. Verify status=REPAIR. Complete repair. Verify status=AVAILABLE.</li>
+      <li><strong>Licence + seats:</strong> IT admin creates Adobe licence (PER_SEAT, 25 seats). Assigns Rivera (used_seats=1). Assigns 19 more (used_seats=20 = 80%). Verify <code>tech.licence.near_capacity</code> fires.</li>
+      <li><strong>Credential vault security keystone:</strong> IT admin creates Wi-Fi credential (CRITICAL tier). IT lead (ELEVATED tier) attempts to view &rarr; 403 (tier too low). IT admin views &rarr; 200 + password decrypted + access_log row (VIEW). Verify access_log is immutable (no UPDATE/DELETE).</li>
+      <li><strong>Credential rotation:</strong> IT admin rotates the credential (new password). Verify MODIFY access_log row + last_rotated_at stamped.</li>
+      <li><strong>MDM alerts:</strong> IT admin logs STALE_CHECKIN alert for IT-CB-005. Verify alert appears on MDM dashboard. Resolve with notes.</li>
+      <li><strong>Infrastructure:</strong> IT admin registers 2 switches + 1 server with IP addresses. Verify network directory renders correctly.</li>
+      <li><strong>Procurement:</strong> IT admin creates order for 10 Chromebooks. Status: DRAFT &rarr; SUBMITTED &rarr; APPROVED &rarr; ORDERED &rarr; DELIVERED. On DELIVERED: create 10 new assets from the order.</li>
+      <li><strong>Device selection (ADR-066):</strong> New student selects "Chromebook 14in" during ENROLMENT. Status=SELECTED. Admin approves &rarr; PROVISIONING &rarr; PROVISIONED.</li>
+      <li><strong>Visibility:</strong> Teacher sees own assigned devices + can file damage reports. Cannot access vault or manage assets. IT admin sees all. Student sees own devices.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified IT lifecycle: asset &rarr; assignment &rarr; damage &rarr; repair &rarr; licence seats &rarr; vault access audit &rarr; MDM &rarr; procurement &rarr; device selection. Wave 4 complete.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 22 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 16 new tables (4 assets + 4 licences/vault + 8 MDM/infra/procurement/selection). Tenant table count: ~332.</li>
+      <li>IT API: ~38 endpoints with asset lifecycle + licence seat tracking + credential vault + MDM alerts.</li>
+      <li>Credential vault: AES-256 encryption, tiered access (STANDARD/ELEVATED/CRITICAL), immutable access audit log.</li>
+      <li>Software licence seat tracking with utilisation alerts at 80% capacity.</li>
+      <li>Device damage + repair workflow with vendor assignment and status tracking.</li>
+      <li>Device selection workflow for onboarding (ADR-066) with approval pipeline.</li>
+      <li><code>tech.licence.near_capacity</code> Kafka emit.</li>
+      <li>HANDOFF-CYCLE22.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave 4 complete.</strong></li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 22 closes Wave 4 (Campus Operations). The platform now manages every operational surface of a school: transportation, food service, facilities, and IT infrastructure. Wave 5 (Academic Advanced) begins with Curriculum &amp; Standards.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 22 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M62 IT Infrastructure, 26 tables &mdash; 16 core in scope), Function Library (TECH-001 through TECH-004), ADR-065 Credential Vault Architecture, ADR-066 Device Selection Workflow. Closes Wave 4.</p>
+  </div>
+</div>
+
+</body>
+</html>
