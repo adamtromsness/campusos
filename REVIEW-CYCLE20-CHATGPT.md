@@ -4,12 +4,29 @@
 
 The reviewer flagged 6 BLOCKING items + 5 MAJOR follow-ups, mostly around row-scope privacy, POS safety validation, and financial / eligibility correctness. Cycle 20 ships M63 Food Service; because this cycle touches **health-derived allergy data, family eligibility / income data, POS money flow, and USDA reporting**, the reviewer applied a stricter standard. The fix commit closes all 6 BLOCKING items + 4 of the 5 actionable MAJORs (8, 10, 11, plus a stale-handoff doc fix). MAJOR 9 (FSM role split) is recommendation-class and joins the broader Phase 2 punch list.
 
-**Round 2 verdict:** _pending_.
+**Round 2 verdict:** **Approved** (against `911554c`, 2026-05-06).
+
+Reviewer's confirmed fix list:
+
+- BLOCKING 1 — `AllergenAlertService.listForStudent(studentId, actor)` is now actor-aware: admin / Staff-FSM any student; guardian via `sis_student_guardians`; student via `platform_students.person_id`; others 404. Closes the parent-to-other-student allergen leak.
+- BLOCKING 2 — `EligibilityService.list(args, actor)` row-scopes per persona. Guardians only see applications they submitted or applications for linked children; students only their own; others empty list.
+- BLOCKING 3 — `TransactionService.create` resolves the submitted `patronId` through `assertPatronInCurrentTenant(patronId, patronType)` before any allergen evaluation or insert.
+- BLOCKING 4 — Transaction creation runs inside a tenant transaction, locks the session `FOR UPDATE`, rejects closed sessions, validates the POS device exists, and rejects inactive devices.
+- BLOCKING 5 — `paymentMethod = FREE_MEAL` requires a resolved student patron and validates free/reduced eligibility through either `fds_student_dietary_profiles.free_meal_eligible=true` or an active determination window.
+- BLOCKING 6 — `generateClaim()` requires `academicYearId`, validates it against `sis_academic_years`, and migration 071 adds defensive uniqueness for null-year claims.
+- MAJOR 7 — Handoff updated from stale "in progress" to completed closeout artifact with the Round 1 fix log.
+- MAJOR 8 — Allergen sync now upserts on `source_health_alert_id` instead of `ON CONFLICT DO NOTHING`.
+- MAJOR 10 — Staff/admin eligibility submissions validate `studentId` against current-tenant `sis_students`.
+- MAJOR 11 — Session close auto-creates reconciliation rows for POS devices with cash activity, inside the session-close transaction.
+
+Reviewer's deferred item (not Cycle 20 blocker): MAJOR 9 — FSM role split. Generic Staff still stands in for the Food Service Manager persona; the review record correctly carries this as Phase 2 punch list item 32 alongside the broader role-model hardening work.
+
+**Final gate:** Approved. Tag `cycle20-approved` lives at `911554c`.
 
 Tag chain:
 
 - `cycle20-complete` on `48b6c74` (original closeout — triggered Round 1)
-- `cycle20-approved` on the fix commit (after Round 2 APPROVED)
+- `cycle20-approved` on `911554c` (Round 2 APPROVED — after the fix commit)
 
 ---
 
