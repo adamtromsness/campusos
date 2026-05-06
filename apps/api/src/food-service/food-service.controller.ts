@@ -404,8 +404,10 @@ export class FoodServiceController {
   @RequirePermission('fds-003:read')
   async listStudentAllergenAlerts(
     @Param('studentId') studentId: string,
+    @Req() req: AuthedRequest,
   ): Promise<AllergenAlertResponseDto[]> {
-    return this.alerts.listForStudent(studentId);
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.alerts.listForStudent(studentId, actor);
   }
 
   @Get('food-service/allergen-alerts')
@@ -431,13 +433,18 @@ export class FoodServiceController {
   @Get('food-service/eligibility-applications')
   @RequirePermission('fds-003:read')
   async listEligibilityApplications(
+    @Req() req: AuthedRequest,
     @Query('status') status?: string,
     @Query('academicYearId') academicYearId?: string,
   ): Promise<EligibilityApplicationResponseDto[]> {
-    return this.eligibility.list({
-      status: (status as EligibilityStatus) || undefined,
-      academicYearId,
-    });
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.eligibility.list(
+      {
+        status: (status as EligibilityStatus) || undefined,
+        academicYearId,
+      },
+      actor,
+    );
   }
 
   @Post('food-service/eligibility-applications')

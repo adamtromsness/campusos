@@ -198,6 +198,14 @@ export class SessionService {
     return this.getById(id);
   }
 
+  /**
+   * Closes the session and auto-creates a cash-drawer reconciliation row
+   * per (session, pos_device) that posted CASH transactions during the
+   * session — addresses REVIEW-CYCLE20 MAJOR 11. The reconciliation row
+   * is created inside the same locked tenant tx as the session close so
+   * the audit boundary between open POS activity and finalized
+   * reconciliation is consistent.
+   */
   async close(id: string, actor: ResolvedActor): Promise<SessionResponseDto> {
     assertCanManage(actor);
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
@@ -214,6 +222,28 @@ export class SessionService {
         actor.accountId,
         id,
       );
+      // Auto-create a reconciliation row per pos_device with CASH activity.
+      const deviceTotals = (await tx.$queryRawUnsafe(
+        'SELECT pos_device_id::text AS pos_device_id, COALESCE(SUM(total), 0) AS expected ' +
+          "FROM fds_meal_transactions WHERE session_id = $1::uuid AND payment_method = 'CASH' " +
+          'GROUP BY pos_device_id',
+        id,
+      )) as Array<{ pos_device_id: string; expected: number }>;
+      for (const d of deviceTotals) {
+        try {
+          await tx.$executeRawUnsafe(
+            'INSERT INTO fds_cash_drawer_reconciliation (id, session_id, pos_device_id, opening_balance, expected_closing_balance, status) ' +
+              "VALUES ($1::uuid, $2::uuid, $3::uuid, 0, $4, 'OPEN') " +
+              'ON CONFLICT (session_id, pos_device_id) DO NOTHING',
+            generateId(),
+            id,
+            d.pos_device_id,
+            Number(d.expected),
+          );
+        } catch (err: unknown) {
+          if (!isUniqueViolation(err)) throw err;
+        }
+      }
     });
     return this.getById(id);
   }
@@ -229,7 +259,10 @@ export class TransactionService {
   /**
    * ALLERGEN CROSS-CHECK KEYSTONE.
    *
-   * Step 1: resolve patron's active allergen alerts.
+   * Step 0: resolve patron to a tenant-local student/staff row id —
+   *         reject cross-tenant or non-existent UUIDs, reject
+   *         patronType mismatches. Addresses REVIEW-CYCLE20 BLOCKING 3.
+   * Step 1: resolve patron's active allergen alerts (STUDENT only).
    * Step 2: for each item in the transaction, intersect the item's
    *         allergen_codes against the patron's active codes by severity.
    * Step 3: any CRITICAL match -> throw 422 BLOCKED with matched
@@ -238,23 +271,31 @@ export class TransactionService {
    *         scope (school admin OR personType=STAFF). The override
    *         persists with allergen_override_required=true on the row.
    * Step 4: any WARNING match -> include in response warnings array.
-   * Step 5: INSERT transaction + emit fds.transaction.completed.
+   * Step 5: validate FREE_MEAL eligibility when paymentMethod is
+   *         FREE_MEAL — addresses REVIEW-CYCLE20 BLOCKING 5.
+   * Step 6: lock session FOR UPDATE, validate session open + device
+   *         active in same tenant tx as the INSERT — addresses
+   *         REVIEW-CYCLE20 BLOCKING 4. Emit fds.transaction.completed
+   *         after commit.
    */
   async create(input: CreateTransactionDto, actor: ResolvedActor): Promise<TransactionResponseDto> {
     assertCanManage(actor);
 
-    // Resolve allergen alerts for the patron (read model)
-    const alertRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
-        'SELECT allergen_code, severity FROM fds_student_allergen_alerts ' +
-          'WHERE student_id IN (' +
-          '  SELECT s.id FROM sis_students s ' +
-          '  JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-          '  WHERE ps.person_id = $1::uuid' +
-          ') AND is_active = true',
-        input.patronId,
-      );
-    })) as Array<{ allergen_code: string; severity: string }>;
+    const patronType: PatronType = input.patronType ?? 'STUDENT';
+    const resolved = await this.assertPatronInCurrentTenant(input.patronId, patronType);
+
+    // Resolve allergen alerts for the patron (read model). STUDENT only —
+    // staff allergens are out of scope this cycle.
+    const alertRows =
+      resolved.kind === 'STUDENT'
+        ? ((await this.tenantPrisma.executeInTenantContext(async (client) => {
+            return client.$queryRawUnsafe(
+              'SELECT allergen_code, severity FROM fds_student_allergen_alerts ' +
+                'WHERE student_id = $1::uuid AND is_active = true',
+              resolved.id,
+            );
+          })) as Array<{ allergen_code: string; severity: string }>)
+        : [];
 
     // Cross-check items
     const itemIds = input.items.map((it) => it.itemId);
@@ -327,17 +368,54 @@ export class TransactionService {
       overrideRequired = true;
     }
 
+    // FREE_MEAL eligibility gate (REVIEW-CYCLE20 BLOCKING 5)
+    if (input.paymentMethod === 'FREE_MEAL') {
+      if (resolved.kind !== 'STUDENT') {
+        throw new BadRequestException('FREE_MEAL applies to STUDENT patrons only');
+      }
+      const eligible = await this.isFreeMealEligible(resolved.id);
+      if (!eligible) {
+        throw new ForbiddenException(
+          'Patron is not free-meal eligible — supply a different paymentMethod or finalise an NSLP determination first',
+        );
+      }
+    }
+
     // Compute total
     const total = input.items.reduce((sum, it) => sum + Number(it.price ?? 0), 0);
 
     const id = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // Lock session FOR UPDATE — refuse closed sessions
+      const sess = (await tx.$queryRawUnsafe(
+        'SELECT id, closed_at FROM fds_meal_service_sessions WHERE id = $1::uuid FOR UPDATE',
+        input.sessionId,
+      )) as Array<{ id: string; closed_at: Date | null }>;
+      if (sess.length === 0) {
+        throw new BadRequestException('sessionId does not match a session in this school');
+      }
+      if (sess[0]!.closed_at !== null) {
+        throw new BadRequestException(
+          'Session is closed; cannot post new transactions to a closed session',
+        );
+      }
+      // Validate device active
+      const dev = (await tx.$queryRawUnsafe(
+        'SELECT id, is_active FROM fds_pos_devices WHERE id = $1::uuid',
+        input.posDeviceId,
+      )) as Array<{ id: string; is_active: boolean }>;
+      if (dev.length === 0) {
+        throw new BadRequestException('posDeviceId does not match a device in this school');
+      }
+      if (!dev[0]!.is_active) {
+        throw new BadRequestException('POS device is inactive — cannot post transactions');
+      }
+      await tx.$executeRawUnsafe(
         'INSERT INTO fds_meal_transactions (id, patron_id, patron_type, session_id, pos_device_id, items, total, payment_method, allergen_override_required, supervisor_override_id, override_reason, served_at, served_by) ' +
           'VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5::uuid, $6::jsonb, $7, $8, $9, $10::uuid, $11, now(), $12::uuid)',
         id,
         input.patronId,
-        input.patronType ?? 'STUDENT',
+        patronType,
         input.sessionId,
         input.posDeviceId,
         JSON.stringify(input.items),
@@ -357,7 +435,7 @@ export class TransactionService {
       payload: {
         transactionId: id,
         patronId: input.patronId,
-        patronType: input.patronType ?? 'STUDENT',
+        patronType,
         sessionId: input.sessionId,
         posDeviceId: input.posDeviceId,
         total,
@@ -370,6 +448,74 @@ export class TransactionService {
 
     const dto = await this.getById(id);
     return { ...dto, warnings: warningMatches };
+  }
+
+  /**
+   * Resolve a soft platform.iam_person UUID to a tenant-local
+   * sis_students.id or hr_employees.id. Rejects cross-tenant /
+   * non-existent UUIDs and patronType mismatches with 400.
+   * Addresses REVIEW-CYCLE20 BLOCKING 3.
+   */
+  async assertPatronInCurrentTenant(
+    patronId: string,
+    patronType: PatronType,
+  ): Promise<{ kind: 'STUDENT'; id: string } | { kind: 'STAFF'; id: string }> {
+    if (patronType === 'STUDENT') {
+      const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT s.id::text AS id FROM sis_students s ' +
+            'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            'WHERE ps.person_id = $1::uuid LIMIT 1',
+          patronId,
+        );
+      })) as Array<{ id: string }>;
+      if (rows.length === 0) {
+        throw new BadRequestException('patronId does not match a student enrolled in this school');
+      }
+      return { kind: 'STUDENT', id: rows[0]!.id };
+    }
+    if (patronType === 'STAFF') {
+      const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT id::text AS id FROM hr_employees WHERE person_id = $1::uuid LIMIT 1',
+          patronId,
+        );
+      })) as Array<{ id: string }>;
+      if (rows.length === 0) {
+        throw new BadRequestException('patronId does not match a staff member in this school');
+      }
+      return { kind: 'STAFF', id: rows[0]!.id };
+    }
+    throw new BadRequestException('Unknown patronType: ' + patronType);
+  }
+
+  /**
+   * Free-meal eligibility check for the FREE_MEAL paymentMethod.
+   * Returns true when the resolved tenant-local student has either
+   * `fds_student_dietary_profiles.free_meal_eligible = true` or a
+   * current active determination with eligibility_category in
+   * (FREE, REDUCED) inside the effective_from / effective_to window.
+   * Addresses REVIEW-CYCLE20 BLOCKING 5.
+   */
+  async isFreeMealEligible(studentTenantId: string): Promise<boolean> {
+    const profile = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT free_meal_eligible FROM fds_student_dietary_profiles ' +
+          'WHERE student_id = $1::uuid LIMIT 1',
+        studentTenantId,
+      );
+    })) as Array<{ free_meal_eligible: boolean }>;
+    if (profile.length > 0 && profile[0]!.free_meal_eligible === true) return true;
+    const det = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM fds_eligibility_determinations d ' +
+          'JOIN fds_eligibility_applications a ON a.id = d.application_id ' +
+          "WHERE a.student_id = $1::uuid AND d.eligibility_category IN ('FREE', 'REDUCED') " +
+          'AND CURRENT_DATE BETWEEN d.effective_from AND d.effective_to LIMIT 1',
+        studentTenantId,
+      );
+    })) as Array<{ ok: number }>;
+    return det.length > 0;
   }
 
   async getById(id: string): Promise<TransactionResponseDto> {
@@ -420,15 +566,14 @@ export class TransactionService {
    * cashier can warn the patron.
    */
   async checkAllergens(patronId: string): Promise<AllergenCheckResponseDto> {
+    // Resolve patron to tenant-local student row first; cross-tenant /
+    // bogus UUIDs return 400 instead of silently reporting zero alerts.
+    const resolved = await this.assertPatronInCurrentTenant(patronId, 'STUDENT');
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT allergen_code, severity FROM fds_student_allergen_alerts ' +
-          'WHERE student_id IN (' +
-          '  SELECT s.id FROM sis_students s ' +
-          '  JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-          '  WHERE ps.person_id = $1::uuid' +
-          ') AND is_active = true',
-        patronId,
+          'WHERE student_id = $1::uuid AND is_active = true',
+        resolved.id,
       );
     })) as Array<{ allergen_code: string; severity: string }>;
     return {

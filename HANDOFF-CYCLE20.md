@@ -1,6 +1,6 @@
 # Cycle 20 Handoff — Food Service
 
-**Status:** Cycle 20 **IN PROGRESS** — Wave 4 (Campus Operations) cycle 2. Cycle 20 ships the M63 Food Service module — 16 of the 31 ERD tables in scope (15 deferred to Cycle 20.1: recipe costing, full inventory management, student pre-order system, staff meal accounts). The Food Service Manager (FSM) is the **seventh specialist operator persona** after the nurse, counsellor, librarian, athletic director, enrolment officer, and Transportation Coordinator.
+**Status:** Cycle 20 **COMPLETE + REVIEW-CYCLE20 Round 1 fixes landed** — Round 2 pending. Wave 4 (Campus Operations) cycle 2. Cycle 20 ships the M63 Food Service module — 16 of the 31 ERD tables in scope (15 deferred to Cycle 20.1: recipe costing, full inventory management, student pre-order system, staff meal accounts). The Food Service Manager (FSM) is the **seventh specialist operator persona** after the nurse, counsellor, librarian, athletic director, enrolment officer, and Transportation Coordinator.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle20-implementation-plan.html`
@@ -12,18 +12,39 @@ This document is the source of truth that external architecture reviewers read a
 
 ## Step status
 
-| Step | Title                                                            | Status  |
-| ---- | ---------------------------------------------------------------- | ------- |
-| 1    | Menu + Item Catalogue Schema                                     | Pending |
-| 2    | POS + Transactions + Reconciliation Schema                       | Pending |
-| 3    | Dietary + Allergen + Eligibility + Safety Schema                 | Pending |
-| 4    | Seed Data + FDS-001..004 IAM grants                              | Pending |
-| 5    | Menu + Item Catalogue NestJS Module                              | Pending |
-| 6    | POS + Transaction NestJS Module (allergen keystone)              | Pending |
-| 7    | Dietary + Eligibility + Safety NestJS Module                     | Pending |
-| 8    | Food Service UI — Menus + POS + Sessions                         | Pending |
-| 9    | Food Service UI — Dietary + Eligibility + Safety + Parent Portal | Pending |
-| 10   | Vertical Slice Integration Test                                  | Pending |
+| Step | Title                                                            | Status   |
+| ---- | ---------------------------------------------------------------- | -------- |
+| 1    | Menu + Item Catalogue Schema                                     | Complete |
+| 2    | POS + Transactions + Reconciliation Schema                       | Complete |
+| 3    | Dietary + Allergen + Eligibility + Safety Schema                 | Complete |
+| 4    | Seed Data + FDS-001..004 IAM grants                              | Complete |
+| 5    | Menu + Item Catalogue NestJS Module                              | Complete |
+| 6    | POS + Transaction NestJS Module (allergen keystone)              | Complete |
+| 7    | Dietary + Eligibility + Safety NestJS Module                     | Complete |
+| 8    | Food Service UI — Menus + POS + Sessions                         | Complete |
+| 9    | Food Service UI — Dietary + Eligibility + Safety + Parent Portal | Complete |
+| 10   | Vertical Slice Integration Test                                  | Complete |
+| —    | REVIEW-CYCLE20 Round 1 fixes (migration 071 + service-layer)     | Complete |
+
+---
+
+## REVIEW-CYCLE20 fix log (Round 1, 2026-05-06)
+
+The reviewer flagged 6 BLOCKING + 5 MAJOR items. The fix commit lands all 6 BLOCKING + 4 actionable MAJORs (7 / 8 / 10 / 11) with live verification on `tenant_demo`. MAJOR 9 (FSM role split) is recommendation-class and joins the Phase 2 punch list as item 32. See `REVIEW-CYCLE20-CHATGPT.md` for the triage table.
+
+- **BLOCKING 1** — `AllergenAlertService.listForStudent(studentId, actor)` row-scope: admin / STAFF any student; guardian via `sis_student_guardians`; student via `platform_students.person_id`; others 404. Verified live: parent for Maya 200, parent for Ethan 404, admin 200.
+- **BLOCKING 2** — `EligibilityService.list(args, actor)` row-scope: guardians see applications they submitted OR for any of their linked children; students see own; others empty. Verified live: admin sees seed 1 row, parent sees own children only.
+- **BLOCKING 3** — `TransactionService.assertPatronInCurrentTenant(patronId, patronType)` resolves STUDENT via `sis_students` joined through `platform_students.person_id` and STAFF via `hr_employees.person_id`; bogus / cross-tenant / wrong patronType all reject 400. Verified live: bogus 400, admin@ Platform Admin person 400, Maya 201.
+- **BLOCKING 4** — `TransactionService.create` wraps INSERT in `executeInTenantTransaction` with `SELECT … FOR UPDATE` on `fds_meal_service_sessions`; refuses closed sessions; validates `fds_pos_devices.is_active=true`. Verified live: closed 400, inactive device 400, happy 201.
+- **BLOCKING 5** — `isFreeMealEligible(studentTenantId)` checks `fds_student_dietary_profiles.free_meal_eligible=true` OR active determination in (FREE/REDUCED) inside the effective window; FREE_MEAL also requires `patronType=STUDENT`. Verified live: non-eligible Ethan 403, eligible Maya 201.
+- **BLOCKING 6** — `EligibilityService.generateClaim` requires `academicYearId` and validates against `sis_academic_years`. Migration `071` adds defensive partial UNIQUE `(school_id, month_year) WHERE academic_year_id IS NULL`. Verified live: missing 400, bogus year 400, real year 201.
+- **MAJOR 7** — Handoff status updated to COMPLETE with this fix log appended.
+- **MAJOR 8** — `syncFromHealth()` now upserts deterministically by `source_health_alert_id` so severity / display_name / is_active changes from Health propagate. Migration `071` adds `UNIQUE(source_health_alert_id)` as the conflict target. Live verification deferred until `hlth_health_alerts` exists in tenant schema (today the read model is forward-compatible — sync gracefully no-ops when the relation is missing).
+- **MAJOR 9** — _Carried to Phase 2 punch list item 32._ Generic Staff currently grants all FDS-001..004 read+write tiers as a stand-in for the FSM persona. Pre-pilot, a dedicated Food Service Manager role moves these write permissions out of generic Staff. Joins items 9 / 11 / 13 / 14 / 16 / 22 / 25 / 26 in the broader role-split work.
+- **MAJOR 10** — `EligibilityService.submit` else-branch validates studentId for staff/admin submitters before insert. Verified live: bogus studentId 400.
+- **MAJOR 11** — `SessionService.close()` enumerates pos_device_ids that posted CASH activity and inserts one `fds_cash_drawer_reconciliation` row per (session, device) with `expected_closing_balance` set to that device's CASH total, all inside the same locked tenant tx as the close. Idempotent on conflict. Verified live: 1 reconciliation row materialised after close.
+
+**Migration 071_fds_review_cycle20_indexes.sql** is splitter-safe additive idempotent — 29th migration in a row to clear the audit on first provision attempt (Cycles 4–20 unbroken streak). Tenant base table count unchanged at 279 (constraint + partial index only). Both `tenant_demo` and `tenant_test` re-provisioned cleanly.
 
 ---
 

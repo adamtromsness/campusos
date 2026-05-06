@@ -421,7 +421,20 @@ export class DietaryUpdateRequestService {
 export class AllergenAlertService {
   constructor(private readonly tenantPrisma: TenantPrismaService) {}
 
-  async listForStudent(studentId: string): Promise<AllergenAlertResponseDto[]> {
+  /**
+   * Row-scoped per-student allergen alert read. Addresses
+   * REVIEW-CYCLE20 BLOCKING 1.
+   *
+   * - admin / STAFF (FSM scope): any student in this tenant
+   * - guardian: only own children via sis_student_guardians
+   * - student: only own student row via platform_students.person_id
+   * - others: collapsed 404 (don't leak existence)
+   */
+  async listForStudent(
+    studentId: string,
+    actor: ResolvedActor,
+  ): Promise<AllergenAlertResponseDto[]> {
+    await this.assertCanReadStudent(studentId, actor);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         ALERT_SELECT +
@@ -430,6 +443,37 @@ export class AllergenAlertService {
       );
     })) as AlertRow[];
     return rows.map(alertRowToDto);
+  }
+
+  private async assertCanReadStudent(studentId: string, actor: ResolvedActor): Promise<void> {
+    if (actor.isSchoolAdmin || actor.personType === 'STAFF') return;
+    if (actor.personType === 'STUDENT') {
+      const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM sis_students s ' +
+            'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            'WHERE s.id = $1::uuid AND ps.person_id = $2::uuid LIMIT 1',
+          studentId,
+          actor.personId,
+        );
+      })) as Array<{ ok: number }>;
+      if (rows.length === 0) throw new NotFoundException('Allergen alerts not found');
+      return;
+    }
+    if (actor.personType === 'GUARDIAN') {
+      const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM sis_student_guardians sg ' +
+            'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
+          studentId,
+          actor.personId,
+        );
+      })) as Array<{ ok: number }>;
+      if (rows.length === 0) throw new NotFoundException('Allergen alerts not found');
+      return;
+    }
+    throw new NotFoundException('Allergen alerts not found');
   }
 
   async listAll(actor: ResolvedActor): Promise<AllergenAlertResponseDto[]> {
@@ -483,10 +527,21 @@ export class AllergenAlertService {
       }>;
       for (const r of rows) {
         await this.tenantPrisma.executeInTenantContext(async (client) => {
+          // Deterministic upsert keyed on source_health_alert_id so a
+          // rerun reflects severity / display_name / is_active /
+          // allergen_code changes from the Health module — addresses
+          // REVIEW-CYCLE20 MAJOR 8. Migration 071 adds
+          // UNIQUE(source_health_alert_id) as the conflict target.
           await client.$executeRawUnsafe(
             'INSERT INTO fds_student_allergen_alerts (id, student_id, school_id, allergen_code, allergen_display_name, severity, source_health_alert_id, is_active, last_synced_at) ' +
               'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7::uuid, $8, now()) ' +
-              'ON CONFLICT DO NOTHING',
+              'ON CONFLICT (source_health_alert_id) DO UPDATE SET ' +
+              'allergen_code = EXCLUDED.allergen_code, ' +
+              'allergen_display_name = EXCLUDED.allergen_display_name, ' +
+              'severity = EXCLUDED.severity, ' +
+              'is_active = EXCLUDED.is_active, ' +
+              'last_synced_at = now(), ' +
+              'updated_at = now()',
             generateId(),
             r.student_id,
             tenant.schoolId,
@@ -515,10 +570,21 @@ export class EligibilityService {
     private readonly profiles: DietaryProfileService,
   ) {}
 
-  async list(args: {
-    status?: EligibilityStatus;
-    academicYearId?: string;
-  }): Promise<EligibilityApplicationResponseDto[]> {
+  /**
+   * Row-scoped eligibility application list. Addresses
+   * REVIEW-CYCLE20 BLOCKING 2 — parents must NOT see other families'
+   * income, SNAP case numbers, or determination status.
+   *
+   * - admin / STAFF (FSM scope): all applications in this school
+   * - guardian: applications submitted by them OR for any of their
+   *   linked children via sis_student_guardians
+   * - student: applications for own student row
+   * - others: empty list
+   */
+  async list(
+    args: { status?: EligibilityStatus; academicYearId?: string },
+    actor: ResolvedActor,
+  ): Promise<EligibilityApplicationResponseDto[]> {
     const tenant = getCurrentTenant();
     const where: string[] = ['a.school_id = $1::uuid'];
     const params: unknown[] = [tenant.schoolId];
@@ -529,6 +595,32 @@ export class EligibilityService {
     if (args.academicYearId) {
       where.push('a.academic_year_id = $' + (params.length + 1) + '::uuid');
       params.push(args.academicYearId);
+    }
+    if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
+      if (actor.personType === 'GUARDIAN') {
+        where.push(
+          '(a.submitted_by = $' +
+            (params.length + 1) +
+            '::uuid OR a.student_id IN (' +
+            'SELECT sg.student_id FROM sis_student_guardians sg ' +
+            'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+            'WHERE g.person_id = $' +
+            (params.length + 2) +
+            '::uuid))',
+        );
+        params.push(actor.accountId, actor.personId);
+      } else if (actor.personType === 'STUDENT') {
+        where.push(
+          'a.student_id IN (SELECT s.id FROM sis_students s ' +
+            'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            'WHERE ps.person_id = $' +
+            (params.length + 1) +
+            '::uuid)',
+        );
+        params.push(actor.personId);
+      } else {
+        return [];
+      }
     }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
@@ -566,6 +658,18 @@ export class EligibilityService {
       if (rows.length === 0) {
         throw new ForbiddenException('You can only submit NSLP applications for your own children');
       }
+    } else {
+      // Staff / admin path — verify the supplied studentId exists in this
+      // tenant before insert. Addresses REVIEW-CYCLE20 MAJOR 10.
+      const exists = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid LIMIT 1',
+          input.studentId,
+        );
+      })) as Array<{ ok: number }>;
+      if (exists.length === 0) {
+        throw new BadRequestException('studentId does not match a student in this school');
+      }
     }
     const tenant = getCurrentTenant();
     const id = generateId();
@@ -584,7 +688,7 @@ export class EligibilityService {
         input.applicationType,
       );
     });
-    const list = await this.list({});
+    const list = await this.list({}, actor);
     return list.find((a) => a.id === id)!;
   }
 
@@ -632,7 +736,7 @@ export class EligibilityService {
         input.eligibilityCategory === 'FREE' || input.eligibilityCategory === 'REDUCED';
       await this.profiles.setFreeMealEligibleInTx(tx as never, studentId, eligible);
     });
-    const list = await this.list({});
+    const list = await this.list({}, actor);
     return list.find((a) => a.id === applicationId)!;
   }
 
@@ -714,7 +818,31 @@ export class EligibilityService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only school admins can generate USDA reimbursement claims');
     }
+    // REVIEW-CYCLE20 BLOCKING 6 — academicYearId is required because
+    // PostgreSQL UNIQUE indexes treat NULLs as distinct, which makes
+    // the base UNIQUE(school_id, academic_year_id, month_year) leak
+    // duplicate claims for the same school+month when academic_year_id
+    // is omitted. Migration 071 also adds a defensive partial UNIQUE on
+    // (school_id, month_year) WHERE academic_year_id IS NULL but the
+    // service-layer requirement is the cleaner contract for reporting
+    // correctness.
+    if (!input.academicYearId) {
+      throw new BadRequestException(
+        'academicYearId is required when generating a USDA reimbursement claim',
+      );
+    }
     const tenant = getCurrentTenant();
+    const yearExists = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM sis_academic_years WHERE id = $1::uuid LIMIT 1',
+        input.academicYearId,
+      );
+    })) as Array<{ ok: number }>;
+    if (yearExists.length === 0) {
+      throw new BadRequestException(
+        'academicYearId does not match an academic year in this school',
+      );
+    }
     // Aggregate transactions for the month
     const month = input.monthYear.slice(0, 7); // YYYY-MM
     const counts = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -742,7 +870,7 @@ export class EligibilityService {
           'updated_at = now()',
         id,
         tenant.schoolId,
-        input.academicYearId ?? null,
+        input.academicYearId,
         month + '-01',
         c.free_count,
         c.reduced_count,
