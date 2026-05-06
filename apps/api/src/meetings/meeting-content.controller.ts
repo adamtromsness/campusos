@@ -126,8 +126,12 @@ export class NotesAgendaController {
 
   @Get('meetings/:id/agenda')
   @RequirePermission('mtg-001:read')
-  async listAgenda(@Param('id', ParseUUIDPipe) id: string): Promise<AgendaItemResponseDto[]> {
-    return this.agenda.listForMeeting(id);
+  async listAgenda(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<AgendaItemResponseDto[]> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.agenda.listForMeeting(id, actor);
   }
 
   @Post('meetings/:id/agenda')

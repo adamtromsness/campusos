@@ -110,8 +110,16 @@ export class MeetingController {
 
   @Get(':id/slots')
   @RequirePermission('mtg-002:read')
-  async listSlots(@Param('id', ParseUUIDPipe) id: string): Promise<MeetingSlotResponseDto[]> {
-    return this.slots.listForMeeting(id);
+  @ApiOperation({
+    summary:
+      'List slots for a meeting. Organisers + admins see the booked_by identity columns; other parents see is_booked only with their own booking visible.',
+  })
+  async listSlots(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<MeetingSlotResponseDto[]> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.slots.listForMeeting(id, actor);
   }
 
   @Post(':id/slots')

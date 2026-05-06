@@ -61,14 +61,51 @@ export class SlotService {
     private readonly meetings: MeetingService,
   ) {}
 
-  async listForMeeting(meetingId: string): Promise<MeetingSlotResponseDto[]> {
+  /**
+   * REVIEW-CYCLE15 BLOCKING 2. Slot listing strips other parents'
+   * booking identity. Only the meeting organiser, school admins, and
+   * the booker themselves see booked_by + booked_by_name + booked_at
+   * + booking notes. Other readers see is_booked but the row's
+   * identity columns are nulled out so a parent cannot enumerate
+   * which other parents booked which conference slots.
+   */
+  async listForMeeting(meetingId: string, actor: ResolvedActor): Promise<MeetingSlotResponseDto[]> {
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_SLOT + 'WHERE s.meeting_id = $1::uuid ORDER BY s.start_time ASC',
         meetingId,
       );
     })) as SlotRow[];
-    return rows.map(rowToDto);
+
+    // Resolve whether the actor is the meeting organiser. Admins
+    // bypass automatically. Everyone else gets the privacy-stripped
+    // projection unless they are the booker of a particular row.
+    let isOrganiser = false;
+    if (!actor.isSchoolAdmin) {
+      const owners = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT organiser_id::text AS organiser_id FROM mtg_meetings WHERE id = $1::uuid',
+          meetingId,
+        );
+      })) as Array<{ organiser_id: string }>;
+      isOrganiser = owners.length > 0 && owners[0]!.organiser_id === actor.accountId;
+    }
+    const fullVisibility = actor.isSchoolAdmin || isOrganiser;
+
+    return rows.map((r) => {
+      const dto = rowToDto(r);
+      if (fullVisibility) return dto;
+      const isMine = !!dto.bookedBy && dto.bookedBy === actor.accountId;
+      if (isMine) return dto;
+      // Strip identity columns for other-parent bookings
+      return {
+        ...dto,
+        bookedBy: null,
+        bookedByName: null,
+        bookedAt: null,
+        notes: null,
+      };
+    });
   }
 
   async createBulk(
@@ -111,6 +148,13 @@ export class SlotService {
    * attempts serialise; the loser sees is_booked=true and gets a
    * friendly 400. The booking auto-creates a participant row so
    * the booker appears on the meeting roster.
+   *
+   * REVIEW-CYCLE15 MAJOR 5. Booking authority is restricted to
+   * guardians (parent self-service), school admins, and the meeting
+   * organiser (so a teacher running the conference can fill in a
+   * slot for a parent who phoned in). Teachers + non-organiser
+   * staff cannot use the parent self-service path even though they
+   * hold mtg-002:read.
    */
   async book(slotId: string, actor: ResolvedActor): Promise<MeetingSlotResponseDto> {
     let bookedSlotId: string | null = null;
@@ -126,6 +170,22 @@ export class SlotService {
         booked_by: string | null;
       }>;
       if (lock.length === 0) throw new NotFoundException('Slot not found');
+
+      // Booking authority: GUARDIAN (parent self-service) OR admin
+      // OR the meeting organiser. Everyone else is refused even if
+      // they hold mtg-002:read.
+      if (actor.personType !== 'GUARDIAN' && !actor.isSchoolAdmin) {
+        const m = (await tx.$queryRawUnsafe(
+          'SELECT organiser_id::text AS organiser_id FROM mtg_meetings WHERE id = $1::uuid',
+          lock[0]!.meeting_id,
+        )) as Array<{ organiser_id: string }>;
+        if (m.length === 0 || m[0]!.organiser_id !== actor.accountId) {
+          throw new ForbiddenException(
+            'Slot booking is parent self-service. Admins and the meeting organiser can also book on behalf.',
+          );
+        }
+      }
+
       if (lock[0]!.is_booked) {
         throw new BadRequestException(
           'Slot is already booked' + (lock[0]!.booked_by === actor.accountId ? ' (by you)' : ''),

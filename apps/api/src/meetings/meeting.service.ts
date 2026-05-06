@@ -256,6 +256,15 @@ export class MeetingService {
     if (actor.personType === 'STUDENT' || actor.personType === 'GUARDIAN') {
       throw new ForbiddenException('Only staff or admins can create meetings');
     }
+    // REVIEW-CYCLE15 MAJOR 4. Tenant-validate every request-supplied
+    // participantId so a tenant A admin cannot land a meeting roster
+    // on a tenant B user by guessing UUIDs.
+    if (input.participantIds && input.participantIds.length > 0) {
+      for (const pid of input.participantIds) {
+        if (pid === actor.accountId) continue;
+        await this.assertAccountInCurrentTenant(pid, 'participantId');
+      }
+    }
     const tenant = getCurrentTenant();
     const id = generateId();
 
@@ -389,6 +398,7 @@ export class MeetingService {
     actor: ResolvedActor,
   ): Promise<MeetingParticipantResponseDto> {
     await this.assertOrganiserOrAdmin(meetingId, actor);
+    await this.assertAccountInCurrentTenant(input.participantId, 'participantId');
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -441,6 +451,30 @@ export class MeetingService {
     if (rows.length === 0) throw new NotFoundException('Meeting not found');
     if (rows[0]!.organiser_id !== actor.accountId) {
       throw new ForbiddenException('Only the meeting organiser or an admin can do this');
+    }
+  }
+
+  /**
+   * REVIEW-CYCLE15 MAJOR 4. Validate that a request-supplied
+   * platform_users.id has a projection in the current tenant
+   * (sis_students / sis_guardians / hr_employees). Mirrors the
+   * Cycle 6.1 Profile + Cycle 7 Task patterns. Throws 400 with the
+   * specified field-name in the message when the lookup misses.
+   */
+  async assertAccountInCurrentTenant(accountId: string, fieldName: string): Promise<void> {
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM platform.platform_users pu WHERE pu.id = $1::uuid AND ( ' +
+          'EXISTS (SELECT 1 FROM sis_students s ' +
+          '        JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+          '        WHERE ps.person_id = pu.person_id) ' +
+          'OR EXISTS (SELECT 1 FROM sis_guardians WHERE person_id = pu.person_id) ' +
+          'OR EXISTS (SELECT 1 FROM hr_employees WHERE person_id = pu.person_id)) LIMIT 1',
+        accountId,
+      );
+    });
+    if (rows.length === 0) {
+      throw new BadRequestException(fieldName + ' does not belong to a user in this school');
     }
   }
 }

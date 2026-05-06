@@ -79,39 +79,126 @@ export class IepMeetingRecordService {
   ) {}
 
   /**
-   * IEP records hold health-sensitive data. Service-layer gate
-   * requires admin OR hlt-001:read so non-Health staff can't read
-   * IEP meeting records via the meetings surface.
+   * REVIEW-CYCLE15 BLOCKING 1. IEP records hold health-sensitive data.
+   * Authorisation tiers:
+   *
+   *   - school admin                                      → all records
+   *   - counsellor (cou-001:write at the role level)      → write any
+   *     record + read records for students on own active caseload
+   *   - non-counsellor STAFF + meeting participant        → read only
+   *     records for meetings they actually attended (covers nurses /
+   *     lead-counsellors / health-team operators with hlt-001:write)
+   *   - everyone else                                     → 404
+   *
+   * Notably this excludes parents (even though Parent holds hlt-001:read
+   * for the child health summary surface), teachers (who continue to
+   * use the ADR-030 sis_student_active_accommodations read model),
+   * and students.
    */
-  private async assertHealthAccess(actor: ResolvedActor): Promise<void> {
-    if (actor.isSchoolAdmin) return;
+  async hasCounsellorScope(actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    const tenant = getCurrentTenant();
+    return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'cou-001:write',
+    ]);
+  }
+
+  /**
+   * Returns true when the actor is allowed to READ the IEP record for
+   * the given meeting, given the student under that record. Counsellors
+   * are restricted to their active caseload students; non-counsellor
+   * staff are restricted to meetings they actually participated in.
+   */
+  private async canReadRecord(
+    actor: ResolvedActor,
+    meetingId: string,
+    studentId: string,
+  ): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    if (await this.hasCounsellorScope(actor)) {
+      // Counsellor: limit to own active caseload students. employeeId
+      // is required because svc_caseloads.counselor_id is hr_employees.id.
+      if (!actor.employeeId) return false;
+      const tenant = getCurrentTenant();
+      const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM svc_caseloads ' +
+            "WHERE counselor_id = $1::uuid AND student_id = $2::uuid AND status = 'ACTIVE' " +
+            'AND school_id = $3::uuid LIMIT 1',
+          actor.employeeId,
+          studentId,
+          tenant.schoolId,
+        );
+      })) as Array<unknown>;
+      return rows.length > 0;
+    }
+    // Non-counsellor staff with hlt-001:read AND meeting participation
+    // covers nurses + lead counsellors who join an IEP meeting as
+    // health-team operators. Parents and teachers fall through here
+    // because they do not satisfy the participation predicate via the
+    // intended IEP-meeting flow (parents attend through a separate
+    // parent-summary surface, teachers via the ADR-030 read model).
+    if (actor.personType !== 'STAFF') return false;
     const tenant = getCurrentTenant();
     const hasHealth = await this.permissions.hasAnyPermissionInTenant(
       actor.accountId,
       tenant.schoolId,
       ['hlt-001:read'],
     );
-    if (!hasHealth) {
-      throw new ForbiddenException('IEP meeting records require hlt-001:read or admin authority');
-    }
+    if (!hasHealth) return false;
+    const partRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 FROM mtg_meeting_participants ' +
+          'WHERE meeting_id = $1::uuid AND participant_id = $2::uuid LIMIT 1',
+        meetingId,
+        actor.accountId,
+      );
+    })) as Array<unknown>;
+    return partRows.length > 0;
   }
 
   async getForMeeting(
     meetingId: string,
     actor: ResolvedActor,
   ): Promise<IepMeetingRecordResponseDto | null> {
-    await this.assertHealthAccess(actor);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(SELECT_IEP_RECORD + 'WHERE r.meeting_id = $1::uuid', meetingId);
     })) as IepRecordRow[];
     if (rows.length === 0) return null;
-    return rowToDto(rows[0]!);
+    const dto = rowToDto(rows[0]!);
+    if (!(await this.canReadRecord(actor, meetingId, dto.studentId))) {
+      // Don't leak existence to non-authorised callers
+      throw new NotFoundException('IEP meeting record not found');
+    }
+    return dto;
   }
 
   async list(actor: ResolvedActor): Promise<IepMeetingRecordResponseDto[]> {
-    await this.assertHealthAccess(actor);
+    if (actor.isSchoolAdmin) {
+      const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(SELECT_IEP_RECORD + 'ORDER BY r.created_at DESC LIMIT 200');
+      })) as IepRecordRow[];
+      return rows.map(rowToDto);
+    }
+    if (!(await this.hasCounsellorScope(actor))) {
+      throw new ForbiddenException(
+        'Listing IEP meeting records requires admin or counsellor authority',
+      );
+    }
+    if (!actor.employeeId) {
+      throw new ForbiddenException('Counsellor IEP record list requires an hr_employees identity');
+    }
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_IEP_RECORD + 'ORDER BY r.created_at DESC LIMIT 200');
+      return client.$queryRawUnsafe(
+        SELECT_IEP_RECORD +
+          'WHERE r.student_id IN (' +
+          '  SELECT student_id FROM svc_caseloads ' +
+          "  WHERE counselor_id = $1::uuid AND status = 'ACTIVE' AND school_id = $2::uuid" +
+          ') ORDER BY r.created_at DESC LIMIT 200',
+        actor.employeeId,
+        tenant.schoolId,
+      );
     })) as IepRecordRow[];
     return rows.map(rowToDto);
   }
@@ -121,7 +208,32 @@ export class IepMeetingRecordService {
     input: CreateIepMeetingRecordDto,
     actor: ResolvedActor,
   ): Promise<IepMeetingRecordResponseDto> {
-    await this.assertHealthAccess(actor);
+    // Write authority is admin OR counsellor (cou-001:write). Non-
+    // counsellor staff with hlt-001:read can read records they
+    // attended but cannot create or edit them.
+    if (!actor.isSchoolAdmin && !(await this.hasCounsellorScope(actor))) {
+      throw new ForbiddenException('Only admins or counsellors can create IEP meeting records');
+    }
+    // Counsellors creating a record must own the student's active
+    // caseload. Admin bypass.
+    if (!actor.isSchoolAdmin && actor.employeeId) {
+      const tenant = getCurrentTenant();
+      const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM svc_caseloads ' +
+            "WHERE counselor_id = $1::uuid AND student_id = $2::uuid AND status = 'ACTIVE' " +
+            'AND school_id = $3::uuid LIMIT 1',
+          actor.employeeId,
+          input.studentId,
+          tenant.schoolId,
+        );
+      })) as Array<unknown>;
+      if (rows.length === 0) {
+        throw new ForbiddenException(
+          'Counsellor can only create IEP meeting records for students on their active caseload',
+        );
+      }
+    }
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -156,7 +268,42 @@ export class IepMeetingRecordService {
     input: UpdateIepMeetingRecordDto,
     actor: ResolvedActor,
   ): Promise<IepMeetingRecordResponseDto> {
-    await this.assertHealthAccess(actor);
+    // Patch authority mirrors create — admin OR counsellor with the
+    // student on own active caseload. Look the row up first so we can
+    // pin the scope check to the resolved student_id.
+    const lookupRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT meeting_id::text AS meeting_id, student_id::text AS student_id FROM mtg_iep_meeting_records WHERE id = $1::uuid',
+        id,
+      );
+    })) as Array<{ meeting_id: string; student_id: string }>;
+    if (lookupRows.length === 0) throw new NotFoundException('IEP meeting record not found');
+
+    if (!actor.isSchoolAdmin) {
+      if (!(await this.hasCounsellorScope(actor))) {
+        throw new ForbiddenException('Only admins or counsellors can edit IEP meeting records');
+      }
+      if (!actor.employeeId) {
+        throw new ForbiddenException('Edit requires an hr_employees identity');
+      }
+      const tenant = getCurrentTenant();
+      const ownsCaseload = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 FROM svc_caseloads ' +
+            "WHERE counselor_id = $1::uuid AND student_id = $2::uuid AND status = 'ACTIVE' " +
+            'AND school_id = $3::uuid LIMIT 1',
+          actor.employeeId,
+          lookupRows[0]!.student_id,
+          tenant.schoolId,
+        );
+      })) as Array<unknown>;
+      if (ownsCaseload.length === 0) {
+        throw new ForbiddenException(
+          'Counsellor can only edit IEP meeting records for students on their active caseload',
+        );
+      }
+    }
+
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.iepPlanId !== undefined) {

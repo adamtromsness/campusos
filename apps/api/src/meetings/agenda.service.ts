@@ -53,7 +53,18 @@ export class AgendaService {
     private readonly meetings: MeetingService,
   ) {}
 
-  async listForMeeting(meetingId: string): Promise<AgendaItemResponseDto[]> {
+  /**
+   * REVIEW-CYCLE15 BLOCKING 3. Agenda listing is row-scoped to meeting
+   * participants and the organiser. Non-participant non-admin callers
+   * receive a collapsed 404 (don't-leak-existence) so a user with
+   * mtg-001:read cannot enumerate agenda items for meetings they did
+   * not attend.
+   */
+  async listForMeeting(meetingId: string, actor: ResolvedActor): Promise<AgendaItemResponseDto[]> {
+    if (!actor.isSchoolAdmin) {
+      const ok = await this.meetings.isParticipantOrOrganiser(meetingId, actor.accountId);
+      if (!ok) throw new NotFoundException('Meeting not found');
+    }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_AGENDA + 'WHERE a.meeting_id = $1::uuid ORDER BY a.sort_order ASC, a.created_at ASC',
@@ -69,6 +80,9 @@ export class AgendaService {
     actor: ResolvedActor,
   ): Promise<AgendaItemResponseDto> {
     await this.meetings.assertOrganiserOrAdmin(meetingId, actor);
+    if (input.presenterId) {
+      await this.meetings.assertAccountInCurrentTenant(input.presenterId, 'presenterId');
+    }
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
@@ -104,6 +118,10 @@ export class AgendaService {
       return rows[0]!.meeting_id;
     });
     await this.meetings.assertOrganiserOrAdmin(meetingId, actor);
+
+    if (input.presenterId) {
+      await this.meetings.assertAccountInCurrentTenant(input.presenterId, 'presenterId');
+    }
 
     const sets: string[] = [];
     const params: unknown[] = [];

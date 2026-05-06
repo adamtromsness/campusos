@@ -110,6 +110,7 @@ export class ActionItemService {
     actor: ResolvedActor,
   ): Promise<ActionItemResponseDto> {
     await this.meetings.assertOrganiserOrAdmin(meetingId, actor);
+    await this.meetings.assertAccountInCurrentTenant(input.assigneeId, 'assigneeId');
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(

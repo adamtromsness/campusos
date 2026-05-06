@@ -188,15 +188,21 @@ export class RecordingService {
       if (recordingRows.length === 0) throw new NotFoundException('Recording not found');
       const meetingId = recordingRows[0]!.meeting_id;
 
-      // Verify caller is a participant or organiser
+      // REVIEW-CYCLE15 MAJOR 7. Verify caller is a participant or
+      // organiser. Admin no longer auto-bypasses — an admin who is
+      // not on the meeting roster cannot consent on behalf of
+      // someone else through this surface (a future override path
+      // with audit can be added if real-school operations need it).
       const participantRows = (await tx.$queryRawUnsafe(
         'SELECT 1 FROM mtg_meetings WHERE id = $1::uuid AND organiser_id = $2::uuid ' +
           'UNION SELECT 1 FROM mtg_meeting_participants WHERE meeting_id = $1::uuid AND participant_id = $2::uuid',
         meetingId,
         actor.accountId,
       )) as Array<unknown>;
-      if (participantRows.length === 0 && !actor.isSchoolAdmin) {
-        throw new ForbiddenException('Only meeting participants can give consent');
+      if (participantRows.length === 0) {
+        throw new ForbiddenException(
+          'Only meeting participants can give consent. Admins must consent through their own participant row.',
+        );
       }
 
       // UPSERT consent row
