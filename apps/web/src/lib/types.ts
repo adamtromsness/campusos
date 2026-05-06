@@ -7600,3 +7600,222 @@ export interface PublicPortfolioViewDto {
   items: PortfolioItemDto[];
   achievements: AchievementDto[];
 }
+
+// ── Cycle 25: Publications ────────────────────────────────────────
+
+export type PubPublicationType =
+  | 'NEWSLETTER'
+  | 'BULLETIN'
+  | 'ANNOUNCEMENT'
+  | 'MAGAZINE'
+  | 'PROGRAM'
+  | 'REPORT';
+
+export type PubFrequency =
+  | 'DAILY'
+  | 'WEEKLY'
+  | 'FORTNIGHTLY'
+  | 'MONTHLY'
+  | 'TERMLY'
+  | 'ANNUAL'
+  | 'IRREGULAR';
+
+export type PubStatus = 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'PUBLISHED' | 'ARCHIVED';
+
+export type PubCollaboratorRole = 'EDITOR' | 'CONTRIBUTOR' | 'REVIEWER' | 'VIEWER';
+
+export type PubSectionType = 'ARTICLE' | 'ANNOUNCEMENT' | 'PHOTO_GALLERY' | 'CALENDAR' | 'CUSTOM';
+
+export type PubRuleType = 'ROLE' | 'GRADE' | 'CLASS' | 'GROUP_MEMBERSHIP';
+
+export type PubDeliveryStatus = 'PENDING' | 'DELIVERED' | 'OPENED' | 'BOUNCED';
+
+export type PubSubscriptionStatus = 'SUBSCRIBED' | 'UNSUBSCRIBED';
+
+export interface PubSeriesDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  description: string | null;
+  publicationType: PubPublicationType;
+  frequency: PubFrequency;
+  seriesLogoS3Key: string | null;
+  isActive: boolean;
+  createdById: string | null;
+  createdByName: string | null;
+  editionCount: number;
+  subscriberCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePubSeriesPayload {
+  title: string;
+  description?: string;
+  publicationType: PubPublicationType;
+  frequency: PubFrequency;
+}
+
+export interface PubEditionDto {
+  id: string;
+  seriesId: string;
+  editionNumber: number;
+  editionLabel: string | null;
+  theme: string | null;
+  coverImageS3Key: string | null;
+  editorialNote: string | null;
+  status: PubStatus;
+  scheduledPublishAt: string | null;
+  publishedAt: string | null;
+  editorId: string | null;
+  editorName: string | null;
+  approvalRequestId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePubEditionPayload {
+  editionLabel?: string;
+  theme?: string;
+  editorialNote?: string;
+}
+
+export interface PubCollaboratorDto {
+  id: string;
+  publicationId: string;
+  userId: string;
+  userName: string | null;
+  role: PubCollaboratorRole;
+  invitedById: string | null;
+  invitedAt: string;
+  acceptedAt: string | null;
+}
+
+export interface PubPublicationDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  publicationType: PubPublicationType;
+  seriesId: string | null;
+  seriesTitle: string | null;
+  editionId: string | null;
+  editionNumber: number | null;
+  createdById: string | null;
+  createdByName: string | null;
+  status: PubStatus;
+  scheduledPublishAt: string | null;
+  publishedAt: string | null;
+  approvalRequestId: string | null;
+  sectionCount: number;
+  pendingSectionCount: number;
+  recipientCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PubPublicationDetailDto extends PubPublicationDto {
+  collaborators: PubCollaboratorDto[];
+}
+
+export interface PubSectionContributorDto {
+  id: string;
+  sectionId: string;
+  contributorId: string;
+  contributorName: string | null;
+  contributionNote: string | null;
+  contributedAt: string;
+}
+
+export interface PubSectionDto {
+  id: string;
+  publicationId: string;
+  title: string;
+  body: string | null;
+  sectionType: PubSectionType;
+  ownerId: string | null;
+  ownerName: string | null;
+  sortOrder: number;
+  isApproved: boolean;
+  contributors: PubSectionContributorDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePubSectionPayload {
+  title: string;
+  body?: string;
+  sectionType?: PubSectionType;
+  ownerEmployeeId?: string;
+  sortOrder?: number;
+}
+
+export interface UpdatePubSectionPayload {
+  title?: string;
+  body?: string;
+  sortOrder?: number;
+}
+
+export interface PubSectionCommentDto {
+  id: string;
+  sectionId: string;
+  authorId: string;
+  authorName: string | null;
+  body: string;
+  isResolved: boolean;
+  resolvedById: string | null;
+  resolvedAt: string | null;
+  parentCommentId: string | null;
+  createdAt: string;
+}
+
+export interface PubDistributionRuleDto {
+  id: string;
+  distributionListId: string;
+  ruleType: PubRuleType;
+  ruleValue: string;
+}
+
+export interface PubDistributionListDto {
+  id: string;
+  publicationId: string;
+  listName: string;
+  isActive: boolean;
+  rules: PubDistributionRuleDto[];
+}
+
+export interface CreatePubDistributionListPayload {
+  listName: string;
+  rules?: { ruleType: PubRuleType; ruleValue: string }[];
+}
+
+export interface PubDistributionStatusDto {
+  publicationId: string;
+  totalRecipients: number;
+  pending: number;
+  delivered: number;
+  opened: number;
+  bounced: number;
+}
+
+export interface PubAudiencePreviewDto {
+  totalRecipients: number;
+  excludedUnsubscribed: number;
+  sampleNames: string[];
+}
+
+export interface PubSubscriptionDto {
+  id: string;
+  seriesId: string;
+  seriesTitle: string | null;
+  subscriberId: string;
+  subscriberName: string | null;
+  status: PubSubscriptionStatus;
+  subscribedAt: string;
+  unsubscribedAt: string | null;
+}
+
+export interface PubDistributeResultDto {
+  totalRecipients: number;
+  alreadyExisted: number;
+  status: 'PUBLISHED';
+}

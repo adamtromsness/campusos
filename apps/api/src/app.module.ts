@@ -38,6 +38,7 @@ import { FacilitiesModule } from './facilities/facilities.module';
 import { ItModule } from './it/it.module';
 import { CurriculumModule } from './curriculum/curriculum.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
+import { PublicationsModule } from './publications/publications.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -102,6 +103,7 @@ var devOnlyControllers: Type<unknown>[] =
     ItModule,
     CurriculumModule,
     PortfolioModule,
+    PublicationsModule,
   ],
   controllers: devOnlyControllers,
   providers: [

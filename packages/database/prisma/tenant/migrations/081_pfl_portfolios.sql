@@ -64,7 +64,7 @@ COMMENT ON TABLE pfl_portfolios IS
   'Cycle 24 — student-owned portfolio. UNIQUE(student_id, school_id) so each student carries at most one portfolio per school. Visibility lattice (PRIVATE -> TEACHER -> PARENT -> PUBLIC) is monotonic. On student transfer or graduation the Step 4 service auto-resets visibility to PRIVATE.';
 
 COMMENT ON COLUMN pfl_portfolios.student_id IS
-  'Tenant-local soft reference to sis_students(id) per ADR-001/020 — the schema is intentionally schema-per-tenant, validated at the application layer. The owning student record lives in this tenant; cross-school portability flows through platform.platform_students at the SIS layer, not here.';
+  'Tenant-local soft reference to sis_students(id) per ADR-001/020 — the schema is intentionally schema-per-tenant, validated at the application layer. The owning student record lives in this tenant — cross-school portability flows through platform.platform_students at the SIS layer, not here.';
 
 COMMENT ON COLUMN pfl_portfolios.visibility IS
   '4-value CHECK PRIVATE/TEACHER/PARENT/PUBLIC. PRIVATE: only the owning student. TEACHER: student + assigned teachers. PARENT: + linked guardians. PUBLIC: every authenticated user in the tenant.';

@@ -201,6 +201,11 @@ async function seedIam() {
         // gates the future teacher-comment feature only).
         'ACH-001': ['read', 'write'],
         'ACH-002': ['read', 'write'],
+        // Cycle 25 — Publications (Wave 5 closeout). Teachers create
+        // series + editions, author content sections, manage section
+        // contributors. Distribution (PUB-003) is admin-only.
+        'PUB-001': ['read', 'write'],
+        'PUB-002': ['read', 'write'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read', 'write'],
         // Cycle 14 — emergency alert read so the persistent banner
@@ -360,6 +365,10 @@ async function seedIam() {
         // portfolio).
         'ACH-001': ['read'],
         'ACH-002': ['read'],
+        // Cycle 25 — Publications. Parents read published series +
+        // editions and manage subscriptions on the my-subscriptions
+        // surface.
+        'PUB-001': ['read'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
         // Cycle 14 — emergency alert read so the dismiss-proof
@@ -504,6 +513,11 @@ async function seedIam() {
         // portfolio + own achievements only.
         'ACH-001': ['read'],
         'ACH-002': ['read', 'write'],
+        // Cycle 25 — Publications. Students read published editions
+        // and contribute to sections (PUB-002:write); their sections
+        // require editor approval per ADR-035.
+        'PUB-001': ['read'],
+        'PUB-002': ['read', 'write'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
         // Cycle 14 — students see emergency alerts on their devices.
@@ -640,6 +654,12 @@ async function seedIam() {
         // for at-risk students. Same scope as Teacher.
         'ACH-001': ['read', 'write'],
         'ACH-002': ['read', 'write'],
+        // Cycle 25 — Publications. Staff covers VP / counsellor / admin
+        // assistant who manage series + editions + content authoring +
+        // distribution.
+        'PUB-001': ['read', 'write'],
+        'PUB-002': ['read', 'write'],
+        'PUB-003': ['read', 'write'],
         // Profile & Household mini-cycle — every persona self-services
         // their own profile (covers VP, counsellor, admin assistant).
         'USR-001': ['read', 'write'],

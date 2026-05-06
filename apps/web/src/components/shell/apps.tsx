@@ -23,6 +23,7 @@ import {
   HeartIcon,
   LifebuoyIcon,
   MegaphoneIcon,
+  NewspaperIcon,
   PeopleIcon,
   ShieldExclamationIcon,
   SparklesIcon,
@@ -59,7 +60,8 @@ export type AppKey =
   | 'facilities'
   | 'it'
   | 'curriculum'
-  | 'portfolio';
+  | 'portfolio'
+  | 'publications';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -521,6 +523,27 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/portfolio',
       routePrefix: '/portfolio',
       icon: SparklesIcon,
+    });
+  }
+
+  // Cycle 25 — Publications. Closes Wave 5. Staff: series + editions
+  // + content authoring + distribution. Reader: published feed +
+  // subscription management. Student: contribute sections (ADR-035
+  // pending approval).
+  if (hasAnyPermission(user, ['pub-001:read'])) {
+    apps.push({
+      key: 'publications',
+      label: 'Publications',
+      description: isStaff
+        ? 'Series, editions, sections, and distribution'
+        : isStudent
+          ? 'Newsletter feed and your contributions'
+          : isGuardian
+            ? 'School newsletter and bulletins'
+            : 'School publications',
+      href: '/publications',
+      routePrefix: '/publications',
+      icon: NewspaperIcon,
     });
   }
 
