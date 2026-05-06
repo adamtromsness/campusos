@@ -27,6 +27,7 @@ import {
   NewspaperIcon,
   PeopleIcon,
   ShieldExclamationIcon,
+  ShoppingCartIcon,
   SparklesIcon,
   TrophyIcon,
 } from './icons';
@@ -63,7 +64,8 @@ export type AppKey =
   | 'curriculum'
   | 'portfolio'
   | 'publications'
-  | 'finance';
+  | 'finance'
+  | 'procurement';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -563,6 +565,26 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/finance',
       routePrefix: '/finance',
       icon: CalculatorIcon,
+    });
+  }
+
+  // Cycle 27 — Procurement (Wave 6 continuation). The Procurement
+  // Officer / Purchasing Clerk is the eleventh specialist operator
+  // persona. PRC-001..003 cover requisitions, POs + receiving, and
+  // distribution + returns + vendor performance. Procurement is
+  // intentionally invisible to parents and students — only Staff
+  // (Procurement Officer stand-in) and admins see the tile, plus
+  // teachers who can submit their own requisitions via PRC-001.
+  if (hasAnyPermission(user, ['prc-001:read'])) {
+    apps.push({
+      key: 'procurement',
+      label: 'Procurement',
+      description: isStaff
+        ? 'Requisitions, POs, receiving, distribution, vendor performance'
+        : 'Submit and track requisitions',
+      href: '/procurement',
+      routePrefix: '/procurement',
+      icon: ShoppingCartIcon,
     });
   }
 

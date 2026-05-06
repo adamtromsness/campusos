@@ -206,6 +206,13 @@ async function seedIam() {
         // contributors. Distribution (PUB-003) is admin-only.
         'PUB-001': ['read', 'write'],
         'PUB-002': ['read', 'write'],
+        // Cycle 27 — Procurement. Teachers submit requisitions
+        // for classroom supplies / technology / consumables.
+        // Row scope at the Step 5 RequisitionService binds
+        // teachers to own requisitions; PO management,
+        // receiving, distribution, and returns are PRC-002 /
+        // PRC-003 admin / staff.
+        'PRC-001': ['read', 'write'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read', 'write'],
         // Cycle 14 — emergency alert read so the persistent banner
@@ -853,6 +860,21 @@ async function seedIam() {
         'FIN-006': ['read', 'write'],
         'FIN-007': ['read', 'write'],
         'FIN-008': ['read', 'write'],
+        // Cycle 27 — Procurement. Staff covers the Procurement
+        // Officer / Purchasing Clerk — the eleventh specialist
+        // operator persona. PRC-001..003 read+write covers the
+        // full operational surface: requisitions (PRC-001),
+        // purchase orders + receiving (PRC-002), distribution +
+        // returns + vendor performance (PRC-003). School Admin /
+        // Platform Admin pick up the admin tier (close PO,
+        // override commitments) via everyFunction. Joins items
+        // 9 / 11 / 13 / 14 / 16 / 22 / 25 / 26 / 30 / 32 / 33 /
+        // 34 / 35 / 36 / 37 / 38 / 39 / 40 in the broader
+        // role-split chain — a dedicated Procurement Officer
+        // role should hold the PRC-* codes alone before pilot.
+        'PRC-001': ['read', 'write'],
+        'PRC-002': ['read', 'write'],
+        'PRC-003': ['read', 'write'],
       },
     },
   ];

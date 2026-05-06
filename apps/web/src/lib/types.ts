@@ -8091,3 +8091,305 @@ export interface FinGrantDto {
   reportingDueDate: string | null;
   notes: string | null;
 }
+
+// ─── Cycle 27 — Procurement (M86) ───
+
+export type PrcUrgency = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+export type PrcReqStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'DEPT_APPROVED'
+  | 'ADMIN_APPROVED'
+  | 'DISTRICT_APPROVED'
+  | 'ORDERED'
+  | 'RECEIVED'
+  | 'DISTRIBUTED'
+  | 'CLOSED'
+  | 'REJECTED';
+export type PrcDestinationModule =
+  | 'tech'
+  | 'trn'
+  | 'fds'
+  | 'lib'
+  | 'ath'
+  | 'ext'
+  | 'fac'
+  | 'str'
+  | 'general';
+export type PrcDistDestinationModule = Exclude<PrcDestinationModule, 'general'>;
+export type PrcPOStatus =
+  | 'DRAFT'
+  | 'ISSUED'
+  | 'ACKNOWLEDGED'
+  | 'SHIPPED'
+  | 'PARTIALLY_RECEIVED'
+  | 'RECEIVED'
+  | 'CLOSED'
+  | 'CANCELLED';
+export type PrcInspectionOutcome = 'ACCEPTED' | 'ACCEPTED_WITH_DISCREPANCY' | 'REJECTED';
+export type PrcReceiptCondition = 'GOOD' | 'DAMAGED' | 'DEFECTIVE';
+export type PrcCommitmentStatus = 'COMMITTED' | 'PARTIALLY_RELEASED' | 'RELEASED';
+export type PrcReturnType = 'DAMAGED' | 'DEFECTIVE' | 'WARRANTY_CLAIM';
+export type PrcReturnStatus = 'INITIATED' | 'SHIPPED_TO_VENDOR' | 'RESOLVED' | 'CANCELLED';
+export type PrcReturnResolution = 'REPLACED' | 'REFUNDED' | 'CREDITED';
+
+export interface PrcRequisitionLineDto {
+  id: string;
+  requisitionId: string;
+  itemDescription: string;
+  quantity: number;
+  unit: string | null;
+  estimatedUnitCost: number | null;
+  specifications: string | null;
+  preferredVendorId: string | null;
+  preferredVendorName: string | null;
+  destinationModule: PrcDestinationModule;
+  lineOrder: number;
+}
+
+export interface PrcRequisitionDto {
+  id: string;
+  schoolId: string;
+  requestingPersonId: string;
+  requestingPersonName: string | null;
+  requestingDepartment: string | null;
+  urgency: PrcUrgency;
+  status: PrcReqStatus;
+  approvalRequestId: string | null;
+  totalEstimatedCost: number;
+  budgetLineId: string | null;
+  budgetAccountCode: string | null;
+  justification: string;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  reviewedByName: string | null;
+  rejectionReason: string | null;
+  lines: PrcRequisitionLineDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PrcCreateRequisitionLine {
+  itemDescription: string;
+  quantity: number;
+  unit?: string;
+  estimatedUnitCost?: number;
+  specifications?: string;
+  preferredVendorId?: string;
+  destinationModule: PrcDestinationModule;
+}
+
+export interface PrcCreateRequisitionPayload {
+  requestingDepartment?: string;
+  urgency?: PrcUrgency;
+  budgetLineId?: string;
+  justification: string;
+  lines: PrcCreateRequisitionLine[];
+}
+
+export interface PrcPurchaseOrderLineDto {
+  id: string;
+  purchaseOrderId: string;
+  requisitionLineId: string | null;
+  itemDescription: string;
+  quantityOrdered: number;
+  quantityReceived: number;
+  unitCost: number;
+  lineTotal: number;
+  glAccountId: string | null;
+  glAccountCode: string | null;
+  destinationModule: PrcDestinationModule;
+  lineOrder: number;
+}
+
+export interface PrcBudgetCommitmentDto {
+  id: string;
+  purchaseOrderId: string;
+  budgetLineId: string;
+  budgetAccountCode: string | null;
+  committedAmount: number;
+  releasedAmount: number;
+  status: PrcCommitmentStatus;
+  releasedAt: string | null;
+}
+
+export interface PrcPurchaseOrderDto {
+  id: string;
+  schoolId: string;
+  poNumber: string;
+  vendorId: string;
+  vendorName: string | null;
+  requisitionId: string | null;
+  deliveryAddress: string;
+  expectedDeliveryDate: string | null;
+  paymentTerms: string | null;
+  status: PrcPOStatus;
+  totalAmount: number;
+  notes: string | null;
+  issuedBy: string | null;
+  issuedByName: string | null;
+  issuedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  lines: PrcPurchaseOrderLineDto[];
+  commitments: PrcBudgetCommitmentDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PrcCreatePOLine {
+  requisitionLineId?: string;
+  itemDescription: string;
+  quantityOrdered: number;
+  unitCost: number;
+  glAccountId?: string;
+  destinationModule: PrcDestinationModule;
+}
+
+export interface PrcCreatePurchaseOrderPayload {
+  vendorId: string;
+  requisitionId?: string;
+  deliveryAddress: string;
+  expectedDeliveryDate?: string;
+  paymentTerms?: string;
+  notes?: string;
+  budgetLineId?: string;
+  lines: PrcCreatePOLine[];
+}
+
+export interface PrcReceiptLineDto {
+  id: string;
+  receiptId: string;
+  poLineId: string;
+  poItemDescription: string;
+  quantityReceived: number;
+  quantityAccepted: number;
+  quantityRejected: number;
+  condition: PrcReceiptCondition;
+  discrepancyNotes: string | null;
+}
+
+export interface PrcGoodsReceiptDto {
+  id: string;
+  purchaseOrderId: string;
+  poNumber: string;
+  receivedBy: string;
+  receivedByName: string | null;
+  receivedAt: string;
+  inspectionOutcome: PrcInspectionOutcome;
+  notes: string | null;
+  lines: PrcReceiptLineDto[];
+}
+
+export interface PrcCreateReceiptLine {
+  poLineId: string;
+  quantityReceived: number;
+  quantityAccepted: number;
+  quantityRejected: number;
+  condition: PrcReceiptCondition;
+  discrepancyNotes?: string;
+}
+
+export interface PrcCreateGoodsReceiptPayload {
+  inspectionOutcome: PrcInspectionOutcome;
+  notes?: string;
+  lines: PrcCreateReceiptLine[];
+}
+
+export interface PrcDistributionLineDto {
+  id: string;
+  distributionId: string;
+  receiptLineId: string;
+  quantityDistributed: number;
+  itemDescription: string;
+  unitCost: number | null;
+}
+
+export interface PrcDistributionDto {
+  id: string;
+  receiptId: string;
+  distributedBy: string;
+  distributedByName: string | null;
+  distributedAt: string;
+  destinationModule: PrcDistDestinationModule;
+  destinationDepartment: string | null;
+  notes: string | null;
+  lines: PrcDistributionLineDto[];
+}
+
+export interface PrcCreateDistributionLine {
+  receiptLineId: string;
+  quantityDistributed: number;
+  itemDescription: string;
+  unitCost?: number;
+}
+
+export interface PrcCreateDistributionPayload {
+  destinationModule: PrcDistDestinationModule;
+  destinationDepartment?: string;
+  notes?: string;
+  lines: PrcCreateDistributionLine[];
+}
+
+export interface PrcReturnDto {
+  id: string;
+  receiptLineId: string;
+  returnType: PrcReturnType;
+  quantityReturned: number;
+  returnReference: string | null;
+  vendorRmaNumber: string | null;
+  status: PrcReturnStatus;
+  resolution: PrcReturnResolution | null;
+  resolutionNotes: string | null;
+  initiatedBy: string;
+  initiatedByName: string | null;
+  initiatedAt: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+}
+
+export interface PrcCreateReturnPayload {
+  returnType: PrcReturnType;
+  quantityReturned: number;
+  returnReference?: string;
+  vendorRmaNumber?: string;
+}
+
+export interface PrcUpdateReturnPayload {
+  action: 'SHIP' | 'RESOLVE' | 'CANCEL';
+  resolution?: PrcReturnResolution;
+  resolutionNotes?: string;
+}
+
+export interface PrcVendorPerformanceDto {
+  id: string;
+  vendorId: string;
+  vendorName: string | null;
+  schoolId: string;
+  totalOrders: number;
+  onTimeDeliveries: number;
+  lateDeliveries: number;
+  acceptedCount: number;
+  rejectedCount: number;
+  averageQualityScore: number | null;
+  averageDeliveryScore: number | null;
+  lastUpdatedAt: string;
+}
+
+export interface PrcProcurementSettingsDto {
+  id: string;
+  schoolId: string;
+  autoPoThreshold: number | null;
+  defaultPaymentTerms: string;
+  poNumberPrefix: string;
+  poNumberNextSeq: number;
+  requireThreeQuotesAbove: number | null;
+}
+
+export interface PrcUpdateSettingsPayload {
+  autoPoThreshold?: number;
+  defaultPaymentTerms?: string;
+  poNumberPrefix?: string;
+  requireThreeQuotesAbove?: number;
+}
