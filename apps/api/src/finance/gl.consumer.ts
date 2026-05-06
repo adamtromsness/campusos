@@ -24,22 +24,45 @@ import type { BatchType, CreateGLEntryLineDto } from './dto/finance.dto';
  * Kafka redelivery idempotency — a second post with the same
  * eventId silently returns the existing batch.
  *
- * Topics + GL mapping:
+ * Topics + GL mapping (REVIEW-CYCLE26 BLOCKING 1 accrual model):
  *
- *   pay.payment.received  →  DEBIT 1000 Cash + CREDIT 4000 Tuition
- *                            (or appropriate revenue account based
- *                            on the source — Cycle 26 hard-codes
- *                            tuition; Phase 2 adds a per-fee-schedule
- *                            account_id mapping table).
  *   pay.invoice.created   →  DEBIT 1100 AR + CREDIT 4000 Tuition
- *                            (records the receivable when the school
- *                            sends the invoice, before the payment
- *                            lands).
- *   pay.refund.issued     →  DEBIT 4000 Tuition + CREDIT 1000 Cash
- *                            (reverses the original revenue + cash
- *                            recognition on a refund).
+ *                            (revenue accrued when the school issues
+ *                            the invoice; AR opens for the family).
+ *
+ *   pay.payment.received  →  DEBIT 1000 Cash + CREDIT 1100 AR
+ *                            (cash up, AR cleared — revenue is NOT
+ *                            touched again because it was already
+ *                            recognised when the invoice landed; the
+ *                            previous incorrect mapping double-
+ *                            credited Tuition Revenue and left AR
+ *                            perpetually outstanding).
+ *
+ *   pay.refund.issued     →  DEBIT 1100 AR + CREDIT 1000 Cash
+ *                            (cash leg reversed; AR is restored as a
+ *                            credit-balance signalling refund-credit
+ *                            owed to the family for application to a
+ *                            future invoice. Revenue recognised when
+ *                            the original invoice was issued is NOT
+ *                            auto-reversed — explicit MANUAL
+ *                            adjustment batch handles writeoff per
+ *                            school policy. Refund-category-aware
+ *                            routing — restock fees, withdrawals,
+ *                            programme cancellations — carries to
+ *                            Phase 2 as the "finance posting rules
+ *                            table" follow-up.).
+ *
  *   pay.credit_note.issued + pay.debt.written_off — schema-ready,
  *   skipped this cycle (Cycle 6 doesn't emit either yet).
+ *
+ * Account codes 1000 / 1100 / 4000 are hard-coded today (Phase 2
+ * replaces with a `fin_posting_rules` lookup keyed on event_type
+ * + optional fee_schedule_id). On missing chart mapping or missing
+ * synthetic CFO actor the consumer THROWS so the standard
+ * KafkaConsumerService retry/park chain catches the failure and
+ * lands the event in `platform.platform_dlq_messages` for operator
+ * action — financial events are never silently dropped on
+ * configuration miss (REVIEW-CYCLE26 BLOCKING 3).
  */
 
 interface PaymentReceivedPayload {

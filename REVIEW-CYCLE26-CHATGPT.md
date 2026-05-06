@@ -158,6 +158,7 @@ Plus the existing Cycle 26 carry-overs from the original review's "Reviewer atte
 
 - 2026-05-06 — `cycle26-complete` (`3756529`) submitted for review.
 - 2026-05-06 — Round 1 verdict: **Reject pending fixes** (5 BLOCKING + 4 MAJOR).
-- 2026-05-06 — All 5 BLOCKING + 1 actionable MAJOR (7) landed in this commit, live-verified on `tenant_demo`. 3 acknowledged MAJORs (6 / 8 / 9) carried to Phase 2 punch list.
+- 2026-05-06 — All 5 BLOCKING + 1 actionable MAJOR (7) landed in `5498c61`, live-verified on `tenant_demo`. 3 acknowledged MAJORs (6 / 8 / 9) carried to Phase 2 punch list.
+- 2026-05-06 — Round 2 verdict: **Approved.** Reviewer cache-busted each affected file and confirmed every fix matches. Reviewer's small cleanup item — stale top-of-file `gl.consumer.ts` comment still referenced the old (incorrect) mapping — addressed in the closeout commit so a future reviewer / maintainer cannot reintroduce the old accounting bug from outdated documentation.
 
-**Cycle 26 ships clean to Round 2.** Tagging `cycle26-approved` after Round 2 APPROVED.
+**Cycle 26 is clean from the review perspective.** Tagged `cycle26-approved` at `5498c61`.
