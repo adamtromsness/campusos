@@ -206,10 +206,7 @@ export class InterventionService {
     const progressRows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<ProgressRow[]>(
         'SELECT DISTINCT ON (p.intervention_id) ' +
-          SELECT_PROGRESS_BASE.replace(/^SELECT/, '').replace(
-            /FROM svc_intervention_progress p/,
-            'FROM svc_intervention_progress p',
-          ) +
+          SELECT_PROGRESS_BASE.replace(/^SELECT/, '') +
           'WHERE p.intervention_id = ANY($1::uuid[]) ' +
           'ORDER BY p.intervention_id, p.recorded_date DESC, p.created_at DESC',
         ids,

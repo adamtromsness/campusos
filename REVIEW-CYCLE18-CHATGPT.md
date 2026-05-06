@@ -4,12 +4,14 @@
 
 The reviewer flagged 4 BLOCKING items + 6 MAJOR follow-ups + an accumulated Wave 1–3 punch-list summary. The fix commit closes all 4 BLOCKING items + the 2 code-level MAJORs (5 + 6) in code; MAJORs 7–10 are recommendation-class and move to the Phase 2 punch list. Live verification on `tenant_demo` 2026-05-06.
 
-**Round 2 verdict:** _pending_ (against the closeout fix commit).
+**Round 2 verdict:** **Approved** (against `f091de6`, 2026-05-06). Reviewer cache-busted each affected file in code and confirmed all 4 BLOCKING fixes are closed (creation authority by scope, tenant validation on invited accounts, roster visibility for non-members, transfer-history visibility) plus the 2 code-level MAJORs (locked-row state transitions via `lockedTransition`; join-race translation via `isUniqueViolation` re-read). MAJORs 7–10 correctly carried as Phase 2 punch list items 26–29. **Cycle 18 ships clean — Wave 3 closes here.**
+
+The reviewer's accompanying Wave 3 closeout note: Wave 3 is functionally approved but not pilot-clean. The remaining risk is the accumulated Phase 2 / pre-pilot backlog (role-model hardening, outbox/event atomicity, consumer tenant-routing validation, header-based tenant override hardening, platform-scope permission mode, and the module-specific Phase 2 items 1–29). A dedicated hardening cycle should land before any real-school pilot.
 
 Tag chain:
 
 - `cycle18-complete` on `7e7f33a` (original closeout commit + first CAT — Wave 3 closes here)
-- `cycle18-approved` (after Round 2 verdict)
+- `cycle18-approved` on `f091de6` (Round 2 APPROVED, after the fix commit)
 
 ---
 
@@ -46,4 +48,22 @@ All 6 code-level fixes verified live on `tenant_demo` 2026-05-06.
 
 ## Round 2 verdict
 
-_(populated after Round 2 review)_
+**Approved** (2026-05-06, against `f091de6`).
+
+Reviewer cache-busted each affected file in code and confirmed:
+
+- BLOCKING 1 closed — `GroupService.create` calls `assertCanCreateForScope` before insert; SCHOOL/CUSTOM/YEAR_GROUP gated to admin/STAFF; CLASS gated to admin or assigned class teacher (joins `sis_class_teachers`); ACTIVITY gated to admin or activity advisor (joins `ext_activities.advisor_id`).
+- BLOCKING 2 closed — `MembershipService.invite` calls `assertAccountInCurrentTenant(input.personId)` before duplicate-check + INSERT, joining the three current-tenant projections.
+- BLOCKING 3 closed — `MembershipService.listForGroup` returns `[]` to non-members of OPEN/APPROVAL_REQUIRED groups; admins, OWNER/ADMIN, and active members see the full roster.
+- BLOCKING 4 closed — `OwnershipTransferService.list` restricts to school admin and OWNER/ADMIN; `listMine` preserves the recipient workflow without exposing full leadership history.
+- MAJOR 5 closed — every state mutation routes through `lockedTransition` for tenant-tx + `FOR UPDATE OF m`.
+- MAJOR 6 closed — `joinGroup` catches `isUniqueViolation` and returns the existing row; live verification recorded in REVIEW-CYCLE18-CHATGPT.
+
+Reviewer's deferred items (carried, intentional):
+
+- RSVP eligibility distinction between public-visible and public-RSVP events (Phase 2 punch list item 26).
+- RSVP reconciliation when event configuration changes after responses exist (item 27).
+- Transactional outbox for group announcements/events (item 28; folds into existing item 4).
+- Future rename or annotation of `grp_members.person_id` (item 29).
+
+**Wave 3 closes here.** The reviewer notes Wave 3 is functionally approved but not pilot-clean; the remaining risk is the accumulated Phase 2 / pre-pilot backlog. A dedicated hardening cycle should land before real-school pilot.
