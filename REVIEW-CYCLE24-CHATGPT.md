@@ -141,6 +141,7 @@ These join the existing Wave 2-5 Phase 2 punch list (items 9 / 11 / 13 / 14 / 16
 
 - 2026-05-06 — `cycle24-complete` (`c46cacd`) submitted for review.
 - 2026-05-06 — Round 1 verdict: **Reject pending fixes** (5 BLOCKING + 4 MAJOR).
-- 2026-05-06 — All 5 BLOCKING + 4 actionable MAJORs (6 / 7 / 8 / 9) landed in this commit, live-verified on `tenant_demo`.
+- 2026-05-06 — All 5 BLOCKING + 4 actionable MAJORs (6 / 7 / 8 / 9) landed in fix commit `c242145`, live-verified on `tenant_demo`.
+- 2026-05-06 — Round 2 verdict: **Approved** at `c242145`. Reviewer cache-busted each affected file and confirmed every fix — actor-aware portfolio item listing inheriting parent visibility lattice; share-token list gated owner/admin BEFORE row return; addItem source-ownership across SUBMISSION/GRADE/ACHIEVEMENT branches; assigned-teacher visibility via `sis_class_teachers + sis_enrollments` instead of blanket STAFF; cross-cycle source-ref validation across library / clubs / classroom / athletics; public share view strips s3Key + sourceRefId; migration COMMENTs corrected; envelope sourceRefId fix; admin-only edits for awarded_by IS NULL.
 
-**Cycle 24 ships clean to Round 2.** Tagging `cycle24-approved` after Round 2 APPROVED.
+**Cycle 24 APPROVED.** Tagged `cycle24-complete` at `c46cacd` and `cycle24-approved` at `c242145`.
