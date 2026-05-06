@@ -1,6 +1,6 @@
 # Cycle 21 Handoff — Facilities Management
 
-**Status:** Cycle 21 **COMPLETE + REVIEW-CYCLE21 Round 1 fixes landed** — Round 2 pending. Wave 4 (Campus Operations) cycle 3. Cycle 21 ships the M65 Facilities Management module — 16 of the 37 ERD tables in scope (21 deferred to Cycle 21.1: detailed cleaning route tracking, supply transactions + stocktakes, work order attachments + parts, fire drills, facilities asset lifecycle, energy / utility tracking, space utilisation analytics). The Facilities Manager (FM) is the **eighth specialist operator persona** after the nurse, counsellor, librarian, athletic director, enrolment officer, transportation coordinator, and food service manager.
+**Status:** Cycle 21 **COMPLETE + APPROVED at `7f67406`** — Round 2 verdict from REVIEW-CYCLE21-CHATGPT. Wave 4 (Campus Operations) cycle 3. Tag chain: `cycle21-complete` at `7ea9de1`; `cycle21-approved` at `7f67406`. Cycle 21 ships the M65 Facilities Management module — 16 of the 37 ERD tables in scope (21 deferred to Cycle 21.1: detailed cleaning route tracking, supply transactions + stocktakes, work order attachments + parts, fire drills, facilities asset lifecycle, energy / utility tracking, space utilisation analytics). The Facilities Manager (FM) is the **eighth specialist operator persona** after the nurse, counsellor, librarian, athletic director, enrolment officer, transportation coordinator, and food service manager.
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle21-implementation-plan.html`

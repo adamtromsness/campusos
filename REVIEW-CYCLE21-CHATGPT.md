@@ -4,12 +4,25 @@
 
 The reviewer flagged 3 BLOCKING + 4 actionable MAJOR items: (1) teacher booking authority conflated with FM management authority via shared `FAC-001:write`; (2) teachers could cancel/complete other users' bookings; (3) Facilities soft references written without tenant validation. The fix commit closes all 3 BLOCKING + 3 of the 4 actionable MAJORs (4 / 6 / 7) with live verification on `tenant_demo`. MAJOR 5 (two-step inspection model with `recordOutcome` + FOR UPDATE) is recommendation-class — current `InspectionService.create()` already refuses post-creation updates since the service exposes no UPDATE method; carried as Phase 2 punch list item 33.
 
-**Round 2 verdict:** _pending_.
+**Round 2 verdict:** **Approved** (against `7f67406`, 2026-05-06).
+
+Reviewer's confirmed fix list:
+
+- BLOCKING 1 — Building, space, and closure management require `fac-001:admin`; teachers keep `fac-001:write` for booking only. `assertCanManage()` is now async and checks school admin or tenant-scoped `fac-001:admin` rather than allowing every STAFF actor.
+- BLOCKING 2 — Booking authority model corrected: owner CANCEL-own-only, FM/admin full lifecycle, other actors refused; non-owner / non-FM booking lists strip `bookedBy` / `bookedByName` / notes.
+- BLOCKING 3 — 5 shared tenant-validation helpers (`assertRoomInCurrentTenant`, `assertEmployeeInCurrentTenant`, `assertTicketInCurrentTenant`, `assertVendorInCurrentTenant`, `assertWorkOrderInCurrentTenant`) applied across spaces / work orders / zones / violations / closures / PM tasks. Brings Facilities back in line with the CampusOS soft-integrity pattern.
+- MAJOR 4 — `MaintenanceTaskService.patch` reads prior task state with `SELECT … FOR UPDATE` inside the tenant transaction; OVERDUE emit decision uses variables captured from the locked state.
+- MAJOR 6 — `linkedWorkOrderId` validated against current school before violation resolution update; bogus / cross-tenant IDs return 400.
+- MAJOR 7 — Handoff updated to completion + Round 1 fixes with live verification trail.
+
+Reviewer's deferred item (not Cycle 21 blocker): MAJOR 5 — two-step inspection outcome model. Reviewer agrees with the deferral classification: the current implementation has no update path for finalized inspections, so the immutability invariant is not actively broken. A future `PENDING → recordOutcome()` workflow would be cleaner and align with other stateful modules but is not a Cycle 21 blocker. Phase 2 punch list item 33.
+
+**Final gate:** Approved. Tag `cycle21-approved` lives at `7f67406`.
 
 Tag chain:
 
 - `cycle21-complete` on `7ea9de1` (original closeout — triggered Round 1)
-- `cycle21-approved` on the fix commit (after Round 2 APPROVED)
+- `cycle21-approved` on `7f67406` (Round 2 APPROVED — after the fix commit)
 
 ---
 
