@@ -7819,3 +7819,275 @@ export interface PubDistributeResultDto {
   alreadyExisted: number;
   status: 'PUBLISHED';
 }
+
+// ─── Cycle 26 — Finance & Accounting (M83) ───
+
+export type FinAccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
+export type FinNormalBalance = 'DEBIT' | 'CREDIT';
+export type FinFundType =
+  | 'GENERAL'
+  | 'SPECIAL_REVENUE'
+  | 'CAPITAL_PROJECTS'
+  | 'DEBT_SERVICE'
+  | 'PERMANENT'
+  | 'ENTERPRISE';
+export type FinPeriodStatus = 'FUTURE' | 'OPEN' | 'CLOSED' | 'LOCKED';
+export type FinBatchType =
+  | 'MANUAL'
+  | 'AUTO_PAYMENT'
+  | 'AUTO_INVOICE'
+  | 'AUTO_REFUND'
+  | 'ADJUSTMENT';
+export type FinBatchStatus = 'DRAFT' | 'POSTED' | 'VOIDED';
+export type FinSupplierType = 'VENDOR' | 'CONTRACTOR' | 'UTILITY' | 'OTHER';
+export type FinBudgetStatus = 'DRAFT' | 'APPROVED' | 'AMENDED';
+export type FinAPStatus = 'PENDING' | 'APPROVED' | 'PAID' | 'VOIDED' | 'ON_HOLD';
+export type FinPaymentMethod = 'CHECK' | 'ACH' | 'WIRE' | 'CREDIT_CARD';
+export type FinReconStatus = 'IN_PROGRESS' | 'RECONCILED' | 'VARIANCE_FLAGGED';
+export type FinReportType = 'BALANCE_SHEET' | 'INCOME_STATEMENT' | 'BUDGET_VS_ACTUAL' | 'CASH_FLOW';
+export type FinGrantStatus = 'ACTIVE' | 'CLOSED' | 'REPORTING';
+
+export interface FinFundDto {
+  id: string;
+  schoolId: string;
+  fundCode: string;
+  fundName: string;
+  fundType: FinFundType;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinAccountDto {
+  id: string;
+  schoolId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: FinAccountType;
+  normalBalance: FinNormalBalance;
+  parentAccountId: string | null;
+  parentAccountCode: string | null;
+  fundId: string | null;
+  fundCode: string | null;
+  description: string | null;
+  isSystem: boolean;
+  isActive: boolean;
+  runningBalance: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinPeriodDto {
+  id: string;
+  schoolId: string;
+  fiscalYear: string;
+  periodNumber: number;
+  periodName: string;
+  startDate: string;
+  endDate: string;
+  status: FinPeriodStatus;
+  closedAt: string | null;
+  closedBy: string | null;
+  lockedAt: string | null;
+  lockedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinTrialBalanceLineDto {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: FinAccountType;
+  normalBalance: FinNormalBalance;
+  debitTotal: number;
+  creditTotal: number;
+  balance: number;
+}
+
+export interface FinTrialBalanceDto {
+  lines: FinTrialBalanceLineDto[];
+  totalDebit: number;
+  totalCredit: number;
+  balanced: boolean;
+}
+
+export interface FinGLEntryDto {
+  id: string;
+  batchId: string;
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  fundId: string;
+  fundCode: string;
+  debit: number;
+  credit: number;
+  description: string | null;
+  referenceType: string | null;
+  referenceId: string | null;
+  lineOrder: number;
+}
+
+export interface FinJournalBatchDto {
+  id: string;
+  schoolId: string;
+  batchNumber: string;
+  description: string;
+  batchType: FinBatchType;
+  sourceModule: string | null;
+  sourceEventId: string | null;
+  accountingPeriodId: string;
+  periodName: string;
+  postedBy: string | null;
+  postedByName: string | null;
+  postedAt: string | null;
+  status: FinBatchStatus;
+  voidedAt: string | null;
+  voidedBy: string | null;
+  voidReason: string | null;
+  totalDebit: number;
+  totalCredit: number;
+  entries: FinGLEntryDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinSupplierDto {
+  id: string;
+  schoolId: string;
+  supplierCode: string;
+  supplierName: string;
+  supplierType: FinSupplierType;
+  taxId: string | null;
+  addressLine1: string | null;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  country: string | null;
+  paymentTerms: string | null;
+  isActive: boolean;
+  notes: string | null;
+  contacts: Array<{
+    id: string;
+    contactName: string;
+    email: string | null;
+    phone: string | null;
+    role: string | null;
+    isPrimary: boolean;
+  }>;
+}
+
+export interface FinBudgetLineDto {
+  id: string;
+  budgetId: string;
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  budgetedAmount: number;
+  actualAmount: number;
+  encumberedAmount: number;
+  remainingAmount: number;
+  notes: string | null;
+}
+
+export interface FinBudgetDto {
+  id: string;
+  schoolId: string;
+  fiscalYear: string;
+  fundId: string;
+  fundCode: string;
+  name: string;
+  totalRevenue: number;
+  totalExpense: number;
+  status: FinBudgetStatus;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  lines: FinBudgetLineDto[];
+}
+
+export interface FinAPVoucherDto {
+  id: string;
+  schoolId: string;
+  supplierId: string;
+  supplierName: string;
+  voucherNumber: string;
+  invoiceNumber: string | null;
+  invoiceDate: string;
+  dueDate: string;
+  totalAmount: number;
+  description: string | null;
+  glAccountId: string | null;
+  glAccountCode: string | null;
+  fundId: string | null;
+  status: FinAPStatus;
+  approvedBy: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  amountPaid: number;
+  balanceDue: number;
+}
+
+export interface FinAPPaymentDto {
+  id: string;
+  voucherId: string;
+  paymentMethod: FinPaymentMethod;
+  paymentReference: string | null;
+  amount: number;
+  paidAt: string;
+  paidBy: string;
+  paidByName: string | null;
+  journalBatchId: string | null;
+  notes: string | null;
+}
+
+export interface FinReconciliationDto {
+  id: string;
+  schoolId: string;
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  periodId: string;
+  periodName: string;
+  glBalance: number;
+  bankBalance: number;
+  difference: number;
+  outstandingItems: unknown;
+  status: FinReconStatus;
+  reconciledBy: string | null;
+  reconciledAt: string | null;
+  notes: string | null;
+}
+
+export interface FinBoardReportDto {
+  id: string;
+  schoolId: string;
+  reportType: FinReportType;
+  periodId: string | null;
+  periodName: string | null;
+  generatedAt: string;
+  generatedBy: string;
+  generatedByName: string | null;
+  reportData: unknown;
+  s3Key: string | null;
+}
+
+export interface FinGrantDto {
+  id: string;
+  schoolId: string;
+  fundId: string | null;
+  fundCode: string | null;
+  grantName: string;
+  grantor: string;
+  grantNumber: string | null;
+  awardAmount: number;
+  drawnAmount: number;
+  remainingAmount: number;
+  startDate: string;
+  endDate: string;
+  status: FinGrantStatus;
+  reportingDueDate: string | null;
+  notes: string | null;
+}

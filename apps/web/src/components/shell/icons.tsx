@@ -197,6 +197,18 @@ export function BanknotesIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function CalculatorIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15.75 15.75 18 21l2.25-5.25M3.75 6h16.5M3.75 12h16.5m-16.5 6h16.5M5.25 4.5h13.5a1.5 1.5 0 0 1 1.5 1.5v13.5a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5V6a1.5 1.5 0 0 1 1.5-1.5Z"
+      />
+    </svg>
+  );
+}
+
 export function GavelIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...base} {...props}>

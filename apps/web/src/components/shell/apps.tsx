@@ -8,6 +8,7 @@ import {
   BanknotesIcon,
   BookIcon,
   BusIcon,
+  CalculatorIcon,
   CalendarIcon,
   UtensilsIcon,
   WrenchIcon,
@@ -61,7 +62,8 @@ export type AppKey =
   | 'it'
   | 'curriculum'
   | 'portfolio'
-  | 'publications';
+  | 'publications'
+  | 'finance';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -544,6 +546,23 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/publications',
       routePrefix: '/publications',
       icon: NewspaperIcon,
+    });
+  }
+
+  // Cycle 26 — Finance & Accounting (Wave 6 opener). The CFO /
+  // Business Manager is the tenth specialist operator persona.
+  // FIN-005..008 cover GL + budgets + AP + reconciliation/board
+  // reports/grants. Finance is intentionally invisible to parents,
+  // students, and teachers — only Staff (CFO stand-in) and admins
+  // see the tile.
+  if (hasAnyPermission(user, ['fin-005:read'])) {
+    apps.push({
+      key: 'finance',
+      label: 'Finance',
+      description: 'GL, chart of accounts, budgets, AP, reconciliation, board reports',
+      href: '/finance',
+      routePrefix: '/finance',
+      icon: CalculatorIcon,
     });
   }
 

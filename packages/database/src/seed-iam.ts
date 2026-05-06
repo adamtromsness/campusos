@@ -834,6 +834,25 @@ async function seedIam() {
         'IT-004': ['read', 'write'],
         'IT-005': ['read', 'write'],
         'IT-006': ['read', 'write'],
+        // Cycle 26 — Finance & Accounting. Staff covers the CFO /
+        // Business Manager — the tenth specialist operator persona.
+        // FIN-005..008 are NEW catalogue codes (see permissions.json
+        // — distinct from the existing FIN-001..004 family-billing
+        // codes from Cycle 6 to avoid leaking GL access to parents
+        // who already hold FIN-001:read+write).
+        //   FIN-005 = General Ledger + Chart of Accounts + Periods
+        //   FIN-006 = Operating Budgets
+        //   FIN-007 = Accounts Payable (vouchers + payments)
+        //   FIN-008 = Reconciliation + Board Reports + Grants
+        // School Admin and Platform Admin pick up the admin tier
+        // (period LOCK, board report generation, grant close) via
+        // everyFunction. Joins the role-split work in the Phase 2
+        // punch list — a dedicated CFO role should hold the FIN-*
+        // codes alone before pilot.
+        'FIN-005': ['read', 'write'],
+        'FIN-006': ['read', 'write'],
+        'FIN-007': ['read', 'write'],
+        'FIN-008': ['read', 'write'],
       },
     },
   ];

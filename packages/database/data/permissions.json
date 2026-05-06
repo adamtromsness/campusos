@@ -311,6 +311,26 @@
       "group": "Finance & Payments"
     },
     {
+      "code": "FIN-005",
+      "name": "General Ledger & Chart of Accounts",
+      "group": "Finance & Payments"
+    },
+    {
+      "code": "FIN-006",
+      "name": "Operating Budgets",
+      "group": "Finance & Payments"
+    },
+    {
+      "code": "FIN-007",
+      "name": "Accounts Payable",
+      "group": "Finance & Payments"
+    },
+    {
+      "code": "FIN-008",
+      "name": "Reconciliation, Board Reports & Grants",
+      "group": "Finance & Payments"
+    },
+    {
       "code": "FDS-001",
       "name": "Menu Planning",
       "group": "Food Service"
