@@ -187,6 +187,12 @@ async function seedIam() {
         'TCH-003': ['read', 'write'],
         'TCH-004': ['read', 'write'],
         'TCH-006': ['read', 'write'],
+        // Cycle 23 — Curriculum Management. Teachers (acting as
+        // Department Head / Curriculum Coordinator) create maps,
+        // units, alignments, lesson links, and resources. Row scope
+        // at the Step 5 service layer binds non-admin teachers to
+        // maps for subjects they teach.
+        'TCH-008': ['read', 'write'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read', 'write'],
         // Cycle 14 — emergency alert read so the persistent banner
@@ -335,6 +341,9 @@ async function seedIam() {
         'TCH-002': ['read'],
         'TCH-003': ['read'],
         'TCH-004': ['read'],
+        // Cycle 23 — Curriculum Management. Parents browse
+        // PUBLISHED curriculum maps + non-teacher-only resources.
+        'TCH-008': ['read'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
         // Cycle 14 — emergency alert read so the dismiss-proof
@@ -464,6 +473,9 @@ async function seedIam() {
         'TCH-004': ['read'],
         'TCH-006': ['read', 'write'],
         'TCH-007': ['read', 'write'],
+        // Cycle 23 — students view PUBLISHED curriculum maps for
+        // their classes + non-teacher-only resources.
+        'TCH-008': ['read'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
         // Cycle 14 — students see emergency alerts on their devices.

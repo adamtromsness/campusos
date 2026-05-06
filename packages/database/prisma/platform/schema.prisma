@@ -821,3 +821,50 @@ model PlatformDlqMessage {
   @@map("platform_dlq_messages")
   @@schema("platform")
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CYCLE 23 — Curriculum Standards (Platform-Seeded Frameworks)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// National standards frameworks (Common Core State Standards, Next
+// Generation Science Standards) live in the platform schema so a
+// framework update is one migration, not one per tenant. Schools
+// adopt platform frameworks via the tenant
+// cur_school_framework_adoptions table. School-custom frameworks
+// live in tenant cur_standards_frameworks + cur_standards.
+//
+// The cur_unit_standards.standard_id column resolves from EITHER
+// platform OR tenant via app-layer dual resolution per ADR-001/020.
+
+model CurStandardsFrameworkPlatform {
+  id        String   @id @db.Uuid
+  name      String   @unique
+  body      String?
+  region    String?
+  version   String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  standards CurStandardPlatform[]
+
+  @@map("cur_standards_frameworks_platform")
+  @@schema("platform")
+}
+
+model CurStandardPlatform {
+  id          String   @id @db.Uuid
+  frameworkId String   @map("framework_id") @db.Uuid
+  code        String
+  description String
+  gradeBand   String?  @map("grade_band")
+  domain      String?
+  cluster     String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  framework CurStandardsFrameworkPlatform @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+
+  @@unique([frameworkId, code])
+  @@index([frameworkId, gradeBand])
+  @@map("cur_standards_platform")
+  @@schema("platform")
+}

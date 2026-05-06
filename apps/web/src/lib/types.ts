@@ -7213,3 +7213,229 @@ export interface ItApproveSelectionPayload {
   assetId?: string;
   notes?: string;
 }
+
+// ──────────────────────────────────────────────────────────────
+// Cycle 23 — Curriculum & Standards (M25)
+// ──────────────────────────────────────────────────────────────
+
+export type CurFrameworkSource = 'PLATFORM' | 'SCHOOL';
+export type CurStandardSource = 'PLATFORM' | 'SCHOOL';
+export type CurMapStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type CurGapType = 'NOT_STARTED' | 'PARTIAL' | 'COMPLETE';
+export type CurResourceType = 'FILE' | 'URL' | 'VIDEO' | 'TEXTBOOK';
+
+export interface CurFrameworkDto {
+  id: string;
+  source: CurFrameworkSource;
+  name: string;
+  body: string | null;
+  region: string | null;
+  version: string | null;
+  description: string | null;
+  schoolId: string | null;
+  isActive: boolean;
+  standardCount: number;
+}
+
+export interface CurStandardDto {
+  id: string;
+  source: CurStandardSource;
+  frameworkId: string;
+  frameworkName: string;
+  code: string;
+  description: string;
+  gradeBand: string | null;
+  domain: string | null;
+  cluster: string | null;
+}
+
+export interface CurFrameworkDetailDto extends CurFrameworkDto {
+  standards: CurStandardDto[];
+}
+
+export interface CurAdoptionDto {
+  id: string;
+  schoolId: string;
+  platformFrameworkId: string;
+  platformFrameworkName: string;
+  academicYearId: string;
+  academicYearName: string;
+  adoptedAt: string;
+  adoptedBy: string;
+  notes: string | null;
+}
+
+export interface CurCreateAdoptionPayload {
+  platformFrameworkId: string;
+  academicYearId: string;
+  notes?: string;
+}
+
+export interface CurCreateCustomFrameworkPayload {
+  name: string;
+  version?: string;
+  description?: string;
+}
+
+export interface CurCreateStandardPayload {
+  frameworkId: string;
+  code: string;
+  description: string;
+  gradeBand?: string;
+  domain?: string;
+  cluster?: string;
+}
+
+export interface CurCreateMapPayload {
+  academicYearId: string;
+  frameworkId?: string;
+  subject: string;
+  gradeLevel: string;
+  title: string;
+  description?: string;
+}
+
+export interface CurUpdateMapPayload {
+  title?: string;
+  description?: string;
+  subject?: string;
+  gradeLevel?: string;
+  frameworkId?: string;
+  status?: CurMapStatus;
+}
+
+export interface CurMapDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  academicYearName: string;
+  frameworkId: string | null;
+  frameworkName: string | null;
+  frameworkSource: CurFrameworkSource | null;
+  subject: string;
+  gradeLevel: string;
+  title: string;
+  description: string | null;
+  status: CurMapStatus;
+  createdBy: string;
+  publishedAt: string | null;
+  archivedAt: string | null;
+  unitCount: number;
+  totalStandards: number;
+  gapSummary: { complete: number; partial: number; notStarted: number };
+}
+
+export interface CurUnitDto {
+  id: string;
+  curriculumMapId: string;
+  title: string;
+  description: string | null;
+  sequenceOrder: number;
+  estimatedWeeks: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  essentialQuestions: string[];
+  standardCount: number;
+  lessonCount: number;
+  resourceCount: number;
+  gapSummary: { complete: number; partial: number; notStarted: number };
+}
+
+export interface CurUnitStandardDto {
+  id: string;
+  unitId: string;
+  standardId: string;
+  standard: CurStandardDto;
+  notes: string | null;
+}
+
+export interface CurUnitLessonDto {
+  id: string;
+  unitId: string;
+  clsLessonId: string;
+  lessonTitle: string;
+  lessonDate: string | null;
+  lessonStatus: string;
+}
+
+export interface CurResourceDto {
+  id: string;
+  unitId: string;
+  resourceType: CurResourceType;
+  title: string;
+  description: string | null;
+  url: string | null;
+  s3Key: string | null;
+  isTeacherOnly: boolean;
+  uploadedBy: string;
+  createdAt: string;
+}
+
+export interface CurDeliveryGapDto {
+  id: string;
+  unitId: string;
+  unitTitle: string;
+  curriculumMapId: string;
+  standardId: string;
+  standardCode: string;
+  standardDescription: string;
+  gapType: CurGapType;
+  lessonsPlanned: number;
+  lessonsDelivered: number;
+  lastAssessedAt: string | null;
+  computedAt: string;
+}
+
+export interface CurUnitDetailDto extends CurUnitDto {
+  standards: CurUnitStandardDto[];
+  lessons: CurUnitLessonDto[];
+  resources: CurResourceDto[];
+  gaps: CurDeliveryGapDto[];
+}
+
+export interface CurCreateUnitPayload {
+  title: string;
+  description?: string;
+  estimatedWeeks?: number;
+  startDate?: string;
+  endDate?: string;
+  essentialQuestions?: string[];
+}
+
+export interface CurUpdateUnitPayload {
+  title?: string;
+  description?: string;
+  estimatedWeeks?: number;
+  startDate?: string;
+  endDate?: string;
+  essentialQuestions?: string[];
+}
+
+export interface CurReorderUnitsPayload {
+  order: Array<{ unitId: string; sequenceOrder: number }>;
+}
+
+export interface CurAlignStandardPayload {
+  standardId: string;
+  notes?: string;
+}
+
+export interface CurLinkLessonPayload {
+  clsLessonId: string;
+}
+
+export interface CurCreateResourcePayload {
+  resourceType: CurResourceType;
+  title: string;
+  description?: string;
+  url?: string;
+  s3Key?: string;
+  isTeacherOnly?: boolean;
+}
+
+export interface CurUpdateResourcePayload {
+  title?: string;
+  description?: string;
+  url?: string;
+  isTeacherOnly?: boolean;
+}

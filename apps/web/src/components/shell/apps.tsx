@@ -18,6 +18,7 @@ import {
   ClassesIcon,
   ComputerIcon,
   GavelIcon,
+  MapIcon,
   HeartHandIcon,
   HeartIcon,
   LifebuoyIcon,
@@ -55,7 +56,8 @@ export type AppKey =
   | 'transport'
   | 'food-service'
   | 'facilities'
-  | 'it';
+  | 'it'
+  | 'curriculum';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -454,6 +456,25 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/facilities',
       routePrefix: '/facilities',
       icon: WrenchIcon,
+    });
+  }
+
+  // Cycle 23 — Curriculum & Standards (Wave 5 opener). Teacher /
+  // Curriculum Coordinator authors maps, units, alignments, and
+  // resources. Parent + Student see PUBLISHED maps + non-teacher-
+  // only resources. School Admin configures frameworks + adoptions.
+  if (hasAnyPermission(user, ['tch-008:read'])) {
+    apps.push({
+      key: 'curriculum',
+      label: 'Curriculum',
+      description: isStaff
+        ? 'Frameworks, curriculum maps, unit planning, delivery gaps'
+        : isStudent
+          ? "What you're learning this year"
+          : 'Curriculum maps for your child',
+      href: '/curriculum',
+      routePrefix: '/curriculum',
+      icon: MapIcon,
     });
   }
 
