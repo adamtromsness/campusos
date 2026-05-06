@@ -5153,3 +5153,268 @@ export interface CreateChecklistPayload {
   admissionType: OnboardingAdmissionType;
   tasks?: CreateChecklistTaskInput[];
 }
+
+// ── Cycle 17: Clubs & Student Life ──
+
+export const ACTIVITY_CATEGORIES = [
+  'SPORT',
+  'ARTS',
+  'ACADEMIC',
+  'LEADERSHIP',
+  'COMMUNITY',
+  'OTHER',
+] as const;
+export type ActivityCategory = (typeof ACTIVITY_CATEGORIES)[number];
+
+export type ActivityStatus = 'ACTIVE' | 'INACTIVE' | 'COMPLETED';
+export const MEMBER_ROLES = ['MEMBER', 'OFFICER', 'PRESIDENT', 'SECRETARY'] as const;
+export type MemberRole = (typeof MEMBER_ROLES)[number];
+
+export interface ActivityTypeDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  category: ActivityCategory;
+  description: string | null;
+  isActive: boolean;
+}
+
+export interface ActivityScheduleDto {
+  id: string;
+  activityId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  location: string | null;
+  isActive: boolean;
+}
+
+export interface ActivityMemberDto {
+  id: string;
+  activityId: string;
+  studentId: string;
+  studentName: string | null;
+  role: MemberRole;
+  joinedAt: string;
+  leftAt: string | null;
+  isActive: boolean;
+}
+
+export interface ActivityDto {
+  id: string;
+  schoolId: string;
+  activityTypeId: string;
+  activityTypeName: string | null;
+  activityTypeCategory: ActivityCategory | null;
+  name: string;
+  description: string | null;
+  academicYearId: string;
+  advisorId: string | null;
+  advisorName: string | null;
+  maxParticipants: number | null;
+  status: ActivityStatus;
+  meetingLocation: string | null;
+  memberCount: number;
+  members?: ActivityMemberDto[];
+  schedule?: ActivityScheduleDto[];
+}
+
+export interface CreateActivityPayload {
+  activityTypeId: string;
+  name: string;
+  description?: string;
+  academicYearId: string;
+  advisorId?: string;
+  maxParticipants?: number;
+  meetingLocation?: string;
+}
+
+export interface JoinActivityPayload {
+  role?: MemberRole;
+}
+
+export type TripStatus = 'PLANNING' | 'APPROVED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+export type FieldTripAttendanceStatus = 'REGISTERED' | 'ATTENDED' | 'ABSENT' | 'WITHDRAWN';
+export type ChaperoneRole = 'LEAD' | 'CHAPERONE' | 'DRIVER';
+export type BackgroundCheckStatus = 'NOT_REQUIRED' | 'PENDING' | 'CLEARED' | 'FAILED';
+
+export interface FieldTripParticipantDto {
+  id: string;
+  fieldTripId: string;
+  studentId: string;
+  studentName: string | null;
+  attendanceStatus: FieldTripAttendanceStatus;
+  consentSigned?: boolean;
+  consentGiven?: boolean | null;
+}
+
+export interface FieldTripChaperoneDto {
+  id: string;
+  fieldTripId: string;
+  personId: string;
+  personName: string | null;
+  role: ChaperoneRole;
+  backgroundCheckStatus: BackgroundCheckStatus;
+  confirmed: boolean;
+}
+
+export interface FieldTripDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  description: string | null;
+  destination: string;
+  tripDate: string;
+  departureTime: string | null;
+  returnTime: string | null;
+  gradeLevels: string[] | null;
+  maxParticipants: number | null;
+  costPerStudent: number | null;
+  organiserId: string;
+  organiserName: string | null;
+  status: TripStatus;
+  consentDeadline: string | null;
+  participantCount: number;
+  consentSignedCount: number;
+  participants?: FieldTripParticipantDto[];
+  chaperones?: FieldTripChaperoneDto[];
+}
+
+export interface SignConsentPayload {
+  studentId: string;
+  consentGiven: boolean;
+  emergencyContactOverride?: string;
+  medicalNotesOverride?: string;
+  notes?: string;
+}
+
+export interface ConsentRecordDto {
+  id: string;
+  fieldTripId: string;
+  studentId: string;
+  guardianPersonId: string;
+  guardianName: string | null;
+  consentGiven: boolean;
+  signedAt: string;
+  ipAddress: string | null;
+  emergencyContactOverride: string | null;
+  medicalNotesOverride: string | null;
+  notes: string | null;
+}
+
+export type ElectionStatus = 'DRAFT' | 'OPEN' | 'CLOSED' | 'RESULTS_PUBLISHED';
+
+export interface ElectionCandidateDto {
+  id: string;
+  electionId: string;
+  studentId: string;
+  studentName: string | null;
+  position: string;
+  statement: string | null;
+  photoS3Key: string | null;
+  isApproved: boolean;
+  registeredAt: string;
+  voteCount?: number | null;
+}
+
+export interface ElectionDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  description: string | null;
+  votingStart: string;
+  votingEnd: string;
+  eligibleVotersFilter: Record<string, unknown>;
+  status: ElectionStatus;
+  createdBy: string;
+  createdByName: string | null;
+  candidates?: ElectionCandidateDto[];
+}
+
+export interface CastVotePayload {
+  position: string;
+  candidateId: string;
+}
+
+export interface CanVoteDto {
+  electionId: string;
+  canVote: boolean;
+  hasVoted: boolean;
+  reason: string;
+}
+
+export interface ElectionResultDto {
+  position: string;
+  candidateId: string;
+  candidateName: string | null;
+  voteCount: number;
+}
+
+export interface ElectionResultsDto {
+  electionId: string;
+  status: ElectionStatus;
+  results: ElectionResultDto[];
+  totalVotersChecked: number;
+}
+
+export type ServiceHourStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ServiceProgrammeDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  academicYearId: string;
+  targetHours: number;
+  startDate: string | null;
+  endDate: string | null;
+  isActive: boolean;
+  eligibleGradeLevels: string[] | null;
+}
+
+export interface ServiceHourDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  programmeId: string | null;
+  programmeName: string | null;
+  organisation: string;
+  description: string;
+  serviceDate: string;
+  hours: number;
+  supervisorName: string | null;
+  supervisorContact: string | null;
+  evidenceS3Key: string | null;
+  approvalStatus: ServiceHourStatus | null;
+  approvalNotes: string | null;
+  approvedByName: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+}
+
+export interface LogServiceHourPayload {
+  programmeId?: string;
+  organisation: string;
+  description: string;
+  serviceDate: string;
+  hours: number;
+  supervisorName?: string;
+  supervisorContact?: string;
+}
+
+export interface ApproveHourPayload {
+  status: 'APPROVED' | 'REJECTED';
+  notes?: string;
+}
+
+export interface ServiceProgressDto {
+  id: string;
+  programmeId: string;
+  programmeName: string | null;
+  targetHours: number | null;
+  studentId: string;
+  studentName: string | null;
+  approvedHours: number;
+  pendingHours: number;
+  isComplete: boolean;
+}

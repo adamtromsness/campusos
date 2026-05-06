@@ -290,6 +290,13 @@ async function seedIam() {
         'ATH-001': ['read'],
         'ATH-002': ['read'],
         'ATH-004': ['read'],
+        // Cycle 17 — Clubs & Student Life. Teachers manage activities
+        // they advise (CLB-001:read+write) and plan field trips
+        // (CLB-003:read+write). Election management (CLB-002:write) and
+        // service hour approval (CLB-004:write) ship under the Staff
+        // role's broader CLB grants below.
+        'CLB-001': ['read', 'write'],
+        'CLB-003': ['read', 'write'],
       },
     },
     {
@@ -383,6 +390,16 @@ async function seedIam() {
         // HLT-001:read once the injury links into hlth_).
         'ATH-001': ['read'],
         'ATH-002': ['read'],
+        // Cycle 17 — Clubs & Student Life. Parents view their child's
+        // activities (CLB-001:read for the per-child clubs panel) and
+        // their child's field trips + consent forms (CLB-003:read for
+        // the parent consent portal at /children/:id/field-trips).
+        // Parents do NOT receive write — only Staff plans trips and
+        // manages activities. The actual consent-sign endpoint is
+        // gated by clb-003:read because the service-layer row-scope
+        // (guardian_person_id == actor.personId) is the access boundary.
+        'CLB-001': ['read'],
+        'CLB-003': ['read'],
       },
     },
     {
@@ -448,6 +465,20 @@ async function seedIam() {
         'ATH-001': ['read'],
         'ATH-002': ['read'],
         'ATH-004': ['read'],
+        // Cycle 17 — Clubs & Student Life. Students browse and join
+        // clubs (CLB-001:read for the catalogue + the self-registration
+        // path on /clubs/activities/:id/join). Students view active
+        // elections + cast their anonymous ballot (CLB-002:read — the
+        // VoteService.cast endpoint is gated on clb-002:read since the
+        // anonymity keystone happens at the schema level, not the
+        // permission layer). CLB-004:read+write is the third
+        // student-input write permission in CampusOS after wellbeing
+        // check-ins (Cycle 11.1) and library reading logs / reviews
+        // (Cycle 12) — students log their own service hours and view
+        // their own progress.
+        'CLB-001': ['read'],
+        'CLB-002': ['read'],
+        'CLB-004': ['read', 'write'],
       },
     },
     {
@@ -591,6 +622,17 @@ async function seedIam() {
         'ATH-003': ['read', 'write'],
         'ATH-004': ['read', 'write'],
         'ATH-005': ['read', 'write'],
+        // Cycle 17 — Clubs & Student Life. Staff covers the EO,
+        // counsellor, advisor, and admin assistant personas that
+        // manage activities, plan field trips, run elections, approve
+        // service hours. CLB-001..004 read+write cover the full
+        // operational surface; School Admin and Platform Admin pick
+        // up the admin tier (election publish results, hard delete)
+        // via the everyFunction grant.
+        'CLB-001': ['read', 'write'],
+        'CLB-002': ['read', 'write'],
+        'CLB-003': ['read', 'write'],
+        'CLB-004': ['read', 'write'],
       },
     },
   ];

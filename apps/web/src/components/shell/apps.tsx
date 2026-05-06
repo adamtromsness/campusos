@@ -45,7 +45,8 @@ export type AppKey =
   | 'wellbeing'
   | 'library'
   | 'athletics'
-  | 'meetings';
+  | 'meetings'
+  | 'clubs';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -366,6 +367,24 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/athletics',
       routePrefix: '/athletics',
       icon: TrophyIcon,
+    });
+  }
+
+  // Clubs & Student Life — every persona who can read activities
+  if (hasAnyPermission(user, ['clb-001:read'])) {
+    apps.push({
+      key: 'clubs',
+      label: isStudent ? 'My Clubs' : isGuardian ? "My Children's Clubs" : 'Clubs',
+      description: isStaff
+        ? 'Activities, field trips, elections, service hours'
+        : isStudent
+          ? 'My clubs, elections, service hours'
+          : isGuardian
+            ? "Your children's activities and field trips"
+            : 'Clubs and student life',
+      href: isStudent ? '/clubs/my' : '/clubs',
+      routePrefix: '/clubs',
+      icon: PeopleIcon,
     });
   }
 
