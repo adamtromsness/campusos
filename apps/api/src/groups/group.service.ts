@@ -189,17 +189,17 @@ export class GroupService {
    * Create a group. The creator becomes the OWNER atomically inside
    * one tenant transaction so there's never a moment a group exists
    * without an owner.
+   *
+   * REVIEW-CYCLE18 BLOCKING 1 — creation authority by scope:
+   *   SCHOOL / CUSTOM     → admin or STAFF only.
+   *   CLASS               → admin or the assigned class teacher.
+   *   YEAR_GROUP          → admin or STAFF only.
+   *   ACTIVITY            → admin or the activity advisor.
+   * Students and guardians can no longer create broad school-wide
+   * groups by hitting POST /groups directly.
    */
   async create(input: CreateGroupDto, actor: ResolvedActor): Promise<GroupResponseDto> {
     const tenant = getCurrentTenant();
-    if (
-      !actor.isSchoolAdmin &&
-      actor.personType !== 'STAFF' &&
-      actor.personType !== 'GUARDIAN' &&
-      actor.personType !== 'STUDENT'
-    ) {
-      throw new ForbiddenException('Cannot create groups');
-    }
 
     if ((input.scopeType === 'SCHOOL' || input.scopeType === 'CUSTOM') && input.scopeId) {
       throw new BadRequestException('scopeId must be null for SCHOOL or CUSTOM groups');
@@ -214,6 +214,8 @@ export class GroupService {
         'scopeId is required for CLASS, YEAR_GROUP, or ACTIVITY groups',
       );
     }
+
+    await this.assertCanCreateForScope(input.scopeType, input.scopeId ?? null, actor);
 
     if (input.scopeId) {
       await this.assertScopeRefValid(input.scopeType, input.scopeId);
@@ -247,6 +249,66 @@ export class GroupService {
     });
 
     return this.loadGroup(id, actor);
+  }
+
+  private async assertCanCreateForScope(
+    scopeType: GroupScopeType,
+    scopeId: string | null,
+    actor: ResolvedActor,
+  ): Promise<void> {
+    if (actor.isSchoolAdmin) return;
+    const isStaff = actor.personType === 'STAFF';
+
+    if (scopeType === 'SCHOOL' || scopeType === 'CUSTOM' || scopeType === 'YEAR_GROUP') {
+      if (!isStaff) {
+        throw new ForbiddenException(
+          'Only school admins or staff can create ' + scopeType + ' groups',
+        );
+      }
+      return;
+    }
+
+    if (scopeType === 'CLASS') {
+      if (!actor.employeeId || !scopeId) {
+        throw new ForbiddenException(
+          'Only the assigned class teacher or a school admin can create a CLASS group',
+        );
+      }
+      const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM sis_class_teachers WHERE class_id = $1::uuid AND teacher_employee_id = $2::uuid LIMIT 1',
+          scopeId,
+          actor.employeeId,
+        );
+      })) as Array<{ ok: number }>;
+      if (rows.length === 0) {
+        throw new ForbiddenException(
+          'Only the assigned class teacher or a school admin can create a CLASS group',
+        );
+      }
+      return;
+    }
+
+    if (scopeType === 'ACTIVITY') {
+      if (!actor.employeeId || !scopeId) {
+        throw new ForbiddenException(
+          'Only the activity advisor or a school admin can create an ACTIVITY group',
+        );
+      }
+      const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM ext_activities WHERE id = $1::uuid AND advisor_id = $2::uuid LIMIT 1',
+          scopeId,
+          actor.employeeId,
+        );
+      })) as Array<{ ok: number }>;
+      if (rows.length === 0) {
+        throw new ForbiddenException(
+          'Only the activity advisor or a school admin can create an ACTIVITY group',
+        );
+      }
+      return;
+    }
   }
 
   private async assertScopeRefValid(scopeType: GroupScopeType, scopeId: string): Promise<void> {

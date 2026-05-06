@@ -139,9 +139,24 @@ export class OwnershipTransferService {
     return rowToDto(rows[0]!);
   }
 
+  /**
+   * REVIEW-CYCLE18 BLOCKING 4 — transfer-history visibility.
+   *
+   * Ownership transfer history (with from/to names + transfer
+   * reason) is leadership context, not a public group-discovery
+   * surface. Restrict to school admin OR the group's OWNER/ADMIN.
+   * Other members + non-members get an empty array (so the UI tab
+   * can render "no history" without 403-ing the page).
+   */
   async list(groupId: string, actor: ResolvedActor): Promise<TransferResponseDto[]> {
-    // The group read enforces visibility (INVITE_ONLY hidden).
-    await this.groups.getById(groupId, actor);
+    const group = await this.groups.getById(groupId, actor);
+    const isManager =
+      !!group.myMembership &&
+      group.myMembership.status === 'ACTIVE' &&
+      (group.myMembership.role === 'OWNER' || group.myMembership.role === 'ADMIN');
+    if (!actor.isSchoolAdmin && !isManager) {
+      return [];
+    }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_TRANSFER_BASE + 'WHERE t.group_id = $1::uuid ORDER BY t.initiated_at DESC',

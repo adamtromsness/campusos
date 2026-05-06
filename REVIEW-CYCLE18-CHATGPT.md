@@ -1,8 +1,10 @@
 # REVIEW-CYCLE18-CHATGPT
 
-**Round 1 verdict:** _pending_ (against `cycle18-complete` at `7e7f33a`).
+**Round 1 verdict:** **Reject pending fixes** (against `cycle18-complete` at `7e7f33a`).
 
-This file is the scaffold for the Cycle 18 (Groups & Communities) post-cycle architecture review. It will fill in once the review is run. The shape mirrors `REVIEW-CYCLE17-CHATGPT.md` — a triage table per finding (severity / file / claim / triage / resolution), a Round 2 verdict block, and a tag chain.
+The reviewer flagged 4 BLOCKING items + 6 MAJOR follow-ups + an accumulated Wave 1–3 punch-list summary. The fix commit closes all 4 BLOCKING items + the 2 code-level MAJORs (5 + 6) in code; MAJORs 7–10 are recommendation-class and move to the Phase 2 punch list. Live verification on `tenant_demo` 2026-05-06.
+
+**Round 2 verdict:** _pending_ (against the closeout fix commit).
 
 Tag chain:
 
@@ -11,50 +13,36 @@ Tag chain:
 
 ---
 
-## What the reviewer should look at
-
-Cycle 18 ships M103 Groups & Communities — universal community fabric layer in a clean greenfield `grp_*` namespace. The cycle has three structural keystones the reviewer should verify in code:
-
-1. **Two-party ownership transfer handshake.** `OwnershipTransferService.accept` opens a tenant transaction, locks the transfer row + both `grp_members` rows with `FOR UPDATE`, demotes the from-member to ADMIN and promotes the to-member to OWNER, and stamps the transfer ACCEPTED + `responded_at = now()` per the multi-column `responded_chk` lockstep — all four updates inside one tx. Partial UNIQUE(group_id) WHERE status='PENDING' caps pending transfers at one per group; `isUniqueViolation` translates 23505 to a friendly 400. Verify the tx ordering, the recipient binding (only the `to_member`'s `person_id` can accept), and the expiry check.
-
-2. **Scope-aware bindings.** `grp_groups.scope_type` is a 5-value CHECK (CLASS / YEAR_GROUP / SCHOOL / CUSTOM / ACTIVITY); multi-column `scope_pair_chk` enforces SCHOOL/CUSTOM with `scope_id IS NULL` and CLASS/YEAR_GROUP/ACTIVITY with `scope_id IS NOT NULL`. The application layer resolves `scope_id` to the matching tenant table at read time. `GroupService.create` validates the supplied `scope_id` matches an existing row in the right tenant table. Cycle 17's `ext_activities.group_id` soft FK closes the resolution loop.
-
-3. **Re-join semantics.** Partial UNIQUE(group_id, person_id) WHERE status<>'LEFT' on `grp_members` allows leave-and-rejoin without rejecting the new row. Multi-column `left_chk` keeps `left_at` populated only when status='LEFT'. The 6-state lifecycle (ACTIVE / INVITED / PENDING_APPROVAL / SUSPENDED / LEFT / REMOVED) covers every transition the join-policy + admin-action matrix needs.
-
-## Surface to review
-
-- **Schema:** `packages/database/prisma/tenant/migrations/061_grp_groups_members.sql` + `062_grp_announcements_events.sql`. 8 tables; 9 intra-tenant FKs (5 + 4); 0 cross-schema FKs. Verify the multi-column CHECKs (`scope_pair_chk`, `responded_chk`, `left_chk`, `dates_chk`, `rsvp_window_chk`, `max_chk`, `window_chk` on announcements) and the partial UNIQUE / partial INDEX patterns.
-
-- **Backend:** `apps/api/src/groups/`. 5 services + 1 controller + DTO module + 30 endpoints. Manager scope = school admin OR caller is OWNER/ADMIN of the specific group via `GroupService.assertCanManageGroup`. Reader scope on announcements = active members + admin. Reader scope on events = members for non-public; anyone with group visibility for public. Two Kafka emit topics (`grp.announcement.posted`, `grp.event.created`) wrapped in the standard ADR-057 envelope; emits fire AFTER the tenant tx commits.
-
-- **Permissions:** `GRP-001` added (Groups & Communities). 150 → 151 functions × 3 tiers = 453. Teacher / Student / Parent / Staff each gain `GRP-001:read+write`; Admin via everyFunction.
-
-- **Web:** `Groups` launchpad tile + 4 routes (`/groups`, `/groups/[id]`, `/groups/my`, `/groups/feed`) + 25 React Query hooks. Detail page has 4 tabs (Announcements / Events / Members / Transfers).
-
-- **CAT:** `docs/cycle18-cat-script.md`. 8 plan scenarios with inline-captured live output per scenario; both ADR-057 envelopes captured live; cleanup section restores tenant to post-Step-3 seed shape.
-
-## Open follow-ups (non-blocking — Phase 2 polish)
-
-1. **Notification fan-out on group emits.** `grp.announcement.posted` and `grp.event.created` land cleanly but no Cycle 3 NotificationQueueService consumer fans them out to member inboxes per the `grp_member_notification_prefs.notify_announcements / notify_events` toggles yet. Phase 2 wiring.
-2. **Auto-dissolve sweep.** `grp_groups.auto_dissolve_at` is set on Spring Concert Volunteers but no cron flips status to `DISSOLVED` when the timestamp passes. Schema-side partial INDEX is ready.
-3. **Activity → group binding back-reference UI.** Cycle 17's `ext_activities.group_id` soft FK closes the loop; the Step 7 UI on `/clubs/activities/[id]` could surface a `Group community →` link. Phase 2 polish.
-4. **Group invite admin UI.** Hooks (`useInviteMember`, `useApproveJoin`, `useDenyJoin`) are wired but the per-row Invite + Approve modals on the Members tab are not yet built out. Phase 2.
-
----
-
 ## Triage table
 
-_(populated after Round 1 review)_
+| #   | Severity | File                                                        | Reviewer claim                                                                                                                           | Triage           | Resolution                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --- | -------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | BLOCKING | `apps/api/src/groups/group.service.ts`                      | Backend allows STAFF + GUARDIAN + STUDENT to create groups, including SCHOOL/CUSTOM scopes that become school-wide discovery objects.    | VALID            | New `assertCanCreateForScope(scopeType, scopeId, actor)` helper. Routing matrix: SCHOOL/CUSTOM/YEAR_GROUP → admin or STAFF only; CLASS → admin or assigned class teacher (joins `sis_class_teachers`); ACTIVITY → admin or activity advisor (joins `ext_activities.advisor_id`). Students and guardians can no longer reach the broad surfaces by hitting `POST /groups` directly. Live verified across 6 paths (student SCHOOL → 403; parent CUSTOM → 403; teacher CLASS for class they don't teach → 403; admin SCHOOL → 201; teacher ACTIVITY for own advisorship → 201; teacher ACTIVITY for someone else's → 403). |
+| 2   | BLOCKING | `apps/api/src/groups/membership.service.ts`                 | `MembershipService.invite()` accepts arbitrary `personId` without validating tenant — manager could invite a user from another school.   | VALID            | New `assertAccountInCurrentTenant(accountId)` joins through the three current-tenant projections (sis_students via platform_students, sis_guardians, hr_employees) — same soft-ref-validate pattern as Cycle 7 Tasks, Cycle 12 Library patrons, Cycle 15 Meetings, Cycle 17 Chaperones. Applied at the top of `invite()` before the duplicate-check + INSERT. Bogus UUID returns 400 "Invited account does not belong to a user in this school"; admin@ Platform Admin (no hr_employees row) also returns 400.                                                                                                          |
+| 3   | BLOCKING | `apps/api/src/groups/membership.service.ts`                 | `listForGroup()` returns full roster (names + roles + statuses) to anyone with `getById` access, exposing OPEN/APPROVAL_REQUIRED groups. | VALID            | `listForGroup()` now resolves whether the caller is admin or an ACTIVE member of the group via `groups.getById()`'s `myMembership` field. Non-members get `[]`. Admins, OWNER/ADMIN, and active members keep the full roster. The `memberCount` aggregate on the group-detail DTO is the public-facing alternative for non-members. Live verified across 5 paths (admin sees 3 / Maya as Chess member sees 3 / parent as non-Chess gets 0 / Maya as non-Grade-5 gets 0 / parent as Grade 5 member sees 2).                                                                                                              |
+| 4   | BLOCKING | `apps/api/src/groups/ownership-transfer.service.ts`         | `OwnershipTransferService.list()` returns full transfer history (with from/to names + reason) to anyone who can see the group.           | VALID            | `list()` now restricts visibility to school admin OR group OWNER/ADMIN; everyone else gets `[]` so the UI tab can render "no history" without 403-ing the page. Pending-transfer recipients still see their own awaiting transfer via `listMine()` (`/groups/me/pending-transfers`). Live verified across 4 paths (admin 2 / Rivera-as-OWNER 2 / Maya-as-MEMBER 0 / parent-as-non-member 0).                                                                                                                                                                                                                            |
+| 5   | MAJOR    | `apps/api/src/groups/membership.service.ts`                 | State transitions (approve, deny, role update, suspend, unsuspend, remove) load row + validate + update without `FOR UPDATE`.            | VALID            | New `lockedTransition(memberId, fn)` helper opens `executeInTenantTransaction`, runs `SELECT ... FROM grp_members WHERE id = $1 FOR UPDATE OF m`, validates state + role inside the same tx, and applies the UPDATE before commit. Refactored every state-mutation method (acceptInvite / declineInvite / approveJoin / denyJoin / updateRole / suspend / unsuspend / remove) onto the helper. Live verified with 3 parallel role updates serialising cleanly without deadlock — final state reflects the last writer.                                                                                                  |
+| 6   | MAJOR    | `apps/api/src/groups/membership.service.ts`                 | `joinGroup()` reads + inserts in two steps — concurrent self-join can hit the partial UNIQUE and surface a raw 23505.                    | VALID            | `joinGroup()` wraps the INSERT in try/catch on `isUniqueViolation`, and on the race-loser path re-reads the existing non-LEFT row and returns it (so the caller's view matches what now exists in the DB). 5 parallel join requests verified live → 5× 201 responses + exactly 1 `grp_members` row.                                                                                                                                                                                                                                                                                                                     |
+| 7   | MAJOR    | `apps/api/src/groups/group-event.service.ts`                | `assertCanRead()` allows non-members to RSVP to public events; "public" should mean visible on the calendar, not RSVP-eligible.          | VALID — DEFERRED | Recommendation-class. Requires a new column `grp_events.allow_public_rsvp BOOLEAN DEFAULT false` to distinguish "publicly visible" from "publicly RSVP-able". Documented as Phase 2 punch list item 26. Today's seed + CAT path don't exercise the non-member-public-RSVP corner; pre-pilot polish.                                                                                                                                                                                                                                                                                                                     |
+| 8   | MAJOR    | `apps/api/src/groups/group-event.service.ts`                | `patch()` allows reducing `maxAttendees` below current `GOING` count or turning RSVP off post-creation without reconciliation.           | VALID — DEFERRED | Recommendation-class. Either block destructive changes when RSVP rows exist or run a reconciliation workflow. Documented as Phase 2 punch list item 27.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 9   | MAJOR    | `apps/api/src/groups/group-{announcement,event}.service.ts` | Group emits are best-effort, no transactional outbox.                                                                                    | VALID — DEFERRED | Already a Phase 2 punch list item (#4 — outbox pattern for finance / emergency / workflow-critical events). Group announcements and events are added to the Phase 2 outbox priority list as item 28.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 10  | MAJOR    | `apps/api/src/groups/membership.service.ts` (schema)        | `grp_members.person_id` is named `person_id` but stores `platform_users.id`. Semantic hazard against ADR-055.                            | VALID — DEFERRED | Documented as Phase 2 punch list item 29. Future tenant migration will rename to `account_id` (or annotate via `COMMENT ON COLUMN`); no runtime bug today since the joins are consistently against `platform_users.id`.                                                                                                                                                                                                                                                                                                                                                                                                 |
 
-| #   | Severity | File | Reviewer claim | Triage | Resolution |
-| --- | -------- | ---- | -------------- | ------ | ---------- |
-|     |          |      |                |        |            |
+The accumulated Wave 1–3 review section (role-model hardening, outbox/event atomicity, consumer tenant routing validation, header-based tenant override, platform-scope permission mode, several module-specific Phase 2 items) is acknowledged as already tracked on the Phase 2 punch list at the bottom of `CLAUDE.md` (items 1–25). The reviewer's call for a dedicated hardening cycle before any real-school pilot is captured as the Wave 3 closeout posture.
 
 ---
 
-## Round 1 fixes
+## Round 1 fixes summary (all in this commit)
 
-_(populated after Round 1 review + fix commit)_
+- **BLOCKING 1** — `GroupService.assertCanCreateForScope` enforces creation authority by scope.
+- **BLOCKING 2** — `MembershipService.assertAccountInCurrentTenant` validates invited accounts against the three tenant projections.
+- **BLOCKING 3** — `MembershipService.listForGroup` returns `[]` to non-members of OPEN/APPROVAL_REQUIRED groups.
+- **BLOCKING 4** — `OwnershipTransferService.list` restricts transfer history to admin + OWNER/ADMIN.
+- **MAJOR 5** — `MembershipService.lockedTransition` wraps every member state transition in a tenant tx with `SELECT ... FOR UPDATE OF m`.
+- **MAJOR 6** — `MembershipService.joinGroup` catches the partial-UNIQUE race, re-reads the existing row, and returns it instead of surfacing 23505.
+- **MAJORs 7–10** carried to Phase 2 punch list (items 26–29).
+
+All 6 code-level fixes verified live on `tenant_demo` 2026-05-06.
 
 ## Round 2 verdict
 

@@ -65,9 +65,44 @@ export class MembershipService {
     private readonly groups: GroupService,
   ) {}
 
+  /**
+   * REVIEW-CYCLE18 BLOCKING 2 — tenant validation on invited
+   * platform_users.id. Same soft-ref-validate pattern as Cycle 7
+   * Tasks, Cycle 15 Meetings, Cycle 12 Library patrons, Cycle 17
+   * Chaperones. Joins through the three current-tenant projections
+   * to confirm the supplied account exists in this school.
+   */
+  private async assertAccountInCurrentTenant(accountId: string): Promise<void> {
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM platform.platform_users pu WHERE pu.id = $1::uuid AND (' +
+          'EXISTS (SELECT 1 FROM sis_students s JOIN platform.platform_students ps ON ps.id = s.platform_student_id WHERE ps.person_id = pu.person_id) ' +
+          'OR EXISTS (SELECT 1 FROM sis_guardians g WHERE g.person_id = pu.person_id) ' +
+          'OR EXISTS (SELECT 1 FROM hr_employees e WHERE e.person_id = pu.person_id) ' +
+          ') LIMIT 1',
+        accountId,
+      );
+    })) as Array<{ ok: number }>;
+    if (rows.length === 0) {
+      throw new BadRequestException('Invited account does not belong to a user in this school');
+    }
+  }
+
+  /**
+   * REVIEW-CYCLE18 BLOCKING 3 — roster visibility.
+   *
+   * Roster of names + roles + statuses is no longer returned to
+   * non-members of OPEN/APPROVAL_REQUIRED groups. Admins, group
+   * OWNER/ADMIN, and active members see the full roster; everyone
+   * else gets an empty array (the `memberCount` aggregate on the
+   * group DTO is the public-facing alternative).
+   */
   async listForGroup(groupId: string, actor: ResolvedActor): Promise<MemberResponseDto[]> {
-    // Verify the caller can see the group (handles INVITE_ONLY hiding).
-    await this.groups.getById(groupId, actor);
+    const group = await this.groups.getById(groupId, actor);
+    const isMember = !!group.myMembership && group.myMembership.status === 'ACTIVE';
+    if (!actor.isSchoolAdmin && !isMember) {
+      return [];
+    }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_MEMBER_BASE +
@@ -78,6 +113,16 @@ export class MembershipService {
       );
     })) as MemberRow[];
     return rows.map(rowToDto);
+  }
+
+  private isUniqueViolation(e: unknown): boolean {
+    const err = e as { code?: string; meta?: { code?: string }; message?: string };
+    return (
+      err.code === '23505' ||
+      err.code === 'P2002' ||
+      err.meta?.code === '23505' ||
+      /duplicate key|already exists/i.test(err.message ?? '')
+    );
   }
 
   async listMine(actor: ResolvedActor): Promise<MemberResponseDto[]> {
@@ -131,18 +176,38 @@ export class MembershipService {
     const id = generateId();
     const status = group.joinPolicy === 'APPROVAL_REQUIRED' ? 'PENDING_APPROVAL' : 'ACTIVE';
     const joinedExpr = status === 'ACTIVE' ? 'now()' : 'NULL';
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        'INSERT INTO grp_members (id, group_id, person_id, member_role, status, joined_at) ' +
-          "VALUES ($1::uuid, $2::uuid, $3::uuid, 'MEMBER', $4, " +
-          joinedExpr +
-          ')',
-        id,
-        groupId,
-        actor.accountId,
-        status,
-      );
-    });
+    try {
+      await this.tenantPrisma.executeInTenantContext(async (client) => {
+        await client.$executeRawUnsafe(
+          'INSERT INTO grp_members (id, group_id, person_id, member_role, status, joined_at) ' +
+            "VALUES ($1::uuid, $2::uuid, $3::uuid, 'MEMBER', $4, " +
+            joinedExpr +
+            ')',
+          id,
+          groupId,
+          actor.accountId,
+          status,
+        );
+      });
+    } catch (e) {
+      // REVIEW-CYCLE18 MAJOR 6 — race-loser path: a concurrent
+      // self-join could land between the pre-flight read and the
+      // INSERT. The partial UNIQUE on (group_id, person_id) WHERE
+      // status<>'LEFT' fires; return the existing row instead of
+      // surfacing 23505.
+      if (this.isUniqueViolation(e)) {
+        const existing = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+          return client.$queryRawUnsafe(
+            SELECT_MEMBER_BASE +
+              "WHERE m.group_id = $1::uuid AND m.person_id = $2::uuid AND m.status <> 'LEFT' LIMIT 1",
+            groupId,
+            actor.accountId,
+          );
+        })) as MemberRow[];
+        if (existing.length > 0) return rowToDto(existing[0]!);
+      }
+      throw e;
+    }
     const row = await this.loadMember(id);
     return rowToDto(row);
   }
@@ -170,6 +235,10 @@ export class MembershipService {
     actor: ResolvedActor,
   ): Promise<MemberResponseDto> {
     await this.groups.assertCanManageGroup(groupId, actor);
+    // REVIEW-CYCLE18 BLOCKING 2 — invited account must belong to
+    // this tenant. Without the check, a manager who knows a UUID
+    // from another school could land an invite row here.
+    await this.assertAccountInCurrentTenant(input.personId);
 
     const existing = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
@@ -185,93 +254,128 @@ export class MembershipService {
     }
 
     const id = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        'INSERT INTO grp_members (id, group_id, person_id, member_role, status, invited_by) ' +
-          "VALUES ($1::uuid, $2::uuid, $3::uuid, $4, 'INVITED', $5::uuid)",
-        id,
-        groupId,
-        input.personId,
-        input.role ?? 'MEMBER',
-        actor.accountId,
-      );
-    });
+    try {
+      await this.tenantPrisma.executeInTenantContext(async (client) => {
+        await client.$executeRawUnsafe(
+          'INSERT INTO grp_members (id, group_id, person_id, member_role, status, invited_by) ' +
+            "VALUES ($1::uuid, $2::uuid, $3::uuid, $4, 'INVITED', $5::uuid)",
+          id,
+          groupId,
+          input.personId,
+          input.role ?? 'MEMBER',
+          actor.accountId,
+        );
+      });
+    } catch (e) {
+      if (this.isUniqueViolation(e)) {
+        throw new BadRequestException(
+          'Person is already a member or has a pending invite for this group',
+        );
+      }
+      throw e;
+    }
     const row = await this.loadMember(id);
     return rowToDto(row);
   }
 
-  /** Invitee accepts — flips INVITED → ACTIVE. */
+  /**
+   * REVIEW-CYCLE18 MAJOR 5 — locked-row state transitions.
+   *
+   * Every membership state mutation locks the target row with
+   * SELECT ... FOR UPDATE inside the same tenant transaction that
+   * validates state + applies the UPDATE, so two concurrent
+   * managers can't both pass a status/role check and land
+   * conflicting writes (the classic last-writer-wins shape we've
+   * fixed in Cycles 4, 5, 6, 13, 14, 15, 16).
+   */
+  private async lockedTransition<T>(
+    memberId: string,
+    fn: (
+      tx: Parameters<Parameters<TenantPrismaService['executeInTenantTransaction']>[0]>[0],
+      row: MemberRow,
+    ) => Promise<T>,
+  ): Promise<T> {
+    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const rows = (await tx.$queryRawUnsafe(
+        SELECT_MEMBER_BASE + 'WHERE m.id = $1::uuid FOR UPDATE OF m',
+        memberId,
+      )) as MemberRow[];
+      if (rows.length === 0) throw new NotFoundException('Membership not found');
+      return fn(tx, rows[0]!);
+    });
+  }
+
   async acceptInvite(memberId: string, actor: ResolvedActor): Promise<MemberResponseDto> {
-    const row = await this.loadMember(memberId);
-    if (row.person_id !== actor.accountId) {
-      throw new ForbiddenException('Only the invited person can accept');
-    }
-    if (row.status !== 'INVITED') {
-      throw new BadRequestException('Membership is not in INVITED state');
-    }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    return this.lockedTransition(memberId, async (tx, row) => {
+      if (row.person_id !== actor.accountId) {
+        throw new ForbiddenException('Only the invited person can accept');
+      }
+      if (row.status !== 'INVITED') {
+        throw new BadRequestException('Membership is not in INVITED state');
+      }
+      await tx.$executeRawUnsafe(
         "UPDATE grp_members SET status = 'ACTIVE', joined_at = now(), updated_at = now() WHERE id = $1::uuid",
         memberId,
       );
+      const fresh = await tx.$queryRawUnsafe(
+        SELECT_MEMBER_BASE + 'WHERE m.id = $1::uuid LIMIT 1',
+        memberId,
+      );
+      return rowToDto((fresh as MemberRow[])[0]!);
     });
-    const fresh = await this.loadMember(memberId);
-    return rowToDto(fresh);
   }
 
-  /** Invitee declines — flips INVITED → LEFT (so the partial UNIQUE releases). */
   async declineInvite(memberId: string, actor: ResolvedActor): Promise<{ ok: true }> {
-    const row = await this.loadMember(memberId);
-    if (row.person_id !== actor.accountId) {
-      throw new ForbiddenException('Only the invited person can decline');
-    }
-    if (row.status !== 'INVITED') {
-      throw new BadRequestException('Membership is not in INVITED state');
-    }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    return this.lockedTransition(memberId, async (tx, row) => {
+      if (row.person_id !== actor.accountId) {
+        throw new ForbiddenException('Only the invited person can decline');
+      }
+      if (row.status !== 'INVITED') {
+        throw new BadRequestException('Membership is not in INVITED state');
+      }
+      await tx.$executeRawUnsafe(
         "UPDATE grp_members SET status = 'LEFT', left_at = now(), updated_at = now() WHERE id = $1::uuid",
         memberId,
       );
+      return { ok: true } as const;
     });
-    return { ok: true };
   }
 
-  /** Admin approves a PENDING_APPROVAL row, optionally setting role. */
   async approveJoin(
     memberId: string,
     input: ApproveJoinDto,
     actor: ResolvedActor,
   ): Promise<MemberResponseDto> {
-    const row = await this.loadMember(memberId);
-    await this.groups.assertCanManageGroup(row.group_id, actor);
-    if (row.status !== 'PENDING_APPROVAL') {
-      throw new BadRequestException('Membership is not pending approval');
-    }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    return this.lockedTransition(memberId, async (tx, row) => {
+      await this.groups.assertCanManageGroup(row.group_id, actor);
+      if (row.status !== 'PENDING_APPROVAL') {
+        throw new BadRequestException('Membership is not pending approval');
+      }
+      await tx.$executeRawUnsafe(
         "UPDATE grp_members SET status = 'ACTIVE', joined_at = now(), member_role = $2, updated_at = now() WHERE id = $1::uuid",
         memberId,
         input.role ?? 'MEMBER',
       );
+      const fresh = await tx.$queryRawUnsafe(
+        SELECT_MEMBER_BASE + 'WHERE m.id = $1::uuid LIMIT 1',
+        memberId,
+      );
+      return rowToDto((fresh as MemberRow[])[0]!);
     });
-    const fresh = await this.loadMember(memberId);
-    return rowToDto(fresh);
   }
 
   async denyJoin(memberId: string, actor: ResolvedActor): Promise<{ ok: true }> {
-    const row = await this.loadMember(memberId);
-    await this.groups.assertCanManageGroup(row.group_id, actor);
-    if (row.status !== 'PENDING_APPROVAL') {
-      throw new BadRequestException('Membership is not pending approval');
-    }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    return this.lockedTransition(memberId, async (tx, row) => {
+      await this.groups.assertCanManageGroup(row.group_id, actor);
+      if (row.status !== 'PENDING_APPROVAL') {
+        throw new BadRequestException('Membership is not pending approval');
+      }
+      await tx.$executeRawUnsafe(
         "UPDATE grp_members SET status = 'REMOVED', updated_at = now() WHERE id = $1::uuid",
         memberId,
       );
+      return { ok: true } as const;
     });
-    return { ok: true };
   }
 
   async updateRole(
@@ -279,25 +383,27 @@ export class MembershipService {
     input: UpdateMemberRoleDto,
     actor: ResolvedActor,
   ): Promise<MemberResponseDto> {
-    const row = await this.loadMember(memberId);
-    await this.groups.assertCanManageGroup(row.group_id, actor);
-    if (row.member_role === 'OWNER') {
-      throw new BadRequestException(
-        'Cannot demote the OWNER directly — initiate an ownership transfer instead',
-      );
-    }
-    if (row.status !== 'ACTIVE') {
-      throw new BadRequestException('Member must be ACTIVE to change role');
-    }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    return this.lockedTransition(memberId, async (tx, row) => {
+      await this.groups.assertCanManageGroup(row.group_id, actor);
+      if (row.member_role === 'OWNER') {
+        throw new BadRequestException(
+          'Cannot demote the OWNER directly — initiate an ownership transfer instead',
+        );
+      }
+      if (row.status !== 'ACTIVE') {
+        throw new BadRequestException('Member must be ACTIVE to change role');
+      }
+      await tx.$executeRawUnsafe(
         'UPDATE grp_members SET member_role = $2, updated_at = now() WHERE id = $1::uuid',
         memberId,
         input.role,
       );
+      const fresh = await tx.$queryRawUnsafe(
+        SELECT_MEMBER_BASE + 'WHERE m.id = $1::uuid LIMIT 1',
+        memberId,
+      );
+      return rowToDto((fresh as MemberRow[])[0]!);
     });
-    const fresh = await this.loadMember(memberId);
-    return rowToDto(fresh);
   }
 
   async suspend(
@@ -305,56 +411,59 @@ export class MembershipService {
     input: SuspendMemberDto,
     actor: ResolvedActor,
   ): Promise<MemberResponseDto> {
-    const row = await this.loadMember(memberId);
-    await this.groups.assertCanManageGroup(row.group_id, actor);
-    if (row.member_role === 'OWNER') {
-      throw new BadRequestException('Cannot suspend the OWNER');
-    }
-    if (row.status !== 'ACTIVE') {
-      throw new BadRequestException('Member must be ACTIVE to suspend');
-    }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    return this.lockedTransition(memberId, async (tx, row) => {
+      await this.groups.assertCanManageGroup(row.group_id, actor);
+      if (row.member_role === 'OWNER') {
+        throw new BadRequestException('Cannot suspend the OWNER');
+      }
+      if (row.status !== 'ACTIVE') {
+        throw new BadRequestException('Member must be ACTIVE to suspend');
+      }
+      await tx.$executeRawUnsafe(
         "UPDATE grp_members SET status = 'SUSPENDED', suspension_reason = $2, updated_at = now() WHERE id = $1::uuid",
         memberId,
         input.reason,
       );
+      const fresh = await tx.$queryRawUnsafe(
+        SELECT_MEMBER_BASE + 'WHERE m.id = $1::uuid LIMIT 1',
+        memberId,
+      );
+      return rowToDto((fresh as MemberRow[])[0]!);
     });
-    const fresh = await this.loadMember(memberId);
-    return rowToDto(fresh);
   }
 
   async unsuspend(memberId: string, actor: ResolvedActor): Promise<MemberResponseDto> {
-    const row = await this.loadMember(memberId);
-    await this.groups.assertCanManageGroup(row.group_id, actor);
-    if (row.status !== 'SUSPENDED') {
-      throw new BadRequestException('Member is not currently suspended');
-    }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    return this.lockedTransition(memberId, async (tx, row) => {
+      await this.groups.assertCanManageGroup(row.group_id, actor);
+      if (row.status !== 'SUSPENDED') {
+        throw new BadRequestException('Member is not currently suspended');
+      }
+      await tx.$executeRawUnsafe(
         "UPDATE grp_members SET status = 'ACTIVE', suspension_reason = NULL, updated_at = now() WHERE id = $1::uuid",
         memberId,
       );
+      const fresh = await tx.$queryRawUnsafe(
+        SELECT_MEMBER_BASE + 'WHERE m.id = $1::uuid LIMIT 1',
+        memberId,
+      );
+      return rowToDto((fresh as MemberRow[])[0]!);
     });
-    const fresh = await this.loadMember(memberId);
-    return rowToDto(fresh);
   }
 
   async remove(memberId: string, actor: ResolvedActor): Promise<{ ok: true }> {
-    const row = await this.loadMember(memberId);
-    await this.groups.assertCanManageGroup(row.group_id, actor);
-    if (row.member_role === 'OWNER') {
-      throw new BadRequestException(
-        'Cannot remove the OWNER — initiate an ownership transfer first',
-      );
-    }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    return this.lockedTransition(memberId, async (tx, row) => {
+      await this.groups.assertCanManageGroup(row.group_id, actor);
+      if (row.member_role === 'OWNER') {
+        throw new BadRequestException(
+          'Cannot remove the OWNER — initiate an ownership transfer first',
+        );
+      }
+      await tx.$executeRawUnsafe(
         "UPDATE grp_members SET status = 'REMOVED', updated_at = now() WHERE id = $1::uuid",
         memberId,
       );
+      return { ok: true } as const;
     });
-    return { ok: true };
   }
 
   // ── Notification preferences ──
