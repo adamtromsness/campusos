@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
 /**
@@ -30,7 +31,7 @@ export class CapacitySummaryService {
    * time per (period, grade) key; the schema's UNIQUE(period_id,
    * grade_level) on enr_capacity_summary is the belt-and-braces.
    */
-  async recompute(tx: any, enrollmentPeriodId: string, gradeLevel: string): Promise<void> {
+  async recompute(tx: PrismaClient, enrollmentPeriodId: string, gradeLevel: string): Promise<void> {
     await tx.$executeRawUnsafe(
       "SELECT pg_advisory_xact_lock(hashtext('enr_capacity_summary:' || $1::text || ':' || $2::text))",
       enrollmentPeriodId,

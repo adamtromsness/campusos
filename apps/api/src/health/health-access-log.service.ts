@@ -68,6 +68,13 @@ export class HealthAccessLogService {
    * Throws on insert failure so the controller can fail-closed (a
    * successful read is never sent to the client without a successful
    * audit row).
+   *
+   * Prefer `recordAccessInTx` when you have an open tenant transaction
+   * — that variant writes the audit row in the SAME transaction as the
+   * SELECT so the read and the audit are atomic (REVIEW-FINAL MIN-7.4).
+   * `recordAccess` opens its own transaction; failure here still
+   * fail-closes the controller response, but the audit row is not
+   * tied to the SELECT atomically.
    */
   async recordAccess(
     actor: ResolvedActor,
@@ -90,6 +97,41 @@ export class HealthAccessLogService {
         ipAddress,
       );
     });
+  }
+
+  /**
+   * In-transaction variant of `recordAccess`. Caller must already be
+   * inside an `executeInTenantTransaction` callback and pass the `tx`
+   * client. The audit row INSERT executes in the same transaction as
+   * the read it audits, so a downstream failure rolls back both the
+   * read snapshot view and the audit row together — atomic by
+   * construction.
+   *
+   * Use this in any service where a SELECT and an audit must be
+   * indivisible (REVIEW-FINAL-2026-05-07 MIN-7.4 fix). The original
+   * `recordAccess` is retained for paths that don't yet wrap their
+   * read in a transaction; migrating them is a follow-up.
+   */
+  async recordAccessInTx(
+    tx: { $executeRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown> },
+    actor: ResolvedActor,
+    studentId: string,
+    accessType: HealthAccessType,
+    ipAddress: string | null = null,
+  ): Promise<void> {
+    const tenant = getCurrentTenant();
+    const id = generateId();
+    await tx.$executeRawUnsafe(
+      'INSERT INTO hlth_health_access_log ' +
+        '(id, school_id, accessed_by, student_id, access_type, ip_address) ' +
+        'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6)',
+      id,
+      tenant.schoolId,
+      actor.accountId,
+      studentId,
+      accessType,
+      ipAddress,
+    );
   }
 
   /**

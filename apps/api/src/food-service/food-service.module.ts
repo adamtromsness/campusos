@@ -17,6 +17,7 @@ import {
   ProductionRecordService,
   TemperatureLogService,
 } from './dietary-eligibility.service';
+import { AllergyAlertConsumer } from './allergy-alert.consumer';
 import { FoodServiceController } from './food-service.controller';
 
 /**
@@ -37,8 +38,12 @@ import { FoodServiceController } from './food-service.controller';
  *      the cross-check query and the /menu-items/allergen-check
  *      surface.
  *   3. Health-to-Food read model (ADR-030). fds_student_allergen_alerts
- *      mirrors hlth_health_alerts via a future Kafka consumer; this
- *      cycle ships the schema + seed + a manual sync admin endpoint.
+ *      mirrors hlth_health_alerts via the AllergyAlertConsumer Kafka
+ *      listener on hlth.allergy_alert.changed (REVIEW-FINAL MAJ-5.1).
+ *      The admin syncFromHealth endpoint remains as the recovery /
+ *      backfill backstop. The consumer is dormant until the Health
+ *      module ships the source table + emits — no migration required
+ *      to land the read-model wiring.
  */
 @Module({
   imports: [TenantModule, IamModule, KafkaModule],
@@ -56,6 +61,7 @@ import { FoodServiceController } from './food-service.controller';
     EligibilityService,
     TemperatureLogService,
     ProductionRecordService,
+    AllergyAlertConsumer,
   ],
   controllers: [FoodServiceController],
   exports: [

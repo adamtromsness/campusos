@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
@@ -666,7 +667,7 @@ export class WorkflowEngineService {
 
   // ── helpers ───────────────────────────────────────────────────────
 
-  private async loadStep(tx: any, stepId: string): Promise<ApprovalStepResponseDto> {
+  private async loadStep(tx: PrismaClient, stepId: string): Promise<ApprovalStepResponseDto> {
     const rows = (await tx.$queryRawUnsafe(
       SELECT_STEP_BASE + 'WHERE s.id = $1::uuid',
       stepId,
@@ -725,7 +726,7 @@ export class WorkflowEngineService {
    * approver per step.
    */
   private async resolveApprover(
-    tx: any,
+    tx: PrismaClient,
     step: TemplateStepRow,
     requesterId: string,
     schoolId: string,

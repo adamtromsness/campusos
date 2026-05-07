@@ -111,13 +111,22 @@ export class DlqService {
     }
 
     // Phase 1: atomic claim. The conditional WHERE resolved_at IS NULL
-    // means only one of N concurrent admins wins.
+    // AND resolution NOT IN ('REPLAYING') means only one of N concurrent
+    // admins wins. The earlier shape (resolved_at IS NULL alone) was
+    // *not* atomic — Phase 1 sets resolved_at = NULL (no-op), so a
+    // second admin's UPDATE would still match the WHERE filter and
+    // both calls would proceed to emit. The resolution filter is what
+    // serialises the race: once the first admin sets
+    // resolution = 'REPLAYING', the second admin's WHERE no longer
+    // matches and they receive the friendly 400 below.
+    // (REVIEW-FINAL-2026-05-07 MAJ-3.1 fix.)
     const claimed = await this.platform.$executeRawUnsafe(
       `UPDATE platform.platform_dlq_messages
-          SET resolved_at = NULL,
-              resolved_by = $1,
+          SET resolved_by = $1,
               resolution = 'REPLAYING'
-        WHERE id = $2::uuid AND resolved_at IS NULL`,
+        WHERE id = $2::uuid
+          AND resolved_at IS NULL
+          AND (resolution IS NULL OR resolution = 'PENDING')`,
       actorAccountId,
       id,
     );

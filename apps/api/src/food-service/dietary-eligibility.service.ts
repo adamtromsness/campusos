@@ -492,23 +492,80 @@ export class AllergenAlertService {
   }
 
   /**
-   * Manual sync from hlth_health_alerts. The Phase 2 Kafka consumer
-   * on hlth.allergy_alert.changed replaces this admin-triggered path.
-   * Reads hlth_health_alerts directly (the only place Food Service
-   * touches hlth_* tables — at sync time only). Upserts on
-   * source_health_alert_id so a re-run is idempotent.
+   * Upsert a single Health-module allergy alert into the
+   * `fds_student_allergen_alerts` read model. Called by both:
    *
-   * The hlth_health_alerts shape is forward-compatible: this service
-   * tolerates the schema not being present yet (returns 0 if the
-   * relation doesn't exist) so the cycle's seed path is the single
-   * source of truth until Cycle 10.5 ships the hlth_health_alerts
-   * table.
+   *   - the `AllergyAlertConsumer` (Kafka listener on
+   *     `hlth.allergy_alert.changed`) — the canonical ADR-030 path,
+   *   - the admin `syncFromHealth` backstop endpoint that loops over
+   *     all current Health alerts.
+   *
+   * Deterministic upsert keyed on `source_health_alert_id` so re-runs
+   * (and Kafka redeliveries) idempotently reflect severity /
+   * display_name / is_active / allergen_code changes from the source.
+   * Migration 071 adds `UNIQUE(source_health_alert_id)` as the conflict
+   * target.
+   *
+   * Caller MUST be inside a tenant context (the consumer constructs
+   * one via `runWithTenantContextAsync` from the envelope; the admin
+   * sync constructs its own via the controller's request).
+   */
+  async upsertFromAlertEvent(payload: {
+    sourceAlertId: string;
+    studentId: string;
+    allergenCode: string;
+    allergenDisplayName: string;
+    severity: string;
+    isActive: boolean;
+  }): Promise<void> {
+    const tenant = getCurrentTenant();
+    await this.tenantPrisma.executeInTenantContext(async (client) => {
+      await client.$executeRawUnsafe(
+        'INSERT INTO fds_student_allergen_alerts (id, student_id, school_id, allergen_code, allergen_display_name, severity, source_health_alert_id, is_active, last_synced_at) ' +
+          'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7::uuid, $8, now()) ' +
+          'ON CONFLICT (source_health_alert_id) DO UPDATE SET ' +
+          'allergen_code = EXCLUDED.allergen_code, ' +
+          'allergen_display_name = EXCLUDED.allergen_display_name, ' +
+          'severity = EXCLUDED.severity, ' +
+          'is_active = EXCLUDED.is_active, ' +
+          'last_synced_at = now(), ' +
+          'updated_at = now()',
+        generateId(),
+        payload.studentId,
+        tenant.schoolId,
+        payload.allergenCode,
+        payload.allergenDisplayName,
+        payload.severity,
+        payload.sourceAlertId,
+        payload.isActive,
+      );
+    });
+  }
+
+  /**
+   * Admin-triggered manual sync — the BACKSTOP path for the ADR-030
+   * read model. The canonical population path is the
+   * `AllergyAlertConsumer` Kafka listener on
+   * `hlth.allergy_alert.changed`; this admin endpoint exists for
+   * recovery scenarios where the consumer is offline OR the read
+   * model has drifted.
+   *
+   * Reads `hlth_health_alerts` directly (the ONE place Food Service
+   * touches `hlth_*` tables, intentionally limited to recovery use).
+   * Loops every active alert and calls `upsertFromAlertEvent`. The
+   * `hlth_health_alerts` shape is forward-compatible: this method
+   * tolerates the schema not being present yet (returns `synced: 0`
+   * if the relation doesn't exist) so the seed path remains the
+   * source of truth until the Health module ships the table.
+   *
+   * REVIEW-FINAL-2026-05-07 MAJ-5.1 — the architectural seam is now
+   * closed by the AllergyAlertConsumer. This admin endpoint stays as
+   * the documented recovery / backfill path, not the primary one.
    */
   async syncFromHealth(actor: ResolvedActor): Promise<{ synced: number }> {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only school admins can trigger the allergen sync');
     }
-    const tenant = getCurrentTenant();
     let synced = 0;
     try {
       const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -526,31 +583,13 @@ export class AllergenAlertService {
         is_active: boolean;
       }>;
       for (const r of rows) {
-        await this.tenantPrisma.executeInTenantContext(async (client) => {
-          // Deterministic upsert keyed on source_health_alert_id so a
-          // rerun reflects severity / display_name / is_active /
-          // allergen_code changes from the Health module — addresses
-          // REVIEW-CYCLE20 MAJOR 8. Migration 071 adds
-          // UNIQUE(source_health_alert_id) as the conflict target.
-          await client.$executeRawUnsafe(
-            'INSERT INTO fds_student_allergen_alerts (id, student_id, school_id, allergen_code, allergen_display_name, severity, source_health_alert_id, is_active, last_synced_at) ' +
-              'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7::uuid, $8, now()) ' +
-              'ON CONFLICT (source_health_alert_id) DO UPDATE SET ' +
-              'allergen_code = EXCLUDED.allergen_code, ' +
-              'allergen_display_name = EXCLUDED.allergen_display_name, ' +
-              'severity = EXCLUDED.severity, ' +
-              'is_active = EXCLUDED.is_active, ' +
-              'last_synced_at = now(), ' +
-              'updated_at = now()',
-            generateId(),
-            r.student_id,
-            tenant.schoolId,
-            r.allergen_code,
-            r.allergen_display_name,
-            r.severity,
-            r.id,
-            r.is_active,
-          );
+        await this.upsertFromAlertEvent({
+          sourceAlertId: r.id,
+          studentId: r.student_id,
+          allergenCode: r.allergen_code,
+          allergenDisplayName: r.allergen_display_name,
+          severity: r.severity,
+          isActive: r.is_active,
         });
         synced++;
       }

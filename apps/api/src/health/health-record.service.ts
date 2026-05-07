@@ -218,37 +218,37 @@ export class HealthRecordService {
   async getFullRecord(studentId: string, actor: ResolvedActor): Promise<HealthRecordResponseDto> {
     const { isManager } = await this.assertCanReadStudent(studentId, actor);
 
-    const record = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      const rows = (await client.$queryRawUnsafe(
-        SELECT_RECORD_BASE + 'WHERE r.student_id = $1::uuid LIMIT 1',
-        studentId,
-      )) as RecordRow[];
-      return rows[0] ?? null;
-    });
-    if (!record) {
-      throw new NotFoundException('No health record exists for student ' + studentId);
-    }
-
-    const [conditions, immunisations] = await this.tenantPrisma.executeInTenantContext(
-      async (client) => {
-        return Promise.all([
-          client.$queryRawUnsafe<ConditionRow[]>(
+    // Wrap the record + conditions + immunisations SELECTs AND the
+    // audit log INSERT in one tenant transaction so the read and the
+    // audit are atomic (REVIEW-FINAL-2026-05-07 MIN-7.4 fix). Failure
+    // of the audit insert rolls back the read snapshot view; success
+    // commits both together.
+    const { record, conditions, immunisations } =
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        const recRows = (await tx.$queryRawUnsafe(
+          SELECT_RECORD_BASE + 'WHERE r.student_id = $1::uuid LIMIT 1',
+          studentId,
+        )) as RecordRow[];
+        const rec = recRows[0] ?? null;
+        if (!rec) {
+          throw new NotFoundException('No health record exists for student ' + studentId);
+        }
+        const [cond, imm] = await Promise.all([
+          tx.$queryRawUnsafe<ConditionRow[]>(
             SELECT_CONDITION_BASE +
               'WHERE health_record_id = $1::uuid ORDER BY is_active DESC, created_at DESC',
-            record.id,
+            rec.id,
           ),
-          client.$queryRawUnsafe<ImmunisationRow[]>(
+          tx.$queryRawUnsafe<ImmunisationRow[]>(
             SELECT_IMMUNISATION_BASE +
               'WHERE health_record_id = $1::uuid ORDER BY administered_date DESC NULLS LAST',
-            record.id,
+            rec.id,
           ),
         ]);
-      },
-    );
-
-    // Audit BEFORE returning. Throws if the insert fails — the client
-    // never sees PHI without a successful audit row.
-    await this.accessLog.recordAccess(actor, studentId, 'VIEW_RECORD');
+        // Audit IN THE SAME tx as the SELECT.
+        await this.accessLog.recordAccessInTx(tx, actor, studentId, 'VIEW_RECORD');
+        return { record: rec, conditions: cond, immunisations: imm };
+      });
 
     const conditionDtos = conditions.map((c) => this.conditionRowToDto(c, isManager));
     const includeImmunisations = isManager || actor.personType === 'GUARDIAN';

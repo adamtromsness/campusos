@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { ConsumedMessage, KafkaConsumerService } from '../../kafka/kafka-consumer.service';
 import { IdempotencyService } from '../../kafka/idempotency.service';
@@ -250,7 +251,7 @@ export class PaymentAccountWorker implements OnModuleInit {
    * the family-account write — the alternative (a Postgres SEQUENCE per
    * school) is heavier than the demo needs.
    */
-  private async nextAccountNumber(tx: any, schoolId: string): Promise<string> {
+  private async nextAccountNumber(tx: PrismaClient, schoolId: string): Promise<string> {
     var rows = (await tx.$queryRawUnsafe(
       "SELECT COALESCE(MAX(NULLIF(REGEXP_REPLACE(account_number, '\\D', '', 'g'), '')::int), 1000) AS max_num " +
         'FROM pay_family_accounts WHERE school_id = $1::uuid',

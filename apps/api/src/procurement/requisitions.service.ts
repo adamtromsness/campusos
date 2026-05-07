@@ -31,6 +31,19 @@ export function isUniqueViolation(err: unknown): boolean {
   return false;
 }
 
+/**
+ * SQLSTATE 23514 = check_violation. Used by the budget commitment
+ * release paths in PurchaseOrderService to surface accounting drift
+ * (a release that would push encumbered_amount below zero) instead
+ * of silently clamping to 0. REVIEW-FINAL-2026-05-07 MIN-8.1.
+ */
+export function isCheckViolation(err: unknown): boolean {
+  const e = err as { code?: string; meta?: { code?: string }; message?: string };
+  if (e?.code === 'P2010' && e?.meta?.code === '23514') return true;
+  if (typeof e?.message === 'string' && e.message.includes('23514')) return true;
+  return false;
+}
+
 interface ReqRow {
   id: string;
   school_id: string;

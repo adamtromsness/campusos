@@ -15,6 +15,7 @@ describe('TenantContext', function () {
     subdomain: 'demo',
     isFrozen: false,
     planTier: 'MEDIUM',
+    homeRegion: 'us-east-1',
   };
 
   it('should return undefined outside a context', function () {

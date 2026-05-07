@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { RedisService } from '../notifications/redis.service';
@@ -62,7 +63,7 @@ export class LedgerService {
    * invalidates the balance cache. Caller MUST be inside a tx.
    */
   async recordEntry(
-    tx: any,
+    tx: PrismaClient,
     args: {
       familyAccountId: string;
       entryType: EntryType;

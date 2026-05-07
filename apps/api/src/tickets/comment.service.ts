@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
@@ -195,7 +196,7 @@ export class CommentService {
    * tx — caller is responsible for the kafka emit if they want one.
    */
   async writeInTx(
-    tx: any,
+    tx: PrismaClient,
     ticketId: string,
     authorId: string,
     body: string,

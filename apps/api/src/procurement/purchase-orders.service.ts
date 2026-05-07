@@ -10,7 +10,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { FinanceValidationService } from '../finance/validation';
 import type { ResolvedActor } from '../iam/actor-context.service';
-import { isUniqueViolation } from './requisitions.service';
+import { isUniqueViolation, isCheckViolation } from './requisitions.service';
 import type {
   BudgetCommitmentDto,
   CommitmentStatus,
@@ -476,10 +476,27 @@ export class PurchaseOrderService {
         }
       } else if (target === 'CLOSED') {
         // BUDGET COMMITMENT RELEASE — flip COMMITTED rows to RELEASED + decrement encumbered.
-        await tx.$executeRawUnsafe(
-          `UPDATE fin_budget_lines bl SET encumbered_amount = GREATEST(bl.encumbered_amount - sub.amt, 0), updated_at = now() FROM (SELECT bc.budget_line_id, SUM(bc.committed_amount - bc.released_amount) AS amt FROM prc_budget_commitments bc WHERE bc.purchase_order_id = $1::uuid AND bc.status <> 'RELEASED' GROUP BY bc.budget_line_id) sub WHERE bl.id = sub.budget_line_id`,
-          poId,
-        );
+        // REVIEW-FINAL-2026-05-07 MIN-8.1 fix — was previously
+        // GREATEST(bl.encumbered_amount - sub.amt, 0) which silently
+        // clamped a negative result and hid accounting drift. Now the
+        // raw subtraction lets the schema CHECK
+        // (encumbered_amount >= 0) fire on drift; the catch below
+        // translates the SQLSTATE 23514 into a friendly finance-team
+        // signal so the operator sees what happened.
+        try {
+          await tx.$executeRawUnsafe(
+            `UPDATE fin_budget_lines bl SET encumbered_amount = bl.encumbered_amount - sub.amt, updated_at = now() FROM (SELECT bc.budget_line_id, SUM(bc.committed_amount - bc.released_amount) AS amt FROM prc_budget_commitments bc WHERE bc.purchase_order_id = $1::uuid AND bc.status <> 'RELEASED' GROUP BY bc.budget_line_id) sub WHERE bl.id = sub.budget_line_id`,
+            poId,
+          );
+        } catch (e) {
+          if (isCheckViolation(e)) {
+            throw new BadRequestException(
+              'Budget encumbrance drift detected on PO close: releasing the commitment would push the budget line negative. ' +
+                'A prior partial release likely landed twice. Manual reconciliation required — see fin_budget_lines for the affected lines.',
+            );
+          }
+          throw e;
+        }
         await tx.$executeRawUnsafe(
           `UPDATE prc_budget_commitments SET status = 'RELEASED', released_amount = committed_amount, released_at = now(), released_by = $1::uuid, updated_at = now() WHERE purchase_order_id = $2::uuid AND status <> 'RELEASED'`,
           actor.employeeId,
@@ -498,10 +515,22 @@ export class PurchaseOrderService {
         }
       } else if (target === 'CANCELLED') {
         // Release any commitment on cancel + stamp cancellation audit.
-        await tx.$executeRawUnsafe(
-          `UPDATE fin_budget_lines bl SET encumbered_amount = GREATEST(bl.encumbered_amount - sub.amt, 0), updated_at = now() FROM (SELECT bc.budget_line_id, SUM(bc.committed_amount - bc.released_amount) AS amt FROM prc_budget_commitments bc WHERE bc.purchase_order_id = $1::uuid AND bc.status <> 'RELEASED' GROUP BY bc.budget_line_id) sub WHERE bl.id = sub.budget_line_id`,
-          poId,
-        );
+        // Same drift-surfacing pattern as the CLOSED branch above
+        // (REVIEW-FINAL MIN-8.1).
+        try {
+          await tx.$executeRawUnsafe(
+            `UPDATE fin_budget_lines bl SET encumbered_amount = bl.encumbered_amount - sub.amt, updated_at = now() FROM (SELECT bc.budget_line_id, SUM(bc.committed_amount - bc.released_amount) AS amt FROM prc_budget_commitments bc WHERE bc.purchase_order_id = $1::uuid AND bc.status <> 'RELEASED' GROUP BY bc.budget_line_id) sub WHERE bl.id = sub.budget_line_id`,
+            poId,
+          );
+        } catch (e) {
+          if (isCheckViolation(e)) {
+            throw new BadRequestException(
+              'Budget encumbrance drift detected on PO cancel: releasing the commitment would push the budget line negative. ' +
+                'A prior partial release likely landed twice. Manual reconciliation required — see fin_budget_lines for the affected lines.',
+            );
+          }
+          throw e;
+        }
         await tx.$executeRawUnsafe(
           `UPDATE prc_budget_commitments SET status = 'RELEASED', released_amount = committed_amount, released_at = now(), released_by = $1::uuid, updated_at = now() WHERE purchase_order_id = $2::uuid AND status <> 'RELEASED'`,
           actor.employeeId,

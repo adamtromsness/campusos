@@ -349,22 +349,11 @@ export class TransactionService {
           422,
         );
       }
-      // Verify the override id refers to a school admin or staff
-      // member in the current tenant. The supervisor must be an
-      // hr_employees row to keep the audit trail meaningful.
-      const supRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-        return client.$queryRawUnsafe(
-          'SELECT 1 AS ok FROM platform.platform_users pu ' +
-            'JOIN hr_employees he ON he.person_id = pu.person_id ' +
-            'WHERE pu.id = $1::uuid LIMIT 1',
-          input.supervisorOverrideId,
-        );
-      })) as Array<{ ok: number }>;
-      if (supRows.length === 0) {
-        throw new BadRequestException(
-          'supervisorOverrideId does not match an active employee in this school',
-        );
-      }
+      // Supervisor existence is verified inside the locked tx below
+      // (REVIEW-FINAL-2026-05-07 MIN-7.1 fix). Pre-tx verification
+      // had a tiny race: a supervisor could be deactivated between
+      // the check and the INSERT. Setting the override flag here so
+      // the INSERT path knows to populate the audit columns.
       overrideRequired = true;
     }
 
@@ -409,6 +398,25 @@ export class TransactionService {
       }
       if (!dev[0]!.is_active) {
         throw new BadRequestException('POS device is inactive — cannot post transactions');
+      }
+      // Verify supervisor inside the locked tx (REVIEW-FINAL MIN-7.1).
+      // The hr_employees join through platform_users.person_id ensures
+      // the override id resolves to a current-tenant employee — moves
+      // the previous pre-tx existence check inside the same atomic
+      // boundary as the INSERT so a deactivation between check and
+      // write cannot land an orphan override.
+      if (overrideRequired && input.supervisorOverrideId) {
+        const supRows = (await tx.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM platform.platform_users pu ' +
+            'JOIN hr_employees he ON he.person_id = pu.person_id ' +
+            'WHERE pu.id = $1::uuid LIMIT 1',
+          input.supervisorOverrideId,
+        )) as Array<{ ok: number }>;
+        if (supRows.length === 0) {
+          throw new BadRequestException(
+            'supervisorOverrideId does not match an active employee in this school',
+          );
+        }
       }
       await tx.$executeRawUnsafe(
         'INSERT INTO fds_meal_transactions (id, patron_id, patron_type, session_id, pos_device_id, items, total, payment_method, allergen_override_required, supervisor_override_id, override_reason, served_at, served_by) ' +

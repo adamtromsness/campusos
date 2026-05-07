@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
@@ -574,7 +575,7 @@ export class ProblemService {
     return out;
   }
 
-  private async validateTicketIds(tx: any, ticketIds: string[]): Promise<void> {
+  private async validateTicketIds(tx: PrismaClient, ticketIds: string[]): Promise<void> {
     if (ticketIds.length === 0) return;
     const rows = (await tx.$queryRawUnsafe(
       'SELECT id::text AS id FROM tkt_tickets WHERE id = ANY($1::uuid[])',

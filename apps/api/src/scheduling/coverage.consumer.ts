@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { ConsumedMessage, KafkaConsumerService } from '../kafka/kafka-consumer.service';
 import { IdempotencyService } from '../kafka/idempotency.service';
@@ -237,7 +238,7 @@ export class CoverageConsumer implements OnModuleInit {
    * to create coverage rows.
    */
   private async loadActiveSlots(
-    tx: any,
+    tx: PrismaClient,
     classIds: string[],
     startDate: string,
     endDate: string,

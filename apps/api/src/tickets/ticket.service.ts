@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
@@ -717,7 +718,7 @@ export class TicketService {
    * stay readable; the actual work happens in ActivityService.record().
    */
   private async recordActivity(
-    tx: any,
+    tx: PrismaClient,
     ticketId: string,
     actorId: string | null,
     activityType:

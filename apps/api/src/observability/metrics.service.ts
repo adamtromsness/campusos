@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { collectDefaultMetrics, Counter, Gauge, Histogram, register } from 'prom-client';
+import { CircuitBreaker, CircuitState } from './circuit-breaker';
 
 /**
  * Cycle 31 Step 3 — Prometheus Metrics.
@@ -143,6 +144,35 @@ export class MetricsService {
     this.httpRequestsTotal
       .labels(args.method, args.route, String(args.statusCode), args.tenantId ?? '__none__')
       .inc();
+  }
+
+  /**
+   * Bind a CircuitBreaker to the `circuit_breaker_state` Prometheus
+   * gauge. Call this exactly once per breaker, immediately after the
+   * `new CircuitBreaker(...)` constructor in the owning module. The
+   * gauge is set to the current state on bind and on every subsequent
+   * transition. State→numeric mapping matches the gauge help text:
+   * 0=closed, 1=open, 2=half-open.
+   *
+   * REVIEW-FINAL-2026-05-07 OBS-9.2 fix — the CircuitBreaker class
+   * shipped the onStateChange listener pipeline in Cycle 31 Step 7
+   * but no production wiring existed; the gauge was declared but
+   * never populated. Future breaker call sites should use this helper
+   * so the Step 8 alert rule "1-minute sustained OPEN on any breaker
+   * tagged dependency=critical" actually fires.
+   */
+  bindCircuitBreaker(breaker: CircuitBreaker, dependency: string): void {
+    const stateToNumber = (state: CircuitState): number => {
+      if (state === 'CLOSED') return 0;
+      if (state === 'OPEN') return 1;
+      return 2; // HALF_OPEN
+    };
+    // Set initial state.
+    this.circuitBreakerState.labels(dependency).set(stateToNumber(breaker.getState()));
+    // Update on every transition.
+    breaker.onStateChange((dep, state) => {
+      this.circuitBreakerState.labels(dep).set(stateToNumber(state));
+    });
   }
 
   // The getOrCreate* helpers handle prom-client's strict

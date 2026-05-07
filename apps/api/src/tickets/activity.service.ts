@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
@@ -95,7 +96,7 @@ export class ActivityService {
    * tickets).
    */
   async record(
-    tx: any,
+    tx: PrismaClient,
     ticketId: string,
     actorId: string | null,
     activityType: ActivityType,

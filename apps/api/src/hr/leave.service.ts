@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
@@ -571,7 +572,7 @@ export class LeaveService {
    * returns the row only if it's still PENDING — used by approve/reject.
    */
   private async lockAndValidate(
-    tx: any,
+    tx: PrismaClient,
     id: string,
     requireStatus: string | null,
   ): Promise<{
@@ -610,7 +611,7 @@ export class LeaveService {
   }
 
   private async upsertBalance(
-    tx: any,
+    tx: PrismaClient,
     employeeId: string,
     leaveTypeId: string,
     academicYearId: string,
