@@ -127,34 +127,31 @@ export class OutboxPublisherWorker implements OnModuleInit, OnApplicationShutdow
     const platform = this.tenantPrisma.getPlatformClient();
     try {
       const wireTopic = prefixedTopic(row.topic);
-      // Strip tenant_subdomain before send (it's an internal hint;
-      // not part of the canonical envelope spec). The producer
-      // sets the tenant-subdomain header from the envelope JSON
-      // separately.
+      // Pull tenant_subdomain off the envelope JSON and pass it
+      // through as a Kafka transport header. tenant_subdomain is an
+      // internal routing hint stashed by OutboxService.enqueueInTx
+      // — it is NOT part of the canonical ADR-057 envelope, so we
+      // strip it from the JSON we send on the wire and forward it
+      // separately as the legacy `tenant-subdomain` header that
+      // unwrapEnvelope() in notification-consumer-base requires.
+      // (REVIEW-FINAL Q1 — without this forwarding, outbox-
+      // published events drop tenant-subdomain and consumers that
+      // route on the legacy header silently discard the message.)
       const env = row.envelope as Record<string, unknown> & { tenant_subdomain?: string | null };
-      const subdomain = env.tenant_subdomain;
+      const subdomain = env.tenant_subdomain ?? null;
       const envelopeForSend: Record<string, unknown> = { ...env };
       delete envelopeForSend.tenant_subdomain;
 
-      // Use emitRaw and add the tenant-subdomain header manually for
-      // legacy header-based consumers.
       await this.producer.emitRaw({
         topic: wireTopic,
         key: row.message_key,
-        envelope: {
-          ...(envelopeForSend as {
-            event_id?: string;
-            event_type?: string;
-            tenant_id?: string;
-            [k: string]: unknown;
-          }),
-          // Subdomain doesn't go inside the envelope per the
-          // canonical spec — it's a transport-only routing hint.
-          // We can't emit it without changing emitRaw's shape;
-          // accept that header consumers lose tenant-subdomain on
-          // outbox-published events. Envelope tenant_id stays
-          // authoritative.
+        envelope: envelopeForSend as {
+          event_id?: string;
+          event_type?: string;
+          tenant_id?: string;
+          [k: string]: unknown;
         },
+        tenantSubdomain: subdomain,
       });
       await platform.$executeRawUnsafe(
         `UPDATE platform.platform_outbox
@@ -163,10 +160,8 @@ export class OutboxPublisherWorker implements OnModuleInit, OnApplicationShutdow
         row.id,
       );
       this.logger.log(
-        `[outbox.publish] topic=${row.topic} id=${row.id.slice(0, 8)} tenant=${row.tenant_id ?? '-'} (attempt ${row.attempt_count + 1})`,
+        `[outbox.publish] topic=${row.topic} id=${row.id.slice(0, 8)} tenant=${row.tenant_id ?? '-'} subdomain=${subdomain ?? '-'} (attempt ${row.attempt_count + 1})`,
       );
-      // suppress unused-variable warning for `subdomain`
-      void subdomain;
     } catch (e: unknown) {
       const errMsg =
         (e as Error)?.message ||

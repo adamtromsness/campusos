@@ -203,11 +203,38 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
    * while the caller marks the row resolved would defeat the audit.
    * Callers must catch `KafkaProducerNotConnectedError` and leave the
    * DLQ row unresolved (see DlqService.replay).
+   *
+   * REVIEW-FINAL Q1 — `tenantSubdomain` parameter (and the more
+   * general `headers` escape hatch) added so outbox-published events
+   * can carry the legacy `tenant-subdomain` transport header that
+   * `unwrapEnvelope()` in `notification-consumer-base.ts` requires.
+   * Without this, the OutboxPublisherWorker would emit envelopes
+   * with only `event-id`/`event-type`/`tenant-id` headers and
+   * consumers reading the legacy subdomain header would drop the
+   * event before idempotent processing. The longer-term fix is to
+   * resolve subdomain from `platform_tenant_routing.tenant_id` in
+   * `unwrapEnvelope()` so the legacy header isn't load-bearing —
+   * tracked as Phase-3 follow-up. For now, preserving the header on
+   * the outbox path closes the gap without changing the consumer
+   * contract.
    */
   async emitRaw(args: {
     topic: string;
     key: string | null;
     envelope: { event_id?: string; event_type?: string; tenant_id?: string; [k: string]: unknown };
+    /**
+     * Optional tenant subdomain. Set when present (outbox path
+     * forwards from the stashed envelope hint; DLQ replay path
+     * carries it via `args.headers` if needed). Sets the legacy
+     * `tenant-subdomain` Kafka header.
+     */
+    tenantSubdomain?: string | null;
+    /**
+     * Optional explicit header overrides (e.g. DLQ replay forwarding
+     * the original headers verbatim). Merged on top of the
+     * derived-from-envelope headers below.
+     */
+    headers?: Record<string, string>;
   }): Promise<void> {
     if (!this.connected || !this.producer) {
       this.logger.warn('[fail-emitRaw] ' + args.topic + ' — broker unavailable');
@@ -217,6 +244,13 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
     if (args.envelope.event_id) headers['event-id'] = args.envelope.event_id;
     if (args.envelope.event_type) headers['event-type'] = args.envelope.event_type;
     if (args.envelope.tenant_id) headers['tenant-id'] = args.envelope.tenant_id;
+    if (args.tenantSubdomain) headers['tenant-subdomain'] = args.tenantSubdomain;
+    if (args.headers) {
+      for (const k of Object.keys(args.headers)) {
+        const v = args.headers[k];
+        if (v !== undefined) headers[k] = v;
+      }
+    }
     await this.producer.send({
       topic: args.topic,
       messages: [{ key: args.key, value: JSON.stringify(args.envelope), headers }],
