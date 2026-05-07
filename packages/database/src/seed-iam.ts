@@ -1416,10 +1416,10 @@ async function seedIam() {
       if (!role) continue;
       totalAssignmentCount++;
 
-      var existing = await client.iamRoleAssignment.findFirst({
+      var existingAssignment = await client.iamRoleAssignment.findFirst({
         where: { accountId: user.id, roleId: role.id, scopeId: mapping.scopeId },
       });
-      if (existing) continue;
+      if (existingAssignment) continue;
 
       await client.iamRoleAssignment.create({
         data: {
