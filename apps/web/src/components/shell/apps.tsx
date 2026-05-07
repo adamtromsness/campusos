@@ -10,6 +10,7 @@ import {
   BusIcon,
   CalculatorIcon,
   CalendarIcon,
+  ChartBarIcon,
   UtensilsIcon,
   WrenchIcon,
   ChatBubbleIcon,
@@ -67,7 +68,8 @@ export type AppKey =
   | 'publications'
   | 'finance'
   | 'procurement'
-  | 'store';
+  | 'store'
+  | 'analytics';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -610,6 +612,25 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/store',
       routePrefix: '/store',
       icon: ShoppingBagIcon,
+    });
+  }
+
+  // Cycle 29 — Analytics & Reporting (Wave 7 opener). The operational
+  // read layer per ADR-008 CQRS-lite. Teachers (RPT-001:read) see their
+  // own class-level dashboards. Managers (RPT-002:read = Staff +
+  // School Admin) see school-wide dashboards + at-risk + report engine.
+  // Superintendents (RPT-003 admin tier via everyFunction) see district
+  // comparison.
+  if (hasAnyPermission(user, ['rpt-001:read', 'rpt-002:read', 'rpt-003:read'])) {
+    apps.push({
+      key: 'analytics',
+      label: 'Analytics',
+      description: isStaff
+        ? 'Attendance, academics, at-risk, and reports'
+        : 'Class attendance and performance',
+      href: '/analytics',
+      routePrefix: '/analytics',
+      icon: ChartBarIcon,
     });
   }
 

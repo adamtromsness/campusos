@@ -121,11 +121,6 @@
       "group": "Clubs & Student Life"
     },
     {
-      "code": "GRP-001",
-      "name": "Groups & Communities",
-      "group": "Communications"
-    },
-    {
       "code": "COM-001",
       "name": "Messaging",
       "group": "Communications"
@@ -144,56 +139,6 @@
       "code": "COM-004",
       "name": "Mass Notifications",
       "group": "Communications"
-    },
-    {
-      "code": "MKT-001",
-      "name": "Marketplace Listings",
-      "group": "Community Exchange"
-    },
-    {
-      "code": "MKT-002",
-      "name": "Marketplace Purchasing",
-      "group": "Community Exchange"
-    },
-    {
-      "code": "MKT-003",
-      "name": "Surplus Asset Exchange",
-      "group": "Community Exchange"
-    },
-    {
-      "code": "MKT-004",
-      "name": "Community Forums",
-      "group": "Community Exchange"
-    },
-    {
-      "code": "MKT-005",
-      "name": "Community Profiles",
-      "group": "Community Exchange"
-    },
-    {
-      "code": "MKT-006",
-      "name": "Ratings & Reviews",
-      "group": "Community Exchange"
-    },
-    {
-      "code": "MKT-007",
-      "name": "Watch Lists",
-      "group": "Community Exchange"
-    },
-    {
-      "code": "MKT-008",
-      "name": "Revenue & Payouts",
-      "group": "Community Exchange"
-    },
-    {
-      "code": "MKT-009",
-      "name": "Marketplace Moderation",
-      "group": "Community Exchange"
-    },
-    {
-      "code": "MKT-010",
-      "name": "Marketplace Analytics",
-      "group": "Community Exchange"
     },
     {
       "code": "COU-001",
@@ -228,11 +173,6 @@
     {
       "code": "COU-007",
       "name": "Coordinated Care",
-      "group": "Counselling & Student Support"
-    },
-    {
-      "code": "student_counseling_record",
-      "name": "Counselling Session Notes (FERPA)",
       "group": "Counselling & Student Support"
     },
     {
@@ -291,6 +231,31 @@
       "group": "Facilities & Maintenance"
     },
     {
+      "code": "FDS-001",
+      "name": "Menu Planning",
+      "group": "Food Service"
+    },
+    {
+      "code": "FDS-002",
+      "name": "Point of Sale",
+      "group": "Food Service"
+    },
+    {
+      "code": "FDS-003",
+      "name": "Free & Reduced Meals",
+      "group": "Food Service"
+    },
+    {
+      "code": "FDS-004",
+      "name": "Food Inventory & Procurement",
+      "group": "Food Service"
+    },
+    {
+      "code": "FDS-005",
+      "name": "Production Records",
+      "group": "Food Service"
+    },
+    {
       "code": "FIN-001",
       "name": "Family Billing",
       "group": "Finance & Payments"
@@ -331,31 +296,6 @@
       "group": "Finance & Payments"
     },
     {
-      "code": "FDS-001",
-      "name": "Menu Planning",
-      "group": "Food Service"
-    },
-    {
-      "code": "FDS-002",
-      "name": "Point of Sale",
-      "group": "Food Service"
-    },
-    {
-      "code": "FDS-003",
-      "name": "Free & Reduced Meals",
-      "group": "Food Service"
-    },
-    {
-      "code": "FDS-004",
-      "name": "Food Inventory & Procurement",
-      "group": "Food Service"
-    },
-    {
-      "code": "FDS-005",
-      "name": "Production Records",
-      "group": "Food Service"
-    },
-    {
       "code": "FRM-001",
       "name": "Form Builder",
       "group": "Forms & Documents"
@@ -364,6 +304,11 @@
       "code": "FRM-002",
       "name": "Document Templates",
       "group": "Forms & Documents"
+    },
+    {
+      "code": "GRP-001",
+      "name": "Groups & Communities",
+      "group": "Communications"
     },
     {
       "code": "HLT-001",
@@ -419,36 +364,6 @@
       "code": "HR-006",
       "name": "Onboarding",
       "group": "Human Resources"
-    },
-    {
-      "code": "OPS-001",
-      "name": "Internal Task Management",
-      "group": "Internal Operations"
-    },
-    {
-      "code": "OPS-002",
-      "name": "Knowledge Base",
-      "group": "Internal Operations"
-    },
-    {
-      "code": "OPS-003",
-      "name": "Incident Management",
-      "group": "Internal Operations"
-    },
-    {
-      "code": "OPS-004",
-      "name": "Release Management",
-      "group": "Internal Operations"
-    },
-    {
-      "code": "OPS-005",
-      "name": "Support Tier Management",
-      "group": "Internal Operations"
-    },
-    {
-      "code": "OPS-006",
-      "name": "Platform Analytics & Reporting",
-      "group": "Internal Operations"
     },
     {
       "code": "IT-001",
@@ -516,6 +431,56 @@
       "group": "Library"
     },
     {
+      "code": "MKT-001",
+      "name": "Marketplace Listings",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-002",
+      "name": "Marketplace Purchasing",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-003",
+      "name": "Surplus Asset Exchange",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-004",
+      "name": "Community Forums",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-005",
+      "name": "Community Profiles",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-006",
+      "name": "Ratings & Reviews",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-007",
+      "name": "Watch Lists",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-008",
+      "name": "Revenue & Payouts",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-009",
+      "name": "Marketplace Moderation",
+      "group": "Community Exchange"
+    },
+    {
+      "code": "MKT-010",
+      "name": "Marketplace Analytics",
+      "group": "Community Exchange"
+    },
+    {
       "code": "MTG-001",
       "name": "Meetings",
       "group": "Meetings & Conferences"
@@ -524,6 +489,36 @@
       "code": "MTG-002",
       "name": "Parent-Teacher Conferences",
       "group": "Meetings & Conferences"
+    },
+    {
+      "code": "OPS-001",
+      "name": "Internal Task Management",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "OPS-002",
+      "name": "Knowledge Base",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "OPS-003",
+      "name": "Incident Management",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "OPS-004",
+      "name": "Release Management",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "OPS-005",
+      "name": "Support Tier Management",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "OPS-006",
+      "name": "Platform Analytics & Reporting",
+      "group": "Internal Operations"
     },
     {
       "code": "PRC-001",
@@ -569,6 +564,26 @@
       "code": "PUB-004",
       "name": "Alumni",
       "group": "Publications & Community"
+    },
+    {
+      "code": "RPT-001",
+      "name": "Class Dashboards",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "RPT-002",
+      "name": "School Dashboards & At-Risk",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "RPT-003",
+      "name": "District Dashboards",
+      "group": "Internal Operations"
+    },
+    {
+      "code": "RPT-004",
+      "name": "Report Engine & Scheduling",
+      "group": "Internal Operations"
     },
     {
       "code": "SAF-001",
@@ -779,6 +794,11 @@
       "code": "USR-001",
       "name": "Profile Management",
       "group": "User Profile & Household"
+    },
+    {
+      "code": "student_counseling_record",
+      "name": "Counselling Session Notes (FERPA)",
+      "group": "Counselling & Student Support"
     }
   ],
   "tiers": ["read", "write", "admin"],

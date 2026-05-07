@@ -218,6 +218,14 @@ async function seedIam() {
         // do not place orders or manage products at the catalogue
         // tier (write is admin-only via everyFunction).
         'STR-001': ['read'],
+        // Cycle 29 — Analytics. Teachers see class-level dashboards
+        // (attendance + class performance) for their own classes via
+        // the row-scope at AnalyticsService. They do NOT receive RPT-002
+        // (school dashboards + at-risk lists are admin/counsellor-only)
+        // or RPT-003/004 (district dashboards + report engine are admin
+        // only). Class-scoped row filter at the API layer is the actual
+        // access boundary.
+        'RPT-001': ['read'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read', 'write'],
         // Cycle 14 — emergency alert read so the persistent banner
@@ -911,6 +919,18 @@ async function seedIam() {
         'STR-001': ['read', 'write'],
         'STR-002': ['read', 'write'],
         'STR-003': ['read', 'write'],
+        // Cycle 29 — Analytics. Staff (principal/VP/counsellor stand-in)
+        // gets the full read surface plus the report engine + scheduling
+        // tier. RPT-001 (class) + RPT-002 (school + at-risk) + RPT-004
+        // (report engine + scheduling) read+write. RPT-003 (district)
+        // is admin-only via everyFunction so superintendents — modeled
+        // as School Admin or Platform Admin in the demo seed — keep the
+        // district dashboard scope. Pre-pilot work splits the
+        // counsellor / principal / VP into dedicated roles so the
+        // at-risk dashboard isn't visible to a generic Staff member.
+        'RPT-001': ['read', 'write'],
+        'RPT-002': ['read', 'write'],
+        'RPT-004': ['read', 'write'],
       },
     },
   ];

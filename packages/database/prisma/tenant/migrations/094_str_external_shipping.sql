@@ -30,11 +30,13 @@ CREATE INDEX IF NOT EXISTS str_ext_customers_email_idx
 COMMENT ON TABLE str_external_customers IS 'Non-CampusOS users (alumni, community members) who purchase from the PUBLIC store. Email is required so the school can send order confirmations and shipping updates. Soft school_id ref per ADR-001/020.';
 COMMENT ON COLUMN str_external_customers.shipping_address IS 'Free-form full address. Stored as a single TEXT field this cycle to simplify the public checkout form. Phase 2 polish: split into structured address fields when the volume warrants it.';
 
--- Add the deferred FK from str_orders.external_customer_id now that the
--- parent table exists. The schema-level shape CHECK on str_orders
--- (customer_shape_chk in migration 093) already validates that
--- external_customer_id is set when order_type=EXTERNAL — this FK is the
--- DB-enforced existence-and-tenant-locking belt-and-braces.
+/*
+  Add the deferred FK from str_orders.external_customer_id now that the
+  parent table exists. The schema-level shape CHECK on str_orders
+  (customer_shape_chk in migration 093) already validates that
+  external_customer_id is set when order_type=EXTERNAL. This FK is the
+  DB-enforced existence-and-tenant-locking belt-and-braces.
+*/
 ALTER TABLE str_orders DROP CONSTRAINT IF EXISTS str_orders_external_customer_fk;
 ALTER TABLE str_orders ADD CONSTRAINT str_orders_external_customer_fk
   FOREIGN KEY (external_customer_id) REFERENCES str_external_customers(id) ON DELETE NO ACTION;
@@ -56,10 +58,12 @@ CREATE INDEX IF NOT EXISTS str_shipping_store_active_idx
 COMMENT ON TABLE str_shipping_options IS 'Per-store flat-rate shipping methods. CASCADE on parent store. Only applies to PUBLIC store orders with shipping_method=SHIPPED.';
 COMMENT ON COLUMN str_shipping_options.flat_rate IS 'Single flat shipping fee for the method. Phase 2 polish: weight/distance-based shipping rules.';
 
--- Add the deferred soft FK from str_orders.shipping_option_id (DB
--- enforcement so a shipping option retired with active orders cannot
--- be hard-deleted, SET NULL preserves the order audit when the option
--- IS removed).
+/*
+  Add the deferred soft FK from str_orders.shipping_option_id. DB
+  enforcement so a shipping option retired with active orders cannot
+  be hard-deleted, SET NULL preserves the order audit when the option
+  IS removed.
+*/
 ALTER TABLE str_orders DROP CONSTRAINT IF EXISTS str_orders_shipping_option_fk;
 ALTER TABLE str_orders ADD CONSTRAINT str_orders_shipping_option_fk
   FOREIGN KEY (shipping_option_id) REFERENCES str_shipping_options(id) ON DELETE SET NULL;

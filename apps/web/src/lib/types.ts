@@ -8629,3 +8629,282 @@ export interface StrMaterialiseRevenuePayload {
   periodStart: string;
   periodEnd: string;
 }
+
+// ─── Cycle 29: Analytics & Reporting (M110) ────────────────────────────
+
+export interface RptAttendanceSummaryDto {
+  id: string;
+  schoolId: string;
+  classId: string;
+  className: string | null;
+  summaryDate: string;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  totalEnrolled: number;
+  attendanceRate: number | null;
+  generatedAt: string;
+}
+
+export interface RptStudentAcademicDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  gradeLevel: string | null;
+  academicYearId: string;
+  schoolId: string;
+  currentGpa: number | null;
+  creditsEarned: number;
+  creditsAttempted: number;
+  attendanceRate: number | null;
+  totalAssignments: number;
+  completedAssignments: number;
+  atRiskFlags: Record<string, unknown>;
+  generatedAt: string;
+}
+
+export interface RptClassPerformanceDto {
+  id: string;
+  classId: string;
+  className: string | null;
+  termId: string;
+  schoolId: string;
+  avgGrade: number | null;
+  medianGrade: number | null;
+  gradeDistribution: Record<string, number>;
+  assignmentCompletionRate: number | null;
+  studentCount: number;
+  generatedAt: string;
+}
+
+export interface RptStaffSummaryDto {
+  id: string;
+  employeeId: string;
+  employeeName: string | null;
+  academicYearId: string;
+  schoolId: string;
+  classesTaught: number;
+  totalStudents: number;
+  leaveDaysTaken: number;
+  avgClassPerformance: number | null;
+  generatedAt: string;
+}
+
+export interface RptSchoolSummaryDto {
+  id: string;
+  schoolId: string;
+  schoolName: string | null;
+  academicYearId: string;
+  totalEnrolled: number;
+  totalStaff: number;
+  avgAttendanceRate: number | null;
+  avgGpa: number | null;
+  atRiskCount: number;
+  incidentCount: number;
+  generatedAt: string;
+}
+
+export interface RptDistrictSummaryDto {
+  id: string;
+  organisationId: string;
+  academicYearId: string;
+  schoolCount: number;
+  totalEnrolled: number;
+  totalStaff: number;
+  avgAttendanceRate: number | null;
+  avgGpa: number | null;
+  totalAtRisk: number;
+  totalIncidents: number;
+  generatedAt: string;
+}
+
+export interface RptDistrictSchoolComparisonDto {
+  id: string;
+  organisationId: string;
+  academicYearId: string;
+  schoolId: string;
+  schoolName: string | null;
+  rankByAttendance: number | null;
+  rankByPerformance: number | null;
+  metrics: Record<string, unknown>;
+  generatedAt: string;
+}
+
+export interface RptWellbeingTrendsDto {
+  id: string;
+  schoolId: string;
+  gradeLevel: string;
+  periodStart: string;
+  periodEnd: string;
+  avgWellbeingScore: number | null;
+  responseCount: number;
+  wantsToTalkCount: number;
+  flaggedCount: number;
+  generatedAt: string;
+}
+
+export interface RptAgedDebtorDto {
+  id: string;
+  schoolId: string;
+  familyAccountId: string;
+  accountHolderName: string | null;
+  totalOutstanding: number;
+  currentBucket: number;
+  days30: number;
+  days60: number;
+  days90Plus: number;
+  lastPaymentDate: string | null;
+  generatedAt: string;
+}
+
+export interface RptAtRiskStudentDto {
+  studentId: string;
+  studentName: string | null;
+  gradeLevel: string | null;
+  academicYearId: string;
+  currentGpa: number | null;
+  attendanceRate: number | null;
+  totalAssignments: number;
+  completedAssignments: number;
+  atRiskFlags: Record<string, unknown>;
+  flaggedConfigs: string[];
+}
+
+export interface RptAtRiskConfigDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  triggerConditions: Record<string, unknown>;
+  alertRecipients: string[];
+  isActive: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RptCreateAtRiskConfigPayload {
+  name: string;
+  description?: string;
+  triggerConditions: Record<string, unknown>;
+  alertRecipients?: string[];
+  isActive?: boolean;
+}
+
+export interface RptUpdateAtRiskConfigPayload {
+  name?: string;
+  description?: string;
+  triggerConditions?: Record<string, unknown>;
+  alertRecipients?: string[];
+  isActive?: boolean;
+}
+
+export interface RptWorkerStatusDto {
+  consumerGroup: string;
+  topic: string;
+  partition: number;
+  committedOffset: number;
+  logEndOffset: number | null;
+  lag: number | null;
+  recordedAt: string;
+}
+
+export interface RptWorkerRunSummaryDto {
+  worker: string;
+  status: 'OK' | 'FAILED' | 'SKIPPED';
+  rowsWritten: number;
+  durationMs: number;
+  errorMessage?: string | null;
+}
+
+export type RptReportRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETE' | 'FAILED';
+export type RptOutputFormat = 'CSV' | 'PDF' | 'XLSX';
+export type RptDeliveryChannel = 'EMAIL' | 'IN_APP' | 'BOTH';
+
+export interface RptReportDefinitionDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  reportType: string;
+  templateConfig: Record<string, unknown>;
+  isStateReport: boolean;
+  isActive: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RptCreateReportDefinitionPayload {
+  name: string;
+  description?: string;
+  reportType: string;
+  templateConfig: Record<string, unknown>;
+  isActive?: boolean;
+}
+
+export interface RptUpdateReportDefinitionPayload {
+  name?: string;
+  description?: string;
+  reportType?: string;
+  templateConfig?: Record<string, unknown>;
+  isActive?: boolean;
+}
+
+export interface RptReportRunDto {
+  id: string;
+  reportDefinitionId: string;
+  reportName: string | null;
+  runBy: string | null;
+  runByName: string | null;
+  status: RptReportRunStatus;
+  outputFormat: RptOutputFormat;
+  outputS3Key: string | null;
+  rowCount: number | null;
+  errorMessage: string | null;
+  startedAt: string;
+  generatedAt: string | null;
+}
+
+export interface RptScheduledReportDto {
+  id: string;
+  schoolId: string;
+  reportName: string;
+  templateName: string;
+  reportParams: Record<string, unknown>;
+  scheduleCron: string;
+  timezone: string;
+  deliveryChannel: RptDeliveryChannel;
+  recipientIds: string[];
+  outputFormat: RptOutputFormat;
+  isActive: boolean;
+  lastRunAt: string | null;
+  lastRunStatus: 'SUCCESS' | 'FAILED' | null;
+  nextRunAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RptCreateScheduledReportPayload {
+  reportName: string;
+  templateName: string;
+  reportParams?: Record<string, unknown>;
+  scheduleCron: string;
+  timezone?: string;
+  deliveryChannel?: RptDeliveryChannel;
+  recipientIds?: string[];
+  outputFormat?: RptOutputFormat;
+  isActive?: boolean;
+}
+
+export interface RptStateReportTemplateDto {
+  id: string;
+  stateCode: string;
+  reportType: string;
+  schemaVersion: string;
+  templateConfig: Record<string, unknown>;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
