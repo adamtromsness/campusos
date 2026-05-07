@@ -1,0 +1,52 @@
+# Cycle 32 Step 9 — Chaos Experiment 01: Instance Kills.
+#
+# Randomly terminates ECS tasks in staging during business hours.
+# Verifies: ECS service scheduler replaces within 2 minutes; no
+# user-visible errors (load balancer health check routes around);
+# circuit breakers stay CLOSED.
+#
+# Production safety: `target_environment: staging` enforced by the
+# FIS template account-id pinning.
+
+experiment:
+  name: instance-kills
+  target_environment: staging
+  duration_minutes: 5
+
+  description: |
+    Randomly terminate one ECS task per minute for 5 minutes. The
+    ECS service scheduler should replace each task within 2 minutes
+    of termination.
+
+  target:
+    type: ecs-task
+    cluster: campusos-staging
+    service: campusos-api
+    selection: RANDOM(1)
+
+  action:
+    type: aws:ecs:stop-task
+    parameters:
+      reason: chaos-experiment-01-instance-kills
+
+  hypothesis:
+    description: |
+      Killing one ECS task per minute does not produce any user-
+      visible 5xx errors. The mean time to replacement stays under
+      2 minutes. The ALB health-check routes traffic away from the
+      terminating task within 30 seconds.
+
+  invariants:
+    - metric: http_requests_total
+      expression: 'sum(rate(http_requests_total{status_code=~"5.."}[1m]))'
+      threshold: 'less_than 0.01'
+    - metric: ecs_service_running_tasks
+      expression: 'min(ecs_service_running_tasks{service="campusos-api"})'
+      threshold: 'greater_than_or_equal 2'
+
+  rollback:
+    type: stop-experiment
+
+  notify:
+    on_start: '#campusos-chaos'
+    on_end: '#campusos-chaos'

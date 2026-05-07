@@ -47,6 +47,7 @@ import { GovernanceModule } from './governance/governance.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { DlqModule } from './dlq/dlq.module';
 import { PlatformAdminModule } from './platform-admin/platform-admin.module';
+import { RegionModule } from './region/region.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -124,6 +125,10 @@ var devOnlyControllers: Type<unknown>[] =
     GovernanceModule,
     DlqModule,
     PlatformAdminModule,
+    // Cycle 32 Step 6 — registers the RegionMismatchInterceptor
+    // globally; gates @HomeRegionRequired() routes on
+    // tenant.homeRegion === process.env.AWS_REGION.
+    RegionModule,
   ],
   controllers: devOnlyControllers,
   providers: [

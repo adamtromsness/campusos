@@ -203,6 +203,10 @@ export class GradebookSnapshotWorker implements OnModuleInit, OnApplicationShutd
       subdomain: subdomain,
       isFrozen: false,
       planTier: 'STANDARD',
+      // Cycle 32 Step 6 — worker reconstructs tenant context from
+      // the inbound envelope; the worker itself is regional, so the
+      // deployed AWS_REGION is the home region.
+      homeRegion: process.env.AWS_REGION ?? 'us-east-1',
     };
 
     var key = schoolId + '|' + payload.classId + '|' + payload.studentId;

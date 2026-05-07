@@ -20,6 +20,16 @@ export interface TenantInfo {
   subdomain: string;
   isFrozen: boolean;
   planTier: string;
+  /**
+   * Cycle 32 Step 6 — home region affinity. Read from
+   * platform_tenant_routing.home_region by TenantResolverMiddleware.
+   * The RegionMismatchInterceptor compares this against
+   * process.env.AWS_REGION and rejects with HTTP 421 Misdirected
+   * Request if they don't match. Defaults to 'us-east-1' for tenants
+   * provisioned before Cycle 32; EU/UK tenants are migrated to
+   * 'eu-west-2' as part of GDPR data residency onboarding.
+   */
+  homeRegion: string;
 }
 
 export interface RequestContext {

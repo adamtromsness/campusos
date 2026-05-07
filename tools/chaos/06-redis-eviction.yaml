@@ -1,0 +1,58 @@
+# Cycle 32 Step 9 — Chaos Experiment 06: Redis Eviction Pressure.
+#
+# Fill Redis to 90% capacity in staging. Verifies: eviction policy
+# (volatile-lru) evicts the right keys; IAM cache misses fall back
+# to DB; no application errors; circuit breaker stays CLOSED.
+
+experiment:
+  name: redis-eviction
+  target_environment: staging
+  duration_minutes: 10
+
+  description: |
+    Inject ~9 GB of garbage keys into the staging Redis cluster
+    (cache.r6g.large = ~12 GB usable) to force eviction. Real
+    application keys with TTLs (`iam:access:*` 5m TTL,
+    `tenant:routing:*` 1h TTL) should be evicted preferentially per
+    `volatile-lru`. Cold-miss reads fall back to the DB; the IAM
+    cache rebuilds within seconds for hot accounts.
+
+  target:
+    type: elasticache
+    replication_group: campusos-staging-redis
+
+  action:
+    type: custom-script
+    script: tools/chaos/redis-fill-script.sh
+    parameters:
+      target_fill_pct: 90
+      injection_keys_prefix: 'chaos:fill:'
+
+  hypothesis:
+    description: |
+      Filling Redis to 90% does not produce application 5xx errors.
+      Cache hit rate drops temporarily but recovers within 5
+      minutes as hot keys repopulate. The PermissionCheckService
+      Redis fallback path engages; latency p95 increases by ~50ms
+      while the cache rebuilds.
+
+  invariants:
+    - metric: http_requests_total
+      expression: 'sum(rate(http_requests_total{status_code=~"5.."}[1m]))'
+      threshold: 'less_than 0.01'
+    - metric: circuit_breaker_state
+      expression: 'max(circuit_breaker_state{dependency="redis"})'
+      threshold: 'equal 0'  # CLOSED throughout
+
+  post_check:
+    - description: |
+        Verify chaos:fill:* keys were evicted preferentially over
+        application TTL'd keys (`volatile-lru` honoured).
+
+  rollback:
+    type: custom-script
+    script: tools/chaos/redis-cleanup-script.sh
+
+  notify:
+    on_start: '#campusos-chaos'
+    on_end: '#campusos-chaos'

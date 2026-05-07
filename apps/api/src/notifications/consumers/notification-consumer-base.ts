@@ -79,6 +79,11 @@ export function unwrapEnvelope<P = unknown>(
     subdomain: subdomain,
     isFrozen: false,
     planTier: 'STANDARD',
+    // Cycle 32 Step 6 — worker-reconstructed tenant context. Workers
+    // run colocated with their region's broker so the deployed
+    // region IS the home region; populate from AWS_REGION when set,
+    // otherwise the single-region default.
+    homeRegion: process.env.AWS_REGION ?? 'us-east-1',
   };
   return { eventId, tenant, payload, topic: msg.topic };
 }

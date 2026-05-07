@@ -1,0 +1,52 @@
+# Cycle 32 Step 9 — Chaos Experiment 05: Kafka Broker Kill.
+#
+# Terminate one MSK broker. Verifies: producers and consumers
+# continue with the remaining brokers (replication factor 3 makes
+# this safe). MSK auto-replaces the broker; no data loss.
+
+experiment:
+  name: kafka-broker-kill
+  target_environment: staging
+  duration_minutes: 15
+
+  description: |
+    Terminate one of the three MSK brokers in staging. The cluster
+    should continue serving with the remaining two brokers because
+    replication factor on operational topics is 3. MSK Auto Recovery
+    replaces the broker within ~10 minutes.
+
+  target:
+    type: msk-broker
+    cluster_arn: arn:aws:kafka:us-east-1:STAGING_ACCOUNT:cluster/campusos-staging-msk
+    broker_id: 1
+
+  action:
+    type: aws:msk:reboot-broker
+    parameters:
+      broker_id: 1
+
+  hypothesis:
+    description: |
+      Producer send-success rate stays above 99% for the duration of
+      the experiment. Consumer lag spikes briefly during the
+      partition-rebalance but returns to baseline within 60s. The
+      replicated DLQ topic still accepts new entries.
+
+  invariants:
+    - metric: kafka_producer_send_failure_total
+      expression: 'sum(rate(kafka_producer_send_failure_total[1m]))'
+      threshold: 'less_than 0.05'
+    - metric: kafka_under_replicated_partitions
+      expression: 'sum(kafka_under_replicated_partitions)'
+      threshold: 'less_than 50'  # transient during rebalance
+
+  post_check:
+    - description: 'No DLQ entries created during the experiment.'
+    - description: 'platform_event_consumer_idempotency table has no duplicate event_id.'
+
+  rollback:
+    type: none
+
+  notify:
+    on_start: '#campusos-chaos'
+    on_end: '#campusos-chaos'

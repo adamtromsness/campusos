@@ -1,0 +1,54 @@
+# Cycle 32 Step 9 — Chaos Experiment 04: DB Failover Drill.
+#
+# Force RDS failover in staging. Verifies: PgBouncer reconnects;
+# Kafka consumers pause and resume; no orphaned transactions; data
+# integrity holds across the failover.
+
+experiment:
+  name: db-failover-drill
+  target_environment: staging
+  duration_minutes: 5
+
+  description: |
+    Trigger a forced RDS Multi-AZ failover in the staging cluster.
+    The standby promotes to primary. PgBouncer reconnects via DNS
+    resolution. Kafka consumers pause briefly and resume from the
+    last committed offset.
+
+  target:
+    type: rds-cluster
+    cluster: campusos-staging
+
+  action:
+    type: aws:rds:failover-db-cluster
+    parameters:
+      target_db_instance: campusos-staging-replica-1
+
+  hypothesis:
+    description: |
+      RDS failover completes in <30s. Application latency spikes
+      briefly but recovers within 60s. No transactions roll back
+      mid-flight (PgBouncer pauses connections, then reconnects on
+      the new primary). Kafka consumers resume cleanly.
+
+  invariants:
+    - metric: rds_replication_lag_seconds
+      expression: 'max(rds_replication_lag_seconds)'
+      threshold: 'less_than 30'
+    - metric: kafka_consumer_lag
+      expression: 'max(kafka_consumer_lag)'
+      threshold: 'less_than 1000'
+
+  post_check:
+    - script: tools/failover/post-failover-data-integrity.sh
+      description: |
+        Confirms row counts on critical tables are unchanged from
+        pre-failover baseline; GL totals match; no duplicate
+        idempotency claims.
+
+  rollback:
+    type: none  # failover is not reversible mid-experiment
+
+  notify:
+    on_start: '#campusos-chaos'
+    on_end: '#campusos-chaos'

@@ -1,0 +1,51 @@
+# Cycle 32 Step 9 — Chaos Experiment 02: AZ Failure.
+#
+# Block all network traffic to one AZ in staging. Verifies: Multi-AZ
+# RDS fails over; ECS tasks redistribute; user-visible downtime
+# stays under 30 seconds; alerting catches the AZ failure within
+# 1 minute.
+#
+# STAGING ONLY — destructive at production scale.
+
+experiment:
+  name: az-failure
+  target_environment: staging
+  duration_minutes: 10
+
+  description: |
+    Inject a network blackhole on all interfaces in one staging AZ
+    for 10 minutes. Multi-AZ RDS should fail over within 30s.
+    ECS tasks in the affected AZ should redistribute to healthy AZs.
+
+  target:
+    type: availability-zone
+    region: us-east-1
+    az: us-east-1b  # staging-only
+
+  action:
+    type: aws:network:disrupt-connectivity
+    parameters:
+      scope: availability-zone
+      duration: PT10M
+
+  hypothesis:
+    description: |
+      Blocking the AZ for 10 minutes causes a brief (<30s) latency
+      spike but no sustained errors. RDS Multi-AZ fails over to a
+      healthy AZ. ECS tasks in the affected AZ are replaced.
+
+  invariants:
+    - metric: rds_replica_lag_seconds
+      expression: 'max(rds_replica_lag_seconds)'
+      threshold: 'less_than 60'
+    - metric: http_request_duration_seconds
+      expression: 'histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))'
+      threshold: 'less_than 5'
+
+  rollback:
+    type: heal-network-partition
+
+  notify:
+    on_start: '#campusos-chaos'
+    on_end: '#campusos-chaos'
+    page_oncall: false  # staged; oncall is watching, not paged

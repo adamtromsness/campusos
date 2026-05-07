@@ -71,6 +71,11 @@ export class TenantResolverMiddleware implements NestMiddleware {
       subdomain: school.subdomain,
       isFrozen: school.routing.isFrozen,
       planTier: school.planTier,
+      // Cycle 32 Step 6 — home region affinity from
+      // platform_tenant_routing.home_region. Defaults to 'us-east-1'
+      // for tenants provisioned before this cycle (handled by the
+      // schema default).
+      homeRegion: school.routing.homeRegion,
     };
 
     var context: RequestContext = {

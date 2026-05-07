@@ -1,0 +1,54 @@
+# Cycle 32 Step 9 — Chaos Experiment 03: Network Partition.
+#
+# Introduce 5-second network latency between application and
+# database. Verifies: circuit breakers open; requests fail fast
+# (not hang); health check reports degraded; when partition heals
+# the circuit closes and requests resume; no data corruption.
+
+experiment:
+  name: network-partition
+  target_environment: staging
+  duration_minutes: 5
+
+  description: |
+    Inject 5-second network latency between the API ECS tasks and
+    the RDS primary endpoint for 5 minutes. The Cycle 31 Step 7
+    circuit breaker should open after the failure threshold (default
+    5 consecutive failures); requests fail fast with
+    CircuitBreakerOpenError; the breaker probes for recovery via
+    HALF_OPEN; on heal, breaker closes and requests resume normally.
+
+  target:
+    type: ecs-task
+    cluster: campusos-staging
+    service: campusos-api
+
+  action:
+    type: aws:network:inject-latency
+    parameters:
+      destination_hostname: rds-primary-staging.local
+      latency_ms: 5000
+      duration: PT5M
+
+  hypothesis:
+    description: |
+      5-second latency exceeds the database call timeout. Circuit
+      breaker opens within 30 seconds. Requests fail fast (avg
+      latency ~50ms with CircuitBreakerOpenError) rather than
+      hanging. Health check returns 503 (degraded). When latency is
+      removed, breaker probes via HALF_OPEN and closes within 60s.
+
+  invariants:
+    - metric: circuit_breaker_state
+      expression: 'max(circuit_breaker_state{dependency="postgres"})'
+      threshold: 'less_than_or_equal 1'  # never sticks at HALF_OPEN
+    - metric: http_request_duration_seconds
+      expression: 'histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[1m])))'
+      threshold: 'less_than 1'  # fail-fast, not hang
+
+  rollback:
+    type: remove-latency-injection
+
+  notify:
+    on_start: '#campusos-chaos'
+    on_end: '#campusos-chaos'

@@ -13,6 +13,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { HomeRegionRequired } from '../region/home-region-required.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
@@ -62,6 +63,12 @@ interface AuthedRequest extends Request {
 
 @ApiTags('Data Governance & Compliance')
 @Controller()
+// Cycle 32 Step 6 — DPO operations (SAR, erasure, breach, ROPA,
+// consents) MUST run in the tenant's home region per GDPR data
+// residency. The RegionMismatchInterceptor returns HTTP 421 if
+// process.env.AWS_REGION doesn't match the tenant's home_region.
+// Local dev / test (AWS_REGION unset) skips the gate.
+@HomeRegionRequired()
 export class GovernanceController {
   constructor(
     private readonly actors: ActorContextService,

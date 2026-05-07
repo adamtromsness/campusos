@@ -1,0 +1,99 @@
+# Cycle 32 Step 8 — Monthly Synthetic Failover Test.
+#
+# First Sunday of each month, 02:00 UTC, in STAGING ONLY:
+#   1. Trigger RDS Global Database failover from primary to standby.
+#   2. Verify the application reconnects within RTO target (<15 min).
+#   3. Verify Kafka consumers resume from translated offsets.
+#   4. Verify Redis cache is available (replicated or rebuilt).
+#   5. Verify S3 objects accessible from the standby region.
+#   6. Run the smoke test suite against standby.
+#   7. Fail back to primary after verification.
+#   8. Record metrics: actual RTO, RPO, consumer resume lag, cache
+#      rebuild time, smoke pass rate.
+#
+# This workflow REFUSES to run against production. The
+# CONFIRM_PRODUCTION=yes guard in the failover scripts is the
+# safety net.
+
+name: Synthetic Failover Test (Staging)
+
+on:
+  schedule:
+    # First Sunday of each month, 02:00 UTC.
+    - cron: '0 2 1-7 * 0'
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: 'staging | dev'
+        required: true
+        default: 'staging'
+
+jobs:
+  failover-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    timeout-minutes: 60
+    env:
+      TARGET_ENV: ${{ github.event.inputs.target_environment || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC, staging)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_FAILOVER_TEST_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Refuse if target_environment looks like production
+        run: |
+          if [[ "$TARGET_ENV" == "prod" || "$TARGET_ENV" == "production" ]]; then
+            echo "Refusing to run failover test against production."
+            exit 1
+          fi
+
+      - name: Capture pre-failover baseline
+        run: bash tools/failover/synthetic-failover-baseline.sh
+
+      - name: Trigger RDS Global Database failover
+        id: trigger
+        run: |
+          bash tools/failover/synthetic-failover-trigger.sh
+          echo "FAILOVER_START=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Verify application reconnects (<15 min RTO)
+        env:
+          FAILOVER_START: ${{ steps.trigger.outputs.FAILOVER_START }}
+        run: bash tools/failover/synthetic-failover-verify-app.sh
+
+      - name: Verify Kafka consumers resume from translated offsets
+        run: bash tools/failover/synthetic-failover-verify-kafka.sh
+
+      - name: Verify Redis cache available
+        run: bash tools/failover/synthetic-failover-verify-redis.sh
+
+      - name: Verify S3 reads from standby region
+        run: bash tools/failover/synthetic-failover-verify-s3.sh
+
+      - name: Run smoke test suite against standby
+        run: bash tools/failover/synthetic-failover-smoke-suite.sh
+
+      - name: Fail back to primary
+        if: always()
+        run: bash tools/failover/synthetic-failover-failback.sh
+
+      - name: Push failover metrics to Prometheus
+        if: always()
+        env:
+          PROM_PUSHGATEWAY_URL: ${{ secrets.PROM_PUSHGATEWAY_URL }}
+        run: bash tools/failover/synthetic-failover-push-metrics.sh
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_INCIDENTS_WEBHOOK }}
+        run: |
+          curl -s -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            -d "{\"text\":\":rotating_light: Synthetic failover test FAILED — run ${{ github.run_id }} (env=${{ env.TARGET_ENV }})\"}"

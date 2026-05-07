@@ -1,0 +1,102 @@
+# Cycle 32 Step 2 — Automated Backup Validation.
+#
+# Sunday 04:00 UTC: restore the latest RDS automated snapshot to a
+# temporary instance, run schema validation + row-count spot checks
+# on 10 critical tables, tear down. Alert on any failure.
+#
+# The first Monday of each month also runs a PITR test — restore to
+# 15 minutes ago, verify data integrity, document recovery time.
+#
+# Production wiring (the actual `aws rds restore-db-cluster-from-snapshot`
+# + the validation scripts that run against the temporary instance)
+# is invoked from the deployment-time secrets backend. This workflow
+# is the in-repo schedule + entry point.
+
+name: Backup Validation
+
+on:
+  schedule:
+    # Every Sunday 04:00 UTC.
+    - cron: '0 4 * * 0'
+    # First Monday 05:00 UTC for the PITR test (run alongside the
+    # weekly check; the workflow step branches on day-of-month <=7).
+    - cron: '0 5 1-7 * 1'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'weekly | pitr'
+        required: true
+        default: 'weekly'
+
+jobs:
+  backup-validation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # for OIDC auth to AWS
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_BACKUP_VALIDATION_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup Node + pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Restore latest snapshot to temporary cluster
+        id: restore
+        env:
+          MODE: ${{ github.event.inputs.mode || 'weekly' }}
+        run: |
+          bash tools/failover/backup-validate-restore.sh "$MODE"
+          echo "TEMP_ENDPOINT=$(cat /tmp/temp-endpoint.txt)" >> $GITHUB_OUTPUT
+
+      - name: Verify migration version matches primary
+        env:
+          TEMP_ENDPOINT: ${{ steps.restore.outputs.TEMP_ENDPOINT }}
+        run: bash tools/failover/backup-validate-migration.sh
+
+      - name: Verify table count parity (within ±1%)
+        env:
+          TEMP_ENDPOINT: ${{ steps.restore.outputs.TEMP_ENDPOINT }}
+        run: bash tools/failover/backup-validate-table-count.sh
+
+      - name: Row-count spot check on 10 critical tables
+        env:
+          TEMP_ENDPOINT: ${{ steps.restore.outputs.TEMP_ENDPOINT }}
+        run: bash tools/failover/backup-validate-row-counts.sh
+
+      - name: Tear down temporary cluster
+        if: always()
+        run: bash tools/failover/backup-validate-teardown.sh
+
+      - name: Push success metric to Prometheus Pushgateway
+        if: success()
+        env:
+          PROM_PUSHGATEWAY_URL: ${{ secrets.PROM_PUSHGATEWAY_URL }}
+          MODE: ${{ github.event.inputs.mode || 'weekly' }}
+        run: |
+          curl -s -X POST "$PROM_PUSHGATEWAY_URL/metrics/job/backup-validation/mode/$MODE" \
+            --data-binary @- <<EOF
+          # TYPE backup_validation_last_success_timestamp gauge
+          # HELP backup_validation_last_success_timestamp Unix timestamp of last successful backup validation.
+          backup_validation_last_success_timestamp $(date +%s)
+          EOF
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_INCIDENTS_WEBHOOK }}
+        run: |
+          curl -s -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            -d "{\"text\":\":rotating_light: Backup validation FAILED — run ${{ github.run_id }}\"}"

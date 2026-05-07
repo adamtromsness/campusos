@@ -92,6 +92,14 @@ model TenantRouting {
   tenantId           String    @unique @map("tenant_id") @db.Uuid
   clusterId          String    @default("primary") @map("cluster_id")
   schemaName         String    @map("schema_name")
+  // Cycle 32 Step 6 — home region enforcement at the API gateway.
+  // 'us-east-1' default keeps every existing tenant on the primary
+  // US cluster. EU/UK tenants are migrated to 'eu-west-2' as part of
+  // their onboarding (Cycle 30 governance + Cycle 32 Step 5 + 6).
+  // The RegionMismatchInterceptor rejects any request whose
+  // process.env.AWS_REGION doesn't match this column with HTTP 421
+  // Misdirected Request.
+  homeRegion         String    @default("us-east-1") @map("home_region")
   isActive           Boolean   @default(true) @map("is_active")
   isFrozen           Boolean   @default(false) @map("is_frozen")
   isMigrating        Boolean   @default(false) @map("is_migrating")

@@ -160,6 +160,9 @@ export class NotificationDeliveryWorker implements OnModuleInit, OnApplicationSh
           organisationId: r.organisation_id,
           isFrozen: false,
           planTier: 'STANDARD',
+          // Cycle 32 Step 6 — delivery worker is regional; AWS_REGION
+          // is the home region for any tenant it processes.
+          homeRegion: process.env.AWS_REGION ?? 'us-east-1',
         };
       });
     } catch (e: any) {
