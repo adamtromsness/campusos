@@ -59,24 +59,32 @@ export class AllergyAlertConsumer implements OnModuleInit {
     const event = unwrapEnvelope<AllergyAlertChangedPayload>(msg, this.logger);
     if (!event) return;
 
-    if (!isValidPayload(event.payload)) {
-      this.logger.warn(
-        'Dropping ' +
-          msg.topic +
-          ' (eventId=' +
-          event.eventId +
-          ') — payload missing required allergy alert fields',
-      );
-      return;
-    }
-
-    const payload = event.payload;
+    // REVIEW-FINAL-V2 MAJOR-NEW-7 — semantic payload validation
+    // happens INSIDE processWithIdempotency so a malformed payload
+    // throws and the standard retry/DLQ chain catches it. The
+    // earlier shape logged + returned, which under
+    // processWithIdempotency would silently claim the event and
+    // advance the offset — leaving the Food Service allergen read
+    // model stale on a malformed Health emit. For a SAFETY-critical
+    // read model that gates the POS allergen cross-check, silent
+    // drop is unacceptable. The DLQ row is now the canonical
+    // signal that a Health producer shipped a malformed allergy
+    // event, surfacing it for operator action.
     await processWithIdempotency(
       AllergyAlertConsumer.CONSUMER_GROUP,
       event as UnwrappedEvent<unknown>,
       this.idempotency,
       this.logger,
       async () => {
+        if (!isValidPayload(event.payload)) {
+          throw new MalformedAllergyAlertPayloadError(
+            'allergy-alert payload missing required fields ' +
+              '(sourceAlertId/studentId/allergenCode/allergenDisplayName/severity/isActive) ' +
+              'on event ' +
+              event.eventId,
+          );
+        }
+        const payload = event.payload;
         await this.alerts.upsertFromAlertEvent({
           sourceAlertId: payload.sourceAlertId,
           studentId: payload.studentId,
@@ -99,6 +107,20 @@ export class AllergyAlertConsumer implements OnModuleInit {
         );
       },
     );
+  }
+}
+
+/**
+ * Thrown when an `hlth.allergy_alert.changed` event has a
+ * structurally-valid ADR-057 envelope but is missing required
+ * domain fields. The standard retry/DLQ chain catches it and parks
+ * to `platform.platform_dlq_messages` with
+ * `error_class=MalformedAllergyAlertPayloadError`.
+ */
+class MalformedAllergyAlertPayloadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MalformedAllergyAlertPayloadError';
   }
 }
 

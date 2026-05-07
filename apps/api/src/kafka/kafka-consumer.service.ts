@@ -3,6 +3,7 @@ import { Consumer, Kafka } from 'kafkajs';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { assertValidEnvelope, EnvelopeValidationError } from './envelope-validator';
+import { unprefixTopic } from './event-envelope';
 
 /**
  * Message shape delivered to a registered handler. Headers are flattened to
@@ -200,9 +201,20 @@ export class KafkaConsumerService implements OnModuleInit, OnApplicationShutdown
           // The helper validates every ADR-057 field. Validation
           // failures cannot succeed on retry; park directly to DLQ
           // with error_class=ENVELOPE_INVALID and advance the offset.
+          //
+          // REVIEW-FINAL-V2 MAJOR-NEW-6 — also enforce topic/event_type
+          // pairing. The wire topic is env-prefixed (e.g.
+          // `dev.pay.invoice.created`); the un-prefixed form is the
+          // expected logical event_type that must match the envelope.
+          // Without this check, a misrouted producer or a replay can
+          // deliver a `pay.invoice.created` envelope on the
+          // `pay.payment.received` topic and the consumer will
+          // dispatch on the topic, interpreting the payload through
+          // the wrong handler. Mismatch → DLQ.
           if (validateEnvelope) {
             try {
-              assertValidEnvelope(payload);
+              var expectedEventType = unprefixTopic(params.topic);
+              assertValidEnvelope(payload, expectedEventType);
             } catch (e: any) {
               var validationErr =
                 e instanceof EnvelopeValidationError ? e : new EnvelopeValidationError(String(e));
@@ -281,9 +293,31 @@ export class KafkaConsumerService implements OnModuleInit, OnApplicationShutdown
   }
 
   /**
-   * Persist a poison message to `platform.platform_dlq_messages`. Best-effort:
-   * if the DLQ insert itself fails, log and swallow so the consumer can move
-   * on rather than retrying both the original message and the DLQ insert.
+   * Persist a poison message to `platform.platform_dlq_messages`.
+   *
+   * REVIEW-FINAL-V2-2026-05-07 MAJOR-NEW-5 — fail closed on DLQ
+   * write failure. The earlier shape caught and swallowed insert
+   * errors so the consumer could "move on", but that meant a
+   * platform-DB outage during a poison message would lose the
+   * event from BOTH the Kafka retry path (because the partition
+   * is committed past) AND the DLQ (because the insert failed).
+   * For a school operating system handling finance + safety-
+   * critical events, silent loss is worse than a blocked partition.
+   *
+   * The new contract:
+   *   - Insert succeeds → log + return normally; caller advances
+   *     past the poison message.
+   *   - Insert fails → throw `DlqWriteFailureError`. The caller
+   *     (`eachMessage` in `subscribe`) lets this propagate, kafkajs
+   *     retains the offset, and the partition blocks until the
+   *     platform DB recovers and a redelivery succeeds in writing
+   *     the DLQ row.
+   *
+   * The trade-off is one blocked partition per affected consumer
+   * group during platform-DB outages. That is the right trade for
+   * a financial / safety system: an operator can see the partition
+   * lag in metrics + page on the alert; silent message loss is
+   * undetectable until a downstream invariant fails much later.
    */
   private async dlq(
     groupId: string,
@@ -332,13 +366,42 @@ export class KafkaConsumerService implements OnModuleInit, OnApplicationShutdown
       );
     } catch (e: any) {
       this.logger.error(
-        'DLQ write failed for group=' +
+        'DLQ write FAILED for group=' +
+          groupId +
+          ' topic=' +
+          params.topic +
+          ' partition=' +
+          params.partition +
+          ' offset=' +
+          String(params.message.offset) +
+          ' — partition will block until platform DB recovers. ' +
+          (e?.stack || e?.message || e),
+      );
+      // Fail closed — propagate so kafkajs retains the offset.
+      throw new DlqWriteFailureError(
+        'Failed to persist DLQ row for group=' +
           groupId +
           ' topic=' +
           params.topic +
           ': ' +
-          (e?.stack || e?.message || e),
+          (e?.message || e),
       );
     }
+  }
+}
+
+/**
+ * Thrown when `platform.platform_dlq_messages` insert fails. The
+ * `eachMessage` handler lets this propagate so kafkajs retains the
+ * offset; the partition blocks until the platform DB recovers.
+ *
+ * Operators detect the blocked partition via `kafka_consumer_lag`
+ * metric and the on-call DLQ-storage-unavailable alert. Recovery
+ * is automatic on the next redelivery once the DB is back.
+ */
+export class DlqWriteFailureError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DlqWriteFailureError';
   }
 }
