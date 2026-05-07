@@ -7,6 +7,8 @@ import { AssignmentService } from './assignment.service';
 import { ScopeService } from './scope.service';
 import { ActorContextService } from './actor-context.service';
 import { TenantModule } from '../tenant/tenant.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { ObservabilityModule } from '../observability/observability.module';
 
 /**
  * IAM Module — Identity & Access Management
@@ -22,7 +24,11 @@ import { TenantModule } from '../tenant/tenant.module';
  * - ScopeService — scope hierarchy management
  */
 @Module({
-  imports: [TenantModule],
+  // Cycle 31 Step 6 — NotificationsModule provides RedisService for the
+  // IAM access cache; ObservabilityModule provides MetricsService for
+  // hit/miss instrumentation. Both are @Optional() in PermissionCheckService
+  // so this works in test contexts without Redis / Prometheus too.
+  imports: [TenantModule, NotificationsModule, ObservabilityModule],
   providers: [
     {
       provide: PrismaClient,

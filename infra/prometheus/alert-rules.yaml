@@ -1,0 +1,161 @@
+# Cycle 31 Step 8 — Prometheus Alert Rules.
+#
+# Loaded by Prometheus via `rule_files: /etc/prometheus/rules/*.yaml`.
+# Alertmanager routes by severity (PAGE → PagerDuty, WARNING/CRITICAL
+# → Slack #campusos-incidents).
+#
+# Severity ladder:
+#   WARNING  — investigate within 1 business hour
+#   CRITICAL — investigate within 15 minutes
+#   PAGE     — wake the on-call engineer (PagerDuty)
+#
+# Reference: Cycle 31 implementation plan + infra/slos/slo-definitions.yaml
+
+groups:
+  - name: api-latency
+    interval: 30s
+    rules:
+      - alert: ApiP95LatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, route) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: WARNING
+          team: campusos-platform
+        annotations:
+          summary: "API p95 latency above 500ms for {{ $labels.route }}"
+          runbook: "infra/runbooks/api-latency.md"
+
+      - alert: ApiP95LatencyCritical
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, route) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: CRITICAL
+          team: campusos-platform
+        annotations:
+          summary: "API p95 latency above 1s for {{ $labels.route }} — investigate immediately"
+          runbook: "infra/runbooks/api-latency.md"
+
+  - name: error-rate
+    interval: 30s
+    rules:
+      - alert: ApiErrorRateHigh
+        expr: |
+          (sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+           /
+           sum(rate(http_requests_total[5m]))) > 0.01
+        for: 5m
+        labels:
+          severity: WARNING
+          team: campusos-platform
+        annotations:
+          summary: "5xx error rate above 1%"
+          runbook: "infra/runbooks/error-rate.md"
+
+      - alert: ApiErrorRateCritical
+        expr: |
+          (sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+           /
+           sum(rate(http_requests_total[5m]))) > 0.05
+        for: 2m
+        labels:
+          severity: PAGE
+          team: campusos-platform
+        annotations:
+          summary: "5xx error rate above 5% — paging on-call"
+          runbook: "infra/runbooks/error-rate.md"
+
+  - name: kafka-lag
+    interval: 30s
+    rules:
+      - alert: KafkaConsumerLagWarning
+        expr: max by (consumer_group, topic, partition) (kafka_consumer_lag) > 1000
+        for: 1m
+        labels:
+          severity: WARNING
+          team: campusos-platform
+        annotations:
+          summary: "Kafka consumer lag > 1,000 on {{ $labels.consumer_group }}/{{ $labels.topic }}/{{ $labels.partition }}"
+          runbook: "infra/runbooks/kafka-lag.md"
+
+      - alert: KafkaConsumerLagPage
+        expr: max by (consumer_group, topic, partition) (kafka_consumer_lag) > 2000
+        for: 2m
+        labels:
+          severity: PAGE
+          team: campusos-platform
+        annotations:
+          summary: "Kafka consumer lag > 2,000 sustained 2m on {{ $labels.consumer_group }} — paging"
+          runbook: "infra/runbooks/kafka-lag.md"
+
+  - name: dlq
+    interval: 60s
+    rules:
+      - alert: DlqMessageOlderThan15Min
+        expr: |
+          (time() - dlq_oldest_unresolved_seconds) > (15 * 60)
+        for: 1m
+        labels:
+          severity: PAGE
+          team: campusos-platform
+        annotations:
+          summary: "DLQ message older than 15 minutes — paging on-call"
+          runbook: "infra/runbooks/dlq.md"
+
+  - name: db-replication
+    interval: 30s
+    rules:
+      - alert: DbReplicationLagWarning
+        expr: pg_replication_lag_seconds > 5
+        for: 2m
+        labels:
+          severity: WARNING
+          team: campusos-platform
+        annotations:
+          summary: "Read-replica replication lag above 5s"
+          runbook: "infra/runbooks/db-replication.md"
+
+      - alert: DbReplicationLagCritical
+        expr: pg_replication_lag_seconds > 30
+        for: 1m
+        labels:
+          severity: CRITICAL
+          team: campusos-platform
+        annotations:
+          summary: "Read-replica replication lag above 30s"
+          runbook: "infra/runbooks/db-replication.md"
+
+  - name: circuit-breakers
+    interval: 30s
+    rules:
+      - alert: CircuitBreakerOpen
+        # 1 = OPEN per circuit-breaker.ts state encoding
+        expr: max by (dependency) (circuit_breaker_state) == 1
+        for: 1m
+        labels:
+          severity: PAGE
+          team: campusos-platform
+        annotations:
+          summary: "Circuit breaker for {{ $labels.dependency }} OPEN sustained 1m"
+          runbook: "infra/runbooks/circuit-breaker.md"
+
+  - name: breach-72hour
+    interval: 60s
+    rules:
+      - alert: BreachNotificationDeadlineWithin2Hours
+        # Fires when any active breach has <=2h remaining on its 72h window.
+        # The metric is exported by the Step 8 SLO worker (Phase 2 wiring)
+        # that reads dpo_data_breach_records.
+        expr: dpo_breach_hours_remaining_to_72 <= 2
+        for: 0m  # immediate
+        labels:
+          severity: PAGE
+          team: campusos-platform
+        annotations:
+          summary: "GDPR Article 33 72-hour breach deadline within 2 hours — paging DPO"
+          runbook: "infra/runbooks/breach-72hour.md"

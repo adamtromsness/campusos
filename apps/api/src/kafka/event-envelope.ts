@@ -1,5 +1,6 @@
 import { generateId } from '@campusos/database';
 import { getRequestContext } from '../tenant/tenant.context';
+import { getTraceContext } from '../observability/trace-context';
 
 /**
  * Canonical event envelope (ADR-057, landed in Cycle 3 Step 0).
@@ -89,7 +90,16 @@ export function envelopeFromOptions<P>(opts: EnvelopeOptions<P>): EventEnvelope<
     published_at: nowIso,
     tenant_id: resolvedTenant,
     source_module: opts.sourceModule,
-    correlation_id: opts.correlationId ?? generateId(),
+    // Cycle 31 Step 1 — propagate the HTTP request trace_id through to the
+    // Kafka envelope so consumer-side processing stays linked to the
+    // originating request. Caller-supplied correlationId always wins; if
+    // the producer is running outside an HTTP request (worker, scheduled
+    // job) we fall back to a fresh UUIDv7.
+    correlation_id:
+      opts.correlationId ??
+      getTraceContext()?.correlationId ??
+      getTraceContext()?.traceId ??
+      generateId(),
     payload: opts.payload,
   };
 }

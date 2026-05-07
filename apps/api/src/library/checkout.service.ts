@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
@@ -85,6 +86,8 @@ function rowToCheckoutDto(r: CheckoutRow): CheckoutResponseDto {
 
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name);
+
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permissions: PermissionCheckService,
@@ -473,7 +476,14 @@ export class CheckoutService {
         });
       } catch (err) {
         // Best-effort emit. Audit log will surface broker outages.
-        console.error('[library] failed to emit lib.fine.issued for fine ' + fine.id, err);
+        this.logger.error(
+          {
+            message: 'failed to emit lib.fine.issued',
+            fine_id: fine.id,
+            error_class: err instanceof Error ? err.constructor.name : 'Unknown',
+          },
+          err instanceof Error ? err.stack : undefined,
+        );
       }
     }
 

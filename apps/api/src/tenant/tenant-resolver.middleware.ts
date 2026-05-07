@@ -125,6 +125,11 @@ export class TenantResolverMiddleware implements NestMiddleware {
    */
   private isExemptPath(path: string): boolean {
     if (path === '/api/v1/health') return true;
+    // Cycle 31 Step 3 — /metrics is the Prometheus scrape endpoint;
+    // it sits outside the /api/v1 prefix and outside the tenant
+    // resolution chain. Network ACLs scope access to the scraper
+    // itself in production.
+    if (path === '/metrics') return true;
 
     var exemptPrefixes = [
       '/api/v1/auth/login',

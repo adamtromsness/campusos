@@ -1,0 +1,112 @@
+# Cycle 31 Step 8 — Service Level Objectives.
+#
+# Three tiers per the cycle-31 plan. Each module is assigned a tier;
+# the alerting pipeline (Step 8 below) routes errors per the tier
+# urgency. Error budgets are computed monthly.
+#
+# Reference: Architecture Review §16, Cycle 31 implementation plan.
+
+version: 1
+tiers:
+  CRITICAL:
+    # User-facing safety + financial paths. Any prolonged outage is a
+    # direct safety / regulatory event.
+    availability_pct: 99.9
+    latency_p95_ms: 500
+    error_budget_monthly_minutes: 43
+    routing: pagerduty
+    modules:
+      - food-service        # POS allergen cross-check (Cycle 20)
+      - health              # Health record / IEP / medication admin (Cycle 10)
+      - emergency-alerts    # Emergency alert fan-out (Cycle 14)
+      - iam                 # Authn/authz + IAM access cache
+      - auth                # Login + token refresh
+      - payments            # GL posting + ledger
+      - finance             # GL + journal batches (Cycle 26)
+      - governance          # 72-hour breach countdown + IMMUTABLE pseudo log (Cycle 30)
+      - transport           # QR bus pass scan (Cycle 19)
+
+  STANDARD:
+    # Day-to-day operational paths. Latency target is generous; the
+    # availability target is the load-bearing one.
+    availability_pct: 99.5
+    latency_p95_ms: 1000
+    error_budget_monthly_minutes: 216
+    routing: slack
+    modules:
+      - sis
+      - attendance
+      - classroom
+      - messaging
+      - announcements
+      - scheduling
+      - enrollment
+      - library
+      - athletics
+      - clubs
+      - meetings
+      - publications
+      - groups
+      - profile
+      - households
+      - tasks
+      - workflows
+      - tickets
+      - discipline
+      - behavior-plans
+      - counselling
+      - wellbeing
+      - hr
+      - facilities
+      - food-service-non-pos  # menu management, dietary requests (non-POS paths)
+      - notifications
+      - it
+      - procurement
+      - store
+      - curriculum
+      - portfolio
+
+  BACKGROUND:
+    # Workers + nightly batches. Latency budget covers the slowest
+    # async path; availability is per-day.
+    availability_pct: 99.0
+    latency_p95_ms: 30000
+    error_budget_monthly_minutes: 432
+    routing: slack
+    modules:
+      - analytics-workers
+      - report-generation
+      - nightly-materialisation
+      - audience-fan-out
+      - notification-delivery
+      - coverage-consumer
+      - ticket-task-completion
+      - behaviour-notification
+      - leave-notification
+      - thread-stats
+      - iep-accommodation
+      - payment-account-worker
+      - gl-consumer
+
+# Error budget tracking
+error_budget:
+  computation_window: monthly
+  alert_thresholds:
+    - threshold_pct: 50
+      severity: WARNING
+      message: "Error budget 50% exhausted — review recent deploys"
+    - threshold_pct: 25
+      severity: CRITICAL
+      message: "Error budget 75% exhausted — pre-deployment freeze recommended"
+    - threshold_pct: 0
+      severity: PAGE
+      message: "Error budget exhausted — automatic deployment freeze enacted"
+
+# Where alerts go
+routing:
+  pagerduty:
+    integration: "secret://pagerduty-integration-key"
+    escalation_policy: "campusos-oncall-primary"
+  slack:
+    webhook: "secret://slack-incidents-webhook"
+    channel: "#campusos-incidents"

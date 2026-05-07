@@ -7,6 +7,7 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
+    "lint:logs": "pnpm --filter @campusos/database exec tsx ../../tools/lint/log-schema-lint.ts",
     "test": "turbo test",
     "test:ci": "turbo test:ci",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",

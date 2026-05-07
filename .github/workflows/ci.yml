@@ -47,6 +47,7 @@ jobs:
       - run: pnpm --filter @campusos/database build
       - run: pnpm --filter @campusos/api build
       - run: pnpm format:check
+      - run: pnpm lint:logs
 
   test:
     name: Unit Tests

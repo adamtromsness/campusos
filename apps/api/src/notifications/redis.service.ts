@@ -75,6 +75,53 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Cycle 31 Step 6 — Generic JSON cache helpers. Used by IamCache,
+   * UnreadCountCache, AvailableCopiesCache, DeliveryGapCache. Each
+   * cache has a documented invalidation contract (see
+   * apps/api/src/observability/cache-contracts.md).
+   *
+   * Returns null on cache miss OR when Redis is unavailable. Callers
+   * MUST treat null as "not cached" and fall through to the
+   * authoritative source.
+   */
+  async cacheGet<T>(key: string): Promise<T | null> {
+    if (!this.connected || !this.client) return null;
+    try {
+      const raw = await this.client.get(key);
+      if (raw === null) return null;
+      return JSON.parse(raw) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Set a JSON-serialisable value with TTL (seconds). No-op when
+   * Redis is unavailable.
+   */
+  async cacheSet<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
+    if (!this.connected || !this.client) return;
+    try {
+      await this.client.set(key, JSON.stringify(value), 'EX', ttlSeconds);
+    } catch (e: any) {
+      this.logger.warn('Redis cache SET failed (' + key + '): ' + (e?.message || e));
+    }
+  }
+
+  /**
+   * Invalidate one or more cache keys. Used by Kafka invalidation
+   * consumers to drop stale entries.
+   */
+  async cacheInvalidate(...keys: string[]): Promise<void> {
+    if (!this.connected || !this.client || keys.length === 0) return;
+    try {
+      await this.client.del(...keys);
+    } catch (e: any) {
+      this.logger.warn('Redis cache DEL failed (' + keys.join(',') + '): ' + (e?.message || e));
+    }
+  }
+
+  /**
    * Try to claim an idempotency key. Returns true on first claim, false if
    * the key already existed. Returns true (fail-open) when Redis is down so
    * the queue insert isn't blocked — the tenant DB index on

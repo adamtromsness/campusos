@@ -71,7 +71,8 @@ export type AppKey =
   | 'procurement'
   | 'store'
   | 'analytics'
-  | 'governance';
+  | 'governance'
+  | 'platform';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -651,6 +652,22 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/governance',
       routePrefix: '/governance',
       icon: ShieldIcon,
+    });
+  }
+
+  // Platform Admin — Cycle 31 Step 9. Gated on sys-001:admin which only
+  // Platform Admin holds (not School Admin). Surfaces tenant ops, DLQ,
+  // partition health, and migration history. Hidden from every other
+  // persona including school admins; the dashboards expose cross-tenant
+  // state that crosses school boundaries.
+  if (hasAnyPermission(user, ['sys-001:admin'])) {
+    apps.push({
+      key: 'platform',
+      label: 'Platform',
+      description: 'Tenant ops, DLQ, partitions, and migrations',
+      href: '/admin/platform',
+      routePrefix: '/admin/platform',
+      icon: ComputerIcon,
     });
   }
 

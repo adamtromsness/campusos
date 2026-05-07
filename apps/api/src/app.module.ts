@@ -44,6 +44,9 @@ import { ProcurementModule } from './procurement/procurement.module';
 import { StoreModule } from './store/store.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { GovernanceModule } from './governance/governance.module';
+import { ObservabilityModule } from './observability/observability.module';
+import { DlqModule } from './dlq/dlq.module';
+import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -70,6 +73,11 @@ var devOnlyControllers: Type<unknown>[] =
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
     }),
+    // Cycle 31 Step 1 — ObservabilityModule must register the
+    // TraceIdMiddleware BEFORE TenantResolverMiddleware so the trace
+    // context is established before tenant resolution. NestJS applies
+    // middleware in module-import order.
+    ObservabilityModule,
     HealthModule,
     TenantModule,
     AuthModule,
@@ -114,6 +122,8 @@ var devOnlyControllers: Type<unknown>[] =
     StoreModule,
     AnalyticsModule,
     GovernanceModule,
+    DlqModule,
+    PlatformAdminModule,
   ],
   controllers: devOnlyControllers,
   providers: [

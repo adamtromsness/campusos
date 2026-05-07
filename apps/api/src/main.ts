@@ -1,14 +1,31 @@
+// Cycle 31 Step 2 — OpenTelemetry must bootstrap BEFORE any
+// instrumented module is required. The SDK monkey-patches the
+// underlying http / pg / ioredis / kafkajs modules at require-time;
+// any import above this line would skip auto-instrumentation.
+import { bootstrapOpenTelemetry } from './observability/otel-bootstrap';
+bootstrapOpenTelemetry();
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 var cookieParser = require('cookie-parser');
 import { AppModule } from './app.module';
+import { StructuredLogger } from './observability/structured-logger';
 
 async function bootstrap() {
-  var app = await NestFactory.create(AppModule);
+  // Cycle 31 Step 1 — install the structured JSON logger before
+  // NestFactory boot so the bootstrap log lines themselves are
+  // structured. The logger is a no-arg constructor in dev; production
+  // sets SERVICE_NAME via env to differentiate per-service log groups
+  // when the monolith eventually splits per the extraction plan.
+  var logger = new StructuredLogger();
+  var app = await NestFactory.create(AppModule, { logger });
 
-  // Global prefix for all API routes
-  app.setGlobalPrefix('api/v1');
+  // Global prefix for all API routes. /metrics is intentionally outside
+  // the prefix so the Prometheus scraper can hit it without picking up
+  // the /api/v1 namespace, matching the convention every Prometheus
+  // exporter follows. Cycle 31 Step 3.
+  app.setGlobalPrefix('api/v1', { exclude: ['/metrics'] });
 
   // Cookie parser for HttpOnly refresh tokens
   app.use(cookieParser());
@@ -42,9 +59,13 @@ async function bootstrap() {
   var port = process.env.PORT || 4000;
   await app.listen(port);
 
-  console.log('CampusOS API running on http://localhost:' + port);
-  console.log('Swagger docs at http://localhost:' + port + '/api/docs');
-  console.log('Dev login: POST http://localhost:' + port + '/api/v1/auth/dev-login');
+  // Boot lines flow through the structured logger so CI / production
+  // log aggregation sees a consistent JSON shape from the very first
+  // line. The conventional Boot context name keeps these lines easy
+  // to grep for during cold-start incident response.
+  logger.log('CampusOS API running on http://localhost:' + port, 'Boot');
+  logger.log('Swagger docs at http://localhost:' + port + '/api/docs', 'Boot');
+  logger.log('Dev login: POST http://localhost:' + port + '/api/v1/auth/dev-login', 'Boot');
 }
 
 bootstrap();

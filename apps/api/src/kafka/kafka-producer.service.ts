@@ -186,4 +186,33 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
       );
     }
   }
+
+  /**
+   * Cycle 31 Step 7 — DLQ replay path. Sends a pre-built envelope to
+   * a pre-prefixed wire topic. Used by DlqService.replay so the
+   * caller doesn't pay the envelope-build cost twice + the
+   * correlation_id, event_id, tenant_id from the original envelope
+   * are preserved verbatim.
+   *
+   * Bypasses prefixedTopic() because the DLQ row stores the wire
+   * topic directly.
+   */
+  async emitRaw(args: {
+    topic: string;
+    key: string | null;
+    envelope: { event_id?: string; event_type?: string; tenant_id?: string; [k: string]: unknown };
+  }): Promise<void> {
+    if (!this.connected || !this.producer) {
+      this.logger.warn('[skip-emitRaw] ' + args.topic + ' — broker unavailable');
+      return;
+    }
+    const headers: Record<string, string> = {};
+    if (args.envelope.event_id) headers['event-id'] = args.envelope.event_id;
+    if (args.envelope.event_type) headers['event-type'] = args.envelope.event_type;
+    if (args.envelope.tenant_id) headers['tenant-id'] = args.envelope.tenant_id;
+    await this.producer.send({
+      topic: args.topic,
+      messages: [{ key: args.key, value: JSON.stringify(args.envelope), headers }],
+    });
+  }
 }

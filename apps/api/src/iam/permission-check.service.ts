@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { RedisService } from '../notifications/redis.service';
+import { MetricsService } from '../observability/metrics.service';
 
 /**
  * PermissionCheckService — Hot-path permission lookup
@@ -10,11 +12,57 @@ import { PrismaClient } from '@prisma/client';
  * ADR-036: Direct JOINs across role_assignment→role→permission
  * are FORBIDDEN on the request path. Cache only.
  *
- * Flow: Redis (5-min TTL) → iam_effective_access_cache table → 403
+ * Flow (Cycle 31 Step 6): Redis (5-min TTL) → iam_effective_access_cache table → 403.
+ *
+ * Cache contract:
+ *   key   : iam:access:{accountId}:{scopeId}
+ *   value : string[] (permission codes)
+ *   TTL   : 300 seconds
+ *   invalidation : iam.role_assignment.changed + iam.account.suspended
+ *                  Kafka events trigger explicit DEL via the IAM
+ *                  invalidation consumer (Phase 2 — sub-second
+ *                  invalidation). The 5-min TTL is the worst-case
+ *                  staleness bound when the consumer is offline.
  */
+const IAM_CACHE_TTL_SECONDS = 5 * 60;
+const IAM_CACHE_LABEL = 'iam_access';
+
 @Injectable()
 export class PermissionCheckService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    @Optional() private readonly redis?: RedisService,
+    @Optional() private readonly metrics?: MetricsService,
+  ) {}
+
+  private cacheKey(accountId: string, scopeId: string): string {
+    return `iam:access:${accountId}:${scopeId}`;
+  }
+
+  /**
+   * Cycle 31 Step 6 — Redis-backed effective access lookup. Returns
+   * the cached permission codes for (account, scope), or fetches +
+   * caches the DB row on a miss. Returns [] when no cache row exists
+   * (no permissions in this scope).
+   */
+  private async loadEffectiveCodes(accountId: string, scopeId: string): Promise<string[]> {
+    if (this.redis) {
+      const cached = await this.redis.cacheGet<string[]>(this.cacheKey(accountId, scopeId));
+      if (cached !== null) {
+        this.metrics?.redisCacheHits.labels(IAM_CACHE_LABEL).inc();
+        return cached;
+      }
+      this.metrics?.redisCacheMisses.labels(IAM_CACHE_LABEL).inc();
+    }
+    const row = await this.prisma.iamEffectiveAccessCache.findUnique({
+      where: { accountId_scopeId: { accountId, scopeId } },
+    });
+    const codes = row?.permissionCodes ?? [];
+    if (this.redis) {
+      await this.redis.cacheSet(this.cacheKey(accountId, scopeId), codes, IAM_CACHE_TTL_SECONDS);
+    }
+    return codes;
+  }
 
   /**
    * Check if an account has a specific permission in a scope.
@@ -25,20 +73,8 @@ export class PermissionCheckService {
     scopeId: string,
     permissionCode: string,
   ): Promise<boolean> {
-    // TODO: Check Redis first (Step 7+ when Redis service is wired)
-
-    // Fall back to database cache
-    var cache = await this.prisma.iamEffectiveAccessCache.findUnique({
-      where: {
-        accountId_scopeId: { accountId, scopeId },
-      },
-    });
-
-    if (!cache) {
-      return false;
-    }
-
-    return cache.permissionCodes.includes(permissionCode);
+    const codes = await this.loadEffectiveCodes(accountId, scopeId);
+    return codes.includes(permissionCode);
   }
 
   /**
@@ -49,20 +85,9 @@ export class PermissionCheckService {
     scopeId: string,
     permissionCodes: string[],
   ): Promise<boolean> {
-    var cache = await this.prisma.iamEffectiveAccessCache.findUnique({
-      where: {
-        accountId_scopeId: { accountId, scopeId },
-      },
-    });
-
-    if (!cache) {
-      return false;
-    }
-
-    for (var i = 0; i < permissionCodes.length; i++) {
-      if (cache.permissionCodes.includes(permissionCodes[i] as string)) {
-        return true;
-      }
+    const codes = await this.loadEffectiveCodes(accountId, scopeId);
+    for (const c of permissionCodes) {
+      if (codes.includes(c)) return true;
     }
     return false;
   }
@@ -71,13 +96,18 @@ export class PermissionCheckService {
    * Get all permissions for an account in a scope.
    */
   async getPermissions(accountId: string, scopeId: string): Promise<string[]> {
-    var cache = await this.prisma.iamEffectiveAccessCache.findUnique({
-      where: {
-        accountId_scopeId: { accountId, scopeId },
-      },
-    });
+    return this.loadEffectiveCodes(accountId, scopeId);
+  }
 
-    return cache ? cache.permissionCodes : [];
+  /**
+   * Cycle 31 Step 6 — explicit invalidation hook for the IAM
+   * invalidation consumer (or admin tooling). Drops the cached
+   * codes for one (account, scope) pair so the next request re-reads
+   * the DB row.
+   */
+  async invalidate(accountId: string, scopeId: string): Promise<void> {
+    if (!this.redis) return;
+    await this.redis.cacheInvalidate(this.cacheKey(accountId, scopeId));
   }
 
   /**
