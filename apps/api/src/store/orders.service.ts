@@ -139,6 +139,21 @@ export class OrderService {
     return actor.isSchoolAdmin || actor.personType === 'STAFF';
   }
 
+  /**
+   * Resolve the calling student's own sis_students.id from their iam_person.id.
+   * Returns null if the actor is not bridged to a student row in this tenant.
+   * Used by BLOCKING 2 fix to enforce student-self-only on STUDENT orders.
+   */
+  private async resolveStudentSelfId(personId: string): Promise<string | null> {
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        `SELECT s.id::text AS id FROM sis_students s JOIN platform.platform_students ps ON ps.id = s.platform_student_id WHERE ps.person_id = $1::uuid LIMIT 1`,
+        personId,
+      );
+    })) as Array<{ id: string }>;
+    return rows.length === 0 ? null : rows[0]!.id;
+  }
+
   private async loadLines(orderIds: string[]): Promise<Map<string, OrderLineDto[]>> {
     if (orderIds.length === 0) return new Map();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -391,6 +406,21 @@ export class OrderService {
     if (input.orderType === 'STUDENT' && !input.studentId) {
       throw new BadRequestException('studentId is required for STUDENT orders');
     }
+    // REVIEW-CYCLE28 BLOCKING 2: students may only place STUDENT orders for
+    // themselves. Managers (admin or STAFF) may place on behalf of any
+    // student via the existing manager path.
+    if (
+      input.orderType === 'STUDENT' &&
+      actor.personType === 'STUDENT' &&
+      !this.isStoreManager(actor)
+    ) {
+      const selfStudentId = await this.resolveStudentSelfId(actor.personId);
+      if (!selfStudentId || selfStudentId !== input.studentId) {
+        throw new ForbiddenException(
+          'Students may only place STUDENT orders for themselves. Use the store manager path to order on behalf of another student.',
+        );
+      }
+    }
     if (input.shippingMethod === 'SHIPPED' && !input.shippingOptionId) {
       throw new BadRequestException('shippingOptionId is required when shippingMethod=SHIPPED');
     }
@@ -447,7 +477,10 @@ export class OrderService {
         parentPersonId = parentRows[0]!.person_id;
       }
 
-      // Resolve products + reserve inventory + compute totals
+      // REVIEW-CYCLE28 BLOCKING 4: lock inventory rows BEFORE classifying
+      // IN_STOCK vs BACKORDERED so the availability number is authoritative
+      // under concurrency. The locked rows are passed down to the
+      // reservation step so we operate on the same locked snapshot.
       let subtotal = 0;
       const linesToInsert: Array<{
         productId: string;
@@ -457,8 +490,8 @@ export class OrderService {
         lineTotal: number;
         cost: number | null;
         lineStatus: LineStatus;
+        lockedInventory: Array<{ id: string; quantity_on_hand: number; quantity_reserved: number }>;
       }> = [];
-      const totalAvailableByProduct = new Map<string, number>();
       for (const line of input.lines) {
         const product = await this.products.loadForOrderInTx(tx, line.productId);
         if (!product.isActive) {
@@ -469,20 +502,25 @@ export class OrderService {
             `Product ${product.id} does not belong to the supplied storeId`,
           );
         }
-        const invRows = (await tx.$queryRawUnsafe(
-          `SELECT COALESCE(SUM(GREATEST(quantity_on_hand - quantity_reserved, 0)), 0)::int AS available FROM str_product_inventory WHERE product_id = $1::uuid`,
+        // Lock all inventory rows for this product + sort by free quantity
+        // descending so the reservation drains the largest stock first.
+        const lockedInventory = (await tx.$queryRawUnsafe(
+          `SELECT id::text AS id, quantity_on_hand, quantity_reserved FROM str_product_inventory WHERE product_id = $1::uuid ORDER BY (quantity_on_hand - quantity_reserved) DESC FOR UPDATE`,
           product.id,
-        )) as Array<{ available: number }>;
-        const available = Number(invRows[0]!.available);
-        totalAvailableByProduct.set(product.id, available);
+        )) as Array<{ id: string; quantity_on_hand: number; quantity_reserved: number }>;
+        const availableUnderLock = lockedInventory.reduce(
+          (acc, inv) =>
+            acc + Math.max(Number(inv.quantity_on_hand) - Number(inv.quantity_reserved), 0),
+          0,
+        );
         let lineStatus: LineStatus;
-        if (line.quantity <= available) {
+        if (line.quantity <= availableUnderLock) {
           lineStatus = 'IN_STOCK';
         } else if (product.backorderAllowed) {
           lineStatus = 'BACKORDERED';
         } else {
           throw new BadRequestException(
-            `Insufficient stock for ${line.productId} — requested ${line.quantity}, available ${available}, backorder not allowed`,
+            `Insufficient stock for ${line.productId} — requested ${line.quantity}, available ${availableUnderLock}, backorder not allowed`,
           );
         }
         const lineTotal = Number((product.price * line.quantity).toFixed(2));
@@ -495,6 +533,7 @@ export class OrderService {
           lineTotal,
           cost: product.cost,
           lineStatus,
+          lockedInventory,
         });
       }
 
@@ -564,16 +603,13 @@ export class OrderService {
           line.lineStatus,
         );
         if (line.lineStatus !== 'BACKORDERED') {
-          // Reserve from inventory: bump quantity_reserved on the row(s)
-          // until the requested quantity is covered. Walk rows in
-          // descending quantity_on_hand so we drain the largest stock
-          // first.
+          // REVIEW-CYCLE28 BLOCKING 4: walk the rows we already locked above
+          // (no second SELECT — the locked snapshot is authoritative within
+          // this tx). After the loop, if remaining > 0 we throw — the
+          // line was classified IN_STOCK but couldn't be fully reserved,
+          // which means the locked-snapshot math drifted (defence-in-depth).
           let remaining = line.quantity;
-          const invRows = (await tx.$queryRawUnsafe(
-            `SELECT id::text AS id, quantity_on_hand, quantity_reserved FROM str_product_inventory WHERE product_id = $1::uuid ORDER BY (quantity_on_hand - quantity_reserved) DESC FOR UPDATE`,
-            line.productId,
-          )) as Array<{ id: string; quantity_on_hand: number; quantity_reserved: number }>;
-          for (const inv of invRows) {
+          for (const inv of line.lockedInventory) {
             if (remaining <= 0) break;
             const free = Math.max(Number(inv.quantity_on_hand) - Number(inv.quantity_reserved), 0);
             const take = Math.min(free, remaining);
@@ -583,8 +619,16 @@ export class OrderService {
                 take,
                 inv.id,
               );
+              // Mutate the locked snapshot so subsequent lines in this
+              // same tx targeting the same product see the bumped value.
+              inv.quantity_reserved = Number(inv.quantity_reserved) + take;
               remaining -= take;
             }
+          }
+          if (remaining > 0) {
+            throw new BadRequestException(
+              `Reservation race detected for product ${line.productId} — could not reserve ${remaining} of ${line.quantity} units. Please retry.`,
+            );
           }
         }
       }
@@ -817,26 +861,35 @@ export class OrderService {
     return this.getById(orderId, actor);
   }
 
-  /** Used by ApprovalService.approve to flip PENDING_APPROVAL → PROCESSING. */
-  async advanceFromApproval(orderId: string, paymentStatus: PaymentStatus): Promise<void> {
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      await tx.$executeRawUnsafe(
-        `UPDATE str_orders SET status = 'PROCESSING', payment_status = $1, updated_at = now() WHERE id = $2::uuid AND status = 'PENDING_APPROVAL'`,
-        paymentStatus,
-        orderId,
-      );
-    });
+  /**
+   * REVIEW-CYCLE28 BLOCKING 3: in-tx variant called by ApprovalService.approve
+   * INSIDE the same tenant transaction as the approval row update so the
+   * approval flip + order transition are atomic. The order row must already
+   * be locked by the caller via SELECT ... FOR UPDATE.
+   */
+  async advanceFromApprovalInTx(
+    tx: PrismaClient,
+    orderId: string,
+    paymentStatus: PaymentStatus,
+  ): Promise<void> {
+    await tx.$executeRawUnsafe(
+      `UPDATE str_orders SET status = 'PROCESSING', payment_status = $1, updated_at = now() WHERE id = $2::uuid AND status = 'PENDING_APPROVAL'`,
+      paymentStatus,
+      orderId,
+    );
   }
 
-  /** Used by ApprovalService.decline to flip PENDING_APPROVAL → CANCELLED + release inventory. */
-  async cancelFromApprovalDecline(orderId: string): Promise<void> {
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      await this.releaseAllReservations(tx, orderId);
-      await tx.$executeRawUnsafe(
-        `UPDATE str_orders SET status = 'CANCELLED', updated_at = now() WHERE id = $1::uuid AND status = 'PENDING_APPROVAL'`,
-        orderId,
-      );
-    });
+  /**
+   * REVIEW-CYCLE28 BLOCKING 3: in-tx variant called by ApprovalService.decline
+   * INSIDE the same tenant transaction as the approval row update.
+   * Releases inventory reservations + flips order to CANCELLED.
+   */
+  async cancelFromApprovalDeclineInTx(tx: PrismaClient, orderId: string): Promise<void> {
+    await this.releaseAllReservations(tx, orderId);
+    await tx.$executeRawUnsafe(
+      `UPDATE str_orders SET status = 'CANCELLED', updated_at = now() WHERE id = $1::uuid AND status = 'PENDING_APPROVAL'`,
+      orderId,
+    );
   }
 
   private async releaseAllReservations(tx: PrismaClient, orderId: string): Promise<void> {
@@ -923,28 +976,44 @@ export class ApprovalService {
     if (!actor.personId) {
       throw new BadRequestException('Approval requires a logged-in person');
     }
+    // REVIEW-CYCLE28 BLOCKING 3: approval row update + parent order
+    // transition happen atomically inside ONE tenant tx with both rows
+    // locked FOR UPDATE. str.order.completed emit fires AFTER tx commits.
     let orderId: string | null = null;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      const rows = (await tx.$queryRawUnsafe(
+      const aRows = (await tx.$queryRawUnsafe(
         `SELECT a.order_id::text AS order_id, a.parent_person_id::text AS parent_person_id, a.status FROM str_order_approvals a WHERE a.id = $1::uuid FOR UPDATE`,
         approvalId,
       )) as Array<{ order_id: string; parent_person_id: string; status: string }>;
-      if (rows.length === 0) throw new NotFoundException('Approval not found');
-      const r = rows[0]!;
-      if (!actor.isSchoolAdmin && r.parent_person_id !== actor.personId) {
+      if (aRows.length === 0) throw new NotFoundException('Approval not found');
+      const a = aRows[0]!;
+      if (!actor.isSchoolAdmin && a.parent_person_id !== actor.personId) {
         throw new ForbiddenException('Only the assigned parent or an admin may approve this order');
       }
-      if (r.status !== 'PENDING') {
-        throw new BadRequestException(`Approval is already ${r.status}`);
+      if (a.status !== 'PENDING') {
+        throw new BadRequestException(`Approval is already ${a.status}`);
       }
+      // Lock the parent order row in the same tx
+      const oRows = (await tx.$queryRawUnsafe(
+        `SELECT status FROM str_orders WHERE id = $1::uuid FOR UPDATE`,
+        a.order_id,
+      )) as Array<{ status: string }>;
+      if (oRows.length === 0) throw new NotFoundException('Parent order not found');
+      if (oRows[0]!.status !== 'PENDING_APPROVAL') {
+        throw new BadRequestException(
+          `Parent order is in status ${oRows[0]!.status}; expected PENDING_APPROVAL`,
+        );
+      }
+      // Atomic: flip approval + flip order in the same tx
       await tx.$executeRawUnsafe(
         `UPDATE str_order_approvals SET status = 'APPROVED', responded_at = now(), updated_at = now() WHERE id = $1::uuid`,
         approvalId,
       );
-      orderId = r.order_id;
+      await this.orders.advanceFromApprovalInTx(tx as PrismaClient, a.order_id, 'CHARGED');
+      orderId = a.order_id;
     });
     if (orderId) {
-      await this.orders.advanceFromApproval(orderId, 'CHARGED');
+      // Emit AFTER commit so a Kafka outage cannot roll back the approval.
       await this.orders.emitOrderCompletedAfterApproval(orderId);
     }
     return this.getApproval(approvalId);
@@ -958,30 +1027,40 @@ export class ApprovalService {
     if (!actor.personId) {
       throw new BadRequestException('Approval requires a logged-in person');
     }
-    let orderId: string | null = null;
+    // REVIEW-CYCLE28 BLOCKING 3: approval decline + order CANCELLED +
+    // reservation release atomic in ONE tenant tx.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      const rows = (await tx.$queryRawUnsafe(
+      const aRows = (await tx.$queryRawUnsafe(
         `SELECT a.order_id::text AS order_id, a.parent_person_id::text AS parent_person_id, a.status FROM str_order_approvals a WHERE a.id = $1::uuid FOR UPDATE`,
         approvalId,
       )) as Array<{ order_id: string; parent_person_id: string; status: string }>;
-      if (rows.length === 0) throw new NotFoundException('Approval not found');
-      const r = rows[0]!;
-      if (!actor.isSchoolAdmin && r.parent_person_id !== actor.personId) {
+      if (aRows.length === 0) throw new NotFoundException('Approval not found');
+      const a = aRows[0]!;
+      if (!actor.isSchoolAdmin && a.parent_person_id !== actor.personId) {
         throw new ForbiddenException('Only the assigned parent or an admin may decline this order');
       }
-      if (r.status !== 'PENDING') {
-        throw new BadRequestException(`Approval is already ${r.status}`);
+      if (a.status !== 'PENDING') {
+        throw new BadRequestException(`Approval is already ${a.status}`);
       }
+      // Lock the parent order row in the same tx
+      const oRows = (await tx.$queryRawUnsafe(
+        `SELECT status FROM str_orders WHERE id = $1::uuid FOR UPDATE`,
+        a.order_id,
+      )) as Array<{ status: string }>;
+      if (oRows.length === 0) throw new NotFoundException('Parent order not found');
+      if (oRows[0]!.status !== 'PENDING_APPROVAL') {
+        throw new BadRequestException(
+          `Parent order is in status ${oRows[0]!.status}; expected PENDING_APPROVAL`,
+        );
+      }
+      // Atomic: flip approval + cancel order + release reservation
       await tx.$executeRawUnsafe(
         `UPDATE str_order_approvals SET status = 'DECLINED', responded_at = now(), decline_reason = $1, updated_at = now() WHERE id = $2::uuid`,
         input.reason,
         approvalId,
       );
-      orderId = r.order_id;
+      await this.orders.cancelFromApprovalDeclineInTx(tx as PrismaClient, a.order_id);
     });
-    if (orderId) {
-      await this.orders.cancelFromApprovalDecline(orderId);
-    }
     return this.getApproval(approvalId);
   }
 

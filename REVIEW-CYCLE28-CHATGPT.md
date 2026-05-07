@@ -1,80 +1,146 @@
 # REVIEW-CYCLE28-CHATGPT
 
 **Cycle:** 28 — School Store (M67, Wave 6 closeout cycle).
-**Status:** Awaiting Round 1 verdict.
-**Round 1 commit:** `cycle28-complete` at TBD (see git log on `main`).
-**Live verification:** `tenant_demo` 2026-05-06.
+**Round 1 verdict:** **Reject pending fixes** — 4 BLOCKING + 4 MAJOR (1 BLOCKING DISPUTED + 3 BLOCKING accepted; 4 MAJORs carried to Phase 2 punch list).
+**Round 1 commit:** `cycle28-complete` at `d895a3c`.
+**Round 1 fix commit:** TBD on `main` (this commit).
+**Live verification:** `tenant_demo` 2026-05-07.
 
 ---
 
-## What this cycle ships
+## Triage table
 
-Cycle 28 ships the M67 School Store module — 9 new tenant `str_*` base tables across 3 migrations (092 + 093 + 094), 13 intra-tenant FKs, 0 cross-schema FKs. **Wave 6 closes here** (Cycle 26 Finance + Cycle 27 Procurement + Cycle 28 School Store form the connected commerce stack).
-
-Five structural keystones:
-
-1. **PARENT APPROVAL GATE (ADR-062)** — every STUDENT-type order auto-creates a `str_order_approvals` row with `status='PENDING'` inside the same tenant tx as the order INSERT; inventory is reserved but not decremented; payment is NOT charged until approval. On approve: order PROCESSING + payment CHARGED + `str.order.completed` emit. On decline: order CANCELLED + reservation released atomically. Multi-column `responded_chk` lockstep + UNIQUE(order_id) enforce the contract at the schema layer.
-2. **DUAL-MODE STORE** — `str_stores.store_type` 2-value CHECK (STUDENT, PUBLIC) with UNIQUE(school_id, store_type). Three multi-column shape CHECKs on `str_orders` enforce the dual contract (`customer_shape_chk`, `student_shape_chk`, `shipping_shape_chk`).
-3. **CROSS-MODULE TO Cycle 6 PAYMENTS** — `str.order.completed` envelope fires AFTER tx commit with full payload for the future M84 Family Billing consumer (Phase 2). The store never writes to `pay_*` tables directly per ADR-001/020.
-4. **CROSS-MODULE TO Cycle 27 PROCUREMENT** — `str.inventory.reorder_needed` envelope fires when `quantity_on_hand` crosses to `<= reorder_point`. Delta-based dedup. Future Cycle 27 procurement consumer (Phase 2) auto-creates a `prc_requisitions` row.
-5. **REVENUE MATERIALISATION (ADR-018)** — `str_store_revenue` is a periodic materialised read model. `RevenueService.materialise()` is idempotent (UPSERT on `(store_id, period_start, period_end)`).
-
-CAT script: `docs/cycle28-cat-script.md`. Plan: `docs/campusos-cycle28-implementation-plan.html`. Handoff: `HANDOFF-CYCLE28.md`.
-
----
-
-## Reviewer attention items already documented + on the punch list
-
-These are not blockers; they are recorded so reviewers don't re-flag closed items:
-
-1. **Public storefront order placement** — `/shop/[storeId]` registers external customers but order placement requires Stripe Checkout integration (deferred to Phase 2). The PUBLIC store demo lands the customer record + manual admin order creation today.
-2. **Cycle 6 family-billing consumer for `str.order.completed`** — emit fires cleanly with the full payload contract M84 needs; the consumer in the payments module is Phase 2 work.
-3. **Cycle 27 procurement consumer for `str.inventory.reorder_needed`** — emit fires cleanly; the procurement consumer that converts the emit into a `prc_requisition` is Phase 2 work.
-4. **Store Manager role split** — Staff currently holds STR-001..003 read+write as the store-manager stand-in. Joins the broader role-split chain (items 9 / 11 / 13 / 14 / 16 / 22 / 25 / 26 / 30 / 32 in `CLAUDE.md`).
-5. **Reorder emit on the order-completion path** — order completion decrements `quantity_on_hand` directly (not via `InventoryService.adjust`), so the reorder-threshold-crossing emit fires only on the explicit admin adjust path. Pre-pilot work moves the emit to a shared helper called from both paths.
-6. **Persistent shopping cart** + **product variants** + **discount codes** + **bundles** + **backorder lifecycle UX** — deferred.
+| #          | Class         | Title                                                       | Disposition                                                                                                                              |
+| ---------- | ------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| BLOCKING 1 | Setup         | `StoreModule` not registered in `AppModule`                 | **DISPUTED** — registered at `apps/api/src/app.module.ts` line 44 (import) + line 112 (imports array) on `cycle28-complete` (`d895a3c`). |
+| BLOCKING 2 | Authorisation | Student order can impersonate another student               | **Fixed** — `OrderService.create` resolves callerStudentId via `actor.personId → platform_students → sis_students` and refuses mismatch. |
+| BLOCKING 3 | Atomicity     | Approval transition not atomic with order transition + emit | **Fixed** — approval row + parent order row both `FOR UPDATE` in one tenant tx; emit `str.order.completed` AFTER tx commits.             |
+| BLOCKING 4 | Concurrency   | Inventory reservation race + missing final-remaining check  | **Fixed** — lock inventory rows BEFORE classifying IN_STOCK; reuse locked snapshot for the reservation; throw on `remaining > 0`.        |
+| MAJOR 5    | Robustness    | Order number allocation race                                | DEVIATION-FOLLOW-UP — Phase 2 punch list. Per-store advisory tx lock + retry on UNIQUE conflict.                                         |
+| MAJOR 6    | Authorisation | Store-manager role still generic `STAFF`                    | DEVIATION-FOLLOW-UP — joins items 9 / 11 / 13 / 14 / 16 / 22 / 25 / 26 / 30 / 32 in the broader role-split chain (CLAUDE.md).            |
+| MAJOR 7    | Validity      | Product `preferredSupplierId` not validated                 | DEVIATION-FOLLOW-UP — display-only soft ref today; validate before procurement consumer ships.                                           |
+| MAJOR 8    | Reliability   | Reorder event does not fire on order completion             | DEVIATION-FOLLOW-UP — already on the cycle's punch list. Move emit to a shared helper called from both adjust + complete paths.          |
 
 ---
 
-## Reviewer prompt (paste this into ChatGPT alongside the listed files)
+## Verification trail (live on `tenant_demo` 2026-05-07)
 
-> You are reviewing Cycle 28 of CampusOS — the School Store module that closes Wave 6 (Finance & Commerce). The spec, plan, and verification record are all in this repo. Your job is to verify the implementation against the plan and call out any **BLOCKING** correctness/security/data-integrity issues, then any **MAJOR** robustness/architecture issues that should land before pilot.
->
-> **Scope:** review the closeout commit on `main` (`HANDOFF-CYCLE28.md` calls out the SHA). Treat `CLAUDE.md` Project Status section as the authoritative summary of what shipped. Treat `docs/cycle28-cat-script.md` as the live verification record on `tenant_demo` 2026-05-06.
->
-> **Files to read in order:**
->
-> 1. `docs/campusos-cycle28-implementation-plan.html` — the spec.
-> 2. `HANDOFF-CYCLE28.md` — final cycle summary with iteration log.
-> 3. `docs/cycle28-cat-script.md` — the CAT (10 plan scenarios verified live).
-> 4. `packages/database/prisma/tenant/migrations/092_str_stores_products.sql`, `093_str_orders.sql`, `094_str_external_shipping.sql` — the schema.
-> 5. `packages/database/src/seed-store.ts` — the seed.
-> 6. `apps/api/src/store/products.service.ts`, `apps/api/src/store/orders.service.ts`, `apps/api/src/store/revenue.service.ts`, `apps/api/src/store/store.controller.ts`, `apps/api/src/store/store.module.ts` — the backend.
-> 7. `apps/web/src/hooks/use-store.ts` + `apps/web/src/lib/store-format.ts` + the routes under `apps/web/src/app/(app)/store/*` and `apps/web/src/app/shop/[storeId]/page.tsx` — the UI.
->
-> **Specifically verify:**
->
-> - PARENT APPROVAL GATE keystone enforces approval atomicity (locked-row + multi-column lockstep + reservation release on decline).
-> - DUAL-MODE STORE — three shape CHECKs on `str_orders` actually catch every malformed combination (try mentally placing a STUDENT order with `external_customer_id` set; verify it would 23514 at the schema layer).
-> - `str.order.completed` envelope is `published_at`-after-tx-commit (not inside the tx) so a Kafka outage cannot roll back the user's action.
-> - `str.inventory.reorder_needed` is delta-based and does not spam at-or-below threshold.
-> - Revenue materialisation is idempotent on the unique key.
-> - Cross-tenant isolation: every backend service path uses `executeInTenantContext` or `executeInTenantTransaction` (no raw `prisma.$queryRaw` outside a tenant context).
-> - Permission gates match the IAM seed grants. Public route `POST /shop/external-customers` uses `@Public()` correctly.
->
-> **Disposition format:** for every finding, classify as BLOCKING / MAJOR / MINOR / DEVIATION-FOLLOW-UP and supply the file path + line number + before/after suggestion. Group findings by class. End with a Round 1 verdict (Approved | Reject pending fixes).
+### BLOCKING 1 (DISPUTED) — `StoreModule` registration
+
+```
+$ git show origin/main:apps/api/src/app.module.ts | grep -n "StoreModule"
+44:import { StoreModule } from './store/store.module';
+112:    StoreModule,
+
+$ curl -sw 'HTTP %{http_code}\n' -o /dev/null \
+    http://localhost:4000/api/v1/store/stores \
+    -H "Authorization: Bearer $ADMIN" -H 'X-Tenant-Subdomain: demo'
+HTTP 200
+```
+
+`StoreModule` is imported on `d895a3c` (the closeout commit the reviewer pulled from `raw.githubusercontent.com`) and the `/store/stores` endpoint returns 200. The reviewer's claim was likely a stale-cache read of the file; no code change required.
+
+### BLOCKING 2 — student impersonation rejected
+
+`OrderService.create` now resolves the calling student's own `sis_students.id` via `resolveStudentSelfId(actor.personId)` (joins through `platform.platform_students` to `sis_students`) and refuses any STUDENT order from a STUDENT actor whose `input.studentId` does not match. Manager path unchanged.
+
+```
+=== 2a: Maya (STUDENT) attempts STUDENT order for Ethan ===
+{"message":"Students may only place STUDENT orders for themselves. Use the store manager path to order on behalf of another student.","error":"Forbidden","statusCode":403}
+HTTP 403
+
+=== 2b: Maya places STUDENT order for herself ===
+Order id: 019e01cd-c206-7115-8d36-beb64992c8a5
+HTTP 201
+
+=== 2c: principal (admin) places STUDENT order for Ethan via manager path ===
+Admin-on-behalf order: 019e01cd-c270-7115-8d36-d28c2049715c
+HTTP 201
+```
+
+### BLOCKING 3 — atomic approval transition
+
+`ApprovalService.approve` and `decline` now open a single `executeInTenantTransaction`, lock both `str_order_approvals` AND the parent `str_orders` row `FOR UPDATE`, validate both states, then atomically:
+
+- approve: flip approval to APPROVED + flip order to PROCESSING + payment_status=CHARGED via the new in-tx `OrderService.advanceFromApprovalInTx`
+- decline: flip approval to DECLINED + cancel order + release reservations via the new in-tx `OrderService.cancelFromApprovalDeclineInTx`
+
+`str.order.completed` emit fires AFTER tx commits so a Kafka outage cannot roll back the user's action.
+
+```
+=== 3a: pre-state ===
+  status: PENDING_APPROVAL payment: PENDING
+  approval status: PENDING
+
+=== 3b: parent (David) approves ===
+  approval status: APPROVED responded: 2026-05-07 09:38:42.484522+00
+
+=== 3c: post-state read directly from DB ===
+   status   | payment_status
+------------+----------------
+ PROCESSING | CHARGED
+```
+
+The order flipped to PROCESSING + payment CHARGED inside the same tx as the approval flip — atomicity confirmed.
+
+### BLOCKING 4 — locked-row inventory reservation
+
+`OrderService.create` now:
+
+1. Acquires `SELECT ... FOR UPDATE` on every `str_product_inventory` row for each line BEFORE computing IN_STOCK vs BACKORDERED.
+2. Uses the locked snapshot for the IN_STOCK / BACKORDERED decision (so the availability number is authoritative under concurrency).
+3. Reuses the same locked snapshot for the reservation step (no second SELECT).
+4. After the reservation loop, throws `400 "Reservation race detected"` if `remaining > 0` on an IN_STOCK line — defence-in-depth.
+
+```
+=== 4a: pre-state Polo inventory ===
+ quantity_on_hand | quantity_reserved
+------------------+-------------------
+               49 |                 0
+
+=== 4b: 3 parallel STUDENT orders for 1 Polo each ===
+  1: 019e01cd  HTTP 201
+  2: 019e01cd  HTTP 201
+  3: 019e01cd  HTTP 201
+
+=== 4c: post-state Polo inventory ===
+ quantity_on_hand | quantity_reserved
+------------------+-------------------
+               49 |                 3
+```
+
+`quantity_reserved` bumped by exactly the number of successful orders (3) — no under-reservation; lock serialises the reservation correctly.
 
 ---
 
-## Triage table (to fill in when Round 1 returns)
+## MAJOR follow-ups carried to Phase 2 punch list
 
-| #   | Class | Title | Disposition |
-| --- | ----- | ----- | ----------- |
+These are recommendation-class hardening tasks that join the existing CLAUDE.md punch list. They are NOT cycle blockers per the reviewer's gate decision — they should land before real schools onboard at scale.
 
-(empty until verdict lands)
+### MAJOR 5 — Order number allocation race
+
+`OrderService.create` allocates the next `order_number` from `count(*) + 1` for the store. Two concurrent orders could collide. Fix pattern: per-store `pg_advisory_xact_lock` at the top of the order create tx (matches the Cycle 6 `PaymentAccountWorker.createOrLinkAccount` advisory-lock pattern) OR a UNIQUE catch + retry loop. Schema already has `UNIQUE(store_id, order_number)` so the worst case today is the second order surfaces the raw 23505 — not a data integrity bug, just a UX bug.
+
+### MAJOR 6 — Store-manager role split
+
+`isStoreManager(actor)` returns true for `actor.isSchoolAdmin OR actor.personType === 'STAFF'`. Same shape as items 9 / 11 / 13 / 14 / 16 / 22 / 25 / 26 / 30 / 32 in CLAUDE.md — a dedicated Store Manager role should hold the STR-\* codes alone. Tracked.
+
+### MAJOR 7 — `preferredSupplierId` validation
+
+`ProductService.create` and `patch` accept `preferredSupplierId` directly. Display-only today (the future Cycle 27 procurement consumer reads it from the `str.inventory.reorder_needed` payload). Pre-pilot: validate the supplier exists in this tenant via `prc_suppliers` / `fin_suppliers` lookup.
+
+### MAJOR 8 — Reorder event on order completion
+
+Already on the Cycle 28 punch list (item 5 in HANDOFF-CYCLE28.md): `OrderService.complete` decrements `quantity_on_hand` directly via `releaseAndDecrement` rather than going through `InventoryService.adjust`, so the reorder-threshold-crossing emit fires only on the explicit admin adjust path. Pre-pilot fix: hoist the threshold check into a shared helper called from both paths.
 
 ---
 
-## Verification trail (to fill in when fixes land)
+## Files changed in the fix commit
 
-(empty until Round 1 fix commit lands)
+- `apps/api/src/store/orders.service.ts` — added `resolveStudentSelfId` + student-self guard (BLOCKING 2); added in-tx `advanceFromApprovalInTx` + `cancelFromApprovalDeclineInTx` and rewrote `ApprovalService.approve` + `decline` to use one tx with both rows locked (BLOCKING 3); added locked-snapshot inventory + final-remaining check (BLOCKING 4). Deprecated public `advanceFromApproval` / `cancelFromApprovalDecline` are removed; only the in-tx helpers remain.
+
+No DB migrations required — all four BLOCKINGs are service-layer fixes.
+
+## Round 2 verdict
+
+(awaiting reviewer)
