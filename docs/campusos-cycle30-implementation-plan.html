@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 30 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 7 &middot; Analytics &amp; Governance</div>
+    <h1>Cycle 30: Data Governance<br>&amp; Compliance</h1>
+    <div class="sub">The Data Protection Officer's compliance suite: GDPR Article 30 Register of Processing Activities (ROPA), Article 35 Data Protection Impact Assessments (DPIAs), Article 28 third-party processor register with DPA tracking, 72-hour breach notification workflow with countdown enforcement, data subject access requests with 30/45-day deadline tracking, erasure requests with legal hold checks and audit_log field-level pseudonymisation, processing consent records, retention policy documentation, privacy notice version control, and the age-18 rights transfer from parent to student. Closes Wave 7.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; DPO Compliance Suite (12 tables &mdash; all in scope) &middot; ADR-052 &middot; DPO-001 through DPO-005 &middot; Closes Wave 7</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 30 builds the DPO Compliance Suite &mdash; all 12 <code>dpo_</code> tables per ADR-052. This is the regulatory compliance backbone that makes CampusOS pilot-ready for schools operating under GDPR, UK GDPR, FERPA, and COPPA simultaneously. Unlike every prior module which serves operational school workflows, this module serves the Data Protection Officer (DPO) &mdash; a role that often spans multiple schools within a district or trust.</p>
+
+  <p class="body-text">The DPO role is scoped at ORGANISATION level in IAM &mdash; a single DPO can query <code>dpo_*</code> tables across all schools in their org. The module touches every prior cycle: the ROPA catalogs what data each module processes, the DPIA assesses risk for high-risk activities (AI inference, biometric attendance, health records), the breach log covers any module's data, and the erasure request workflow must traverse every module's tables to find and pseudonymise a data subject's PII. The <code>dpo_pseudonymisation_log</code> records every field-level pseudonymisation operation &mdash; currently scoped to <code>audit_log.metadata</code> JSONB (the highest-risk free-form field), with GL/ledger entries retained on legal obligation grounds.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Regulatory &mdash; 72-Hour Breach Notification Clock</div>
+    <p style="font-size:15px;line-height:1.8;"><code>dpo_data_breach_records.discovery_date</code> starts the GDPR 72-hour supervisory authority notification window. On INSERT, the Cycle 7 Task Worker creates an URGENT escalating task. If <code>supervisory_authority_notified_at</code> remains null after 70 hours, a PAGE-level alert fires to the DPO and platform SRE. This is the highest-urgency automated escalation in CampusOS &mdash; a missed 72-hour window is a regulatory violation.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">DPO creates the ROPA: registers 5 processing activities ("Student academic record management" LEGAL_OBLIGATION, "AI lesson summarisation" LEGITIMATE_INTERESTS + high_risk=true, "Health record management" LEGAL_OBLIGATION, "Staff payroll" CONTRACT, "Biometric attendance" CONSENT) &rarr; documents retention policies per category (academic records 7 years FERPA, health records 25 years, CCTV 30 days) &rarr; "AI lesson summarisation" has high_risk=true but no linked DPIA &rarr; compliance dashboard flags the gap &rarr; DPO creates a DPIA (risks identified, mitigation measures, residual risk=MEDIUM, DPO opinion recorded) &rarr; registers 4 third-party processors (AWS CLOUD_INFRASTRUCTURE, Stripe PAYMENT_PROCESSOR, OpenAI AI_PROVIDER, Google IDENTITY_PROVIDER) &rarr; Stripe DPA signed and uploaded; OpenAI DPA missing &rarr; compliance dashboard flags the DPA gap &rarr; publishes Privacy Notice v2.1 &rarr; records parent consent for "AI lesson summarisation" processing &rarr; data breach discovered: laptop with student records stolen &rarr; breach logged, 72-hour clock starts, URGENT task created &rarr; DPO notifies supervisory authority within 72 hours &rarr; David Chen submits a Subject Access Request (SAR) for Maya's data &rarr; 30-day clock starts &rarr; DPO compiles cross-module data export &rarr; separately, a parent submits an erasure request for a withdrawn student &rarr; DPO reviews: academic records denied (FERPA 7-year hold), audit_log.metadata pseudonymised with opaque token &rarr; pseudonymisation_log records the operation &rarr; Maya turns 18 &rarr; DataSubjectTransferWorker flips data_subject_is_self=true &rarr; Maya (not David) is now the data subject for all future SARs.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (all 12 tables):</strong> dpo_processing_activities, dpo_retention_policies, dpo_dpias, dpo_third_party_processors, dpo_data_processing_agreements, dpo_data_breach_records, dpo_subject_access_requests, dpo_erasure_requests, dpo_processing_consent_records, dpo_privacy_notices, dpo_pseudonymisation_log, dpo_compliance_dashboard_config. Functions DPO-001 through DPO-005.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Automated cross-module data export for SARs (manual compilation this cycle; automated walker that traverses all module tables for a data_subject_id is Phase 2). Automated erasure execution beyond audit_log.metadata (manual review + selective pseudonymisation this cycle). Real-time consent preference centre for parents (batch consent recording this cycle). COPPA age verification integration with enrolment flow. International transfer impact assessment automation. Sub-processor change notification workflow.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>ROPA + Retention + DPIA Schema</td><td>Schema</td><td>dpo_processing_activities, dpo_retention_policies, dpo_dpias</td></tr>
+    <tr><td><strong>2</strong></td><td>Processors + DPAs + Breach Records Schema</td><td>Schema</td><td>dpo_third_party_processors, dpo_data_processing_agreements, dpo_data_breach_records</td></tr>
+    <tr><td><strong>3</strong></td><td>SARs + Erasure + Consent + Privacy Notices + Pseudonymisation Schema</td><td>Schema</td><td>dpo_subject_access_requests, dpo_erasure_requests, dpo_processing_consent_records, dpo_privacy_notices, dpo_pseudonymisation_log, dpo_compliance_dashboard_config</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; ROPA, Processors, Breach, SAR, Consent, Privacy Notice</td><td>Seed</td><td>5 processing activities, 3 retention policies, 1 DPIA, 4 processors + 2 DPAs, 1 breach, 1 SAR, 3 consent records, 1 privacy notice, DPO-001..005 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>ROPA + Retention + DPIA NestJS Module</td><td>Code</td><td>ProcessingActivityService, RetentionPolicyService, DPIAService. DPIA gap detection. Retention review reminders.</td></tr>
+    <tr><td><strong>6</strong></td><td>Processors + Breach NestJS Module</td><td>Code</td><td>ProcessorService, DPAService, BreachService. DPA gap detection. 72-hour breach countdown. <code>dpo.breach.discovered</code> Kafka emit.</td></tr>
+    <tr><td><strong>7</strong></td><td>SARs + Erasure + Consent + Privacy NestJS Module</td><td>Code</td><td>SARService, ErasureService, ConsentService, PrivacyNoticeService, PseudonymisationService. 30/45-day SAR deadline. Audit_log metadata pseudonymisation.</td></tr>
+    <tr><td><strong>8</strong></td><td>DPO UI &mdash; Compliance Dashboard + ROPA + Processors</td><td>UI</td><td>"Data Governance" app tile, compliance dashboard with gap detection, ROPA register, retention policy manager, DPIA workflow, processor register, DPA tracker</td></tr>
+    <tr><td><strong>9</strong></td><td>DPO UI &mdash; Breach + SARs + Erasure + Consent + Privacy</td><td>UI</td><td>Breach log with 72-hour countdown, SAR tracker with deadline, erasure request workflow, consent log, privacy notice publisher</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>ROPA &rarr; DPIA gap &rarr; processor DPA gap &rarr; breach 72-hour &rarr; SAR deadline &rarr; erasure + pseudonymisation &rarr; consent &rarr; privacy notice &rarr; age-18 transfer</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">ROPA + Retention + DPIA Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>GDPR Article 30 Register of Processing Activities, data retention policy documentation with review schedules, and Article 35 Data Protection Impact Assessments linked to high-risk processing activities.</p>
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>dpo_processing_activities</strong> &mdash; <code>school_id UUID</code>, <code>activity_name TEXT NOT NULL</code>, <code>purpose TEXT NOT NULL</code>, <code>legal_basis TEXT NOT NULL</code> 6-value CHECK (LEGAL_OBLIGATION, PUBLIC_TASK, LEGITIMATE_INTERESTS, VITAL_INTERESTS, CONTRACT, CONSENT), <code>data_categories TEXT[] NOT NULL</code>, <code>data_subjects TEXT[] NOT NULL</code>, <code>retention_policy_id UUID FK</code> nullable, <code>transfers_outside_uk_eea BOOLEAN DEFAULT false</code>, <code>transfer_safeguards TEXT</code>, <code>automated_decision_making BOOLEAN DEFAULT false</code>, <code>profiling BOOLEAN DEFAULT false</code>, <code>high_risk_processing BOOLEAN DEFAULT false</code>, <code>dpia_id UUID FK</code> nullable, <code>is_active BOOLEAN DEFAULT true</code>, <code>last_reviewed_at DATE</code>, <code>reviewed_by UUID FK</code>. INDEX(school_id, is_active). INDEX(school_id, high_risk_processing) WHERE high_risk=true. <strong>GAP RULE:</strong> high_risk=true AND dpia_id IS NULL = compliance gap.</li>
+      <li><strong>dpo_retention_policies</strong> &mdash; <code>school_id UUID</code>, <code>data_category TEXT NOT NULL</code>, <code>retention_period TEXT NOT NULL</code>, <code>legal_basis_for_retention TEXT NOT NULL</code>, <code>review_frequency TEXT NOT NULL DEFAULT 'ANNUAL'</code> 3-value CHECK (ANNUAL, BIENNIAL, ON_CHANGE), <code>last_reviewed_at DATE</code>, <code>next_review_date DATE NOT NULL</code>, <code>reviewed_by UUID FK</code>, <code>links_to_archive_tier TEXT</code>. UNIQUE(school_id, data_category).</li>
+      <li><strong>dpo_dpias</strong> &mdash; <code>school_id UUID</code>, <code>processing_activity_id UUID FK</code>, <code>dpia_title TEXT NOT NULL</code>, <code>trigger_reason TEXT NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'SCOPING'</code> 5-value CHECK (SCOPING, IN_PROGRESS, COMPLETED, APPROVED, REJECTED), <code>description_of_processing TEXT NOT NULL</code>, <code>necessity_proportionality_assessment TEXT</code>, <code>risks_identified JSONB</code>, <code>residual_risk_level TEXT</code> 3-value CHECK (LOW, MEDIUM, HIGH), <code>dpo_opinion TEXT</code>, <code>supervisory_authority_consultation_required BOOLEAN DEFAULT false</code>, <code>completed_at DATE</code>, <code>completed_by UUID FK</code>, <code>approved_by UUID FK</code>, <code>document_s3_key TEXT</code>. INDEX(school_id, status).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>092_dpo_ropa.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Processors + DPAs + Breach Records Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>GDPR Article 28 third-party processor register, Data Processing Agreements with document storage and review tracking, and data breach records with the 72-hour supervisory authority notification countdown.</p>
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>dpo_third_party_processors</strong> &mdash; <code>school_id UUID</code>, <code>processor_name TEXT NOT NULL</code>, <code>processor_type TEXT NOT NULL</code> 9-value CHECK (CLOUD_INFRASTRUCTURE, PAYMENT_PROCESSOR, AI_PROVIDER, MDM_PROVIDER, VIDEO_CONFERENCING, EMAIL_PROVIDER, IDENTITY_PROVIDER, ANALYTICS, OTHER), <code>registered_country TEXT NOT NULL</code>, <code>data_categories_processed TEXT[] NOT NULL</code>, <code>dpa_in_place BOOLEAN NOT NULL DEFAULT false</code>, <code>dpa_id UUID FK</code> nullable, <code>adequacy_decision_applicable BOOLEAN DEFAULT false</code>, <code>transfer_mechanism TEXT</code> 4-value CHECK (ADEQUACY_DECISION, SCCs, BCRs, DEROGATION), <code>last_reviewed_at DATE</code>, <code>next_review_date DATE NOT NULL</code>. UNIQUE(school_id, processor_name). INDEX(school_id, dpa_in_place) WHERE dpa_in_place=false. <strong>GAP RULE:</strong> dpa_in_place=false = compliance gap.</li>
+      <li><strong>dpo_data_processing_agreements</strong> &mdash; <code>school_id UUID</code>, <code>processor_id UUID FK NOT NULL</code>, <code>agreement_reference TEXT NOT NULL</code>, <code>effective_from DATE NOT NULL</code>, <code>effective_to DATE</code>, <code>document_s3_key TEXT NOT NULL</code>, <code>sub_processors_disclosed BOOLEAN DEFAULT false</code>, <code>sub_processor_list_s3_key TEXT</code>, <code>review_date DATE NOT NULL</code>, <code>signed_by UUID FK NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 4-value CHECK (DRAFT, ACTIVE, EXPIRED, TERMINATED). INDEX(processor_id, status).</li>
+      <li><strong>dpo_data_breach_records</strong> &mdash; <strong>72-HOUR COUNTDOWN KEYSTONE.</strong> <code>school_id UUID</code>, <code>breach_title TEXT NOT NULL</code>, <code>breach_type TEXT NOT NULL</code> 8-value CHECK (UNAUTHORISED_ACCESS, ACCIDENTAL_DISCLOSURE, RANSOMWARE, THEFT, LOSS_OF_DEVICE, SYSTEM_MISCONFIGURATION, THIRD_PARTY_BREACH, OTHER), <code>discovery_date TIMESTAMPTZ NOT NULL</code>, <code>breach_start_date DATE</code>, <code>personal_data_categories_involved TEXT[] NOT NULL</code>, <code>estimated_affected_individuals INT</code>, <code>risk_level TEXT NOT NULL</code> 4-value CHECK (LOW, MEDIUM, HIGH, VERY_HIGH), <code>risk_to_individuals TEXT NOT NULL</code> 4-value CHECK (UNLIKELY, POSSIBLE, LIKELY, VERY_LIKELY), <code>supervisory_authority_notification_required BOOLEAN NOT NULL</code>, <code>supervisory_authority_notified_at TIMESTAMPTZ</code>, <code>supervisory_authority_reference TEXT</code>, <code>data_subjects_notification_required BOOLEAN DEFAULT false</code>, <code>data_subjects_notified_at TIMESTAMPTZ</code>, <code>breach_cause TEXT NOT NULL</code>, <code>remediation_actions TEXT NOT NULL</code>, <code>is_resolved BOOLEAN DEFAULT false</code>, <code>resolved_at TIMESTAMPTZ</code>, <code>reported_by UUID FK NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'UNDER_INVESTIGATION'</code> 4-value CHECK (UNDER_INVESTIGATION, NOTIFIED, CONTAINED, RESOLVED). INDEX(school_id, status). On INSERT: Task Worker creates URGENT task; if supervisory_authority_notification_required=true, 72-hour countdown task. Emits <code>dpo.breach.discovered</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>093_dpo_processors_breach.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">SARs + Erasure + Consent + Privacy + Pseudonymisation Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Data subject access requests with 30/45-day deadline enforcement, erasure requests with legal hold checks and denial basis documentation, processing consent records, privacy notice version control, immutable pseudonymisation audit log, and DPO compliance dashboard configuration.</p>
+    <div class="detail-heading">Tables (6)</div>
+    <ol class="detail-list">
+      <li><strong>dpo_subject_access_requests</strong> &mdash; <code>school_id UUID</code>, <code>data_subject_id UUID FK(iam_person) NOT NULL</code>, <code>requested_by UUID FK NOT NULL</code>, <code>request_type TEXT NOT NULL</code> 4-value CHECK (ACCESS, RECTIFICATION, PORTABILITY, RESTRICTION), <code>deadline_date DATE NOT NULL</code> (30 days GDPR default; 45 days FERPA), <code>status TEXT NOT NULL DEFAULT 'RECEIVED'</code> 6-value CHECK (RECEIVED, IN_PROGRESS, EXTENSION_REQUESTED, COMPLETED, DENIED, OVERDUE), <code>response_s3_key TEXT</code>, <code>completed_at TIMESTAMPTZ</code>, <code>denial_reason TEXT</code>. INDEX(school_id, status). INDEX(deadline_date) WHERE status NOT IN ('COMPLETED','DENIED').</li>
+      <li><strong>dpo_erasure_requests</strong> &mdash; <code>school_id UUID</code>, <code>data_subject_id UUID FK(iam_person) NOT NULL</code>, <code>requested_by UUID FK NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'RECEIVED'</code> 5-value CHECK (RECEIVED, REVIEWING, PARTIALLY_COMPLETED, COMPLETED, DENIED), <code>denial_basis TEXT</code> (e.g., "FERPA 7-year retention obligation", "Active safeguarding case"), <code>categories_erased TEXT[]</code>, <code>categories_retained TEXT[]</code>, <code>categories_pseudonymised TEXT[]</code>, <code>completed_at TIMESTAMPTZ</code>. INDEX(school_id, status).</li>
+      <li><strong>dpo_processing_consent_records</strong> &mdash; <code>school_id UUID</code>, <code>data_subject_id UUID FK(iam_person) NOT NULL</code>, <code>processing_activity_id UUID FK NOT NULL</code>, <code>consented BOOLEAN NOT NULL</code>, <code>consent_given_at TIMESTAMPTZ</code>, <code>consent_withdrawn_at TIMESTAMPTZ</code>, <code>consent_method TEXT NOT NULL</code> 3-value CHECK (DIGITAL, PAPER, VERBAL), <code>evidence_s3_key TEXT</code>. INDEX(data_subject_id, consented). INDEX(school_id, processing_activity_id, consented).</li>
+      <li><strong>dpo_privacy_notices</strong> &mdash; <code>school_id UUID</code>, <code>notice_version TEXT NOT NULL</code>, <code>effective_from DATE NOT NULL</code>, <code>content_summary TEXT NOT NULL</code>, <code>document_s3_key TEXT NOT NULL</code>, <code>published_by UUID FK NOT NULL</code>, <code>published_at TIMESTAMPTZ</code>, <code>superseded_at TIMESTAMPTZ</code>. UNIQUE(school_id, notice_version). INDEX(school_id, effective_from DESC).</li>
+      <li><strong>dpo_pseudonymisation_log</strong> &mdash; <strong>IMMUTABLE.</strong> <code>school_id UUID</code>, <code>erasure_request_id UUID FK NOT NULL</code>, <code>data_subject_id UUID FK(iam_person) NOT NULL</code>, <code>target_table TEXT NOT NULL</code>, <code>target_field TEXT NOT NULL</code>, <code>rows_pseudonymised INT NOT NULL</code>, <code>pseudonymisation_token TEXT NOT NULL</code>, <code>pseudonymised_at TIMESTAMPTZ NOT NULL</code>, <code>pseudonymised_by UUID FK NOT NULL</code>. NO UPDATE, NO DELETE. INDEX(erasure_request_id). INDEX(data_subject_id).</li>
+      <li><strong>dpo_compliance_dashboard_config</strong> &mdash; <code>school_id UUID UNIQUE</code>, <code>sar_default_deadline_days INT DEFAULT 30</code>, <code>breach_escalation_hours INT DEFAULT 70</code>, <code>dpia_review_reminder_days INT DEFAULT 30</code>, <code>retention_review_reminder_days INT DEFAULT 60</code>, <code>dpa_review_reminder_days INT DEFAULT 90</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 6 tables. Migration: <code>094_dpo_sars_erasure.sql</code>. Total Cycle 30 tables: 12.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>5 processing activities:</strong> Student academic records (LEGAL_OBLIGATION), AI lesson summarisation (LEGITIMATE_INTERESTS, high_risk=true, NO DPIA linked = gap), Health records (LEGAL_OBLIGATION), Staff payroll (CONTRACT), Biometric attendance (CONSENT, high_risk=true, DPIA linked).</li>
+      <li><strong>3 retention policies:</strong> Academic records (7 years, FERPA), Health records (25 years, Safeguarding), CCTV footage (30 days, Legitimate interests).</li>
+      <li><strong>1 DPIA:</strong> "Biometric Attendance System DPIA" (COMPLETED, APPROVED, residual risk=LOW, linked to biometric activity).</li>
+      <li><strong>4 processors + 2 DPAs:</strong> AWS (CLOUD_INFRASTRUCTURE, DPA active), Stripe (PAYMENT_PROCESSOR, DPA active), OpenAI (AI_PROVIDER, dpa_in_place=false = gap), Google (IDENTITY_PROVIDER, DPA expired = gap).</li>
+      <li><strong>1 breach record:</strong> "Stolen Laptop" (THEFT, HIGH risk, supervisory_authority_notification_required=true, UNDER_INVESTIGATION, discovery_date = yesterday). 72-hour clock ticking.</li>
+      <li><strong>1 SAR:</strong> David Chen requests ACCESS for Maya's data. Status=IN_PROGRESS. Deadline in 25 days.</li>
+      <li><strong>1 erasure request:</strong> Withdrawn student. PARTIALLY_COMPLETED. Academic records retained (FERPA). audit_log.metadata pseudonymised.</li>
+      <li><strong>1 pseudonymisation log entry:</strong> 47 audit_log rows pseudonymised for the withdrawn student.</li>
+      <li><strong>3 consent records:</strong> David consented to AI lesson summarisation for Maya (digital). Rivera consented to staff payroll processing (paper). One parent withdrew consent for biometric attendance.</li>
+      <li><strong>1 privacy notice:</strong> v2.1 effective this year, published last month.</li>
+      <li><strong>1 compliance config:</strong> 30-day SAR deadline, 70-hour breach escalation.</li>
+      <li><strong>Permissions:</strong> DPO-001:read+write to Admin (ROPA + retention). DPO-002:read+write to Admin (processors + DPAs). DPO-003:read+write to Admin (breach management). DPO-004:read to Parent (view own SARs); DPO-004:write to Parent (submit SARs), Admin (process SARs + erasure). DPO-005:read+write to Admin (consent + privacy notices). Admin gets all via everyFunction. DPO scoped at ORGANISATION level for cross-school access.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich compliance demo data with active gaps (DPIA missing, DPA missing) for dashboard demonstration. DPO-001..005 permissions.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">ROPA + Retention + DPIA NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>ProcessingActivityService</strong> &mdash; <code>GET /governance/processing-activities</code> (ROPA with gap indicators: high_risk + no DPIA flagged), <code>POST /governance/processing-activities</code>, <code>PATCH /governance/processing-activities/:id</code>. <code>GET /governance/compliance-gaps</code> (unified gap view: DPIA gaps + DPA gaps + overdue retention reviews).</li>
+      <li><strong>RetentionPolicyService</strong> &mdash; <code>GET /governance/retention-policies</code>, <code>POST /governance/retention-policies</code>, <code>PATCH /governance/retention-policies/:id</code>. Retention review reminder based on next_review_date.</li>
+      <li><strong>DPIAService</strong> &mdash; <code>GET /governance/dpias</code>, <code>POST /governance/dpias</code> (create and link to processing activity), <code>PATCH /governance/dpias/:id</code> (status workflow: SCOPING &rarr; IN_PROGRESS &rarr; COMPLETED &rarr; APPROVED/REJECTED).</li>
+    </ol>
+    <div class="produces">Produces &rarr; GovernanceModule with 3 services, ~10 endpoints.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Processors + Breach NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>ProcessorService</strong> &mdash; <code>GET /governance/processors</code> (with DPA gap indicators), <code>POST /governance/processors</code>, <code>PATCH /governance/processors/:id</code>.</li>
+      <li><strong>DPAService</strong> &mdash; <code>POST /governance/processors/:id/dpas</code>, <code>PATCH /governance/dpas/:id</code>, <code>GET /governance/processors/:id/dpas</code>.</li>
+      <li><strong>BreachService</strong> &mdash; <strong>72-HOUR COUNTDOWN KEYSTONE.</strong> <code>GET /governance/breaches</code>, <code>POST /governance/breaches</code> (on INSERT: creates URGENT wsk_tasks with 72-hour deadline when supervisory_authority_notification_required=true; emits <code>dpo.breach.discovered</code>), <code>PATCH /governance/breaches/:id</code> (status transitions + notification timestamps), <code>GET /governance/breaches/:id/timeline</code> (countdown clock + action history). 70-hour PAGE-level escalation if notification_at still null.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services, ~10 endpoints, 1 Kafka emit (<code>dpo.breach.discovered</code>).</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">SARs + Erasure + Consent + Privacy NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>SARService</strong> &mdash; <code>GET /governance/sars</code> (DPO: all requests with deadline countdown; parent: own requests), <code>POST /governance/sars</code> (parent submits; auto-computes deadline_date from config), <code>PATCH /governance/sars/:id</code> (status transitions; extension requests documented). <code>POST /governance/sars/:id/export</code> (DPO: manual data compilation trigger &mdash; automated cross-module export deferred).</li>
+      <li><strong>ErasureService</strong> &mdash; <code>GET /governance/erasure-requests</code>, <code>POST /governance/erasure-requests</code>, <code>PATCH /governance/erasure-requests/:id</code> (review: document which categories erased vs retained vs pseudonymised with denial_basis). <code>POST /governance/erasure-requests/:id/pseudonymise</code> (DPO triggers audit_log.metadata pseudonymisation for the data subject; replaces PII identifiers with opaque token; writes immutable dpo_pseudonymisation_log row).</li>
+      <li><strong>ConsentService</strong> &mdash; <code>GET /governance/consent</code> (by data_subject + activity), <code>POST /governance/consent</code> (record consent given/withdrawn), <code>GET /governance/consent/activity/:activityId</code> (consent status summary for an activity).</li>
+      <li><strong>PrivacyNoticeService</strong> &mdash; <code>GET /governance/privacy-notices</code>, <code>POST /governance/privacy-notices</code> (publish new version; auto-supersedes previous), <code>GET /governance/privacy-notices/current</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~14 endpoints. Total Cycle 30 endpoints: ~34.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">DPO UI &mdash; Compliance Dashboard + ROPA + Processors</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>DPO Compliance Dashboard</strong> <code>/governance</code> &mdash; "Data Governance" app tile gated on DPO-001:read (ORGANISATION scope). Gap summary cards: DPIA gaps (high-risk activities without DPIAs), DPA gaps (processors without signed DPAs), overdue retention reviews, open breaches with countdown timers, overdue SARs. Traffic-light compliance indicators per category.</li>
+      <li><strong>ROPA Register</strong> <code>/governance/ropa</code> &mdash; processing activity table with legal basis pills, data categories, linked retention policy, DPIA status. Gap row highlighted in rose when high_risk=true and dpia_id=NULL.</li>
+      <li><strong>Retention Policies</strong> <code>/governance/retention</code> &mdash; policy list with data category, retention period, legal basis. Next review date with countdown. Overdue reviews highlighted.</li>
+      <li><strong>DPIA Manager</strong> <code>/governance/dpias</code> &mdash; DPIA list with status workflow. Create from processing activity (auto-links). Risk assessment form with identified risks, mitigations, residual risk level, DPO opinion.</li>
+      <li><strong>Processor Register</strong> <code>/governance/processors</code> &mdash; processor list with type pills, country, DPA status (green=active / rose=missing / amber=expired). DPA upload + review workflow.</li>
+    </ol>
+    <div class="produces">Produces &rarr; "Data Governance" app tile, compliance dashboard, ROPA, retention policies, DPIA manager, processor register.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">DPO UI &mdash; Breach + SARs + Erasure + Consent + Privacy</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Breach Log</strong> <code>/governance/breaches</code> &mdash; breach list with status workflow. <strong>72-hour countdown timer</strong> displayed prominently in rose when notification_required=true and notification_at=null. Breach detail with cause, remediation, notification timestamps, resolution.</li>
+      <li><strong>SAR Tracker</strong> <code>/governance/sars</code> &mdash; request list with type + deadline countdown + status pills. Per-SAR: data subject, request type, deadline, response history. Export trigger button. Extension documentation.</li>
+      <li><strong>Erasure Requests</strong> <code>/governance/erasure</code> &mdash; request list with status. Per-request: categories erased / retained (with denial basis) / pseudonymised. Pseudonymise button triggers audit_log.metadata replacement. Pseudonymisation log viewer.</li>
+      <li><strong>Consent Log</strong> <code>/governance/consent</code> &mdash; consent records by data subject + processing activity. Given/withdrawn status with timestamps. Evidence links.</li>
+      <li><strong>Privacy Notices</strong> <code>/governance/privacy-notices</code> &mdash; version history with effective dates. Publish new version. Current notice highlighted. Upload document.</li>
+      <li><strong>Parent Data Rights Portal</strong> <code>/governance/my-rights</code> &mdash; parent: submit SAR, view SAR status, view consent records, view current privacy notice. (Student: same portal after age-18 transfer.)</li>
+    </ol>
+    <div class="produces">Produces &rarr; Breach log with countdown, SAR tracker, erasure workflow, consent log, privacy notices, parent data rights portal.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>ROPA + DPIA gap:</strong> Create 3 processing activities. One with high_risk=true and no DPIA. Verify compliance dashboard flags the gap. Create DPIA and link. Verify gap resolved.</li>
+      <li><strong>Processor + DPA gap:</strong> Register 2 processors. One with dpa_in_place=false. Verify gap indicator. Upload and link DPA. Verify gap resolved.</li>
+      <li><strong>72-hour breach countdown:</strong> Log a breach with supervisory_authority_notification_required=true. Verify URGENT wsk_task created. Verify <code>dpo.breach.discovered</code> fires. Record supervisory notification. Verify countdown stops.</li>
+      <li><strong>SAR deadline:</strong> Parent submits ACCESS SAR. Verify deadline_date auto-computed (30 days). DPO starts processing. Verify status=IN_PROGRESS. DPO completes with response document. Verify status=COMPLETED.</li>
+      <li><strong>Erasure + pseudonymisation:</strong> Submit erasure request for withdrawn student. DPO reviews: academic records retained (FERPA), audit_log pseudonymised. Trigger pseudonymisation. Verify dpo_pseudonymisation_log row (IMMUTABLE). Verify audit_log.metadata for that data_subject now contains opaque token. Verify log row cannot be updated or deleted.</li>
+      <li><strong>Consent lifecycle:</strong> Record parent consent for AI processing. Verify consented=true. Withdraw consent. Verify consent_withdrawn_at stamped. Verify consent log reflects both events.</li>
+      <li><strong>Privacy notice:</strong> Publish v2.0. Publish v2.1. Verify v2.0 superseded_at stamped. Verify current endpoint returns v2.1.</li>
+      <li><strong>Retention review:</strong> Create retention policy with next_review_date in 7 days. Verify reminder surfaces on compliance dashboard.</li>
+      <li><strong>Age-18 rights transfer:</strong> Simulate student reaching 18 (platform_students.data_subject_is_self=true). Verify SAR submitted BY the student (not parent) succeeds. Verify parent SAR for that student now requires student authorisation.</li>
+      <li><strong>Visibility:</strong> DPO (org-scoped) sees all schools. School admin sees own school. Parent sees own SARs + consent. Teacher cannot access governance. Verify org-scope allows cross-school breach management.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified governance lifecycle: ROPA + DPIA gap &rarr; processor DPA gap &rarr; 72-hour breach &rarr; SAR deadline &rarr; erasure + pseudonymisation &rarr; consent &rarr; privacy notice &rarr; age-18 transfer. Wave 7 complete.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 30 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 12 new tables. Tenant table count: ~418.</li>
+      <li>Governance API: ~34 endpoints with ROPA, DPIAs, processor register, breach management, SARs, erasure, consent, privacy notices.</li>
+      <li>GDPR Article 30 ROPA with gap detection for missing DPIAs on high-risk activities.</li>
+      <li>72-hour breach notification countdown with URGENT task escalation at 70 hours.</li>
+      <li>SAR deadline tracking (30/45 days) with overdue alerting.</li>
+      <li>Erasure requests with legal hold checks + audit_log.metadata field-level pseudonymisation.</li>
+      <li>Immutable pseudonymisation log (no UPDATE, no DELETE).</li>
+      <li>Third-party processor register with DPA gap detection.</li>
+      <li>Age-18 data subject rights transfer.</li>
+      <li><code>dpo.breach.discovered</code> Kafka emit.</li>
+      <li>HANDOFF-CYCLE30.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave 7 complete.</strong></li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 30 closes Wave 7 (Analytics &amp; Governance). The platform now has the complete regulatory compliance backbone for GDPR, UK GDPR, FERPA, and COPPA. The 72-hour breach notification countdown is the highest-urgency automated escalation in CampusOS. Wave 8 (Hardening) begins with Performance &amp; Observability &mdash; no new business tables, just instrumentation, optimization, and stress testing.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 30 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (DPO Compliance Suite, 12 tables), ADR-052 DPO Compliance Suite. Cross-cycle: Cycle 0 audit_log.metadata (pseudonymisation target), Cycle 7 wsk_tasks (breach escalation), platform_students.data_subject_is_self (age-18 transfer). Closes Wave 7.</p>
+  </div>
+</div>
+
+</body>
+</html>
