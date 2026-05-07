@@ -3,7 +3,8 @@
 **Cycle:** 28 — School Store (M67, Wave 6 closeout cycle).
 **Round 1 verdict:** **Reject pending fixes** — 4 BLOCKING + 4 MAJOR (1 BLOCKING DISPUTED + 3 BLOCKING accepted; 4 MAJORs carried to Phase 2 punch list).
 **Round 1 commit:** `cycle28-complete` at `d895a3c`.
-**Round 1 fix commit:** TBD on `main` (this commit).
+**Round 1 fix commit:** `56678c9` on `main`.
+**Round 2 verdict:** **Approved.** Cycle 28 ships clean. Tagged `cycle28-approved` at `56678c9`. **Wave 6 (Finance & Commerce) closes here.**
 **Live verification:** `tenant_demo` 2026-05-07.
 
 ---
@@ -143,4 +144,17 @@ No DB migrations required — all four BLOCKINGs are service-layer fixes.
 
 ## Round 2 verdict
 
-(awaiting reviewer)
+**Approved at `56678c9`.** Reviewer's Round 2 note (verbatim):
+
+> Cycle 28 is clean from my review perspective at `56678c9`.
+>
+> The current `56678c9` version does contain the fixes that I did not see in the earlier floating `main` read.
+>
+> - StoreModule registration — closed (correctly disputed as a stale-read issue)
+> - Student order impersonation — fixed (verified live: Maya impersonating Ethan returns 403; Maya for self succeeds)
+> - Parent approval / order transition atomicity — fixed (single tenant transaction with both rows FOR UPDATE; advanceFromApprovalInTx + cancelFromApprovalDeclineInTx in same tx; emit fires only after commit)
+> - Inventory reservation race — fixed (locks before classifying, reuses locked snapshot, mutates in-loop, throws on remaining > 0)
+>
+> Remaining items (order-number race, Store Manager role split, preferredSupplierId validation, reorder-on-completion event) correctly carried as Phase 2 follow-ups.
+
+**Final gate decision: Approved.** Tagged `cycle28-approved` on `56678c9`. **Wave 6 (Finance & Commerce) closes here** — the platform now has the connected commerce stack (Cycle 26 Finance + Cycle 27 Procurement + Cycle 28 School Store).
