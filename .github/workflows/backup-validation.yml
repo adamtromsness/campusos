@@ -31,9 +31,19 @@ on:
 jobs:
   backup-validation:
     runs-on: ubuntu-latest
+    # Pre-pilot repos do not have the AWS_BACKUP_VALIDATION_ROLE_ARN
+    # secret configured. Without that secret, every scheduled run
+    # turns red because configure-aws-credentials cannot assume an
+    # empty role. Gate the scheduled trigger on a repo variable so
+    # the cron is silent until ops flips it on. workflow_dispatch
+    # always runs so an operator can validate the workflow once
+    # secrets are populated.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      vars.ENABLE_SCHEDULED_DR_WORKFLOWS == 'true'
     permissions:
       contents: read
-      id-token: write  # for OIDC auth to AWS
+      id-token: write # for OIDC auth to AWS
     steps:
       - uses: actions/checkout@v4
 

@@ -39,6 +39,14 @@ on:
 jobs:
   failover-test:
     runs-on: ubuntu-latest
+    # Pre-pilot repos do not have the AWS_FAILOVER_TEST_ROLE_ARN +
+    # STAGING_AWS_ACCOUNT_IDS secrets configured, so every scheduled
+    # run turns red on AWS auth. Gate the cron on a repo variable so
+    # ops can flip it on once secrets are populated. workflow_dispatch
+    # always runs.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      vars.ENABLE_SCHEDULED_DR_WORKFLOWS == 'true'
     permissions:
       contents: read
       id-token: write
