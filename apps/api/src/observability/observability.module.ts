@@ -1,6 +1,8 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { TenantModule } from '../tenant/tenant.module';
 import { MetricsController } from './metrics.controller';
 import { MetricsService } from './metrics.service';
+import { ReferenceHealthScannerWorker } from './reference-health/reference-health.worker';
 import { RequestLogMiddleware } from './request-log.middleware';
 import { TraceIdMiddleware } from './trace-id.middleware';
 
@@ -20,7 +22,13 @@ import { TraceIdMiddleware } from './trace-id.middleware';
  * not bootstrapped (e.g. unit tests).
  */
 @Module({
-  providers: [TraceIdMiddleware, RequestLogMiddleware, MetricsService],
+  imports: [TenantModule],
+  providers: [
+    TraceIdMiddleware,
+    RequestLogMiddleware,
+    MetricsService,
+    ReferenceHealthScannerWorker,
+  ],
   controllers: [MetricsController],
   exports: [MetricsService],
 })

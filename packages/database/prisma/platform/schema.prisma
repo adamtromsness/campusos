@@ -831,6 +831,108 @@ model PlatformDlqMessage {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// REVIEW-FINAL P4 — Soft FK Reference Health
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// Per ADR-001/020/028, tenant tables MUST NOT carry DB-enforced FKs
+// to platform.* tables. Cross-schema soft refs (UUID columns +
+// app-layer validation) are the canonical pattern. The trade-off is
+// that orphans can accumulate when a parent platform row is removed
+// without coordinated tenant cleanup — the schema does not detect or
+// prevent this.
+//
+// `platform_reference_health` is the registry + scan log that closes
+// the loop. The ReferenceHealthScannerWorker (Cycle 33+) periodically
+// counts orphans for each registered (source_schema, source_table,
+// source_column → target_schema, target_table) tuple and writes one
+// row per scan. Operators query this table via the platform admin
+// dashboard to see drift over time + investigate spikes.
+//
+// The registry of which refs to scan is config-driven inside the
+// worker (apps/api/src/observability/reference-health/registry.ts).
+// Adding a new soft-FK pattern is a one-line registry entry; no
+// schema change required.
+model PlatformReferenceHealth {
+  id            String   @id @db.Uuid
+  // The soft-FK source — e.g. "tenant_demo" + "fac_work_orders" +
+  // "requested_by". target identifies what it should resolve to —
+  // e.g. "platform" + "platform_users" + "id".
+  sourceSchema  String   @map("source_schema")
+  sourceTable   String   @map("source_table")
+  sourceColumn  String   @map("source_column")
+  targetSchema  String   @map("target_schema")
+  targetTable   String   @map("target_table")
+  targetColumn  String   @default("id") @map("target_column")
+  // Scan output. `total_rows` is the source-table row count at scan
+  // time; `orphan_count` is the number of source rows whose
+  // source_column does not resolve in target. `sample_orphan_ids` is
+  // a small JSON array (capped at 20) for operator triage.
+  totalRows         Int      @map("total_rows")
+  orphanCount       Int      @map("orphan_count")
+  sampleOrphanIds   Json     @default("[]") @map("sample_orphan_ids") @db.JsonB
+  scannedAt         DateTime @default(now()) @map("scanned_at") @db.Timestamptz()
+  scanDurationMs    Int      @map("scan_duration_ms")
+
+  @@index([sourceSchema, sourceTable, scannedAt(sort: Desc)])
+  @@index([orphanCount(sort: Desc), scannedAt(sort: Desc)])
+  @@map("platform_reference_health")
+  @@schema("platform")
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// REVIEW-FINAL P2 — Transactional Outbox
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// Producer-side reliability for safety-critical Kafka events.
+// Without this, `KafkaProducerService.emit()` is best-effort: a
+// broker outage at the moment of emit silently drops the event,
+// even though the originating database transaction has committed.
+// For finance, breach notification, SHI auto-escalation, and
+// emergency alert fan-out, that's not acceptable.
+//
+// Pattern: callers use `OutboxService.enqueueInTx(tx, ...)` instead
+// of `KafkaProducerService.emit()`. The outbox row commits with the
+// caller's transaction. A separate worker
+// (OutboxPublisherWorker) polls outbox, publishes via the producer,
+// and deletes the row on success. Failure leaves the row for the
+// next poll. The `published_at IS NULL` partial index keeps the
+// poll query fast even when millions of events have been processed.
+model PlatformOutbox {
+  id            String   @id @db.Uuid
+  topic         String
+  // The wire-shape ADR-057 envelope JSON. The publisher worker
+  // sends this verbatim — no re-wrapping. correlation_id, event_id,
+  // tenant_id, etc. are already inside.
+  envelope      Json     @db.JsonB
+  // Optional partition key (forwarded to kafkajs as the message
+  // key). Falls back to a random UUID when null.
+  messageKey    String?  @map("message_key")
+  // Tenant context for observability + admin filtering.
+  tenantId      String?  @map("tenant_id") @db.Uuid
+  sourceModule  String   @map("source_module")
+  // Lifecycle. published_at is set by the worker after a successful
+  // producer.send. failed_at + last_error are set when a publish
+  // attempt errors; the worker bumps attempt_count and retries on
+  // the next poll until MAX_OUTBOX_ATTEMPTS (default 10), at which
+  // point the row stays at failed_at and an operator must intervene.
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz()
+  failedAt      DateTime? @map("failed_at") @db.Timestamptz()
+  attemptCount  Int       @default(0) @map("attempt_count")
+  lastError     String?   @map("last_error")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Partial index so the publisher worker's poll query can prune
+  // most rows efficiently. Once published_at is set, the row drops
+  // out of the index; an archive worker can hard-delete published
+  // rows older than N days as housekeeping.
+  @@index([createdAt], map: "platform_outbox_pending_idx")
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([failedAt], map: "platform_outbox_failed_idx")
+  @@map("platform_outbox")
+  @@schema("platform")
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CYCLE 23 — Curriculum Standards (Platform-Seeded Frameworks)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //

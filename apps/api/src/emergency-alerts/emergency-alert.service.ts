@@ -7,7 +7,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import { AlertTypeService } from './alert-type.service';
@@ -137,8 +137,8 @@ export class EmergencyAlertService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly alertTypes: AlertTypeService,
-    private readonly kafka: KafkaProducerService,
     private readonly permissions: PermissionCheckService,
+    private readonly outbox: OutboxService,
   ) {}
 
   /**
@@ -319,11 +319,16 @@ export class EmergencyAlertService {
           }
         }
       }
-    });
 
-    // Emit AFTER tx commit
-    try {
-      await this.kafka.emit({
+      // REVIEW-FINAL P2 — emit via OUTBOX inside the same tx as the
+      // alert + delivery INSERTs. Emergency alerts are a life-safety
+      // multi-channel fan-out; the previous best-effort emit
+      // swallowed Kafka failures with try/catch. With the outbox,
+      // the row commits with the alert and the
+      // OutboxPublisherWorker delivers at-least-once even across
+      // broker outages, so PUSH/SMS fan-out from the consumer is
+      // not lost.
+      await this.outbox.enqueueInTx(tx, {
         topic: 'msg.emergency.issued',
         key: alertId,
         sourceModule: 'communications',
@@ -343,9 +348,7 @@ export class EmergencyAlertService {
           sourceRefId: alertId,
         },
       });
-    } catch {
-      // Best-effort emit per existing convention
-    }
+    });
 
     return this.getById(alertId, actor);
   }

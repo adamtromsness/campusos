@@ -115,22 +115,77 @@ async function seedIam() {
   }
 
   // ── 3. Seed default roles ──────────────────────────────────
-  var roleNames = ['Platform Admin', 'School Admin', 'Teacher', 'Student', 'Parent', 'Staff'];
-  var existingRoles = await client.role.count();
-  if (existingRoles > 0) {
-    console.log('  Roles already seeded');
+  // REVIEW-FINAL P1 — specialist role split. The original 6 roles
+  // (Platform Admin / School Admin / Teacher / Student / Parent /
+  // Staff) accumulated specialist permissions across cycles 4–32:
+  // Staff effectively had Counsellor + Nurse + Librarian + AD +
+  // EO + TC + FSM + FM + IT + DPO + Finance + Procurement +
+  // Store + Activities + Reports authority all at once. This is
+  // not appropriate for real-school operation under FERPA/HIPAA/
+  // GDPR audits — least privilege applies.
+  //
+  // The 15 specialist roles below let a real school assign a
+  // teacher to "Counsellor" without making them a generic Staff
+  // member. The existing Staff role stays in place as a baseline
+  // ("general support" — admin assistants, office staff who don't
+  // hold a specialist function); narrowing its over-grants is a
+  // separate Phase-2 cleanup once production specialist roles are
+  // populated. Demo accounts vp@ and counsellor@ are now layered
+  // — they hold their specialist role IN ADDITION to Staff so the
+  // existing CAT scripts continue to pass.
+  //
+  // Adding a new role to this list is idempotent — the per-role
+  // findFirst/create loop below picks up missing names without
+  // touching existing rows.
+  var roleNames = [
+    'Platform Admin',
+    'School Admin',
+    'Teacher',
+    'Student',
+    'Parent',
+    'Staff',
+    // Specialist roles introduced by REVIEW-FINAL P1.
+    'Vice Principal',
+    'Counsellor',
+    'Nurse',
+    'Librarian',
+    'Athletic Director',
+    'Activities Coordinator',
+    'Enrolment Officer',
+    'Transportation Coordinator',
+    'Food Service Manager',
+    'Facilities Manager',
+    'IT Administrator',
+    'Finance Officer',
+    'Procurement Officer',
+    'Store Manager',
+    'DPO',
+  ];
+  var addedRoles = 0;
+  for (var ri = 0; ri < roleNames.length; ri++) {
+    var nm = roleNames[ri]!;
+    var existing = await client.role.findFirst({ where: { name: nm } });
+    if (existing) continue;
+    await client.role.create({
+      data: {
+        id: generateId(),
+        name: nm,
+        description: nm + ' system role',
+        isSystem: true,
+      },
+    });
+    addedRoles++;
+  }
+  if (addedRoles === 0) {
+    console.log('  Roles already seeded (' + roleNames.length + ' total)');
   } else {
-    for (var ri = 0; ri < roleNames.length; ri++) {
-      await client.role.create({
-        data: {
-          id: generateId(),
-          name: roleNames[ri]!,
-          description: roleNames[ri]! + ' system role',
-          isSystem: true,
-        },
-      });
-    }
-    console.log('  ' + roleNames.length + ' default roles seeded');
+    console.log(
+      '  ' +
+        addedRoles +
+        ' new role(s) added (' +
+        roleNames.length +
+        ' total: 6 baseline + 15 specialist)',
+    );
   }
 
   // ── 4. Assign ALL permissions to Platform Admin (reconciling) ──────
@@ -964,6 +1019,244 @@ async function seedIam() {
         'DPO-005': ['read', 'write'],
       },
     },
+
+    // ─── REVIEW-FINAL P1 — Specialist role permission specs ──────
+    // Each specialist role gets the function codes for its domain
+    // at read+write+admin tier. The Platform Admin reconciliation
+    // upstream gives Platform Admin everything; specialists are the
+    // narrow alternative for real-school staff who shouldn't need
+    // platform-level authority.
+    //
+    // Specs are additive against the base catalogue — codes that
+    // don't exist (e.g. ATH-006..010 if the catalogue ships only
+    // ATH-001..005) silently skip via the permIdByCode lookup.
+
+    // Vice Principal — cross-functional read access + key ops admin.
+    // Used for staff who help run the school but aren't the
+    // designated School Admin (the Principal).
+    {
+      roleName: 'Vice Principal',
+      perms: {
+        'STU-001': ['read', 'write', 'admin'],
+        'STU-002': ['read', 'write', 'admin'],
+        'STU-003': ['read', 'write'],
+        'ATT-001': ['read', 'write', 'admin'],
+        'ATT-002': ['read', 'write'],
+        'ATT-003': ['read', 'write'],
+        'ATT-004': ['read', 'write'],
+        'ATT-005': ['read', 'write'],
+        'BEH-001': ['read', 'write', 'admin'],
+        'BEH-002': ['read', 'write'],
+        'COM-001': ['read', 'write'],
+        'COM-002': ['read', 'write', 'admin'],
+        'COM-003': ['read', 'write', 'admin'],
+        'COM-004': ['read', 'write', 'admin'],
+        'TCH-001': ['read', 'write'],
+        'TCH-002': ['read', 'write'],
+        'TCH-003': ['read', 'write'],
+        'TCH-004': ['read', 'write'],
+        'TCH-005': ['read', 'write'],
+        'TCH-006': ['read', 'write'],
+        'TCH-007': ['read', 'write'],
+        'TCH-008': ['read', 'write'],
+        'OPS-001': ['read', 'write'],
+        'IT-001': ['read', 'write'],
+      },
+    },
+
+    // Counsellor — student counselling specialist.
+    {
+      roleName: 'Counsellor',
+      perms: {
+        'COU-001': ['read', 'write', 'admin'],
+        'COU-002': ['read', 'write', 'admin'],
+        'COU-003': ['read', 'write', 'admin'],
+        'COU-004': ['read', 'write', 'admin'],
+        'COU-005': ['read', 'write', 'admin'],
+        'COU-006': ['read', 'write', 'admin'],
+        'COU-007': ['read', 'write', 'admin'],
+        student_counseling_record: ['read'],
+        // Counsellors need basic student visibility + meetings.
+        'STU-001': ['read'],
+        'STU-002': ['read'],
+        'BEH-001': ['read', 'write'],
+        'BEH-002': ['read', 'write', 'admin'],
+        'MTG-001': ['read', 'write'],
+        'MTG-002': ['read', 'write'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Nurse — health module specialist.
+    {
+      roleName: 'Nurse',
+      perms: {
+        'HLT-001': ['read', 'write', 'admin'],
+        'HLT-002': ['read', 'write', 'admin'],
+        'HLT-003': ['read', 'write', 'admin'],
+        'HLT-004': ['read', 'write', 'admin'],
+        'HLT-005': ['read', 'write', 'admin'],
+        // Coordinated care intersection requires both health + counselling read.
+        'COU-007': ['read'],
+        'STU-001': ['read'],
+        'MTG-001': ['read', 'write'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Librarian — catalogue + circulation + reading programmes.
+    {
+      roleName: 'Librarian',
+      perms: {
+        'LIB-001': ['read', 'write', 'admin'],
+        'LIB-002': ['read', 'write', 'admin'],
+        'LIB-003': ['read', 'write', 'admin'],
+        'STU-001': ['read'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Athletic Director — sports programmes + clearances.
+    {
+      roleName: 'Athletic Director',
+      perms: {
+        'ATH-001': ['read', 'write', 'admin'],
+        'ATH-002': ['read', 'write', 'admin'],
+        'ATH-003': ['read', 'write', 'admin'],
+        'ATH-004': ['read', 'write', 'admin'],
+        'ATH-005': ['read', 'write', 'admin'],
+        'STU-001': ['read'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Activities Coordinator — clubs / extracurricular.
+    {
+      roleName: 'Activities Coordinator',
+      perms: {
+        'CLB-001': ['read', 'write', 'admin'],
+        'CLB-002': ['read', 'write', 'admin'],
+        'CLB-003': ['read', 'write', 'admin'],
+        'CLB-004': ['read', 'write', 'admin'],
+        'STU-001': ['read'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Enrolment Officer — admissions pipeline.
+    {
+      roleName: 'Enrolment Officer',
+      perms: {
+        'STU-003': ['read', 'write', 'admin'],
+        'STU-001': ['read'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Transportation Coordinator — buses, routes, ridership.
+    {
+      roleName: 'Transportation Coordinator',
+      perms: {
+        'TRN-001': ['read', 'write', 'admin'],
+        'TRN-002': ['read', 'write', 'admin'],
+        'TRN-003': ['read', 'write', 'admin'],
+        'TRN-004': ['read', 'write', 'admin'],
+        'TRN-005': ['read', 'write', 'admin'],
+        'STU-001': ['read'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Food Service Manager — meals, allergens, NSLP.
+    {
+      roleName: 'Food Service Manager',
+      perms: {
+        'FDS-001': ['read', 'write', 'admin'],
+        'FDS-002': ['read', 'write', 'admin'],
+        'FDS-003': ['read', 'write', 'admin'],
+        'FDS-004': ['read', 'write', 'admin'],
+        'STU-001': ['read'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Facilities Manager — buildings, work orders, inspections.
+    {
+      roleName: 'Facilities Manager',
+      perms: {
+        'FAC-001': ['read', 'write', 'admin'],
+        'FAC-002': ['read', 'write', 'admin'],
+        'FAC-003': ['read', 'write', 'admin'],
+        'FAC-004': ['read', 'write', 'admin'],
+        'IT-001': ['read', 'write'], // Helpdesk for facilities tickets.
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // IT Administrator — devices, licences, vault.
+    {
+      roleName: 'IT Administrator',
+      perms: {
+        'IT-001': ['read', 'write', 'admin'],
+        'IT-002': ['read', 'write', 'admin'],
+        'IT-003': ['read', 'write', 'admin'],
+        'IT-004': ['read', 'write', 'admin'],
+        'IT-005': ['read', 'write', 'admin'],
+        'IT-006': ['read', 'write', 'admin'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Finance Officer — GL, AP, budgets, board reports.
+    {
+      roleName: 'Finance Officer',
+      perms: {
+        'FIN-001': ['read', 'write', 'admin'],
+        'FIN-002': ['read', 'write', 'admin'],
+        'FIN-003': ['read', 'write', 'admin'],
+        'FIN-004': ['read', 'write', 'admin'],
+        'FIN-005': ['read', 'write', 'admin'],
+        'FIN-006': ['read', 'write', 'admin'],
+        'FIN-007': ['read', 'write', 'admin'],
+        'FIN-008': ['read', 'write', 'admin'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Procurement Officer — requisitions, purchase orders, vendors.
+    {
+      roleName: 'Procurement Officer',
+      perms: {
+        'PRC-001': ['read', 'write', 'admin'],
+        'PRC-002': ['read', 'write', 'admin'],
+        'PRC-003': ['read', 'write', 'admin'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Store Manager — school store inventory + orders.
+    {
+      roleName: 'Store Manager',
+      perms: {
+        'STR-001': ['read', 'write', 'admin'],
+        'STR-002': ['read', 'write', 'admin'],
+        'STR-003': ['read', 'write', 'admin'],
+        'COM-001': ['read', 'write'],
+      },
+    },
+
+    // Data Protection Officer — GDPR compliance keystone.
+    {
+      roleName: 'DPO',
+      perms: {
+        'DPO-001': ['read', 'write', 'admin'],
+        'DPO-002': ['read', 'write', 'admin'],
+        'DPO-003': ['read', 'write', 'admin'],
+        'DPO-004': ['read', 'write', 'admin'],
+        'DPO-005': ['read', 'write', 'admin'],
+        'COM-001': ['read', 'write'],
+      },
+    },
   ];
 
   var allPermissions = await client.permission.findMany({ select: { id: true, code: true } });
@@ -1079,52 +1372,88 @@ async function seedIam() {
   }
 
   // ── 6. Assign roles to test users ──────────────────────────
-  // Per-user idempotent lookup-or-create so adding users in later cycles
-  // (vp@, counsellor@ in Cycle 4 Step 0) doesn't require dropping the
-  // existing assignments.
-  var userRoleMap = [
-    { email: 'admin@demo.campusos.dev', role: 'Platform Admin', scopeId: platformScopeId },
-    { email: 'principal@demo.campusos.dev', role: 'School Admin', scopeId: schoolScopeId },
-    { email: 'teacher@demo.campusos.dev', role: 'Teacher', scopeId: schoolScopeId },
-    { email: 'student@demo.campusos.dev', role: 'Student', scopeId: schoolScopeId },
-    { email: 'parent@demo.campusos.dev', role: 'Parent', scopeId: schoolScopeId },
+  // Per-user idempotent lookup-or-create so adding users / specialist
+  // role layers in later cycles doesn't require dropping the existing
+  // assignments.
+  //
+  // REVIEW-FINAL P1 — vp@ and counsellor@ now hold their specialist
+  // role IN ADDITION to Staff. The Staff assignment is preserved so
+  // the existing CAT scripts (which assume the over-grant set)
+  // continue to pass; the specialist role gives operators the proper
+  // role to use for new staff and lets us validate the role exists +
+  // is wired correctly. Phase 2 cleanup: real-school deployments
+  // assign specialist roles directly without Staff, then narrow the
+  // Staff role's permission set.
+  var userRoleMap: Array<{ email: string; roles: string[]; scopeId: string }> = [
+    { email: 'admin@demo.campusos.dev', roles: ['Platform Admin'], scopeId: platformScopeId },
+    { email: 'principal@demo.campusos.dev', roles: ['School Admin'], scopeId: schoolScopeId },
+    { email: 'teacher@demo.campusos.dev', roles: ['Teacher'], scopeId: schoolScopeId },
+    { email: 'student@demo.campusos.dev', roles: ['Student'], scopeId: schoolScopeId },
+    { email: 'parent@demo.campusos.dev', roles: ['Parent'], scopeId: schoolScopeId },
     // Cycle 4 Step 0 added these two staff to the platform seed.
-    { email: 'vp@demo.campusos.dev', role: 'Staff', scopeId: schoolScopeId },
-    { email: 'counsellor@demo.campusos.dev', role: 'Staff', scopeId: schoolScopeId },
+    // REVIEW-FINAL P1 — layered specialist roles.
+    {
+      email: 'vp@demo.campusos.dev',
+      roles: ['Staff', 'Vice Principal'],
+      scopeId: schoolScopeId,
+    },
+    {
+      email: 'counsellor@demo.campusos.dev',
+      roles: ['Staff', 'Counsellor'],
+      scopeId: schoolScopeId,
+    },
   ];
 
   var newAssignmentCount = 0;
+  var totalAssignmentCount = 0;
   for (var ui = 0; ui < userRoleMap.length; ui++) {
     var mapping = userRoleMap[ui]!;
     var user = await client.platformUser.findFirst({ where: { email: mapping.email } });
-    var role = await client.role.findFirst({ where: { name: mapping.role } });
-    if (!user || !role) continue;
+    if (!user) continue;
+    for (var rli = 0; rli < mapping.roles.length; rli++) {
+      var roleName = mapping.roles[rli]!;
+      var role = await client.role.findFirst({ where: { name: roleName } });
+      if (!role) continue;
+      totalAssignmentCount++;
 
-    var existing = await client.iamRoleAssignment.findFirst({
-      where: { accountId: user.id, roleId: role.id, scopeId: mapping.scopeId },
-    });
-    if (existing) continue;
+      var existing = await client.iamRoleAssignment.findFirst({
+        where: { accountId: user.id, roleId: role.id, scopeId: mapping.scopeId },
+      });
+      if (existing) continue;
 
-    await client.iamRoleAssignment.create({
-      data: {
-        id: generateId(),
-        accountId: user.id,
-        roleId: role.id,
-        scopeId: mapping.scopeId,
-        status: 'ACTIVE',
-        source: 'MANUAL',
-      },
-    });
-    newAssignmentCount++;
-    console.log('  ' + mapping.email + ' -> ' + mapping.role);
+      await client.iamRoleAssignment.create({
+        data: {
+          id: generateId(),
+          accountId: user.id,
+          roleId: role.id,
+          scopeId: mapping.scopeId,
+          status: 'ACTIVE',
+          source: 'MANUAL',
+        },
+      });
+      newAssignmentCount++;
+      console.log('  ' + mapping.email + ' -> ' + roleName);
+    }
   }
   if (newAssignmentCount === 0) {
-    console.log('  Role assignments already seeded');
+    console.log('  Role assignments already up-to-date (' + totalAssignmentCount + ' total)');
+  } else {
+    console.log(
+      '  ' + newAssignmentCount + ' new assignment(s) added (' + totalAssignmentCount + ' total)',
+    );
   }
 
   console.log('');
   console.log('  IAM seed complete!');
-  console.log('  ' + functions.length * tiers.length + ' permissions, 6 roles, 5 assignments');
+  console.log(
+    '  ' +
+      functions.length * tiers.length +
+      ' permissions, ' +
+      roleNames.length +
+      ' roles, ' +
+      totalAssignmentCount +
+      ' assignments',
+  );
 }
 
 // ── Export for use in main seed, or run standalone ──

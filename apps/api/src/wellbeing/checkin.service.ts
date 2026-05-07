@@ -7,7 +7,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import {
@@ -148,7 +148,7 @@ export class CheckinService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permissions: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   /**
@@ -495,30 +495,37 @@ export class CheckinService {
           checkin.deployment_id,
         );
       }
-    });
 
-    // Emit per-trigger alerts after the tx commits.
-    for (const t of triggers) {
-      void this.kafka.emit({
-        topic: 'svc.wellbeing.alert.created',
-        key: t.responseId,
-        sourceModule: 'wellbeing',
-        payload: {
-          alertType: t.alertType,
-          sourceRefId: t.responseId,
-          schoolId: tenant.schoolId,
-          studentId: t.studentId,
-          checkinId,
-          responseId: t.responseId,
-          questionId: t.questionId,
-          questionText: t.questionText,
-          autoEscalate: t.alertType === 'SELF_HARM_INDICATOR',
-          submittedByAccountId: actor.accountId,
-        },
-        tenantId: tenant.schoolId,
-        tenantSubdomain: tenant.subdomain,
-      });
-    }
+      // REVIEW-FINAL P2 — emit per-trigger alerts via OUTBOX inside
+      // the same tx as the response + alert INSERTs. SHI auto-
+      // escalation is a clinical-safety control; the previous
+      // best-effort `void this.kafka.emit(...)` would silently
+      // drop the escalation if the broker was unreachable at emit
+      // time. With the outbox, the row commits with the alert
+      // INSERT and the OutboxPublisherWorker delivers at-least-once
+      // even across broker outages.
+      for (const t of triggers) {
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'svc.wellbeing.alert.created',
+          key: t.responseId,
+          sourceModule: 'wellbeing',
+          payload: {
+            alertType: t.alertType,
+            sourceRefId: t.responseId,
+            schoolId: tenant.schoolId,
+            studentId: t.studentId,
+            checkinId,
+            responseId: t.responseId,
+            questionId: t.questionId,
+            questionText: t.questionText,
+            autoEscalate: t.alertType === 'SELF_HARM_INDICATOR',
+            submittedByAccountId: actor.accountId,
+          },
+          tenantId: tenant.schoolId,
+          tenantSubdomain: tenant.subdomain,
+        });
+      }
+    });
 
     return this.getById(checkinId, actor);
   }

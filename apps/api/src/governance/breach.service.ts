@@ -9,7 +9,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type {
   BreachRecordDto,
   CreateBreachDto,
@@ -45,7 +45,7 @@ export class BreachService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permCheck: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   async assertReadScope(actor: ResolvedActor): Promise<void> {
@@ -185,32 +185,38 @@ export class BreachService {
         input.remediationActions,
         actor.accountId,
       );
-    });
 
-    // ─── KEYSTONE — emit dpo.breach.discovered AFTER tx commits ───
-    if (input.supervisoryAuthorityNotificationRequired) {
-      const discoveryDeadline = new Date(
-        new Date(input.discoveryDate).getTime() + SEVENTY_TWO_HOURS_MS,
-      ).toISOString();
-      await this.kafka.emit({
-        topic: 'dpo.breach.discovered',
-        key: id,
-        sourceModule: 'governance',
-        payload: {
-          breachId: id,
-          schoolId: tenant.schoolId,
-          breachTitle: input.breachTitle,
-          breachType: input.breachType,
-          discoveryDate: input.discoveryDate,
-          notificationDeadline: discoveryDeadline,
-          riskLevel: input.riskLevel,
-          riskToIndividuals: input.riskToIndividuals,
-          estimatedAffectedIndividuals: input.estimatedAffectedIndividuals ?? null,
-          reportedByAccountId: actor.accountId,
-          sourceRefId: id,
-        },
-      });
-    }
+      // REVIEW-FINAL P2 — emit via OUTBOX inside the same tx as the
+      // INSERT. The 72-hour regulatory deadline depends on this
+      // event reaching the TaskWorker; a transient Kafka outage at
+      // emit time would silently drop the auto-task creation under
+      // the previous best-effort path. With the outbox, the row
+      // commits with the breach insert and the OutboxPublisherWorker
+      // delivers at-least-once on the next poll.
+      if (input.supervisoryAuthorityNotificationRequired) {
+        const discoveryDeadline = new Date(
+          new Date(input.discoveryDate).getTime() + SEVENTY_TWO_HOURS_MS,
+        ).toISOString();
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'dpo.breach.discovered',
+          key: id,
+          sourceModule: 'governance',
+          payload: {
+            breachId: id,
+            schoolId: tenant.schoolId,
+            breachTitle: input.breachTitle,
+            breachType: input.breachType,
+            discoveryDate: input.discoveryDate,
+            notificationDeadline: discoveryDeadline,
+            riskLevel: input.riskLevel,
+            riskToIndividuals: input.riskToIndividuals,
+            estimatedAffectedIndividuals: input.estimatedAffectedIndividuals ?? null,
+            reportedByAccountId: actor.accountId,
+            sourceRefId: id,
+          },
+        });
+      }
+    });
 
     return this.getById(actor, id);
   }
