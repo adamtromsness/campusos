@@ -27,6 +27,7 @@ import {
   NewspaperIcon,
   PeopleIcon,
   ShieldExclamationIcon,
+  ShoppingBagIcon,
   ShoppingCartIcon,
   SparklesIcon,
   TrophyIcon,
@@ -65,7 +66,8 @@ export type AppKey =
   | 'portfolio'
   | 'publications'
   | 'finance'
-  | 'procurement';
+  | 'procurement'
+  | 'store';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -585,6 +587,29 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/procurement',
       routePrefix: '/procurement',
       icon: ShoppingCartIcon,
+    });
+  }
+
+  // Cycle 28 — School Store (Wave 6 closeout). The store manager is
+  // the twelfth specialist operator persona. STR-001..003 cover
+  // products + inventory, orders + parent approval, external
+  // customers + shipping + revenue. Every persona who can browse
+  // (STR-001:read) sees the tile; checkout, approval, and admin
+  // surfaces gate at the route level.
+  if (hasAnyPermission(user, ['str-001:read'])) {
+    apps.push({
+      key: 'store',
+      label: 'Store',
+      description: isStaff
+        ? 'Products, orders, fulfilment, and revenue'
+        : isStudent
+          ? 'School store — uniforms, supplies, yearbook'
+          : isGuardian
+            ? 'School store — approve and track student orders'
+            : 'School store',
+      href: '/store',
+      routePrefix: '/store',
+      icon: ShoppingBagIcon,
     });
   }
 

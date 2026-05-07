@@ -41,6 +41,7 @@ import { PortfolioModule } from './portfolio/portfolio.module';
 import { PublicationsModule } from './publications/publications.module';
 import { FinanceModule } from './finance/finance.module';
 import { ProcurementModule } from './procurement/procurement.module';
+import { StoreModule } from './store/store.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -108,6 +109,7 @@ var devOnlyControllers: Type<unknown>[] =
     PublicationsModule,
     FinanceModule,
     ProcurementModule,
+    StoreModule,
   ],
   controllers: devOnlyControllers,
   providers: [

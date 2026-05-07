@@ -8393,3 +8393,239 @@ export interface PrcUpdateSettingsPayload {
   poNumberPrefix?: string;
   requireThreeQuotesAbove?: number;
 }
+
+// ─── Cycle 28 — School Store (M67) ───
+
+export type StrStoreType = 'STUDENT' | 'PUBLIC';
+export type StrOrderType = 'STUDENT' | 'PARENT' | 'EXTERNAL';
+export type StrOrderStatus =
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'PROCESSING'
+  | 'READY_FOR_PICKUP'
+  | 'SHIPPED'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'BACKORDERED';
+export type StrShippingMethod = 'PICKUP' | 'SHIPPED';
+export type StrPaymentStatus = 'PENDING' | 'CHARGED' | 'DEFERRED_BACKORDER' | 'REFUNDED';
+export type StrLineStatus = 'IN_STOCK' | 'BACKORDERED' | 'FULFILLED' | 'CANCELLED';
+export type StrApprovalStatus = 'PENDING' | 'APPROVED' | 'DECLINED';
+export type StrLocationType = 'BUILDING' | 'DISTRICT';
+
+export interface StrStoreDto {
+  id: string;
+  schoolId: string;
+  storeType: StrStoreType;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StrInventoryRowDto {
+  id: string;
+  productId: string;
+  locationType: StrLocationType;
+  locationId: string;
+  quantityOnHand: number;
+  quantityReserved: number;
+  reorderPoint: number;
+  reorderQuantity: number;
+}
+
+export interface StrProductDto {
+  id: string;
+  storeId: string;
+  name: string;
+  description: string | null;
+  sku: string | null;
+  category: string | null;
+  price: number;
+  cost: number | null;
+  imageS3Keys: string[];
+  isActive: boolean;
+  backorderAllowed: boolean;
+  preferredSupplierId: string | null;
+  inventory: StrInventoryRowDto[];
+  totalOnHand: number;
+  totalReserved: number;
+  totalAvailable: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StrOrderLineDto {
+  id: string;
+  orderId: string;
+  productId: string;
+  productName: string | null;
+  productSku: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  lineStatus: StrLineStatus;
+}
+
+export interface StrOrderApprovalDto {
+  id: string;
+  orderId: string;
+  parentPersonId: string;
+  parentName: string | null;
+  status: StrApprovalStatus;
+  requestedAt: string;
+  respondedAt: string | null;
+  declineReason: string | null;
+}
+
+export interface StrOrderDto {
+  id: string;
+  storeId: string;
+  storeName: string | null;
+  orderType: StrOrderType;
+  customerPersonId: string | null;
+  customerName: string | null;
+  externalCustomerId: string | null;
+  externalCustomerName: string | null;
+  studentId: string | null;
+  studentName: string | null;
+  orderNumber: string;
+  orderDate: string;
+  status: StrOrderStatus;
+  subtotal: number;
+  shippingCost: number;
+  total: number;
+  shippingMethod: StrShippingMethod;
+  shippingOptionId: string | null;
+  shippingOptionName: string | null;
+  trackingNumber: string | null;
+  paymentStatus: StrPaymentStatus;
+  notes: string | null;
+  lines: StrOrderLineDto[];
+  approval: StrOrderApprovalDto | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StrCreateOrderLine {
+  productId: string;
+  quantity: number;
+}
+
+export interface StrCreateOrderPayload {
+  storeId: string;
+  orderType: StrOrderType;
+  studentId?: string;
+  externalCustomerId?: string;
+  shippingOptionId?: string;
+  shippingMethod: StrShippingMethod;
+  notes?: string;
+  lines: StrCreateOrderLine[];
+}
+
+export interface StrFulfilOrderPayload {
+  toStatus: 'READY_FOR_PICKUP' | 'SHIPPED';
+  trackingNumber?: string;
+}
+
+export interface StrAdjustInventoryPayload {
+  quantityOnHand: number;
+  reorderPoint?: number;
+  reorderQuantity?: number;
+}
+
+export interface StrCreateProductPayload {
+  storeId: string;
+  name: string;
+  description?: string;
+  sku?: string;
+  category?: string;
+  price: number;
+  cost?: number;
+  imageS3Keys?: string[];
+  backorderAllowed?: boolean;
+  preferredSupplierId?: string;
+}
+
+export interface StrUpdateProductPayload {
+  name?: string;
+  description?: string;
+  sku?: string;
+  category?: string;
+  price?: number;
+  cost?: number;
+  imageS3Keys?: string[];
+  isActive?: boolean;
+  backorderAllowed?: boolean;
+  preferredSupplierId?: string;
+}
+
+export interface StrShippingOptionDto {
+  id: string;
+  storeId: string;
+  methodName: string;
+  estimatedDays: number | null;
+  flatRate: number;
+  isActive: boolean;
+}
+
+export interface StrCreateShippingOptionPayload {
+  storeId: string;
+  methodName: string;
+  estimatedDays?: number;
+  flatRate: number;
+}
+
+export interface StrExternalCustomerDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  shippingAddress: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface StrCreateExternalCustomerPayload {
+  name: string;
+  email: string;
+  phone?: string;
+  shippingAddress?: string;
+  notes?: string;
+}
+
+export interface StrInventoryDashboardRow {
+  productId: string;
+  productName: string;
+  sku: string | null;
+  storeName: string;
+  storeType: StrStoreType;
+  locationType: StrLocationType;
+  locationId: string;
+  quantityOnHand: number;
+  quantityReserved: number;
+  reorderPoint: number;
+  reorderQuantity: number;
+  atOrBelowReorder: boolean;
+}
+
+export interface StrRevenueRowDto {
+  id: string;
+  storeId: string;
+  storeName: string | null;
+  periodStart: string;
+  periodEnd: string;
+  totalOrders: number;
+  totalRevenue: number;
+  totalCost: number;
+  grossMargin: number;
+  computedAt: string;
+}
+
+export interface StrMaterialiseRevenuePayload {
+  storeId: string;
+  periodStart: string;
+  periodEnd: string;
+}

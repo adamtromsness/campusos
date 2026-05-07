@@ -626,6 +626,11 @@
       "group": "School Store"
     },
     {
+      "code": "STR-003",
+      "name": "External Customers, Shipping & Revenue",
+      "group": "School Store"
+    },
+    {
       "code": "STU-001",
       "name": "Student Profiles",
       "group": "Student Records"

@@ -213,6 +213,11 @@ async function seedIam() {
         // receiving, distribution, and returns are PRC-002 /
         // PRC-003 admin / staff.
         'PRC-001': ['read', 'write'],
+        // Cycle 28 — School Store. Teachers browse the catalogue
+        // (STR-001:read) so they can recommend products, but they
+        // do not place orders or manage products at the catalogue
+        // tier (write is admin-only via everyFunction).
+        'STR-001': ['read'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read', 'write'],
         // Cycle 14 — emergency alert read so the persistent banner
@@ -376,6 +381,13 @@ async function seedIam() {
         // editions and manage subscriptions on the my-subscriptions
         // surface.
         'PUB-001': ['read'],
+        // Cycle 28 — School Store. Parents browse the STUDENT store
+        // catalogue, see their child's order history, AND approve /
+        // decline pending student orders via the PARENT APPROVAL
+        // GATE (STR-002:write covers approve + decline + place
+        // orders on behalf of own children).
+        'STR-001': ['read'],
+        'STR-002': ['read', 'write'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
         // Cycle 14 — emergency alert read so the dismiss-proof
@@ -525,6 +537,15 @@ async function seedIam() {
         // require editor approval per ADR-035.
         'PUB-001': ['read'],
         'PUB-002': ['read', 'write'],
+        // Cycle 28 — School Store. Students browse the STUDENT
+        // catalogue (STR-001:read) AND place orders (STR-002:write —
+        // every student order auto-creates a PENDING str_order_approvals
+        // row inside the OrderService.create tx; the parent must
+        // approve before payment fires). Students see their own
+        // orders via STR-002:read (row-scoped at the Step 6 service
+        // to own customer_person_id only).
+        'STR-001': ['read'],
+        'STR-002': ['read', 'write'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read'],
         // Cycle 14 — students see emergency alerts on their devices.
@@ -875,6 +896,21 @@ async function seedIam() {
         'PRC-001': ['read', 'write'],
         'PRC-002': ['read', 'write'],
         'PRC-003': ['read', 'write'],
+        // Cycle 28 — School Store. Staff covers the store manager —
+        // the twelfth specialist operator persona. STR-001..003
+        // read+write covers the full operational surface: products
+        // + inventory (STR-001), order fulfilment + parent approval
+        // proxy (STR-002 — Staff can fulfil and ship; parent
+        // approve/decline lives at STR-002:write held by Parent +
+        // admin), external customers + shipping + revenue + store
+        // management (STR-003). School Admin / Platform Admin pick
+        // up the admin tier (close store, override prices) via
+        // everyFunction. Joins the broader role-split chain — a
+        // dedicated Store Manager role should hold the STR-* codes
+        // alone before pilot.
+        'STR-001': ['read', 'write'],
+        'STR-002': ['read', 'write'],
+        'STR-003': ['read', 'write'],
       },
     },
   ];
