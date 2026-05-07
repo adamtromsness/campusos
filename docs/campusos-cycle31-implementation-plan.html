@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 31 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}.tag-ops{background:#f0f0f0;color:#475569;border:1px solid #cbd5e1}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 8 &middot; Hardening</div>
+    <h1>Cycle 31: Performance &amp;<br>Observability</h1>
+    <div class="sub">The first ops cycle &mdash; no new business tables. Structured logging with correlation IDs across every request/event chain, OpenTelemetry distributed tracing, Prometheus metrics export, load testing every critical hot path, pg_stat_statements query optimisation, partition activation for high-volume tables, PgBouncer schema-per-tenant tuning, Redis caching for the hottest read paths, DLQ dashboard wiring, consumer envelope validation, circuit breaker implementation, error budget SLOs per module, and the SRE alerting pipeline. The operational readiness gate before pilot. Opens Wave 8.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; Ops Cycle &mdash; 0 new business tables &middot; ADR-009/047/050/057 &middot; Opens Wave 8</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 31 is the first of two hardening cycles in Wave 8. Unlike every prior cycle which added new domain tables and endpoints, this cycle adds <strong>zero new business tables</strong>. Instead, it instruments, optimises, and stress-tests the ~418 tables and ~936 endpoints built across 30 prior cycles. The deliverable is not a feature &mdash; it is the confidence that the platform can handle a real school district's load before pilot.</p>
+
+  <p class="body-text">The cycle spans 4 domains: (1) observability infrastructure &mdash; structured logging, distributed tracing, metrics export, and the alerting pipeline, (2) performance baselines &mdash; load testing critical hot paths, query optimisation from pg_stat_statements, and establishing p50/p95/p99 latency baselines, (3) data infrastructure &mdash; partition activation for high-volume tables, PgBouncer schema-per-tenant tuning, and Redis caching, and (4) operational resilience &mdash; DLQ dashboard, consumer envelope validation, circuit breakers, transactional outbox evaluation, and error budget SLOs.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Architecture &mdash; External Observability Stack</div>
+    <p style="font-size:15px;line-height:1.8;">CampusOS does NOT store its own operational metrics in its own database. The observability stack is external: CloudWatch/ELK for logs, Prometheus + Grafana for metrics, OpenTelemetry + Jaeger/X-Ray for tracing, PagerDuty/Slack for alerting. This avoids the circular dependency where a database problem prevents you from seeing that there's a database problem. The only internal observability surface is <code>platform_kafka_consumer_health</code> (already exists from Cycle 0) and the DLQ dashboard wired this cycle.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Cycle Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Every HTTP request has a UUIDv7 trace_id propagated through headers &rarr; NestJS service &rarr; Kafka envelope correlation_id &rarr; consumer processing &rarr; database query comments (/* trace_id=... */) &rarr; structured JSON log lines &mdash; a single trace reconstructs the entire operation end-to-end &rarr; Prometheus /metrics endpoint exports: API latency histograms per route, Kafka consumer lag per topic/partition, PostgreSQL connection pool saturation, Redis cache hit/miss rates, per-tenant request counts &rarr; Grafana dashboards visualise all metrics with alert thresholds &rarr; load test results establish baselines: POS allergen cross-check &lt;50ms p95, GIN catalogue search &lt;100ms p95, inbox query &lt;200ms p95, scheduling solver &lt;600s per school &rarr; pg_stat_statements surfaces the top 10 slowest queries; targeted index additions or query rewrites bring them under SLA &rarr; msg_threads converted to HASH(64 buckets), msg_messages + trn_ridership_records + fds_meal_transactions + tech_credential_access_log converted to RANGE(monthly) partitions &rarr; PgBouncer configured for schema-per-tenant (SET search_path on connection checkout) &rarr; Redis caches: IAM effective access (5-min TTL), unread message counts (30-sec TTL), catalogue available-copies (60-sec TTL) &rarr; DLQ dashboard shows all dead-letter messages across all consumers with age, retry count, error detail, and replay button &rarr; every consumer validates tenant_id in the ADR-057 envelope before processing &rarr; circuit breakers on all external dependencies (DB, Redis, AI Gateway, push providers) &rarr; error budget SLOs defined per module: 99.9% availability for critical paths (POS, health, emergency), 99.5% for standard paths.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:42%">Deliverable</th><th style="width:12%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Structured Logging + Correlation IDs</td><td>Ops</td><td>Log schema validation linter, trace_id propagation middleware, structured JSON format, PII scrubbing</td></tr>
+    <tr><td><strong>2</strong></td><td>OpenTelemetry Distributed Tracing</td><td>Ops</td><td>OTel SDK integration, span creation at service boundaries, Kafka envelope correlation, DB query comments</td></tr>
+    <tr><td><strong>3</strong></td><td>Prometheus Metrics + Grafana Dashboards</td><td>Ops</td><td>/metrics endpoint, API latency histograms, Kafka lag gauges, DB connection pool, Redis hit rates, per-tenant counters</td></tr>
+    <tr><td><strong>4</strong></td><td>Load Testing + Query Optimisation</td><td>Ops</td><td>k6 load test scripts for 12 critical hot paths, pg_stat_statements top-10 analysis, targeted index/query optimisation</td></tr>
+    <tr><td><strong>5</strong></td><td>Partition Activation</td><td>Ops</td><td>msg_threads HASH(64), msg_messages RANGE(monthly), trn_ridership_records, fds_meal_transactions, fds_temperature_logs, tech_credential_access_log, audit_log RANGE(monthly)</td></tr>
+    <tr><td><strong>6</strong></td><td>PgBouncer + Redis Caching</td><td>Ops</td><td>PgBouncer schema-per-tenant config, Redis caching layer for IAM + messages + catalogue, TTL tuning, cache invalidation contracts</td></tr>
+    <tr><td><strong>7</strong></td><td>DLQ Dashboard + Consumer Hardening</td><td>Ops</td><td>DLQ admin UI with replay, envelope validation on all consumers, circuit breakers on external dependencies</td></tr>
+    <tr><td><strong>8</strong></td><td>Error Budget SLOs + Alerting Pipeline</td><td>Ops</td><td>SLO definitions per module, PagerDuty/Slack integration, alert routing rules, on-call runbook</td></tr>
+    <tr><td><strong>9</strong></td><td>Platform Admin Dashboard</td><td>Ops</td><td>Super-admin UI: tenant health, migration state, consumer lag, DLQ depth, partition status</td></tr>
+    <tr><td><strong>10</strong></td><td>Operational Readiness Review</td><td>Test</td><td>Full ops checklist: logging verified, tracing verified, metrics baseline, partitions active, caching tuned, DLQ wired, SLOs defined, alerts firing</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Structured Logging + Correlation IDs</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Enforce the structured log schema from Section 25.2 of the Architecture Review across every NestJS module, Kafka consumer, and background worker.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>Log schema validation linter:</strong> CI lint rule that fails the build if any log line is missing required fields (timestamp, level, service_name, trace_id, span_id, tenant_id, message). Checks for prohibited content: stack traces in message field, PII in any field (names, emails &mdash; only IDs allowed).</li>
+      <li><strong>Trace ID propagation middleware:</strong> NestJS global middleware generates a UUIDv7 trace_id on every incoming HTTP request (or accepts X-Trace-Id from upstream). Propagates through all internal service calls via X-Trace-Id header, all Kafka emits via ADR-057 correlation_id field, all DB queries via query comments (/* trace_id=... tenant_id=... */), all log entries.</li>
+      <li><strong>Structured JSON log format:</strong> Replace any remaining console.log calls with the structured logger. Required fields: timestamp (ISO 8601 UTC), level, service_name, trace_id, span_id, tenant_id, message. Conditional: user_id, event_type (on consumer log lines), worker_name, duration_ms, error_code, module prefix.</li>
+      <li><strong>Log aggregation config:</strong> CloudWatch Logs sink configuration. Log group per service. Retention: 90 days hot, 1 year cold.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Every log line across all 30+ modules is structured JSON with trace_id. CI enforced.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">OpenTelemetry Distributed Tracing</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Instrument the entire request lifecycle with OpenTelemetry spans so a single trace_id reconstructs the full operation from HTTP request through database query through Kafka emit through consumer processing.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>OTel SDK integration:</strong> @opentelemetry/sdk-node configured in the NestJS bootstrap. Auto-instrumentation for HTTP (incoming + outgoing), PostgreSQL (pg driver), Redis (ioredis), and Kafka (kafkajs). Backend: Jaeger (dev) or AWS X-Ray (prod).</li>
+      <li><strong>Service boundary spans:</strong> New spans created at every module service entry point. Parent span from HTTP request. Child spans for each DB query, Redis operation, Kafka produce, and external service call (AI Gateway, push providers, Stripe).</li>
+      <li><strong>Kafka consumer tracing:</strong> On message consume: extract correlation_id from the ADR-057 envelope, create a new span linked to the original trace. Consumer processing duration captured as span attribute.</li>
+      <li><strong>Cross-service propagation:</strong> When the monolith calls an extracted service (Video Processing, Scheduling Solver, etc.), trace_id + span_id passed in headers. Extracted service creates child spans under the same trace.</li>
+    </ol>
+    <div class="produces">Produces &rarr; End-to-end distributed tracing across HTTP → service → DB → Kafka → consumer → extracted service.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Prometheus Metrics + Grafana Dashboards</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Export platform metrics via Prometheus and build the Grafana dashboards that the SRE team uses for capacity planning and incident response.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>/metrics endpoint:</strong> Prometheus-compatible metrics export from the NestJS application. Histograms: http_request_duration_seconds (by route, method, status_code), db_query_duration_seconds (by module), kafka_produce_duration_seconds. Gauges: kafka_consumer_lag (by topic, partition, consumer_group), db_connection_pool_active, db_connection_pool_idle, redis_cache_hit_rate, redis_cache_miss_rate. Counters: http_requests_total, kafka_messages_produced_total, kafka_messages_consumed_total, dlq_messages_total. Per-tenant dimension on all counters for noisy-neighbor detection.</li>
+      <li><strong>Grafana dashboards:</strong> (a) Platform Overview: request rate, error rate, p50/p95/p99 latency, active tenants. (b) Kafka Health: consumer lag per topic with alert thresholds, produce/consume rate, DLQ depth. (c) Database: connection pool, query latency, replication lag, partition health. (d) Per-Module: request latency + error rate per module prefix. (e) Per-Tenant: request count + latency + error rate per school_id for noisy-neighbor identification.</li>
+      <li><strong>Alert rules in Prometheus:</strong> p95 API latency > 500ms (WARNING), > 1s (CRITICAL). Error rate > 1% (WARNING), > 5% (CRITICAL). Kafka consumer lag > 1,000 any partition (WARNING), > 2,000 sustained 2 min (PAGE). DLQ messages older than 15 min (PAGE). DB replication lag > 5s (WARNING), > 30s (CRITICAL).</li>
+    </ol>
+    <div class="produces">Produces &rarr; /metrics endpoint, 5 Grafana dashboards, Prometheus alert rules.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Load Testing + Query Optimisation</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Load test every critical hot path to establish p50/p95/p99 baselines, then use pg_stat_statements to find and fix the slowest queries.</p>
+    <div class="detail-heading">12 Critical Hot Paths</div>
+    <ol class="detail-list">
+      <li><strong>POS allergen cross-check</strong> (Cycle 20): POST /food-service/transactions with allergen resolution. Target: &lt;50ms p95.</li>
+      <li><strong>Library catalogue GIN search</strong> (Cycle 12): GET /library/catalogue?q=... with available copies. Target: &lt;100ms p95.</li>
+      <li><strong>Inbox query</strong> (Cycle 14): GET /messages/inbox with msg_thread_stats join. Target: &lt;200ms p95.</li>
+      <li><strong>IAM permission check</strong> (Cycle 0): iam_effective_access_cache lookup. Target: &lt;10ms p95.</li>
+      <li><strong>Attendance submission</strong> (Cycle 1): POST /attendance with class roster validation. Target: &lt;100ms p95.</li>
+      <li><strong>GL batch posting</strong> (Cycle 26): POST /finance/journal-batches/:id/post with validate_batch_balance. Target: &lt;200ms p95.</li>
+      <li><strong>QR bus pass scan</strong> (Cycle 19): POST /transport/ridership/scan. Target: &lt;50ms p95.</li>
+      <li><strong>Student profile load</strong> (Cycle 1): GET /students/:id with accommodations + health + grades. Target: &lt;300ms p95.</li>
+      <li><strong>Timetable render</strong> (Cycle 5): GET /scheduling/timetable/:classId. Target: &lt;150ms p95.</li>
+      <li><strong>At-risk evaluation</strong> (Cycle 29): rpt_student_academic_summary scan. Target: &lt;5s for 500 students.</li>
+      <li><strong>Emergency alert fan-out</strong> (Cycle 14): POST /alerts/emergency with multi-channel delivery. Target: &lt;2s to initiate (fan-out is async).</li>
+      <li><strong>Space booking conflict check</strong> (Cycle 21): EXCLUDE gist query. Target: &lt;20ms p95.</li>
+    </ol>
+    <div class="detail-heading">Query Optimisation</div>
+    <ol class="detail-list">
+      <li>Enable <code>pg_stat_statements</code> on the read replica. Collect 7 days of production-like load data.</li>
+      <li>Extract top 10 slowest queries by total_exec_time. For each: EXPLAIN ANALYZE, identify missing indexes or suboptimal plans, apply targeted index additions or query rewrites.</li>
+      <li>Re-run load tests to verify improvements. Document before/after p95 per hot path.</li>
+    </ol>
+    <div class="produces">Produces &rarr; k6 load test scripts for 12 hot paths, p50/p95/p99 baseline document, top-10 query optimisation with before/after proof.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Partition Activation</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Convert partition-ready tables from simple (non-partitioned) to actual partitioned tables. These tables shipped with partition-ready schemas &mdash; queries and indexes were designed for partitioning from day one, so this is a transparent infrastructure change with no application-layer modifications.</p>
+    <div class="detail-heading">Partition Conversions</div>
+    <ol class="detail-list">
+      <li><strong>msg_threads:</strong> HASH partitioning, 64 buckets (ADR-047). Online migration via pg_partman. No query changes &mdash; all queries include thread_id in WHERE clause.</li>
+      <li><strong>msg_messages:</strong> RANGE partitioning by created_at, monthly. pg_partman auto-creates future partitions. Retention: 3 years T1.</li>
+      <li><strong>msg_moderation_log:</strong> RANGE by created_at, monthly.</li>
+      <li><strong>trn_ridership_records:</strong> RANGE by scanned_at, monthly.</li>
+      <li><strong>fds_meal_transactions:</strong> RANGE by served_at, monthly.</li>
+      <li><strong>fds_temperature_logs:</strong> RANGE by logged_at, monthly.</li>
+      <li><strong>tech_credential_access_log:</strong> RANGE by accessed_at, monthly.</li>
+      <li><strong>audit_log:</strong> RANGE by created_at, monthly. T1 12 months &rarr; T2 7 years &rarr; T3 S3 Parquet (FERPA).</li>
+      <li><strong>rpt_daily_attendance_summary:</strong> RANGE by created_at, monthly, 3-year retention.</li>
+      <li><strong>rpt_student_academic_summary:</strong> RANGE by created_at, monthly, 3-year retention.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 10 tables converted to partitioned. pg_partman configured for auto-partition creation + retention drop.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">PgBouncer + Redis Caching</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Connection pooling tuned for schema-per-tenant + Redis caching for the hottest read paths with explicit invalidation contracts.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>PgBouncer configuration:</strong> Transaction-level pooling. On connection checkout: <code>SET search_path TO tenant_{school_id}, public;</code> via the server_reset_query hook. Pool size: 20 connections per backend (tuned per instance size). Separate pool for the platform schema read replica. Connection limits per tenant to prevent noisy-neighbor exhaustion.</li>
+      <li><strong>Redis caching layer:</strong> (a) IAM effective access cache: key <code>iam:access:{user_id}</code>, TTL 5 min, invalidated by <code>iam.role_assignment.changed</code> Kafka event + Redis Pub/Sub for immediate suspension (ADR-009 500ms primary-sticky window). (b) Unread message counts: key <code>msg:unread:{user_id}</code>, TTL 30 sec, invalidated on message read. (c) Catalogue available copies: key <code>lib:avail:{item_id}</code>, TTL 60 sec, invalidated on checkout/return. (d) Delivery gap summary: key <code>cur:gaps:{map_id}</code>, TTL 1 hour, invalidated on nightly worker run.</li>
+      <li><strong>Cache invalidation contracts:</strong> Every cached read path documents: (a) which Kafka event invalidates it, (b) the TTL as a worst-case staleness bound, (c) the warm-up strategy on cache miss. No cache without a documented invalidation path.</li>
+    </ol>
+    <div class="produces">Produces &rarr; PgBouncer schema-per-tenant config, 4 Redis cache layers with documented invalidation contracts.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">DLQ Dashboard + Consumer Hardening</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Wire the Dead Letter Queue dashboard (Phase 2 punch list item #1 &mdash; carried since Cycle 9), enforce envelope validation on all consumers, and implement circuit breakers on external dependencies.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>DLQ dashboard:</strong> Admin UI at <code>/admin/dlq</code>. Lists all dead-letter messages across all consumers: topic, partition, offset, error message, retry count, age, original event payload (redacted PII). Per-message actions: Replay (re-enqueue to original topic), Discard (acknowledge), Inspect (view full event with trace_id link to Jaeger). Alert: DLQ messages older than 15 min trigger PAGE.</li>
+      <li><strong>Consumer envelope validation:</strong> Every Kafka consumer validates the ADR-057 envelope before processing: (a) event_id present and UUID, (b) event_type matches expected, (c) tenant_id present and resolves to a provisioned tenant, (d) correlation_id present. Validation failure &rarr; DLQ with ENVELOPE_INVALID error code. Retrofit across all 17+ consumers.</li>
+      <li><strong>Circuit breakers:</strong> Every worker/consumer that calls an external dependency (PostgreSQL, Redis, AI Gateway, push provider, Stripe) implements: CLOSED (normal), OPEN (dependency failing &mdash; fail fast, do not retry), HALF-OPEN (probe recovery). Circuit state emitted as a Prometheus gauge. SAFETY_CRITICAL workers (Emergency Alert, Transport Dispatch) use read-only local cache in OPEN state.</li>
+      <li><strong>Transactional outbox evaluation:</strong> Assess replacing direct Kafka emit with the outbox pattern for guaranteed exactly-once delivery (Phase 2 punch list item #3). Decision: implement or document why deferred. If implementing: outbox table + polling publisher + dedup on consumer side via platform_event_consumer_idempotency.</li>
+    </ol>
+    <div class="produces">Produces &rarr; DLQ admin dashboard with replay, envelope validation on all consumers, circuit breakers on all external dependencies.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Error Budget SLOs + Alerting Pipeline</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Define Service Level Objectives per module tier, wire the alerting pipeline to PagerDuty/Slack, and create the on-call runbook.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>SLO tiers:</strong> CRITICAL (99.9% availability, &lt;500ms p95): POS transactions, health record access, emergency alerts, IAM auth, GL posting. STANDARD (99.5% availability, &lt;1s p95): messaging, attendance, scheduling, library, store. BACKGROUND (99.0% availability, &lt;30s p95): analytics workers, report generation, nightly materialisation.</li>
+      <li><strong>Error budget tracking:</strong> Per-module error budget computed from SLO: e.g., CRITICAL at 99.9% = 43 minutes downtime/month. Grafana panel shows remaining budget per module. Budget exhaustion triggers deployment freeze until budget recovers.</li>
+      <li><strong>Alerting pipeline:</strong> Prometheus &rarr; Alertmanager &rarr; PagerDuty (P1: CRITICAL SLO breach, DLQ age > 15 min, breach 72-hour clock) + Slack (P2: WARNING thresholds, budget &lt;50%, consumer lag sustained). Alert routing: module prefix determines the on-call rotation.</li>
+      <li><strong>On-call runbook:</strong> Per-alert-type runbook entries: what fired, what to check, how to mitigate, who to escalate to. Linked from each Grafana alert panel.</li>
+    </ol>
+    <div class="produces">Produces &rarr; SLO definitions for 3 tiers, error budget tracking, PagerDuty/Slack alerting, on-call runbook.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">Platform Admin Dashboard</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>A thin super-admin UI for platform operators that surfaces tenant health, migration state, and operational status without requiring Grafana access.</p>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Tenant Health</strong> <code>/admin/tenants</code> &mdash; all provisioned tenants with: migration version, table count, last activity timestamp, current consumer lag, DLQ depth, error rate (last hour). Amber/rose indicators for unhealthy tenants.</li>
+      <li><strong>Consumer Status</strong> <code>/admin/consumers</code> &mdash; all Kafka consumers with: lag per partition, circuit breaker state, last processed timestamp, DLQ message count. Replay button for individual DLQ messages.</li>
+      <li><strong>Partition Status</strong> <code>/admin/partitions</code> &mdash; partitioned table health: partition count, size per partition, retention drops pending, pg_partman next maintenance window.</li>
+      <li><strong>Migration Status</strong> <code>/admin/migrations</code> &mdash; Flyway migration status per tenant: current version, pending migrations, failed migrations. Bulk-apply button for pending (with dry-run preview).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Platform admin dashboard: tenant health, consumer status, partition status, migration status.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">Operational Readiness Review</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Ops Readiness Checklist</div>
+    <ol class="detail-list">
+      <li><strong>Logging:</strong> Every module emits structured JSON. CI linter passes. trace_id present on every log line in a sample 1-hour window. PII scrub verified (grep for email patterns returns zero).</li>
+      <li><strong>Tracing:</strong> Pick 5 random HTTP requests. Each traces end-to-end through service → DB → Kafka → consumer in Jaeger/X-Ray. No broken trace chains.</li>
+      <li><strong>Metrics:</strong> /metrics endpoint returns all expected histograms, gauges, and counters. Grafana dashboards load correctly. Alert rules fire on synthetic threshold breaches.</li>
+      <li><strong>Load test baselines:</strong> All 12 hot paths meet their p95 targets. Before/after query optimisation documented. No regression from partition activation.</li>
+      <li><strong>Partitions:</strong> All 10 tables converted. pg_partman auto-creates next month's partition. Retention drops verified for test partitions older than retention window.</li>
+      <li><strong>Caching:</strong> Redis cache hit rate &gt;80% for IAM lookups under load. Cache invalidation verified: role change invalidates within 500ms. Suspension invalidates within 1s.</li>
+      <li><strong>DLQ:</strong> Dashboard shows all consumers. Intentionally poison a message. Verify it lands in DLQ within 3 retries. Replay from dashboard succeeds.</li>
+      <li><strong>Envelope validation:</strong> Send a Kafka message with missing tenant_id. Verify consumer rejects to DLQ with ENVELOPE_INVALID.</li>
+      <li><strong>Circuit breakers:</strong> Kill Redis. Verify circuit opens. Verify SAFETY_CRITICAL workers (emergency alert) fall back to local cache. Restore Redis. Verify circuit closes.</li>
+      <li><strong>SLOs + Alerts:</strong> Simulate CRITICAL SLO breach (inject 500 errors). Verify PagerDuty page fires within 60 seconds. Verify Slack WARNING for consumer lag. Verify error budget tracking decrements.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Signed operational readiness checklist. Platform is pilot-ready from an infrastructure perspective.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 31 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 0 new tables. Tenant table count: ~418 (unchanged).</li>
+      <li>Structured logging with trace_id on every log line. CI lint enforced.</li>
+      <li>OpenTelemetry distributed tracing: HTTP → service → DB → Kafka → consumer → extracted service.</li>
+      <li>Prometheus /metrics endpoint + 5 Grafana dashboards + alert rules.</li>
+      <li>12 critical hot paths load tested with p50/p95/p99 baselines meeting targets.</li>
+      <li>Top 10 slowest queries optimised from pg_stat_statements with before/after proof.</li>
+      <li>10 high-volume tables converted to partitioned (HASH + RANGE monthly).</li>
+      <li>PgBouncer schema-per-tenant + 4 Redis cache layers with invalidation contracts.</li>
+      <li>DLQ dashboard with replay + envelope validation on all consumers.</li>
+      <li>Circuit breakers on all external dependencies.</li>
+      <li>Error budget SLOs per module tier (CRITICAL 99.9% / STANDARD 99.5% / BACKGROUND 99.0%).</li>
+      <li>PagerDuty/Slack alerting pipeline wired + on-call runbook.</li>
+      <li>Platform admin dashboard for tenant/consumer/partition/migration health.</li>
+      <li>Operational readiness checklist signed.</li>
+      <li>HANDOFF-CYCLE31.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave 8 open.</strong></li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 31 opens Wave 8 (Hardening) and delivers the operational readiness gate. The platform is now instrumented, load-tested, partitioned, cached, and alerting &mdash; ready for a real school district's traffic. Cycle 32 (Multi-Region &amp; Disaster Recovery) closes Wave 8 and the core roadmap.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 31 Implementation Plan &mdash; May 2026. Ops cycle: 0 new business tables. Derived from: Architecture Review v10 (Sections 11, 16, 25), ADR-009/047/050/057. Phase 2 punch list items resolved: DLQ dashboard (#1), consumer envelope validation (#2), transactional outbox evaluation (#3). Opens Wave 8.</p>
+  </div>
+</div>
+
+</body>
+</html>

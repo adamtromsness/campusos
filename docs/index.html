@@ -114,11 +114,11 @@ a.card{text-decoration:none;color:inherit}
   <h1>Design Hub</h1>
   <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38 modules, 76 ADRs across 8 delivery waves.</p>
   <div class="stats-row">
-    <div class="stat"><span class="num">406</span><span class="label">Tables Built</span></div>
-    <div class="stat"><span class="num">~936</span><span class="label">Endpoints</span></div>
-    <div class="stat"><span class="num">267+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">418</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">~970</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">280+</span><span class="label">UI Pages</span></div>
     <div class="stat"><span class="num">17</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">31</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">32</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -135,31 +135,31 @@ a.card{text-decoration:none;color:inherit}
 <div id="overview" class="tab-content active">
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Cycles 0&ndash;29 Complete</h4>
-      <p>Waves 1&ndash;6 + Wave 7 in progress. 406 tables, ~936 endpoints, 267+ pages. Analytics dashboards, at-risk detection, district aggregation, report engine all live.</p>
+      <h4>Waves 1&ndash;7 Complete &mdash; Cycles 0&ndash;30</h4>
+      <p>All business modules built. 418 tables, ~970 endpoints, 280+ pages. Analytics + Data Governance with GDPR/FERPA compliance suite, 72-hour breach countdown all live.</p>
     </div>
     <div class="status-card sc-blue">
-      <h4>Cycle 30: Data Governance &mdash; Next</h4>
-      <p>DPO compliance suite: ROPA, DPIAs, processor register, 72-hour breach notification, SARs, erasure with pseudonymisation, consent, privacy notices. 12 tables, ~34 endpoints. Closes Wave 7.</p>
+      <h4>Cycle 31: Performance &amp; Observability &mdash; Next</h4>
+      <p>Ops cycle: structured logging, distributed tracing, load testing, partition activation, caching, DLQ dashboard, SLOs, alerting pipeline. 0 new tables. Opens Wave 8.</p>
     </div>
     <div class="status-card sc-amber">
-      <h4>Wave 8: Hardening</h4>
-      <p>Performance &amp; Observability (31), Multi-Region &amp; DR (32). No new business tables.</p>
+      <h4>Wave 8 Closing</h4>
+      <p>Multi-Region &amp; DR (32) closes the core roadmap. Then Phase 2: .1 cycles.</p>
     </div>
   </div>
 
   <h2 class="sec">Build Progress</h2>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Tables Built</span><span>406 / 840 (48%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:48%"></div></div>
+    <div class="progress-label"><span>Tables Built</span><span>418 / 840 (50%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:50%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Cycles Complete</span><span>31 / 34 total (91%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:91%"></div></div>
+    <div class="progress-label"><span>Cycles Complete</span><span>32 / 34 total (94%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:94%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>6 of 8 (Wave 7 in progress)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:75%"></div></div>
+    <div class="progress-label"><span>Waves Complete</span><span>7 of 8 (Wave 8 starting)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:87%"></div></div>
   </div>
 
   <h2 class="sec">What is CampusOS?</h2>
@@ -383,27 +383,27 @@ a.card{text-decoration:none;color:inherit}
   </div>
 
   <!-- WAVE 7 -->
-  <div class="wave w-gray open">
+  <div class="wave w-gray">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>Wave 7 &mdash; Analytics &amp; Governance</h3>
-      <span class="wave-meta">2 cycles &middot; IN PROGRESS</span>
+      <span class="wave-meta">2 cycles &middot; COMPLETE</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
       <div class="cycle-row"><span class="cycle-num">29</span><span class="cycle-title">Analytics &amp; Reporting <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="campusos-cycle29-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle29-cat-script.md" class="cl-cat">CAT</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">30</span><span class="cycle-title">Data Governance &amp; Compliance <span class="pill pill-blue">Next</span></span><span class="cycle-tables">12 tenant</span><span class="cycle-links"><a href="campusos-cycle30-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">30</span><span class="cycle-title">Data Governance &amp; Compliance <span class="pill pill-green">Done</span></span><span class="cycle-tables">12 tenant</span><span class="cycle-links"><a href="campusos-cycle30-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle30-cat-script.md" class="cl-cat">CAT</a></span></div>
     </div>
   </div>
 
   <!-- WAVE 8 -->
-  <div class="wave w-gray">
+  <div class="wave w-gray open">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>Wave 8 &mdash; Hardening</h3>
-      <span class="wave-meta">2 cycles &middot; PLANNED</span>
+      <span class="wave-meta">2 cycles &middot; IN PROGRESS</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">31</span><span class="cycle-title">Performance &amp; Observability</span><span class="cycle-tables">Ops</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">31</span><span class="cycle-title">Performance &amp; Observability <span class="pill pill-blue">Next</span></span><span class="cycle-tables">Ops</span><span class="cycle-links"><a href="campusos-cycle31-implementation-plan.html" class="cl-plan">Plan</a></span></div>
       <div class="cycle-row"><span class="cycle-num">32</span><span class="cycle-title">Multi-Region &amp; Disaster Recovery</span><span class="cycle-tables">Ops</span><span class="cycle-links"></span></div>
     </div>
   </div>
@@ -413,6 +413,13 @@ a.card{text-decoration:none;color:inherit}
 <div id="buildlog" class="tab-content">
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>Cycle 30: Data Governance &amp; Compliance <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">12 tables &middot; ~34 endpoints &middot; 1 Kafka emit &middot; ~11 web routes &middot; Wave 7 complete</div>
+    <div class="log-desc">DPO compliance suite: GDPR Article 30 ROPA with DPIA gap detection, Article 28 processor register with DPA tracking, 72-hour breach notification countdown with URGENT task escalation, data subject access requests with 30/45-day deadline, erasure requests with legal hold checks + audit_log field-level pseudonymisation, processing consent records, privacy notice versioning, age-18 rights transfer.</div>
+    <div class="log-links"><a href="campusos-cycle30-implementation-plan.html">Plan</a> <a href="cycle30-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>Cycle 29: Analytics &amp; Reporting <span class="pill pill-green">Approved</span></h4>
@@ -610,6 +617,7 @@ a.card{text-decoration:none;color:inherit}
     <a href="cycle27-cat-script.md" class="card"><h4>Cycle 27 CAT</h4><div class="desc">Requisition + approval, budget commitment on PO, receiving + inspection, distribution + Kafka emit, return/warranty, vendor performance, commitment release.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle28-cat-script.md" class="card"><h4>Cycle 28 CAT</h4><div class="desc">Dual-mode store, student order + parent approval, fulfilment + inventory, external order + shipping, backorder, reorder threshold signal, revenue materialisation.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle29-cat-script.md" class="card"><h4>Cycle 29 CAT</h4><div class="desc">Worker materialisation, attendance + academic dashboards, at-risk detection + threshold config, school/district aggregation, report engine + scheduled delivery, FROM_SNAPSHOT rebuild.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle30-cat-script.md" class="card"><h4>Cycle 30 CAT</h4><div class="desc">ROPA + DPIA gap, processor DPA gap, 72-hour breach countdown, SAR deadline, erasure + pseudonymisation, consent lifecycle, privacy notice, age-18 transfer.</div><div class="meta">10 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 2 Punch List</h2>
