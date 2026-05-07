@@ -2,7 +2,9 @@
 
 **Cycle:** 30 — Data Governance & Compliance (M120 DPO Compliance Suite, Wave 7 close).
 **Round 1 commit:** `cycle30-complete` at `cc55a81`.
-**Round 1 verdict:** _pending peer review_.
+**Round 1 verdict:** **Reject pending fixes** — 6 BLOCKING + 5 MAJOR (BLOCKING 1 disputed; cache miss).
+**Round 2 commit:** `118a32f` on `main` (closeout fix commit) + `1ca3a37` (handoff cleanup).
+**Round 2 verdict:** **Approved.** Cycle 30 ships clean. Tagged `cycle30-approved` at the doc cleanup commit. **Wave 7 (Analytics & Governance) closes with this approval.**
 **Live verification reference:** `tenant_demo` 2026-05-07.
 
 ---
