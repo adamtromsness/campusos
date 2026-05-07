@@ -10,6 +10,8 @@ chaos engineering programme, quarterly tabletop framework.
 
 **Round 1 commit:** `cycle32-complete` at `3d4cbce` on `main`.
 **Round 1 verdict:** **Reject pending fixes** — 5 BLOCKING + 3 MAJOR. All 5 BLOCKING + 3 MAJOR addressed in the closeout fix commit.
+**Round 2 commit:** `30a2a36` on `main` (closeout fix commit).
+**Round 2 verdict:** **Approved.** Cycle 32 ships clean. Tagged `cycle32-approved` at `30a2a36`. **Wave 8 (Hardening) closes here, and Wave 8 closes the entire core CampusOS roadmap.**
 **Live verification reference:** `tenant_demo` 2026-05-07.
 
 ---
@@ -215,4 +217,37 @@ pnpm format:check && pnpm lint:logs
 
 ## Round 2 verification trail
 
-(Appended after Round 2 verdict.)
+Reviewer cache-busted each affected file in code on Round 2 against
+`30a2a36` and confirmed every fix matches:
+
+- **BLOCKING 1** — handoff line 7 + line 110 + line 177 read as
+  application-layer; gateway-level routing called out as
+  deployment-time IaC reference. CLAUDE.md updated to match.
+- **BLOCKING 2** — `synthetic-failover-trigger.sh` +
+  `synthetic-failover-failback.sh` use explicit `TARGET_ENV` check
+  - `STAGING_AWS_ACCOUNT_IDS` allowlist trip-wire.
+- **BLOCKING 3** — `target_environment` workflow input is a `choice`
+  enum with only `staging`; `TARGET_ENV` exported to scripts.
+- **BLOCKING 4** — CAT live verification block carries captured
+  `curl` output for all four scenarios.
+- **BLOCKING 5** — three-bucket "In-repo / Deployment-time /
+  Operational certification" section in HANDOFF makes scope
+  explicit.
+- **MAJOR 6** — RegionRoutingService scope correctly described as
+  passive lookup with Phase 2 dynamic-routing carry-over.
+- **MAJOR 7** — tenant-region migration runbook step 10a present
+  with explicit cross-region count parity SQL.
+- **MAJOR 8** — `tools/failover/backup-validate-push-metric.sh`
+  extracted with URL-shape validation + clean-skip on unset env.
+
+Final gate decision: **Approved.** Cycle 32 ships clean.
+
+**Cycle 32 closes Wave 8 and the entire core CampusOS roadmap.**
+The platform is repo-ready for pilot deployment; operational
+certification is the deployment-time + ongoing work tracked in the
+DR readiness checklist (`infra/runbooks/dr-readiness-checklist.md`)
+and the broader Phase 2 punch list in `CLAUDE.md`.
+
+Phase 2 (.1 cycles for the remaining ~420 deferred ERD tables, plus
+the role-split + outbox + tenant-routing-validation hardening on the
+Phase 2 punch list) begins after pilot feedback.
