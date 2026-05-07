@@ -11,6 +11,7 @@ import {
   CalculatorIcon,
   CalendarIcon,
   ChartBarIcon,
+  ShieldIcon,
   UtensilsIcon,
   WrenchIcon,
   ChatBubbleIcon,
@@ -69,7 +70,8 @@ export type AppKey =
   | 'finance'
   | 'procurement'
   | 'store'
-  | 'analytics';
+  | 'analytics'
+  | 'governance';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -631,6 +633,24 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/analytics',
       routePrefix: '/analytics',
       icon: ChartBarIcon,
+    });
+  }
+
+  // Data Governance & Compliance — DPO scope (Cycle 30, Wave 7 close).
+  // dpo-001:read is the DPO-only baseline gate. Parents/students who
+  // hold dpo-004:read+write reach SAR self-service via /apply or a
+  // direct link, but they don't need the full Governance tile —
+  // surfacing a tile to a parent would be the wrong UX.
+  if (hasAnyPermission(user, ['dpo-001:read'])) {
+    apps.push({
+      key: 'governance',
+      label: 'Data Governance',
+      description: isStaff
+        ? 'ROPA, processors, breach 72h countdown, SARs'
+        : 'Data protection compliance',
+      href: '/governance',
+      routePrefix: '/governance',
+      icon: ShieldIcon,
     });
   }
 

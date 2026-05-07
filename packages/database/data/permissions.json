@@ -206,6 +206,31 @@
       "group": "Customer Management"
     },
     {
+      "code": "DPO-001",
+      "name": "Records of Processing & Retention (ROPA + DPIA)",
+      "group": "Data Protection & Compliance"
+    },
+    {
+      "code": "DPO-002",
+      "name": "Third-Party Processors & DPAs",
+      "group": "Data Protection & Compliance"
+    },
+    {
+      "code": "DPO-003",
+      "name": "Data Breach Management",
+      "group": "Data Protection & Compliance"
+    },
+    {
+      "code": "DPO-004",
+      "name": "Subject Access Requests & Erasure",
+      "group": "Data Protection & Compliance"
+    },
+    {
+      "code": "DPO-005",
+      "name": "Consent Records & Privacy Notices",
+      "group": "Data Protection & Compliance"
+    },
+    {
       "code": "FAC-001",
       "name": "Maintenance Tickets",
       "group": "Facilities & Maintenance"

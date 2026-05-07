@@ -512,6 +512,14 @@ async function seedIam() {
         // (food safety / USDA) — those are FSM-only.
         'FDS-001': ['read'],
         'FDS-003': ['read'],
+        // Cycle 30 — Data Protection. Parents submit Subject Access
+        // Requests (DPO-004:read+write) for their children via the
+        // self-service portal. Row-scope at SARService binds the
+        // request's data_subject_id to a child of the calling parent
+        // via sis_student_guardians. Age-18 transfer flips
+        // platform_students.data_subject_is_self=true and SARService
+        // refuses parent-submitted requests after the flip.
+        'DPO-004': ['read', 'write'],
       },
     },
     {
@@ -640,6 +648,14 @@ async function seedIam() {
         // IT-003:write (parent-active path).
         'IT-002': ['read'],
         'IT-003': ['read', 'write'],
+        // Cycle 30 — Data Protection. Students submit Subject Access
+        // Requests for their own data (DPO-004:read+write). Pre-age-18
+        // a student-submitted request is permitted but row-scoped to
+        // own data_subject_id; post-age-18 (platform_students.
+        // data_subject_is_self=true) the student is the only party
+        // permitted to submit. Mirrors the Cycle 11.1 student-input
+        // surface convention.
+        'DPO-004': ['read', 'write'],
       },
     },
     {
@@ -931,6 +947,21 @@ async function seedIam() {
         'RPT-001': ['read', 'write'],
         'RPT-002': ['read', 'write'],
         'RPT-004': ['read', 'write'],
+        // Cycle 30 — Data Protection. Staff covers the Data Protection
+        // Officer (DPO) — the thirteenth specialist operator persona.
+        // DPO-001..005 read+write covers the full operational surface:
+        // ROPA + retention + DPIA (DPO-001), processors + DPAs (DPO-002),
+        // breach management (DPO-003), SARs + erasure (DPO-004), consent
+        // + privacy notices (DPO-005). School Admin / Platform Admin
+        // pick up the admin tier (delete records, override status) via
+        // everyFunction. Joins the broader role-split chain — a
+        // dedicated DPO role scoped at ORGANISATION level should hold
+        // the DPO-* codes alone before pilot per ADR-052 + the plan.
+        'DPO-001': ['read', 'write'],
+        'DPO-002': ['read', 'write'],
+        'DPO-003': ['read', 'write'],
+        'DPO-004': ['read', 'write'],
+        'DPO-005': ['read', 'write'],
       },
     },
   ];

@@ -44,6 +44,7 @@
     "seed:procurement": "tsx src/seed-procurement.ts",
     "seed:store": "tsx src/seed-store.ts",
     "seed:analytics": "tsx src/seed-analytics.ts",
+    "seed:dpo": "tsx src/seed-dpo.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

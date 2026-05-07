@@ -451,3 +451,16 @@ export function ChartBarIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function ShieldIcon(props: SVGProps<SVGSVGElement>) {
+  // Heroicons shield-check — Cycle 30 Data Governance & Compliance tile.
+  return (
+    <svg {...base} {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 12.75 11.25 15 15 9.75M21 12c0 4.97-4.477 9-9 9s-9-4.03-9-9c0-4.4 3.582-8 8-9 .628.094 1.252.234 1.864.418M21 12c0-4.4-3.582-8-8-9-.628.094-1.252.234-1.864.418"
+      />
+    </svg>
+  );
+}
