@@ -8,8 +8,8 @@ ElastiCache Global Datastore, S3 CRR with EU data residency, tenant
 home-region enforcement, DR runbook, automated failover testing,
 chaos engineering programme, quarterly tabletop framework.
 
-**Round 1 commit:** `cycle32-complete` at the closeout commit on `main`.
-**Round 1 verdict:** _pending_.
+**Round 1 commit:** `cycle32-complete` at `3d4cbce` on `main`.
+**Round 1 verdict:** **Reject pending fixes** — 5 BLOCKING + 3 MAJOR. All 5 BLOCKING + 3 MAJOR addressed in the closeout fix commit.
 **Live verification reference:** `tenant_demo` 2026-05-07.
 
 ---
@@ -175,16 +175,44 @@ pnpm format:check && pnpm lint:logs
 
 ---
 
-## Triage table
+## Triage table — Round 1
 
-| #   | Severity | Item | Status |
-| --- | -------- | ---- | ------ |
-|     |          |      |        |
+| #   | Severity | Item                                                                  | Verdict | Fix commit / Disposition                                                                   |
+| --- | -------- | --------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------ |
+| 1   | BLOCKING | Handoff claims API-gateway enforcement; impl is app-layer interceptor | VALID   | Handoff + CLAUDE.md rewritten to describe app-layer gate; gateway routing is IaC + Phase 2 |
+| 2   | BLOCKING | Synthetic failover production guard substring-matches "prod"          | VALID   | Hardened to explicit `TARGET_ENV` check + optional `STAGING_AWS_ACCOUNT_IDS` allowlist     |
+| 3   | BLOCKING | Workflow accepts `dev` but trigger script defaults to staging IDs     | VALID   | `dev` removed from workflow input; `TARGET_ENV` exported to scripts                        |
+| 4   | BLOCKING | CAT lacks live 421 verification output                                | VALID   | Live verification block appended with captured output for matching/mismatch/passthrough    |
+| 5   | BLOCKING | Handoff sometimes reads as if infra is deployed                       | VALID   | Explicit "In-repo / Deployment-time / Operational certification" 3-bucket section added    |
+| 6   | MAJOR    | `RegionRoutingService` not yet wired into TenantPrismaService         | DOC     | Handoff scope claim narrowed: "passive lookup; service-layer dynamic routing is Phase 2"   |
+| 7   | MAJOR    | Tenant-region migration runbook lacks platform-row visibility step    | VALID   | Step 10a added with explicit cross-region count parity SQL queries                         |
+| 8   | MAJOR    | Backup-validation Pushgateway heredoc renders truncated               | VALID   | Extracted to `tools/failover/backup-validate-push-metric.sh`                               |
 
-(Filled in by the reviewer.)
+## Round 1 fix verification trail
+
+**BLOCKING 1 — handoff API-gateway claim corrected.** `HANDOFF-CYCLE32.md` line 7 + line 110 + line 177 rewritten to describe the gate as application-layer (Nest interceptor on `@HomeRegionRequired()` routes) rather than gateway. CLAUDE.md Cycle 32 status section updated similarly. Gateway-level routing (Route 53 latency-based + per-region API Gateway endpoints) explicitly called out as deployment-time IaC reference. The app-layer interceptor stays as defence-in-depth.
+
+**BLOCKING 2 — production guard hardened.** `tools/failover/synthetic-failover-trigger.sh` and `synthetic-failover-failback.sh` now require explicit `TARGET_ENV` (defaults to `staging`); `production` / `prod` requires `CONFIRM_PRODUCTION=yes`; new optional `STAGING_AWS_ACCOUNT_IDS` allowlist trip-wires any `AWS_ACCOUNT_ID` that doesn't match without `CONFIRM_PRODUCTION=yes`. Cluster IDs default to `campusos-{global,primary,standby}-${TARGET_ENV}` so the workflow + script agree on environment.
+
+**BLOCKING 3 — workflow `dev` option removed.** `.github/workflows/synthetic-failover.yml` `target_environment` input is now a `choice` enum with only `staging`. The workflow exports `TARGET_ENV` + `STAGING_AWS_ACCOUNT_IDS` as env to both the trigger and failback steps. Workflow guard tightened: any `target_environment != staging` exits 1.
+
+**BLOCKING 4 — live CAT verification.** `docs/cycle32-cat-script.md` now carries a "Live verification record (2026-05-07)" section with captured `curl` output for all four scenarios:
+
+- `AWS_REGION=us-east-1` + `home_region=us-east-1` → governance dashboard 200 with rollup body.
+- Same matching region + non-`@HomeRegionRequired()` `/classes/my` → 200.
+- `AWS_REGION=us-west-2` + `home_region=us-east-1` → 421 with structured `{statusCode, error: "MISDIRECTED_REQUEST", tenantHomeRegion, deployedRegion}` body.
+- Mismatch region + non-annotated `/classes/my` → still 200 (gate is opt-in).
+
+**BLOCKING 5 — in-repo vs deployment-time vs operational certification section.** New section in `HANDOFF-CYCLE32.md` with three clearly-labeled buckets. The cycle-32 closeout is **repo readiness**; **operational certification** is gated on the deployment-time + ongoing buckets and tracks alongside the broader Phase 2 punch list.
+
+**MAJOR 6 — RegionRoutingService scope.** Handoff line 110 narrowed: "today it is a passive lookup; not yet wired into `TenantPrismaService`. The interceptor is the active enforcement; service-layer dynamic regional dependency routing is Phase 2."
+
+**MAJOR 7 — tenant-region migration platform-row verification.** New step 10a in `infra/runbooks/tenant-region-migration.md` with explicit SQL count queries against `platform.platform_tenant_routing`, `platform.iam_person`, `platform.platform_audit_log`, and `platform.platform_dlq_messages` filtered to the migrated tenant. **Do not unfreeze** until the counts match — gates the cutover on Global Database replication convergence.
+
+**MAJOR 8 — backup-validation Pushgateway extracted.** New `tools/failover/backup-validate-push-metric.sh` script holds the Pushgateway POST body, with URL shape validation + a clean exit when `PROM_PUSHGATEWAY_URL` is unset. Workflow step replaced with `bash tools/failover/backup-validate-push-metric.sh` + appropriate env vars.
 
 ---
 
 ## Round 2 verification trail
 
-(Appended after closeout commit, if Round 1 returns Reject pending fixes.)
+(Appended after Round 2 verdict.)

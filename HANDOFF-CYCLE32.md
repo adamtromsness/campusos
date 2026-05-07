@@ -4,7 +4,7 @@
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle32-implementation-plan.html`
-**Vertical-slice deliverable:** Active-passive cross-region replication with **<15 min RTO and <30 sec RPO** (Architecture Review §21.2). RDS Global Database primary us-east-1 with us-west-2 warm standby. Weekly automated backup validation (snapshot restore + schema check + row-count spot check on 10 critical tables). Kafka MirrorMaker2 replicates all operational topics with consumer offset translation. Redis ElastiCache Global Datastore replicates IAM cache + tenant routing across regions with documented cold-start rebuild. S3 cross-region replication for all buckets; EU/UK tenants pinned to eu-west-2 with replication only within EU per GDPR. `platform_tenant_routing.home_region` enforced at the API gateway — a US tenant request never touches the eu-west-2 database; mismatch returns 421 Misdirected Request. Route 53 health-check DNS failover. 6-scenario DR runbook with communication templates. Monthly automated failover testing in staging. Chaos engineering programme with 6 experiments. Quarterly tabletop exercise framework with first exercise conducted.
+**Vertical-slice deliverable:** Active-passive cross-region replication with **<15 min RTO and <30 sec RPO** (Architecture Review §21.2). RDS Global Database primary us-east-1 with us-west-2 warm standby. Weekly automated backup validation (snapshot restore + schema check + row-count spot check on 10 critical tables). Kafka MirrorMaker2 replicates all operational topics with consumer offset translation. Redis ElastiCache Global Datastore replicates IAM cache + tenant routing across regions with documented cold-start rebuild. S3 cross-region replication for all buckets; EU/UK tenants pinned to eu-west-2 with replication only within EU per GDPR. `platform_tenant_routing.home_region` enforced at the **application layer** via a global Nest interceptor (`RegionMismatchInterceptor`) on routes annotated `@HomeRegionRequired()`; mismatch between `tenant.homeRegion` and `process.env.AWS_REGION` returns HTTP 421 Misdirected Request after tenant resolution. **Gateway-level routing (Route 53 latency-based + per-region API Gateway endpoints) is documented in the IaC reference and runbook but is deployment-time wiring, not enforced in repo today.** The app-layer gate is defence-in-depth that, at the cost of touching the platform routing table once before the reject, catches every misrouted request that slips past the gateway. Route 53 health-check DNS failover. 6-scenario DR runbook with communication templates. Monthly automated failover testing in staging. Chaos engineering programme with 6 experiments. Quarterly tabletop exercise framework with first exercise conducted.
 
 This document is the source of truth that external architecture reviewers read alongside `CLAUDE.md`.
 
@@ -27,6 +27,72 @@ This document is the source of truth that external architecture reviewers read a
 
 ---
 
+## In-repo vs deployment-time vs operational certification
+
+REVIEW-CYCLE32 BLOCKING 5 — the cycle is heavily IaC + runbook + automation
+material rather than running infrastructure. The reader should be able to
+tell which is which without reading every file. Three buckets:
+
+**In-repo completed (this commit):**
+
+- Code: `home_region` Prisma column + `RegionModule` (interceptor +
+  decorator + service); Cycle 30 governance controller annotated;
+  `TenantInfo.homeRegion` field + middleware population; three
+  worker-side `TenantInfo` constructors updated.
+- Migration: platform Prisma migration `20260507163514_add_home_region_to_tenant_routing`.
+- IaC stubs (reference templates ops applies via Terraform):
+  `infra/iac/cycle32/01-rds-global-database.tf`,
+  `03-kafka-mirrormaker2.tf`, `04-redis-global-datastore.tf`,
+  `05-s3-cross-region-replication.tf`.
+- Runbooks: DR runbook (6 scenarios), communication templates,
+  Redis cold-start rebuild, tenant-region migration, DR readiness
+  checklist, tabletop framework, first tabletop log.
+- Automation: `.github/workflows/backup-validation.yml`,
+  `.github/workflows/synthetic-failover.yml`, 13 scripts under
+  `tools/failover/`, 6 chaos experiment YAMLs under `tools/chaos/`.
+- CAT: `docs/cycle32-cat-script.md` with live verification of the
+  Step 6 region-routing gate.
+
+**Deployment-time required before pilot (out of repo):**
+
+- Actual AWS Aurora Global Database cluster provisioning (the IaC
+  stub is the template; ops applies it).
+- Actual MSK + MM2 connector deployment.
+- Actual ElastiCache Global Datastore provisioning + endpoint wiring
+  via the regional env vars `RDS_PRIMARY_ENDPOINT_*`,
+  `KAFKA_BROKERS_*`, `REDIS_ENDPOINT_*`.
+- Route 53 health checks + latency-based routing (DNS-level
+  failover; the Step 6 app-layer interceptor catches anything that
+  slips past).
+- API Gateway / ALB regional endpoints.
+- CloudFront geo-restricted distribution for EU PII content.
+- S3 buckets created with the IaC bucket policies applied.
+- GitHub repository secrets for the workflows: `AWS_BACKUP_VALIDATION_ROLE_ARN`,
+  `AWS_FAILOVER_TEST_ROLE_ARN`, `STAGING_AWS_ACCOUNT_IDS`,
+  `PROM_PUSHGATEWAY_URL`, `SLACK_INCIDENTS_WEBHOOK`.
+- Prometheus alert rules from Cycle 31 Step 8 with the
+  cycle-32 metrics added (`backup_validation_last_success_timestamp`,
+  `failover_test_rto_seconds`, `failover_test_cache_rebuild_seconds`,
+  `kafka_mirrormaker2_replication_lag_seconds`).
+
+**Operational certification (continuous; cannot complete in this cycle):**
+
+- At least 2 successful monthly synthetic failover runs with metrics.
+- All 6 chaos experiments executed in staging with captured results.
+- First real EU tenant onboarded via the migration procedure.
+- Quarterly tabletop cadence sustained (next exercise 2026-Q3).
+- DR readiness checklist signed by all 5 named roles.
+
+The cycle-32 closeout is **repo readiness** (everything in the first
+bucket is shipped + tested); **operational certification** is gated
+on the second + third buckets and is tracked alongside the broader
+Phase 2 punch list in CLAUDE.md. The DR readiness checklist
+(`infra/runbooks/dr-readiness-checklist.md`) is the document the
+ops team uses to walk through both buckets together when the time
+comes to certify.
+
+---
+
 ## What this cycle adds on top of Cycle 31
 
 **No new business tables.** Cycle 32 is the second and final ops cycle in CampusOS. Tenant logical base table count stays at **383** (Cycle 30 closeout). Wave 8 (Hardening) closes with this cycle, and Wave 8 closes the core roadmap.
@@ -41,7 +107,7 @@ This document is the source of truth that external architecture reviewers read a
 - Automated failover test scripts (`tools/failover/`) — synthetic failover trigger + verification suite.
 - Chaos experiment definitions (`tools/chaos/`) — 6 experiments as YAML playbooks.
 - Tabletop exercise framework (`infra/runbooks/tabletop-exercise-framework.md`) and the first exercise log (`infra/runbooks/tabletop-exercise-2026-Q2.md`).
-- **Step 6 is the only step that produces runtime code.** New `home_region` column on `platform_tenant_routing` (already declared in the schema as Cycle 0 forward-compat — Cycle 32 wires the runtime enforcement). New `RegionRoutingService` reads the field and resolves the regional DB endpoint. New `RegionMismatchInterceptor` returns 421 Misdirected Request when the resolved region doesn't match the gateway's region. New `region.guard.ts` for explicit `@HomeRegionRequired()` decoration on Cycle 30 DPO endpoints.
+- **Step 6 is the only step that produces runtime code.** New `home_region` column on `platform_tenant_routing` (default `us-east-1` — backwards-compatible). New `RegionMismatchInterceptor` returns HTTP 421 Misdirected Request at the **application layer** (NOT API gateway) when `process.env.AWS_REGION` doesn't match `tenant.homeRegion`. New `@HomeRegionRequired()` decorator applied at the Cycle 30 `GovernanceController` class level so every DPO endpoint inherits the gate. New `RegionRoutingService` provides regional endpoint resolution (`resolveDatabaseEndpoint`, `resolveKafkaBrokers`, `resolveRedisEndpoint`) — **today it is a passive lookup; not yet wired into `TenantPrismaService` for runtime DB routing**. The interceptor is the active enforcement; service-layer dynamic regional dependency routing is Phase 2.
 
 Production wiring (actually creating the AWS Global Database, MSK MM2 cluster, EC Global Datastore, Route 53 hosted zones) is **deployment-time**. The in-repo IaC stubs are reference templates that ops applies via Terraform.
 

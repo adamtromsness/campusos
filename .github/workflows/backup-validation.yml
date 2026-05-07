@@ -84,13 +84,10 @@ jobs:
         env:
           PROM_PUSHGATEWAY_URL: ${{ secrets.PROM_PUSHGATEWAY_URL }}
           MODE: ${{ github.event.inputs.mode || 'weekly' }}
-        run: |
-          curl -s -X POST "$PROM_PUSHGATEWAY_URL/metrics/job/backup-validation/mode/$MODE" \
-            --data-binary @- <<EOF
-          # TYPE backup_validation_last_success_timestamp gauge
-          # HELP backup_validation_last_success_timestamp Unix timestamp of last successful backup validation.
-          backup_validation_last_success_timestamp $(date +%s)
-          EOF
+        # REVIEW-CYCLE32 MAJOR 8 — extracted heredoc to a dedicated
+        # script so the YAML cannot misinterpret the indentation,
+        # and the script is independently runnable + testable.
+        run: bash tools/failover/backup-validate-push-metric.sh
 
       - name: Notify on failure
         if: failure()

@@ -24,9 +24,17 @@ on:
   workflow_dispatch:
     inputs:
       target_environment:
-        description: 'staging | dev'
+        # REVIEW-CYCLE32 BLOCKING 3 — only `staging` is a supported
+        # target. `dev` was misleading because the trigger script's
+        # default cluster names (campusos-*-staging) do not exist in
+        # dev, and there is no per-environment cluster ID mapping
+        # in the workflow today.
+        description: 'staging'
         required: true
         default: 'staging'
+        type: choice
+        options:
+          - staging
 
 jobs:
   failover-test:
@@ -52,12 +60,19 @@ jobs:
             echo "Refusing to run failover test against production."
             exit 1
           fi
+          if [[ "$TARGET_ENV" != "staging" ]]; then
+            echo "Only TARGET_ENV=staging is supported in this workflow (got '$TARGET_ENV')."
+            exit 1
+          fi
 
       - name: Capture pre-failover baseline
         run: bash tools/failover/synthetic-failover-baseline.sh
 
       - name: Trigger RDS Global Database failover
         id: trigger
+        env:
+          TARGET_ENV: ${{ env.TARGET_ENV }}
+          STAGING_AWS_ACCOUNT_IDS: ${{ secrets.STAGING_AWS_ACCOUNT_IDS }}
         run: |
           bash tools/failover/synthetic-failover-trigger.sh
           echo "FAILOVER_START=$(date +%s)" >> $GITHUB_OUTPUT
@@ -81,6 +96,9 @@ jobs:
 
       - name: Fail back to primary
         if: always()
+        env:
+          TARGET_ENV: ${{ env.TARGET_ENV }}
+          STAGING_AWS_ACCOUNT_IDS: ${{ secrets.STAGING_AWS_ACCOUNT_IDS }}
         run: bash tools/failover/synthetic-failover-failback.sh
 
       - name: Push failover metrics to Prometheus

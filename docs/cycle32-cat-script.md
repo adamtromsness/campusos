@@ -252,6 +252,100 @@ grep -c 'Owner: ' infra/runbooks/tabletop-exercise-2026-Q2.md
 
 ---
 
+## Live verification record (2026-05-07)
+
+REVIEW-CYCLE32 BLOCKING 4 — captured output from a real `tenant_demo`
+run on commit `e0d0435`+, API rebuilt, both `principal@` admin and
+`teacher@` tokens minted via `/auth/dev-login`.
+
+### S3 — `AWS_REGION=us-east-1` + tenant `home_region=us-east-1` → governance dashboard passes
+
+```
+$ AWS_REGION=us-east-1 ./run-api.sh &
+$ curl -s -o /tmp/r1.json \
+       -w "HTTP %{http_code}\n" \
+       -H "Authorization: Bearer $ADMIN" \
+       -H "X-Tenant-Subdomain: demo" \
+       http://localhost:4000/api/v1/governance/dashboard
+HTTP 200
+$ head -c 200 /tmp/r1.json
+{"schoolId":"019dc92b-ea59-7bb7-aa7f-929729562010",
+ "asOf":"2026-05-07T17:07:42.338Z","ropaCount":0,
+ "highRiskActivities":0,"dpiaGaps":0,
+ "retentionPolicies":0,"retentionReviewsDue":0,
+ "processors":0,"dpa…
+```
+
+Matching region — interceptor passes through; the controller runs
+and returns the live governance rollup. Confirms `tenant.homeRegion`
+populated from `platform_tenant_routing.home_region` (default
+`us-east-1`).
+
+### S5 (matching region) — non-`@HomeRegionRequired()` route passes through
+
+```
+$ curl -s -o /tmp/r2.json \
+       -w "HTTP %{http_code}\n" \
+       -H "Authorization: Bearer $TEACHER" \
+       -H "X-Tenant-Subdomain: demo" \
+       http://localhost:4000/api/v1/classes/my
+HTTP 200
+[{"id":"019e0302-32b3-7ffb-afa0-b989c15473de","schoolId":"…","sectionCode":"1","room":"101","maxEnrollment":25,…
+```
+
+Non-annotated route returns the teacher's classes without invoking
+the region gate.
+
+### S4 — `AWS_REGION=us-west-2` + tenant `home_region=us-east-1` → governance dashboard returns HTTP 421
+
+```
+$ AWS_REGION=us-west-2 ./run-api.sh &
+$ curl -s -o /tmp/m1.json \
+       -w "HTTP %{http_code}\n" \
+       -H "Authorization: Bearer $ADMIN" \
+       -H "X-Tenant-Subdomain: demo" \
+       http://localhost:4000/api/v1/governance/dashboard
+HTTP 421
+$ cat /tmp/m1.json
+{"statusCode":421,
+ "error":"MISDIRECTED_REQUEST",
+ "message":"This tenant's home region does not match the region serving this request. Retry against the tenant's home-region endpoint.",
+ "tenantHomeRegion":"us-east-1",
+ "deployedRegion":"us-west-2"}
+```
+
+The interceptor catches the mismatch BEFORE the controller runs.
+Body carries both `tenantHomeRegion` and `deployedRegion` so the
+client can route to the right regional endpoint on retry.
+
+### S5 (mismatch region) — non-`@HomeRegionRequired()` route still passes through
+
+```
+$ curl -s -o /tmp/m2.json \
+       -w "HTTP %{http_code}\n" \
+       -H "Authorization: Bearer $TEACHER" \
+       -H "X-Tenant-Subdomain: demo" \
+       http://localhost:4000/api/v1/classes/my
+HTTP 200
+[{"id":"019e0302-32b3-7ffb-afa0-b989c15473de","schoolId":"…","sectionCode":"1","room":"101","maxEnrollment":25,…
+```
+
+Confirms the gate is opt-in (only `@HomeRegionRequired()` controllers
+fire the 421 path). Non-DPO traffic continues to flow even when the
+deployed region is wrong, allowing graceful regional drift while the
+operator investigates.
+
+The four scenarios above demonstrate end-to-end:
+
+1. `tenant.homeRegion` is populated from
+   `platform_tenant_routing.home_region` (default `'us-east-1'`).
+2. Matching region + annotated route → 200.
+3. Mismatch region + annotated route → **421** with structured body.
+4. Mismatch region + non-annotated route → 200 (defence-in-depth gate
+   is opt-in, not blanket).
+
+---
+
 ## Cleanup
 
 Cycle 32 ships no new tenant data and no schema changes that need
