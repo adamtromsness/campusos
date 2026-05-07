@@ -118,7 +118,7 @@ a.card{text-decoration:none;color:inherit}
     <div class="stat"><span class="num">~970</span><span class="label">Endpoints</span></div>
     <div class="stat"><span class="num">280+</span><span class="label">UI Pages</span></div>
     <div class="stat"><span class="num">17</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">32</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">33</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -135,16 +135,16 @@ a.card{text-decoration:none;color:inherit}
 <div id="overview" class="tab-content active">
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Waves 1&ndash;7 Complete &mdash; Cycles 0&ndash;30</h4>
-      <p>All business modules built. 418 tables, ~970 endpoints, 280+ pages. Analytics + Data Governance with GDPR/FERPA compliance suite, 72-hour breach countdown all live.</p>
+      <h4>Waves 1&ndash;7 + Cycle 31 Complete</h4>
+      <p>All business modules + observability hardening. 418 tables, ~970 endpoints, 280+ pages. Structured logging, distributed tracing, partitions active, caching tuned, DLQ wired, SLOs defined.</p>
     </div>
     <div class="status-card sc-blue">
-      <h4>Cycle 31: Performance &amp; Observability &mdash; Next</h4>
-      <p>Ops cycle: structured logging, distributed tracing, load testing, partition activation, caching, DLQ dashboard, SLOs, alerting pipeline. 0 new tables. Opens Wave 8.</p>
+      <h4>Cycle 32: Multi-Region &amp; DR &mdash; Next</h4>
+      <p>Active-passive cross-region replication, backup validation, Kafka MirrorMaker2, data residency enforcement, DR runbook, chaos engineering, tabletop exercises. Final cycle.</p>
     </div>
     <div class="status-card sc-amber">
-      <h4>Wave 8 Closing</h4>
-      <p>Multi-Region &amp; DR (32) closes the core roadmap. Then Phase 2: .1 cycles.</p>
+      <h4>Core Roadmap Closing</h4>
+      <p>Cycle 32 completes the 34-cycle roadmap. Then Phase 2: .1 cycles for ~420 deferred tables.</p>
     </div>
   </div>
 
@@ -154,12 +154,12 @@ a.card{text-decoration:none;color:inherit}
     <div class="progress-bar"><div class="progress-fill" style="width:50%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Cycles Complete</span><span>32 / 34 total (94%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:94%"></div></div>
+    <div class="progress-label"><span>Cycles Complete</span><span>33 / 34 total (97%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:97%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>7 of 8 (Wave 8 starting)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:87%"></div></div>
+    <div class="progress-label"><span>Waves Complete</span><span>7 of 8 (Wave 8 nearly done)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:93%"></div></div>
   </div>
 
   <h2 class="sec">What is CampusOS?</h2>
@@ -403,8 +403,8 @@ a.card{text-decoration:none;color:inherit}
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">31</span><span class="cycle-title">Performance &amp; Observability <span class="pill pill-blue">Next</span></span><span class="cycle-tables">Ops</span><span class="cycle-links"><a href="campusos-cycle31-implementation-plan.html" class="cl-plan">Plan</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">32</span><span class="cycle-title">Multi-Region &amp; Disaster Recovery</span><span class="cycle-tables">Ops</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">31</span><span class="cycle-title">Performance &amp; Observability <span class="pill pill-green">Done</span></span><span class="cycle-tables">Ops</span><span class="cycle-links"><a href="campusos-cycle31-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle31-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">32</span><span class="cycle-title">Multi-Region &amp; Disaster Recovery <span class="pill pill-blue">Next</span></span><span class="cycle-tables">Ops</span><span class="cycle-links"><a href="campusos-cycle32-implementation-plan.html" class="cl-plan">Plan</a></span></div>
     </div>
   </div>
 </div>
@@ -413,6 +413,13 @@ a.card{text-decoration:none;color:inherit}
 <div id="buildlog" class="tab-content">
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>Cycle 31: Performance &amp; Observability <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">0 new tables &middot; Ops cycle &middot; Wave 8 open</div>
+    <div class="log-desc">Structured logging with trace_id on every log line (CI-enforced), OpenTelemetry distributed tracing across HTTP → DB → Kafka → consumer, Prometheus /metrics + 5 Grafana dashboards, 12 critical hot paths load tested with p95 baselines, pg_stat_statements top-10 query optimisation, 10 high-volume tables partitioned (HASH + RANGE monthly), PgBouncer schema-per-tenant + 4 Redis cache layers, DLQ dashboard with replay, consumer envelope validation, circuit breakers, error budget SLOs (CRITICAL 99.9% / STANDARD 99.5% / BACKGROUND 99.0%).</div>
+    <div class="log-links"><a href="campusos-cycle31-implementation-plan.html">Plan</a> <a href="cycle31-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>Cycle 30: Data Governance &amp; Compliance <span class="pill pill-green">Approved</span></h4>
@@ -618,6 +625,7 @@ a.card{text-decoration:none;color:inherit}
     <a href="cycle28-cat-script.md" class="card"><h4>Cycle 28 CAT</h4><div class="desc">Dual-mode store, student order + parent approval, fulfilment + inventory, external order + shipping, backorder, reorder threshold signal, revenue materialisation.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle29-cat-script.md" class="card"><h4>Cycle 29 CAT</h4><div class="desc">Worker materialisation, attendance + academic dashboards, at-risk detection + threshold config, school/district aggregation, report engine + scheduled delivery, FROM_SNAPSHOT rebuild.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle30-cat-script.md" class="card"><h4>Cycle 30 CAT</h4><div class="desc">ROPA + DPIA gap, processor DPA gap, 72-hour breach countdown, SAR deadline, erasure + pseudonymisation, consent lifecycle, privacy notice, age-18 transfer.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle31-cat-script.md" class="card"><h4>Cycle 31 CAT</h4><div class="desc">Structured logging verified, tracing end-to-end, metrics baseline, load test targets met, partitions active, caching tuned, DLQ replay, envelope validation, circuit breakers, SLO alerts firing.</div><div class="meta">10 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 2 Punch List</h2>
