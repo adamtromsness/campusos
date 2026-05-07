@@ -1,6 +1,6 @@
 # Cycle 31 Handoff — Performance & Observability
 
-**Status:** Cycle 31 **REVIEW-CYCLE31 Round 1 fixes applied** — Round 1 against `cycle31-complete` (`1e2252a`) returned **Reject pending fixes** with 5 BLOCKING + 5 MAJOR. All 5 BLOCKING + the 1 actionable MAJOR (#9 circuit-breaker scope claim) landed in the closeout fix commit. Awaiting Round 2 verdict. — Wave 8 (Hardening) opening cycle. The first ops cycle in CampusOS — **zero new business tables**. Cycle 31 instruments, optimises, and stress-tests the ~418 tables and ~936 endpoints built across the prior 30 cycles. The deliverable is operational readiness, not a feature: structured logging with correlation IDs across every request/event chain, OpenTelemetry distributed tracing, Prometheus metrics + Grafana dashboards, load testing every critical hot path with p95 baselines, pg_stat_statements query optimisation, partition activation for high-volume tables, PgBouncer schema-per-tenant tuning, Redis caching for hottest read paths, DLQ admin dashboard wiring, consumer envelope validation, circuit breaker implementation, error budget SLOs per module tier, and the SRE alerting pipeline. **The operational readiness gate before pilot.**
+**Status:** Cycle 31 **COMPLETE + APPROVED** at `e0d0435` (REVIEW-CYCLE31-CHATGPT — final verdict). Round 1 against `cycle31-complete` (`1e2252a`) returned **Reject pending fixes** with 5 BLOCKING + 5 MAJOR; Round 2 against `e0d0435` returned **Approved** after all 5 BLOCKING + 1 actionable MAJOR landed. Reviewer's only Round 2 nit was a stale `101_partition_activation.sql` reference in the Step 5 narrative — addressed in the doc-cleanup commit. Tagged `cycle31-complete` at `1e2252a` and `cycle31-approved` at the doc-cleanup commit. **Wave 8 (Hardening) opens with this approval.** — Wave 8 (Hardening) opening cycle. The first ops cycle in CampusOS — **zero new business tables**. Cycle 31 instruments, optimises, and stress-tests the ~418 tables and ~936 endpoints built across the prior 30 cycles. The deliverable is operational readiness, not a feature: structured logging with correlation IDs across every request/event chain, OpenTelemetry distributed tracing, Prometheus metrics + Grafana dashboards, load testing every critical hot path with p95 baselines, pg_stat_statements query optimisation, partition activation for high-volume tables, PgBouncer schema-per-tenant tuning, Redis caching for hottest read paths, DLQ admin dashboard wiring, consumer envelope validation, circuit breaker implementation, error budget SLOs per module tier, and the SRE alerting pipeline. **The operational readiness gate before pilot.**
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle31-implementation-plan.html`
@@ -89,11 +89,11 @@ What does not change: every existing module continues to function unchanged. Cyc
 
 ### Step 5 — Partition Activation ✓
 
-**Migration:** `packages/database/prisma/tenant/migrations/101_partition_activation.sql` — converts `trn_ridership_records` to `RANGE(scanned_at)` monthly partitioning with 24 leaves 2025-08 → 2027-07. Composite PK `(id, scanned_at)` (partition key must appear in unique constraint). The conversion follows the PG idiom: rename existing → create partitioned parent → INSERT … SELECT → drop old.
+**Runbook-only deliverable.** `infra/partition-activation-runbook.md` is the authoritative deployment-time procedure for partition activation, covering the worked example on `trn_ridership_records` (`RANGE(scanned_at)` monthly, 24 leaves 2025-08 → 2027-07, composite PK `(id, scanned_at)`) plus the 6 deferred candidates (`fds_meal_transactions`, `fds_temperature_logs`, `tech_credential_access_log`, `rpt_daily_attendance_summary`, `rpt_student_academic_summary`, `platform.platform_audit_log`).
 
-**Worked example only.** The remaining 5 partition candidates (`fds_meal_transactions`, `tech_audit_log`, `rpt_*` materialised tables, `platform.platform_audit_log`) are documented in `infra/partition-activation-runbook.md`. Two reasons: (1) `fds_meal_transactions` was already created in Cycle 20 with a different shape — converting requires a coordinated tenant migration; (2) the others span the platform schema and benefit from `pg_partman` automation rather than hand-rolled SQL. The runbook documents the procedure precisely so downstream cycles can apply it cleanly.
+The conversion procedure is non-destructive: rename existing → create partitioned parent → copy via `INSERT … SELECT` → row-count-verify → drop the rename, all wrapped in `BEGIN; … COMMIT;` so a row-count mismatch rolls the whole conversion back. Production deployments use `pg_partman` for ongoing partition creation post-conversion.
 
-**Splitter trap:** the first migration draft had two `;` inside block comments which the `provision-tenant.ts` splitter cuts on. Rewrote with em-dashes — pattern from Cycles 4–30.
+**Why runbook-only and not an executable migration:** an earlier draft shipped `packages/database/prisma/tenant/migrations/101_partition_activation.sql` that began with `DROP TABLE IF EXISTS trn_ridership_records CASCADE`, which would have dropped seeded data + dependent objects in any environment that wasn't completely empty. REVIEW-CYCLE31 BLOCKING 5 flagged the destructiveness and the migration was removed in the closeout fix commit; the non-destructive deployment-time procedure in the runbook is the replacement. Demo and test tenants that ran the original draft retain the partitioned shape; fresh provisions use the Cycle 19 non-partitioned schema and convert via the runbook.
 
 ### Step 6 — PgBouncer + Redis Caching ✓
 
@@ -158,7 +158,7 @@ Several items previously carried as Phase 2 backlog now have in-repo answers:
 
 - **0** new business tables (tenant base table count stays at 383)
 - **1** new platform module (`PlatformAdminModule`)
-- **1** new tenant migration (101 — `trn_ridership_records` partition activation, worked example)
+- **0** new tenant migrations (partition activation is runbook-only after REVIEW-CYCLE31 BLOCKING 5)
 - **3** new admin endpoints under `/api/v1/admin/platform/*`
 - **5** new web routes under `/admin/platform/*`
 - **8** Prometheus rule groups + 8 runbooks

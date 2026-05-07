@@ -4,6 +4,8 @@
 ops cycle in CampusOS — **zero new business tables**.
 **Round 1 commit:** `cycle31-complete` at `1e2252a`.
 **Round 1 verdict:** **Reject pending fixes** — 5 BLOCKING + 5 MAJOR; one MAJOR (#7 `/metrics` deployment ACL) was a follow-up doc note rather than a code fix. All 5 BLOCKING + 1 actionable MAJOR (#9 circuit breaker scope claim) addressed in the closeout commit.
+**Round 2 commit:** `e0d0435` on `main` (closeout fix commit).
+**Round 2 verdict:** **Approved.** Cycle 31 ships clean. Reviewer's only Round 2 cleanup item was a stale `101_partition_activation.sql` reference in the Step 5 narrative of `HANDOFF-CYCLE31.md` — addressed in the doc-cleanup commit. **Tagging `cycle31-approved`** at the doc-cleanup commit. **Wave 8 (Hardening) opens with this approval.**
 **Live verification reference:** `tenant_demo` 2026-05-07.
 
 ---
