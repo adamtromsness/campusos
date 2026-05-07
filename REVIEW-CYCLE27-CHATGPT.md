@@ -3,7 +3,8 @@
 **Cycle:** 27 — Procurement (M86, Wave 6 continuation cycle).
 **Round 1 verdict:** Reject pending fixes — 5 BLOCKING + 4 MAJOR.
 **Round 1 commit:** `cycle27-complete` (`3826df0`).
-**Round 1 fix commit:** this commit.
+**Round 1 fix commit:** `2912c0f`.
+**Round 2 verdict:** **Approved.** Cycle 27 ships clean. Tagged `cycle27-approved` at `2912c0f`.
 **Live verification:** `tenant_demo` 2026-05-06.
 
 ## Triage table
