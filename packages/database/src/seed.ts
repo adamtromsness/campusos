@@ -265,11 +265,22 @@ async function main() {
   }
 
   // ── 7. Provision tenant schema ─────────────────────────────
-  try {
-    await provisionTenant('demo');
-  } catch (e) {
-    console.log('  Tenant schema already provisioned');
-  }
+  // provisionTenant is idempotent — every CREATE in the tenant
+  // migrations uses IF NOT EXISTS, every ALTER uses DROP CONSTRAINT
+  // IF EXISTS + ADD pattern. So a re-run on an already-provisioned
+  // tenant is a no-op.
+  //
+  // The earlier `try/catch -> "Tenant schema already provisioned"`
+  // pattern was a debugging hazard: a real migration failure (stray
+  // ; in a block comment, a column rename collision, etc.) would be
+  // silently masked as "already provisioned" and the seed would
+  // exit 0 with a partially-applied tenant. Downstream domain seeds
+  // would then fail with confusing `relation does not exist` errors
+  // far from the real cause.
+  //
+  // Now we let provision errors propagate. Re-running an already-
+  // provisioned tenant succeeds because every statement is idempotent.
+  await provisionTenant('demo');
 
   console.log('');
   console.log('  Seed complete!');

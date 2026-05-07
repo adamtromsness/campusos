@@ -36,11 +36,11 @@
  * 5 new intra-tenant DB-enforced FKs (CASCADE × 4 + SET NULL
  * × 1 + NO ACTION × 1). 0 cross-schema FKs (i.e. tenant to
  * platform). NOTE — there IS one cross-MODULE DB FK on
- * vendor_id pointing at fin_suppliers (Procurement to Finance);
+ * vendor_id pointing at fin_suppliers (Procurement to Finance) —
  * this is intentional and consistent with ADR-001/020 because
  * both modules live in the SAME tenant schema, so the
  * "no DB-enforced cross-tenant-to-platform FKs" rule does not
- * apply. Cross-module same-schema FKs are evaluated per-cycle;
+ * apply. Cross-module same-schema FKs are evaluated per-cycle —
  * the Procurement to Finance one was approved in REVIEW-CYCLE27.
  * iam_person refs remain soft per ADR-001/020/028.
  * ============================================================ */

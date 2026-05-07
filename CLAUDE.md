@@ -327,25 +327,78 @@ TenantResolverMiddleware → AuthGuard (JWT) → TenantGuard (frozen check) → 
 
 ## Commands
 
+### Zero-to-running in three commands
+
 ```bash
-# Start local services
-docker compose up -d
+docker compose up -d   # Postgres + Redis + Kafka + Keycloak
+pnpm dev:api           # NestJS backend on :4000 (watch mode)
+pnpm dev:web           # Next.js frontend on :3000
+```
 
-# Start API (dev mode, port 4000, watch)
-pnpm --filter @campusos/api dev
+If you've never seeded the DB, run `pnpm db:reset` once before
+`pnpm dev:api` — that drops + recreates + migrates + seeds the full
+demo state in ~30 seconds.
 
-# Start web (dev mode, port 3000)
-pnpm --filter @campusos/web dev
+### Convenience scripts (root package.json)
 
-# Run tests
-pnpm test
+```bash
+pnpm dev               # both api + web concurrently via Turborepo
+pnpm dev:api           # NestJS api, watch mode (port 4000)
+pnpm dev:web           # Next.js web, dev mode (port 3000)
 
-# Database migrations (platform schema, Prisma)
-pnpm --filter @campusos/database migrate
+pnpm db:migrate        # apply platform migrations + provision tenant_demo
+                       # (idempotent — safe to re-run; uses migrate:deploy
+                       # which is non-interactive)
+pnpm db:seed           # full demo data — runs the 36-step seed:all chain
+                       # (each step idempotent; ~26 seconds end-to-end)
+pnpm db:reset          # drop platform + every tenant_* schema, then
+                       # migrate + seed in one command. Refuses to run
+                       # against any DATABASE_URL that isn't localhost
+                       # with a _dev/_test suffix.
+pnpm db:studio         # Prisma Studio (visual platform-schema browser)
 
-# Tenant schema migrations
-# Add SQL file to packages/database/prisma/tenant/migrations/ (numbered: 005_*.sql, 006_*.sql, ...)
-# Then re-provision:
+pnpm format            # Prettier auto-fix
+pnpm format:check      # Prettier verify (CI gate)
+pnpm lint:logs         # log-schema lint (CI gate — no console.log)
+pnpm test              # turbo test (vitest under the hood)
+pnpm build             # turbo build across all packages
+```
+
+### Per-package scripts
+
+```bash
+# API (apps/api)
+pnpm --filter @campusos/api dev          # nest start --watch
+pnpm --filter @campusos/api build        # nest build
+pnpm --filter @campusos/api test         # vitest run
+pnpm --filter @campusos/api exec tsc --noEmit   # strict typecheck
+
+# Database (packages/database)
+pnpm --filter @campusos/database migrate:deploy        # platform only
+pnpm --filter @campusos/database provision --subdomain=demo
+pnpm --filter @campusos/database seed:all              # 36-step chain
+pnpm --filter @campusos/database seed                  # platform only
+pnpm --filter @campusos/database seed:iam              # IAM only
+pnpm --filter @campusos/database cache:build           # rebuild iam_effective_access_cache
+```
+
+### Per-domain seeds (idempotent — re-run safely)
+
+Each domain seed ships as a standalone idempotent script. Use these
+when iterating on a single module without re-running the full chain.
+
+```bash
+pnpm --filter @campusos/database seed:sis             # students, guardians, attendance
+pnpm --filter @campusos/database seed:classroom       # assignments, grades, snapshots
+# ... (32 more domain seeds — see packages/database/package.json)
+```
+
+### Tenant schema migrations
+
+Add SQL file to `packages/database/prisma/tenant/migrations/`
+(numbered: `005_*.sql`, `006_*.sql`, ...). Then re-provision:
+
+```bash
 pnpm --filter @campusos/database provision --subdomain=demo
 pnpm --filter @campusos/database provision --subdomain=test
 
