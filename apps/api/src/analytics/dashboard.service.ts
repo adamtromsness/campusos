@@ -64,6 +64,93 @@ export class DashboardService {
     ]);
   }
 
+  /**
+   * REVIEW-CYCLE29 BLOCKING 2 — validate trigger_conditions JSON.
+   * Only known keys with sane ranges are accepted.
+   */
+  private validateTriggerConditions(input: unknown): Record<string, number> {
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+      throw new BadRequestException('triggerConditions must be an object.');
+    }
+    const allowedKeys = [
+      'attendance_threshold',
+      'grade_threshold',
+      'missed_assignments_threshold',
+      'behaviour_incident_threshold',
+    ] as const;
+    const out: Record<string, number> = {};
+    for (const [key, value] of Object.entries(input)) {
+      if (!allowedKeys.includes(key as (typeof allowedKeys)[number])) {
+        throw new BadRequestException(
+          `triggerConditions has unknown key "${key}". Allowed keys: ${allowedKeys.join(', ')}.`,
+        );
+      }
+      const n = Number(value);
+      if (!Number.isFinite(n)) {
+        throw new BadRequestException(
+          `triggerConditions.${key} must be a finite number, got ${JSON.stringify(value)}.`,
+        );
+      }
+      if (key === 'attendance_threshold') {
+        if (n < 0 || n > 1) {
+          throw new BadRequestException(
+            'triggerConditions.attendance_threshold must be between 0 and 1 (inclusive).',
+          );
+        }
+      } else if (key === 'grade_threshold') {
+        if (n < 0 || n > 5) {
+          throw new BadRequestException(
+            'triggerConditions.grade_threshold must be between 0 and 5 (inclusive).',
+          );
+        }
+      } else if (key === 'missed_assignments_threshold' || key === 'behaviour_incident_threshold') {
+        if (!Number.isInteger(n) || n < 0) {
+          throw new BadRequestException(`triggerConditions.${key} must be a non-negative integer.`);
+        }
+      }
+      out[key] = n;
+    }
+    if (Object.keys(out).length === 0) {
+      throw new BadRequestException(
+        'triggerConditions must include at least one of: ' + allowedKeys.join(', '),
+      );
+    }
+    return out;
+  }
+
+  /**
+   * REVIEW-CYCLE29 BLOCKING 3 — every supplied platform_users.id must
+   * project into the calling tenant via sis_students / sis_guardians /
+   * hr_employees. Mirrors the Cycle 6.1 / Cycle 22 / Cycle 25 pattern.
+   */
+  async assertAccountsInCurrentTenant(accountIds: string[], fieldName: string): Promise<void> {
+    if (accountIds.length === 0) return;
+    const tenant = getCurrentTenant();
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        `SELECT pu.id::text AS account_id
+           FROM platform.platform_users pu
+          WHERE pu.id = ANY($1::uuid[])
+            AND (
+              EXISTS (SELECT 1 FROM sis_students s
+                       JOIN platform.platform_students ps ON ps.id = s.platform_student_id
+                       WHERE ps.person_id = pu.person_id)
+              OR EXISTS (SELECT 1 FROM sis_guardians g WHERE g.person_id = pu.person_id)
+              OR EXISTS (SELECT 1 FROM hr_employees e WHERE e.person_id = pu.person_id)
+            )`,
+        accountIds,
+      );
+    })) as Array<{ account_id: string }>;
+    const found = new Set(rows.map((r) => r.account_id));
+    const missing = accountIds.filter((id) => !found.has(id));
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `${fieldName} contains account ids not affiliated with this school: ${missing.join(', ')}`,
+      );
+    }
+    void tenant;
+  }
+
   private async teacherClassIds(actor: ResolvedActor): Promise<string[]> {
     if (!actor.employeeId) return [];
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -162,7 +249,12 @@ export class DashboardService {
     const params: unknown[] = [tenant.schoolId];
     let i = 2;
 
-    if (!(await this.isManager(actor))) {
+    // REVIEW-CYCLE29 BLOCKING 1: at-risk flags + filter are RPT-002:read
+    // territory. Teachers (RPT-001:read only) get the academic summary
+    // for their own class enrollments WITHOUT raw at_risk_flags and
+    // CANNOT use atRiskOnly to enumerate flagged students.
+    const isMgr = await this.isManager(actor);
+    if (!isMgr) {
       const classIds = await this.teacherClassIds(actor);
       if (classIds.length === 0) return [];
       where.push(
@@ -177,6 +269,11 @@ export class DashboardService {
       params.push(args.gradeLevel);
     }
     if (args?.atRiskOnly) {
+      if (!isMgr) {
+        throw new ForbiddenException(
+          'atRiskOnly filter requires the rpt-002:read permission. Teachers can only see academic summaries for their own classes without at-risk attribution.',
+        );
+      }
       where.push(`s.at_risk_flags <> '{}'::jsonb`);
     }
     const limit = Math.min(args?.limit ?? 100, 500);
@@ -228,7 +325,10 @@ export class DashboardService {
       attendanceRate: r.attendance_rate === null ? null : Number(r.attendance_rate),
       totalAssignments: Number(r.total_assignments),
       completedAssignments: Number(r.completed_assignments),
-      atRiskFlags: r.at_risk_flags ?? {},
+      // REVIEW-CYCLE29 BLOCKING 1: at-risk flags are RPT-002 territory.
+      // Non-manager actors get an empty object on every row so the wire
+      // shape stays stable but the attribution doesn't leak.
+      atRiskFlags: isMgr ? (r.at_risk_flags ?? {}) : {},
       generatedAt: r.generated_at,
     }));
   }
@@ -651,6 +751,12 @@ export class DashboardService {
     if (!(await this.isManager(actor))) {
       throw new ForbiddenException('Only managers and admins may create at-risk configurations.');
     }
+    // REVIEW-CYCLE29 BLOCKING 2 — validate trigger_conditions ranges
+    const conditions = this.validateTriggerConditions(input.triggerConditions);
+    // REVIEW-CYCLE29 BLOCKING 3 — every recipient must be in this tenant
+    const recipients = input.alertRecipients ?? [];
+    await this.assertAccountsInCurrentTenant(recipients, 'alertRecipients');
+
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
@@ -662,8 +768,8 @@ export class DashboardService {
           tenant.schoolId,
           input.name,
           input.description ?? null,
-          JSON.stringify(input.triggerConditions),
-          input.alertRecipients ?? [],
+          JSON.stringify(conditions),
+          recipients,
           input.isActive ?? true,
           actor.accountId,
         );
@@ -704,10 +810,14 @@ export class DashboardService {
       params.push(input.description);
     }
     if (input.triggerConditions !== undefined) {
+      // REVIEW-CYCLE29 BLOCKING 2 — validate before update
+      const conditions = this.validateTriggerConditions(input.triggerConditions);
       sets.push(`trigger_conditions = $${i++}::jsonb`);
-      params.push(JSON.stringify(input.triggerConditions));
+      params.push(JSON.stringify(conditions));
     }
     if (input.alertRecipients !== undefined) {
+      // REVIEW-CYCLE29 BLOCKING 3 — validate recipients in current tenant
+      await this.assertAccountsInCurrentTenant(input.alertRecipients, 'alertRecipients');
       sets.push(`alert_recipients = $${i++}::uuid[]`);
       params.push(input.alertRecipients);
     }

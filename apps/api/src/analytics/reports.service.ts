@@ -10,6 +10,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { DashboardService } from './dashboard.service';
 import type {
   CreateReportDefinitionDto,
   CreateScheduledReportDto,
@@ -130,11 +131,48 @@ export class ReportDefinitionService {
     };
   }
 
+  /**
+   * REVIEW-CYCLE29 MAJOR 7 — kept in sync with ALLOWED_DATA_SOURCES on
+   * ReportRunService. Validates that template_config.data_source resolves
+   * to a known rpt_* read model BEFORE the definition lands so a
+   * malformed report cannot be saved and only fail at run time.
+   */
+  static readonly ALLOWED_DATA_SOURCES: readonly string[] = [
+    'rpt_daily_attendance_summary',
+    'rpt_student_academic_summary',
+    'rpt_class_performance_summary',
+    'rpt_staff_summary',
+    'rpt_school_summary',
+    'rpt_district_summary',
+    'rpt_district_school_comparison',
+    'rpt_wellbeing_trends',
+    'rpt_fin_aged_debtors',
+  ];
+
+  private validateTemplateConfig(input: unknown): void {
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+      throw new BadRequestException('templateConfig must be an object.');
+    }
+    const ds = (input as Record<string, unknown>).data_source;
+    if (typeof ds !== 'string' || ds.length === 0) {
+      throw new BadRequestException(
+        `templateConfig.data_source is required (string). Allowed values: ${ReportDefinitionService.ALLOWED_DATA_SOURCES.join(', ')}`,
+      );
+    }
+    if (!ReportDefinitionService.ALLOWED_DATA_SOURCES.includes(ds)) {
+      throw new BadRequestException(
+        `templateConfig.data_source "${ds}" is not allowed. Allowed values: ${ReportDefinitionService.ALLOWED_DATA_SOURCES.join(', ')}`,
+      );
+    }
+  }
+
   async create(
     actor: ResolvedActor,
     input: CreateReportDefinitionDto,
   ): Promise<ReportDefinitionDto> {
     await this.assertWriter(actor);
+    // REVIEW-CYCLE29 MAJOR 7 — validate template_config at create time
+    this.validateTemplateConfig(input.templateConfig);
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
@@ -187,6 +225,8 @@ export class ReportDefinitionService {
       params.push(input.reportType);
     }
     if (input.templateConfig !== undefined) {
+      // REVIEW-CYCLE29 MAJOR 7 — validate template_config at update too
+      this.validateTemplateConfig(input.templateConfig);
       sets.push(`template_config = $${i++}::jsonb`);
       params.push(JSON.stringify(input.templateConfig));
     }
@@ -299,21 +339,11 @@ export class ReportRunService {
     });
 
     try {
-      // Resolve data source from template_config.data_source. For Cycle
-      // 29 we support a small allowlist — all rpt_* tables. For each
-      // source we count rows for the row_count metric. The actual CSV
-      // bytes are not materialised; the path is recorded for Phase 2.
-      const allowedSources = [
-        'rpt_daily_attendance_summary',
-        'rpt_student_academic_summary',
-        'rpt_class_performance_summary',
-        'rpt_staff_summary',
-        'rpt_school_summary',
-        'rpt_district_summary',
-        'rpt_district_school_comparison',
-        'rpt_wellbeing_trends',
-        'rpt_fin_aged_debtors',
-      ];
+      // Resolve data source from template_config.data_source. The
+      // allowlist lives on ReportDefinitionService so create-time
+      // validation (REVIEW-CYCLE29 MAJOR 7) and run-time defence-in-depth
+      // share the same source of truth.
+      const allowedSources = ReportDefinitionService.ALLOWED_DATA_SOURCES;
       const source =
         typeof def.templateConfig.data_source === 'string'
           ? (def.templateConfig.data_source as string)
@@ -379,6 +409,7 @@ export class ScheduledReportWorker {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permCheck: PermissionCheckService,
     private readonly runs: ReportRunService,
+    private readonly dashboards: DashboardService,
   ) {}
 
   private async assertWriter(actor: ResolvedActor): Promise<void> {
@@ -448,9 +479,15 @@ export class ScheduledReportWorker {
 
   async create(actor: ResolvedActor, input: CreateScheduledReportDto): Promise<ScheduledReportDto> {
     await this.assertWriter(actor);
+    // REVIEW-CYCLE29 BLOCKING 3 — recipients must project into this tenant
+    const recipients = input.recipientIds ?? [];
+    await this.dashboards.assertAccountsInCurrentTenant(recipients, 'recipientIds');
+    // REVIEW-CYCLE29 BLOCKING 4 — pass timezone into next-run computation
+    const timezone = input.timezone ?? 'UTC';
+    this.assertValidTimezone(timezone);
     const tenant = getCurrentTenant();
     const id = generateId();
-    const nextRun = this.computeNextRun(input.scheduleCron);
+    const nextRun = this.computeNextRun(input.scheduleCron, timezone);
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
         await client.$executeRawUnsafe(
@@ -462,9 +499,9 @@ export class ScheduledReportWorker {
           input.templateName,
           JSON.stringify(input.reportParams ?? {}),
           input.scheduleCron,
-          input.timezone ?? 'UTC',
+          timezone,
           input.deliveryChannel ?? 'EMAIL',
-          input.recipientIds ?? [],
+          recipients,
           input.outputFormat ?? 'CSV',
           input.isActive ?? true,
           nextRun.toISOString(),
@@ -493,6 +530,20 @@ export class ScheduledReportWorker {
   ): Promise<ScheduledReportDto> {
     await this.assertWriter(actor);
     const tenant = getCurrentTenant();
+
+    // REVIEW-CYCLE29 BLOCKING 4 — re-compute next_run_at against the
+    // effective timezone (existing OR the supplied one). Load the
+    // current row first so we can resolve the post-patch shape.
+    const existingRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        `SELECT schedule_cron, timezone FROM rpt_scheduled_reports WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
+        id,
+        tenant.schoolId,
+      );
+    })) as Array<{ schedule_cron: string; timezone: string }>;
+    if (existingRows.length === 0) throw new NotFoundException('Scheduled report not found');
+    const existing = existingRows[0]!;
+
     const sets: string[] = [];
     const params: unknown[] = [];
     let i = 1;
@@ -508,21 +559,31 @@ export class ScheduledReportWorker {
       sets.push(`report_params = $${i++}::jsonb`);
       params.push(JSON.stringify(input.reportParams));
     }
-    if (input.scheduleCron !== undefined) {
-      sets.push(`schedule_cron = $${i++}`);
-      params.push(input.scheduleCron);
+
+    // Compute next_run_at if EITHER scheduleCron or timezone changed.
+    if (input.scheduleCron !== undefined || input.timezone !== undefined) {
+      const effectiveCron = input.scheduleCron ?? existing.schedule_cron;
+      const effectiveTimezone = input.timezone ?? existing.timezone;
+      this.assertValidTimezone(effectiveTimezone);
+      if (input.scheduleCron !== undefined) {
+        sets.push(`schedule_cron = $${i++}`);
+        params.push(input.scheduleCron);
+      }
+      if (input.timezone !== undefined) {
+        sets.push(`timezone = $${i++}`);
+        params.push(input.timezone);
+      }
       sets.push(`next_run_at = $${i++}::timestamptz`);
-      params.push(this.computeNextRun(input.scheduleCron).toISOString());
+      params.push(this.computeNextRun(effectiveCron, effectiveTimezone).toISOString());
     }
-    if (input.timezone !== undefined) {
-      sets.push(`timezone = $${i++}`);
-      params.push(input.timezone);
-    }
+
     if (input.deliveryChannel !== undefined) {
       sets.push(`delivery_channel = $${i++}`);
       params.push(input.deliveryChannel);
     }
     if (input.recipientIds !== undefined) {
+      // REVIEW-CYCLE29 BLOCKING 3 — validate recipients in current tenant
+      await this.dashboards.assertAccountsInCurrentTenant(input.recipientIds, 'recipientIds');
       sets.push(`recipient_ids = $${i++}::uuid[]`);
       params.push(input.recipientIds);
     }
@@ -566,7 +627,7 @@ export class ScheduledReportWorker {
     const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT report_name, template_name, schedule_cron, output_format, recipient_ids, report_params
+        `SELECT report_name, template_name, schedule_cron, timezone, output_format, recipient_ids, report_params
          FROM rpt_scheduled_reports
          WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
         id,
@@ -576,6 +637,7 @@ export class ScheduledReportWorker {
       report_name: string;
       template_name: string;
       schedule_cron: string;
+      timezone: string;
       output_format: string;
       recipient_ids: string[];
       report_params: Record<string, unknown>;
@@ -614,7 +676,8 @@ export class ScheduledReportWorker {
       this.logger.error(`Scheduled report ${id} run failed: ${(err as Error).message}`);
     }
 
-    const next = this.computeNextRun(r.schedule_cron);
+    // REVIEW-CYCLE29 BLOCKING 4 — apply the stored timezone
+    const next = this.computeNextRun(r.schedule_cron, r.timezone);
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
         `UPDATE rpt_scheduled_reports SET last_run_at = now(), last_run_status = $1, next_run_at = $2::timestamptz, updated_at = now()
@@ -632,61 +695,189 @@ export class ScheduledReportWorker {
   }
 
   /**
-   * Compute the next-fire timestamp for a cron expression. For Cycle 29
-   * we ship a minimal interpreter for the common patterns (every-N-days
-   * + per-weekday + daily); a full cron implementation lands when the
-   * cron-driven worker container ships in Phase 2.
+   * REVIEW-CYCLE29 BLOCKING 4 — validate IANA timezone via Intl. Throws
+   * if the runtime can't construct a DateTimeFormat for the timezone.
    */
-  private computeNextRun(cron: string): Date {
-    const parts = cron.trim().split(/\s+/);
-    if (parts.length !== 5) {
-      // Default: 24 hours from now if we can't parse.
-      const fallback = new Date();
-      fallback.setUTCHours(fallback.getUTCHours() + 24);
-      return fallback;
+  private assertValidTimezone(timezone: string): void {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+    } catch {
+      throw new BadRequestException(
+        `timezone "${timezone}" is not a valid IANA timezone identifier (e.g. "UTC", "America/Chicago", "Europe/London").`,
+      );
     }
-    const [minStr, hourStr, , , dowStr] = parts;
-    const minute = minStr === '*' ? 0 : parseInt(minStr!, 10);
-    const hour = hourStr === '*' ? 8 : parseInt(hourStr!, 10);
-    const targetDow = dowStr === '*' ? null : this.parseDow(dowStr!);
-
-    const next = new Date();
-    next.setUTCSeconds(0, 0);
-    next.setUTCMinutes(minute);
-    next.setUTCHours(hour);
-
-    // If the time today has already passed, push to tomorrow.
-    if (next.getTime() <= Date.now()) {
-      next.setUTCDate(next.getUTCDate() + 1);
-    }
-
-    if (targetDow !== null) {
-      // Walk forward until the day-of-week matches.
-      while (next.getUTCDay() !== targetDow) {
-        next.setUTCDate(next.getUTCDate() + 1);
-      }
-    }
-    return next;
   }
 
-  private parseDow(s: string): number {
-    const map: Record<string, number> = {
-      SUN: 0,
-      MON: 1,
-      TUE: 2,
-      WED: 3,
-      THU: 4,
-      FRI: 5,
-      SAT: 6,
-      '0': 0,
-      '1': 1,
-      '2': 2,
-      '3': 3,
-      '4': 4,
-      '5': 5,
-      '6': 6,
+  /**
+   * REVIEW-CYCLE29 BLOCKING 4 — TIMEZONE-AWARE next-run computation.
+   *
+   * Walks forward from "now" 1 minute at a time, evaluating the cron
+   * expression against the WALL CLOCK in the supplied timezone (via
+   * Intl.DateTimeFormat). Returns the first UTC instant whose
+   * timezone-local representation matches the cron pattern.
+   *
+   * Supports the 5-field shape (minute hour day-of-month month day-of-week)
+   * with comma lists, ranges, * and `* / N` step values. Names like MON
+   * are accepted in the day-of-week field.
+   *
+   * Bounded to 366 days lookahead (the cap protects against pathological
+   * expressions that match nothing — e.g. minute=99). Falls back to
+   * "24 hours from now" only when the cron is structurally invalid.
+   */
+  private computeNextRun(cron: string, timezone: string = 'UTC'): Date {
+    const parts = cron.trim().split(/\s+/);
+    if (parts.length !== 5) {
+      const fallback = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      return fallback;
+    }
+    const [mField, hField, domField, monField, dowField] = parts as [
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
+    let minutes: Set<number>;
+    let hours: Set<number>;
+    let doms: Set<number>;
+    let months: Set<number>;
+    let dows: Set<number>;
+    try {
+      minutes = this.parseField(mField, 0, 59);
+      hours = this.parseField(hField, 0, 23);
+      doms = this.parseField(domField, 1, 31);
+      months = this.parseField(monField, 1, 12);
+      dows = this.parseField(dowField, 0, 6, {
+        SUN: 0,
+        MON: 1,
+        TUE: 2,
+        WED: 3,
+        THU: 4,
+        FRI: 5,
+        SAT: 6,
+      });
+    } catch {
+      const fallback = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      return fallback;
+    }
+
+    // Start from the next minute boundary.
+    const start = new Date(Math.ceil(Date.now() / 60000) * 60000);
+    const horizonMs = 366 * 24 * 60 * 60 * 1000;
+    for (let offset = 0; offset < horizonMs; offset += 60_000) {
+      const candidate = new Date(start.getTime() + offset);
+      const local = this.zonedComponents(candidate, timezone);
+      // Standard cron rule: when both DOM and DOW are restricted, EITHER
+      // matches; otherwise both must match.
+      const domRestricted = domField !== '*';
+      const dowRestricted = dowField !== '*';
+      const dayMatches = (() => {
+        const domOk = doms.has(local.dom);
+        const dowOk = dows.has(local.dow);
+        if (domRestricted && dowRestricted) return domOk || dowOk;
+        return domOk && dowOk;
+      })();
+      if (
+        minutes.has(local.minute) &&
+        hours.has(local.hour) &&
+        months.has(local.month) &&
+        dayMatches
+      ) {
+        return candidate;
+      }
+    }
+    // No match within the lookahead — fall back to 24 hours from now.
+    return new Date(Date.now() + 24 * 60 * 60 * 1000);
+  }
+
+  /**
+   * Extract calendar components in a target timezone using Intl.DateTimeFormat.
+   * Used by the cron walker to evaluate the cron pattern against wall time.
+   */
+  private zonedComponents(
+    when: Date,
+    timezone: string,
+  ): { minute: number; hour: number; dom: number; month: number; dow: number } {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const parts = fmt.formatToParts(when);
+    const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? '';
+    const weekdayMap: Record<string, number> = {
+      Sun: 0,
+      Mon: 1,
+      Tue: 2,
+      Wed: 3,
+      Thu: 4,
+      Fri: 5,
+      Sat: 6,
     };
-    const v = map[s.toUpperCase()];
-    return v === undefined ? 1 : v;
+    let hour = parseInt(get('hour'), 10);
+    if (hour === 24) hour = 0; // Intl edge case: midnight in some locales returns "24"
+    return {
+      minute: parseInt(get('minute'), 10),
+      hour,
+      dom: parseInt(get('day'), 10),
+      month: parseInt(get('month'), 10),
+      dow: weekdayMap[get('weekday')] ?? 0,
+    };
+  }
+
+  /**
+   * Parse a cron field into the set of integer values it matches.
+   * Supports `*`, lists `1,2,3`, ranges `1-5`, steps `* / N` or `0-30 / 5`,
+   * and named tokens (MON/TUE/...) when nameMap is supplied.
+   */
+  private parseField(
+    field: string,
+    min: number,
+    max: number,
+    nameMap?: Record<string, number>,
+  ): Set<number> {
+    const out = new Set<number>();
+    const tokens = field.split(',');
+    for (const tok of tokens) {
+      let body = tok;
+      let step = 1;
+      const slashIdx = body.indexOf('/');
+      if (slashIdx >= 0) {
+        step = parseInt(body.slice(slashIdx + 1), 10);
+        body = body.slice(0, slashIdx);
+        if (!Number.isFinite(step) || step <= 0) {
+          throw new Error(`bad step in cron field "${field}"`);
+        }
+      }
+      let lo: number;
+      let hi: number;
+      if (body === '*' || body === '') {
+        lo = min;
+        hi = max;
+      } else if (body.includes('-')) {
+        const [aRaw, bRaw] = body.split('-');
+        lo = this.parseToken(aRaw!, nameMap);
+        hi = this.parseToken(bRaw!, nameMap);
+      } else {
+        lo = this.parseToken(body, nameMap);
+        hi = lo;
+      }
+      if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo < min || hi > max || lo > hi) {
+        throw new Error(`bad range "${body}" in cron field "${field}" [${min}..${max}]`);
+      }
+      for (let v = lo; v <= hi; v += step) out.add(v);
+    }
+    return out;
+  }
+
+  private parseToken(s: string, nameMap?: Record<string, number>): number {
+    const trimmed = s.trim().toUpperCase();
+    if (nameMap && trimmed in nameMap) return nameMap[trimmed]!;
+    return parseInt(trimmed, 10);
   }
 }

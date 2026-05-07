@@ -1,93 +1,170 @@
 # REVIEW-CYCLE29-CHATGPT
 
 **Cycle:** 29 — Analytics & Reporting (M110, Wave 7 opener).
-**Status:** Awaiting Round 1 verdict.
-**Round 1 commit:** `cycle29-complete` at TBD (see git log on `main`).
+**Round 1 verdict:** **Reject pending fixes** — 5 BLOCKING + 4 MAJOR.
+**Round 1 commit:** `cycle29-complete` at `99d80e7`.
+**Round 1 fix commit:** TBD on `main` (this commit).
 **Live verification:** `tenant_demo` 2026-05-07.
 
 ---
 
-## What this cycle ships
+## Triage table
 
-Cycle 29 ships the M110 Analytics module — 16 of the 34 ERD tables in scope across 3 migrations (095 + 096 + 097). The operational read layer per ADR-008 CQRS-lite. **Wave 7 (Analytics & Governance) opens here.**
-
-Six structural keystones:
-
-1. **READ MODEL OWNERSHIP (ADR-008)** — every `rpt_*` table has exactly one owning module + one writing worker. Analytics API is read-only.
-2. **FROM_SNAPSHOT REBUILD (ADR-049)** — `rpt_rebuild_snapshots` stores frozen aggregate state + per-topic-partition Kafka offsets. SLA <10 min.
-3. **OFFSET-BASED CHECKPOINTS** — `rpt_analytics_worker_checkpoints` stores Kafka positions, never timestamps.
-4. **CONFIGURABLE AT-RISK DETECTION** — `rpt_at_risk_configurations.trigger_conditions JSONB` + AtRiskEvaluationWorker emits `rpt.at_risk.flagged` for new flags.
-5. **CHAINED NIGHTLY EXECUTION** — SIS → Classroom → AtRisk → SchoolSummary → District (03:00 UTC) → Wellbeing → Finance.
-6. **REPORT ENGINE WITH CRON SCHEDULING** — `rpt_scheduled_reports` + ScheduledReportWorker; first cron-driven worker in CampusOS.
-
-Backend: AnalyticsModule with **7 workers + 3 services + 1 controller + 30 endpoints + 1 Kafka emit topic** (`rpt.at_risk.flagged`).
-
-Web: 1 new `Analytics` launchpad tile + 12 routes + 22 React Query hooks.
-
-Cycle ships nightly batch materialisation only; per-event Kafka consumer wiring lands per-read-model in Phase 2 per ADR-049.
-
-CAT script: `docs/cycle29-cat-script.md`. Plan: `docs/campusos-cycle29-implementation-plan.html`. Handoff: `HANDOFF-CYCLE29.md`.
+| #          | Class         | Title                                                        | Disposition                                                                                                                                      |
+| ---------- | ------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| BLOCKING 1 | Privacy       | Teacher academic dashboard exposes at-risk flags via RPT-001 | **Fixed** — `listAcademic` strips `at_risk_flags` for non-managers + 403s `atRiskOnly=true`.                                                     |
+| BLOCKING 2 | Validity      | At-risk config JSON not validated                            | **Fixed** — `validateTriggerConditions` enforces allowed keys + ranges; rejects unknown keys.                                                    |
+| BLOCKING 3 | Validity      | Recipient IDs not tenant-validated                           | **Fixed** — shared `assertAccountsInCurrentTenant` helper applied to both at-risk + scheduled report create/update paths.                        |
+| BLOCKING 4 | Bug           | Scheduled-report `next_run_at` ignores timezone              | **Fixed** — `computeNextRun(cron, timezone)` walks the cron via `Intl.DateTimeFormat` in the target zone. Invalid TZ → 400.                      |
+| BLOCKING 5 | Authorisation | Worker trigger permissions too broad                         | **Fixed** — per-worker WORKER_PERMS table; `runWorkers` pre-checks every selected worker's tier; controller gate downgraded to lowest tier.      |
+| MAJOR 6    | Authorisation | `listAgedDebtors` exposed via Staff RPT-002                  | DEVIATION-FOLLOW-UP — joins items 9 / 11 / 13 / 14 / 16 / 22 / 25 / 26 / 30 / 32 / role-split chain in CLAUDE.md.                                |
+| MAJOR 7    | Validity      | Report definition templateConfig.data_source not validated   | **Fixed** — `validateTemplateConfig` enforces allowlist at create + update; allowlist hoisted to `ReportDefinitionService.ALLOWED_DATA_SOURCES`. |
+| MAJOR 8    | Authorisation | `listRunsForReport` / `listScheduled` not actor-aware        | DEVIATION-FOLLOW-UP — joins the role-split chain. Phase 2.                                                                                       |
+| MAJOR 9    | UX            | Worker chain returns HTTP 200 with FAILED entries            | DEVIATION-FOLLOW-UP — UI surfaces FAILED via the status pill; matches the handoff "failure in one doesn't cascade" model. Phase 2 polish.        |
 
 ---
 
-## Reviewer attention items already documented + on the punch list
+## Verification trail (live on `tenant_demo` 2026-05-07)
 
-These are not blockers; they are recorded so reviewers don't re-flag closed items:
+### BLOCKING 1 — teacher academic dashboard strips at-risk flags
 
-1. **Real Kafka consumer wiring per read model** — Cycle 29 ships nightly batch materialisation only. Per-event consumers (subscribe to `att.attendance.confirmed`, `cls.grade.posted`) land per read model in Phase 2 per ADR-049. The schema is set up for Kafka-offset checkpoints; the workers currently use synthetic offsets.
-2. **PDF / XLSX rendering** — `output_s3_key` is recorded; actual S3 + headless Chrome / ExcelJS upload is stubbed. Pre-pilot work.
-3. **Cron polling loop** — `ScheduledReportWorker.runNow()` works for both admin-trigger and future cron-tick paths; the actual setInterval polling registration ships with the production deploy container.
-4. **18 deferred ERD tables (Cycle 29.1)** — domain-specific read models for procurement / store / officials / facilities / transportation / food service / IT / library / enrollment / athletics / groups / publications / clubs / messaging surface as their owning modules ship per-domain workers post-pilot.
-5. **Multi-school district** — single school in demo tenant. DistrictAnalyticsWorker correctly aggregates across `rpt_school_summary` rows joined on `organisation_id`, but rankings only really exercise when 2+ schools are seeded. The seed plants a synthetic Elmwood comparison row to make the dashboard render.
-6. **Custom dashboard builder** — pre-built dashboards this cycle. Drag-and-drop dashboard widget configuration is a future polish item.
-7. **Multi-year trend analysis** — current year + prior year comparison only.
-8. **Read replica routing (ADR-050)** — analytics queries currently route through the same Postgres connection as the operational module.
-9. **Snapshot rebuild SLA** — `rpt_rebuild_snapshots` is schema-ready but the FROM_SNAPSHOT rebuild path is not yet exercised end-to-end.
-10. **`rpt_state_report_templates` should be platform-scope** — the schema places it in tenant scope today.
-11. **Splitter `--`-line-comment fragility** — the SQL splitter drops any chunk that begins with `--` after trim, even if the chunk contains real SQL after the comment. Cycle 29 caught this on Cycle 28 migration 094 (re-provision lost the DROP CONSTRAINT IF EXISTS); fix landed in this cycle by rewriting two `--` block headers to `/* */`. Pre-pilot rewrite the splitter to strip `--` lines per-chunk.
-12. **At-risk worker overwrites seed flags** — SISReadModelWorker re-materialises `rpt_student_academic_summary` from real `cls_grades` / `sis_attendance_records`. The CAT manually plants a low-GPA student before the at-risk run for a deterministic envelope emit. Joins item 1 above.
+```
+=== teacher /academics ===
+  rows=15  flagged_in_payload=0 (must=0)  all_empty=15
+=== teacher /academics?atRiskOnly=true ===
+HTTP 403
+=== admin /academics ===
+  rows=15  flagged_in_payload=1
+```
+
+Non-manager actors get the academic summary for their own classes with every `atRiskFlags` row set to `{}`. The `atRiskOnly` filter returns 403 with: "atRiskOnly filter requires the rpt-002:read permission. Teachers can only see academic summaries for their own classes without at-risk attribution."
+
+### BLOCKING 2 — at-risk config JSON validation
+
+5 paths:
+
+```
+=== attendance_threshold=2.0 ===
+HTTP 400  triggerConditions.attendance_threshold must be between 0 and 1 (inclusive).
+
+=== unknown key foo_bar ===
+HTTP 400  triggerConditions has unknown key "foo_bar". Allowed keys: attendance_threshold,
+          grade_threshold, missed_assignments_threshold, behaviour_incident_threshold.
+
+=== empty conditions ===
+HTTP 400  triggerConditions must include at least one of: attendance_threshold,
+          grade_threshold, missed_assignments_threshold, behaviour_incident_threshold
+
+=== valid config ===
+GoodConfig-fix id: 019e0227...   (HTTP 201)
+```
+
+Range checks: attendance_threshold ∈ [0, 1], grade_threshold ∈ [0, 5], missed_assignments_threshold + behaviour_incident_threshold integers ≥ 0. Unknown keys rejected.
+
+### BLOCKING 3 — recipient tenant validation
+
+Shared `DashboardService.assertAccountsInCurrentTenant(accountIds, fieldName)` helper joins through `sis_students` (via `platform_students.person_id`), `sis_guardians`, and `hr_employees` projections. Applied to:
+
+- `DashboardService.createAtRiskConfig` (`alertRecipients`)
+- `DashboardService.updateAtRiskConfig` (`alertRecipients`)
+- `ScheduledReportWorker.create` (`recipientIds`)
+- `ScheduledReportWorker.update` (`recipientIds`)
+
+```
+=== bogus recipient on at-risk config ===
+HTTP 400  alertRecipients contains account ids not affiliated with this school: 00000000-0000-7000-8000-000000000099
+
+=== bogus recipient on scheduled report ===
+HTTP 400  recipientIds contains account ids not affiliated with this school: 00000000-0000-7000-8000-000000000099
+```
+
+### BLOCKING 4 — timezone-aware cron `next_run_at`
+
+`computeNextRun(cron, timezone)` walks forward 1 minute at a time, evaluating the cron pattern against `Intl.DateTimeFormat` wall-clock components in the target timezone. Bounded at 366 days. Supports comma lists, ranges, step values, and named day-of-week tokens. New `assertValidTimezone(tz)` rejects unknown IANA identifiers.
+
+```
+=== "0 8 * * MON" America/Chicago (CDT in May, UTC−5) ===
+nextRunAt = 2026-05-11 13:00:00+00   ✓ 08:00 Chicago = 13:00 UTC during DST
+
+=== "0 8 * * MON" UTC ===
+nextRunAt = 2026-05-11 08:00:00+00   ✓ 08:00 UTC
+
+=== timezone "Mars/Olympus" ===
+HTTP 400  timezone "Mars/Olympus" is not a valid IANA timezone identifier
+          (e.g. "UTC", "America/Chicago", "Europe/London").
+```
+
+`update()` re-computes `next_run_at` whenever EITHER `scheduleCron` OR `timezone` changes, using the effective post-patch values. `runNow()` reads the stored timezone for the next-run recompute.
+
+### BLOCKING 5 — per-worker permission gates
+
+New `WORKER_PERMS` table:
+
+| Worker         | Required permission |
+| -------------- | ------------------- |
+| sis            | rpt-001:write       |
+| classroom      | rpt-001:write       |
+| at-risk        | rpt-002:write       |
+| school-summary | rpt-002:write       |
+| wellbeing      | rpt-002:write       |
+| district       | rpt-003:write       |
+| finance-ar     | rpt-004:write       |
+
+`POST /analytics/workers/run` pre-checks every selected worker's tier (or all 7 for full-chain). Any miss → 403 before any work fires. Controller gate downgraded from `rpt-002:write` to the lowest tier (`rpt-001:write`) so the inner per-worker check is the actual access boundary. School admins bypass via `actor.isSchoolAdmin`.
+
+```
+=== teacher worker:district ===          HTTP 403   (needs rpt-003:write)
+=== teacher worker:finance-ar ===        HTTP 403   (needs rpt-004:write)
+=== teacher worker:sis ===               HTTP 403   (gate is rpt-001:write; teacher only has :read)
+=== admin worker:district ===            HTTP 201
+=== admin full chain (no worker dto) === HTTP 201
+  7 workers: sis=OK, classroom=OK, at-risk=OK, school-summary=OK, district=OK, wellbeing=OK, finance-ar=OK
+```
+
+### MAJOR 7 — report definition templateConfig validation
+
+New `validateTemplateConfig` runs at create + update. The allowlist (`ReportDefinitionService.ALLOWED_DATA_SOURCES`) is now the single source of truth — `ReportRunService.run()` reads the same constant.
+
+```
+=== bogus data_source "sis_attendance_records" ===
+HTTP 400  templateConfig.data_source "sis_attendance_records" is not allowed.
+          Allowed values: rpt_daily_attendance_summary, rpt_student_academic_summary, ...
+
+=== missing data_source ===
+HTTP 400  templateConfig.data_source is required (string). Allowed values: ...
+
+=== valid data_source rpt_school_summary ===
+GoodReport-fix id: 019e0227...   (HTTP 201)
+```
 
 ---
 
-## Reviewer prompt (paste this into ChatGPT alongside the listed files)
+## MAJOR follow-ups carried to Phase 2 punch list
 
-> You are reviewing Cycle 29 of CampusOS — the M110 Analytics & Reporting module that opens Wave 7 (Analytics & Governance). The spec, plan, and verification record are all in this repo. Your job is to verify the implementation against the plan and call out any **BLOCKING** correctness/security/data-integrity issues, then any **MAJOR** robustness/architecture issues that should land before pilot.
->
-> **Scope:** review the closeout commit on `main` (`HANDOFF-CYCLE29.md` calls out the SHA). Treat `CLAUDE.md` Project Status section as the authoritative summary of what shipped. Treat `docs/cycle29-cat-script.md` as the live verification record on `tenant_demo` 2026-05-07.
->
-> **Files to read in order:**
->
-> 1. `docs/campusos-cycle29-implementation-plan.html` — the spec.
-> 2. `HANDOFF-CYCLE29.md` — final cycle summary with iteration log + Phase 2 punch list.
-> 3. `docs/cycle29-cat-script.md` — the CAT (10 plan scenarios verified live).
-> 4. `packages/database/prisma/tenant/migrations/095_rpt_infrastructure.sql`, `096_rpt_core_read_models.sql`, `097_rpt_district_reports.sql` — the schema.
-> 5. `packages/database/src/seed-analytics.ts` — the seed.
-> 6. `apps/api/src/analytics/workers.service.ts` (SIS + Classroom + AtRisk workers + Checkpoint helper), `cross-domain.service.ts` (School + District + Wellbeing + Finance workers), `reports.service.ts` (Report engine + Scheduled reports), `dashboard.service.ts` (read-only across all rpt\_\*), `analytics.controller.ts`, `analytics.module.ts`.
-> 7. `apps/web/src/hooks/use-analytics.ts` + `apps/web/src/lib/analytics-format.ts` + the 12 routes under `apps/web/src/app/(app)/analytics/*`.
->
-> **Specifically verify:**
->
-> - READ MODEL OWNERSHIP (ADR-008) — workers are the sole writers; the Analytics API surface (DashboardService) only SELECTs. No UPSERT in DashboardService.
-> - At-risk flagging emits `rpt.at_risk.flagged` only for NEW flags (not previously present). Worker preserves existing flags via load-and-diff before UPDATE.
-> - Cross-tenant isolation — every backend service path uses `executeInTenantContext` or `executeInTenantTransaction`.
-> - Permission gates match the IAM seed grants. Teacher row scope binds via `sis_class_teachers` → `sis_enrollments` chain.
-> - Wellbeing trends contain NO individual student identifiers (privacy invariant). Schema has no `student_id` column.
-> - ScheduledReportWorker correctly computes `next_run_at` from cron expression with timezone handling.
-> - FinanceARWorker bucket math reads from Cycle 6 `pay_invoices` / `pay_payments` / `pay_refunds` correctly.
->
-> **Disposition format:** for every finding, classify as BLOCKING / MAJOR / MINOR / DEVIATION-FOLLOW-UP and supply the file path + line number + before/after suggestion. Group findings by class. End with a Round 1 verdict (Approved | Reject pending fixes).
+These are recommendation-class hardening tasks per the reviewer's gate decision. They join the existing CLAUDE.md backlog.
+
+### MAJOR 6 — `listAgedDebtors` Staff scope
+
+Aged debtors expose family financial data and currently allow anyone holding `rpt-002:read` (Staff role: principal/VP/counsellor stand-in). Pre-pilot, this should split to a dedicated `RPT-005:finance` permission OR carry a per-actor finance-role check. Joins items 9 / 11 / 13 / 14 / 16 / 22 / 25 / 26 / 30 / 32 in the broader role-split chain.
+
+### MAJOR 8 — `listRunsForReport` / `listScheduled` actor-aware scope
+
+Currently RPT-004:read returns every run + schedule in the tenant. Pre-pilot: scope to creator OR an `actor.isReportAdmin` check. Demo + first-pilot acceptable; pre-pilot lock-down required.
+
+### MAJOR 9 — Worker chain returns 200 with FAILED entries
+
+Matches the handoff "failure in one doesn't cascade" model. The Step 8 Analytics dashboard surfaces the FAILED status pill clearly; the operator sees per-worker outcomes. Pre-pilot polish: add a dedicated header indicator when any worker in a manual run failed.
 
 ---
 
-## Triage table (to fill in when Round 1 returns)
+## Files changed in the fix commit
 
-| #   | Class | Title | Disposition |
-| --- | ----- | ----- | ----------- |
+- `apps/api/src/analytics/dashboard.service.ts` — added `validateTriggerConditions` + `assertAccountsInCurrentTenant`; strip atRiskFlags for non-managers + 403 atRiskOnly; wired both validators into createAtRiskConfig + updateAtRiskConfig.
+- `apps/api/src/analytics/reports.service.ts` — injected DashboardService into ScheduledReportWorker; added `assertValidTimezone` + rewrote `computeNextRun(cron, timezone)` with `Intl.DateTimeFormat` walker; added `validateTemplateConfig` to ReportDefinitionService + hoisted `ALLOWED_DATA_SOURCES` static; create/update/runNow paths apply timezone + recipient validation.
+- `apps/api/src/analytics/analytics.controller.ts` — injected PermissionCheckService; added WORKER_PERMS map + `assertWorkerPermission`; runWorkers pre-checks every selected worker; controller gate downgraded to `rpt-001:write`.
 
-(empty until verdict lands)
+No DB migrations required. All 5 BLOCKING + MAJOR 7 fixes are service-layer.
 
----
+## Round 2 verdict
 
-## Verification trail (to fill in when fixes land)
-
-(empty until Round 1 fix commit lands)
+(awaiting reviewer)

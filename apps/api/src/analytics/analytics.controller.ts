@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Body,
   Controller,
   Get,
@@ -13,6 +14,8 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
+import { PermissionCheckService } from '../iam/permission-check.service';
+import { getCurrentTenant } from '../tenant/tenant.context';
 import { DashboardService } from './dashboard.service';
 import {
   AtRiskEvaluationWorker,
@@ -54,6 +57,7 @@ interface AuthedRequest extends Request {
 export class AnalyticsController {
   constructor(
     private readonly actors: ActorContextService,
+    private readonly permCheck: PermissionCheckService,
     private readonly dashboards: DashboardService,
     private readonly checkpoints: CheckpointService,
     private readonly sisWorker: SISReadModelWorker,
@@ -67,6 +71,40 @@ export class AnalyticsController {
     private readonly runs: ReportRunService,
     private readonly scheduled: ScheduledReportWorker,
   ) {}
+
+  /**
+   * REVIEW-CYCLE29 BLOCKING 5 — per-worker permission tier table.
+   * runWorkers consults this map to require the appropriate permission
+   * for each worker invoked in the current request, regardless of
+   * whether it's a single-worker run or the full chain.
+   */
+  private readonly WORKER_PERMS: Record<string, string[]> = {
+    sis: ['rpt-001:write'],
+    classroom: ['rpt-001:write'],
+    'at-risk': ['rpt-002:write'],
+    'school-summary': ['rpt-002:write'],
+    wellbeing: ['rpt-002:write'],
+    district: ['rpt-003:write'],
+    'finance-ar': ['rpt-004:write'],
+  };
+
+  private async assertWorkerPermission(req: AuthedRequest, workerName: string): Promise<void> {
+    const actor = await this.actors.resolveActor(req.user.sub, req.user.personId);
+    if (actor.isSchoolAdmin) return;
+    const required = this.WORKER_PERMS[workerName];
+    if (!required) throw new BadRequestException(`Unknown worker: ${workerName}`);
+    const tenant = getCurrentTenant();
+    const ok = await this.permCheck.hasAnyPermissionInTenant(
+      actor.accountId,
+      tenant.schoolId,
+      required,
+    );
+    if (!ok) {
+      throw new ForbiddenException(
+        `Triggering the "${workerName}" worker requires one of: ${required.join(', ')}`,
+      );
+    }
+  }
 
   /** ─── Dashboards ──────────────────────────────────────────────── */
 
@@ -182,11 +220,27 @@ export class AnalyticsController {
   /** ─── Workers ────────────────────────────────────────────────── */
 
   @Post('analytics/workers/run')
-  @RequirePermission('rpt-002:write')
-  @ApiOperation({ summary: 'Trigger the chained nightly pipeline (or a single named worker).' })
-  async runWorkers(@Body() dto: RunWorkersDto): Promise<WorkerRunSummaryDto[]> {
+  @RequirePermission('rpt-001:write')
+  @ApiOperation({
+    summary:
+      'Trigger the chained nightly pipeline (or a single named worker). Per-worker permission tiers enforced — running the full chain requires the highest tier (rpt-004:write or school admin).',
+  })
+  async runWorkers(
+    @Req() req: AuthedRequest,
+    @Body() dto: RunWorkersDto,
+  ): Promise<WorkerRunSummaryDto[]> {
     const summaries: WorkerRunSummaryDto[] = [];
     const which = dto.worker;
+
+    // REVIEW-CYCLE29 BLOCKING 5 — pre-check the permission tier for every
+    // worker the request will run. Reject the whole request before any
+    // work fires if the actor lacks any required tier.
+    const targetWorkers = which
+      ? [which]
+      : ['sis', 'classroom', 'at-risk', 'school-summary', 'district', 'wellbeing', 'finance-ar'];
+    for (const w of targetWorkers) {
+      await this.assertWorkerPermission(req, w);
+    }
 
     const runOne = async (name: string, fn: () => Promise<WorkerRunSummaryDto>) => {
       if (which && which !== name) return;
