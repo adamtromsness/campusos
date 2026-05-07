@@ -3,7 +3,8 @@
 **Cycle:** 29 — Analytics & Reporting (M110, Wave 7 opener).
 **Round 1 verdict:** **Reject pending fixes** — 5 BLOCKING + 4 MAJOR.
 **Round 1 commit:** `cycle29-complete` at `99d80e7`.
-**Round 1 fix commit:** TBD on `main` (this commit).
+**Round 1 fix commit:** `3ee566d` on `main`.
+**Round 2 verdict:** **Approved.** Cycle 29 ships clean. Tagged `cycle29-approved` at `3ee566d`. **Wave 7 (Analytics & Governance) opens with this approval.**
 **Live verification:** `tenant_demo` 2026-05-07.
 
 ---
@@ -167,4 +168,19 @@ No DB migrations required. All 5 BLOCKING + MAJOR 7 fixes are service-layer.
 
 ## Round 2 verdict
 
-(awaiting reviewer)
+**Approved at `3ee566d`.** Reviewer's Round 2 note (verbatim):
+
+> Cycle 29 is clean from my review perspective. You can tag `cycle29-approved` at `3ee566d`.
+>
+> All 5 BLOCKING + MAJOR 7 fixes confirmed in code:
+>
+> - Teacher at-risk flag exposure — fixed (`atRiskFlags` stripped to `{}` for non-managers, `atRiskOnly=true` returns 403)
+> - At-risk configuration validation — fixed (allowlist + ranges + unknown-key rejection)
+> - Recipient tenant validation — fixed (`assertAccountsInCurrentTenant` validates through `sis_students` / `sis_guardians` / `hr_employees`)
+> - Timezone-aware scheduled reports — fixed (cron walked in target IANA zone via `Intl.DateTimeFormat`; create + update + run-now use stored timezone)
+> - Worker-trigger permissions — fixed (per-worker permission map; controller pre-checks before running selected worker or full chain)
+> - Report template config validation — fixed (single allowlist enforced at create + update + run)
+>
+> Phase 2 follow-ups acceptable: aged-debtors finance-tier permission, report-runs/schedule actor scoping, worker-chain UX header.
+
+**Final gate decision: Approved.** Tagged `cycle29-approved` on `3ee566d`. **Wave 7 (Analytics & Governance) opens.** Cycle 30 (Data Governance & Compliance) closes the wave.
