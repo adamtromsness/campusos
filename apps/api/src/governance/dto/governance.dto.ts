@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -11,6 +12,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 /*
@@ -281,6 +283,34 @@ export interface DpiaRiskEntry {
   mitigationMeasures: string;
 }
 
+const DPIA_RISK_LIKELIHOODS = ['low', 'medium', 'high'] as const;
+const DPIA_RISK_SEVERITIES = ['low', 'medium', 'high'] as const;
+
+/**
+ * REVIEW-CYCLE30 MAJOR 10 — deep validation of every entry in the
+ * `risksIdentified` array. Prior implementation only checked the array
+ * was an array, so a caller could pass `[{}, "foo", null]` and persist
+ * garbage in the JSONB column. The class-validator + class-transformer
+ * pair below enforces the shape per element.
+ */
+export class DpiaRiskEntryDto implements DpiaRiskEntry {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  riskDescription!: string;
+
+  @IsIn(DPIA_RISK_LIKELIHOODS as readonly string[])
+  likelihood!: 'low' | 'medium' | 'high';
+
+  @IsIn(DPIA_RISK_SEVERITIES as readonly string[])
+  severity!: 'low' | 'medium' | 'high';
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  mitigationMeasures!: string;
+}
+
 export interface DpiaDto {
   id: string;
   schoolId: string;
@@ -327,7 +357,9 @@ export class CreateDpiaDto {
 
   @IsOptional()
   @IsArray()
-  risksIdentified?: DpiaRiskEntry[];
+  @ValidateNested({ each: true })
+  @Type(() => DpiaRiskEntryDto)
+  risksIdentified?: DpiaRiskEntryDto[];
 
   @IsOptional()
   @IsBoolean()
@@ -358,7 +390,9 @@ export class UpdateDpiaDto {
 
   @IsOptional()
   @IsArray()
-  risksIdentified?: DpiaRiskEntry[];
+  @ValidateNested({ each: true })
+  @Type(() => DpiaRiskEntryDto)
+  risksIdentified?: DpiaRiskEntryDto[];
 
   @IsOptional()
   @IsIn(RESIDUAL_RISK_VALUES as readonly string[])

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '../tenant/tenant.module';
 import { IamModule } from '../iam/iam.module';
 import { KafkaModule } from '../kafka/kafka.module';
+import { GovernanceAccess } from './access';
 import { GovernanceController } from './governance.controller';
 import { RopaService } from './ropa.service';
 import { DpiaService } from './dpia.service';
@@ -49,6 +50,7 @@ import {
 @Module({
   imports: [TenantModule, IamModule, KafkaModule],
   providers: [
+    GovernanceAccess,
     RopaService,
     DpiaService,
     ProcessorService,

@@ -9,6 +9,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
+import { GovernanceAccess } from './access';
 import type { CreateSarDto, SubjectAccessRequestDto, UpdateSarDto } from './dto/governance.dto';
 
 /**
@@ -32,6 +33,7 @@ export class SarService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permCheck: PermissionCheckService,
+    private readonly access: GovernanceAccess,
   ) {}
 
   /**
@@ -274,6 +276,13 @@ export class SarService {
         'SAR submission is restricted to data subjects, linked guardians, or the DPO.',
       );
     }
+    // REVIEW-CYCLE30 BLOCKING 3 — DPO-created SARs must reference a
+    // person affiliated with this school. The GUARDIAN/STUDENT branches
+    // above already enforce affiliation via the link checks; the DPO
+    // path needs the explicit tenant-validation gate.
+    if (isDpo && actor.personType !== 'GUARDIAN' && actor.personType !== 'STUDENT') {
+      await this.access.assertDataSubjectInCurrentTenant(input.dataSubjectId);
+    }
     const tenant = getCurrentTenant();
     const days = await this.getDefaultDeadlineDays();
     const deadline = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -304,39 +313,54 @@ export class SarService {
     if (!(await this.hasDpoScope(actor))) {
       throw new ForbiddenException('Only the DPO can mutate SARs (dpo-004:write).');
     }
-    const existing = await this.getById(actor, id);
-    if (existing.status === 'COMPLETED' || existing.status === 'DENIED') {
-      throw new BadRequestException(
-        'A SAR in COMPLETED or DENIED status is immutable. Open a new request instead.',
-      );
-    }
-    const sets: string[] = [];
-    const params: unknown[] = [];
-    let i = 1;
-    const push = (col: string, val: unknown, cast?: string) => {
-      sets.push(`${col} = $${i}${cast ?? ''}`);
-      params.push(val);
-      i++;
-    };
-    let stampCompleted = false;
-    if (input.status !== undefined) {
-      push('status', input.status);
-      if (input.status === 'COMPLETED' || input.status === 'DENIED') stampCompleted = true;
-    }
-    if (input.responseS3Key !== undefined) push('response_s3_key', input.responseS3Key);
-    if (input.denialReason !== undefined) push('denial_reason', input.denialReason);
-    if (input.extensionReason !== undefined) push('extension_reason', input.extensionReason);
-    if (input.extensionUntil !== undefined) push('extension_until', input.extensionUntil, '::date');
-    if (input.notes !== undefined) push('notes', input.notes);
-    if (stampCompleted) {
-      push('completed_at', new Date().toISOString(), '::timestamptz');
-    }
-    if (sets.length === 0) return existing;
-    sets.push('updated_at = now()');
     const tenant = getCurrentTenant();
-    params.push(id);
-    params.push(tenant.schoolId);
+    // REVIEW-CYCLE30 MAJOR 9 — locked-row + status-safe transition.
+    // Prior implementation read state via getById() then UPDATE'd
+    // separately; two DPO users could race the same SAR transition.
+    // Now: SELECT … FOR UPDATE inside the same tx as the write, validate
+    // the locked snapshot, and emit BadRequestException on terminal-status
+    // attempts so the behaviour matches the row-locked state-machine
+    // pattern used in Cycle 5/6/8/9/10/11/13/15.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const lockedRows = (await tx.$queryRawUnsafe(
+        `SELECT status FROM dpo_subject_access_requests
+          WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE`,
+        id,
+        tenant.schoolId,
+      )) as Array<{ status: string }>;
+      if (lockedRows.length === 0) throw new NotFoundException(`SAR ${id} not found.`);
+      const lockedStatus = lockedRows[0]!.status;
+      if (lockedStatus === 'COMPLETED' || lockedStatus === 'DENIED') {
+        throw new BadRequestException(
+          'A SAR in COMPLETED or DENIED status is immutable. Open a new request instead.',
+        );
+      }
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      let i = 1;
+      const push = (col: string, val: unknown, cast?: string) => {
+        sets.push(`${col} = $${i}${cast ?? ''}`);
+        params.push(val);
+        i++;
+      };
+      let stampCompleted = false;
+      if (input.status !== undefined) {
+        push('status', input.status);
+        if (input.status === 'COMPLETED' || input.status === 'DENIED') stampCompleted = true;
+      }
+      if (input.responseS3Key !== undefined) push('response_s3_key', input.responseS3Key);
+      if (input.denialReason !== undefined) push('denial_reason', input.denialReason);
+      if (input.extensionReason !== undefined) push('extension_reason', input.extensionReason);
+      if (input.extensionUntil !== undefined)
+        push('extension_until', input.extensionUntil, '::date');
+      if (input.notes !== undefined) push('notes', input.notes);
+      if (stampCompleted) {
+        push('completed_at', new Date().toISOString(), '::timestamptz');
+      }
+      if (sets.length === 0) return;
+      sets.push('updated_at = now()');
+      params.push(id);
+      params.push(tenant.schoolId);
       await tx.$executeRawUnsafe(
         `UPDATE dpo_subject_access_requests SET ${sets.join(', ')} WHERE id = $${i}::uuid AND school_id = $${i + 1}::uuid`,
         ...params,

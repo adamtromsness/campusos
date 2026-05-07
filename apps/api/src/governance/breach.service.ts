@@ -217,51 +217,63 @@ export class BreachService {
 
   async update(actor: ResolvedActor, id: string, input: UpdateBreachDto): Promise<BreachRecordDto> {
     await this.assertWriteScope(actor);
-    const existing = await this.getById(actor, id);
-    if (existing.status === 'RESOLVED') {
-      throw new BadRequestException(
-        'A RESOLVED breach is immutable. Open a new breach record for follow-up if necessary.',
-      );
-    }
     if (input.personalDataCategoriesInvolved && input.personalDataCategoriesInvolved.length === 0) {
       throw new BadRequestException(
         'personalDataCategoriesInvolved must contain at least one entry.',
       );
     }
-    const sets: string[] = [];
-    const params: unknown[] = [];
-    let i = 1;
-    const push = (col: string, val: unknown, cast?: string) => {
-      sets.push(`${col} = $${i}${cast ?? ''}`);
-      params.push(val);
-      i++;
-    };
-    if (input.breachTitle !== undefined) push('breach_title', input.breachTitle);
-    if (input.breachType !== undefined) push('breach_type', input.breachType);
-    if (input.breachStartDate !== undefined)
-      push('breach_start_date', input.breachStartDate, '::date');
-    if (input.personalDataCategoriesInvolved !== undefined)
-      push('personal_data_categories_involved', input.personalDataCategoriesInvolved, '::text[]');
-    if (input.estimatedAffectedIndividuals !== undefined)
-      push('estimated_affected_individuals', input.estimatedAffectedIndividuals);
-    if (input.riskLevel !== undefined) push('risk_level', input.riskLevel);
-    if (input.riskToIndividuals !== undefined) push('risk_to_individuals', input.riskToIndividuals);
-    if (input.supervisoryAuthorityNotificationRequired !== undefined)
-      push(
-        'supervisory_authority_notification_required',
-        input.supervisoryAuthorityNotificationRequired,
-      );
-    if (input.dataSubjectsNotificationRequired !== undefined)
-      push('data_subjects_notification_required', input.dataSubjectsNotificationRequired);
-    if (input.breachCause !== undefined) push('breach_cause', input.breachCause);
-    if (input.remediationActions !== undefined)
-      push('remediation_actions', input.remediationActions);
-    if (sets.length === 0) return existing;
-    sets.push('updated_at = now()');
     const tenant = getCurrentTenant();
-    params.push(id);
-    params.push(tenant.schoolId);
+    // REVIEW-CYCLE30 BLOCKING 5 — locked-row + status-safe transition.
+    // The schema's resolved_chk lockstep stops half-states landing, but
+    // without FOR UPDATE two DPO users can both pass the pre-check and
+    // both write to the same breach. Now the SELECT … FOR UPDATE runs
+    // inside the same tx as the write.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const lockedRows = (await tx.$queryRawUnsafe(
+        `SELECT status FROM dpo_data_breach_records
+          WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE`,
+        id,
+        tenant.schoolId,
+      )) as Array<{ status: string }>;
+      if (lockedRows.length === 0) throw new NotFoundException(`Breach ${id} not found.`);
+      if (lockedRows[0]!.status === 'RESOLVED') {
+        throw new BadRequestException(
+          'A RESOLVED breach is immutable. Open a new breach record for follow-up if necessary.',
+        );
+      }
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      let i = 1;
+      const push = (col: string, val: unknown, cast?: string) => {
+        sets.push(`${col} = $${i}${cast ?? ''}`);
+        params.push(val);
+        i++;
+      };
+      if (input.breachTitle !== undefined) push('breach_title', input.breachTitle);
+      if (input.breachType !== undefined) push('breach_type', input.breachType);
+      if (input.breachStartDate !== undefined)
+        push('breach_start_date', input.breachStartDate, '::date');
+      if (input.personalDataCategoriesInvolved !== undefined)
+        push('personal_data_categories_involved', input.personalDataCategoriesInvolved, '::text[]');
+      if (input.estimatedAffectedIndividuals !== undefined)
+        push('estimated_affected_individuals', input.estimatedAffectedIndividuals);
+      if (input.riskLevel !== undefined) push('risk_level', input.riskLevel);
+      if (input.riskToIndividuals !== undefined)
+        push('risk_to_individuals', input.riskToIndividuals);
+      if (input.supervisoryAuthorityNotificationRequired !== undefined)
+        push(
+          'supervisory_authority_notification_required',
+          input.supervisoryAuthorityNotificationRequired,
+        );
+      if (input.dataSubjectsNotificationRequired !== undefined)
+        push('data_subjects_notification_required', input.dataSubjectsNotificationRequired);
+      if (input.breachCause !== undefined) push('breach_cause', input.breachCause);
+      if (input.remediationActions !== undefined)
+        push('remediation_actions', input.remediationActions);
+      if (sets.length === 0) return;
+      sets.push('updated_at = now()');
+      params.push(id);
+      params.push(tenant.schoolId);
       await tx.$executeRawUnsafe(
         `UPDATE dpo_data_breach_records SET ${sets.join(', ')} WHERE id = $${i}::uuid AND school_id = $${i + 1}::uuid`,
         ...params,
@@ -276,25 +288,39 @@ export class BreachService {
     input: NotifySupervisoryAuthorityDto,
   ): Promise<BreachRecordDto> {
     await this.assertWriteScope(actor);
-    const existing = await this.getById(actor, id);
-    if (!existing.supervisoryAuthorityNotificationRequired) {
-      throw new BadRequestException(
-        'This breach does not require supervisory authority notification.',
-      );
-    }
-    if (existing.supervisoryAuthorityNotifiedAt) {
-      throw new BadRequestException('Supervisory authority has already been notified.');
-    }
     const tenant = getCurrentTenant();
     const notifiedAt = input.notifiedAt ?? new Date().toISOString();
+    // REVIEW-CYCLE30 BLOCKING 5 — locked-read + status-safe WHERE.
+    // The UPDATE WHERE clause requires `notified_at IS NULL` so a
+    // second concurrent caller affects 0 rows; we rowCount-check and
+    // reload the row to surface the right error.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const lockedRows = (await tx.$queryRawUnsafe(
+        `SELECT supervisory_authority_notification_required, supervisory_authority_notified_at
+           FROM dpo_data_breach_records
+          WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE`,
+        id,
+        tenant.schoolId,
+      )) as Array<{
+        supervisory_authority_notification_required: boolean;
+        supervisory_authority_notified_at: Date | null;
+      }>;
+      if (lockedRows.length === 0) throw new NotFoundException(`Breach ${id} not found.`);
+      if (!lockedRows[0]!.supervisory_authority_notification_required) {
+        throw new BadRequestException(
+          'This breach does not require supervisory authority notification.',
+        );
+      }
+      if (lockedRows[0]!.supervisory_authority_notified_at) {
+        throw new BadRequestException('Supervisory authority has already been notified.');
+      }
       await tx.$executeRawUnsafe(
         `UPDATE dpo_data_breach_records
          SET supervisory_authority_notified_at = $1::timestamptz,
              supervisory_authority_reference = $2,
              status = CASE WHEN status = 'UNDER_INVESTIGATION' THEN 'NOTIFIED' ELSE status END,
              updated_at = now()
-         WHERE id = $3::uuid AND school_id = $4::uuid`,
+         WHERE id = $3::uuid AND school_id = $4::uuid AND supervisory_authority_notified_at IS NULL`,
         notifiedAt,
         input.supervisoryAuthorityReference,
         id,
@@ -310,20 +336,30 @@ export class BreachService {
     input: NotifyDataSubjectsDto,
   ): Promise<BreachRecordDto> {
     await this.assertWriteScope(actor);
-    const existing = await this.getById(actor, id);
-    if (!existing.dataSubjectsNotificationRequired) {
-      throw new BadRequestException('This breach does not require data subject notification.');
-    }
-    if (existing.dataSubjectsNotifiedAt) {
-      throw new BadRequestException('Data subjects have already been notified.');
-    }
     const tenant = getCurrentTenant();
     const notifiedAt = input.notifiedAt ?? new Date().toISOString();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const lockedRows = (await tx.$queryRawUnsafe(
+        `SELECT data_subjects_notification_required, data_subjects_notified_at
+           FROM dpo_data_breach_records
+          WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE`,
+        id,
+        tenant.schoolId,
+      )) as Array<{
+        data_subjects_notification_required: boolean;
+        data_subjects_notified_at: Date | null;
+      }>;
+      if (lockedRows.length === 0) throw new NotFoundException(`Breach ${id} not found.`);
+      if (!lockedRows[0]!.data_subjects_notification_required) {
+        throw new BadRequestException('This breach does not require data subject notification.');
+      }
+      if (lockedRows[0]!.data_subjects_notified_at) {
+        throw new BadRequestException('Data subjects have already been notified.');
+      }
       await tx.$executeRawUnsafe(
         `UPDATE dpo_data_breach_records
          SET data_subjects_notified_at = $1::timestamptz, updated_at = now()
-         WHERE id = $2::uuid AND school_id = $3::uuid`,
+         WHERE id = $2::uuid AND school_id = $3::uuid AND data_subjects_notified_at IS NULL`,
         notifiedAt,
         id,
         tenant.schoolId,
@@ -338,17 +374,23 @@ export class BreachService {
     input: ResolveBreachDto,
   ): Promise<BreachRecordDto> {
     await this.assertWriteScope(actor);
-    const existing = await this.getById(actor, id);
-    if (existing.status === 'RESOLVED') {
-      throw new BadRequestException('Breach is already RESOLVED.');
-    }
     const tenant = getCurrentTenant();
     const resolvedAt = input.resolvedAt ?? new Date().toISOString();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const lockedRows = (await tx.$queryRawUnsafe(
+        `SELECT status FROM dpo_data_breach_records
+          WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE`,
+        id,
+        tenant.schoolId,
+      )) as Array<{ status: string }>;
+      if (lockedRows.length === 0) throw new NotFoundException(`Breach ${id} not found.`);
+      if (lockedRows[0]!.status === 'RESOLVED') {
+        throw new BadRequestException('Breach is already RESOLVED.');
+      }
       await tx.$executeRawUnsafe(
         `UPDATE dpo_data_breach_records
          SET status = 'RESOLVED', is_resolved = true, resolved_at = $1::timestamptz, updated_at = now()
-         WHERE id = $2::uuid AND school_id = $3::uuid`,
+         WHERE id = $2::uuid AND school_id = $3::uuid AND status <> 'RESOLVED'`,
         resolvedAt,
         id,
         tenant.schoolId,

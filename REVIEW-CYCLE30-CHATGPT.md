@@ -124,6 +124,83 @@ The Step 10 CAT script at `docs/cycle30-cat-script.md` walks 10 plan scenarios e
 
 ---
 
-## Round 1 — pending
+## Round 1 verdict — REJECT pending fixes (6 BLOCKING + 5 MAJOR)
 
-Reviewer to fill in the triage table once the round 1 verdict is in.
+Reviewer flagged 6 BLOCKING + 5 MAJOR. BLOCKING 1 was disputed (cache miss — `GovernanceModule` is registered at lines 46 + 116 of `app.module.ts` on `cc55a81`); the other 5 BLOCKING + 4 actionable MAJORs landed in the closeout fix commit. MAJOR 11 (privacy notice list scope) acknowledged as recommendation — current contract gates `/governance/privacy-notices` on `dpo-005:read` which only Staff + Admin hold; parent/student access is not exposed today.
+
+### Triage table
+
+| #          | Class       | Title                                                           | Disposition                                                                                                                                                                                                               |
+| ---------- | ----------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BLOCKING 1 | Wiring      | GovernanceModule not registered in AppModule                    | **Disputed** — module IS registered at `apps/api/src/app.module.ts:46,116` on `cc55a81`. The 49-route boot log + the live smoke runs prove reachability. Reviewer pulled stale `main`.                                    |
+| BLOCKING 2 | Contract    | Org-scoped DPO claim doesn't match school-scoped implementation | **Fixed** — HANDOFF-CYCLE30.md status header rewritten to make explicit that Cycle 30 ships **school/tenant-scoped** DPO surface. Org-scoped DPO is on the Phase 2 punch list (item 1) per ADR-052.                       |
+| BLOCKING 3 | Validity    | DPO-created SAR / erasure data-subject IDs not tenant-validated | **Fixed** — new `GovernanceAccess.assertDataSubjectInCurrentTenant(personId)` shared helper. Applied to `SarService.create` (DPO branch) + `ErasureService.create`. Bogus UUID returns friendly 400 with the inlined id.  |
+| BLOCKING 4 | Validity    | Consent dataSubjectId + processingActivityId not validated      | **Fixed** — `ConsentService.create` calls `assertDataSubjectInCurrentTenant` + `assertProcessingActivityInCurrentSchool({requireActive:true})`. Bogus subject + bogus + inactive activity all return 400.                 |
+| BLOCKING 5 | Concurrency | Breach notify / resolve not row-locked                          | **Fixed** — `BreachService.update`, `notifySupervisoryAuthority`, `notifyDataSubjects`, `resolve` now run `SELECT … FOR UPDATE` inside the same tx as the write, with status-safe WHERE on the UPDATE.                    |
+| BLOCKING 6 | Atomicity   | Audit log pseudonymisation not atomic with pseudonymisation log | **Fixed** — `ErasureService.pseudonymiseAuditLog` runs both writes inside ONE tenant tx (the tenant connection's search_path includes `platform`). Either both succeed or both roll back. Plus MAJOR 7 narrowing applied. |
+| MAJOR 7    | Scope       | Pseudonymisation may be too broad across platform audit logs    | **Fixed** — platform UPDATE now adds `tenant_id = $schoolId` to the WHERE clause so school-scoped DPO only pseudonymises rows for their own school's audit metadata.                                                      |
+| MAJOR 8    | Concurrency | ErasureService.update not row-locked                            | **Fixed** — same locked-row pattern as breach.update.                                                                                                                                                                     |
+| MAJOR 9    | Concurrency | SarService.update not row-locked                                | **Fixed** — same locked-row pattern.                                                                                                                                                                                      |
+| MAJOR 10   | Validity    | DPIA risk JSON shape not deeply validated                       | **Fixed** — new `DpiaRiskEntryDto` class with `@IsIn` for likelihood/severity, `@IsString @IsNotEmpty @MaxLength(2000)` for description + mitigation. `CreateDpiaDto.risksIdentified` uses `@ValidateNested @Type`.       |
+| MAJOR 11   | UX          | Privacy notice list visibility recommendation                   | DEVIATION-FOLLOW-UP — current `/governance/privacy-notices` is gated on `dpo-005:read` which only Staff + Admin hold. Public reader access to current notice via `/governance/privacy-notices/current` (Phase 2 polish).  |
+
+### Live verification (2026-05-07)
+
+**BLOCKING 3 — DPO SAR + erasure tenant validation**
+
+```
+POST /sars  dataSubjectId=<bogus uuid>  (DPO actor)
+  → 400  dataSubjectId 72375f68-… does not match a person affiliated with this school.
+POST /erasures  dataSubjectId=<bogus uuid>
+  → 400  dataSubjectId 72375f68-… does not match a person affiliated with this school.
+```
+
+**BLOCKING 4 — consent validation**
+
+```
+POST /consents  dataSubjectId=<bogus> activityId=<real>
+  → 400  dataSubjectId 72375f68-… does not match a person affiliated with this school.
+POST /consents  dataSubjectId=<Maya>  activityId=<bogus>
+  → 400  processingActivityId 72375f68-… does not match an active processing activity in this school.
+POST /consents  dataSubjectId=<Maya>  activityId=<Biometric Attendance>
+  → 201  id=019e0287... activity=Biometric Attendance Scanning
+```
+
+**BLOCKING 5 — breach concurrency**
+
+```
+5 parallel POST /breaches/{id}/notify-supervisory-authority
+  → 1×200 + 4×400 (locked-row serialisation; only the first call wins; final ref=REF-4 from one winner)
+5 parallel POST /breaches/{id}/resolve
+  → 1×200 + 4×400 (final state status=RESOLVED is_resolved=true)
+```
+
+**BLOCKING 6 — pseudonymisation atomicity**
+
+```
+POST /erasures/{id}/pseudonymise  targetTable=platform_audit_log targetField=metadata
+  → 201  rows=0 token=psd_019e028877ca733d log_id=019e0288...   (both writes committed)
+POST /erasures/{id}/pseudonymise  targetTable=sis_students  (rejected before any mutation)
+  → 400  Only platform_audit_log is supported as a pseudonymisation target in this cycle.
+  → pseudo log count unchanged (no half-state)
+```
+
+**MAJOR 9 — SAR update concurrency**
+
+```
+5 parallel PATCH /sars/{id}  status=COMPLETED
+  → 1×200 + 4×400 (locked-row serialisation; only first call lands the COMPLETED transition)
+```
+
+**MAJOR 10 — DPIA risk validation**
+
+```
+POST /dpias  risksIdentified=[{likelihood:'extreme', …}]
+  → 400  risksIdentified.0.likelihood must be one of the following values: low, medium, high
+POST /dpias  risksIdentified=[{riskDescription:'', …}]
+  → 400  risksIdentified.0.riskDescription should not be empty
+POST /dpias  risksIdentified=[{validRisk}]
+  → 201  status=SCOPING
+```
+
+All 9 actionable findings closed. Awaiting Round 2 verdict.

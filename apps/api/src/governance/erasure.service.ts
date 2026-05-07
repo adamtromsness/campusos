@@ -9,6 +9,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
+import { GovernanceAccess } from './access';
 import type {
   CreateConsentDto,
   CreateErasureDto,
@@ -42,6 +43,7 @@ export class ErasureService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permCheck: PermissionCheckService,
+    private readonly access: GovernanceAccess,
   ) {}
 
   /**
@@ -123,6 +125,9 @@ export class ErasureService {
     if (!(await this.hasDpoScope(actor))) {
       throw new ForbiddenException('Only the DPO can register an erasure request (dpo-004:write).');
     }
+    // REVIEW-CYCLE30 BLOCKING 3 — DPO cannot file an erasure against an
+    // arbitrary platform.iam_person.id; must project into this tenant.
+    await this.access.assertDataSubjectInCurrentTenant(input.dataSubjectId);
     const tenant = getCurrentTenant();
     const id = generateId();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
@@ -149,48 +154,59 @@ export class ErasureService {
     if (!(await this.hasDpoScope(actor))) {
       throw new ForbiddenException('Only the DPO can mutate erasure requests (dpo-004:write).');
     }
-    const existing = await this.getById(actor, id);
-    if (existing.status === 'COMPLETED' || existing.status === 'DENIED') {
-      throw new BadRequestException(
-        'An erasure request in COMPLETED or DENIED status is immutable.',
-      );
-    }
-    const sets: string[] = [];
-    const params: unknown[] = [];
-    let i = 1;
-    const push = (col: string, val: unknown, cast?: string) => {
-      sets.push(`${col} = $${i}${cast ?? ''}`);
-      params.push(val);
-      i++;
-    };
-    let stampCompleted = false;
-    if (input.status !== undefined) {
-      push('status', input.status);
-      if (
-        input.status === 'COMPLETED' ||
-        input.status === 'DENIED' ||
-        input.status === 'PARTIALLY_COMPLETED'
-      )
-        stampCompleted = true;
-    }
-    if (input.denialBasis !== undefined) push('denial_basis', input.denialBasis);
-    if (input.categoriesErased !== undefined)
-      push('categories_erased', input.categoriesErased, '::text[]');
-    if (input.categoriesRetained !== undefined)
-      push('categories_retained', input.categoriesRetained, '::text[]');
-    if (input.categoriesPseudonymised !== undefined)
-      push('categories_pseudonymised', input.categoriesPseudonymised, '::text[]');
-    if (input.notes !== undefined) push('notes', input.notes);
-    if (stampCompleted && !existing.completedAt) {
-      push('completed_at', new Date().toISOString(), '::timestamptz');
-      push('reviewed_by', actor.accountId, '::uuid');
-    }
-    if (sets.length === 0) return existing;
-    sets.push('updated_at = now()');
     const tenant = getCurrentTenant();
-    params.push(id);
-    params.push(tenant.schoolId);
+    // REVIEW-CYCLE30 MAJOR 8 — locked-row + status-safe transition.
+    // Same pattern as SarService.update: SELECT … FOR UPDATE inside the
+    // tx, validate the locked snapshot, apply the UPDATE in the same tx.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const lockedRows = (await tx.$queryRawUnsafe(
+        `SELECT status, completed_at FROM dpo_erasure_requests
+          WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE`,
+        id,
+        tenant.schoolId,
+      )) as Array<{ status: string; completed_at: Date | null }>;
+      if (lockedRows.length === 0) throw new NotFoundException(`Erasure request ${id} not found.`);
+      const lockedStatus = lockedRows[0]!.status;
+      const lockedCompletedAt = lockedRows[0]!.completed_at;
+      if (lockedStatus === 'COMPLETED' || lockedStatus === 'DENIED') {
+        throw new BadRequestException(
+          'An erasure request in COMPLETED or DENIED status is immutable.',
+        );
+      }
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      let i = 1;
+      const push = (col: string, val: unknown, cast?: string) => {
+        sets.push(`${col} = $${i}${cast ?? ''}`);
+        params.push(val);
+        i++;
+      };
+      let stampCompleted = false;
+      if (input.status !== undefined) {
+        push('status', input.status);
+        if (
+          input.status === 'COMPLETED' ||
+          input.status === 'DENIED' ||
+          input.status === 'PARTIALLY_COMPLETED'
+        )
+          stampCompleted = true;
+      }
+      if (input.denialBasis !== undefined) push('denial_basis', input.denialBasis);
+      if (input.categoriesErased !== undefined)
+        push('categories_erased', input.categoriesErased, '::text[]');
+      if (input.categoriesRetained !== undefined)
+        push('categories_retained', input.categoriesRetained, '::text[]');
+      if (input.categoriesPseudonymised !== undefined)
+        push('categories_pseudonymised', input.categoriesPseudonymised, '::text[]');
+      if (input.notes !== undefined) push('notes', input.notes);
+      if (stampCompleted && !lockedCompletedAt) {
+        push('completed_at', new Date().toISOString(), '::timestamptz');
+        push('reviewed_by', actor.accountId, '::uuid');
+      }
+      if (sets.length === 0) return;
+      sets.push('updated_at = now()');
+      params.push(id);
+      params.push(tenant.schoolId);
       await tx.$executeRawUnsafe(
         `UPDATE dpo_erasure_requests SET ${sets.join(', ')} WHERE id = $${i}::uuid AND school_id = $${i + 1}::uuid`,
         ...params,
@@ -203,17 +219,22 @@ export class ErasureService {
    * **AUDIT LOG PSEUDONYMISATION KEYSTONE.**
    *
    * Rewrites platform.platform_audit_log.metadata JSONB for rows where
-   * actor_id = data_subject_id, replacing the metadata with the opaque
-   * pseudonymisation token. Writes one IMMUTABLE row to
-   * dpo_pseudonymisation_log per (target_table, target_field).
+   * the data subject appears as actor or entity, replacing the metadata
+   * with the opaque pseudonymisation token. Writes one IMMUTABLE row
+   * to dpo_pseudonymisation_log per (target_table, target_field).
    *
-   * The platform_audit_log mutation runs against the platform Prisma
-   * client (cross-schema). The dpo_pseudonymisation_log INSERT runs
-   * inside the tenant tx for atomicity from the tenant's perspective —
-   * if the insert fails, we throw and the audit_log mutation is left
-   * in place but no log row materialises (caller can retry). The
-   * pseudonymisation log row IS the durable audit record per
-   * ADR-052.
+   * REVIEW-CYCLE30 BLOCKING 6 — atomic across both writes. The tenant
+   * connection's search_path is `tenant_X, platform, public`, so the
+   * UPDATE on platform.platform_audit_log AND the INSERT into
+   * dpo_pseudonymisation_log run inside one tenant transaction. If
+   * either fails the whole tx rolls back; the durable IMMUTABLE log
+   * row and the platform mutation land together or not at all.
+   *
+   * REVIEW-CYCLE30 MAJOR 7 — the platform UPDATE is school-scoped via
+   * `tenant_id = $schoolId` so a school-scoped DPO can only
+   * pseudonymise audit rows for their own school's processing. The
+   * org-scoped DPO model (Phase 2) generalises this to enumerate
+   * every school in the org.
    */
   async pseudonymiseAuditLog(
     actor: ResolvedActor,
@@ -237,21 +258,32 @@ export class ErasureService {
     }
     const tenant = getCurrentTenant();
     const erasure = await this.getById(actor, erasureRequestId);
-    const platform = this.tenantPrisma.getPlatformClient();
     const pseudonymisationToken = `psd_${generateId().replace(/-/g, '').slice(0, 16)}`;
     const replacement = JSON.stringify({ pseudonymised: pseudonymisationToken });
-
-    // Update the platform-side audit log rows.
-    const updated = (await platform.$executeRawUnsafe(
-      `UPDATE platform.platform_audit_log
-         SET metadata = $1::jsonb
-       WHERE actor_id = $2::uuid OR (entity_type = 'iam_person' AND entity_id = $2::uuid)`,
-      replacement,
-      erasure.dataSubjectId,
-    )) as number;
-
     const logId = generateId();
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+
+    // REVIEW-CYCLE30 BLOCKING 6 — atomic pseudonymisation.
+    // Both writes happen inside one tenant tx. The tenant connection's
+    // search_path is `tenant_X, platform, public`, so it can write to
+    // platform.platform_audit_log via the schema-qualified path. If
+    // either statement fails the whole tx rolls back — we cannot land
+    // a platform mutation without a corresponding IMMUTABLE log row.
+    //
+    // REVIEW-CYCLE30 MAJOR 7 — narrow the platform UPDATE to audit
+    // rows whose tenant_id matches the calling tenant. School-scoped
+    // DPO actors only pseudonymise audit metadata for their own
+    // school's audit rows; org-scoped DPO is Phase 2 and would
+    // generalise the WHERE clause to span every school in the org.
+    const updated = (await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const rowsAffected = (await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_audit_log
+            SET metadata = $1::jsonb
+          WHERE tenant_id = $3::uuid
+            AND (actor_id = $2::uuid OR (entity_type = 'iam_person' AND entity_id = $2::uuid))`,
+        replacement,
+        erasure.dataSubjectId,
+        tenant.schoolId,
+      )) as number;
       await tx.$executeRawUnsafe(
         `INSERT INTO dpo_pseudonymisation_log
          (id, school_id, erasure_request_id, data_subject_id, target_table, target_field, rows_pseudonymised, pseudonymisation_token, pseudonymised_by, notes)
@@ -262,12 +294,13 @@ export class ErasureService {
         erasure.dataSubjectId,
         input.targetTable,
         input.targetField,
-        updated,
+        rowsAffected,
         pseudonymisationToken,
         actor.accountId,
-        `Replaced ${updated} platform.platform_audit_log.metadata rows with the pseudonymisation token.`,
+        `Replaced ${rowsAffected} platform.platform_audit_log.metadata rows with the pseudonymisation token.`,
       );
-    });
+      return rowsAffected;
+    })) as number;
 
     // Refresh the row to return it.
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -277,6 +310,7 @@ export class ErasureService {
       );
     })) as Array<Record<string, unknown>>;
     const row = rows[0]!;
+    void updated;
     return {
       id: row.id as string,
       schoolId: row.school_id as string,
@@ -335,6 +369,7 @@ export class ConsentService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permCheck: PermissionCheckService,
+    private readonly access: GovernanceAccess,
   ) {}
 
   private async hasDpoScope(actor: ResolvedActor): Promise<boolean> {
@@ -412,6 +447,16 @@ export class ConsentService {
     if (!(await this.hasDpoScope(actor))) {
       throw new ForbiddenException('Only the DPO can record consent (dpo-005:write).');
     }
+    // REVIEW-CYCLE30 BLOCKING 4 — validate the data subject + the
+    // processing activity. Consent records cannot reference platform
+    // people from other tenants, nonexistent activities, or activities
+    // flagged is_active=false (consent records are time-bound to active
+    // processing per ADR-052; documenting consent on a deprecated
+    // activity is meaningless for the audit ledger).
+    await this.access.assertDataSubjectInCurrentTenant(input.dataSubjectId);
+    await this.access.assertProcessingActivityInCurrentSchool(input.processingActivityId, {
+      requireActive: true,
+    });
     const tenant = getCurrentTenant();
     const id = generateId();
     const givenAt = input.consented ? (input.consentGivenAt ?? new Date().toISOString()) : null;
