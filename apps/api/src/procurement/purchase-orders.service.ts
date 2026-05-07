@@ -8,6 +8,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
+import { FinanceValidationService } from '../finance/validation';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { isUniqueViolation } from './requisitions.service';
 import type {
@@ -101,7 +102,10 @@ const ALLOWED_PO_TRANSITIONS: Record<POStatus, POStatus[]> = {
 
 @Injectable()
 export class PurchaseOrderService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly financeValidation: FinanceValidationService,
+  ) {}
 
   private isProcurementOfficer(actor: ResolvedActor): boolean {
     if (actor.isSchoolAdmin) return true;
@@ -229,6 +233,18 @@ export class PurchaseOrderService {
     if (!actor.employeeId) {
       throw new BadRequestException('PO creation requires an employee actor');
     }
+    // REVIEW-CYCLE27 BLOCKING 2 — validate each gl_account_id is an active EXPENSE / ASSET
+    // / LIABILITY account in this tenant before any tx work. Mirrors Cycle 26
+    // FinanceValidationService.assertActiveAccount usage on AP voucher create.
+    for (const line of input.lines) {
+      if (line.glAccountId) {
+        await this.financeValidation.assertActiveAccount(
+          line.glAccountId,
+          ['EXPENSE', 'ASSET', 'LIABILITY'],
+          'lines[].glAccountId',
+        );
+      }
+    }
     const tenant = getCurrentTenant();
     const poId = generateId();
     const total = input.lines.reduce((sum, l) => sum + l.unitCost * l.quantityOrdered, 0);
@@ -248,6 +264,52 @@ export class PurchaseOrderService {
           throw new BadRequestException(
             `Vendor "${vendor[0]!.supplier_name}" is inactive — POs cannot be issued to deactivated suppliers`,
           );
+        }
+        // REVIEW-CYCLE27 BLOCKING 2 — when requisitionId is supplied, validate
+        // it belongs to this school + is in an approved state ready for ordering.
+        if (input.requisitionId) {
+          const reqRows = (await tx.$queryRawUnsafe(
+            `SELECT status FROM prc_requisitions WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
+            input.requisitionId,
+            tenant.schoolId,
+          )) as Array<{ status: string }>;
+          if (reqRows.length === 0) {
+            throw new BadRequestException(
+              'requisitionId does not match a requisition in this school',
+            );
+          }
+          const allowed = ['ADMIN_APPROVED', 'DISTRICT_APPROVED'];
+          if (!allowed.includes(reqRows[0]!.status)) {
+            throw new BadRequestException(
+              `Cannot create a PO from a requisition in status=${reqRows[0]!.status}. Requisition must be ADMIN_APPROVED or DISTRICT_APPROVED before order creation.`,
+            );
+          }
+          // Validate every supplied requisitionLineId belongs to this requisition.
+          const reqLineIds = input.lines
+            .map((l) => l.requisitionLineId)
+            .filter((id): id is string => !!id);
+          if (reqLineIds.length > 0) {
+            const matchingRows = (await tx.$queryRawUnsafe(
+              `SELECT id::text AS id FROM prc_requisition_lines WHERE id = ANY($1::uuid[]) AND requisition_id = $2::uuid`,
+              reqLineIds,
+              input.requisitionId,
+            )) as Array<{ id: string }>;
+            const matched = new Set(matchingRows.map((r) => r.id));
+            const orphans = reqLineIds.filter((id) => !matched.has(id));
+            if (orphans.length > 0) {
+              throw new BadRequestException(
+                `These requisitionLineId values do not belong to requisition ${input.requisitionId}: ${orphans.join(', ')}`,
+              );
+            }
+          }
+        } else {
+          // Standalone PO: requisitionLineId must NOT be set on any line.
+          const orphanReqLines = input.lines.filter((l) => l.requisitionLineId);
+          if (orphanReqLines.length > 0) {
+            throw new BadRequestException(
+              'Cannot supply requisitionLineId on PO lines when requisitionId is not set on the PO',
+            );
+          }
         }
         // Allocate po_number from settings sequence under FOR UPDATE
         const settingsRows = (await tx.$queryRawUnsafe(
@@ -401,10 +463,14 @@ export class PurchaseOrderService {
           actor.employeeId,
           poId,
         );
-        // Mark linked requisition as ORDERED
+        // REVIEW-CYCLE27 MAJOR 8 — tighten ORDERED cascade to APPROVED states
+        // only. A linked requisition must have reached ADMIN_APPROVED or
+        // DISTRICT_APPROVED before its status can advance to ORDERED via PO
+        // issue. DRAFT / SUBMITTED requisitions should not be quietly
+        // promoted by a PO write.
         if (r.requisition_id) {
           await tx.$executeRawUnsafe(
-            `UPDATE prc_requisitions SET status = 'ORDERED', updated_at = now() WHERE id = $1::uuid AND status IN ('ADMIN_APPROVED', 'DISTRICT_APPROVED', 'SUBMITTED', 'DRAFT')`,
+            `UPDATE prc_requisitions SET status = 'ORDERED', updated_at = now() WHERE id = $1::uuid AND status IN ('ADMIN_APPROVED', 'DISTRICT_APPROVED')`,
             r.requisition_id,
           );
         }
@@ -590,6 +656,18 @@ export class GoodsReceiptService {
           );
         }
       }
+      // REVIEW-CYCLE27 BLOCKING 3 — vendor performance counters must be
+      // PO-level for `total_orders` and `on_time_deliveries` /
+      // `late_deliveries`; only `accepted_count` / `rejected_count` are
+      // line-level. Determine whether this receipt is the first for the PO
+      // BEFORE we insert it. The bump for `total_orders` happens only on
+      // the first receipt; `on_time / late` bump happens only on the
+      // receipt that completes the PO (newStatus = RECEIVED).
+      const priorReceiptRows = (await tx.$queryRawUnsafe(
+        `SELECT count(*)::int AS n FROM prc_goods_receipts WHERE purchase_order_id = $1::uuid`,
+        poId,
+      )) as Array<{ n: number }>;
+      const isFirstReceipt = Number(priorReceiptRows[0]!.n) === 0;
       // INSERT receipt + lines
       await tx.$executeRawUnsafe(
         `INSERT INTO prc_goods_receipts (id, purchase_order_id, received_by, received_at, inspection_outcome, notes) VALUES ($1::uuid, $2::uuid, $3::uuid, now(), $4, $5)`,
@@ -616,43 +694,7 @@ export class GoodsReceiptService {
         totalAccepted += line.quantityAccepted;
         totalRejected += line.quantityRejected;
       }
-      // Update vendor performance atomically inside the same tx
-      const today = new Date().toISOString().slice(0, 10);
-      const onTime = po.expected_delivery_date ? today <= po.expected_delivery_date : true;
-      await tx.$executeRawUnsafe(
-        `INSERT INTO prc_vendor_performance (id, vendor_id, school_id, total_orders, on_time_deliveries, late_deliveries, accepted_count, rejected_count, average_quality_score, average_delivery_score, last_updated_at)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, 1, $4, $5, $6, $7,
-                 CASE WHEN ($6 + $7) > 0 THEN $6::numeric / ($6 + $7)::numeric ELSE NULL END,
-                 CASE WHEN 1 > 0 THEN $4::numeric / 1::numeric ELSE NULL END,
-                 now())
-         ON CONFLICT (vendor_id, school_id) DO UPDATE SET
-           total_orders = prc_vendor_performance.total_orders + 1,
-           on_time_deliveries = prc_vendor_performance.on_time_deliveries + $4,
-           late_deliveries = prc_vendor_performance.late_deliveries + $5,
-           accepted_count = prc_vendor_performance.accepted_count + $6,
-           rejected_count = prc_vendor_performance.rejected_count + $7,
-           average_quality_score = CASE
-             WHEN (prc_vendor_performance.accepted_count + $6 + prc_vendor_performance.rejected_count + $7) > 0
-             THEN (prc_vendor_performance.accepted_count + $6)::numeric /
-                  (prc_vendor_performance.accepted_count + $6 + prc_vendor_performance.rejected_count + $7)::numeric
-             ELSE NULL
-           END,
-           average_delivery_score = CASE
-             WHEN (prc_vendor_performance.total_orders + 1) > 0
-             THEN (prc_vendor_performance.on_time_deliveries + $4)::numeric /
-                  (prc_vendor_performance.total_orders + 1)::numeric
-             ELSE NULL
-           END,
-           last_updated_at = now()`,
-        generateId(),
-        po.vendor_id,
-        tenant.schoolId,
-        onTime ? 1 : 0,
-        onTime ? 0 : 1,
-        totalAccepted,
-        totalRejected,
-      );
-      // Recompute PO status from cumulative receipts
+      // Recompute PO status from cumulative receipts (now including this one)
       const cumRows = (await tx.$queryRawUnsafe(
         `SELECT COALESCE(SUM(pol.quantity_ordered)::int, 0) AS ordered, COALESCE(SUM((SELECT COALESCE(SUM(quantity_received), 0) FROM prc_goods_receipt_lines WHERE po_line_id = pol.id))::int, 0) AS received FROM prc_purchase_order_lines pol WHERE pol.purchase_order_id = $1::uuid`,
         poId,
@@ -663,6 +705,52 @@ export class GoodsReceiptService {
         `UPDATE prc_purchase_orders SET status = $1, updated_at = now() WHERE id = $2::uuid`,
         newStatus,
         poId,
+      );
+      // PO-level vendor-performance bumps:
+      //   * total_orders: bump only when this is the first receipt for the PO
+      //   * on_time / late: bump only when the PO transitions to RECEIVED,
+      //     using the final delivery date for the on-time check
+      //   * accepted / rejected: line-level, always bump by the receipt's totals
+      const isFinalReceipt = newStatus === 'RECEIVED';
+      const today = new Date().toISOString().slice(0, 10);
+      const onTime =
+        isFinalReceipt && (po.expected_delivery_date ? today <= po.expected_delivery_date : true);
+      const orderBump = isFirstReceipt ? 1 : 0;
+      const onTimeBump = isFinalReceipt && onTime ? 1 : 0;
+      const lateBump = isFinalReceipt && !onTime ? 1 : 0;
+      await tx.$executeRawUnsafe(
+        `INSERT INTO prc_vendor_performance (id, vendor_id, school_id, total_orders, on_time_deliveries, late_deliveries, accepted_count, rejected_count, average_quality_score, average_delivery_score, last_updated_at)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8,
+                 CASE WHEN ($7 + $8) > 0 THEN $7::numeric / ($7 + $8)::numeric ELSE NULL END,
+                 CASE WHEN $4 > 0 THEN $5::numeric / $4::numeric ELSE NULL END,
+                 now())
+         ON CONFLICT (vendor_id, school_id) DO UPDATE SET
+           total_orders = prc_vendor_performance.total_orders + $4,
+           on_time_deliveries = prc_vendor_performance.on_time_deliveries + $5,
+           late_deliveries = prc_vendor_performance.late_deliveries + $6,
+           accepted_count = prc_vendor_performance.accepted_count + $7,
+           rejected_count = prc_vendor_performance.rejected_count + $8,
+           average_quality_score = CASE
+             WHEN (prc_vendor_performance.accepted_count + $7 + prc_vendor_performance.rejected_count + $8) > 0
+             THEN (prc_vendor_performance.accepted_count + $7)::numeric /
+                  (prc_vendor_performance.accepted_count + $7 + prc_vendor_performance.rejected_count + $8)::numeric
+             ELSE NULL
+           END,
+           average_delivery_score = CASE
+             WHEN (prc_vendor_performance.total_orders + $4) > 0
+             THEN (prc_vendor_performance.on_time_deliveries + $5)::numeric /
+                  (prc_vendor_performance.total_orders + $4)::numeric
+             ELSE NULL
+           END,
+           last_updated_at = now()`,
+        generateId(),
+        po.vendor_id,
+        tenant.schoolId,
+        orderBump,
+        onTimeBump,
+        lateBump,
+        totalAccepted,
+        totalRejected,
       );
       // Mark linked requisition as RECEIVED if PO fully received.
       if (newStatus === 'RECEIVED') {

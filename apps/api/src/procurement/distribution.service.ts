@@ -306,16 +306,25 @@ export class ReturnService {
     const tenant = getCurrentTenant();
     const returnId = generateId();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Validate receipt line belongs to this school + has sufficient quantity_received
-      const rows = (await tx.$queryRawUnsafe(
-        `SELECT rl.quantity_received, COALESCE((SELECT SUM(quantity_returned)::int FROM prc_returns WHERE receipt_line_id = rl.id AND status <> 'CANCELLED'), 0) AS already_returned, po.school_id::text AS school_id FROM prc_goods_receipt_lines rl JOIN prc_goods_receipts gr ON gr.id = rl.receipt_id JOIN prc_purchase_orders po ON po.id = gr.purchase_order_id WHERE rl.id = $1::uuid LIMIT 1`,
+      // REVIEW-CYCLE27 BLOCKING 4 — lock the receipt-line row inside the
+      // tx so two concurrent return-create calls serialise on the same line
+      // and cannot both observe the same `already_returned` snapshot.
+      const lockRows = (await tx.$queryRawUnsafe(
+        `SELECT rl.quantity_received, po.school_id::text AS school_id FROM prc_goods_receipt_lines rl JOIN prc_goods_receipts gr ON gr.id = rl.receipt_id JOIN prc_purchase_orders po ON po.id = gr.purchase_order_id WHERE rl.id = $1::uuid FOR UPDATE OF rl LIMIT 1`,
         receiptLineId,
-      )) as Array<{ quantity_received: number; already_returned: number; school_id: string }>;
-      if (rows.length === 0) throw new NotFoundException('Receipt line not found');
-      if (rows[0]!.school_id !== tenant.schoolId) {
+      )) as Array<{ quantity_received: number; school_id: string }>;
+      if (lockRows.length === 0) throw new NotFoundException('Receipt line not found');
+      if (lockRows[0]!.school_id !== tenant.schoolId) {
         throw new NotFoundException('Receipt line not found');
       }
-      const remaining = Number(rows[0]!.quantity_received) - Number(rows[0]!.already_returned);
+      // Re-read already_returned AFTER the lock so a concurrent loser sees
+      // the winner's already-inserted row.
+      const usedRows = (await tx.$queryRawUnsafe(
+        `SELECT COALESCE(SUM(quantity_returned)::int, 0) AS already_returned FROM prc_returns WHERE receipt_line_id = $1::uuid AND status <> 'CANCELLED'`,
+        receiptLineId,
+      )) as Array<{ already_returned: number }>;
+      const remaining =
+        Number(lockRows[0]!.quantity_received) - Number(usedRows[0]!.already_returned);
       if (input.quantityReturned > remaining) {
         throw new BadRequestException(
           `quantity_returned ${input.quantityReturned} exceeds remaining ${remaining} on receipt line`,
@@ -524,6 +533,42 @@ export class ProcurementSettingsService {
   ): Promise<ProcurementSettingsDto> {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only school admins may update procurement settings');
+    }
+    // REVIEW-CYCLE27 BLOCKING 5 — validate settings before write so a bad
+    // PO prefix or inconsistent thresholds cannot poison future PO
+    // creation. The DTO's class-validator already enforces non-negative
+    // numerics; the prefix shape and threshold ordering are policy rules
+    // that must live at the service layer.
+    if (input.poNumberPrefix !== undefined) {
+      const trimmed = input.poNumberPrefix.trim();
+      if (trimmed.length === 0) {
+        throw new BadRequestException('poNumberPrefix must not be blank');
+      }
+      if (trimmed.length > 20) {
+        throw new BadRequestException('poNumberPrefix must be 20 characters or fewer');
+      }
+      if (!/^[A-Za-z0-9-]+$/.test(trimmed)) {
+        throw new BadRequestException(
+          'poNumberPrefix must contain only ASCII letters, digits, and dashes',
+        );
+      }
+      input.poNumberPrefix = trimmed;
+    }
+    // Resolve the post-update thresholds against the current row so
+    // partial PATCHes still get the cross-field check.
+    if (input.autoPoThreshold !== undefined || input.requireThreeQuotesAbove !== undefined) {
+      const current = await this.get();
+      const nextAuto =
+        input.autoPoThreshold !== undefined ? input.autoPoThreshold : current.autoPoThreshold;
+      const nextQuotes =
+        input.requireThreeQuotesAbove !== undefined
+          ? input.requireThreeQuotesAbove
+          : current.requireThreeQuotesAbove;
+      if (nextAuto !== null && nextQuotes !== null && nextQuotes < nextAuto) {
+        throw new BadRequestException(
+          `requireThreeQuotesAbove (${nextQuotes}) must be greater than or equal to autoPoThreshold (${nextAuto}) — quote-required threshold cannot sit below the auto-PO threshold.`,
+        );
+      }
     }
     const tenant = getCurrentTenant();
     const fields: string[] = [];

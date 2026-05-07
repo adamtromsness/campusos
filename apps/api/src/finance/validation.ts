@@ -121,6 +121,39 @@ export class FinanceValidationService {
   }
 
   /**
+   * Verifies the supplied budget_line_id exists in this tenant + the
+   * parent budget is APPROVED (not DRAFT or REJECTED). Used by Cycle
+   * 27 procurement: requisitions and POs reference budget lines for
+   * the budget commitment keystone, and a draft budget should not
+   * yet hold real procurement encumbrance.
+   */
+  async assertBudgetLineInCurrentTenant(
+    budgetLineId: string,
+    fieldName = 'budgetLineId',
+  ): Promise<void> {
+    if (!budgetLineId) throw new BadRequestException(`${fieldName} is required`);
+    const tenant = getCurrentTenant();
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        `SELECT b.status AS budget_status, a.account_code, a.account_type FROM fin_budget_lines bl JOIN fin_budgets b ON b.id = bl.budget_id JOIN fin_chart_of_accounts a ON a.id = bl.account_id WHERE bl.id = $1::uuid AND b.school_id = $2::uuid LIMIT 1`,
+        budgetLineId,
+        tenant.schoolId,
+      );
+    })) as Array<{ budget_status: string; account_code: string; account_type: string }>;
+    if (rows.length === 0) {
+      throw new BadRequestException(
+        `${fieldName} does not match a budget line in this school. Confirm the id is from an active budget.`,
+      );
+    }
+    const r = rows[0]!;
+    if (r.budget_status !== 'APPROVED') {
+      throw new BadRequestException(
+        `${fieldName} belongs to a budget in status=${r.budget_status}; only APPROVED budget lines accept procurement commitments.`,
+      );
+    }
+  }
+
+  /**
    * Verifies the supplied supplier_id exists + is_active=true in this tenant.
    */
   async assertActiveSupplier(supplierId: string, fieldName = 'supplierId'): Promise<void> {

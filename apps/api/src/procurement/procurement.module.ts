@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '../tenant/tenant.module';
 import { IamModule } from '../iam/iam.module';
 import { KafkaModule } from '../kafka/kafka.module';
+import { FinanceModule } from '../finance/finance.module';
 import { RequisitionService } from './requisitions.service';
 import { GoodsReceiptService, PurchaseOrderService } from './purchase-orders.service';
 import {
@@ -54,7 +55,7 @@ import { ProcurementController } from './procurement.controller';
  * finance manager.
  */
 @Module({
-  imports: [TenantModule, IamModule, KafkaModule],
+  imports: [TenantModule, IamModule, KafkaModule, FinanceModule],
   providers: [
     RequisitionService,
     PurchaseOrderService,

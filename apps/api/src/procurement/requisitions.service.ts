@@ -9,6 +9,7 @@ import type { PrismaClient } from '@prisma/client';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { FinanceValidationService } from '../finance/validation';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import type {
   ApproveRequisitionDto,
@@ -100,6 +101,7 @@ export class RequisitionService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
+    private readonly financeValidation: FinanceValidationService,
   ) {}
 
   private isProcurementOfficer(actor: ResolvedActor): boolean {
@@ -198,6 +200,21 @@ export class RequisitionService {
   }
 
   async create(actor: ResolvedActor, input: CreateRequisitionDto): Promise<RequisitionDto> {
+    // REVIEW-CYCLE27 BLOCKING 1 — validate soft refs before insert.
+    if (input.budgetLineId) {
+      await this.financeValidation.assertBudgetLineInCurrentTenant(
+        input.budgetLineId,
+        'budgetLineId',
+      );
+    }
+    for (const line of input.lines) {
+      if (line.preferredVendorId) {
+        await this.financeValidation.assertActiveSupplier(
+          line.preferredVendorId,
+          'lines[].preferredVendorId',
+        );
+      }
+    }
     const tenant = getCurrentTenant();
     const reqId = generateId();
     const totalEst = input.lines.reduce(
@@ -229,6 +246,13 @@ export class RequisitionService {
     reqId: string,
     input: CreateRequisitionLineDto,
   ): Promise<RequisitionDto> {
+    // REVIEW-CYCLE27 BLOCKING 1 — validate preferred vendor before insert.
+    if (input.preferredVendorId) {
+      await this.financeValidation.assertActiveSupplier(
+        input.preferredVendorId,
+        'preferredVendorId',
+      );
+    }
     const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = (await tx.$queryRawUnsafe(

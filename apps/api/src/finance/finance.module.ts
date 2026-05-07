@@ -57,6 +57,13 @@ import { FinanceController } from './finance.controller';
     GLConsumer,
   ],
   controllers: [FinanceController],
-  exports: [FundService, ChartOfAccountsService, PeriodService, PostingService, BudgetService],
+  exports: [
+    FundService,
+    ChartOfAccountsService,
+    PeriodService,
+    PostingService,
+    BudgetService,
+    FinanceValidationService,
+  ],
 })
 export class FinanceModule {}
