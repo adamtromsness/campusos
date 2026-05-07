@@ -31,7 +31,12 @@ export class TraceIdMiddleware implements NestMiddleware {
     const upstreamSpan = req.header(SPAN_HEADER);
     const traceId = isWellFormed(upstreamTrace) ? upstreamTrace! : generateId();
     const spanId = isWellFormed(upstreamSpan) ? upstreamSpan! : generateId();
-    const correlationId = generateId();
+    // REVIEW-CYCLE31 BLOCKING 1: correlation_id MUST equal trace_id for
+    // request-originated events so an operator can take the
+    // X-Trace-Id from an HTTP response and join it directly to the
+    // Kafka envelope correlation_id. Worker-originated emits (no
+    // request context) generate their own correlation_id at emit time.
+    const correlationId = traceId;
 
     res.setHeader(TRACE_HEADER, traceId);
     res.setHeader(SPAN_HEADER, spanId);

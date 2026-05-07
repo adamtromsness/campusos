@@ -1,6 +1,6 @@
 # Cycle 31 Handoff — Performance & Observability
 
-**Status:** Cycle 31 **COMPLETE pending peer review** — Wave 8 (Hardening) opening cycle. The first ops cycle in CampusOS — **zero new business tables**. Cycle 31 instruments, optimises, and stress-tests the ~418 tables and ~936 endpoints built across the prior 30 cycles. The deliverable is operational readiness, not a feature: structured logging with correlation IDs across every request/event chain, OpenTelemetry distributed tracing, Prometheus metrics + Grafana dashboards, load testing every critical hot path with p95 baselines, pg_stat_statements query optimisation, partition activation for high-volume tables, PgBouncer schema-per-tenant tuning, Redis caching for hottest read paths, DLQ admin dashboard wiring, consumer envelope validation, circuit breaker implementation, error budget SLOs per module tier, and the SRE alerting pipeline. **The operational readiness gate before pilot.**
+**Status:** Cycle 31 **REVIEW-CYCLE31 Round 1 fixes applied** — Round 1 against `cycle31-complete` (`1e2252a`) returned **Reject pending fixes** with 5 BLOCKING + 5 MAJOR. All 5 BLOCKING + the 1 actionable MAJOR (#9 circuit-breaker scope claim) landed in the closeout fix commit. Awaiting Round 2 verdict. — Wave 8 (Hardening) opening cycle. The first ops cycle in CampusOS — **zero new business tables**. Cycle 31 instruments, optimises, and stress-tests the ~418 tables and ~936 endpoints built across the prior 30 cycles. The deliverable is operational readiness, not a feature: structured logging with correlation IDs across every request/event chain, OpenTelemetry distributed tracing, Prometheus metrics + Grafana dashboards, load testing every critical hot path with p95 baselines, pg_stat_statements query optimisation, partition activation for high-volume tables, PgBouncer schema-per-tenant tuning, Redis caching for hottest read paths, DLQ admin dashboard wiring, consumer envelope validation, circuit breaker implementation, error budget SLOs per module tier, and the SRE alerting pipeline. **The operational readiness gate before pilot.**
 
 **Branch:** `main`
 **Plan reference:** `docs/campusos-cycle31-implementation-plan.html`
@@ -168,6 +168,30 @@ Several items previously carried as Phase 2 backlog now have in-repo answers:
 - **1** new launchpad tile (`Platform`, `sys-001:admin`-gated)
 - **1** new lint gate (`pnpm lint:logs`)
 - **0** cross-schema FK additions
+
+---
+
+## REVIEW-CYCLE31 Round 1 — fix log
+
+The reviewer pulled the pinned `cycle31-complete` state and returned Reject pending fixes with 5 BLOCKING + 5 MAJOR. All 5 BLOCKING + 1 actionable MAJOR addressed:
+
+**BLOCKING 1** — Kafka `correlation_id` now equals HTTP `trace_id`. `apps/api/src/observability/trace-id.middleware.ts` sets `correlationId = traceId` so an operator can take `X-Trace-Id` from a response and join it directly to the Kafka envelope. Worker-originated emits (no request context) keep generating their own correlation_id at emit time.
+
+**BLOCKING 2** — Platform Admin routes are now genuinely platform-scoped. New `apps/api/src/auth/platform-scoped.decorator.ts` exports `@PlatformScoped()`. Three integration points: tenant-resolver middleware exempts `/api/v1/admin/platform` and `/api/v1/admin/dlq`; `TenantGuard` short-circuits the tenant-context + frozen check; `PermissionGuard` resolves the PLATFORM IAM scope only via new `PermissionCheckService.resolvePlatformScope()`. A school admin holding `sys-001:admin` at SCHOOL scope can no longer reach these surfaces.
+
+**BLOCKING 3** — `KafkaProducerService.emitRaw()` now THROWS a new `KafkaProducerNotConnectedError` when the broker is unavailable. The best-effort `emit()` path is unchanged; only the recovery-critical `emitRaw()` enforces the strict contract.
+
+**BLOCKING 4** — `DlqService.replay()` and `discard()` are atomic + status-safe. Replay runs three phases: (1) atomic claim via `UPDATE … WHERE resolved_at IS NULL` so exactly one of N concurrent admins wins, (2) Kafka emit, with revert-to-PENDING on failure, (3) finalise REPLAYED only after confirmed send. `KafkaProducerNotConnectedError` is translated to HTTP 503 so the operator can retry. `discard()` uses the same conditional-UPDATE pattern in a single statement.
+
+**BLOCKING 5** — `packages/database/prisma/tenant/migrations/101_partition_activation.sql` deleted. The destructive `DROP TABLE … CASCADE` on `trn_ridership_records` could have dropped seeded data + dependent objects in any environment that wasn't completely empty. The non-destructive replacement is the deployment-time procedure in `infra/partition-activation-runbook.md` — rename → create → copy → row-count-verify → drop, wrapped in `BEGIN; ... COMMIT;` so a failure rolls back. Demo + test tenants converted via the prior provision retain the partitioned shape; fresh provisions use the original Cycle 19 schema and convert via the runbook.
+
+**BLOCKING 6** — `KafkaConsumerService.subscribe()` enforces envelope validation centrally. Default ON via the `validateEnvelope?: boolean` option; failures park to DLQ with `error_class=EnvelopeValidationError` before the handler runs. Every existing consumer (17+) gets the validation for free with no per-consumer retrofit.
+
+**MAJOR 7** — `/metrics` deployment-time ACL guidance added to `infra/runbooks/oncall.md`. The endpoint is intentionally public + tenant-exempt for Prometheus scraping; production deployments must restrict network access to the scraper itself. Tenant labels remain — they're load-bearing for the Step 8 SLO dashboards.
+
+**MAJOR 9** — circuit-breaker scope claim narrowed. **Cycle 31 ships the circuit-breaker LIBRARY** (`apps/api/src/observability/circuit-breaker.ts`), not a per-dependency integration. The DLQ replay path uses the breaker contract via `KafkaProducerNotConnectedError`; integration into Redis / Kafka producer / Stripe / AI-gateway / push-provider call sites is per-cycle work as those domains evolve. The Step 8 alert rule (`CircuitBreakerOpen` PAGE) is forward-compatible.
+
+**MAJORs 8 + 10** — already on the broader Phase 2 punch list. No code change.
 
 ---
 

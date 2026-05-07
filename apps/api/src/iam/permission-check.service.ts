@@ -160,4 +160,19 @@ export class PermissionCheckService {
 
     return ids;
   }
+
+  /**
+   * REVIEW-CYCLE31 BLOCKING 2 — resolve only the PLATFORM IAM scope.
+   * Used by PermissionGuard for routes marked `@PlatformScoped()`
+   * (e.g. /admin/platform/*, /admin/dlq/*) so the gate is solely
+   * the PLATFORM-scope role assignment — a school admin cannot reach
+   * these surfaces by piggy-backing on a school scope chain.
+   */
+  async resolvePlatformScope(): Promise<string | null> {
+    var platformScope = await this.prisma.iamScope.findFirst({
+      where: { scopeType: { code: 'PLATFORM' }, isActive: true },
+      select: { id: true },
+    });
+    return platformScope?.id ?? null;
+  }
 }

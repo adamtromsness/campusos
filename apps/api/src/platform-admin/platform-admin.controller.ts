@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { PlatformScoped } from '../auth/platform-scoped.decorator';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { PlatformAdminService } from './platform-admin.service';
 
@@ -16,6 +17,7 @@ import { PlatformAdminService } from './platform-admin.service';
  */
 @ApiTags('Platform Admin')
 @Controller('admin/platform')
+@PlatformScoped()
 export class PlatformAdminController {
   constructor(private readonly svc: PlatformAdminService) {}
 

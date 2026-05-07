@@ -196,6 +196,13 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
    *
    * Bypasses prefixedTopic() because the DLQ row stores the wire
    * topic directly.
+   *
+   * REVIEW-CYCLE31 BLOCKING 3 — unlike the best-effort `emit()` path,
+   * `emitRaw()` THROWS when the broker is not connected. DLQ replay
+   * is the operational recovery path; silently dropping the replay
+   * while the caller marks the row resolved would defeat the audit.
+   * Callers must catch `KafkaProducerNotConnectedError` and leave the
+   * DLQ row unresolved (see DlqService.replay).
    */
   async emitRaw(args: {
     topic: string;
@@ -203,8 +210,8 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
     envelope: { event_id?: string; event_type?: string; tenant_id?: string; [k: string]: unknown };
   }): Promise<void> {
     if (!this.connected || !this.producer) {
-      this.logger.warn('[skip-emitRaw] ' + args.topic + ' — broker unavailable');
-      return;
+      this.logger.warn('[fail-emitRaw] ' + args.topic + ' — broker unavailable');
+      throw new KafkaProducerNotConnectedError(args.topic);
     }
     const headers: Record<string, string> = {};
     if (args.envelope.event_id) headers['event-id'] = args.envelope.event_id;
@@ -214,5 +221,18 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
       topic: args.topic,
       messages: [{ key: args.key, value: JSON.stringify(args.envelope), headers }],
     });
+  }
+}
+
+/**
+ * Thrown by `KafkaProducerService.emitRaw()` when the Kafka broker is
+ * not connected. DLQ replay (and any other recovery path that depends
+ * on confirmed delivery) MUST treat this as a hard failure rather than
+ * silently mark the row resolved. Per REVIEW-CYCLE31 BLOCKING 3.
+ */
+export class KafkaProducerNotConnectedError extends Error {
+  constructor(public readonly topic: string) {
+    super('Kafka broker is not connected; cannot emitRaw to ' + topic);
+    this.name = 'KafkaProducerNotConnectedError';
   }
 }

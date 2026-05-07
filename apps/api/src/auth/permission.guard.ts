@@ -1,6 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from './require-permission.decorator';
+import { PLATFORM_SCOPED_KEY } from './platform-scoped.decorator';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 
@@ -49,25 +50,42 @@ export class PermissionGuard implements CanActivate {
       throw new ForbiddenException('Authentication context missing');
     }
 
-    // Get current tenant scope
-    var tenant: any;
-    try {
-      tenant = getCurrentTenant();
-    } catch (e) {
-      // No tenant context — might be a platform-scoped endpoint
-      // For now, deny access without a scope
-      throw new ForbiddenException('No tenant scope for permission check');
-    }
+    // REVIEW-CYCLE31 BLOCKING 2 — platform-scoped routes resolve
+    // permissions against the PLATFORM IAM scope only. A school admin
+    // with sys-001:admin at SCHOOL scope cannot reach /admin/platform
+    // or /admin/dlq via piggy-backing on the school → platform chain.
+    var isPlatformScoped = this.reflector.getAllAndOverride<boolean>(PLATFORM_SCOPED_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    var scopeIds: string[];
+    if (isPlatformScoped) {
+      var platformScopeId = await this.permissionCheckService.resolvePlatformScope();
+      if (!platformScopeId) {
+        throw new ForbiddenException('No PLATFORM IAM scope configured for this request');
+      }
+      scopeIds = [platformScopeId];
+    } else {
+      // Get current tenant scope
+      var tenant: any;
+      try {
+        tenant = getCurrentTenant();
+      } catch (e) {
+        // No tenant context — might be a platform-scoped endpoint
+        // For now, deny access without a scope
+        throw new ForbiddenException('No tenant scope for permission check');
+      }
 
-    // Resolve the scope chain for this request. Platform Admins are assigned
-    // at PLATFORM scope, school-scoped roles at SCHOOL scope, and so on. We
-    // check from most-specific (school) to least-specific (platform) so a
-    // Platform Admin acting against a tenant inherits their platform-level
-    // permissions, while school-scoped users are bounded to their school.
-    var scopeIds = await this.permissionCheckService.resolveScopeChain(tenant.schoolId);
+      // Resolve the scope chain for this request. Platform Admins are assigned
+      // at PLATFORM scope, school-scoped roles at SCHOOL scope, and so on. We
+      // check from most-specific (school) to least-specific (platform) so a
+      // Platform Admin acting against a tenant inherits their platform-level
+      // permissions, while school-scoped users are bounded to their school.
+      scopeIds = await this.permissionCheckService.resolveScopeChain(tenant.schoolId);
 
-    if (scopeIds.length === 0) {
-      throw new ForbiddenException('No IAM scope configured for this request');
+      if (scopeIds.length === 0) {
+        throw new ForbiddenException('No IAM scope configured for this request');
+      }
     }
 
     var hasPermission = false;

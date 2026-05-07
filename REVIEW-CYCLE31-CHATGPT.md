@@ -2,8 +2,8 @@
 
 **Cycle:** 31 — Performance & Observability (Wave 8 opening). The first
 ops cycle in CampusOS — **zero new business tables**.
-**Round 1 commit:** to be filled in after the closeout commit lands.
-**Round 1 verdict:** _pending_.
+**Round 1 commit:** `cycle31-complete` at `1e2252a`.
+**Round 1 verdict:** **Reject pending fixes** — 5 BLOCKING + 5 MAJOR; one MAJOR (#7 `/metrics` deployment ACL) was a follow-up doc note rather than a code fix. All 5 BLOCKING + 1 actionable MAJOR (#9 circuit breaker scope claim) addressed in the closeout commit.
 **Live verification reference:** `tenant_demo` 2026-05-07.
 
 ---
@@ -146,16 +146,53 @@ pnpm --filter @campusos/api build && pnpm --filter @campusos/web build
 
 ---
 
-## Triage table
+## Triage table — Round 1
 
-| #   | Severity | Item | Status |
-| --- | -------- | ---- | ------ |
-|     |          |      |        |
+| #   | Severity | Item                                                        | Verdict | Fix commit / Disposition                                         |
+| --- | -------- | ----------------------------------------------------------- | ------- | ---------------------------------------------------------------- |
+| 1   | BLOCKING | Kafka `correlation_id` ≠ HTTP `trace_id`                    | VALID   | `trace-id.middleware.ts` — `correlationId = traceId`             |
+| 2   | BLOCKING | Platform Admin routes still tenant-dependent                | VALID   | `@PlatformScoped()` decorator + middleware exemption + guards    |
+| 3   | BLOCKING | DLQ replay can mark resolved when broker down               | VALID   | `emitRaw()` throws `KafkaProducerNotConnectedError`              |
+| 4   | BLOCKING | DLQ replay/discard not row-locked / status-safe             | VALID   | Conditional `UPDATE … WHERE resolved_at IS NULL` two-phase       |
+| 5   | BLOCKING | Partition migration is destructive (`DROP TABLE … CASCADE`) | VALID   | Migration deleted; runbook is authoritative deployment-time path |
+| 6   | BLOCKING | Envelope validation helper not enforced in shared consumer  | VALID   | `KafkaConsumerService.subscribe()` validates by default          |
+| 7   | MAJOR    | `/metrics` is public and includes tenant labels             | DOC     | Deployment-time ACL note added to runbook                        |
+| 8   | MAJOR    | IAM Redis invalidation Phase 2                              | KNOWN   | Documented; the role-change consumer is already on punch list    |
+| 9   | MAJOR    | Circuit breaker library shipped, integration partial        | DOC     | Handoff scope claim narrowed to "library + DLQ replay path"      |
+| 10  | MAJOR    | Kafka producer remains best-effort                          | KNOWN   | Phase 2 outbox; explicitly out of Cycle 31 scope                 |
 
-(Filled in by the reviewer.)
+## Round 1 fix verification trail
+
+**BLOCKING 1 — correlation_id == trace_id.** Single-line change in `apps/api/src/observability/trace-id.middleware.ts`: `const correlationId = traceId;`. The downstream `envelopeFromOptions()` already prefers `getTraceContext()?.correlationId`, so HTTP-originated emits now carry the same correlation_id as the response `X-Trace-Id`. Worker-originated emits (no request context) generate their own correlation_id at emit time as before — `eventEnvelope.ts` falls back to a fresh UUIDv7 when the trace context is empty.
+
+**BLOCKING 2 — `@PlatformScoped()` decorator.** New `apps/api/src/auth/platform-scoped.decorator.ts` exports `PlatformScoped()` + `PLATFORM_SCOPED_KEY`. Three integration points:
+
+- `apps/api/src/tenant/tenant-resolver.middleware.ts` exempts `/api/v1/admin/platform` and `/api/v1/admin/dlq` from tenant resolution. Callers do not need `X-Tenant-Subdomain`.
+- `apps/api/src/tenant/tenant.guard.ts` short-circuits when `@PlatformScoped()` is set so frozen-tenant + tenant-context checks don't apply.
+- `apps/api/src/auth/permission.guard.ts` resolves only the PLATFORM IAM scope (via new `PermissionCheckService.resolvePlatformScope()`) for platform-scoped routes. A school admin with `sys-001:admin` at SCHOOL scope cannot reach `/admin/platform` via the school → platform chain.
+- `DlqController` and `PlatformAdminController` carry `@PlatformScoped()` at the controller level.
+
+**BLOCKING 3 — `emitRaw()` throws on disconnected broker.** `apps/api/src/kafka/kafka-producer.service.ts` exports `KafkaProducerNotConnectedError` and `emitRaw()` now throws it (rather than logging and returning) when the producer is not connected. The best-effort `emit()` path is unchanged.
+
+**BLOCKING 4 — DLQ replay/discard atomic two-phase.** `DlqService.replay()` now runs a three-phase pattern: (1) atomic claim via `UPDATE … SET resolution = 'REPLAYING' WHERE id = $1 AND resolved_at IS NULL` — exactly one of N concurrent admins wins; loser sees `BadRequestException`. (2) `emitRaw()`. If it throws, revert the row to PENDING. `KafkaProducerNotConnectedError` is translated to HTTP 503 so the operator can retry. (3) Finalise REPLAYED only after confirmed send. `discard()` uses the same conditional-UPDATE pattern in a single statement.
+
+**BLOCKING 5 — partition migration removed.** `packages/database/prisma/tenant/migrations/101_partition_activation.sql` has been deleted. The runbook at `infra/partition-activation-runbook.md` is now the authoritative deployment-time procedure with a non-destructive rename → create → copy → row-count verify → drop pattern wrapped in `BEGIN; ... COMMIT;` so a failure rolls back. Demo and test tenants already converted via the prior provision retain the partitioned shape; fresh provisions use the original Cycle 19 schema and convert via the runbook only.
+
+**BLOCKING 6 — central envelope validation.** `apps/api/src/kafka/kafka-consumer.service.ts` now calls `assertValidEnvelope()` on every consumed message before dispatching to the handler. Default ON via `validateEnvelope?: boolean` option (defaults to true). Failures park to DLQ with `error_class=EnvelopeValidationError`. Every existing consumer registered via `subscribe()` gets the validation for free; no per-consumer retrofit required.
+
+**MAJOR 7 — `/metrics` ACL note.** `infra/runbooks/oncall.md` updated to call out the deployment-time ACL requirement. The endpoint is intentionally public + tenant-exempt for Prometheus scraping; production deployments must restrict network access to the scraper itself.
+
+**MAJOR 9 — circuit breaker scope claim narrowed.** `HANDOFF-CYCLE31.md` clarified that Cycle 31 ships the circuit-breaker library + integration into the DLQ replay path; integration into Redis / Kafka producer / Stripe / external dependency call sites is per-cycle work as those domains evolve. The Step 8 alert rule (`CircuitBreakerOpen` PAGE) is forward-compatible.
+
+**MAJORs 8 + 10** — already on the broader Phase 2 punch list. No code change.
 
 ---
 
-## Round 2 verification trail
+## Open follow-ups
 
-(Appended after closeout commit.)
+These are the deferred items the reviewer raised that intentionally stay carried as Phase 2 backlog:
+
+- IAM Redis invalidation consumer (`iam.role_assignment.changed`) — Phase 2; today the 5-minute TTL is the staleness window.
+- Circuit-breaker integration into Redis / Kafka producer / Stripe / external dependency call sites — per-cycle work.
+- Kafka producer transactional outbox — Cycle 32 (Multi-Region & DR).
+- `/metrics` deployment ACL — runbook clarification only; ops responsibility.

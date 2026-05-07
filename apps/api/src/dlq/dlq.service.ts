@@ -1,6 +1,16 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import {
+  KafkaProducerNotConnectedError,
+  KafkaProducerService,
+} from '../kafka/kafka-producer.service';
 
 /**
  * Cycle 31 Step 7 — DLQ Service.
@@ -70,6 +80,20 @@ export class DlqService {
    * DLQ row is the wire topic (already env-prefixed), so we emit
    * raw via the producer's bypass path. Marks the DLQ row resolved
    * for audit.
+   *
+   * REVIEW-CYCLE31 BLOCKING 3 + 4 — three guarantees:
+   *   1. Atomic transition. The status flip uses a conditional
+   *      `UPDATE ... WHERE resolved_at IS NULL RETURNING *` so two
+   *      concurrent admins racing on the same row produce exactly
+   *      one winner; the loser sees `BadRequestException` ("already
+   *      resolved").
+   *   2. Replay-then-finalise via two-phase resolution. We mark the
+   *      row REPLAYING first, then attempt the Kafka emit. If the
+   *      emit succeeds we finalise to REPLAYED; if it throws we
+   *      revert the row to PENDING so the operator can retry.
+   *   3. emitRaw THROWS on a disconnected broker (BLOCKING 3) so we
+   *      never finalise REPLAYED without a confirmed send. The
+   *      caller surfaces a 503 via `HttpException(SERVICE_UNAVAILABLE)`.
    */
   async replay(id: string, actorAccountId: string): Promise<void> {
     const row = await this.platform.platformDlqMessage.findUnique({ where: { id } });
@@ -85,7 +109,54 @@ export class DlqService {
         'DLQ payload is not a valid envelope; cannot replay automatically. Use discard.',
       );
     }
-    await this.kafka.emitRaw({ topic: row.topic, key: row.eventId ?? null, envelope });
+
+    // Phase 1: atomic claim. The conditional WHERE resolved_at IS NULL
+    // means only one of N concurrent admins wins.
+    const claimed = await this.platform.$executeRawUnsafe(
+      `UPDATE platform.platform_dlq_messages
+          SET resolved_at = NULL,
+              resolved_by = $1,
+              resolution = 'REPLAYING'
+        WHERE id = $2::uuid AND resolved_at IS NULL`,
+      actorAccountId,
+      id,
+    );
+    if (claimed === 0) {
+      throw new BadRequestException(
+        'DLQ message has already been claimed by another admin or resolved.',
+      );
+    }
+
+    // Phase 2: emit. emitRaw throws on a disconnected broker — when it
+    // does, revert the row back to PENDING so the operator can retry.
+    try {
+      await this.kafka.emitRaw({ topic: row.topic, key: row.eventId ?? null, envelope });
+    } catch (err) {
+      await this.platform.$executeRawUnsafe(
+        `UPDATE platform.platform_dlq_messages
+            SET resolved_by = NULL,
+                resolution = NULL
+          WHERE id = $1::uuid AND resolution = 'REPLAYING'`,
+        id,
+      );
+      if (err instanceof KafkaProducerNotConnectedError) {
+        throw new HttpException(
+          'Kafka broker unavailable; DLQ message left unresolved. Retry once the broker is back.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+      this.logger.error(
+        `Replay failed for DLQ ${id}: ${(err as Error).stack ?? (err as Error).message}`,
+      );
+      throw new HttpException(
+        `Replay failed: ${(err as Error).message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    // Phase 3: finalise REPLAYED. Defence-in-depth — the row is still
+    // claimed (resolved_by populated, resolution=REPLAYING) so this
+    // is unconditional.
     await this.platform.platformDlqMessage.update({
       where: { id },
       data: {
@@ -103,20 +174,29 @@ export class DlqService {
     });
   }
 
+  /**
+   * REVIEW-CYCLE31 BLOCKING 4 — atomic conditional-UPDATE pattern
+   * mirrors `replay()`. The single `UPDATE ... WHERE resolved_at IS NULL
+   * RETURNING ...` is the lock-free way to enforce "exactly one winner"
+   * across racing admins.
+   */
   async discard(id: string, actorAccountId: string, reason: string): Promise<void> {
-    const row = await this.platform.platformDlqMessage.findUnique({ where: { id } });
-    if (!row) throw new NotFoundException(`DLQ message ${id} not found.`);
-    if (row.resolvedAt) {
+    const exists = await this.platform.platformDlqMessage.findUnique({ where: { id } });
+    if (!exists) throw new NotFoundException(`DLQ message ${id} not found.`);
+
+    const updated = await this.platform.$executeRawUnsafe(
+      `UPDATE platform.platform_dlq_messages
+          SET resolved_at = now(),
+              resolved_by = $1,
+              resolution = $2
+        WHERE id = $3::uuid AND resolved_at IS NULL`,
+      actorAccountId,
+      `DISCARDED: ${reason}`.slice(0, 500),
+      id,
+    );
+    if (updated === 0) {
       throw new BadRequestException('DLQ message has already been resolved.');
     }
-    await this.platform.platformDlqMessage.update({
-      where: { id },
-      data: {
-        resolvedAt: new Date(),
-        resolvedBy: actorAccountId,
-        resolution: `DISCARDED: ${reason}`,
-      },
-    });
   }
 
   /**

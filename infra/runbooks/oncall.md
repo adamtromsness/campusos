@@ -33,6 +33,21 @@ Tracking is monthly. The freeze auto-clears at the start of the next calendar mo
 | CRITICAL | Slack     | Investigate within 15 minutes      |
 | PAGE     | PagerDuty | Page on-call (any time)            |
 
+## Deployment-time access control
+
+- **`/metrics`** is public and tenant-exempt by design (Prometheus
+  scrape contract). The metrics include per-tenant labels —
+  `http_requests_total{tenant_id=...}` is a scrape-axis used by the
+  alert rules and SLO dashboards. Production deployments MUST
+  restrict network access to `/metrics` to the Prometheus scraper
+  itself (network ACL / VPC SG / service mesh policy). Internet-
+  reachable `/metrics` would leak per-tenant traffic shape.
+- **`/api/v1/admin/platform/*`** and **`/api/v1/admin/dlq/*`** are
+  platform-scoped. They skip tenant resolution and the gate is the
+  PLATFORM-scope `sys-001:admin` permission only (REVIEW-CYCLE31
+  BLOCKING 2). DLQ payloads may contain PII — the surface stays
+  Platform-Admin only by design.
+
 ## Useful one-liners
 
 Tail structured logs filtered to errors:

@@ -140,6 +140,14 @@ export class TenantResolverMiddleware implements NestMiddleware {
       // design, queried from the marketing surface before any subdomain is
       // known.
       '/api/v1/enrollment/search',
+      // REVIEW-CYCLE31 BLOCKING 2 — platform-scoped admin routes are
+      // cross-tenant by definition. They must not be coupled to a
+      // tenant header / subdomain; permission is gated on the platform
+      // IAM scope (sys-001:admin) at PermissionGuard. The DLQ surface
+      // exposes payloads from every tenant, and the platform admin
+      // dashboard reads cross-tenant operational state.
+      '/api/v1/admin/platform',
+      '/api/v1/admin/dlq',
     ];
 
     for (var i = 0; i < exemptPrefixes.length; i++) {

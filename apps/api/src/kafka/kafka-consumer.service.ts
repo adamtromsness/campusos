@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs
 import { Consumer, Kafka } from 'kafkajs';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
+import { assertValidEnvelope, EnvelopeValidationError } from './envelope-validator';
 
 /**
  * Message shape delivered to a registered handler. Headers are flattened to
@@ -22,7 +23,18 @@ interface Subscription {
   topics: string[];
   groupId: string;
   handler: MessageHandler;
+  validateEnvelope?: boolean;
 }
+
+/**
+ * REVIEW-CYCLE31 BLOCKING 6 — Cycle 31 Step 7 envelope validation is
+ * enforced centrally here unless a subscription opts out via
+ * `validateEnvelope: false`. Default ON so every consumer gets the
+ * ADR-057 contract for free; legacy consumers that haven't been
+ * migrated yet can opt out, but their handoff line should explicitly
+ * call out that they accept their own envelope shape.
+ */
+const ENVELOPE_VALIDATION_DEFAULT = true;
 
 /**
  * KafkaConsumerService — Kafka consumer registry with bounded retry + DLQ.
@@ -112,11 +124,22 @@ export class KafkaConsumerService implements OnModuleInit, OnApplicationShutdown
     groupId: string;
     handler: MessageHandler;
     fromBeginning?: boolean;
+    /**
+     * REVIEW-CYCLE31 BLOCKING 6 — when true (default) every message
+     * is run through assertValidEnvelope() before dispatching to the
+     * handler. Failures park to DLQ with error_class=ENVELOPE_INVALID
+     * and never reach the handler. Set false only if the consumer
+     * accepts a non-ADR-057 envelope shape.
+     */
+    validateEnvelope?: boolean;
   }): Promise<void> {
+    var validateEnvelope =
+      opts.validateEnvelope === undefined ? ENVELOPE_VALIDATION_DEFAULT : opts.validateEnvelope;
     var sub: Subscription = {
       topics: opts.topics,
       groupId: opts.groupId,
       handler: opts.handler,
+      validateEnvelope: validateEnvelope,
     };
     this.pendingSubscriptions.push(sub);
 
@@ -170,6 +193,23 @@ export class KafkaConsumerService implements OnModuleInit, OnApplicationShutdown
                 e,
                 1,
               );
+              return;
+            }
+          }
+          // REVIEW-CYCLE31 BLOCKING 6 — central envelope validation.
+          // The helper validates every ADR-057 field. Validation
+          // failures cannot succeed on retry; park directly to DLQ
+          // with error_class=ENVELOPE_INVALID and advance the offset.
+          if (validateEnvelope) {
+            try {
+              assertValidEnvelope(payload);
+            } catch (e: any) {
+              var validationErr =
+                e instanceof EnvelopeValidationError ? e : new EnvelopeValidationError(String(e));
+              logger.warn(
+                'Envelope validation failed on ' + params.topic + ': ' + validationErr.message,
+              );
+              await self.dlq(groupId, params, headers, payload, validationErr, 1);
               return;
             }
           }

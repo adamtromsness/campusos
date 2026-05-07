@@ -29,20 +29,16 @@ SELECT 1 FROM information_schema.tables
    AND table_name = 'platform_dlq_messages';
 -- expect: 1 row
 
--- 0c trn_ridership_records is now RANGE-partitioned (cycle-31 step 5
---    worked-example partition activation; runbook covers the rest).
+-- 0c partition activation is RUNBOOK-ONLY in Cycle 31 (REVIEW-CYCLE31
+--    BLOCKING 5). The earlier destructive 101_partition_activation.sql
+--    migration was removed. Tenants previously provisioned with that
+--    migration retain the partitioned shape; fresh provisions use the
+--    Cycle 19 non-partitioned schema and convert via
+--    infra/partition-activation-runbook.md only.
 SELECT relkind FROM pg_class
  WHERE relnamespace = 'tenant_demo'::regnamespace
    AND relname = 'trn_ridership_records';
--- expect: 'p'
-
--- 0d every cycle-31 partition leaf is attached + within range.
-SELECT COUNT(*) FROM pg_inherits i
-  JOIN pg_class p ON p.oid = i.inhparent
-  JOIN pg_namespace n ON n.oid = p.relnamespace
- WHERE n.nspname = 'tenant_demo'
-   AND p.relname = 'trn_ridership_records';
--- expect: 24 (monthly leaves 2025-08 through 2027-07)
+-- 'p' if previously converted; 'r' on a fresh provision.
 ```
 
 ---
@@ -212,11 +208,15 @@ sustained OPEN — see `infra/runbooks/circuit-breaker.md`.
 
 ## S6 — Partition routing on `trn_ridership_records`
 
-**What:** Step 5 worked-example converted `trn_ridership_records` to
-RANGE(scanned_at) monthly partitioning. Inserts route to the matching
-month's leaf; out-of-window inserts fail loudly.
+**What:** Cycle 31 documents the partition activation procedure in
+`infra/partition-activation-runbook.md` (REVIEW-CYCLE31 BLOCKING 5 —
+the executable migration was removed; the runbook is the authoritative
+deployment-time path). Tenants converted via prior provisions retain
+the partitioned shape; on those tenants, inserts route to the matching
+month's leaf and out-of-window inserts fail loudly.
 
-**Verify on `tenant_demo`:**
+**Verify on `tenant_demo`** (skip if `0c` shows `'r'` — fresh provisions
+need the runbook applied first):
 
 ```sql
 -- Cleanly inserts into the 2026-05 leaf.
@@ -249,8 +249,9 @@ Cleanup:
 DELETE FROM trn_ridership_records WHERE id::text LIKE '019dff45-aaaa-%';
 ```
 
-The conversion runbook for the remaining 5 deferred tables (fds*\*, tech*\_,
-rpt\_\_, audit_log) lives in `infra/partition-activation-runbook.md`.
+The conversion runbook for `trn_ridership_records` + the 6 deferred
+tables (fds\_\*, tech\_\*, rpt\_\*, audit_log) lives in
+`infra/partition-activation-runbook.md`.
 
 ---
 

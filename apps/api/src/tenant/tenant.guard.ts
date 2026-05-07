@@ -8,6 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { getCurrentTenant } from './tenant.context';
 import { IS_PUBLIC_KEY } from '../auth/auth.guard';
+import { PLATFORM_SCOPED_KEY } from '../auth/platform-scoped.decorator';
 
 /**
  * TenantGuard
@@ -34,6 +35,17 @@ export class TenantGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isPublic) {
+      return true;
+    }
+    // REVIEW-CYCLE31 BLOCKING 2 — platform-scoped routes are exempt
+    // from the tenant frozen check + tenant-context requirement. The
+    // tenant resolver also exempts these paths so getCurrentTenant()
+    // would throw here.
+    var isPlatformScoped = this.reflector.getAllAndOverride<boolean>(PLATFORM_SCOPED_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPlatformScoped) {
       return true;
     }
     var tenant = getCurrentTenant();

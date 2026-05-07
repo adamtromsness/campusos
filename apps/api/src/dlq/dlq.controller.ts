@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestj
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import type { Request } from 'express';
+import { PlatformScoped } from '../auth/platform-scoped.decorator';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { DlqService } from './dlq.service';
 
@@ -28,6 +29,7 @@ class DiscardDto {
  */
 @ApiTags('Platform Admin — DLQ')
 @Controller('admin/dlq')
+@PlatformScoped()
 export class DlqController {
   constructor(private readonly dlq: DlqService) {}
 
