@@ -11,6 +11,7 @@ import {
   CalculatorIcon,
   CalendarIcon,
   ChartBarIcon,
+  CogIcon,
   ShieldIcon,
   UtensilsIcon,
   WrenchIcon,
@@ -72,7 +73,8 @@ export type AppKey =
   | 'store'
   | 'analytics'
   | 'governance'
-  | 'platform';
+  | 'platform'
+  | 'configuration';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -668,6 +670,25 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/admin/platform',
       routePrefix: '/admin/platform',
       icon: ComputerIcon,
+    });
+  }
+
+  // School Configuration Admin — Step 1. Gated on sys-001:admin which
+  // both Platform Admin and School Admin hold (the seed-iam everyFunction
+  // grant on School Admin includes admin-tier on every function code,
+  // including SYS-001). Surfaces the three organisational hierarchies
+  // (Facility / Academic / Position) with their CRUD + the cross-
+  // structure connections view + the setup wizard. Per-tenant: each
+  // school configures its own data, unlike the cross-tenant Platform
+  // tile above.
+  if (hasAnyPermission(user, ['sys-001:admin'])) {
+    apps.push({
+      key: 'configuration',
+      label: 'Configuration',
+      description: 'Buildings, academic year, positions, and connections',
+      href: '/admin/configuration',
+      routePrefix: '/admin/configuration',
+      icon: CogIcon,
     });
   }
 
