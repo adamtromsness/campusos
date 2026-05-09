@@ -112,13 +112,13 @@ a.card{text-decoration:none;color:inherit}
 
 <div class="hero">
   <h1>Design Hub</h1>
-  <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38 modules, 76 ADRs across 8 delivery waves.</p>
+  <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38+ modules, 76 ADRs. Phase 1 complete (8 waves, 34 cycles). Phase 2 in progress (4 waves, 30 cycles).</p>
   <div class="stats-row">
-    <div class="stat"><span class="num">418</span><span class="label">Tables Built</span></div>
-    <div class="stat"><span class="num">~970</span><span class="label">Endpoints</span></div>
-    <div class="stat"><span class="num">280+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">427</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">~998</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">290+</span><span class="label">UI Pages</span></div>
     <div class="stat"><span class="num">17</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">33</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">35</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -135,36 +135,41 @@ a.card{text-decoration:none;color:inherit}
 <div id="overview" class="tab-content active">
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Waves 1&ndash;7 + Cycle 31 Complete</h4>
-      <p>All business modules + observability hardening. 418 tables, ~970 endpoints, 280+ pages. Structured logging, distributed tracing, partitions active, caching tuned, DLQ wired, SLOs defined.</p>
+      <h4>Phase 1 Complete &mdash; All 8 Waves, 34 Cycles</h4>
+      <p>Core platform + observability + DR hardening. 418 tables, ~970 endpoints, 280+ pages. Multi-region replication, chaos engineering, DR runbook all delivered. Platform is pilot-ready.</p>
     </div>
     <div class="status-card sc-blue">
-      <h4>Cycle 32: Multi-Region &amp; DR &mdash; Next</h4>
-      <p>Active-passive cross-region replication, backup validation, Kafka MirrorMaker2, data residency enforcement, DR runbook, chaos engineering, tabletop exercises. Final cycle.</p>
+      <h4>Phase 2 Wave A &mdash; Pilot Critical</h4>
+      <p>P2-1 Visitor Management complete (9 tables). P2-2 Incident &amp; Emergency next (11 tables). Then Health Advanced + HR Advanced to close Wave A.</p>
     </div>
     <div class="status-card sc-amber">
-      <h4>Core Roadmap Closing</h4>
-      <p>Cycle 32 completes the 34-cycle roadmap. Then Phase 2: .1 cycles for ~420 deferred tables.</p>
+      <h4>Phase 2: 30 Cycles, 422 Tables Remaining</h4>
+      <p>4 waves: Pilot Critical (A), Pilot Enhancement (B), Operational Depth (C), Module Completion (D). <a href="campusos-phase2-build-plan.html" style="color:var(--accent);font-weight:600;">Full plan &rarr;</a></p>
     </div>
   </div>
 
   <h2 class="sec">Build Progress</h2>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Tables Built</span><span>418 / 840 (50%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:50%"></div></div>
+    <div class="progress-label"><span>Tables Built</span><span>427 / 840 (51%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:51%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Cycles Complete</span><span>33 / 34 total (97%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:97%"></div></div>
+    <div class="progress-label"><span>Phase 1 Cycles</span><span>34 / 34 (100% &mdash; Complete)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>7 of 8 (Wave 8 nearly done)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:93%"></div></div>
+    <div class="progress-label"><span>Phase 2 Cycles</span><span>1 / 30 (Wave A in progress)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:3%"></div></div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>Waves Complete</span><span>8 of 8 Phase 1 + 0 of 4 Phase 2</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:67%"></div></div>
   </div>
 
   <h2 class="sec">What is CampusOS?</h2>
   <p class="body">CampusOS is a cloud-native, multi-tenant School Operating System designed to replace the patchwork of disconnected tools that schools use today. It covers the complete operational surface of a K-12 school: student information, classroom management, scheduling, health records, counselling, library, athletics, transportation, food service, finance, communications, and more &mdash; all in one platform with a unified identity model, shared permission framework, and event-driven architecture.</p>
   <p class="body">The system is built as a modular monolith (NestJS + Next.js + PostgreSQL + Kafka) with 6 extracted services for compute-intensive workloads (video processing, AI inference, scheduling solver, transport dispatch, notification push, emergency alert). Multi-tenancy uses schema-per-tenant PostgreSQL with a platform schema for shared identity and routing.</p>
+  <p class="body"><strong>Phase 1 (34 cycles, 8 waves) is complete</strong> &mdash; 418 tables covering every core module, plus observability instrumentation and multi-region disaster recovery. <strong>Phase 2 (30 cycles, 4 waves) is in progress</strong> &mdash; deepening existing modules with .1 cycles and adding new modules (visitor management, incident &amp; emergency, HR depth, events &amp; ticketing, alumni, accreditation) to reach the full 840-table ERD.</p>
 </div>
 
 <!-- ═══════ ARCHITECTURE ═══════ -->
@@ -398,15 +403,15 @@ a.card{text-decoration:none;color:inherit}
   </div>
 
   <!-- WAVE 8 -->
-  <div class="wave w-gray open">
+  <div class="wave w-gray">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>Wave 8 &mdash; Hardening</h3>
-      <span class="wave-meta">2 cycles &middot; IN PROGRESS</span>
+      <span class="wave-meta">2 cycles &middot; COMPLETE</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
       <div class="cycle-row"><span class="cycle-num">31</span><span class="cycle-title">Performance &amp; Observability <span class="pill pill-green">Done</span></span><span class="cycle-tables">Ops</span><span class="cycle-links"><a href="campusos-cycle31-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle31-cat-script.md" class="cl-cat">CAT</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">32</span><span class="cycle-title">Multi-Region &amp; Disaster Recovery <span class="pill pill-blue">Next</span></span><span class="cycle-tables">Ops</span><span class="cycle-links"><a href="campusos-cycle32-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">32</span><span class="cycle-title">Multi-Region &amp; Disaster Recovery <span class="pill pill-green">Done</span></span><span class="cycle-tables">Ops</span><span class="cycle-links"><a href="campusos-cycle32-implementation-plan.html" class="cl-plan">Plan</a> <a href="cycle32-cat-script.md" class="cl-cat">CAT</a></span></div>
     </div>
   </div>
 
@@ -492,6 +497,20 @@ a.card{text-decoration:none;color:inherit}
 <div id="buildlog" class="tab-content">
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>P2-1: Visitor Management <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">9 tables &middot; ~28 endpoints &middot; 3 Kafka emits &middot; ~7 web routes &middot; Phase 2 Wave A</div>
+    <div class="log-desc">Kiosk sign-in/out with AES-256 encrypted PII + HMAC blind index returning-visitor lookup, configurable visitor types with per-type safeguarding requirements, banned persons HMAC screening with real-time kiosk blocking (ADR-015 transient registry data), staff pre-registration with QR-code expedited sign-in, recurring visitor schedules, emergency muster snapshots with per-visitor accountability.</div>
+    <div class="log-links"><a href="campusos-p2c1-visitor-management.html">Plan</a> <a href="p2c1-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 32: Multi-Region &amp; Disaster Recovery <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">0 new tables &middot; Ops cycle &middot; Wave 8 complete &middot; Phase 1 complete</div>
+    <div class="log-desc">Active-passive cross-region replication (RDS Global Database &lt;30s RPO, &lt;15 min RTO), automated weekly backup validation with schema + row count checks, Kafka MirrorMaker2 cross-region topic replication with consumer offset translation, Redis Global Datastore, S3 CRR with EU data residency pinning, tenant-region affinity enforcement at API gateway, 6-scenario DR runbook, monthly automated failover exercises, chaos engineering programme (6 experiments), quarterly tabletop exercise framework.</div>
+    <div class="log-links"><a href="campusos-cycle32-implementation-plan.html">Plan</a> <a href="cycle32-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>Cycle 31: Performance &amp; Observability <span class="pill pill-green">Approved</span></h4>
@@ -705,6 +724,8 @@ a.card{text-decoration:none;color:inherit}
     <a href="cycle29-cat-script.md" class="card"><h4>Cycle 29 CAT</h4><div class="desc">Worker materialisation, attendance + academic dashboards, at-risk detection + threshold config, school/district aggregation, report engine + scheduled delivery, FROM_SNAPSHOT rebuild.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle30-cat-script.md" class="card"><h4>Cycle 30 CAT</h4><div class="desc">ROPA + DPIA gap, processor DPA gap, 72-hour breach countdown, SAR deadline, erasure + pseudonymisation, consent lifecycle, privacy notice, age-18 transfer.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle31-cat-script.md" class="card"><h4>Cycle 31 CAT</h4><div class="desc">Structured logging verified, tracing end-to-end, metrics baseline, load test targets met, partitions active, caching tuned, DLQ replay, envelope validation, circuit breakers, SLO alerts firing.</div><div class="meta">10 scenarios</div></a>
+    <a href="cycle32-cat-script.md" class="card"><h4>Cycle 32 CAT</h4><div class="desc">RDS Global Database replication, backup validation, PITR test, Kafka MirrorMaker2, Redis failover, S3 CRR + EU data residency, tenant routing, DR runbook, automated failover, chaos engineering.</div><div class="meta">10 scenarios</div></a>
+    <a href="p2c1-cat-script.md" class="card"><h4>P2-1 CAT</h4><div class="desc">Kiosk sign-in, returning visitor HMAC lookup, pre-reg QR scan, banned person HMAC block, safeguarding bypass audit, muster snapshot + accountability, sign-out, auto sign-out.</div><div class="meta">10 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 1 Punch List Status</h2>
