@@ -425,8 +425,12 @@ export class VisitorService {
         }
         throw err;
       }
+      // REVIEW-P2C1 ROUND 4 hygiene — reload scoped by school_id even
+      // though we just INSERTed the row with the calling tenant's
+      // schoolId. Consistency with every other vis_visitors read.
       const rows = (await tx.$queryRawUnsafe(
-        SELECT_VISITOR_BASE + 'WHERE v.id = $1::uuid',
+        SELECT_VISITOR_BASE + 'WHERE v.school_id = $1::uuid AND v.id = $2::uuid',
+        tenant.schoolId,
         id,
       )) as VisitorRow[];
       return this.rowToDto(rows[0]!);

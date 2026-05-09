@@ -1,6 +1,27 @@
 # Phase 2 Cycle 1 (P2C1) Handoff — Visitor Management
 
-**Status:** Round 1 (against `9c782aa`) **FAIL** 2 BLOCKING + 4 MAJOR + 3 MINOR → Round 2 commit `aa2aefc` addressed all 6 → Round 2 review confirmed all 6 fixes but flagged 1 new BLOCKING (`VisitorService.loadInternal` unscoped) → Round 3 commit `18e6e99` fixed loadInternal + added defence-in-depth JOINs + 4 isolation tests → Round 3 review confirmed the loadInternal fix but flagged 1 analogous BLOCKING (`VisitorTypeService.loadOrFail` unscoped) → Round 4 commit (pushed 2026-05-09) fixes loadOrFail school-scoping + adds `AND vt.school_id = v.school_id` JOIN defence-in-depth to every visitor-type JOIN + 4 visitor-type isolation regression tests. **Vitest suite 39 → 67 (R2) → 71 (R3) → 75 (R4) passing tests.** Live verification on `tenant_demo` 2026-05-09: synthetic foreign-school visitor type inserted directly via SQL — all three direct-`visitorTypeId` workflows (sign-in new visitor, visitor create, pre-reg new visitor) return 404 with "Visitor type not found"; zero new visitors landed against the foreign visitor-type id. Round 4 verdict pending. Phase 2 (Pilot Readiness) opens with this cycle. Ships M90 Visitor Management — all 9 ERD tables in scope, encrypted PII at rest with HMAC blind-index returning-visitor lookup, banned-persons screening with kiosk-level real-time blocking (ADR-015), parent-active QR-code pre-registration with expedited sign-in, recurring contractor schedules, and emergency muster with per-visitor accountability.
+**Status: COMPLETE + APPROVED at the closeout commit (REVIEW-P2C1-CHATGPT — final verdict).** Round 4 returned **PASS**. Tagged `p2c1-complete` at `2b9ea9e` (the Round 3 fix commit) and `p2c1-approved` at the closeout commit. **Phase 2 (Pilot Readiness) opens with this cycle.**
+
+Review chain: Round 1 (against `9c782aa`) **FAIL** 2 BLOCKING + 4 MAJOR + 3 MINOR → Round 2 commit `aa2aefc` addressed all 6 → Round 2 review confirmed all 6 fixes but flagged 1 new BLOCKING (`VisitorService.loadInternal` unscoped) → Round 3 commit `18e6e99` fixed loadInternal + added defence-in-depth JOINs + 4 isolation tests → Round 3 review confirmed the loadInternal fix but flagged 1 analogous BLOCKING (`VisitorTypeService.loadOrFail` unscoped) → Round 4 commit `2b9ea9e` fixed loadOrFail + 4 visitor-type isolation tests → **Round 4 PASS**. Closeout commit lands the Round 4 non-blocking hygiene item (`VisitorService.createInternal` reload school-scoping) + 3 CodeQL findings (2 polynomial-redos in `configuration.service.ts` CSV email regexes via new `isLikelyEmail()` O(n) helper; 1 identity-replacement in `reference-health.worker.ts` dropping a `replace(/\bs\b/g, 's')` no-op).
+
+**Vitest suite 39 → 67 (R2) → 71 (R3) → 75 (R4) passing tests.** CI parity green at every round: API + web builds clean, format:check + lint:logs clean.
+
+**Round 4 PASS verification record (REVIEW-P2C1-CHATGPT — final verdict):**
+
+> Commit `2b9ea9e` resolves the last blocking issue from Round 3.
+> `VisitorTypeService.loadOrFail()` is now school-scoped, all relevant
+> visitor-type joins are school-constrained, and regression coverage
+> exists for the cross-school UUID attack path. The remaining
+> reload-query consistency item should be cleaned up, but it does not
+> prevent gate passage. **Final gate: PASS.**
+
+**Closeout fix log (post-PASS hardening, 2026-05-09):**
+
+- **R4 hygiene — `VisitorService.createInternal` post-INSERT reload.** Reviewer's non-blocking R4 callout. Reload now scopes by `school_id` for consistency with every other vis_visitors read. No cross-school path was possible because the row was inserted under the calling tenant's schoolId in the same tx, but the consistency check matches the rest of the module after R2 + R3 hardening.
+- **CodeQL js/polynomial-redos × 2.** `configuration.service.ts:1362` (bulk-import staff email) and `:1489` (bulk-import student guardian email) both used `/^[^@\s]+@[^@\s]+\.[^@\s]+$/` which polynomial-backtracks on overlapping character classes when the input has many dots. New shared `isLikelyEmail(s)` helper uses indexOf + slice — O(n) — no backtracking. Length-capped at RFC 5321's 254 characters (the cap alone defeats the polynomial blow-up because n is bounded). Same shape contract as the prior regex (one `@`, ≥1 char each side, ≥1 `.` in domain, non-empty TLD-ish suffix).
+- **CodeQL js/identity-replacement.** `reference-health.worker.ts:127` had `entry.where.replace(/\bs\b/g, 's')` — a no-op replacing `'s'` with `'s'`. The canonical `sampleSql` directly below uses `entry.where` verbatim, so the `orphanSql` branch now does the same. Dead code removed.
+
+Ships M90 Visitor Management — all 9 ERD tables in scope, encrypted PII at rest with HMAC blind-index returning-visitor lookup, banned-persons screening with kiosk-level real-time blocking (ADR-015), parent-active QR-code pre-registration with expedited sign-in, recurring contractor schedules, and emergency muster with per-visitor accountability.
 
 **REVIEW-P2C1 Round 3 fix log (2026-05-09):**
 

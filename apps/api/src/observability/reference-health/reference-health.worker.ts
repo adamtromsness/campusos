@@ -119,12 +119,17 @@ export class ReferenceHealthScannerWorker implements OnModuleInit, OnApplication
     const startedAt = Date.now();
 
     const totalSql = `SELECT COUNT(*)::int AS n FROM "${sourceSchema}"."${entry.sourceTable}"${where}`;
+    // REVIEW-P2C1 ROUND 4 hardening (CodeQL js/identity-replacement) —
+    // dropped a `.replace(/\bs\b/g, 's')` no-op on entry.where. The
+    // string was being replaced with itself which had no effect; the
+    // canonical sampleSql below uses entry.where verbatim, so this
+    // branch now does the same.
     const orphanSql =
       `SELECT COUNT(*)::int AS n FROM "${sourceSchema}"."${entry.sourceTable}" s ` +
       `LEFT JOIN "${entry.targetSchema}"."${entry.targetTable}" t ` +
       `  ON t."${targetColumn}" = s."${entry.sourceColumn}" ` +
       `WHERE t."${targetColumn}" IS NULL` +
-      (entry.where ? ' AND ' + entry.where.replace(/\bs\b/g, 's') : '');
+      (entry.where ? ' AND ' + entry.where : '');
     const sampleSql =
       `SELECT s."${entry.sourceColumn}"::text AS orphan_id ` +
       `FROM "${sourceSchema}"."${entry.sourceTable}" s ` +

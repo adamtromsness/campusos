@@ -23,11 +23,18 @@ confirmed the R2 BLOCKING + every JOIN defence-in-depth landed
 correctly. New R3 finding: `visitorTypeId` direct-reference path
 allowed a School A user to attach a School B visitor-type to a new
 visitor.
-**Round 4 commit:** R3 BLOCKING fix pushed 2026-05-09 with
-`VisitorTypeService.loadOrFail()` school-scoping + `AND vt.school_id
-= v.school_id` JOIN predicate on every visitor-type JOIN +
-4 new visitor-type isolation regression tests.
-**Round 4 verdict:** _pending — please re-review._
+**Round 4 commit:** `2b9ea9e` on `main` (Round 3 fixes pushed
+2026-05-09).
+**Round 4 verdict:** **PASS.** Final gate decision. All review
+dimensions PASS. The reviewer noted one non-blocking hardening item
+(VisitorService.createInternal post-INSERT reload still id-only —
+not a cross-school path because the row was inserted under the
+calling tenant, but worth tightening for consistency); addressed in
+the closeout commit alongside three CodeQL findings (two
+js/polynomial-redos in configuration.service.ts CSV email regexes,
+one js/identity-replacement in reference-health.worker.ts).
+Tagged `p2c1-complete` at `2b9ea9e` and `p2c1-approved` at the
+closeout commit.
 **Live verification reference:** `tenant_demo` 2026-05-09.
 
 ---
@@ -161,6 +168,24 @@ foreign-school visitor type to a local-school visitor. Zero leak.
 
 CI parity green: vitest 75/75 (was 71 + 4 new visitor-type isolation
 tests), API + web builds clean, `format:check` + `lint:logs` clean.
+
+---
+
+## Round 4 closeout — non-blocking hardening + CodeQL findings
+
+The Round 4 PASS verdict noted one non-blocking hygiene item plus
+three CodeQL findings flagged on prior commits. All four addressed
+in the closeout commit:
+
+| #   | Severity     | Finding                                                                                                          | Fix                                                                                                                                                                                                                                                                                                      |
+| --- | ------------ | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 13  | non-blocking | `VisitorService.createInternal` post-INSERT reload used `WHERE v.id = $1` only                                   | Reload now scopes by `school_id` for consistency with every other vis_visitors read. No cross-school path was possible because the row was inserted under the calling tenant's schoolId in the same tx, but the consistency check is good hygiene.                                                       |
+| 14  | CodeQL       | `js/polynomial-redos` in `configuration.service.ts:1362` — bulk-import staff email regex                         | New shared `isLikelyEmail(s)` helper uses indexOf + slice. O(n) — no backtracking. Length-capped at RFC 5321's 254 characters (the cap alone defeats the polynomial blow-up because n is bounded). Same shape contract as the prior regex (one `@`, ≥1 char each side, ≥1 `.` in domain, non-empty TLD). |
+| 15  | CodeQL       | `js/polynomial-redos` in `configuration.service.ts:1489` — bulk-import student guardian email                    | Same `isLikelyEmail(s)` helper. Both regex sites collapsed to one helper.                                                                                                                                                                                                                                |
+| 16  | CodeQL       | `js/identity-replacement` in `reference-health.worker.ts:127` — `entry.where.replace(/\bs\b/g, 's')` was a no-op | Dropped the dead `.replace()`. The replacement substring `'s'` was identical to the matched substring `'s'`, so the call had no effect. The canonical `sampleSql` directly below uses `entry.where` verbatim with no replace — `orphanSql` now does the same.                                            |
+
+CI parity green after closeout: vitest 75/75 (no test regressions),
+API + web builds clean, `format:check` + `lint:logs` clean.
 
 ---
 

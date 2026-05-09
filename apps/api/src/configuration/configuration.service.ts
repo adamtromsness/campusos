@@ -1334,6 +1334,44 @@ export interface BulkImportResponseDto {
   errors: string[];
 }
 
+/**
+ * Lightweight email shape check for CSV import paths. O(n) — uses
+ * indexOf + slice rather than a backtracking regex.
+ *
+ * REVIEW-P2C1 ROUND 4 hardening (CodeQL js/polynomial-redos) — the
+ * previous shape `^[^@\s]+@[^@\s]+\.[^@\s]+$` had two adjacent
+ * unbounded `[^@\s]+` quantifiers separated only by `\.`, which the
+ * RegExp engine backtracks polynomially on input like
+ * `aaaa....aaaa@x` because there are many ways to split a long
+ * dot-bearing left part. The split-and-validate approach below is
+ * linear in input length and additionally length-caps at the
+ * RFC 5321 maximum of 254 characters — the cap alone defeats the
+ * polynomial blow-up because n is bounded.
+ *
+ * Boundary contract is the same as the prior regex: at least one
+ * non-whitespace character before `@`, at least one non-whitespace
+ * character after `@`, and at least one `.` somewhere in the
+ * domain part with non-empty TLD-ish suffix. Real RFC 5322
+ * compliance is not in scope — schools' email addresses can
+ * include `+` aliases / non-Latin TLDs / multi-dot domains, and
+ * the bulk-import contract treats the regex as a typo guard,
+ * not an authoritative validator.
+ */
+function isLikelyEmail(s: string): boolean {
+  if (typeof s !== 'string') return false;
+  if (s.length === 0 || s.length > 254) return false;
+  if (/\s/.test(s)) return false;
+  const at = s.indexOf('@');
+  if (at <= 0) return false;
+  if (at !== s.lastIndexOf('@')) return false;
+  const domain = s.slice(at + 1);
+  if (domain.length === 0) return false;
+  const dot = domain.indexOf('.');
+  if (dot <= 0) return false;
+  if (dot === domain.length - 1) return false;
+  return true;
+}
+
 @Injectable()
 export class BulkImportService {
   constructor(private readonly tenantPrisma: TenantPrismaService) {}
@@ -1359,7 +1397,7 @@ export class BulkImportService {
       if (!r.firstName?.trim()) errors.push(`Row ${ln}: firstName missing.`);
       if (!r.lastName?.trim()) errors.push(`Row ${ln}: lastName missing.`);
       if (!r.email?.trim()) errors.push(`Row ${ln}: email missing.`);
-      else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email))
+      else if (!isLikelyEmail(r.email.trim()))
         errors.push(`Row ${ln}: email "${r.email}" is malformed.`);
     });
     if (errors.length > 0) {
@@ -1486,7 +1524,7 @@ export class BulkImportService {
       if (!r.firstName?.trim()) errors.push(`Row ${ln}: firstName missing.`);
       if (!r.lastName?.trim()) errors.push(`Row ${ln}: lastName missing.`);
       if (!r.studentNumber?.trim()) errors.push(`Row ${ln}: studentNumber missing.`);
-      if (r.guardianEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.guardianEmail)) {
+      if (r.guardianEmail && !isLikelyEmail(r.guardianEmail.trim())) {
         errors.push(`Row ${ln}: guardianEmail "${r.guardianEmail}" is malformed.`);
       }
     });
