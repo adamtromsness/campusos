@@ -52,6 +52,7 @@ import { RegionModule } from './region/region.module';
 import { VisitorsModule } from './visitors/visitors.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { HealthAdvancedModule } from './health-advanced/health-advanced.module';
+import { PayrollModule } from './payroll/payroll.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -148,6 +149,11 @@ var devOnlyControllers: Type<unknown>[] =
     // immunisation compliance computation with nightly worker +
     // state CSV report, screening referrals with overdue tracking.
     HealthAdvancedModule,
+    // Phase 2 Cycle 4 sub-cycle a — Payroll. Pay grade catalogue,
+    // salary scales, pay periods, payroll records with deduction
+    // computation, salary review queue. Emits hr.payroll.processed
+    // for the Cycle 26 GLConsumer to post salary journal entries.
+    PayrollModule,
   ],
   controllers: devOnlyControllers,
   providers: [

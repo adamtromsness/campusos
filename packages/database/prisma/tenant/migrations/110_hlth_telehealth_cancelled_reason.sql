@@ -33,4 +33,4 @@ ALTER TABLE hlth_telehealth_sessions
 
 COMMENT ON CONSTRAINT hlth_th_sessions_cancelled_chk
   ON hlth_telehealth_sessions IS
-  'CANCELLED requires both cancelled_at and a non-empty cancellation_reason. Tightened in P2C3 review fixes; service layer surfaces a friendly 400 before the DB CHECK fires.';
+  'CANCELLED requires both cancelled_at and a non-empty cancellation_reason. Tightened in P2C3 review fixes — service layer surfaces a friendly 400 before the DB CHECK fires.';

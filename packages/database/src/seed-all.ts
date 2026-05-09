@@ -82,6 +82,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Health Advanced — telehealth, immunisation compliance, screening referrals (P2C3)',
     script: 'seed-health-advanced.ts',
   },
+  {
+    label: 'Payroll — pay grades, salary scales, pay periods, payroll records (P2C4 sub-cycle a)',
+    script: 'seed-payroll.ts',
+  },
 ];
 
 async function main(): Promise<void> {
