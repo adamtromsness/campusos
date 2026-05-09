@@ -168,6 +168,7 @@ export class VisitorTypeService {
     actor: ResolvedActor,
   ): Promise<VisitorTypeDto> {
     await this.assertManager(actor);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const sets: string[] = [];
       const args: unknown[] = [];
@@ -194,10 +195,20 @@ export class VisitorTypeService {
       }
       if (sets.length === 0) throw new BadRequestException('No fields to update');
       sets.push('updated_at = now()');
+      // REVIEW-P2C1 BLOCKING 2 — school_id scoped UPDATE.
+      const schoolIdParam = p++;
+      args.push(tenant.schoolId);
+      const idParam = p;
       args.push(id);
       try {
         await tx.$executeRawUnsafe(
-          'UPDATE vis_visitor_types SET ' + sets.join(', ') + ' WHERE id = $' + p + '::uuid',
+          'UPDATE vis_visitor_types SET ' +
+            sets.join(', ') +
+            ' WHERE school_id = $' +
+            schoolIdParam +
+            '::uuid AND id = $' +
+            idParam +
+            '::uuid',
           ...args,
         );
       } catch (err) {
@@ -212,7 +223,8 @@ export class VisitorTypeService {
         'SELECT id::text AS id, school_id::text AS school_id, name, description, requires_safeguarding_check, badge_color, is_active, ' +
           'TO_CHAR(created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
           'TO_CHAR(updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
-          'FROM vis_visitor_types WHERE id = $1::uuid',
+          'FROM vis_visitor_types WHERE school_id = $1::uuid AND id = $2::uuid',
+        tenant.schoolId,
         id,
       )) as VisitorTypeRow[];
       if (rows.length === 0) throw new NotFoundException('Visitor type not found');
@@ -301,7 +313,8 @@ export class VisitorService {
   async lookupByEmail(email: string): Promise<VisitorDto | null> {
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const tenant = getCurrentTenant();
-      const hash = emailHash(email);
+      // REVIEW-P2C1 MAJOR 1 — emailHash binds to schoolId.
+      const hash = emailHash(tenant.schoolId, email);
       const rows = (await client.$queryRawUnsafe(
         SELECT_VISITOR_BASE + 'WHERE v.school_id = $1::uuid AND v.email_hash = $2 LIMIT 1',
         tenant.schoolId,
@@ -342,8 +355,9 @@ export class VisitorService {
     const tenant = getCurrentTenant();
     await this.visitorTypes.loadOrFail(input.visitorTypeId);
     const id = generateId();
-    const eHash = emailHash(input.email);
-    const pHash = input.phone ? phoneHash(input.phone) : null;
+    // REVIEW-P2C1 MAJOR 1 — every blind index binds to schoolId.
+    const eHash = emailHash(tenant.schoolId, input.email);
+    const pHash = phoneHash(tenant.schoolId, input.phone ?? null);
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // Upsert-style — if a visitor with this email_hash already
       // exists, return the existing record so the kiosk does not
@@ -396,6 +410,7 @@ export class VisitorService {
   async patch(id: string, input: UpdateVisitorDto, actor: ResolvedActor): Promise<VisitorDto> {
     await this.assertManager(actor);
     if (input.visitorTypeId) await this.visitorTypes.loadOrFail(input.visitorTypeId);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const sets: string[] = [];
       const args: unknown[] = [];
@@ -410,25 +425,35 @@ export class VisitorService {
       if (input.company !== undefined) map('company', input.company);
       if (input.email !== undefined) {
         map('email_encrypted', encryptPII(input.email));
-        map('email_hash', emailHash(input.email));
+        map('email_hash', emailHash(tenant.schoolId, input.email));
       }
       if (input.phone !== undefined) {
         map('phone_encrypted', encryptPII(input.phone));
-        map('phone_hash', phoneHash(input.phone));
+        map('phone_hash', phoneHash(tenant.schoolId, input.phone));
       }
       if (input.notes !== undefined) map('notes', input.notes);
       if (sets.length === 0) throw new BadRequestException('No fields to update');
       sets.push('updated_at = now()');
-      args.push(id);
       // Cast email_hash / phone_hash positions are TEXT — no cast needed.
       // Cast visitor_type_id to uuid if updating.
       let setClause = sets.join(', ');
       if (input.visitorTypeId !== undefined) {
         setClause = setClause.replace(/^visitor_type_id = (\$\d+)/, 'visitor_type_id = $1::uuid');
       }
+      // REVIEW-P2C1 BLOCKING 2 — school_id-scoped UPDATE.
+      const schoolIdParam = p++;
+      args.push(tenant.schoolId);
+      const idParam = p;
+      args.push(id);
       try {
         await tx.$executeRawUnsafe(
-          'UPDATE vis_visitors SET ' + setClause + ' WHERE id = $' + p + '::uuid',
+          'UPDATE vis_visitors SET ' +
+            setClause +
+            ' WHERE school_id = $' +
+            schoolIdParam +
+            '::uuid AND id = $' +
+            idParam +
+            '::uuid',
           ...args,
         );
       } catch (err) {
@@ -438,7 +463,8 @@ export class VisitorService {
         throw err;
       }
       const rows = (await tx.$queryRawUnsafe(
-        SELECT_VISITOR_BASE + 'WHERE v.id = $1::uuid',
+        SELECT_VISITOR_BASE + 'WHERE v.school_id = $1::uuid AND v.id = $2::uuid',
+        tenant.schoolId,
         id,
       )) as VisitorRow[];
       if (rows.length === 0) throw new NotFoundException('Visitor not found');

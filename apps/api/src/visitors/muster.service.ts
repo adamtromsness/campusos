@@ -129,24 +129,15 @@ export class MusterService {
     const drillType: DrillType = input.drillType ?? 'FIRE_DRILL';
 
     const detail = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Snapshot — pull active sign-ins under the same tx so a
-      // visitor signing out mid-snapshot is still captured.
-      const active = (await tx.$queryRawUnsafe(
-        'SELECT s.id::text AS sign_in_id, ' +
-          "v.first_name || ' ' || v.last_name AS visitor_name, " +
-          'vt.name AS visitor_type, v.company AS visitor_company ' +
-          'FROM vis_sign_ins s ' +
-          'JOIN vis_visitors v ON v.id = s.visitor_id ' +
-          'LEFT JOIN vis_visitor_types vt ON vt.id = v.visitor_type_id ' +
-          'WHERE s.school_id = $1::uuid AND s.signed_out_at IS NULL ' +
-          'ORDER BY s.signed_in_at ASC',
+      // Count active sign-ins for the muster header. Same tx + same
+      // school_id predicate as the batch INSERT below — under the
+      // partial INDEX vis_si_active_idx so this is one index scan.
+      const countRows = (await tx.$queryRawUnsafe(
+        'SELECT COUNT(*)::int AS c FROM vis_sign_ins ' +
+          'WHERE school_id = $1::uuid AND signed_out_at IS NULL',
         tenant.schoolId,
-      )) as Array<{
-        sign_in_id: string;
-        visitor_name: string;
-        visitor_type: string | null;
-        visitor_company: string | null;
-      }>;
+      )) as Array<{ c: number }>;
+      const totalOnSite = countRows[0]!.c;
 
       await tx.$executeRawUnsafe(
         'INSERT INTO vis_emergency_muster (id, school_id, incident_id, drill_type, description, created_by, total_on_site_at_snapshot) ' +
@@ -157,24 +148,36 @@ export class MusterService {
         drillType,
         input.description ?? null,
         actor.accountId,
-        active.length,
+        totalOnSite,
       );
 
-      for (const row of active) {
-        await tx.$executeRawUnsafe(
-          'INSERT INTO vis_muster_entries (id, muster_id, sign_in_id, visitor_name, visitor_type, visitor_company) ' +
-            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6)',
-          generateId(),
-          musterId,
-          row.sign_in_id,
-          row.visitor_name,
-          row.visitor_type ?? 'Unknown',
-          row.visitor_company,
-        );
-      }
+      // REVIEW-P2C1 BLOCKING 1 — single batch INSERT (was a per-row
+      // loop). One INSERT … SELECT walks the partial INDEX
+      // vis_si_active_idx WHERE signed_out_at IS NULL once and
+      // materialises every entry atomically. visitor_name +
+      // visitor_type + visitor_company are SNAPSHOT-frozen at this
+      // point. UUIDv7 ids generated via gen_random_uuid() — the one
+      // muster-entry exception to the application-layer UUIDv7
+      // convention; documented in HANDOFF-P2C1.md. Acceptable because
+      // muster_entries are internal audit rows never sorted across
+      // services and never exposed in deterministic-ordering
+      // contracts.
+      await tx.$executeRawUnsafe(
+        'INSERT INTO vis_muster_entries (id, muster_id, sign_in_id, visitor_name, visitor_type, visitor_company) ' +
+          'SELECT gen_random_uuid(), $1::uuid, s.id, ' +
+          "v.first_name || ' ' || v.last_name, " +
+          "COALESCE(vt.name, 'Unknown'), v.company " +
+          'FROM vis_sign_ins s ' +
+          'JOIN vis_visitors v ON v.id = s.visitor_id ' +
+          'LEFT JOIN vis_visitor_types vt ON vt.id = v.visitor_type_id ' +
+          'WHERE s.school_id = $2::uuid AND s.signed_out_at IS NULL',
+        musterId,
+        tenant.schoolId,
+      );
 
       const musterRows = (await tx.$queryRawUnsafe(
-        SELECT_MUSTER_BASE + 'WHERE m.id = $1::uuid',
+        SELECT_MUSTER_BASE + 'WHERE m.school_id = $1::uuid AND m.id = $2::uuid',
+        tenant.schoolId,
         musterId,
       )) as MusterRow[];
       const entryRows = (await tx.$queryRawUnsafe(
@@ -246,43 +249,51 @@ export class MusterService {
     actor: ResolvedActor,
   ): Promise<MusterEntryDto> {
     await this.assertStaff(actor);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C1 BLOCKING 2 — verify the entry's parent muster
+      // belongs to this school in a single locked join, then UPDATE
+      // through the same school_id predicate. Tighter than the
+      // previous lock-then-tenantCheck-then-UPDATE chain because the
+      // UPDATE itself now refuses cross-school mutation.
       const lock = (await tx.$queryRawUnsafe(
-        'SELECT id::text AS id, muster_id::text AS muster_id FROM vis_muster_entries WHERE id = $1::uuid FOR UPDATE',
+        'SELECT e.id::text AS id ' +
+          'FROM vis_muster_entries e ' +
+          'JOIN vis_emergency_muster m ON m.id = e.muster_id ' +
+          'WHERE e.id = $1::uuid AND m.school_id = $2::uuid FOR UPDATE OF e',
         entryId,
-      )) as Array<{ id: string; muster_id: string }>;
+        tenant.schoolId,
+      )) as Array<{ id: string }>;
       if (lock.length === 0) throw new NotFoundException('Muster entry not found');
-      // Ensure the entry belongs to a muster in the calling tenant.
-      const tenantCheck = (await tx.$queryRawUnsafe(
-        'SELECT m.school_id::text AS school_id FROM vis_emergency_muster m WHERE m.id = $1::uuid',
-        lock[0]!.muster_id,
-      )) as Array<{ school_id: string }>;
-      const tenant = getCurrentTenant();
-      if (tenantCheck.length === 0 || tenantCheck[0]!.school_id !== tenant.schoolId) {
-        throw new NotFoundException('Muster entry not found');
-      }
       // UNKNOWN status with marked_by set is rejected by the schema
-      // CHECK; service-side enforce the lockstep so we always pass.
+      // CHECK; service-side enforces the lockstep so we always pass.
       if (input.status === 'UNKNOWN') {
         await tx.$executeRawUnsafe(
           "UPDATE vis_muster_entries SET status = 'UNKNOWN', notes = $1, " +
-            'marked_by = NULL, marked_at = NULL, updated_at = now() WHERE id = $2::uuid',
+            'marked_by = NULL, marked_at = NULL, updated_at = now() ' +
+            'WHERE id = $2::uuid AND muster_id IN (SELECT id FROM vis_emergency_muster WHERE school_id = $3::uuid)',
           input.notes ?? null,
           entryId,
+          tenant.schoolId,
         );
       } else {
         await tx.$executeRawUnsafe(
           'UPDATE vis_muster_entries SET status = $1, notes = $2, ' +
-            'marked_by = $3::uuid, marked_at = now(), updated_at = now() WHERE id = $4::uuid',
+            'marked_by = $3::uuid, marked_at = now(), updated_at = now() ' +
+            'WHERE id = $4::uuid AND muster_id IN (SELECT id FROM vis_emergency_muster WHERE school_id = $5::uuid)',
           input.status,
           input.notes ?? null,
           actor.accountId,
           entryId,
+          tenant.schoolId,
         );
       }
       const rows = (await tx.$queryRawUnsafe(
-        SELECT_ENTRY_BASE + 'WHERE e.id = $1::uuid',
+        SELECT_ENTRY_BASE +
+          'JOIN vis_emergency_muster m ON m.id = e.muster_id ' +
+          'WHERE e.id = $1::uuid AND m.school_id = $2::uuid',
         entryId,
+        tenant.schoolId,
       )) as MusterEntryRow[];
       return this.entryRowToDto(rows[0]!);
     });
@@ -332,13 +343,16 @@ export class MusterService {
       if (lock[0]!.closed_at !== null) {
         throw new BadRequestException('Muster already closed');
       }
+      // REVIEW-P2C1 BLOCKING 2 — UPDATE + reload scoped by school_id.
       await tx.$executeRawUnsafe(
-        'UPDATE vis_emergency_muster SET closed_at = now(), closed_by = $1::uuid, updated_at = now() WHERE id = $2::uuid',
+        'UPDATE vis_emergency_muster SET closed_at = now(), closed_by = $1::uuid, updated_at = now() WHERE school_id = $2::uuid AND id = $3::uuid',
         actor.accountId,
+        tenant.schoolId,
         id,
       );
       const rows = (await tx.$queryRawUnsafe(
-        SELECT_MUSTER_BASE + 'WHERE m.id = $1::uuid',
+        SELECT_MUSTER_BASE + 'WHERE m.school_id = $1::uuid AND m.id = $2::uuid',
+        tenant.schoolId,
         id,
       )) as MusterRow[];
       return this.rowToDto(rows[0]!);

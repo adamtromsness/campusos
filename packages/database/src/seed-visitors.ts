@@ -55,19 +55,41 @@ function encryptPII(plaintext: string): string {
   return [iv.toString('base64'), tag.toString('base64'), enc.toString('base64')].join('.');
 }
 
-function emailHash(email: string): string {
+// REVIEW-P2C1 MAJOR 1 — every blind index binds to schoolId. Mirrors
+// apps/api/src/visitors/crypto.ts so seed + runtime produce identical
+// hashes for the same (school, value) pair.
+function emailHash(schoolId: string, email: string): string {
   const normalised = email.toLowerCase().trim();
-  return createHmac('sha256', HMAC_SECRET).update(normalised).digest('hex');
+  return createHmac('sha256', HMAC_SECRET)
+    .update(schoolId + '|' + normalised)
+    .digest('hex');
 }
 
-function phoneHash(phone: string): string {
+function phoneHash(schoolId: string, phone: string): string {
   const normalised = phone.replace(/[^0-9+]/g, '');
-  return createHmac('sha256', HMAC_SECRET).update(normalised).digest('hex');
+  return createHmac('sha256', HMAC_SECRET)
+    .update(schoolId + '|' + normalised)
+    .digest('hex');
 }
 
-function nameHash(firstName: string, lastName: string, dob?: string): string {
-  const normalised = (firstName.trim().toLowerCase() + ' ' + lastName.trim().toLowerCase()).trim();
-  const material = dob ? normalised + '|' + dob : normalised;
+// REVIEW-P2C1 MAJOR 3 — Unicode-aware name normalisation matches
+// runtime crypto.normaliseNameComponent(): NFKD + diacritic strip +
+// lowercase + punctuation strip + whitespace collapse.
+function normaliseNameComponent(s: string): string {
+  return s
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function nameHash(schoolId: string, firstName: string, lastName: string, dob?: string): string {
+  const first = normaliseNameComponent(firstName);
+  const last = normaliseNameComponent(lastName);
+  const fullName = (first + ' ' + last).trim();
+  const material = schoolId + '|' + fullName + (dob ? '|' + dob : '');
   return createHmac('sha256', HMAC_SECRET).update(material).digest('hex');
 }
 
@@ -204,9 +226,9 @@ async function seedVisitors() {
       v.last,
       v.company,
       encryptPII(v.email),
-      emailHash(v.email),
+      emailHash(schoolId, v.email),
       encryptPII(v.phone),
-      phoneHash(v.phone),
+      phoneHash(schoolId, v.phone),
     );
   }
 
@@ -363,7 +385,7 @@ async function seedVisitors() {
 
   // ── Section G: 1 banned person ──
   const bannedDob = '1985-03-12';
-  const bannedNameHash = nameHash('John', 'Doe', bannedDob);
+  const bannedNameHash = nameHash(schoolId, 'John', 'Doe', bannedDob);
   await client.$executeRawUnsafe(
     'INSERT INTO ' +
       TENANT_SCHEMA +

@@ -65,12 +65,35 @@ export function decryptPII(wire: string | null | undefined): string | null {
 }
 
 /**
- * Email blind index. Lower-case + trim before hashing so case +
- * whitespace variants resolve to the same returning visitor.
+ * REVIEW-P2C1 MAJOR 1 — every blind index now binds to schoolId.
+ *
+ * The HMAC material includes the schoolId UUID so the same email /
+ * phone / name in two different schools (within or across tenants)
+ * produces two different hashes. Defends against cross-school
+ * correlation by anyone who reads the hash columns directly (a
+ * compromised replica reader, a leaked logical backup, an analytics
+ * pipeline that copies the hash into a less-secured store).
+ *
+ * Material shape:
+ *   email_hash = HMAC_SHA256(secret, schoolId + '|' + lowercase(trim(email)))
+ *   phone_hash = HMAC_SHA256(secret, schoolId + '|' + e164ish(phone))
+ *   name_hash  = HMAC_SHA256(secret, schoolId + '|' + normalised + (dob ? '|' + dob : ''))
+ *
+ * The schoolId is supplied by the caller (always pulled from
+ * getCurrentTenant() at the service layer) so the hash function
+ * remains pure.
  */
-export function emailHash(email: string): string {
+
+/**
+ * Email blind index. Lower-case + trim before hashing so case +
+ * whitespace variants resolve to the same returning visitor within
+ * a school. Cross-school the same email produces a different hash.
+ */
+export function emailHash(schoolId: string, email: string): string {
   const normalised = email.toLowerCase().trim();
-  return createHmac('sha256', HMAC_SECRET).update(normalised).digest('hex');
+  return createHmac('sha256', HMAC_SECRET)
+    .update(schoolId + '|' + normalised)
+    .digest('hex');
 }
 
 /**
@@ -79,28 +102,57 @@ export function emailHash(email: string): string {
  * number collapse to the same hash. Returns null when input is
  * blank.
  */
-export function phoneHash(phone: string | null | undefined): string | null {
+export function phoneHash(schoolId: string, phone: string | null | undefined): string | null {
   if (phone == null || phone.trim() === '') return null;
   const normalised = phone.replace(/[^0-9+]/g, '');
   if (normalised === '') return null;
-  return createHmac('sha256', HMAC_SECRET).update(normalised).digest('hex');
+  return createHmac('sha256', HMAC_SECRET)
+    .update(schoolId + '|' + normalised)
+    .digest('hex');
 }
 
 /**
- * Banned-persons name hash. SAFETY KEYSTONE — used by the kiosk
- * on every sign-in to detect a banned person. Normalisation:
- * lowercase + trim each part, join with a single space, optionally
- * append the DOB ISO string after a `|` separator. The DOB is
- * optional because some bans are name-only.
+ * Banned-persons name hash. SAFETY KEYSTONE — used by the kiosk on
+ * every sign-in to detect a banned person.
  *
- * The kiosk computes this hash from the entered name + DOB and
- * SELECTs WHERE name_hash = $computed AND is_active = true. A
- * match BLOCKS sign-in, never reveals why, and emits
- * vis.banned_person.detected to alert the safeguarding officer.
+ * REVIEW-P2C1 MAJOR 3 — stronger normalisation than first-pass:
+ *   1. NFKD Unicode normalize — composed → decomposed form.
+ *   2. Strip diacritics — combining marks dropped (José → Jose).
+ *   3. Lowercase.
+ *   4. Strip non-letter / non-digit / non-space characters
+ *      (punctuation, dashes, apostrophes — O'Brien → o brien).
+ *   5. Collapse whitespace runs to a single space + trim.
+ *
+ * Both first + last names go through the pipeline before the join.
+ * The DOB (when supplied) is appended after a `|` separator. The
+ * schoolId is the first segment to bind the hash to a school.
+ *
+ * Trade-off: the canonical hash is exact-match on the normalised
+ * string. Aliases / phonetic / fuzzy matching are out of scope —
+ * the admin workflow handles aliases by recording multiple
+ * banned-person rows (one per alias). Unicode normalisation alone
+ * closes the trivial bypass paths (accents, case, punctuation).
  */
-export function nameHash(firstName: string, lastName: string, dob?: string | null): string {
-  const normalised = (firstName.trim().toLowerCase() + ' ' + lastName.trim().toLowerCase()).trim();
-  const material = dob ? normalised + '|' + dob : normalised;
+export function normaliseNameComponent(s: string): string {
+  return s
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '') // strip combining marks
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ') // strip punctuation
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function nameHash(
+  schoolId: string,
+  firstName: string,
+  lastName: string,
+  dob?: string | null,
+): string {
+  const first = normaliseNameComponent(firstName);
+  const last = normaliseNameComponent(lastName);
+  const fullName = (first + ' ' + last).trim();
+  const material = schoolId + '|' + fullName + (dob ? '|' + dob : '');
   return createHmac('sha256', HMAC_SECRET).update(material).digest('hex');
 }
 

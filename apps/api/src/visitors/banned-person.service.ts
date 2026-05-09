@@ -127,7 +127,13 @@ export class BannedPersonService {
     }
     const tenant = getCurrentTenant();
     const id = generateId();
-    const hash = nameHash(input.firstName, input.lastName, input.dateOfBirth ?? null);
+    // REVIEW-P2C1 MAJOR 1 — nameHash binds to schoolId.
+    const hash = nameHash(
+      tenant.schoolId,
+      input.firstName,
+      input.lastName,
+      input.dateOfBirth ?? null,
+    );
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
         'INSERT INTO vis_banned_persons (id, school_id, first_name, last_name, date_of_birth, name_hash, photo_s3_key, ban_reason, ban_type, ban_order_s3_key, added_by, effective_from, effective_to, notes) ' +
@@ -161,11 +167,17 @@ export class BannedPersonService {
     actor: ResolvedActor,
   ): Promise<BannedPersonDto> {
     await this.assertSafeguardingAdmin(actor);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Lock + read existing so name_hash can be recomputed when name/DOB change.
+      // REVIEW-P2C1 BLOCKING 2 — every lock + UPDATE + reload predicate
+      // includes school_id so an actor authenticated against tenant A
+      // school A cannot mutate tenant A school B's banned-person row by
+      // guessing or replaying the UUID. Defence-in-depth alongside the
+      // tenant search_path isolation.
       const existing = (await tx.$queryRawUnsafe(
         'SELECT first_name, last_name, ' +
-          "TO_CHAR(date_of_birth, 'YYYY-MM-DD') AS date_of_birth FROM vis_banned_persons WHERE id = $1::uuid FOR UPDATE",
+          "TO_CHAR(date_of_birth, 'YYYY-MM-DD') AS date_of_birth FROM vis_banned_persons WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE",
+        tenant.schoolId,
         id,
       )) as Array<{ first_name: string; last_name: string; date_of_birth: string | null }>;
       if (existing.length === 0) throw new NotFoundException('Banned person not found');
@@ -193,7 +205,8 @@ export class BannedPersonService {
         sets.push('last_reviewed_at = CURRENT_DATE');
       }
 
-      // Recompute name_hash if name or DOB changed.
+      // Recompute name_hash if name or DOB changed (REVIEW-P2C1 MAJOR 1
+      // — nameHash now binds to schoolId).
       const newFirst = input.firstName ?? existing[0]!.first_name;
       const newLast = input.lastName ?? existing[0]!.last_name;
       const newDob =
@@ -203,18 +216,28 @@ export class BannedPersonService {
         input.lastName !== undefined ||
         input.dateOfBirth !== undefined
       ) {
-        map('name_hash', nameHash(newFirst, newLast, newDob));
+        map('name_hash', nameHash(tenant.schoolId, newFirst, newLast, newDob));
       }
 
       if (sets.length === 0) throw new BadRequestException('No fields to update');
       sets.push('updated_at = now()');
+      const schoolIdParam = p++;
+      args.push(tenant.schoolId);
+      const idParam = p;
       args.push(id);
       await tx.$executeRawUnsafe(
-        'UPDATE vis_banned_persons SET ' + sets.join(', ') + ' WHERE id = $' + p + '::uuid',
+        'UPDATE vis_banned_persons SET ' +
+          sets.join(', ') +
+          ' WHERE school_id = $' +
+          schoolIdParam +
+          '::uuid AND id = $' +
+          idParam +
+          '::uuid',
         ...args,
       );
       const rows = (await tx.$queryRawUnsafe(
-        SELECT_BANNED_BASE + 'WHERE b.id = $1::uuid',
+        SELECT_BANNED_BASE + 'WHERE b.school_id = $1::uuid AND b.id = $2::uuid',
+        tenant.schoolId,
         id,
       )) as BannedRow[];
       return this.rowToDto(rows[0]!);
@@ -242,7 +265,13 @@ export class BannedPersonService {
     actor: ResolvedActor,
   ): Promise<BannedPersonCheckResultDto> {
     const tenant = getCurrentTenant();
-    const hash = nameHash(input.firstName, input.lastName, input.dateOfBirth ?? null);
+    // REVIEW-P2C1 MAJOR 1 — nameHash binds to schoolId.
+    const hash = nameHash(
+      tenant.schoolId,
+      input.firstName,
+      input.lastName,
+      input.dateOfBirth ?? null,
+    );
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return (await client.$queryRawUnsafe(
         'SELECT id::text AS id FROM vis_banned_persons ' +

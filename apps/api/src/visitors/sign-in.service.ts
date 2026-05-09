@@ -302,12 +302,15 @@ export class SignInService {
       if (lock[0]!.signed_out_at !== null) {
         throw new BadRequestException('Visitor already signed out');
       }
+      // REVIEW-P2C1 BLOCKING 2 — UPDATE + reload scoped by school_id.
       await tx.$executeRawUnsafe(
-        'UPDATE vis_sign_ins SET signed_out_at = now(), updated_at = now() WHERE id = $1::uuid',
+        'UPDATE vis_sign_ins SET signed_out_at = now(), updated_at = now() WHERE school_id = $1::uuid AND id = $2::uuid',
+        tenant.schoolId,
         signInId,
       );
       const rows = (await tx.$queryRawUnsafe(
-        SELECT_SIGNIN_BASE + 'WHERE s.id = $1::uuid',
+        SELECT_SIGNIN_BASE + 'WHERE s.school_id = $1::uuid AND s.id = $2::uuid',
+        tenant.schoolId,
         signInId,
       )) as SignInRow[];
       return this.rowToDto(rows[0]!);
@@ -338,16 +341,19 @@ export class SignInService {
       if (lock[0]!.safeguarding_check_status === 'BYPASSED_BY_ADMIN') {
         throw new BadRequestException('Sign-in is already bypassed');
       }
+      // REVIEW-P2C1 BLOCKING 2 — UPDATE + reload scoped by school_id.
       await tx.$executeRawUnsafe(
         "UPDATE vis_sign_ins SET safeguarding_check_status = 'BYPASSED_BY_ADMIN', " +
           'safeguarding_check_ref = NULL, bypass_admin_id = $1::uuid, bypass_reason = $2, updated_at = now() ' +
-          'WHERE id = $3::uuid',
+          'WHERE school_id = $3::uuid AND id = $4::uuid',
         actor.accountId,
         input.reason.trim(),
+        tenant.schoolId,
         signInId,
       );
       const rows = (await tx.$queryRawUnsafe(
-        SELECT_SIGNIN_BASE + 'WHERE s.id = $1::uuid',
+        SELECT_SIGNIN_BASE + 'WHERE s.school_id = $1::uuid AND s.id = $2::uuid',
+        tenant.schoolId,
         signInId,
       )) as SignInRow[];
       return this.rowToDto(rows[0]!);
@@ -621,8 +627,10 @@ export class PreRegistrationService {
       if (new Date(r.expires_at).getTime() < Date.now()) {
         throw new GoneException('QR code expired');
       }
+      // REVIEW-P2C1 BLOCKING 2 — UPDATE scoped by school_id.
       await tx.$executeRawUnsafe(
-        'UPDATE vis_pre_registrations SET used_at = now(), updated_at = now() WHERE id = $1::uuid',
+        'UPDATE vis_pre_registrations SET used_at = now(), updated_at = now() WHERE school_id = $1::uuid AND id = $2::uuid',
+        tenant.schoolId,
         r.id,
       );
       const visitorType = await this.visitorTypes.loadOrFail(r.visitor_type_id);
@@ -787,6 +795,7 @@ export class RecurringVisitorService {
     actor: ResolvedActor,
   ): Promise<RecurringVisitorDto> {
     await this.assertStaff(actor);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const sets: string[] = [];
       const args: unknown[] = [];
@@ -816,13 +825,24 @@ export class RecurringVisitorService {
       }
       if (sets.length === 0) throw new BadRequestException('No fields to update');
       sets.push('updated_at = now()');
+      // REVIEW-P2C1 BLOCKING 2 — UPDATE + reload scoped by school_id.
+      const schoolIdParam = p++;
+      args.push(tenant.schoolId);
+      const idParam = p;
       args.push(id);
       await tx.$executeRawUnsafe(
-        'UPDATE vis_recurring_visitors SET ' + sets.join(', ') + ' WHERE id = $' + p + '::uuid',
+        'UPDATE vis_recurring_visitors SET ' +
+          sets.join(', ') +
+          ' WHERE school_id = $' +
+          schoolIdParam +
+          '::uuid AND id = $' +
+          idParam +
+          '::uuid',
         ...args,
       );
       const rows = (await tx.$queryRawUnsafe(
-        SELECT_RECUR_BASE + 'WHERE r.id = $1::uuid',
+        SELECT_RECUR_BASE + 'WHERE r.school_id = $1::uuid AND r.id = $2::uuid',
+        tenant.schoolId,
         id,
       )) as RecurringRow[];
       if (rows.length === 0) throw new NotFoundException('Recurring visitor not found');

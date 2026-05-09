@@ -363,10 +363,10 @@ export class VisitorsController {
   }
 
   @Post('banned-persons/check')
-  @RequirePermission('saf-002:write')
+  @RequirePermission('safeguarding_ban:read')
   @ApiOperation({
     summary:
-      'KIOSK INTERNAL — explicit banned-person screening. Normally invoked implicitly by POST /sign-in. Returns { blocked: true } on match (no reason); emits vis.banned_person.detected so the safeguarding officer is paged.',
+      'ADMIN ORACLE TEST — explicit banned-person screening. REVIEW-P2C1 MAJOR 4: re-gated to safeguarding_ban:read (admin-only) so reception staff cannot probe the registry as a Boolean oracle. The canonical kiosk path is the implicit check inside POST /sign-in, which throws a neutral 403 with no body field that reveals match/no-match. This endpoint stays available to safeguarding admins for testing the registry directly + auditing alerts.',
   })
   async checkBanned(
     @Body() dto: BannedPersonCheckDto,
