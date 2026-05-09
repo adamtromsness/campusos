@@ -1364,3 +1364,48 @@ The original P2C4 plan's Step 10 (Training + Appraisals UI) was deferred at P2-4
 **CI parity green**: format + format:check + lint:logs (585 files clean) + vitest 189/189 + API + web build all clean.
 
 **Original 12-step P2C4 plan now fully shipped + APPROVED.** Pre-pilot punch list reduced from 9 items to 8 (web UI polish line removed).
+
+---
+
+## REVIEW-P2-4c-STEP10 — PASS (2026-05-09) + 1 inline UI follow-up applied
+
+Peer review of `50ffa5a` returned **PASS** with 2 non-blocking UI follow-ups. The first (Expiring certs tab visibility mismatch) is a 2-line fix and lands in this commit; the second (route/component permission tests) is class-of-work that belongs in a dedicated pre-pilot test-hardening pass and stays on the punch list.
+
+**Reviewer's verification table** marks every dimension at PASS:
+
+| Dimension | Verdict |
+|-----------|---------|
+| Scope Compliance | **PASS** |
+| Backend Regression Risk | **PASS** (no backend changes; UI sits on previously approved 44 endpoints) |
+| Training UI | **PASS** with follow-up (now fixed) |
+| Appraisals UI | **PASS** |
+| Expense Claims UI | **PASS** |
+| Permission Alignment | **PASS** with follow-up (now fixed) |
+
+### Inline fix in this commit
+
+**MAJOR Follow-up 1 — Expiring certs tab gated on `canWrite`.** The training page's Expiring certs tab calls `GET /hr/training/certifications-expiring` which the service layer gates on admin/write authority (`assertAdmin` requires `hr-004:write/admin` OR school admin). The previous render exposed the tab to any `canRead` actor (including Teachers with hr-004:read) which would bounce off a 403. The tab key list now branches on `canWrite`; the rendered surface excludes the tab entirely for read-only training users. A defensive `useEffect` snaps a stale `tab='expiring'` selection back to `programmes` if the actor's permissions change mid-session. Backend + tests unchanged; web build clean.
+
+### Carry-forward to pre-pilot test-hardening pass
+
+**MAJOR Follow-up 2 — UI behavior tests for permission-based rendering and terminal-state controls.** The reviewer accepted the deferral noting "build success is enough to prevent syntax/type regressions, but it does not prove" the per-permission visibility contracts. Items the future test-hardening pass should cover:
+
+- Read-only training actor does NOT see the Expiring certs tab.
+- Expense Approval queue + decision controls do not render without HR-013.
+- Lesson observation Add-form + Lock action do not render without `lesson_observation:write`.
+- Signed-off appraisal keeps editor fields disabled.
+- Cancel + Reject flows require non-empty reasons (window.prompt empty string aborts).
+
+This belongs in a dedicated UI test scaffolding cycle alongside the broader Phase 2 web-side hardening work.
+
+### CI parity
+
+- `pnpm format` + `pnpm format:check` clean.
+- `pnpm lint:logs`: **585 files clean**.
+- `pnpm --filter @campusos/api test`: **189/189 passing across 17 spec files**.
+- `pnpm --filter @campusos/api build` clean.
+- `pnpm --filter @campusos/web build` clean.
+
+### Status
+
+Original 12-step P2C4 plan now fully shipped + APPROVED, with the reviewer's PASS-with-follow-ups verdict on Step 10 closed by this commit's inline fix to the Expiring certs tab.

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore, hasAnyPermission } from '@/lib/auth-store';
 import { useToast } from '@/components/ui/Toast';
@@ -40,6 +40,15 @@ export default function TrainingPage() {
 
   const [tab, setTab] = useState<'programmes' | 'events' | 'expiring'>('programmes');
 
+  // REVIEW-P2-4c-STEP10 follow-up 1 — if the actor lost write
+  // perms after picking the Expiring tab, snap back to programmes.
+  // useEffect avoids the in-render setState anti-pattern.
+  useEffect(() => {
+    if (tab === 'expiring' && !canWrite) {
+      setTab('programmes');
+    }
+  }, [tab, canWrite]);
+
   if (!canRead) {
     return (
       <div className="space-y-4">
@@ -65,8 +74,19 @@ export default function TrainingPage() {
         </div>
       </div>
 
+      {/*
+        REVIEW-P2-4c-STEP10 follow-up 1 — the Expiring certs tab
+        calls the admin-only `GET /hr/training/certifications-
+        expiring` endpoint (service-layer assertAdmin requires
+        hr-004:write/admin OR school admin). Render the tab only
+        for actors with that authority so a non-admin Teacher
+        with only hr-004:read doesn't bounce off a 403.
+      */}
       <div className="flex gap-2 border-b border-slate-200">
-        {(['programmes', 'events', 'expiring'] as const).map((k) => (
+        {(canWrite
+          ? (['programmes', 'events', 'expiring'] as const)
+          : (['programmes', 'events'] as const)
+        ).map((k) => (
           <button
             key={k}
             type="button"
@@ -84,7 +104,7 @@ export default function TrainingPage() {
 
       {tab === 'programmes' ? <ProgrammesTab canWrite={canWrite} /> : null}
       {tab === 'events' ? <EventsTab canWrite={canWrite} /> : null}
-      {tab === 'expiring' ? <ExpiringTab /> : null}
+      {tab === 'expiring' && canWrite ? <ExpiringTab /> : null}
     </div>
   );
 }
