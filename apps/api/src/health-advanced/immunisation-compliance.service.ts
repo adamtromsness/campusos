@@ -152,9 +152,24 @@ export class ImmunisationComplianceService {
 
   async getForStudent(studentId: string, actor: ResolvedActor): Promise<ImmunisationComplianceDto> {
     const tenant = getCurrentTenant();
-    // Parents must be linked to the student via sis_student_guardians.
+    // REVIEW-P2C3 Round 2 BLOCKING — actor-type-specific gating.
+    //
+    // The endpoint sits behind hlt-001:read at the controller (held
+    // broadly: Teacher / Parent / Student / Staff). hlt-001:read alone
+    // is NOT sufficient for full immunisation compliance detail —
+    // teachers must NOT be able to read a student's compliance record
+    // by UUID. Per-actor narrowing:
+    //
+    //   - School admin: full access.
+    //   - GUARDIAN: only linked children via sis_student_guardians.
+    //   - STUDENT: only own row resolved actor.personId →
+    //     platform_students.person_id → sis_students.id.
+    //   - STAFF (or anyone else with hlt-001:read): require an
+    //     immunisation-compliance permission (hlt-007 read/write/admin).
+    //     Generic teachers without HLT-007 fall through to 404.
+    //   - Anything else: 404 don't-leak-existence.
     if (!actor.isSchoolAdmin) {
-      const isLinked = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      const allowed = await this.tenantPrisma.executeInTenantContext(async (client) => {
         if (actor.personType === 'GUARDIAN' && actor.personId) {
           const rows = (await client.$queryRawUnsafe(
             'SELECT 1 FROM sis_student_guardians sg ' +
@@ -165,15 +180,28 @@ export class ImmunisationComplianceService {
           )) as unknown[];
           return rows.length > 0;
         }
-        // STAFF + nurse-equivalents pass through with hlt-001:read.
-        const ok = await this.permissions.hasAnyPermissionInTenant(
+        if (actor.personType === 'STUDENT' && actor.personId) {
+          const rows = (await client.$queryRawUnsafe(
+            'SELECT 1 FROM sis_students s ' +
+              'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+              'WHERE s.school_id = $1::uuid AND s.id = $2::uuid AND ps.person_id = $3::uuid LIMIT 1',
+            tenant.schoolId,
+            studentId,
+            actor.personId,
+          )) as unknown[];
+          return rows.length > 0;
+        }
+        // Staff, nurse, or any non-guardian / non-student actor must
+        // hold a HLT-007 (Immunisation Compliance) permission. The
+        // controller's hlt-001:read gate is no longer a pass-through.
+        const hasCompliance = await this.permissions.hasAnyPermissionInTenant(
           actor.accountId,
           tenant.schoolId,
-          ['hlt-001:read'],
+          ['hlt-007:read', 'hlt-007:write', 'hlt-007:admin'],
         );
-        return ok;
+        return hasCompliance;
       });
-      if (!isLinked) {
+      if (!allowed) {
         throw new NotFoundException('Compliance record not found');
       }
     }

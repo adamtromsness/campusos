@@ -536,6 +536,183 @@ describe('ImmunisationComplianceService — UPSERT idempotency + state CSV', () 
     expect(out.compliant).toBe(7);
     expect(out.exempt).toBe(1);
   });
+
+  // REVIEW-P2C3 Round 2 BLOCKING — per-student compliance access
+  // matrix. The hlt-001:read controller gate is broad (Teacher /
+  // Parent / Student / Staff). Service-layer narrowing is the actual
+  // access boundary: GUARDIAN linked-only, STUDENT self-only, STAFF
+  // requires HLT-007 (immunisation compliance), admin bypasses.
+  function makeComplianceFake(opts: {
+    guardianLinked?: boolean;
+    studentSelf?: boolean;
+    hasHlt007?: boolean;
+  }) {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('from sis_student_guardians')) {
+        return opts.guardianLinked ? [{ '?column?': 1 }] : [];
+      }
+      if (sql.includes('from sis_students') && sql.includes('platform_students')) {
+        return opts.studentSelf ? [{ '?column?': 1 }] : [];
+      }
+      if (sql.includes('from hlth_immunisation_compliance')) {
+        return [
+          {
+            id: 'cmp-A',
+            student_id: 'stu-A',
+            student_first: 'Maya',
+            student_last: 'Chen',
+            student_grade: '5',
+            school_id: SCHOOL.schoolId,
+            academic_year_id: null,
+            status: 'COMPLIANT',
+            missing_vaccines: [],
+            exemption_type: null,
+            exemption_document_s3_key: null,
+            last_computed_at: new Date().toISOString(),
+            parent_notified_at: null,
+          },
+        ];
+      }
+      return [];
+    });
+    const permissions = {
+      hasAnyPermissionInTenant: async (_acc: string, _sch: string, codes: string[]) => {
+        if (codes.some((c) => c.startsWith('hlt-007'))) {
+          return Boolean(opts.hasHlt007);
+        }
+        return false;
+      },
+    };
+    return { fake, permissions };
+  }
+
+  it('teacher with hlt-001:read but no hlt-007 cannot fetch compliance — 404', async () => {
+    const { fake, permissions } = makeComplianceFake({ hasHlt007: false });
+    const svc = new ImmunisationComplianceService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      { loadActiveForCompute: async () => [] } as never,
+      { emit: async () => undefined } as never,
+    );
+    const teacher = { ...ACTOR_BASE, personType: 'STAFF' as const, isSchoolAdmin: false };
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.getForStudent('stu-A', teacher as never),
+      ),
+    ).rejects.toThrow(/Compliance record not found/);
+  });
+
+  it('staff with hlt-007:read can fetch any student compliance', async () => {
+    const { fake, permissions } = makeComplianceFake({ hasHlt007: true });
+    const svc = new ImmunisationComplianceService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      { loadActiveForCompute: async () => [] } as never,
+      { emit: async () => undefined } as never,
+    );
+    const nurse = { ...ACTOR_BASE, personType: 'STAFF' as const, isSchoolAdmin: false };
+    const dto = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.getForStudent('stu-A', nurse as never),
+    );
+    expect(dto.studentId).toBe('stu-A');
+  });
+
+  it('guardian linked to the student via sis_student_guardians can fetch', async () => {
+    const { fake, permissions } = makeComplianceFake({ guardianLinked: true });
+    const svc = new ImmunisationComplianceService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      { loadActiveForCompute: async () => [] } as never,
+      { emit: async () => undefined } as never,
+    );
+    const parent = {
+      ...ACTOR_BASE,
+      personType: 'GUARDIAN' as const,
+      isSchoolAdmin: false,
+    };
+    const dto = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.getForStudent('stu-A', parent as never),
+    );
+    expect(dto.studentId).toBe('stu-A');
+  });
+
+  it('guardian with no link to the student is rejected — 404', async () => {
+    const { fake, permissions } = makeComplianceFake({ guardianLinked: false });
+    const svc = new ImmunisationComplianceService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      { loadActiveForCompute: async () => [] } as never,
+      { emit: async () => undefined } as never,
+    );
+    const parent = {
+      ...ACTOR_BASE,
+      personType: 'GUARDIAN' as const,
+      isSchoolAdmin: false,
+    };
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.getForStudent('stu-A', parent as never),
+      ),
+    ).rejects.toThrow(/Compliance record not found/);
+  });
+
+  it('student fetching own compliance row is allowed', async () => {
+    const { fake, permissions } = makeComplianceFake({ studentSelf: true });
+    const svc = new ImmunisationComplianceService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      { loadActiveForCompute: async () => [] } as never,
+      { emit: async () => undefined } as never,
+    );
+    const student = {
+      ...ACTOR_BASE,
+      personType: 'STUDENT' as const,
+      isSchoolAdmin: false,
+    };
+    const dto = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.getForStudent('stu-A', student as never),
+    );
+    expect(dto.studentId).toBe('stu-A');
+  });
+
+  it('student fetching another student is rejected — 404', async () => {
+    const { fake, permissions } = makeComplianceFake({ studentSelf: false });
+    const svc = new ImmunisationComplianceService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      { loadActiveForCompute: async () => [] } as never,
+      { emit: async () => undefined } as never,
+    );
+    const student = {
+      ...ACTOR_BASE,
+      personType: 'STUDENT' as const,
+      isSchoolAdmin: false,
+    };
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.getForStudent('stu-A', student as never),
+      ),
+    ).rejects.toThrow(/Compliance record not found/);
+  });
+
+  it('school admin bypasses both relationship and HLT-007 gates', async () => {
+    const { fake, permissions } = makeComplianceFake({
+      guardianLinked: false,
+      studentSelf: false,
+      hasHlt007: false,
+    });
+    const svc = new ImmunisationComplianceService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      { loadActiveForCompute: async () => [] } as never,
+      { emit: async () => undefined } as never,
+    );
+    const dto = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.getForStudent('stu-A', ADMIN_ACTOR),
+    );
+    expect(dto.studentId).toBe('stu-A');
+  });
 });
 
 describe('ScreeningReferralService — FOLLOW_UP_COMPLETE precondition', () => {

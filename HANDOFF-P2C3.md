@@ -22,6 +22,7 @@
 | 10  | HANDOFF + CLAUDE.md + REVIEW notes                                       | DONE  |
 | 11  | Git commit + push                                                        | DONE  |
 | 12  | REVIEW-P2C3 Round 1 fixes — 3 BLOCKING + 1 actionable MAJOR              | DONE  |
+| 13  | REVIEW-P2C3 Round 2 fix — residual getForStudent privacy boundary        | DONE  |
 
 ## What landed
 
@@ -266,7 +267,61 @@ After the REVIEW-P2C3 Round 1 fixes (Step 12 below), the suite grew
 to **126 passing tests** (+4: CANCELLED-without-reason rejection,
 CANCELLED-with-reason happy path, controller permission-metadata
 gate for school-wide compliance, and the expanded
-`hlth.immunisation.noncompliant` payload contract test).
+`hlth.immunisation.noncompliant` payload contract test). The Round 2
+follow-up (Step 13) added **7 more tests** for the per-student
+compliance access matrix — total **133 passing tests**.
+
+## REVIEW-P2C3 Round 2 fix log (Step 13)
+
+Round 2 against `bef641e` returned **FAIL** with 1 residual BLOCKING:
+`getForStudent()` allowed any non-GUARDIAN actor with `hlt-001:read`
+to fetch a student's full immunisation compliance record by UUID.
+Since teachers hold `hlt-001:read` from Cycle 10 (allergies summary),
+they could read arbitrary students' compliance — a health-data
+privacy violation despite the Round 1 narrowing of the school-wide
+endpoints.
+
+**Fix.** `ImmunisationComplianceService.getForStudent(studentId, actor)`
+rewritten with explicit per-actor-type gating inside one
+`executeInTenantContext` block:
+
+- **School admin**: full access (bypasses both relationship + HLT-007).
+- **GUARDIAN**: SQL probe through `sis_student_guardians` +
+  `sis_guardians.person_id = actor.personId` against the supplied
+  `studentId` (unchanged — the only path that already worked).
+- **STUDENT**: SQL probe through `sis_students` JOIN
+  `platform.platform_students ps ON ps.id = s.platform_student_id`
+  matching `ps.person_id = actor.personId` AND `s.school_id = $tenant`
+  AND `s.id = $studentId` — covers the cross-school edge case where
+  a student id from a different tenant won't resolve.
+- **STAFF (or anything else)**: requires one of `hlt-007:read` /
+  `hlt-007:write` / `hlt-007:admin`. Generic teachers without HLT-007
+  fall through to `404 Compliance record not found` —
+  don't-leak-existence per the convention.
+- **Anything else**: 404.
+
+The controller-level gate stays at `hlt-001:read` because parents +
+students legitimately reach this endpoint without holding HLT-007;
+the service layer is now the actual access boundary, and `hlt-001:read`
+is no longer a pass-through for staff actors.
+
+7 new regression tests assert the full access matrix:
+
+- Teacher (STAFF, no HLT-007) → 404.
+- Staff with HLT-007:read → 200 (any student).
+- Guardian linked via `sis_student_guardians` → 200 (linked child).
+- Guardian unlinked → 404.
+- Student fetching own row → 200.
+- Student fetching another student → 404.
+- School admin (no HLT-007, no relationship) → 200 (admin bypass).
+
+Tests use a fake `permissions.hasAnyPermissionInTenant` whose `codes`
+arg is inspected to grant `hlt-007:*` only when the test opts in,
+plus a SQL fake that returns the link probe rows or the compliance
+row depending on which SELECT is hit.
+
+CI parity green: format:check + lint:logs (556 files clean) +
+vitest 133/133 + API + web build all clean.
 
 ## REVIEW-P2C3 Round 1 fix log (Step 12)
 
@@ -394,13 +449,13 @@ with the rest of the isolation pattern.
 
 ## CI parity (Step 9)
 
-| gate                                | result                                       |
-| ----------------------------------- | -------------------------------------------- |
-| `pnpm format:check`                 | ✓ clean                                      |
-| `pnpm lint:logs`                    | ✓ 556 files clean                            |
-| `pnpm --filter @campusos/api test`  | ✓ 126/126 passing (Round 1 fixes: 122 → 126) |
-| `pnpm --filter @campusos/api build` | ✓ clean                                      |
-| `pnpm --filter @campusos/web build` | ✓ clean                                      |
+| gate                                | result                                                 |
+| ----------------------------------- | ------------------------------------------------------ |
+| `pnpm format:check`                 | ✓ clean                                                |
+| `pnpm lint:logs`                    | ✓ 556 files clean                                      |
+| `pnpm --filter @campusos/api test`  | ✓ 133/133 passing (Round 1: 122 → 126; Round 2: → 133) |
+| `pnpm --filter @campusos/api build` | ✓ clean                                                |
+| `pnpm --filter @campusos/web build` | ✓ clean                                                |
 
 ## Reviewer attention items (carried to Phase 2 backlog)
 
