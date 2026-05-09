@@ -75,7 +75,8 @@ export type AppKey =
   | 'governance'
   | 'platform'
   | 'configuration'
-  | 'visitors';
+  | 'visitors'
+  | 'emergency';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -708,6 +709,28 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
           : 'Currently on-site visitors',
       href: '/visitors',
       routePrefix: '/visitors',
+      icon: ShieldIcon,
+    });
+  }
+
+  // P2C2 — Incident & Emergency. Tile gated on saf-001:read (Teacher,
+  // Staff, Admin). Staff see the declaration panel + accountability +
+  // reunification + drills + incident reports; admins additionally
+  // see procedure CRUD + incident-type catalogue. Teachers see the
+  // procedure viewer + drill schedule + their own non-discipline
+  // incident reports (read via saf-003:read+write; write-path on the
+  // /emergency/report form).
+  if (hasAnyPermission(user, ['saf-001:read', 'saf-003:read'])) {
+    apps.push({
+      key: 'emergency',
+      label: 'Emergency',
+      description: isAdmin
+        ? 'Declarations, procedures, accountability, reunification, drills'
+        : isStaff
+          ? 'Active incidents, accountability, reunification, drills, reports'
+          : 'Procedures, drill schedule, and your incident reports',
+      href: '/emergency',
+      routePrefix: '/emergency',
       icon: ShieldIcon,
     });
   }

@@ -50,6 +50,7 @@ import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 import { ConfigurationModule } from './configuration/configuration.module';
 import { RegionModule } from './region/region.module';
 import { VisitorsModule } from './visitors/visitors.module';
+import { IncidentsModule } from './incidents/incidents.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -136,6 +137,11 @@ var devOnlyControllers: Type<unknown>[] =
     // HMAC blind index for kiosk lookup, banned-persons HMAC
     // screening, emergency muster snapshot.
     VisitorsModule,
+    // Phase 2 Cycle 2 — M91 Incident & Emergency. Atomic emergency
+    // declarations + declaration outbox orchestration, immutable
+    // incident timeline, real-time accountability summary, identity-
+    // verified reunification, drills, non-discipline incident reports.
+    IncidentsModule,
   ],
   controllers: devOnlyControllers,
   providers: [

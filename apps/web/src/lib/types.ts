@@ -9204,3 +9204,331 @@ export interface UpdateSignInSettingsPayload {
   badgeTemplate?: 'STANDARD' | 'COMPACT' | 'PHOTO';
   kioskWelcomeMessage?: string;
 }
+
+// ----- P2C2 Incident & Emergency DTOs ---------------------------------------
+
+export type IncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type EmergencyIncidentStatus = 'ACTIVE' | 'RESOLVED' | 'CANCELLED';
+export type ProcedureType =
+  | 'FIRE_EVACUATION'
+  | 'LOCKDOWN'
+  | 'SHELTER_IN_PLACE'
+  | 'MEDICAL_EMERGENCY'
+  | 'BOMB_THREAT'
+  | 'HAZMAT'
+  | 'MISSING_STUDENT'
+  | 'SAFEGUARDING_CRISIS'
+  | 'GENERAL';
+export type AccountabilityPersonType = 'STUDENT' | 'STAFF' | 'VISITOR';
+export type AccountabilityStatus =
+  | 'UNKNOWN'
+  | 'ACCOUNTED_FOR'
+  | 'EVACUATED'
+  | 'MEDICAL_ASSISTANCE'
+  | 'MISSING';
+export type DrillStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+export type NonDisciplineIncidentType =
+  | 'STUDENT_INJURY'
+  | 'STAFF_INJURY'
+  | 'MEDICAL_EPISODE'
+  | 'PROPERTY_DAMAGE'
+  | 'ENVIRONMENTAL'
+  | 'SECURITY'
+  | 'OTHER';
+export type NonDisciplineSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
+export type NonDisciplineStatus = 'OPEN' | 'UNDER_REVIEW' | 'CLOSED';
+
+export interface IncidentTypeDto {
+  id: string;
+  schoolId: string | null;
+  code: string;
+  name: string;
+  severity: IncidentSeverity;
+  requiresLockdown: boolean;
+  notificationTemplate: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateIncidentTypePayload {
+  code: string;
+  name: string;
+  severity: IncidentSeverity;
+  requiresLockdown?: boolean;
+  notificationTemplate?: string;
+}
+
+export interface UpdateIncidentTypePayload {
+  name?: string;
+  severity?: IncidentSeverity;
+  requiresLockdown?: boolean;
+  notificationTemplate?: string;
+  isActive?: boolean;
+}
+
+export interface ProcedureStepDto {
+  stepNumber: number;
+  action: string;
+  responsibleRole?: string;
+  timeTargetSeconds?: number;
+}
+
+export interface ExternalContactDto {
+  agency: string;
+  phone: string;
+  notes?: string;
+}
+
+export interface AssemblyPointDto {
+  name: string;
+  priority: number;
+  capacity?: number;
+}
+
+export interface ProcedureDto {
+  id: string;
+  schoolId: string;
+  procedureType: ProcedureType;
+  title: string;
+  procedureSteps: ProcedureStepDto[];
+  primaryContactId: string;
+  secondaryContactId: string | null;
+  externalContacts: ExternalContactDto[] | null;
+  assemblyPoints: AssemblyPointDto[] | null;
+  lastReviewedAt: string;
+  reviewedBy: string;
+  nextReviewDate: string;
+  isActive: boolean;
+  procedureDocumentS3Key: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProcedurePayload {
+  procedureType: ProcedureType;
+  title: string;
+  procedureSteps: ProcedureStepDto[];
+  primaryContactId: string;
+  secondaryContactId?: string;
+  externalContacts?: ExternalContactDto[];
+  assemblyPoints?: AssemblyPointDto[];
+  lastReviewedAt: string;
+  nextReviewDate: string;
+  reviewedBy: string;
+  procedureDocumentS3Key?: string;
+}
+
+export interface UpdateProcedurePayload extends Partial<CreateProcedurePayload> {
+  isActive?: boolean;
+}
+
+export interface OutboxStatusDto {
+  id: string;
+  incidentId: string;
+  declaredAt: string;
+  tasksCreatedAt: string | null;
+  musterTakenAt: string | null;
+  alertSentAt: string | null;
+  lastAttemptAt: string | null;
+  attemptCount: number;
+  lastError: string | null;
+}
+
+export interface IncidentDto {
+  id: string;
+  schoolId: string;
+  incidentTypeId: string | null;
+  incidentTypeCode: string | null;
+  incidentTypeName: string | null;
+  severity: IncidentSeverity | null;
+  declaredBy: string;
+  declaredByName: string | null;
+  declaredAt: string;
+  title: string | null;
+  description: string | null;
+  status: EmergencyIncidentStatus;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  resolutionNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  requiresLockdown: boolean | null;
+  outboxStatus: OutboxStatusDto | null;
+}
+
+export interface DeclareIncidentPayload {
+  incidentTypeId: string;
+  title?: string;
+  description?: string;
+}
+
+export interface ResolveIncidentPayload {
+  resolutionNotes?: string;
+}
+
+export interface TimelineEntryDto {
+  id: string;
+  incidentId: string;
+  recordedBy: string;
+  recordedByName: string | null;
+  eventType: string;
+  description: string;
+  metadata: Record<string, unknown> | null;
+  recordedAt: string;
+}
+
+export interface CreateTimelineEntryPayload {
+  eventType: string;
+  description: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AccountabilityRecordDto {
+  id: string;
+  incidentId: string;
+  personId: string;
+  personType: AccountabilityPersonType;
+  status: AccountabilityStatus;
+  lastUpdatedBy: string | null;
+  lastUpdatedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  personName: string | null;
+}
+
+export interface AccountabilitySummaryDto {
+  incidentId: string;
+  totalPeople: number;
+  accountedFor: number;
+  unknown: number;
+  evacuated: number;
+  medicalAssistance: number;
+  missing: number;
+  lastUpdatedAt: string;
+}
+
+export interface UpdateAccountabilityPayload {
+  status: AccountabilityStatus;
+  notes?: string;
+}
+
+export interface BulkUpdateAccountabilityPayload {
+  recordIds: string[];
+  status: AccountabilityStatus;
+  notes?: string;
+}
+
+export interface ReunificationCorrectionDto {
+  id: string;
+  reunificationRecordId: string;
+  correctedBy: string;
+  correctedByName: string | null;
+  correctionReason: string;
+  correctedAt: string;
+}
+
+export interface ReunificationRecordDto {
+  id: string;
+  incidentId: string;
+  studentId: string;
+  studentName: string | null;
+  releasedToId: string;
+  releasedToName: string | null;
+  releasedBy: string;
+  releasedByName: string | null;
+  releasedAt: string;
+  notes: string | null;
+  corrections: ReunificationCorrectionDto[];
+}
+
+export interface CreateReunificationPayload {
+  studentId: string;
+  releasedToId: string;
+  notes?: string;
+}
+
+export interface CorrectReunificationPayload {
+  correctionReason: string;
+}
+
+export interface DrillDto {
+  id: string;
+  schoolId: string;
+  incidentTypeId: string | null;
+  procedureType: ProcedureType;
+  scheduledAt: string;
+  completedAt: string | null;
+  durationSeconds: number | null;
+  participationRate: number | null;
+  notes: string | null;
+  status: DrillStatus;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OverdueDrillDto {
+  procedureType: ProcedureType;
+  lastCompletedAt: string | null;
+  daysSinceLastDrill: number;
+}
+
+export interface CreateDrillPayload {
+  procedureType: ProcedureType;
+  incidentTypeId?: string;
+  scheduledAt: string;
+  notes?: string;
+}
+
+export interface CompleteDrillPayload {
+  completedAt: string;
+  durationSeconds: number;
+  participationRate: number;
+  notes?: string;
+}
+
+export interface CancelDrillPayload {
+  notes?: string;
+}
+
+export interface NonDisciplineIncidentDto {
+  id: string;
+  schoolId: string;
+  incidentType: NonDisciplineIncidentType;
+  location: string | null;
+  incidentDate: string;
+  description: string;
+  studentsInvolved: string[];
+  staffInvolved: string[];
+  witnesses: string | null;
+  reportedBy: string;
+  reportedByName: string | null;
+  severity: NonDisciplineSeverity;
+  followUpTicketId: string | null;
+  resolution: string | null;
+  status: NonDisciplineStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateNonDisciplinePayload {
+  incidentType: NonDisciplineIncidentType;
+  location?: string;
+  incidentDate: string;
+  description: string;
+  studentsInvolved?: string[];
+  staffInvolved?: string[];
+  witnesses?: string;
+  severity: NonDisciplineSeverity;
+  followUpTicketId?: string;
+}
+
+export interface UpdateNonDisciplinePayload {
+  status?: NonDisciplineStatus;
+  resolution?: string;
+  followUpTicketId?: string;
+}

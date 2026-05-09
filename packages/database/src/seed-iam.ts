@@ -361,6 +361,19 @@ async function seedIam() {
         // belongs to Staff (reception / safeguarding officer) and
         // School Admin via everyFunction.
         'SAF-002': ['read'],
+        // P2C2 — Incident & Emergency (M91). Teachers see emergency
+        // procedures + drill schedule + active-incident dashboard
+        // via SAF-001:read. They do NOT receive write (declaration,
+        // accountability updates, reunification) which belongs to
+        // Staff (school admin assistant, safeguarding officer) and
+        // School Admin via everyFunction. Teachers report
+        // non-discipline incidents via SAF-003:write (their own
+        // playground-injury / property-damage / medical-episode
+        // observations) and read their own reports back via
+        // SAF-003:read. Drill management (SAF-004) is admin-only
+        // through everyFunction.
+        'SAF-001': ['read'],
+        'SAF-003': ['read', 'write'],
         // the future Step 5 HealthRecordService can return the
         // accommodation-level health summary used in the classroom (no
         // PII; the service strips management_plan, emergency_medical_notes,
@@ -798,6 +811,22 @@ async function seedIam() {
         // banned-person details, only the BLOCKED kiosk outcome
         // event via the silent vis.banned_person.detected emit.
         'SAF-002': ['read', 'write'],
+        // P2C2 — Incident & Emergency (M91). Staff (covering the
+        // school admin assistant, the safeguarding officer, and the
+        // VP / counsellor in that role) holds the full operational
+        // surface during an incident. SAF-001:read+write covers
+        // declaring an emergency, posting timeline events,
+        // updating accountability, and processing reunification at
+        // the reception station. SAF-003:read+write covers logging
+        // and reviewing non-discipline incidents. SAF-004:read+write
+        // covers scheduling drills and recording results. The
+        // admin tier on each of the three codes (catalogue + procedure
+        // CRUD, drill overdue management, incident-type configuration)
+        // is reached by School Admin and Platform Admin via the
+        // everyFunction grant.
+        'SAF-001': ['read', 'write'],
+        'SAF-003': ['read', 'write'],
+        'SAF-004': ['read', 'write'],
         // Cycle 9 — behaviour & discipline. VPs, counsellors, and
         // admin assistants log incidents the same way teachers do
         // (BEH-001 read+write). Counsellors are the canonical author
