@@ -856,6 +856,14 @@ async function seedIam() {
         'HLT-003': ['read', 'write'],
         'HLT-004': ['read', 'write'],
         'HLT-005': ['read', 'write'],
+        // P2C3 — Health Advanced. HLT-006 Telehealth covers the
+        // provider directory + session scheduling + encrypted
+        // document exchange. Staff (nurse stand-in) read+write;
+        // School Admin / Platform Admin pick up admin tier via
+        // everyFunction. Plan typo'd this as HLT-005 but the
+        // catalogue's HLT-005 is "Dietary Profiles & Allergens"
+        // already in use by Cycle 10; HLT-006 is the new code.
+        'HLT-006': ['read', 'write'],
         // Cycle 11 — Counselling & Student Support. Staff covers
         // counsellor + VP + admin assistant. Counsellors are the
         // canonical author of caseloads / referrals (COU-001/002),

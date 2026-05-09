@@ -41,6 +41,7 @@ export const HealthAccessType = [
   'VIEW_IEP',
   'VIEW_SCREENING',
   'VIEW_DIETARY',
+  'VIEW_TELEHEALTH',
   'EXPORT',
 ] as const;
 export type HealthAccessType = (typeof HealthAccessType)[number];

@@ -9532,3 +9532,190 @@ export interface UpdateNonDisciplinePayload {
   resolution?: string;
   followUpTicketId?: string;
 }
+
+// ----- P2C3 Health Advanced DTOs -------------------------------------------
+
+export type TelehealthSessionStatus =
+  | 'SCHEDULED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'NO_SHOW'
+  | 'CANCELLED';
+export type TelehealthDocumentType =
+  | 'SESSION_NOTES'
+  | 'TREATMENT_PLAN'
+  | 'REFERRAL_LETTER'
+  | 'CONSENT'
+  | 'OTHER';
+
+export interface TelehealthProviderDto {
+  id: string;
+  schoolId: string | null;
+  providerName: string;
+  speciality: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  bookingUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTelehealthProviderPayload {
+  providerName: string;
+  speciality?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  bookingUrl?: string;
+}
+
+export interface UpdateTelehealthProviderPayload extends Partial<CreateTelehealthProviderPayload> {
+  isActive?: boolean;
+}
+
+export interface TelehealthSessionDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentName: string | null;
+  providerId: string;
+  providerName: string | null;
+  providerSpeciality: string | null;
+  scheduledAt: string;
+  durationMinutes: number | null;
+  status: TelehealthSessionStatus;
+  meetingUrl: string | null;
+  sessionNotesS3Key: string | null;
+  consentSignatureId: string | null;
+  consentReceivedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTelehealthSessionPayload {
+  studentId: string;
+  providerId: string;
+  scheduledAt: string;
+  durationMinutes?: number;
+  meetingUrl?: string;
+  requestParentConsent?: boolean;
+}
+
+export interface UpdateTelehealthSessionPayload {
+  status?: TelehealthSessionStatus;
+  meetingUrl?: string;
+  cancellationReason?: string;
+  sessionNotesS3Key?: string;
+}
+
+export interface TelehealthDocumentDto {
+  id: string;
+  sessionId: string;
+  documentType: TelehealthDocumentType;
+  s3Key: string;
+  fileSizeBytes: number | null;
+  signatureRequestId: string | null;
+  uploadedBy: string;
+  uploadedByName: string | null;
+  uploadedAt: string;
+}
+
+export type ComplianceStatus = 'COMPLIANT' | 'NON_COMPLIANT' | 'EXEMPT' | 'PROVISIONAL';
+export type ExemptionType = 'MEDICAL' | 'RELIGIOUS' | 'PHILOSOPHICAL';
+
+export interface ImmunisationRequirementDto {
+  id: string;
+  schoolId: string | null;
+  stateCode: string;
+  vaccineName: string;
+  requiredDoses: number;
+  requiredByGrade: string;
+  allowsExemption: boolean;
+  exemptionTypes: string[] | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MissingVaccineDto {
+  vaccineName: string;
+  dosesReceived: number;
+  dosesRequired: number;
+}
+
+export interface ImmunisationComplianceDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  studentGrade: string | null;
+  schoolId: string;
+  academicYearId: string | null;
+  status: ComplianceStatus;
+  missingVaccines: MissingVaccineDto[];
+  exemptionType: string | null;
+  exemptionDocumentS3Key: string | null;
+  lastComputedAt: string;
+  parentNotifiedAt: string | null;
+}
+
+export interface ComplianceDashboardDto {
+  schoolId: string;
+  totalStudents: number;
+  compliant: number;
+  nonCompliant: number;
+  exempt: number;
+  provisional: number;
+  compliancePercent: number;
+  lastComputedAt: string | null;
+}
+
+// P2C3 Health Advanced — namespaced to avoid clash with Cycle 11 Counselling
+// referrals (ReferralStatus/ReferralType already defined upstream for that
+// domain). The HTTP wire shape is unchanged; only the TS aliases are scoped.
+export type ScreeningReferralType = 'VISION' | 'HEARING' | 'SCOLIOSIS' | 'OTHER';
+export type ScreeningReferralOutcome =
+  | 'NORMAL'
+  | 'TREATMENT_REQUIRED'
+  | 'GLASSES_PRESCRIBED'
+  | 'HEARING_AID'
+  | 'OTHER';
+export type ScreeningReferralStatus = 'REFERRED' | 'FOLLOW_UP_COMPLETE' | 'LOST_TO_FOLLOW_UP';
+
+export interface ScreeningReferralDto {
+  id: string;
+  screeningId: string;
+  studentId: string;
+  studentName: string | null;
+  schoolId: string;
+  referralType: ScreeningReferralType;
+  reason: string;
+  referredTo: string | null;
+  referralDate: string;
+  followUpDate: string | null;
+  followUpOutcome: ScreeningReferralOutcome | null;
+  followUpNotes: string | null;
+  status: ScreeningReferralStatus;
+  createdBy: string;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateScreeningReferralPayload {
+  referralType: ScreeningReferralType;
+  reason: string;
+  referredTo?: string;
+  referralDate: string;
+  followUpDate?: string;
+}
+
+export interface UpdateScreeningReferralPayload {
+  status?: ScreeningReferralStatus;
+  followUpOutcome?: ScreeningReferralOutcome;
+  followUpDate?: string;
+  followUpNotes?: string;
+  referredTo?: string;
+}

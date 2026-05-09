@@ -51,6 +51,7 @@
     "seed:dpo": "tsx src/seed-dpo.ts",
     "seed:visitors": "tsx src/seed-visitors.ts",
     "seed:incident": "tsx src/seed-incident.ts",
+    "seed:health-advanced": "tsx src/seed-health-advanced.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

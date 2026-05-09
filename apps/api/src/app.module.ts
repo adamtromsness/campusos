@@ -51,6 +51,7 @@ import { ConfigurationModule } from './configuration/configuration.module';
 import { RegionModule } from './region/region.module';
 import { VisitorsModule } from './visitors/visitors.module';
 import { IncidentsModule } from './incidents/incidents.module';
+import { HealthAdvancedModule } from './health-advanced/health-advanced.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -142,6 +143,11 @@ var devOnlyControllers: Type<unknown>[] =
     // incident timeline, real-time accountability summary, identity-
     // verified reunification, drills, non-discipline incident reports.
     IncidentsModule,
+    // Phase 2 Cycle 3 — M23 Health Advanced. Telehealth provider
+    // directory + session scheduling with HIPAA access-log writes,
+    // immunisation compliance computation with nightly worker +
+    // state CSV report, screening referrals with overdue tracking.
+    HealthAdvancedModule,
   ],
   controllers: devOnlyControllers,
   providers: [

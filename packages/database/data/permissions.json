@@ -361,6 +361,11 @@
       "group": "Health & Wellness"
     },
     {
+      "code": "HLT-006",
+      "name": "Telehealth",
+      "group": "Health & Wellness"
+    },
+    {
       "code": "HR-001",
       "name": "Employee Records",
       "group": "Human Resources"

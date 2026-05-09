@@ -78,6 +78,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Incident & Emergency — declarations, accountability, drills (P2C2)',
     script: 'seed-incident.ts',
   },
+  {
+    label: 'Health Advanced — telehealth, immunisation compliance, screening referrals (P2C3)',
+    script: 'seed-health-advanced.ts',
+  },
 ];
 
 async function main(): Promise<void> {
