@@ -406,6 +406,11 @@
       "group": "Human Resources"
     },
     {
+      "code": "HR-011",
+      "name": "Recruitment Administration",
+      "group": "Human Resources"
+    },
+    {
       "code": "IT-001",
       "name": "Helpdesk Tickets",
       "group": "IT & Technology"

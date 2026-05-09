@@ -764,3 +764,203 @@ P2-4c covers \*\*Training programmes + Appraisals + Lesson Observations
   wire to `hr.payroll.processed` (subscription + journal posting
   handler addition to Cycle 26's GLConsumer).
 * Wave A closes with this sub-cycle.
+
+---
+
+## REVIEW-P2-4b Round 1 fix log (2026-05-09)
+
+Round 1 against `8198142` returned **FAIL** with 4 BLOCKING + 3
+MAJOR. The Round 1 fix commit lands all 4 BLOCKING + the 2 actionable
+MAJORs (#1 role_chk + #2 position resolution) + 4 new keystone unit
+tests, and accepts the third MAJOR (test coverage breadth) by virtue
+of those new tests. The reviewer's MINOR #1 (orphan
+PENDING_VERIFICATION identities on closed-posting race) is also
+addressed since identity creation + application insert now share one
+tenant tx so a closed-posting INSERT failure rolls both back.
+
+### BLOCKING fixes
+
+1. **Recruitment admin pipeline re-gated to new HR-011 code.** New
+   function `HR-011 (Recruitment Administration)` added to
+   `permissions.json` (catalogue 498 → **501**). HR-002 grant on
+   Staff role removed from `seed-iam.ts` — generic Staff (VP,
+   counsellor, admin assistant) no longer reaches admin candidate /
+   offer / panel surfaces. Controller endpoints re-gated:
+
+   | Endpoint                                     | Before         | After          |
+   | -------------------------------------------- | -------------- | -------------- |
+   | `GET /hr/jobs` + `/:id`                      | `hr-002:read`  | `hr-011:read`  |
+   | `POST/PATCH /hr/jobs` + `/:id`               | `hr-002:write` | `hr-011:write` |
+   | `GET /hr/applications` + `/:id`              | `hr-002:read`  | `hr-011:read`  |
+   | `GET /hr/jobs/:postingId/applications`       | `hr-002:read`  | `hr-011:read`  |
+   | `PATCH /hr/applications/:id`                 | `hr-002:write` | `hr-011:write` |
+   | `POST /hr/interview-panels` + `/members`     | `hr-002:write` | `hr-011:write` |
+   | `GET /hr/jobs/:postingId/panels`             | `hr-002:read`  | `hr-011:read`  |
+   | `POST /hr/interviews`                        | `hr-002:write` | `hr-011:write` |
+   | `GET /hr/applications/:id/interviews`        | `hr-002:read`  | `hr-011:read`  |
+   | `GET /hr/interviews/:id`                     | `hr-002:read`  | `hr-011:read`  |
+   | `PATCH /hr/interviews/:id`                   | `hr-002:write` | `hr-011:write` |
+   | `POST /hr/interviews/:id/evaluations`        | `hr-002:read`  | `hr-011:read`  |
+   | `GET /hr/interviews/:id/evaluations`         | `hr-002:read`  | `hr-011:read`  |
+   | `GET /hr/offers` (admin list)                | `hr-002:read`  | `hr-011:read`  |
+   | `POST /hr/applications/:applicationId/offer` | `hr-002:write` | `hr-011:write` |
+   | `GET /hr/offers/:id` (candidate-facing)      | `hr-002:read`  | unchanged      |
+   | `PATCH /hr/offers/:id` (respond)             | `hr-002:read`  | unchanged      |
+
+   School Admin / Platform Admin pick up `hr-011:read+write+admin`
+   through the `everyFunction` grant. Service-layer `assertAdmin` /
+   `isAdmin` helpers in `JobPostingService`, `ApplicationService`,
+   `OfferService`, and `InterviewService` re-pointed at `hr-011`.
+   The candidate-facing `GET /hr/offers/:id` and
+   `PATCH /hr/offers/:id` keep `hr-002:read` because those are the
+   surfaces a candidate reaches; the service-layer
+   `application.person_id === actor.personId` check is the actual
+   access boundary.
+
+2. **Offer-accept existing-employee lookup is school-scoped.**
+   `OfferService.respond` ACCEPTED branch existing lookup rewritten:
+
+   ```sql
+   SELECT id::text AS id FROM hr_employees
+   WHERE school_id = $1::uuid AND person_id = $2::uuid LIMIT 1
+   ```
+
+   The TERMINATED → ACTIVE re-activation UPDATE also adds
+   `school_id = $2::uuid`. The `SELECT_OFFER_BASE` DTO subquery for
+   `created_employee_id` adds `e.school_id = o.school_id` so a
+   multi-school tenant cannot surface a foreign-school employee id
+   on the offer DTO. New regression test verifies the existing
+   lookup carries both args + the INSERT path runs against the
+   current school when no row matches.
+
+3. **Public apply is race-safe via INSERT … SELECT WHERE
+   `p.status='LIVE'` RETURNING.** `ApplicationService.apply`
+   rewritten:
+
+   ```sql
+   INSERT INTO hr_applications (id, posting_id, person_id, status,
+       resume_s3_key, cover_letter_s3_key)
+   SELECT $1::uuid, p.id, $2::uuid, 'SUBMITTED', $3, $4
+   FROM hr_job_postings p
+   WHERE p.school_id = $5::uuid AND p.id = $6::uuid
+     AND p.status = 'LIVE'
+   RETURNING id::text AS id
+   ```
+
+   If the SELECT returns zero rows (posting closed in the race
+   window between `loadOpenForApply` and the INSERT), the INSERT
+   writes nothing and the service throws
+   `400 "This posting is no longer accepting applications. Please
+refresh the job board."` Identity creation + application insert
+   now share ONE tenant tx so a closed-posting failure rolls both
+   back (closes MINOR #1 — orphan PENDING_VERIFICATION identities).
+
+4. **`hr.job.posted` payload built from tx-local reread.**
+   `JobPostingService.patch` `LIVE` transition path no longer calls
+   `this.getById(id)` (which opens a fresh tenant context). It now
+   issues a `SELECT_POSTING_BASE` reread through the same `tx`
+   client used for the lock + UPDATE. Outbox payload is built from
+   the tx-local row. New regression test asserts the SQL capture
+   order: lock → UPDATE → tx-reread → outbox enqueue, and the
+   reread runs through the SAME captured client (not a fresh one).
+
+### MAJOR fixes
+
+5. **`hr_interview_panel_members.role_in_panel` CHECK constraint.**
+   New tenant migration `115_hr_interview_panel_members_role_chk.sql`
+   (splitter-safe DROP IF EXISTS + ADD pattern, idempotent) adds:
+
+   ```sql
+   CHECK (role_in_panel IS NULL OR role_in_panel IN
+          ('CHAIR', 'MEMBER', 'OBSERVER'))
+   ```
+
+   Live verified on `tenant_demo` — direct INSERT of `'BOGUS'`
+   rejected by `hr_interview_panel_members_role_chk`. NULL stays
+   accepted.
+
+6. **Auto-hire uses offer.position_title for position resolution.**
+   `OfferService.respond` ACCEPTED branch passes the offer's
+   `position_title` to `resolveOrCreatePositionInTx` instead of the
+   contract type. The helper now does a case-insensitive lookup on
+   `(school_id, LOWER(title))`; on miss it creates an `hr_positions`
+   row with the offer's title; race losers re-read the same row.
+   New regression test verifies the position lookup SQL contains
+   `LOWER(title) = LOWER($2)` and that the offer's `position_title`
+   value is bound to `$2`.
+
+### Splitter trap log
+
+Migration 115 first draft contained `;` mid-block-comment ("no
+semicolons inside the block comment header; comma-separated value
+list..."). Splitter cut the migration mid-comment per the
+documented Cycles 4+ trap. Rewritten to use em-dashes; **nineteenth
+migration in a row to clear the trap on first attempt after audit**
+(streak preserved).
+
+### Test coverage
+
+`recruitment.spec.ts` 12 → **16 passing tests** (+4 new):
+
+- Closed-posting race — apply throws 400 when INSERT…SELECT WHERE
+  status='LIVE' returns zero rows; SQL capture verifies the LIVE
+  predicate + schoolId arg.
+- Cross-school employee NOT reused — accept fires INSERT INTO
+  hr_employees with current school's args even when a foreign-
+  school row exists for the same person_id; verifies the school-
+  scoped existing lookup ran with both args.
+- Position resolution uses offer.position_title — captures the
+  hr_positions lookup SQL + asserts it contains `LOWER(title)` +
+  the offer's `'5th Grade Teacher'` is bound.
+- `hr.job.posted` reread via tx — capture order asserts lock →
+  UPDATE → tx-reread → outbox; reread fn='q' (queryRawUnsafe), all
+  in the same captured client.
+
+Plus the existing `accepted offer` test was extended to assert the
+school-scoped existing-employee lookup ran with both `schoolId` and
+`personId` args. Vitest suite 159 → **163 passing across 15 spec
+files**.
+
+### Files touched in the closeout fix
+
+```
+packages/database/data/permissions.json (HR-011 added, 498 → 501)
+packages/database/prisma/tenant/migrations/115_hr_interview_panel_members_role_chk.sql (new)
+packages/database/src/seed-iam.ts (Staff HR-002 grant removed)
+apps/api/src/recruitment/recruitment.controller.ts (admin gates → hr-011)
+apps/api/src/recruitment/job-posting.service.ts (assertAdmin → hr-011, tx-reread for outbox)
+apps/api/src/recruitment/application.service.ts (apply atomic INSERT…SELECT, identity in same tx, isAdmin → hr-011)
+apps/api/src/recruitment/offer.service.ts (school-scoped employee lookup + DTO subquery, position resolution by title, isAdmin → hr-011)
+apps/api/src/recruitment/interview.service.ts (assertAdmin → hr-011)
+apps/api/src/recruitment/recruitment.spec.ts (16 tests, +4 BLOCKING regressions)
+HANDOFF-P2C4.md (this section)
+CLAUDE.md (status block)
+```
+
+### CI parity
+
+- `pnpm format`: clean.
+- `pnpm format:check`: 571 files clean.
+- `pnpm lint:logs`: 571 files clean.
+- `pnpm --filter @campusos/api test`: **163/163 passing** across 15
+  spec files (was 159; +4 new recruitment regression tests).
+- `pnpm --filter @campusos/api build`: clean.
+- `pnpm --filter @campusos/web build`: clean (2 routes ship at
+  unchanged sizes).
+- Migration 115 provisioned cleanly on both `tenant_demo` and
+  `tenant_test`; CHECK live-verified.
+
+### Carry-overs / non-blocking follow-ups
+
+- The Recruitment Administrator role split (REVIEW-P2-4b BLOCKING
+  #1 long-term solution) — School Admin / Platform Admin currently
+  hold HR-011 via everyFunction. Pre-pilot the role model should
+  introduce a dedicated Recruitment Administrator role granted
+  HR-011 explicitly (and removed from everyFunction admins on
+  schools that don't centralise hiring). Joins items 9 / 11 / 13 /
+  14 / 16 / 22 / 25 / 26 / 30 / 32 / 33 in the broader role-split
+  chain.
+- Application lifecycle transition graph (reviewer MINOR #3) —
+  admin patch can currently flip status to any allowed enum value.
+  A future hardening could enforce a strict transition graph
+  (SUBMITTED → UNDER_REVIEW → INTERVIEW_SCHEDULED → ...).

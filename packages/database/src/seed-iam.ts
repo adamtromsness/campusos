@@ -773,16 +773,23 @@ async function seedIam() {
         // admin assistant) still read the directory + manage own leave +
         // view own certs.
         'HR-001': ['read'],
-        // P2-4b — Recruitment & Hiring. Staff (covering the school
-        // recruitment officer / HR coordinator) gets HR-002:read+write
-        // for the admin pipeline (job postings, applications, panels,
-        // interviews, evaluations, offers). School Admin / Platform
-        // Admin pick up admin tier through everyFunction. Teacher /
-        // Parent / Student intentionally NOT granted — the public
-        // job-board + apply paths bypass the IAM gate via @Public()
-        // and the OfferService.respond candidate path narrows by
-        // application.person_id at the service layer.
-        'HR-002': ['read', 'write'],
+        // REVIEW-P2-4b BLOCKING #1 — HR-002 NOT granted to the broad
+        // Staff role. The Recruitment admin pipeline (applications,
+        // offers, panels, interviews, evaluations, salary offers) is
+        // sensitive PII (candidate emails, resumes, evaluator notes,
+        // salary detail) and must NOT be readable by every Staff
+        // user. The pipeline is now gated on the new HR-011 code
+        // (Recruitment Administration), held only by School Admin /
+        // Platform Admin via everyFunction. HR-002:read remains the
+        // candidate-facing surface (own application + own offer
+        // respond, narrowed at the service layer by personId); we
+        // do not grant HR-002 to Staff so generic VPs / counsellors
+        // / admin assistants cannot enumerate candidates. The public
+        // job-board + apply paths bypass the IAM gate via @Public().
+        // Recruitment Administrator role split is the canonical
+        // pre-pilot follow-up (joins items 9 / 11 / 13 / 14 / 16 /
+        // 22 / 25 / 26 / 30 / 32 / 33 in the broader role-split
+        // chain).
         'HR-003': ['read', 'write'],
         'HR-004': ['read'],
         // REVIEW-P2-4a BLOCKING #3 — HR-010 Payroll Management. The

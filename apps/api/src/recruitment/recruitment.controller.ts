@@ -55,21 +55,29 @@ export class RecruitmentController {
   ) {}
 
   // ---- Job postings (admin) -------------------------------------------------
+  //
+  // REVIEW-P2-4b BLOCKING #1 — admin recruitment pipeline re-gated
+  // from `hr-002` (which Staff held) to the new `hr-011` Recruitment
+  // Administration code. Only School Admin + Platform Admin hold
+  // hr-011 via everyFunction; generic Staff (VP, counsellor, admin
+  // assistant) no longer reaches admin candidate / offer / panel
+  // pipeline by default. The future Recruitment Administrator role
+  // is the canonical place to grant hr-011 to a non-admin.
 
   @Get('jobs')
-  @RequirePermission('hr-002:read')
+  @RequirePermission('hr-011:read')
   async listPostings(@Query() query: ListJobPostingsQueryDto): Promise<JobPostingDto[]> {
     return this.postings.list(query);
   }
 
   @Get('jobs/:id')
-  @RequirePermission('hr-002:read')
+  @RequirePermission('hr-011:read')
   async getPosting(@Param('id', ParseUUIDPipe) id: string): Promise<JobPostingDto> {
     return this.postings.getById(id);
   }
 
   @Post('jobs')
-  @RequirePermission('hr-002:write')
+  @RequirePermission('hr-011:write')
   async createPosting(
     @Req() req: AuthedRequest,
     @Body() input: CreateJobPostingDto,
@@ -79,10 +87,10 @@ export class RecruitmentController {
   }
 
   @Patch('jobs/:id')
-  @RequirePermission('hr-002:write')
+  @RequirePermission('hr-011:write')
   @ApiOperation({
     summary:
-      'Update a job posting. status=LIVE transition stamps posted_at and enqueues hr.job.posted in platform_outbox via OutboxService.enqueueInTx.',
+      'Update a job posting. status=LIVE transition stamps posted_at and enqueues hr.job.posted in platform_outbox via OutboxService.enqueueInTx. Re-gated from hr-002:write to hr-011:write per REVIEW-P2-4b BLOCKING #1.',
   })
   async patchPosting(
     @Req() req: AuthedRequest,
@@ -108,7 +116,7 @@ export class RecruitmentController {
   // ---- Applications ---------------------------------------------------------
 
   @Get('applications')
-  @RequirePermission('hr-002:read')
+  @RequirePermission('hr-011:read')
   async listApplications(
     @Req() req: AuthedRequest,
     @Query() query: ListApplicationsQueryDto,
@@ -118,7 +126,7 @@ export class RecruitmentController {
   }
 
   @Get('applications/:id')
-  @RequirePermission('hr-002:read')
+  @RequirePermission('hr-011:read')
   async getApplication(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
@@ -128,7 +136,7 @@ export class RecruitmentController {
   }
 
   @Get('jobs/:postingId/applications')
-  @RequirePermission('hr-002:read')
+  @RequirePermission('hr-011:read')
   async listForPosting(
     @Req() req: AuthedRequest,
     @Param('postingId', ParseUUIDPipe) postingId: string,
@@ -151,7 +159,7 @@ export class RecruitmentController {
   }
 
   @Patch('applications/:id')
-  @RequirePermission('hr-002:write')
+  @RequirePermission('hr-011:write')
   async patchApplication(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
@@ -164,7 +172,7 @@ export class RecruitmentController {
   // ---- Interview panels -----------------------------------------------------
 
   @Get('jobs/:postingId/panels')
-  @RequirePermission('hr-002:read')
+  @RequirePermission('hr-011:read')
   async listPanels(
     @Req() req: AuthedRequest,
     @Param('postingId', ParseUUIDPipe) postingId: string,
@@ -174,7 +182,7 @@ export class RecruitmentController {
   }
 
   @Post('interview-panels')
-  @RequirePermission('hr-002:write')
+  @RequirePermission('hr-011:write')
   async createPanel(
     @Req() req: AuthedRequest,
     @Body() input: CreateInterviewPanelDto,
@@ -186,7 +194,7 @@ export class RecruitmentController {
   // ---- Interviews -----------------------------------------------------------
 
   @Post('interviews')
-  @RequirePermission('hr-002:write')
+  @RequirePermission('hr-011:write')
   async scheduleInterview(
     @Req() req: AuthedRequest,
     @Body() input: ScheduleInterviewDto,
@@ -196,7 +204,7 @@ export class RecruitmentController {
   }
 
   @Get('applications/:applicationId/interviews')
-  @RequirePermission('hr-002:read')
+  @RequirePermission('hr-011:read')
   async listInterviews(
     @Req() req: AuthedRequest,
     @Param('applicationId', ParseUUIDPipe) applicationId: string,
@@ -206,7 +214,7 @@ export class RecruitmentController {
   }
 
   @Get('interviews/:id')
-  @RequirePermission('hr-002:read')
+  @RequirePermission('hr-011:read')
   async getInterview(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
@@ -216,7 +224,7 @@ export class RecruitmentController {
   }
 
   @Patch('interviews/:id')
-  @RequirePermission('hr-002:write')
+  @RequirePermission('hr-011:write')
   async patchInterview(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
@@ -229,10 +237,10 @@ export class RecruitmentController {
   // ---- Interview evaluations -----------------------------------------------
 
   @Post('interviews/:id/evaluations')
-  @RequirePermission('hr-002:read')
+  @RequirePermission('hr-011:read')
   @ApiOperation({
     summary:
-      'Submit an evaluation. Service-layer scope check: only members of the panel that conducted the interview can submit. UPSERT on (interview_id, evaluator_id) — re-submitting overwrites.',
+      'Submit an evaluation. Service-layer scope check: only members of the panel that conducted the interview can submit. UPSERT on (interview_id, evaluator_id) — re-submitting overwrites. Read-tier permission gate ensures only Recruitment Administrators reach the surface; the panel-membership check is the actual access boundary.',
   })
   async submitEvaluation(
     @Req() req: AuthedRequest,
@@ -244,7 +252,7 @@ export class RecruitmentController {
   }
 
   @Get('interviews/:id/evaluations')
-  @RequirePermission('hr-002:read')
+  @RequirePermission('hr-011:read')
   async listEvaluations(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
@@ -256,7 +264,7 @@ export class RecruitmentController {
   // ---- Offers ---------------------------------------------------------------
 
   @Get('offers')
-  @RequirePermission('hr-002:read')
+  @RequirePermission('hr-011:read')
   async listOffers(@Req() req: AuthedRequest): Promise<OfferDto[]> {
     const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     return this.offers.list(actor);
@@ -264,6 +272,10 @@ export class RecruitmentController {
 
   @Get('offers/:id')
   @RequirePermission('hr-002:read')
+  @ApiOperation({
+    summary:
+      'Get one offer. Candidate-facing path narrowed at the service layer by application.person_id == actor.personId. Admin (hr-011) bypasses the row-scope check; HR-002:read is widely held so the per-row check is the actual access boundary.',
+  })
   async getOffer(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
@@ -273,7 +285,7 @@ export class RecruitmentController {
   }
 
   @Post('applications/:applicationId/offer')
-  @RequirePermission('hr-002:write')
+  @RequirePermission('hr-011:write')
   async extendOffer(
     @Req() req: AuthedRequest,
     @Param('applicationId', ParseUUIDPipe) applicationId: string,
@@ -287,7 +299,7 @@ export class RecruitmentController {
   @RequirePermission('hr-002:read')
   @ApiOperation({
     summary:
-      'Respond to an offer. The candidate (matched on application.person_id == actor.personId) or an admin can call this. ACCEPTED auto-creates hr_employees + hr_employee_positions inside the same tx and enqueues hr.offer.accepted in platform_outbox.',
+      'Respond to an offer. The candidate (matched on application.person_id == actor.personId) or an admin (hr-011:write) can call this. ACCEPTED auto-creates hr_employees + hr_employee_positions inside the same tx and enqueues hr.offer.accepted in platform_outbox. The hr-002:read gate is intentionally broad to let candidates reach the endpoint; the service-layer authorisation check is the actual access boundary.',
   })
   async respondToOffer(
     @Req() req: AuthedRequest,

@@ -38,6 +38,15 @@ interface OfferRow {
   created_employee_id: string | null;
 }
 
+// REVIEW-P2-4b BLOCKING #2 — `created_employee_id` subquery
+// scoped by `e.school_id = o.school_id` so a multi-school tenant
+// cannot surface a foreign-school employee id on the offer DTO.
+// Without this scope, `SELECT … WHERE person_id = $...` returns
+// the first hr_employees row matching the candidate's person_id
+// across any school in the tenant schema. The application + offer
+// rows themselves are tenant-scoped (school_id NOT NULL on every
+// recruitment table) but the cross-table lookup needed an explicit
+// scope predicate.
 const SELECT_OFFER_BASE =
   'SELECT o.id::text AS id, o.application_id::text AS application_id, ' +
   '       o.school_id::text AS school_id, o.position_title, o.salary::text AS salary, ' +
@@ -45,7 +54,10 @@ const SELECT_OFFER_BASE =
   '       o.acceptance_deadline::text AS acceptance_deadline, o.status, ' +
   '       o.extended_at::text AS extended_at, o.responded_at::text AS responded_at, ' +
   '       o.response_notes, ' +
-  '       (SELECT e.id::text FROM hr_employees e WHERE e.person_id = (SELECT a.person_id FROM hr_applications a WHERE a.id = o.application_id) LIMIT 1) AS created_employee_id ' +
+  '       (SELECT e.id::text FROM hr_employees e ' +
+  '          WHERE e.school_id = o.school_id ' +
+  '            AND e.person_id = (SELECT a.person_id FROM hr_applications a WHERE a.id = o.application_id) ' +
+  '          LIMIT 1) AS created_employee_id ' +
   'FROM hr_offers o ';
 
 /**
@@ -191,7 +203,7 @@ export class OfferService {
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lock = (await tx.$queryRawUnsafe(
         'SELECT o.id, o.application_id::text AS application_id, o.status, o.salary::text AS salary, ' +
-          '       o.start_date::text AS start_date, o.contract_type ' +
+          '       o.start_date::text AS start_date, o.contract_type, o.position_title ' +
           'FROM hr_offers o ' +
           'WHERE o.school_id = $1::uuid AND o.id = $2::uuid FOR UPDATE',
         tenant.schoolId,
@@ -203,6 +215,7 @@ export class OfferService {
         salary: string;
         start_date: string;
         contract_type: string;
+        position_title: string;
       }>;
       if (lock.length === 0) throw new NotFoundException('Offer not found');
       const cur = lock[0]!.status as OfferStatus;
@@ -263,10 +276,17 @@ export class OfferService {
         const postingType = postingRows[0]?.employment_type ?? 'FULL_TIME';
         const employmentType = postingTypeToEmployeeType(postingType);
 
-        // Avoid double-hire if a previous offer-accept already created
-        // the hr_employees row (idempotent under retry).
+        // REVIEW-P2-4b BLOCKING #2 — existing-employee lookup MUST
+        // be school-scoped. Without this, a person with an existing
+        // hr_employees row at School B (same person_id) would get
+        // re-used / re-activated when accepting an offer at School A.
+        // The previous lookup was `WHERE person_id = $1` only and
+        // would attach a new School A position to the School B
+        // employee row.
         const existing = (await tx.$queryRawUnsafe(
-          'SELECT id::text AS id FROM hr_employees WHERE person_id = $1::uuid LIMIT 1',
+          'SELECT id::text AS id FROM hr_employees ' +
+            'WHERE school_id = $1::uuid AND person_id = $2::uuid LIMIT 1',
+          tenant.schoolId,
           application.personId,
         )) as Array<{ id: string }>;
         let employeeId: string;
@@ -274,11 +294,13 @@ export class OfferService {
           employeeId = existing[0]!.id;
           // Re-activate if the row exists in TERMINATED — schools
           // re-hire former staff often enough that the API should
-          // make this clean.
+          // make this clean. Same-school check from the lookup above
+          // means we never re-activate someone else's school's row.
           await tx.$executeRawUnsafe(
             "UPDATE hr_employees SET employment_status = 'ACTIVE', updated_at = now() " +
-              "WHERE id = $1::uuid AND employment_status = 'TERMINATED'",
+              "WHERE id = $1::uuid AND school_id = $2::uuid AND employment_status = 'TERMINATED'",
             employeeId,
+            tenant.schoolId,
           );
         } else {
           employeeId = generateId();
@@ -300,13 +322,18 @@ export class OfferService {
         // not auto-resolve a salary scale here — payroll
         // configuration is a separate admin step. The position is
         // marked is_primary=true, effective_from = start_date.
-        // Pick or stub a position; we resolve via the offer's
-        // position_title against hr_positions (NO ACTION FK), but if
-        // no row exists we create a minimal one so the FK holds.
-        const positionTitle = await this.resolveOrCreatePositionInTx(
+        //
+        // REVIEW-P2-4b MAJOR #2 — pass the offer's position_title to
+        // the position resolver so a "5th Grade Teacher" offer
+        // attaches to the matching hr_positions row (or creates one
+        // with that exact title if missing) instead of arbitrarily
+        // grabbing the first active row ordered by title. The
+        // previous behaviour could attach an accepted candidate to
+        // an unrelated position if it sorted first.
+        const positionId = await this.resolveOrCreatePositionInTx(
           tx,
           tenant.schoolId,
-          lock[0]!.contract_type,
+          lock[0]!.position_title,
         );
 
         await tx.$executeRawUnsafe(
@@ -316,7 +343,7 @@ export class OfferService {
             'ON CONFLICT DO NOTHING',
           generateId(),
           employeeId,
-          positionTitle,
+          positionId,
           lock[0]!.start_date,
         );
 
@@ -374,47 +401,74 @@ export class OfferService {
   // ---------- helpers ----------------------------------------------------
 
   /**
-   * Resolve a representative hr_positions row for the new employee.
-   * If the school carries no positions catalogue yet (e.g. fresh
-   * tenant where Cycle 4's hr_positions seed didn't run), we create
-   * a minimal placeholder so the FK on hr_employee_positions can
-   * land. Real schools configure positions before posting jobs.
+   * Resolve the hr_positions row matching the offer's position
+   * title for the new employee. Case-insensitive match on
+   * (school_id, title); if no row exists we create one with the
+   * offer's title so the FK on hr_employee_positions can land.
+   *
+   * REVIEW-P2-4b MAJOR #2 — uses the offer's position_title as the
+   * lookup key instead of "first active title alphabetically".
+   * Real schools should configure positions before posting jobs;
+   * the auto-create path is the dev / smoke fallback for tenants
+   * whose Cycle 4 hr_positions seed hasn't run.
    */
   private async resolveOrCreatePositionInTx(
     tx: any,
     schoolId: string,
-    contractType: string,
+    offerPositionTitle: string,
   ): Promise<string> {
     const rows = (await tx.$queryRawUnsafe(
-      'SELECT id::text AS id FROM hr_positions WHERE school_id = $1::uuid AND is_active = true ' +
-        'ORDER BY title LIMIT 1',
+      'SELECT id::text AS id FROM hr_positions ' +
+        'WHERE school_id = $1::uuid AND LOWER(title) = LOWER($2) AND is_active = true ' +
+        'LIMIT 1',
       schoolId,
+      offerPositionTitle,
     )) as Array<{ id: string }>;
     if (rows.length > 0) return rows[0]!.id;
+    // No matching active position — create one with the offer's
+    // title. School can rename / re-categorise later. Title is
+    // UNIQUE(school_id, title) on hr_positions; ON CONFLICT
+    // surfaces a friendly error rather than 500.
     const id = generateId();
-    await tx.$executeRawUnsafe(
-      'INSERT INTO hr_positions (id, school_id, title, is_teaching_role, is_active) ' +
-        'VALUES ($1::uuid, $2::uuid, $3, false, true)',
-      id,
-      schoolId,
-      'New Hire — ' + contractType,
-    );
-    return id;
+    try {
+      await tx.$executeRawUnsafe(
+        'INSERT INTO hr_positions (id, school_id, title, is_teaching_role, is_active) ' +
+          'VALUES ($1::uuid, $2::uuid, $3, false, true)',
+        id,
+        schoolId,
+        offerPositionTitle,
+      );
+      return id;
+    } catch (e: any) {
+      if (this.isUniqueViolation(e)) {
+        // Race-loser: another concurrent accept just inserted the
+        // same title. Re-read.
+        const reread = (await tx.$queryRawUnsafe(
+          'SELECT id::text AS id FROM hr_positions ' +
+            'WHERE school_id = $1::uuid AND LOWER(title) = LOWER($2) LIMIT 1',
+          schoolId,
+          offerPositionTitle,
+        )) as Array<{ id: string }>;
+        if (reread.length > 0) return reread[0]!.id;
+      }
+      throw e;
+    }
   }
 
   private async assertAdmin(actor: ResolvedActor): Promise<void> {
     if (await this.isAdmin(actor)) return;
-    throw new ForbiddenException(
-      'Recruitment administration requires hr-002:write or school admin.',
-    );
+    throw new ForbiddenException('Recruitment administration requires hr-011 or school admin.');
   }
 
+  // REVIEW-P2-4b BLOCKING #1 — admin check on hr-011, not hr-002.
+  // The candidate-facing `respond()` path keeps a separate
+  // person-id-match check; admins still pass via this helper.
   private async isAdmin(actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'hr-002:admin',
-      'hr-002:write',
+      'hr-011:admin',
+      'hr-011:write',
     ]);
   }
 

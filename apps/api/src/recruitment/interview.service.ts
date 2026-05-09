@@ -420,15 +420,16 @@ export class InterviewService {
     );
   }
 
+  // REVIEW-P2-4b BLOCKING #1 — admin check on hr-011, not hr-002.
   private async assertAdmin(actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
     const tenant = getCurrentTenant();
     const ok = await this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'hr-002:admin',
-      'hr-002:write',
+      'hr-011:admin',
+      'hr-011:write',
     ]);
     if (!ok) {
-      throw new ForbiddenException('Recruitment requires hr-002:write or school admin.');
+      throw new ForbiddenException('Recruitment administration requires hr-011 or school admin.');
     }
   }
 

@@ -67,10 +67,12 @@ const SELECT_POSTING_BASE =
  *   LIVE  -> CLOSED (deadline reached, position filled, etc.)
  *   any   -> CANCELLED (admin abandons the requisition)
  *
- * Permission gate: hr-002:read for read paths (Staff + Admin per
- * the Cycle 4 + P2-4b grants); hr-002:admin for create / patch /
- * status transition. The public job-board path stays @Public()
- * with status=LIVE filter at the controller.
+ * Permission gate: REVIEW-P2-4b BLOCKING #1 — admin reads / writes
+ * gated on the new `hr-011` Recruitment Administration code (held
+ * only by School Admin / Platform Admin via everyFunction); the
+ * candidate-facing paths and public job-board stay on @Public().
+ * Generic Staff (VP / counsellor / admin assistant) no longer
+ * sees the recruitment admin pipeline by default.
  */
 @Injectable()
 export class JobPostingService {
@@ -244,8 +246,19 @@ export class JobPostingService {
         ...values,
       );
 
-      // Re-read the post-flip state and emit if we crossed into LIVE.
-      const dto = await this.getById(id);
+      // REVIEW-P2-4b BLOCKING #4 — re-read the post-flip state via
+      // the SAME tx client (not the public getById which opens its
+      // own tenant context) so the outbox payload is built from
+      // transaction-local state. The previous implementation could
+      // see uncommitted-or-stale rows depending on isolation, and
+      // the unit tests didn't catch it because the in-memory fake
+      // shared a single client across `tx` and `tenantPrisma`.
+      const txRows = (await tx.$queryRawUnsafe(
+        SELECT_POSTING_BASE + 'WHERE p.school_id = $1::uuid AND p.id = $2::uuid LIMIT 1',
+        tenant.schoolId,
+        id,
+      )) as JobPostingRow[];
+      const dto = this.rowToDto(txRows[0]!);
       if (willEmitJobPosted) {
         await this.outbox.enqueueInTx(tx as never, {
           topic: 'hr.job.posted',
@@ -289,12 +302,17 @@ export class JobPostingService {
   private async assertAdmin(actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
     const tenant = getCurrentTenant();
+    // REVIEW-P2-4b BLOCKING #1 — service-layer admin check on
+    // hr-011 (Recruitment Administration), not hr-002. Generic
+    // Staff no longer holds hr-011, so VPs / counsellors /
+    // admin assistants who previously fell through this guard
+    // now correctly 403 unless they hold hr-011.
     const ok = await this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'hr-002:admin',
-      'hr-002:write',
+      'hr-011:admin',
+      'hr-011:write',
     ]);
     if (!ok) {
-      throw new ForbiddenException('Recruitment requires hr-002:write or school admin.');
+      throw new ForbiddenException('Recruitment administration requires hr-011 or school admin.');
     }
   }
 

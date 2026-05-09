@@ -133,12 +133,35 @@ export class ApplicationService {
    * UNIQUE(posting_id, person_id) on hr_applications prevents the
    * same person from applying twice; the service translates the
    * 23505 into a friendly 400.
+   *
+   * REVIEW-P2-4b BLOCKING #3 — the application INSERT now atomically
+   * depends on `posting.status='LIVE'` via INSERT … SELECT WHERE …
+   * AND p.status='LIVE' RETURNING. The previous flow checked status
+   * before opening the application-insert tx, leaving a window where
+   * an admin could close the posting between the check and the
+   * INSERT and the candidate's apply still landed. The
+   * loadOpenForApply call upstream stays as a fast-fail UX guard
+   * (returns "not currently accepting applications" 400 on missing
+   * posting + status), but the schema-side LIVE predicate inside the
+   * insert is the actual race-safe gate. If the SELECT returns zero
+   * rows (the posting is no longer LIVE), the INSERT writes nothing
+   * and we throw a friendly 400.
+   *
+   * REVIEW-P2-4b MINOR #1 — identity creation + application insert
+   * now run in ONE tenant tx so a closed-posting failure on the
+   * application insert ALSO rolls back the iam_person + platform_users
+   * row. The previous implementation could leak orphan
+   * PENDING_VERIFICATION identities on insert failure.
    */
   async apply(postingId: string, input: ApplyToJobDto): Promise<ApplicationDto> {
-    // Validate posting is open. Throws BadRequest on closed / unknown.
+    // Fast-fail UX guard — surface "this posting isn't accepting
+    // applications" before the user submits the form. The actual
+    // race-safe gate is the INSERT … SELECT WHERE p.status='LIVE'
+    // inside the tx below.
     await this.postings.loadOpenForApply(postingId);
 
-    const personId = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    const id = generateId();
+    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // Look up existing iam_person by email. Cross-school identity
       // already de-duplicates because email is globally unique on
       // platform_users (the auth row), so the candidate's
@@ -150,50 +173,64 @@ export class ApplicationService {
           'WHERE LOWER(pu.email) = LOWER($1) LIMIT 1',
         input.applicantEmail,
       )) as Array<{ id: string }>;
-      if (existing.length > 0) return existing[0]!.id;
-      // Create new iam_person + platform_users (no auth — the
-      // candidate hasn't logged in yet). Use a stable email
-      // lowercasing to keep the unique constraint clean.
-      const newPersonId = generateId();
-      await tx.$executeRawUnsafe(
-        'INSERT INTO platform.iam_person (id, first_name, last_name, primary_phone, person_type) ' +
-          "VALUES ($1::uuid, $2, $3, $4, 'STAFF')",
-        newPersonId,
-        input.firstName,
-        input.lastName,
-        input.phone ?? null,
-      );
-      const newUserId = generateId();
-      await tx.$executeRawUnsafe(
-        'INSERT INTO platform.platform_users (id, person_id, email, account_status, account_type) ' +
-          "VALUES ($1::uuid, $2::uuid, LOWER($3), 'PENDING_VERIFICATION', 'HUMAN')",
-        newUserId,
-        newPersonId,
-        input.applicantEmail,
-      );
-      return newPersonId;
-    });
-
-    const id = generateId();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      try {
+      let personId: string;
+      if (existing.length > 0) {
+        personId = existing[0]!.id;
+      } else {
+        // Create new iam_person + platform_users (no auth — the
+        // candidate hasn't logged in yet). Use a stable email
+        // lowercasing to keep the unique constraint clean.
+        personId = generateId();
         await tx.$executeRawUnsafe(
-          'INSERT INTO hr_applications ' +
-            '(id, posting_id, person_id, status, resume_s3_key, cover_letter_s3_key) ' +
-            "VALUES ($1::uuid, $2::uuid, $3::uuid, 'SUBMITTED', $4, $5)",
+          'INSERT INTO platform.iam_person (id, first_name, last_name, primary_phone, person_type) ' +
+            "VALUES ($1::uuid, $2, $3, $4, 'STAFF')",
+          personId,
+          input.firstName,
+          input.lastName,
+          input.phone ?? null,
+        );
+        const newUserId = generateId();
+        await tx.$executeRawUnsafe(
+          'INSERT INTO platform.platform_users (id, person_id, email, account_status, account_type) ' +
+            "VALUES ($1::uuid, $2::uuid, LOWER($3), 'PENDING_VERIFICATION', 'HUMAN')",
+          newUserId,
+          personId,
+          input.applicantEmail,
+        );
+      }
+
+      // Race-safe atomic insert: the INSERT only writes a row if the
+      // posting is currently LIVE in this school. CLOSED / CANCELLED
+      // / DRAFT mid-request all fall through to zero rows. We then
+      // count the affected rows; zero ⇒ the posting closed in the
+      // race window, throw a friendly 400.
+      const tenant = getCurrentTenant();
+      let inserted: Array<{ id: string }> = [];
+      try {
+        inserted = (await tx.$queryRawUnsafe(
+          'INSERT INTO hr_applications (id, posting_id, person_id, status, resume_s3_key, cover_letter_s3_key) ' +
+            "SELECT $1::uuid, p.id, $2::uuid, 'SUBMITTED', $3, $4 " +
+            'FROM hr_job_postings p ' +
+            "WHERE p.school_id = $5::uuid AND p.id = $6::uuid AND p.status = 'LIVE' " +
+            'RETURNING id::text AS id',
           id,
-          postingId,
           personId,
           input.resumeS3Key ?? null,
           input.coverLetterS3Key ?? null,
-        );
+          tenant.schoolId,
+          postingId,
+        )) as Array<{ id: string }>;
       } catch (e: any) {
         if (this.isUniqueViolation(e)) {
           throw new BadRequestException('You have already applied to this posting.');
         }
         throw e;
       }
-      const tenant = getCurrentTenant();
+      if (inserted.length === 0) {
+        throw new BadRequestException(
+          'This posting is no longer accepting applications. Please refresh the job board.',
+        );
+      }
       const rows = (await tx.$queryRawUnsafe(
         SELECT_APPLICATION_BASE + 'WHERE p.school_id = $1::uuid AND a.id = $2::uuid LIMIT 1',
         tenant.schoolId,
@@ -311,17 +348,16 @@ export class ApplicationService {
 
   private async assertAdmin(actor: ResolvedActor): Promise<void> {
     if (await this.isAdmin(actor)) return;
-    throw new ForbiddenException(
-      'Recruitment administration requires hr-002:write or school admin.',
-    );
+    throw new ForbiddenException('Recruitment administration requires hr-011 or school admin.');
   }
 
+  // REVIEW-P2-4b BLOCKING #1 — admin check on hr-011, not hr-002.
   private async isAdmin(actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'hr-002:admin',
-      'hr-002:write',
+      'hr-011:admin',
+      'hr-011:write',
     ]);
   }
 
