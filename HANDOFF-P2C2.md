@@ -1,9 +1,63 @@
 # HANDOFF-P2C2 — Phase 2 Cycle 2: Incident & Emergency (M91)
 
-**Status:** REVIEW-P2C2 ROUND 1 fixes applied — re-submitting for review.
+**Status:** APPROVED. Round 2 returned PASS. Round 2 closeout commit lands the
+reviewer's carry-forward muster-table uniqueness hardening item.
 **Plan:** `docs/campusos-p2c2-incident-emergency.html`.
 **CAT script:** `docs/p2c2-cat-script.md`.
-**Tag (after review approval):** `p2c2-complete` then `p2c2-approved`.
+**Tags:** `p2c2-complete` at `e569099` (the Round 1 fix that earned PASS);
+`p2c2-approved` at the closeout commit.
+
+## REVIEW-P2C2 ROUND 2 — closeout (PASS verdict)
+
+Round 2 against `e569099` returned **PASS** with one carry-forward MAJOR
+hardening item: `vis_emergency_muster` had no UNIQUE constraint on
+`(school_id, incident_id)`, leaving a narrow window where a worker crash
+between the muster INSERT commit and the idempotency claim could allow
+a redelivered Kafka event to land a second muster row for the same
+incident.
+
+The closeout commit lands this hardening:
+
+### MAJOR follow-up — vis_emergency_muster crash-idempotency (CLOSED)
+
+**Migration `108_vis_muster_incident_uq.sql`** adds a partial UNIQUE INDEX:
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS vis_muster_school_incident_uq
+  ON vis_emergency_muster (school_id, incident_id)
+  WHERE incident_id IS NOT NULL;
+```
+
+The partial WHERE clause preserves the legitimate stand-alone fire-drill
+use case (drill_type=FIRE_DRILL with incident_id NULL — the P2C1 demo seed
+contains exactly one such row). Multiple drills with NULL incident_id stay
+legal. Verified live with 4 schema assertions (NULL coexistence, first
+incident-linked accepted, duplicate (school, incident) rejected with
+`unique_violation`, same incident across two schools accepted).
+
+**`VisitorMusterConsumer.materialiseMuster`** now uses
+`ON CONFLICT (school_id, incident_id) WHERE incident_id IS NOT NULL DO NOTHING ... RETURNING id`.
+When ON CONFLICT fires, RETURNING is empty → the consumer logs an
+"already exists" no-op and resolves successfully so
+`processWithIdempotency` claims the redelivery and the Kafka event drops
+out cleanly. A real DB failure (FK violation, outage) still rethrows so
+the claim is not taken and the next redelivery retries.
+
+**Tests**: 4 new unit tests in
+`apps/api/src/visitors/visitor-muster.consumer.spec.ts`:
+
+- INSERT SQL contains the ON CONFLICT clause + the partial WHERE predicate.
+- RETURNING-empty (ON CONFLICT no-op) resolves successfully — does not throw.
+- RETURNING-with-row (real INSERT) resolves successfully.
+- Real DB failure rethrows so the claim is not taken.
+
+**Vitest 100 → 104 passing tests across 12 spec files.**
+CI parity: format:check + lint:logs (546 files clean) + vitest 104/104 +
+API + web build all green.
+
+---
+
+## REVIEW-P2C2 ROUND 1 — fix log
 
 ## REVIEW-P2C2 ROUND 1 — fix log
 

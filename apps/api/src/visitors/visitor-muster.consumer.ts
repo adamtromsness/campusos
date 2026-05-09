@@ -20,17 +20,27 @@ import {
  * module contract, no module writes another module's tables — events
  * cross the boundary, not direct INSERTs.
  *
- * Idempotency: the producer (DeclarationOutboxWorker.runStepMuster)
- * uses a deterministic event_id derived from the outbox row id +
- * 'muster', so retries from the worker (e.g. the M91 accountability
- * seed failed and the step retries) carry the same event_id and are
- * deduped via the standard processWithIdempotency claim-after-success
- * chain.
+ * Idempotency is layered:
  *
- * As a defence-in-depth, we also use ON CONFLICT DO NOTHING on a
- * partial UNIQUE index on (incident_id, school_id) so that even if
- * two events somehow slip past the idempotency claim, the schema
- * rejects the duplicate row.
+ *   1. The producer (DeclarationOutboxWorker.runStepMuster) uses a
+ *      deterministic event_id derived from the outbox row id +
+ *      'muster', so retries from the worker (e.g. the M91 acc-
+ *      ountability seed failed and the step retries) carry the same
+ *      event_id and are deduped via the standard
+ *      processWithIdempotency claim-after-success chain.
+ *
+ *   2. REVIEW-P2C2 ROUND 2 closeout — schema-side defence-in-depth:
+ *      migration 108 adds a partial UNIQUE INDEX on
+ *      (school_id, incident_id) WHERE incident_id IS NOT NULL. The
+ *      INSERT below uses ON CONFLICT DO NOTHING so a duplicate
+ *      delivery (e.g. consumer crashed AFTER INSERT commit but
+ *      BEFORE idempotency claim → Kafka redelivery) is a no-op
+ *      success. The claim then succeeds normally and the redelivery
+ *      drops out of the consumer-group queue. No second muster row
+ *      is ever created for the same incident.
+ *
+ *      Stand-alone drills (incident_id NULL) stay free to coexist —
+ *      the partial WHERE clause does not constrain them.
  */
 
 const CONSUMER_GROUP = 'visitor-muster-consumer';
@@ -83,19 +93,20 @@ export class VisitorMusterConsumer implements OnModuleInit {
     const createdBy =
       payload.createdBy ?? (await this.lookupFallbackCreator(payload.schoolId)) ?? payload.schoolId; // last-resort sentinel — schema accepts any UUID
     try {
-      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-        // ON CONFLICT DO NOTHING on a (school_id, incident_id) partial
-        // UNIQUE index would be ideal but the existing P2C1 schema does
-        // not declare one. Instead the consumer's idempotency claim is
-        // the dedup gate; an INSERT with the same incident_id from a
-        // retry is the only case that can land twice, and it would
-        // surface via a UNIQUE on incident_id which we add as a follow-
-        // up migration. For this cycle we take the standard claim-
-        // after-success guarantee from processWithIdempotency.
-        await tx.$executeRawUnsafe(
+      // REVIEW-P2C2 Round 2 closeout — ON CONFLICT (school_id,
+      // incident_id) DO NOTHING (against the migration-108 partial
+      // UNIQUE INDEX) makes a duplicate delivery an idempotent no-op.
+      // A worker crash between commit and idempotency claim is now
+      // safe: the redelivery hits ON CONFLICT, the consumer claims,
+      // and the redelivery drops out cleanly.
+      const result = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        return (await tx.$queryRawUnsafe(
           'INSERT INTO vis_emergency_muster ' +
             '(id, school_id, incident_id, drill_type, description, created_by, total_on_site_at_snapshot) ' +
-            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid, $7)',
+            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid, $7) ' +
+            'ON CONFLICT (school_id, incident_id) WHERE incident_id IS NOT NULL ' +
+            '  DO NOTHING ' +
+            'RETURNING id::text AS id',
           generateId(),
           payload.schoolId,
           payload.incidentId,
@@ -103,20 +114,29 @@ export class VisitorMusterConsumer implements OnModuleInit {
           'Auto-muster from emergency declaration',
           createdBy,
           payload.totalOnSiteAtSnapshot,
-        );
+        )) as Array<{ id: string }>;
       });
-      this.logger.log(
-        '[visitor-muster] created muster for incident=' +
-          payload.incidentId.slice(0, 8) +
-          ' total=' +
-          payload.totalOnSiteAtSnapshot,
-      );
+      if (result.length === 0) {
+        // ON CONFLICT branch fired — a prior delivery already created
+        // the muster row. Treat as idempotent success so the consumer
+        // claim records and the redelivery drops cleanly.
+        this.logger.log(
+          '[visitor-muster] muster already exists for incident=' +
+            payload.incidentId.slice(0, 8) +
+            ' (idempotent no-op via ON CONFLICT)',
+        );
+      } else {
+        this.logger.log(
+          '[visitor-muster] created muster for incident=' +
+            payload.incidentId.slice(0, 8) +
+            ' total=' +
+            payload.totalOnSiteAtSnapshot,
+        );
+      }
     } catch (e: any) {
-      // If the row already exists for this incident (a retry that beat
-      // our idempotency claim, or a concurrent worker), re-raise so the
-      // claim is NOT taken — the next redelivery will see the
-      // pre-existing row and a future variant of this code can detect
-      // and skip cleanly. For now the rethrow is the safe default.
+      // Real failure (DB outage, schema drift, FK violation). Re-raise
+      // so the idempotency claim is NOT taken and the next redelivery
+      // retries.
       this.logger.warn(
         '[visitor-muster] insert failed for incident=' +
           payload.incidentId.slice(0, 8) +
