@@ -246,12 +246,20 @@ export class SalaryReviewService {
     });
   }
 
+  /**
+   * Salary review admin scope. REVIEW-P2-4a BLOCKING #3 — payroll
+   * decision authority belongs to hr-010 (Payroll Management) not
+   * hr-003 (Leave Management). Holders of hr-010:admin or
+   * hr-010:write — Staff payroll operator + School Admin — can
+   * decide on submitted reviews; the requester (any hr-003:write
+   * holder) can still submit + withdraw their own.
+   */
   private async isAdmin(actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'hr-003:admin',
-      'hr-003:write',
+      'hr-010:admin',
+      'hr-010:write',
     ]);
   }
 

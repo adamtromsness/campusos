@@ -4,24 +4,23 @@ import { runWithTenantContext, TenantInfo } from '../tenant/tenant.context';
 import { PERMISSIONS_KEY } from '../auth/require-permission.decorator';
 import { PayrollController } from './payroll.controller';
 import { PayGradeService } from './pay-grade.service';
-import { PayrollService } from './payroll.service';
+import { PayrollService, deterministicPayrollEventId } from './payroll.service';
 import { SalaryReviewService } from './salary-review.service';
 
 /**
  * P2C4 sub-cycle a — Payroll keystone unit tests.
  *
- * Each test asserts a single load-bearing invariant:
- *   1. Pay grade admin gate.
- *   2. Pay grade salary range CHECK at the service layer.
- *   3. Payroll process() refuses non-OPEN/non-PROCESSING periods.
- *   4. Payroll process() is idempotent under retry — ON CONFLICT DO
- *      NOTHING returns 0 rows on the second pass and bumps `skipped`.
- *   5. markPaid() emits hr.payroll.processed AFTER the tx commits with
- *      the contract Cycle 26 GLConsumer expects.
- *   6. Payroll record reads narrow to actor.employeeId for non-admin
- *      callers (the P2C3 privacy convention).
- *   7. SalaryReview create stamps requested_by from actor.personId.
- *   8. Controller permission gates carry hr-003 codes.
+ * After REVIEW-P2-4a Round 1 the suite covers the original 12
+ * keystone behaviours plus 4 new regression tests for the BLOCKING
+ * fixes:
+ *   - markPaid uses OutboxService.enqueueInTx instead of best-effort
+ *     Kafka emit (BLOCKING #1).
+ *   - markPaid rejects when any record is still DRAFT (BLOCKING #2).
+ *   - Controller permission metadata uses hr-010 for admin reads /
+ *     hr-003 for self-service payslips (BLOCKING #3).
+ *   - deterministicPayrollEventId returns a stable v5-shaped UUID so
+ *     outbox retries land the same event_id and the GLConsumer
+ *     dedupes on platform_event_consumer_idempotency.
  */
 
 const SCHOOL: TenantInfo = {
@@ -77,6 +76,28 @@ function makeFake(handler: (call: CapturedCall) => unknown) {
   return { capture, client, tenantPrisma };
 }
 
+function makeOutbox() {
+  const enqueued: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    eventId?: string;
+    payload: Record<string, unknown>;
+  }> = [];
+  const outbox = {
+    enqueueInTx: async (_tx: unknown, opts: any) => {
+      enqueued.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+    },
+  };
+  return { outbox, enqueued };
+}
+
 describe('PayGradeService — admin gate + salary range check', () => {
   it('rejects min > max with BadRequest before any SQL fires', async () => {
     const fake = makeFake(() => []);
@@ -87,11 +108,10 @@ describe('PayGradeService — admin gate + salary range check', () => {
         svc.create({ gradeName: 'Grade X', minSalary: 60000, maxSalary: 50000 }, ADMIN_ACTOR),
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
-    // No INSERT issued — service short-circuited on the range check.
     expect(fake.capture.find((c) => c.fn === 'e')).toBeUndefined();
   });
 
-  it('non-admin without hr-003:admin is rejected with Forbidden', async () => {
+  it('non-admin without hr-010:admin is rejected with Forbidden', async () => {
     const fake = makeFake(() => []);
     const permissions = { hasAnyPermissionInTenant: async () => false };
     const svc = new PayGradeService(fake.tenantPrisma as never, permissions as never);
@@ -104,9 +124,8 @@ describe('PayGradeService — admin gate + salary range check', () => {
 
   it('admin can create — INSERT carries school_id + grade_name + range', async () => {
     let stage = 0;
-    const fake = makeFake((c) => {
+    const fake = makeFake(() => {
       stage += 1;
-      // Final reload returns one row.
       if (stage > 1) {
         return [
           {
@@ -147,11 +166,11 @@ describe('PayrollService — process() lifecycle + idempotency', () => {
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const kafka = { emit: async () => undefined };
+    const { outbox } = makeOutbox();
     const svc = new PayrollService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -164,23 +183,13 @@ describe('PayrollService — process() lifecycle + idempotency', () => {
     let runStage = 0;
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
-      if (sql.includes('for update')) {
-        return [{ id: 'pp-1', status: 'OPEN' }];
-      }
-      if (sql.includes('from hr_employees') && sql.includes('order by e.id')) {
+      if (sql.includes('for update')) return [{ id: 'pp-1', status: 'OPEN' }];
+      if (sql.includes('from hr_employees') && sql.includes('order by e.id'))
         return [{ id: 'emp-A' }];
-      }
-      if (sql.includes('from hr_employee_tax_info')) {
-        return [];
-      }
-      if (sql.includes('from hr_employee_benefits')) {
-        return [];
-      }
-      if (sql.includes('from hr_salary_scales')) {
+      if (sql.includes('from hr_employee_tax_info')) return [];
+      if (sql.includes('from hr_employee_benefits')) return [];
+      if (sql.includes('from hr_salary_scales'))
         return [{ id: 'sc-1', annual_salary: '52000', step: 3 }];
-      }
-      // The INSERT ... RETURNING. First run claims the row; second
-      // run returns empty (ON CONFLICT DO NOTHING).
       if (sql.includes('insert into hr_payroll_records')) {
         runStage += 1;
         return runStage === 1 ? [{ id: 'rec-A' }] : [];
@@ -188,11 +197,11 @@ describe('PayrollService — process() lifecycle + idempotency', () => {
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const kafka = { emit: async () => undefined };
+    const { outbox } = makeOutbox();
     const svc = new PayrollService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     const r1 = await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.processPeriod('pp-1', {}, ADMIN_ACTOR),
@@ -202,23 +211,55 @@ describe('PayrollService — process() lifecycle + idempotency', () => {
       svc.processPeriod('pp-1', {}, ADMIN_ACTOR),
     );
     expect(r2).toEqual({ processed: 0, skipped: 1 });
-    // The INSERT INTO hr_payroll_deductions should fire on the first
-    // run only — the second run's ON CONFLICT bailout means no
-    // deductions are inserted.
     const deductionInserts = fake.capture.filter(
       (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into hr_payroll_deductions'),
     );
-    // Run 1 had multiple deductions (federal + state + social + medicare).
     expect(deductionInserts.length).toBeGreaterThan(0);
   });
 
-  it('markPaid() emits hr.payroll.processed AFTER tx commits with full GLConsumer payload', async () => {
+  // REVIEW-P2-4a BLOCKING #2 — markPaid rejects DRAFT records.
+  it('markPaid rejects when any record remains DRAFT', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('for update')) return [{ id: 'pp-1', status: 'PROCESSING' }];
+      // Match the dedicated "AS n" alias to discriminate from the
+      // SELECT_PERIOD_BASE subquery which also contains COUNT(*) but
+      // aliased as record_count.
+      if (sql.includes('count(*)::int as n')) return [{ n: 2 }];
+      return [];
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => true };
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new PayrollService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      outbox as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () => svc.markPaid('pp-1', ADMIN_ACTOR)),
+    ).rejects.toThrow(/2 payroll record\(s\) are not yet APPROVED/);
+    // Period UPDATE must NOT have fired — pre-check aborts before the
+    // UPDATE statement runs.
+    expect(
+      fake.capture.find(
+        (c) =>
+          c.fn === 'e' && c.sql.toLowerCase().includes("update hr_pay_periods set status = 'paid'"),
+      ),
+    ).toBeUndefined();
+    // No outbox enqueue should have happened either.
+    expect(enqueued).toHaveLength(0);
+  });
+
+  // REVIEW-P2-4a BLOCKING #1 — markPaid uses durable outbox.
+  it('markPaid enqueues hr.payroll.processed via OutboxService inside the tx', async () => {
     const recordId = '019e0cf8-bbb8-7556-8c81-aaaaaaaaaaaa';
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
-      if (sql.includes('for update')) {
-        return [{ id: 'pp-1', status: 'PROCESSING' }];
-      }
+      if (sql.includes('for update')) return [{ id: 'pp-1', status: 'PROCESSING' }];
+      // 0 unapproved records — all APPROVED so markPaid proceeds.
+      // Discriminate via the "AS n" alias from the SELECT_PERIOD_BASE
+      // record_count aggregate.
+      if (sql.includes('count(*)::int as n')) return [{ n: 0 }];
       if (sql.includes('from hr_payroll_records r')) {
         return [
           {
@@ -261,7 +302,6 @@ describe('PayrollService — process() lifecycle + idempotency', () => {
           },
         ];
       }
-      // Final getPeriod query.
       if (sql.includes('from hr_pay_periods p')) {
         return [
           {
@@ -284,33 +324,28 @@ describe('PayrollService — process() lifecycle + idempotency', () => {
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const emits: { topic: string; sourceModule?: string; payload: unknown; key?: string }[] = [];
-    const kafka = {
-      emit: async (opts: any) => {
-        emits.push({
-          topic: opts.topic,
-          sourceModule: opts.sourceModule,
-          payload: opts.payload,
-          key: opts.key,
-        });
-      },
-    };
+    const { outbox, enqueued } = makeOutbox();
     const svc = new PayrollService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     const dto = await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.markPaid('pp-1', ADMIN_ACTOR),
     );
     expect(dto.status).toBe('PAID');
-    expect(emits).toHaveLength(1);
-    expect(emits[0]!.topic).toBe('hr.payroll.processed');
-    expect(emits[0]!.sourceModule).toBe('hr-payroll');
-    expect(emits[0]!.key).toBe(recordId);
-    const payload = emits[0]!.payload as Record<string, unknown>;
-    // Cycle 26 GLConsumer contract — these are the load-bearing
-    // fields the salary journal posting depends on.
+    // Durable outbox must hold the envelope — best-effort emit gone.
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]!.topic).toBe('hr.payroll.processed');
+    expect(enqueued[0]!.sourceModule).toBe('hr-payroll');
+    expect(enqueued[0]!.key).toBe(recordId);
+    // Deterministic event_id keyed on payroll_record_id so outbox
+    // retries land the same envelope id.
+    expect(enqueued[0]!.eventId).toBe(deterministicPayrollEventId(recordId));
+    const payload = enqueued[0]!.payload;
+    // Cycle 26 GLConsumer contract — the salary-journal posting
+    // depends on these fields landing inline so the consumer doesn't
+    // round-trip back to the DB.
     expect(payload.payrollRecordId).toBe(recordId);
     expect(payload.schoolId).toBe(SCHOOL.schoolId);
     expect(payload.employeeId).toBe('emp-A');
@@ -319,27 +354,49 @@ describe('PayrollService — process() lifecycle + idempotency', () => {
     expect(payload.grossPay).toBe(2000);
     expect(payload.totalDeductions).toBe(820);
     expect(payload.netPay).toBe(1180);
-    expect(Array.isArray(payload.deductions)).toBe(true);
     expect((payload.deductions as Array<unknown>).length).toBe(2);
     expect(typeof payload.paidAt).toBe('string');
+
+    // Belt-and-braces: the period UPDATE only flips APPROVED rows to
+    // PAID — no longer "DRAFT or APPROVED" as before the fix.
+    const recordUpdate = fake.capture.find(
+      (c) =>
+        c.fn === 'e' &&
+        c.sql.toLowerCase().includes("update hr_payroll_records set status = 'paid'"),
+    );
+    expect(recordUpdate).toBeTruthy();
+    expect(recordUpdate!.sql.toLowerCase()).toContain("status = 'approved'");
+    expect(recordUpdate!.sql.toLowerCase()).not.toContain("'draft'");
+  });
+
+  // REVIEW-P2-4a BLOCKING #1 — deterministic event_id.
+  it('deterministicPayrollEventId is stable + v5-shaped', () => {
+    const id = '019e0cf8-bbb8-7556-8c81-aaaaaaaaaaaa';
+    const a = deterministicPayrollEventId(id);
+    const b = deterministicPayrollEventId(id);
+    expect(a).toBe(b);
+    // v5 marker: third group starts with '5'.
+    expect(a.length).toBe(36);
+    expect(a[14]).toBe('5');
+    expect(['8', '9', 'a', 'b']).toContain(a[19]);
+    // Different input → different output.
+    expect(deterministicPayrollEventId(id.replace(/a/g, 'b'))).not.toBe(a);
   });
 
   it('non-admin payroll record list narrows to actor.employeeId', async () => {
     const fake = makeFake(() => []);
     const permissions = { hasAnyPermissionInTenant: async () => false };
-    const kafka = { emit: async () => undefined };
+    const { outbox } = makeOutbox();
     const svc = new PayrollService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await runWithTenantContext({ tenant: SCHOOL }, async () => svc.listRecords({}, EMPLOYEE_ACTOR));
     const selectCall = fake.capture.find(
       (c) => c.fn === 'q' && c.sql.toLowerCase().includes('from hr_payroll_records r'),
     );
     expect(selectCall).toBeTruthy();
-    // Args include actor.employeeId — the non-admin path forces the
-    // employee filter even when the caller didn't supply one.
     expect(selectCall!.args).toContain(EMPLOYEE_ACTOR.employeeId);
   });
 
@@ -370,11 +427,11 @@ describe('PayrollService — process() lifecycle + idempotency', () => {
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => false };
-    const kafka = { emit: async () => undefined };
+    const { outbox } = makeOutbox();
     const svc = new PayrollService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () => svc.getRecord('rec-A', EMPLOYEE_ACTOR)),
@@ -386,9 +443,7 @@ describe('SalaryReviewService — submission stamps requester', () => {
   it('create stamps requested_by from actor.personId', async () => {
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
-      if (sql.includes('select id from hr_employees')) {
-        return [{ id: 'emp-A' }];
-      }
+      if (sql.includes('select id from hr_employees')) return [{ id: 'emp-A' }];
       if (sql.includes('from hr_salary_review_requests r')) {
         return [
           {
@@ -439,30 +494,41 @@ describe('SalaryReviewService — submission stamps requester', () => {
   });
 });
 
-describe('PayrollController — permission gates', () => {
+describe('PayrollController — REVIEW-P2-4a permission gate distribution', () => {
   const proto = PayrollController.prototype as unknown as Record<string, () => unknown>;
 
   function gateFor(methodName: string): string[] {
     return Reflect.getMetadata(PERMISSIONS_KEY, proto[methodName]!) ?? [];
   }
 
-  it('admin endpoints carry hr-003:admin', () => {
-    expect(gateFor('createGrade')).toEqual(['hr-003:admin']);
-    expect(gateFor('createPeriod')).toEqual(['hr-003:admin']);
-    expect(gateFor('process')).toEqual(['hr-003:admin']);
-    expect(gateFor('approve')).toEqual(['hr-003:admin']);
-    expect(gateFor('markPaid')).toEqual(['hr-003:admin']);
-    expect(gateFor('addScale')).toEqual(['hr-003:admin']);
+  // REVIEW-P2-4a BLOCKING #3 — admin reads carry hr-010 not hr-003.
+  it('admin reads + writes carry hr-010 (not the broad hr-003)', () => {
+    expect(gateFor('listGrades')).toEqual(['hr-010:read']);
+    expect(gateFor('getGrade')).toEqual(['hr-010:read']);
+    expect(gateFor('listScales')).toEqual(['hr-010:read']);
+    expect(gateFor('listPeriods')).toEqual(['hr-010:read']);
+    expect(gateFor('getPeriod')).toEqual(['hr-010:read']);
+    expect(gateFor('createGrade')).toEqual(['hr-010:admin']);
+    expect(gateFor('patchGrade')).toEqual(['hr-010:admin']);
+    expect(gateFor('addScale')).toEqual(['hr-010:admin']);
+    expect(gateFor('patchScale')).toEqual(['hr-010:admin']);
+    expect(gateFor('createPeriod')).toEqual(['hr-010:admin']);
+    expect(gateFor('process')).toEqual(['hr-010:admin']);
+    expect(gateFor('approve')).toEqual(['hr-010:admin']);
+    expect(gateFor('markPaid')).toEqual(['hr-010:admin']);
   });
 
-  it('read endpoints carry hr-003:read', () => {
-    expect(gateFor('listGrades')).toEqual(['hr-003:read']);
-    expect(gateFor('listPeriods')).toEqual(['hr-003:read']);
+  it('self-service payslip surfaces stay on hr-003:read with service narrowing', () => {
     expect(gateFor('listRecords')).toEqual(['hr-003:read']);
+    expect(gateFor('getRecord')).toEqual(['hr-003:read']);
     expect(gateFor('myPayslips')).toEqual(['hr-003:read']);
   });
 
   it('salary review submit + patch carry hr-003:write', () => {
+    // Submission stays on hr-003:write because Department Heads (and
+    // any HR-003 holder) initiate reviews — the decision authority
+    // narrows to hr-010 at the service layer when it transitions
+    // through to APPROVED / REJECTED.
     expect(gateFor('submitReview')).toEqual(['hr-003:write']);
     expect(gateFor('patchReview')).toEqual(['hr-003:write']);
   });

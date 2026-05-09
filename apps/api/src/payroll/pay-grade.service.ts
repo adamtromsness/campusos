@@ -318,13 +318,14 @@ export class PayGradeService {
   private async assertAdmin(actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
     const tenant = getCurrentTenant();
+    // REVIEW-P2-4a BLOCKING #3 — moved off hr-003 to hr-010.
     const ok = await this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'hr-003:admin',
-      'hr-001:admin',
+      'hr-010:admin',
+      'hr-010:write',
     ]);
     if (!ok) {
       throw new ForbiddenException(
-        'Pay grade configuration requires hr-003:admin or school admin.',
+        'Pay grade configuration requires hr-010:admin or school admin.',
       );
     }
   }

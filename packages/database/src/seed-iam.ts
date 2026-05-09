@@ -775,6 +775,16 @@ async function seedIam() {
         'HR-001': ['read'],
         'HR-003': ['read', 'write'],
         'HR-004': ['read'],
+        // REVIEW-P2-4a BLOCKING #3 — HR-010 Payroll Management. The
+        // P2-4a payroll module added new admin pay-period / pay-grade
+        // / aggregate-totals reads that must NOT be exposed via the
+        // broad HR-003:read held by Teacher / Staff for self-service
+        // payslips + leave. Staff (covering the school payroll
+        // operator) gets HR-010:read+write; School Admin and Platform
+        // Admin pick up admin tier through everyFunction. Teacher
+        // intentionally NOT granted HR-010 — the payslip self-service
+        // surface stays on hr-003:read with service-layer self-binding.
+        'HR-010': ['read', 'write'],
         // Cycle 24 — Staff covers VP / counsellor / admin assistant who
         // award achievements (LEADERSHIP, COMMUNITY) and review portfolios
         // for at-risk students. Same scope as Teacher.

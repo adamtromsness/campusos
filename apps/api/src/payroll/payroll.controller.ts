@@ -50,21 +50,30 @@ export class PayrollController {
   ) {}
 
   // ---- Pay grades ----------------------------------------------------------
+  //
+  // REVIEW-P2-4a BLOCKING #3 — pay-grade and pay-period administrative
+  // reads expose salary bands + aggregate payroll totals. Previously
+  // gated on hr-003:read which Teacher / Staff hold from Cycle 4
+  // (leave management + own payslip). Re-gated to hr-010:read so only
+  // Staff (payroll operator stand-in) and School / Platform Admin can
+  // see them. The narrower self-service surfaces below — payroll
+  // record reads + /me/payslips — stay on hr-003:read because the
+  // service layer binds non-admin readers to actor.employeeId.
 
   @Get('pay-grades')
-  @RequirePermission('hr-003:read')
+  @RequirePermission('hr-010:read')
   async listGrades(@Query('includeInactive') includeInactive?: string): Promise<PayGradeDto[]> {
     return this.payGrades.list(includeInactive === 'true');
   }
 
   @Get('pay-grades/:id')
-  @RequirePermission('hr-003:read')
+  @RequirePermission('hr-010:read')
   async getGrade(@Param('id', ParseUUIDPipe) id: string): Promise<PayGradeDto> {
     return this.payGrades.getById(id);
   }
 
   @Post('pay-grades')
-  @RequirePermission('hr-003:admin')
+  @RequirePermission('hr-010:admin')
   async createGrade(
     @Req() req: AuthedRequest,
     @Body() input: CreatePayGradeDto,
@@ -74,7 +83,7 @@ export class PayrollController {
   }
 
   @Patch('pay-grades/:id')
-  @RequirePermission('hr-003:admin')
+  @RequirePermission('hr-010:admin')
   async patchGrade(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
@@ -85,13 +94,13 @@ export class PayrollController {
   }
 
   @Get('pay-grades/:id/scales')
-  @RequirePermission('hr-003:read')
+  @RequirePermission('hr-010:read')
   async listScales(@Param('id', ParseUUIDPipe) id: string): Promise<SalaryScaleDto[]> {
     return this.payGrades.listScales(id);
   }
 
   @Post('pay-grades/:id/scales')
-  @RequirePermission('hr-003:admin')
+  @RequirePermission('hr-010:admin')
   async addScale(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
@@ -102,7 +111,7 @@ export class PayrollController {
   }
 
   @Patch('salary-scales/:id')
-  @RequirePermission('hr-003:admin')
+  @RequirePermission('hr-010:admin')
   async patchScale(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
@@ -115,19 +124,19 @@ export class PayrollController {
   // ---- Pay periods + payroll processing -----------------------------------
 
   @Get('pay-periods')
-  @RequirePermission('hr-003:read')
+  @RequirePermission('hr-010:read')
   async listPeriods(@Query() query: ListPayPeriodsQueryDto): Promise<PayPeriodDto[]> {
     return this.payroll.listPeriods(query);
   }
 
   @Get('pay-periods/:id')
-  @RequirePermission('hr-003:read')
+  @RequirePermission('hr-010:read')
   async getPeriod(@Param('id', ParseUUIDPipe) id: string): Promise<PayPeriodDto> {
     return this.payroll.getPeriod(id);
   }
 
   @Post('pay-periods')
-  @RequirePermission('hr-003:admin')
+  @RequirePermission('hr-010:admin')
   async createPeriod(
     @Req() req: AuthedRequest,
     @Body() input: CreatePayPeriodDto,
@@ -137,7 +146,7 @@ export class PayrollController {
   }
 
   @Post('pay-periods/:id/process')
-  @RequirePermission('hr-003:admin')
+  @RequirePermission('hr-010:admin')
   @ApiOperation({
     summary:
       'Compute gross / deductions / net for every employee in scope and INSERT hr_payroll_records + hr_payroll_deductions rows. Idempotent under retry via UNIQUE(employee_id, pay_period_id) — partial re-runs land missing rows only.',
@@ -152,7 +161,7 @@ export class PayrollController {
   }
 
   @Post('pay-periods/:id/approve')
-  @RequirePermission('hr-003:admin')
+  @RequirePermission('hr-010:admin')
   async approve(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
@@ -162,10 +171,10 @@ export class PayrollController {
   }
 
   @Post('pay-periods/:id/mark-paid')
-  @RequirePermission('hr-003:admin')
+  @RequirePermission('hr-010:admin')
   @ApiOperation({
     summary:
-      'Flip period + records to PAID and emit hr.payroll.processed (one envelope per record) for the Cycle 26 GLConsumer to post journal entries.',
+      'Flip period + records to PAID and enqueue hr.payroll.processed in platform_outbox (one envelope per record). The Cycle 31 OutboxPublisherWorker publishes durably; the Cycle 26 GLConsumer dedupes on event_id (deterministic UUIDv5 keyed on payroll_record_id) and posts the salary journal. markPaid refuses to flip the period unless every record is APPROVED.',
   })
   async markPaid(
     @Req() req: AuthedRequest,

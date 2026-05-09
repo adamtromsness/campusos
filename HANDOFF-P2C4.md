@@ -1,10 +1,131 @@
 # P2C4 — HR Advanced (M80 .1 + M87 Appraisals) — HANDOFF
 
-**Status:** P2-4a (Payroll) ships clean, awaiting peer review. Sub-cycles
-P2-4b (Recruitment) and P2-4c (Training + Appraisals) deferred to a
-follow-up session. The plan called this out explicitly: "if Claude
-Code hits context limits, split into 3 sub-cycles… commit after each
-sub-cycle." This commit is sub-cycle a.
+**Status:** P2-4a (Payroll) Round 1 review fixes applied — 3 BLOCKING + 1
+MAJOR landed (2026-05-09). Sub-cycles P2-4b (Recruitment) and P2-4c
+(Training + Appraisals) deferred to a follow-up session.
+
+## REVIEW-P2-4a Round 1 fix log
+
+Round 1 against `1a5c3e8` returned **FAIL** with 3 BLOCKING + 4 MAJOR:
+
+- **BLOCKING #1** — `markPaid` lost GL events permanently on Kafka
+  failure (best-effort emit after the DB committed PAID).
+- **BLOCKING #2** — `markPaid` flipped DRAFT records to PAID, silently
+  bypassing the approval step.
+- **BLOCKING #3** — `hr-003:read` exposed payroll admin pay-period /
+  pay-grade / aggregate-totals reads to Teacher / Staff who already
+  hold the broad permission for Cycle 4 leave + own payslips.
+- **MAJOR #2** — `hr_pay_periods` allowed `status='PAID'` without
+  `paid_at` / `paid_by`; no lifecycle lockstep CHECK.
+
+**Round 1 fix commit lands all 3 BLOCKING + the actionable MAJOR**:
+
+1. **Durable outbox for `hr.payroll.processed`.** `markPaid` no longer
+   uses best-effort `KafkaProducerService.emit` post-commit. Instead
+   it calls `OutboxService.enqueueInTx(tx, ...)` INSIDE the same tx
+   that flips period + records to PAID. Each row writes one
+   `platform.platform_outbox` envelope; the Cycle 31
+   `OutboxPublisherWorker` polls + publishes durably and stamps
+   `published_at` on success. A Kafka outage leaves the outbox row
+   pending — `failed_at` populated, `attempt_count` bumped — and the
+   worker retries on the next poll until `MAX_OUTBOX_ATTEMPTS`. The
+   envelope `eventId` is a **deterministic v5-shaped UUID** keyed on
+   `payroll_record_id` (`deterministicPayrollEventId(...)` helper —
+   exported for tests; same shape as the P2C2
+   `deterministicStepEventId` and Cycle 4
+   `deterministicCoverageEventId` patterns) so outbox retries land
+   the same envelope every time and the GLConsumer dedupes on
+   `platform_event_consumer_idempotency`.
+
+2. **`markPaid` requires every record APPROVED.** Service runs an
+   in-tx `SELECT COUNT(*)::int AS n FROM hr_payroll_records WHERE
+school_id = $ AND pay_period_id = $ AND status <> 'APPROVED'`
+   before any UPDATE; rejects with `400 "Cannot mark paid: N payroll
+record(s) are not yet APPROVED. Run /pay-periods/:id/approve
+first."` when any non-APPROVED row remains. The subsequent
+   `UPDATE hr_payroll_records SET status='PAID' WHERE … AND status =
+'APPROVED'` is the schema-side belt-and-braces (was previously
+   `status IN ('DRAFT','APPROVED')`). The check + UPDATE both run
+   under the period's `FOR UPDATE` lock so concurrent admins cannot
+   race past it.
+
+3. **New permission code `HR-010 Payroll Management`.** Catalogue
+   addition (501 → **504**); Staff role grants HR-010:read+write via
+   `seed-iam.ts`; School Admin / Platform Admin pick up the admin
+   tier through `everyFunction`. Controller endpoints re-gated:
+
+   | Endpoint                                                        | OLD (broad)    | NEW            |
+   | --------------------------------------------------------------- | -------------- | -------------- |
+   | `GET /hr/pay-grades` + `/:id` + `/scales`                       | `hr-003:read`  | `hr-010:read`  |
+   | `POST/PATCH /hr/pay-grades` + scale CRUD                        | `hr-003:admin` | `hr-010:admin` |
+   | `GET /hr/pay-periods` + `/:id`                                  | `hr-003:read`  | `hr-010:read`  |
+   | `POST /hr/pay-periods` + `/process` + `/approve` + `/mark-paid` | `hr-003:admin` | `hr-010:admin` |
+
+   Service-layer checks (`PayrollService.isAdmin`,
+   `PayGradeService.assertAdmin`, `SalaryReviewService.isAdmin`)
+   re-pointed at `hr-010:admin` / `hr-010:write`. **Self-service
+   payslip endpoints (`/hr/payroll/records`, `/hr/payroll/records/:id`,
+   `/hr/payroll/me/payslips`) keep `hr-003:read`** because the service
+   binds non-admin readers to `actor.employeeId` — that's the actual
+   access boundary, identical to the P2C3 pattern. Live-verified
+   distribution (`iam_effective_access_cache`):
+
+   ```
+   admin@      hr010_read=1 hr010_admin=1 hr003_read=1
+   principal@  hr010_read=1 hr010_admin=1 hr003_read=1
+   vp@         hr010_read=1 hr010_admin=0 hr003_read=1
+   counsellor@ hr010_read=1 hr010_admin=0 hr003_read=1
+   teacher@    hr010_read=0 hr010_admin=0 hr003_read=1   ← previously could see admin payroll views
+   parent@     hr010_read=0 hr010_admin=0 hr003_read=0
+   student@    hr010_read=0 hr010_admin=0 hr003_read=0
+   ```
+
+4. **MAJOR #2 — pay-period lifecycle lockstep.** New tenant migration
+   `112_hr_pay_period_lockstep.sql` (splitter-safe DROP IF EXISTS +
+   ADD pattern, idempotent) tightens two CHECK constraints:
+   - `hr_pay_periods_processed_chk`: `status IN ('OPEN','CLOSED')` ⇒
+     `processed_at IS NULL AND processed_by IS NULL`; `status IN
+('PROCESSING','PAID')` ⇒ both NOT NULL.
+   - `hr_pay_periods_paid_chk`: `status <> 'PAID'` ⇒ `paid_at IS NULL
+AND paid_by IS NULL`; `status = 'PAID'` ⇒ both NOT NULL.
+
+   Live verified — direct `INSERT` of `status='PAID'` with NULL
+   `paid_at` rejected by `hr_pay_periods_paid_chk`.
+
+**Tests**: 12 → **14 keystone unit tests** in `payroll.spec.ts`. New:
+
+- `markPaid rejects when any record remains DRAFT` — verifies the
+  in-tx COUNT check + that period UPDATE never fires on rejection.
+- `markPaid enqueues hr.payroll.processed via OutboxService inside
+the tx` — verifies topic + sourceModule + deterministic eventId +
+  the full GLConsumer payload contract + that the records UPDATE
+  uses `status='APPROVED'` only.
+- `deterministicPayrollEventId is stable + v5-shaped` —
+  same-input-same-output, length 36, v5 marker at position 14, RFC
+  4122 variant marker at position 19.
+- Controller permission-metadata test rewritten — admin reads now
+  on `hr-010:read`, admin writes on `hr-010:admin`, self-service
+  stays on `hr-003:read`.
+
+**MAJORs carried to P2-4b backlog**:
+
+- MAJOR #1 (salary scale assignment is a stub) — already in the
+  Phase 2 backlog. P2-4b first commit will add
+  `hr_employee_positions.salary_scale_id` (additive ALTER) +
+  `processPeriod()` reads per-position scale instead of school-wide
+  default fallback.
+- MAJOR #3 (salary review write path may be too broad) — DH-only
+  scope refinement defers until Wave 2 Phase 2 role-split work
+  introduces a dedicated Department Head role distinct from generic
+  Staff. The submission path is already constrained to
+  `hr-003:write` + same-school employee validation; the missing
+  piece is per-department scope.
+
+**CI parity green**: format:check + lint:logs (563 files clean) +
+vitest 145 → **147 passing across 14 spec files** + API + web build
+all clean.
+
+## P2-4a original scope
 
 **Plan:** `docs/campusos-p2c4-hr-advanced.html`
 **Migration:** `packages/database/prisma/tenant/migrations/111_hr_payroll.sql`

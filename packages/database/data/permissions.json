@@ -401,6 +401,11 @@
       "group": "Human Resources"
     },
     {
+      "code": "HR-010",
+      "name": "Payroll Management",
+      "group": "Human Resources"
+    },
+    {
       "code": "IT-001",
       "name": "Helpdesk Tickets",
       "group": "IT & Technology"

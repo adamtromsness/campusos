@@ -3,15 +3,15 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import {
   CreatePayPeriodDto,
   ListPayPeriodsQueryDto,
@@ -138,12 +138,10 @@ const SELECT_RECORD_BASE =
  */
 @Injectable()
 export class PayrollService {
-  private readonly logger = new Logger(PayrollService.name);
-
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permissions: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   // ---------- pay-period CRUD ---------------------------------------------
@@ -313,8 +311,7 @@ export class PayrollService {
   async markPaid(periodId: string, actor: ResolvedActor): Promise<PayPeriodDto> {
     await this.assertAdmin(actor);
     const tenant = getCurrentTenant();
-    const eventsToEmit: Array<{ payload: Record<string, unknown>; key: string }> = [];
-    const dto = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lock = (await tx.$queryRawUnsafe(
         'SELECT id, status FROM hr_pay_periods ' +
           'WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
@@ -328,7 +325,27 @@ export class PayrollService {
           'Only PROCESSING periods can be marked PAID. Approve the period first.',
         );
       }
-      // Flip period + records.
+      // REVIEW-P2-4a BLOCKING #2 — markPaid must require every payroll
+      // record to be APPROVED. The prior implementation also flipped
+      // DRAFT records to PAID, which silently bypassed the approval
+      // step. The pre-check counts unapproved records under the same
+      // tx + lock so a concurrent admin cannot race past it; the
+      // UPDATE below also constrains to status='APPROVED' as
+      // belt-and-braces.
+      const unapproved = (await tx.$queryRawUnsafe(
+        'SELECT COUNT(*)::int AS n FROM hr_payroll_records ' +
+          "WHERE school_id = $1::uuid AND pay_period_id = $2::uuid AND status <> 'APPROVED'",
+        tenant.schoolId,
+        periodId,
+      )) as Array<{ n: number }>;
+      if (unapproved[0]!.n > 0) {
+        throw new BadRequestException(
+          'Cannot mark paid: ' +
+            unapproved[0]!.n +
+            ' payroll record(s) are not yet APPROVED. Run /pay-periods/:id/approve first.',
+        );
+      }
+      // Flip period + records (APPROVED → PAID only).
       await tx.$executeRawUnsafe(
         "UPDATE hr_pay_periods SET status = 'PAID', paid_at = now(), paid_by = $1::uuid, updated_at = now() " +
           'WHERE school_id = $2::uuid AND id = $3::uuid',
@@ -338,20 +355,27 @@ export class PayrollService {
       );
       await tx.$executeRawUnsafe(
         "UPDATE hr_payroll_records SET status = 'PAID', updated_at = now() " +
-          "WHERE school_id = $1::uuid AND pay_period_id = $2::uuid AND status IN ('DRAFT','APPROVED')",
+          "WHERE school_id = $1::uuid AND pay_period_id = $2::uuid AND status = 'APPROVED'",
         tenant.schoolId,
         periodId,
       );
-      // Build emit payload per record. Reads inside the same tx so the
-      // emit shape reflects the post-flip state. Emits land AFTER the
-      // tx commits.
+      // REVIEW-P2-4a BLOCKING #1 — durable outbox. The previous
+      // implementation built event payloads inside the tx and emitted
+      // best-effort AFTER commit; a Kafka outage between commit and
+      // emit lost the GL event permanently while payroll stayed PAID.
+      // Now we INSERT one platform_outbox row per payroll record
+      // INSIDE the same tx. The Cycle 31 OutboxPublisherWorker polls
+      // platform_outbox, sends to Kafka, and stamps published_at on
+      // success. A broker outage leaves the outbox row pending
+      // (failed_at populated, attempt_count bumped); the worker
+      // retries on the next poll until MAX_OUTBOX_ATTEMPTS.
       const records = (await tx.$queryRawUnsafe(
         SELECT_RECORD_BASE + 'WHERE r.school_id = $1::uuid AND r.pay_period_id = $2::uuid',
         tenant.schoolId,
         periodId,
       )) as PayrollRecordRow[];
       const recordIds = records.map((r) => r.id);
-      let deductionsByRecord = new Map<string, DeductionRow[]>();
+      const deductionsByRecord = new Map<string, DeductionRow[]>();
       if (recordIds.length > 0) {
         const deds = (await tx.$queryRawUnsafe(
           'SELECT id::text AS id, payroll_record_id::text AS payroll_record_id, ' +
@@ -367,8 +391,15 @@ export class PayrollService {
       }
       const paidAt = new Date().toISOString();
       for (const r of records) {
-        eventsToEmit.push({
+        await this.outbox.enqueueInTx(tx as never, {
+          topic: 'hr.payroll.processed',
           key: r.id,
+          sourceModule: 'hr-payroll',
+          // Deterministic event_id keyed on payroll_record_id so a
+          // retry cannot create a duplicate envelope: the GLConsumer
+          // already de-duplicates by event_id via
+          // platform_event_consumer_idempotency.
+          eventId: deterministicPayrollEventId(r.id),
           payload: {
             payrollRecordId: r.id,
             schoolId: tenant.schoolId,
@@ -389,23 +420,6 @@ export class PayrollService {
       }
       return this.getPeriod(periodId);
     });
-    // Post-commit emit. Best-effort; failure logs but does not
-    // re-open the period (the records stay PAID).
-    for (const ev of eventsToEmit) {
-      try {
-        await this.kafka.emit({
-          topic: 'hr.payroll.processed',
-          key: ev.key,
-          sourceModule: 'hr-payroll',
-          payload: ev.payload,
-        });
-      } catch (e: any) {
-        this.logger.warn(
-          'hr.payroll.processed emit failed for record=' + ev.key + ': ' + (e?.message || e),
-        );
-      }
-    }
-    return dto;
   }
 
   // ---------- read paths --------------------------------------------------
@@ -683,15 +697,23 @@ export class PayrollService {
 
   private async assertAdmin(actor: ResolvedActor): Promise<void> {
     if (await this.isAdmin(actor)) return;
-    throw new ForbiddenException('Payroll administration requires hr-003:admin or school admin.');
+    throw new ForbiddenException('Payroll administration requires hr-010:admin or school admin.');
   }
 
+  /**
+   * Service-layer admin gate for payroll. REVIEW-P2-4a BLOCKING #3 —
+   * moved off hr-003 (held by Teacher / Staff for Cycle 4 leave +
+   * payslip self-service) to hr-010 so admin pay-period / pay-grade
+   * / aggregate-totals reads are not exposed to non-payroll personas.
+   * Staff (payroll operator stand-in) holds hr-010:read+write per the
+   * seed-iam grant; School Admin / Platform Admin via everyFunction.
+   */
   private async isAdmin(actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'hr-003:admin',
-      'hr-003:write',
+      'hr-010:admin',
+      'hr-010:write',
     ]);
   }
 
@@ -761,6 +783,35 @@ export class PayrollService {
     if (typeof err.message === 'string' && /unique/i.test(err.message)) return true;
     return false;
   }
+}
+
+/**
+ * Build a deterministic v5-shaped UUID from a payroll record id so
+ * outbox retries land the same event_id on every attempt. The
+ * GLConsumer dedupes on platform_event_consumer_idempotency keyed
+ * on (consumer_group, event_id), so even if the publisher worker
+ * retries the same outbox row N times the consumer claims the work
+ * exactly once. Same pattern as Cycle 4 deterministicCoverageEventId
+ * and P2C2 deterministicStepEventId.
+ */
+export function deterministicPayrollEventId(payrollRecordId: string): string {
+  const hash = createHash('sha1')
+    .update(payrollRecordId + ':hr.payroll.processed:v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
 }
 
 function round2(n: number): number {
