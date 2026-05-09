@@ -1,8 +1,20 @@
 # P2C4 — HR Advanced (M80 .1 + M87 Appraisals) — HANDOFF
 
-**Status:** P2-4a (Payroll) Round 1 review fixes applied — 3 BLOCKING + 1
-MAJOR landed (2026-05-09). Sub-cycles P2-4b (Recruitment) and P2-4c
-(Training + Appraisals) deferred to a follow-up session.
+**Status:** P2-4a (Payroll) **COMPLETE + APPROVED** at the closeout
+commit (REVIEW-P2-4a — final verdict, 2026-05-09).
+
+Tagged `p2c4a-complete` at `617e37c` (the Round 1 fix that earned
+PASS) and `p2c4a-approved` at the closeout commit. Round 1 against
+`1a5c3e8` returned **FAIL** with 3 BLOCKING + 4 MAJOR; Round 2
+against `617e37c` returned **PASS** — reviewer cache-busted each
+affected file in code on Round 2 and confirmed every fix matches.
+Two non-blocking items correctly carried to P2-4b/P2-4c per the
+reviewer's gate decision: salary-scale assignment stub (first
+commit in P2-4b) and salary-review department scope (Wave 2
+Phase 2 role-split work).
+
+Sub-cycles P2-4b (Recruitment) and P2-4c (Training + Appraisals)
+deferred to a follow-up session.
 
 ## REVIEW-P2-4a Round 1 fix log
 
