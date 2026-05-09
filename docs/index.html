@@ -114,11 +114,11 @@ a.card{text-decoration:none;color:inherit}
   <h1>Design Hub</h1>
   <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38+ modules, 76 ADRs. Phase 1 complete (8 waves, 34 cycles). Phase 2 in progress (4 waves, 30 cycles).</p>
   <div class="stats-row">
-    <div class="stat"><span class="num">427</span><span class="label">Tables Built</span></div>
-    <div class="stat"><span class="num">~998</span><span class="label">Endpoints</span></div>
-    <div class="stat"><span class="num">290+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">474</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">~1,096</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">315+</span><span class="label">UI Pages</span></div>
     <div class="stat"><span class="num">17</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">35</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">38</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -135,35 +135,35 @@ a.card{text-decoration:none;color:inherit}
 <div id="overview" class="tab-content active">
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Phase 1 Complete &mdash; All 8 Waves, 34 Cycles</h4>
-      <p>Core platform + observability + DR hardening. 418 tables, ~970 endpoints, 280+ pages. Multi-region replication, chaos engineering, DR runbook all delivered. Platform is pilot-ready.</p>
+      <h4>Phase 1 + Wave A Complete &mdash; 38 Cycles</h4>
+      <p>Core platform + hardening + pilot-critical modules. 474 tables, ~1,096 endpoints, 315+ pages. Visitors, incidents, health compliance, full HR lifecycle all live. Platform is pilot-ready.</p>
     </div>
     <div class="status-card sc-blue">
-      <h4>Phase 2 Wave A &mdash; Pilot Critical</h4>
-      <p>P2-1 Visitor Management complete (9 tables). P2-2 Incident &amp; Emergency next (11 tables). Then Health Advanced + HR Advanced to close Wave A.</p>
+      <h4>Phase 2 Wave B &mdash; Pilot Enhancement</h4>
+      <p>P2-5 Enrolment Advanced next (7 tables). Then Payments, Classroom AI, Athletics, Sub Marketplace, Food Service depth. First 90 days of pilot.</p>
     </div>
     <div class="status-card sc-amber">
-      <h4>Phase 2: 30 Cycles, 422 Tables Remaining</h4>
-      <p>4 waves: Pilot Critical (A), Pilot Enhancement (B), Operational Depth (C), Module Completion (D). <a href="campusos-phase2-build-plan.html" style="color:var(--accent);font-weight:600;">Full plan &rarr;</a></p>
+      <h4>Phase 2: 26 Cycles, 366 Tables Remaining</h4>
+      <p>3 waves left: Enhancement (B), Depth (C), Completion (D). <a href="campusos-phase2-build-plan.html" style="color:var(--accent);font-weight:600;">Full plan &rarr;</a></p>
     </div>
   </div>
 
   <h2 class="sec">Build Progress</h2>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Tables Built</span><span>427 / 840 (51%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:51%"></div></div>
+    <div class="progress-label"><span>Tables Built</span><span>474 / 840 (56%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:56%"></div></div>
   </div>
   <div class="progress-wrap">
     <div class="progress-label"><span>Phase 1 Cycles</span><span>34 / 34 (100% &mdash; Complete)</span></div>
     <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Phase 2 Cycles</span><span>1 / 30 (Wave A in progress)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:3%"></div></div>
+    <div class="progress-label"><span>Phase 2 Cycles</span><span>4 / 30 (Wave A complete, Wave B starting)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:13%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>8 of 8 Phase 1 + 0 of 4 Phase 2</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:67%"></div></div>
+    <div class="progress-label"><span>Waves Complete</span><span>8 of 8 Phase 1 + 1 of 4 Phase 2</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:75%"></div></div>
   </div>
 
   <h2 class="sec">What is CampusOS?</h2>
@@ -418,30 +418,30 @@ a.card{text-decoration:none;color:inherit}
   <h2 class="sec">Phase 2 &mdash; Remaining 422 Tables</h2>
   <p class="body">30 cycles across 4 waves completing every table in the ERD. <a href="campusos-phase2-build-plan.html" style="color:var(--accent-mid);font-weight:600;">Full Phase 2 Build Plan &rarr;</a></p>
 
-  <!-- P2 WAVE A — IN PROGRESS -->
-  <div class="wave w-amber open">
+  <!-- P2 WAVE A — COMPLETE -->
+  <div class="wave w-green">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>P2 Wave A &mdash; Pilot Critical</h3>
-      <span class="wave-meta">4 cycles &middot; 53 tables &middot; IN PROGRESS</span>
+      <span class="wave-meta">4 cycles &middot; 56 tables &middot; COMPLETE</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
       <div class="cycle-row"><span class="cycle-num">P2-1</span><span class="cycle-title">Visitor Management <span class="pill pill-green">Done</span></span><span class="cycle-tables">9 tables</span><span class="cycle-links"><a href="campusos-p2c1-visitor-management.html" class="cl-plan">Plan</a> <a href="p2c1-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-2</span><span class="cycle-title">Incident &amp; Emergency <span class="pill pill-green">Done</span></span><span class="cycle-tables">11 tables</span><span class="cycle-links"><a href="campusos-p2c2-incident-emergency.html" class="cl-plan">Plan</a> <a href="p2c2-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-3</span><span class="cycle-title">Health Advanced (10.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">6 tables</span><span class="cycle-links"><a href="campusos-p2c3-health-advanced.html" class="cl-plan">Plan</a> <a href="p2c3-cat-script.md" class="cl-cat">CAT</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">P2-4</span><span class="cycle-title">HR Advanced (4.1) <span class="pill pill-blue">Next</span></span><span class="cycle-tables">30 tables</span><span class="cycle-links"><a href="campusos-p2c4-hr-advanced.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-4</span><span class="cycle-title">HR Advanced (4.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">30 tables</span><span class="cycle-links"><a href="campusos-p2c4-hr-advanced.html" class="cl-plan">Plan</a> <a href="p2c4-cat-script.md" class="cl-cat">CAT</a></span></div>
     </div>
   </div>
 
-  <!-- P2 WAVE B — UPCOMING -->
-  <div class="wave w-gray open">
+  <!-- P2 WAVE B — IN PROGRESS -->
+  <div class="wave w-amber open">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>P2 Wave B &mdash; Pilot Enhancement</h3>
-      <span class="wave-meta">6 cycles &middot; 92 tables &middot; First 90 days</span>
+      <span class="wave-meta">6 cycles &middot; 92 tables &middot; IN PROGRESS</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">P2-5</span><span class="cycle-title">Enrolment Advanced (16.1)</span><span class="cycle-tables">9 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-5</span><span class="cycle-title">Enrolment Advanced (16.1) <span class="pill pill-blue">Next</span></span><span class="cycle-tables">7 tables</span><span class="cycle-links"><a href="campusos-p2c5-enrolment-advanced.html" class="cl-plan">Plan</a></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-6</span><span class="cycle-title">Payments Advanced (6.1)</span><span class="cycle-tables">17 tables</span><span class="cycle-links"></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-7</span><span class="cycle-title">Classroom Advanced (2.1)</span><span class="cycle-tables">24 tables</span><span class="cycle-links"></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-8</span><span class="cycle-title">Athletics Advanced (13.1)</span><span class="cycle-tables">18 tables</span><span class="cycle-links"></span></div>
@@ -497,6 +497,27 @@ a.card{text-decoration:none;color:inherit}
 <div id="buildlog" class="tab-content">
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>P2-4: HR Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">30 tables &middot; ~54 endpoints &middot; 4 Kafka emits &middot; ~12 web routes &middot; Wave A complete</div>
+    <div class="log-desc">Full HR lifecycle: payroll processing with salary scales + deductions + GL journal integration, recruitment pipeline (posting → application → interview panel → evaluation → offer → auto-hire), training programme management with certification tracking + renewal alerting, performance appraisals with lesson observations + goal tracking + sign-off workflow, expense claims. Largest single cycle in the roadmap.</div>
+    <div class="log-links"><a href="campusos-p2c4-hr-advanced.html">Plan</a> <a href="p2c4-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-3: Health Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">6 tables &middot; ~20 endpoints &middot; 1 Kafka emit &middot; ~3 web routes</div>
+    <div class="log-desc">Telehealth provider registry with session scheduling + HIPAA-logged document exchange, state immunisation requirements with nightly compliance computation + overdue parent notification, state compliance CSV report export for annual reporting mandate, screening referrals with follow-up tracking + overdue detection.</div>
+    <div class="log-links"><a href="campusos-p2c3-health-advanced.html">Plan</a> <a href="p2c3-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-2: Incident &amp; Emergency <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">11 tables &middot; ~24 endpoints &middot; 2 Kafka emits &middot; ~9 web routes</div>
+    <div class="log-desc">Emergency declarations with atomic outbox pattern (tasks → muster → alerts, crash-recoverable, 5-min PAGE on stall), immutable incident timeline (legal record, no UPDATE/DELETE), real-time accountability summary materialisation, reunification with identity-verified release + correction audit trail, emergency drills with participation tracking, non-discipline incident logging with follow-up ticket linking.</div>
+    <div class="log-links"><a href="campusos-p2c2-incident-emergency.html">Plan</a> <a href="p2c2-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>P2-1: Visitor Management <span class="pill pill-green">Approved</span></h4>
@@ -726,6 +747,9 @@ a.card{text-decoration:none;color:inherit}
     <a href="cycle31-cat-script.md" class="card"><h4>Cycle 31 CAT</h4><div class="desc">Structured logging verified, tracing end-to-end, metrics baseline, load test targets met, partitions active, caching tuned, DLQ replay, envelope validation, circuit breakers, SLO alerts firing.</div><div class="meta">10 scenarios</div></a>
     <a href="cycle32-cat-script.md" class="card"><h4>Cycle 32 CAT</h4><div class="desc">RDS Global Database replication, backup validation, PITR test, Kafka MirrorMaker2, Redis failover, S3 CRR + EU data residency, tenant routing, DR runbook, automated failover, chaos engineering.</div><div class="meta">10 scenarios</div></a>
     <a href="p2c1-cat-script.md" class="card"><h4>P2-1 CAT</h4><div class="desc">Kiosk sign-in, returning visitor HMAC lookup, pre-reg QR scan, banned person HMAC block, safeguarding bypass audit, muster snapshot + accountability, sign-out, auto sign-out.</div><div class="meta">10 scenarios</div></a>
+    <a href="p2c2-cat-script.md" class="card"><h4>P2-2 CAT</h4><div class="desc">Declaration + outbox fan-out, outbox crash recovery, 5-min PAGE alert, accountability lifecycle, timeline immutability, reunification + correction, drill scheduling, non-discipline incident.</div><div class="meta">10 scenarios</div></a>
+    <a href="p2c3-cat-script.md" class="card"><h4>P2-3 CAT</h4><div class="desc">Telehealth session + consent + HIPAA logging, immunisation compliance computation, state report CSV, screening referral + overdue detection.</div><div class="meta">7 scenarios</div></a>
+    <a href="p2c4-cat-script.md" class="card"><h4>P2-4 CAT</h4><div class="desc">Payroll processing + GL emit, recruitment pipeline + auto-hire, training + certification expiry alert, appraisal + lesson observation + sign-off, salary review, expense claims.</div><div class="meta">12 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 1 Punch List Status</h2>
