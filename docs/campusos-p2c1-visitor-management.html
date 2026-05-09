@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Phase 2 Cycle 1: Visitor Management</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="index.html">Design Hub</a>
+  <a href="campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Pilot Readiness</div>
+    <h1>P2-1: Visitor Management</h1>
+    <div class="sub">Lobby kiosk sign-in with encrypted PII and HMAC blind-index returning-visitor lookup, configurable visitor types with per-type safeguarding check requirements, banned persons screening with real-time kiosk blocking (ADR-015: registry data transient, never persisted), staff-initiated pre-registration with QR-code expedited sign-in, recurring visitor schedules for regular contractors, emergency muster snapshots with per-visitor accountability tracking, and volunteer sign-in via platform_volunteer_profiles. The first surface a school visitor touches.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M90 Visitor Management (9 tables &mdash; all in scope) &middot; ADR-015/032 &middot; SAF-001 &middot; Phase 2 Cycle 1</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Phase 2 Cycle 1 builds the M90 Visitor Management module &mdash; all 9 ERD tables. This is the first module a school visitor interacts with and the first Phase 2 cycle. Every person who enters the building &mdash; parents, contractors, vendors, volunteers, guest speakers, prospective families &mdash; signs in through this system. The reception kiosk is the school's front door.</p>
+
+  <p class="body-text">The module has two security keystones. First, PII encryption: <code>vis_visitors.email_encrypted</code> and <code>phone_encrypted</code> store AES-256 encrypted values; <code>email_hash</code> and <code>phone_hash</code> are HMAC blind indexes enabling equality lookup without decryption (same pattern as the Cycle 22 credential vault but for visitor PII). Second, banned persons screening: on every sign-in, the kiosk computes HMAC of the visitor's name + DOB and checks against <code>vis_banned_persons.name_hash</code>. A match blocks sign-in and immediately alerts the safeguarding officer. Per ADR-015, third-party registry data (DBS/background check results) is transient &mdash; only the pass/fail status and reference ID are stored, never the registry content itself.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Safety &mdash; Banned Persons Screening</div>
+    <p style="font-size:15px;line-height:1.8;">The <code>vis_banned_persons</code> table uses HMAC blind indexing (name_hash computed from normalised full name + DOB) so that the kiosk can check for bans without storing searchable plaintext names in an indexed column. On sign-in: compute HMAC of entered name + DOB → SELECT WHERE name_hash = $computed AND is_active = true. On match: BLOCK sign-in, display a neutral message ("Please see reception staff"), immediately emit <code>vis.banned_person.detected</code> to alert the safeguarding officer. The visitor never sees why they were blocked. The ban_type field (COURT_ORDER, RESTRAINING_ORDER, SAFEGUARDING, SCHOOL_DECISION) and supporting document S3 key are visible only to admin with <code>safeguarding_ban:read</code> permission.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin configures 4 visitor types: "Parent" (safeguarding check not required), "Contractor" (safeguarding check required, amber badge), "Guest Speaker" (safeguarding check required, green badge), "Volunteer" (safeguarding check required, links to platform_volunteer_profiles per ADR-032) &rarr; admin adds a banned person (John Doe, COURT_ORDER, court order document uploaded) &rarr; teacher Rivera pre-registers a guest speaker for Thursday's assembly (creates QR-code token, email sent to speaker) &rarr; Thursday morning: speaker arrives at kiosk, scans QR code &rarr; pre-registration resolved, name pre-filled, safeguarding check status = PASSED (pre-verified) &rarr; sign-in created, badge prints &rarr; a parent arrives, types name + email at kiosk &rarr; returning visitor detected via email_hash (signed in 3 weeks ago) &rarr; previous record auto-fills &rarr; sign-in created &rarr; a contractor arrives &rarr; banned person check fires against name_hash &rarr; NO MATCH &rarr; safeguarding check initiated &rarr; status = PASSED &rarr; sign-in created &rarr; later, someone matching the banned person's HMAC arrives &rarr; kiosk BLOCKS, displays neutral message, <code>vis.banned_person.detected</code> fires, safeguarding officer paged &rarr; fire alarm sounds &rarr; admin creates emergency muster snapshot &rarr; all currently signed-in visitors (signed_out_at IS NULL) batch-inserted into vis_muster_entries &rarr; reception staff marks each visitor as ACCOUNTED_FOR or EVACUATED &rarr; total on-site count verified against muster entries.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (all 9 tables):</strong> vis_visitor_types, vis_visitors, vis_sign_ins, vis_pre_registrations, vis_recurring_visitors, vis_banned_persons, vis_emergency_muster, vis_muster_entries, vis_sign_in_settings. Function SAF-001 (Visitor Management).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Physical badge printing integration (badge design ready; hardware integration deferred). Third-party DBS/background check API integration (manual status entry this cycle). Photo capture at kiosk. NDA/agreement signing at kiosk (digital signature capture). Multi-building sign-in tracking (single building this cycle). Visitor analytics dashboard (rpt_visitor_summary deferred to Cycle 29.1).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Visitor Types + Visitors Schema</td><td>Schema</td><td>vis_visitor_types, vis_visitors (encrypted PII + HMAC blind index), vis_sign_in_settings</td></tr>
+    <tr><td><strong>2</strong></td><td>Sign-Ins + Pre-Registration + Recurring Schema</td><td>Schema</td><td>vis_sign_ins (safeguarding check + admin bypass audit), vis_pre_registrations (QR token), vis_recurring_visitors (JSONB schedule)</td></tr>
+    <tr><td><strong>3</strong></td><td>Banned Persons + Emergency Muster Schema</td><td>Schema</td><td>vis_banned_persons (HMAC blind index), vis_emergency_muster, vis_muster_entries</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Visitor Types, Visitors, Sign-Ins, Banned Persons, Pre-Reg</td><td>Seed</td><td>4 visitor types, 5 visitors (encrypted), 8 sign-ins (mix of active + completed), 1 pre-registration, 1 recurring visitor, 1 banned person, 1 muster snapshot, SAF-001 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Visitor + Sign-In NestJS Module</td><td>Code</td><td>VisitorService, SignInService. HMAC returning-visitor lookup. Encrypted PII storage. Safeguarding check flow. <code>vis.visitor.signed_in</code> Kafka emit.</td></tr>
+    <tr><td><strong>6</strong></td><td>Pre-Registration + Recurring + Banned Persons NestJS Module</td><td>Code</td><td>PreRegistrationService, RecurringVisitorService, BannedPersonService. QR token generation. HMAC banned-person screening. <code>vis.banned_person.detected</code> Kafka emit.</td></tr>
+    <tr><td><strong>7</strong></td><td>Emergency Muster NestJS Module</td><td>Code</td><td>MusterService. Batch snapshot creation from active sign-ins. Per-entry accountability. <code>vis.muster.created</code> Kafka emit.</td></tr>
+    <tr><td><strong>8</strong></td><td>Visitor UI &mdash; Kiosk + Reception Dashboard</td><td>UI</td><td>Kiosk sign-in/out flow, QR pre-reg scan, returning visitor auto-fill, banned person block screen, reception dashboard with currently on-site list</td></tr>
+    <tr><td><strong>9</strong></td><td>Visitor UI &mdash; Admin + Pre-Reg + Muster</td><td>UI</td><td>Visitor type config, banned persons management, pre-registration form, recurring visitor schedules, muster creation + accountability tracker</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Kiosk sign-in → returning visitor → pre-reg QR → banned person block → safeguarding check → muster snapshot → accountability</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Visitor Types + Visitors + Settings Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>vis_visitor_types</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>requires_safeguarding_check BOOLEAN DEFAULT true</code>, <code>badge_color TEXT</code>. UNIQUE(school_id, name).</li>
+      <li><strong>vis_visitors</strong> &mdash; <strong>ENCRYPTED PII.</strong> <code>school_id UUID</code>, <code>first_name TEXT NOT NULL</code>, <code>last_name TEXT NOT NULL</code>, <code>company TEXT</code>, <code>email_encrypted TEXT</code> (AES-256), <code>email_hash TEXT NOT NULL</code> (HMAC blind index for returning-visitor lookup: <code>SELECT WHERE email_hash = hmac($email, $secret)</code>), <code>phone_encrypted TEXT</code>, <code>phone_hash TEXT</code>, <code>visitor_type_id UUID FK</code>. UNIQUE(school_id, email_hash). INDEX(email_hash) for kiosk lookup.</li>
+      <li><strong>vis_sign_in_settings</strong> &mdash; <code>school_id UUID UNIQUE</code>, <code>require_photo_id BOOLEAN DEFAULT false</code>, <code>require_purpose BOOLEAN DEFAULT true</code>, <code>auto_sign_out_hours INT DEFAULT 12</code>, <code>safeguarding_provider TEXT</code> nullable, <code>badge_template TEXT DEFAULT 'STANDARD'</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>095_vis_visitors.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Sign-Ins + Pre-Registration + Recurring Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>vis_sign_ins</strong> &mdash; <code>school_id UUID</code>, <code>visitor_id UUID FK NOT NULL</code>, <code>signed_in_at TIMESTAMPTZ NOT NULL</code>, <code>signed_out_at TIMESTAMPTZ</code> nullable, <code>host_id UUID FK</code> nullable (staff member being visited), <code>purpose TEXT</code>, <code>building_id UUID FK(fac_buildings)</code> nullable, <code>safeguarding_check_status TEXT NOT NULL</code> 4-value CHECK (PASSED, FLAGGED, BYPASSED_BY_ADMIN, NOT_REQUIRED), <code>safeguarding_check_ref TEXT</code> (third-party reference ID only &mdash; ADR-015: registry data transient, never persisted), <code>bypass_admin_id UUID FK</code> nullable, <code>bypass_reason TEXT</code> nullable. CHECK(safeguarding_check_status = 'BYPASSED_BY_ADMIN' IMPLIES bypass_admin_id IS NOT NULL AND bypass_reason IS NOT NULL AND length(trim(bypass_reason)) > 10). <strong>Partial INDEX(school_id, signed_in_at) WHERE signed_out_at IS NULL</strong> &mdash; emergency muster query instantaneous. BRIN on signed_in_at for historical compliance reports.</li>
+      <li><strong>vis_pre_registrations</strong> &mdash; <code>school_id UUID</code>, <code>visitor_id UUID FK</code>, <code>expected_at TIMESTAMPTZ</code>, <code>purpose TEXT</code>, <code>host_id UUID FK</code>, <code>qr_code_token TEXT NOT NULL UNIQUE</code>, <code>expires_at TIMESTAMPTZ</code>, <code>used_at TIMESTAMPTZ</code>. Partial INDEX(expires_at) WHERE used_at IS NULL. Cleanup: DELETE WHERE expires_at < now() AND used_at IS NULL.</li>
+      <li><strong>vis_recurring_visitors</strong> &mdash; <code>school_id UUID</code>, <code>visitor_id UUID FK</code>, <code>access_schedule JSONB</code> (days/times), <code>valid_from DATE</code>, <code>valid_to DATE</code>, <code>approved_by UUID FK</code>, <code>is_active BOOLEAN DEFAULT true</code>. GIN INDEX on access_schedule. INDEX(visitor_id, valid_from, valid_to).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>096_vis_sign_ins.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Banned Persons + Emergency Muster Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>vis_banned_persons</strong> &mdash; <strong>SAFETY KEYSTONE.</strong> <code>school_id UUID NOT NULL</code>, <code>first_name TEXT NOT NULL</code>, <code>last_name TEXT NOT NULL</code>, <code>name_hash TEXT NOT NULL</code> (HMAC blind index: computed from normalised lowercase full name + DOB), <code>date_of_birth DATE</code>, <code>photo_s3_key TEXT</code>, <code>ban_reason TEXT NOT NULL</code>, <code>ban_type TEXT NOT NULL</code> 5-value CHECK (COURT_ORDER, SCHOOL_DECISION, SAFEGUARDING, RESTRAINING_ORDER, OTHER), <code>ban_order_s3_key TEXT</code>, <code>added_by UUID FK NOT NULL</code>, <code>reviewed_by UUID FK</code>, <code>last_reviewed_at DATE</code>, <code>is_active BOOLEAN DEFAULT true</code>, <code>effective_from DATE NOT NULL</code>, <code>effective_to DATE</code> (null = indefinite). <strong>INDEX(school_id, name_hash) WHERE is_active = true</strong> &mdash; kiosk real-time lookup.</li>
+      <li><strong>vis_emergency_muster</strong> &mdash; <code>school_id UUID</code>, <code>incident_id UUID</code> nullable (soft to inc_incidents when M91 is built), <code>created_by UUID FK NOT NULL</code>, <code>created_at TIMESTAMPTZ NOT NULL</code>, <code>total_on_site_at_snapshot INT NOT NULL</code>. Snapshot creation: INSERT INTO vis_muster_entries SELECT from vis_sign_ins WHERE signed_out_at IS NULL &mdash; single batch INSERT.</li>
+      <li><strong>vis_muster_entries</strong> &mdash; <code>muster_id UUID FK NOT NULL</code>, <code>sign_in_id UUID FK NOT NULL</code>, <code>visitor_name TEXT NOT NULL</code> (snapshot &mdash; frozen at muster creation time), <code>visitor_type TEXT NOT NULL</code> (snapshot), <code>building TEXT</code> (snapshot), <code>status TEXT NOT NULL DEFAULT 'UNKNOWN'</code> 4-value CHECK (UNKNOWN, ACCOUNTED_FOR, EVACUATED, ASSISTANCE_NEEDED). UNIQUE(muster_id, sign_in_id). INDEX(muster_id, status).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>097_vis_banned_muster.sql</code>. Total P2-1 tables: 9.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>4 visitor types:</strong> "Parent" (safeguarding not required, blue badge), "Contractor" (required, amber), "Guest Speaker" (required, green), "Volunteer" (required, purple &mdash; links to platform_volunteer_profiles per ADR-032).</li>
+      <li><strong>5 visitors:</strong> 3 parents (returning visitors with email_hash populated), 1 contractor, 1 guest speaker. All with encrypted PII.</li>
+      <li><strong>8 sign-ins:</strong> 3 currently on-site (signed_out_at IS NULL &mdash; for muster testing). 5 historical (completed sign-in/sign-out). Mix of safeguarding statuses: PASSED, NOT_REQUIRED, BYPASSED_BY_ADMIN (with bypass_admin_id + reason).</li>
+      <li><strong>1 pre-registration:</strong> Guest speaker for Thursday, QR token generated, not yet used.</li>
+      <li><strong>1 recurring visitor:</strong> Maintenance contractor, Tuesdays + Thursdays 8am&ndash;4pm, valid current month.</li>
+      <li><strong>1 banned person:</strong> "John Doe" COURT_ORDER, effective indefinitely, court order document uploaded. name_hash computed from normalised "john doe" + DOB.</li>
+      <li><strong>1 muster snapshot + 3 entries:</strong> From last week's fire drill. 3 visitors snapshotted: 2 ACCOUNTED_FOR + 1 EVACUATED.</li>
+      <li><strong>1 settings row:</strong> require_purpose=true, auto_sign_out_hours=12.</li>
+      <li><strong>Permissions:</strong> SAF-001:read to Teacher, Staff (view visitor log + current on-site). SAF-001:write to Staff (process sign-ins, verify backgrounds, manage pre-registrations). SAF-001:admin to Admin (configure visitor types, banned persons, safeguarding settings). safeguarding_ban:read to Admin only (view banned person details + court orders). Admin gets all via everyFunction.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich visitor demo data with encrypted PII, banned person with HMAC hash, active sign-ins for muster testing. SAF-001 permissions.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Visitor + Sign-In NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>VisitorService</strong> &mdash; <code>POST /visitors</code> (create with PII encryption: email → AES-256 → email_encrypted + HMAC → email_hash; phone → same pattern), <code>GET /visitors/lookup</code> (<strong>KIOSK RETURNING-VISITOR:</strong> accepts raw email, computes HMAC, SELECT WHERE email_hash = $computed; returns visitor_id + name + type for auto-fill; never returns encrypted fields to the kiosk), <code>GET /visitors/:id</code> (admin: decrypts PII for display). <code>GET /visitors/visitor-types</code>, <code>POST /visitors/visitor-types</code>, <code>PATCH /visitors/visitor-types/:id</code>.</li>
+      <li><strong>SignInService</strong> &mdash; <code>POST /visitors/sign-in</code> (<strong>KIOSK KEYSTONE:</strong> step 1: banned person check via BannedPersonService; step 2: if visitor_type requires safeguarding, validate check status; step 3: create sign-in record; emits <code>vis.visitor.signed_in</code>), <code>POST /visitors/:signInId/sign-out</code> (stamps signed_out_at), <code>GET /visitors/on-site</code> (currently signed-in visitors &mdash; uses the partial index WHERE signed_out_at IS NULL for instantaneous query), <code>GET /visitors/log</code> (historical sign-in/out records with date range filter), <code>PATCH /visitors/sign-ins/:id/bypass</code> (admin bypasses safeguarding check &mdash; requires bypass_reason &gt;10 chars + bypass_admin_id).</li>
+    </ol>
+    <div class="produces">Produces &rarr; VisitorModule with 2 services, ~12 endpoints, 1 Kafka emit (<code>vis.visitor.signed_in</code>).</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Pre-Registration + Recurring + Banned Persons NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>PreRegistrationService</strong> &mdash; <code>POST /visitors/pre-register</code> (staff creates: generates 32-byte QR token, creates vis_visitors entry if new, creates vis_pre_registrations row, optionally sends email to visitor with QR code), <code>GET /visitors/pre-registrations</code> (upcoming pre-registrations), <code>POST /visitors/pre-register/scan</code> (kiosk scans QR: validates token active + not expired + not used; resolves to visitor + purpose + host; stamps used_at; creates sign-in automatically). <code>DELETE /visitors/pre-registrations/:id</code> (cancel).</li>
+      <li><strong>RecurringVisitorService</strong> &mdash; <code>GET /visitors/recurring</code>, <code>POST /visitors/recurring</code> (create schedule with JSONB access_schedule), <code>PATCH /visitors/recurring/:id</code>, <code>GET /visitors/recurring/today</code> (who is expected today based on access_schedule).</li>
+      <li><strong>BannedPersonService</strong> &mdash; <strong>SAFETY KEYSTONE.</strong> <code>POST /visitors/banned-persons</code> (admin creates: normalises name + DOB, computes HMAC → name_hash, stores ban details + document), <code>GET /visitors/banned-persons</code> (admin with safeguarding_ban:read: list with plaintext names), <code>PATCH /visitors/banned-persons/:id</code> (admin reviews, extends, deactivates). <code>POST /visitors/banned-persons/check</code> (<strong>KIOSK INTERNAL:</strong> called by SignInService on every sign-in; computes HMAC of entered name + DOB; SELECT WHERE name_hash = $computed AND is_active = true; on match: emits <code>vis.banned_person.detected</code> + returns BLOCKED).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services, ~12 endpoints, 1 Kafka emit (<code>vis.banned_person.detected</code>).</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Emergency Muster NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>MusterService</strong> &mdash; <code>POST /visitors/muster</code> (<strong>EMERGENCY SNAPSHOT:</strong> creates vis_emergency_muster row + batch-inserts all currently signed-in visitors from vis_sign_ins WHERE signed_out_at IS NULL into vis_muster_entries with status=UNKNOWN; freezes visitor_name + visitor_type + building at snapshot time; emits <code>vis.muster.created</code>), <code>GET /visitors/muster/:id</code> (muster detail with all entries + accountability status), <code>PATCH /visitors/muster-entries/:id</code> (mark individual: ACCOUNTED_FOR / EVACUATED / ASSISTANCE_NEEDED), <code>GET /visitors/muster/:id/summary</code> (counts by status: unknown/accounted/evacuated/assistance).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 1 service, ~4 endpoints, 1 Kafka emit (<code>vis.muster.created</code>). Total P2-1 endpoints: ~28.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Visitor UI &mdash; Kiosk + Reception Dashboard</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Kiosk Sign-In</strong> <code>/visitors/kiosk</code> &mdash; full-screen simplified interface (designed for tablet at reception). Step 1: "Scan QR Code or Enter Your Details" (QR scan input + name/email form). Step 2: returning visitor detected → "Welcome back, [name]" with auto-filled details. Step 3: purpose (if required by settings) + host selector (staff directory search). Step 4: safeguarding check status indicator (PASSED green / checking spinner / FLAGGED → "Please see reception staff"). Step 5: confirmation + badge colour indicator. <strong>BANNED PERSON BLOCK:</strong> neutral screen "Please see reception staff" with no explanation. Alert fires to safeguarding officer silently.</li>
+      <li><strong>Kiosk Sign-Out</strong> &mdash; simple name/email lookup → confirm → signed_out_at stamped.</li>
+      <li><strong>Reception Dashboard</strong> <code>/visitors</code> &mdash; "Visitor Management" app tile gated on SAF-001:read. Currently on-site panel (live count + visitor list with name, type pill, host, signed-in time, sign-out button). Today's pre-registrations (expected visitors with arrival status). Recent sign-ins/outs timeline.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Kiosk sign-in/out (tablet-optimised), reception dashboard with on-site list.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">Visitor UI &mdash; Admin + Pre-Reg + Muster</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Visitor Type Configuration</strong> <code>/visitors/admin/types</code> &mdash; list of visitor types with safeguarding requirement toggle + badge colour picker. Add/edit/deactivate.</li>
+      <li><strong>Banned Persons</strong> <code>/visitors/admin/banned</code> &mdash; <strong>RESTRICTED:</strong> safeguarding_ban:read required. List with name, ban type pill, effective dates, last review date. Add form: name, DOB, ban type, reason, upload court order. Review button for periodic audit. "This person was detected at the kiosk" alert history.</li>
+      <li><strong>Pre-Registration Form</strong> <code>/visitors/pre-register</code> &mdash; staff creates: visitor name + email + expected date/time + purpose + host selector. Generates QR code displayed on screen + emailed to visitor.</li>
+      <li><strong>Recurring Visitors</strong> <code>/visitors/admin/recurring</code> &mdash; list of recurring visitors with schedule summary. Add form: visitor + days/times + valid date range + approved by.</li>
+      <li><strong>Emergency Muster</strong> <code>/visitors/muster</code> &mdash; <strong>EMERGENCY UI.</strong> Big red "Create Muster Snapshot" button. After creation: accountability checklist showing all on-site visitors with UNKNOWN/ACCOUNTED_FOR/EVACUATED/ASSISTANCE_NEEDED buttons per entry. Summary bar: "3 unknown, 5 accounted for, 1 evacuated, 0 need assistance." Updates in real-time as entries are marked.</li>
+      <li><strong>Sign-In Settings</strong> <code>/visitors/admin/settings</code> &mdash; school-level config: require photo ID, require purpose, auto sign-out hours, safeguarding provider, badge template.</li>
+      <li><strong>Visitor History</strong> <code>/visitors/history</code> &mdash; full sign-in/out log with date range filter. Export to CSV for compliance reporting.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Visitor type config, banned persons (restricted), pre-registration, recurring visitors, emergency muster, settings, history.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Visitor type configuration:</strong> Admin creates "Contractor" type with safeguarding required. Verify UNIQUE(school_id, name).</li>
+      <li><strong>New visitor sign-in:</strong> Kiosk: enter name + email. Verify vis_visitors created with encrypted email + HMAC email_hash. Verify sign-in created with safeguarding status.</li>
+      <li><strong>Returning visitor lookup:</strong> Same email at kiosk next week. Verify HMAC lookup returns the existing visitor record. Verify auto-fill works.</li>
+      <li><strong>Pre-registration + QR scan:</strong> Staff pre-registers a speaker. Verify QR token generated. Kiosk: scan QR. Verify pre-reg resolved + used_at stamped + sign-in auto-created. Scan same QR again → 410 (already used).</li>
+      <li><strong>Safeguarding bypass:</strong> Admin bypasses safeguarding for a contractor. Verify bypass_admin_id + bypass_reason (&gt;10 chars) required. Verify bypass_reason &lt;10 chars → 400.</li>
+      <li><strong>Banned person detection:</strong> Add banned person with name + DOB. Compute HMAC. Kiosk: enter matching name + DOB. Verify sign-in BLOCKED. Verify <code>vis.banned_person.detected</code> fires. Verify kiosk shows neutral message (no ban details).</li>
+      <li><strong>Banned person non-match:</strong> Kiosk: enter a name that does NOT match any ban. Verify sign-in proceeds normally.</li>
+      <li><strong>Emergency muster:</strong> 3 visitors currently on-site (signed_out_at IS NULL). Create muster snapshot. Verify 3 vis_muster_entries created with status=UNKNOWN. Mark 2 as ACCOUNTED_FOR + 1 as EVACUATED. Verify summary: 0 unknown, 2 accounted, 1 evacuated.</li>
+      <li><strong>Sign-out + auto sign-out:</strong> Sign out a visitor. Verify signed_out_at stamped. Verify they disappear from the on-site list. Verify auto_sign_out_hours setting (12h).</li>
+      <li><strong>Visibility:</strong> Teacher sees on-site list (SAF-001:read). Cannot access banned persons. Staff can process sign-ins. Admin manages all. Banned person detail requires safeguarding_ban:read.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified visitor lifecycle: kiosk sign-in → returning visitor → pre-reg QR → banned person block → safeguarding bypass → muster snapshot → accountability → sign-out.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 9 new tables. Tenant table count: ~427.</li>
+      <li>Visitor API: ~28 endpoints with encrypted PII + HMAC lookup + banned person screening.</li>
+      <li>AES-256 encrypted email + phone with HMAC blind index for equality lookup.</li>
+      <li>Banned persons screening on every sign-in via HMAC name_hash comparison.</li>
+      <li>Pre-registration with QR-code expedited sign-in.</li>
+      <li>Emergency muster snapshot with batch insert + per-visitor accountability tracking.</li>
+      <li>Safeguarding admin bypass with mandatory reason (&gt;10 chars) + admin ID audit.</li>
+      <li>ADR-015: third-party registry data transient (reference ID only, never content).</li>
+      <li><code>vis.visitor.signed_in</code> + <code>vis.banned_person.detected</code> + <code>vis.muster.created</code> Kafka emits.</li>
+      <li>HANDOFF-P2C1.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 1 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M90 Visitor Management, 9 tables), ADR-015 Safeguarding Data Transience, ADR-032 Volunteer Management. Function: SAF-001 Visitor Management. Phase 2 Cycle 1 of pilot readiness sequence.</p>
+  </div>
+</div>
+
+</body>
+</html>
