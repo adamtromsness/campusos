@@ -168,7 +168,8 @@ export class MusterService {
           "v.first_name || ' ' || v.last_name, " +
           "COALESCE(vt.name, 'Unknown'), v.company " +
           'FROM vis_sign_ins s ' +
-          'JOIN vis_visitors v ON v.id = s.visitor_id ' +
+          // REVIEW-P2C1 ROUND 2 BLOCKING — defence-in-depth join predicate.
+          'JOIN vis_visitors v ON v.id = s.visitor_id AND v.school_id = s.school_id ' +
           'LEFT JOIN vis_visitor_types vt ON vt.id = v.visitor_type_id ' +
           'WHERE s.school_id = $2::uuid AND s.signed_out_at IS NULL',
         musterId,

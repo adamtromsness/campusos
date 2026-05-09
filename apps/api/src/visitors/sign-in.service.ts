@@ -72,7 +72,11 @@ const SELECT_SIGNIN_BASE =
   'TO_CHAR(s.created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
   'TO_CHAR(s.updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
   'FROM vis_sign_ins s ' +
-  'JOIN vis_visitors v ON v.id = s.visitor_id ' +
+  // REVIEW-P2C1 ROUND 2 BLOCKING — defence-in-depth join predicate.
+  // The sign-in already carries school_id; refusing to join a visitor
+  // from another school protects against historical rows that may
+  // predate the loadInternal() school-scoping fix.
+  'JOIN vis_visitors v ON v.id = s.visitor_id AND v.school_id = s.school_id ' +
   'LEFT JOIN vis_visitor_types vt ON vt.id = v.visitor_type_id ' +
   'LEFT JOIN platform.platform_users hpu ON hpu.id = s.host_id ' +
   'LEFT JOIN platform.iam_person hp ON hp.id = hpu.person_id ' +
@@ -491,7 +495,8 @@ const SELECT_PREREG_BASE =
   'pr.created_by::text AS created_by, ' +
   'TO_CHAR(pr.created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at ' +
   'FROM vis_pre_registrations pr ' +
-  'JOIN vis_visitors v ON v.id = pr.visitor_id ' +
+  // REVIEW-P2C1 ROUND 2 BLOCKING — defence-in-depth join predicate.
+  'JOIN vis_visitors v ON v.id = pr.visitor_id AND v.school_id = pr.school_id ' +
   'LEFT JOIN platform.platform_users hpu ON hpu.id = pr.host_id ' +
   'LEFT JOIN platform.iam_person hp ON hp.id = hpu.person_id ';
 
@@ -602,7 +607,9 @@ export class PreRegistrationService {
         'SELECT pr.id::text AS id, pr.visitor_id::text AS visitor_id, pr.host_id::text AS host_id, ' +
           'pr.purpose, pr.expires_at, pr.used_at, ' +
           'v.first_name, v.last_name, v.visitor_type_id::text AS visitor_type_id ' +
-          'FROM vis_pre_registrations pr JOIN vis_visitors v ON v.id = pr.visitor_id ' +
+          'FROM vis_pre_registrations pr ' +
+          // REVIEW-P2C1 ROUND 2 BLOCKING — defence-in-depth join predicate.
+          'JOIN vis_visitors v ON v.id = pr.visitor_id AND v.school_id = pr.school_id ' +
           'WHERE pr.school_id = $1::uuid AND pr.qr_code_token = $2 FOR UPDATE OF pr',
         tenant.schoolId,
         input.qrCodeToken,
@@ -697,7 +704,8 @@ const SELECT_RECUR_BASE =
   'r.approved_by::text AS approved_by, ap.first_name AS approved_first, ap.last_name AS approved_last, ' +
   'r.notes, r.is_active ' +
   'FROM vis_recurring_visitors r ' +
-  'JOIN vis_visitors v ON v.id = r.visitor_id ' +
+  // REVIEW-P2C1 ROUND 2 BLOCKING — defence-in-depth join predicate.
+  'JOIN vis_visitors v ON v.id = r.visitor_id AND v.school_id = r.school_id ' +
   'LEFT JOIN platform.platform_users apu ON apu.id = r.approved_by ' +
   'LEFT JOIN platform.iam_person ap ON ap.id = apu.person_id ';
 

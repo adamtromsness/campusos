@@ -472,11 +472,29 @@ export class VisitorService {
     });
   }
 
-  /** Internal — used by SignInService when sign-in carries a visitorId. */
+  /**
+   * Internal — used by SignInService.create / PreRegistrationService.create /
+   * RecurringVisitorService.create when the caller passes a visitorId
+   * directly (returning visitor pre-resolved at the kiosk; staff
+   * pre-registering an existing visitor; admin attaching a recurring
+   * schedule to an existing contractor).
+   *
+   * REVIEW-P2C1 ROUND 2 BLOCKING — every direct visitorId resolution
+   * MUST be school-scoped. A School A reception user with saf-002:write
+   * must not be able to attach a School B visitor record to a School A
+   * sign-in / pre-reg / recurring row by guessing or replaying the
+   * UUID. Returns 404 (collapsed don't-leak-existence — the caller
+   * cannot tell the difference between "visitor doesn't exist" and
+   * "visitor exists in another school"). Defence-in-depth alongside
+   * the AND v.school_id = s.school_id JOIN predicate added to the
+   * sign-in / pre-reg / recurring SELECT_BASE templates.
+   */
   async loadInternal(id: string): Promise<VisitorRow> {
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      const tenant = getCurrentTenant();
       const rows = (await client.$queryRawUnsafe(
-        SELECT_VISITOR_BASE + 'WHERE v.id = $1::uuid LIMIT 1',
+        SELECT_VISITOR_BASE + 'WHERE v.school_id = $1::uuid AND v.id = $2::uuid LIMIT 1',
+        tenant.schoolId,
         id,
       )) as VisitorRow[];
       if (rows.length === 0) throw new NotFoundException('Visitor not found');

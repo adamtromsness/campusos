@@ -7,9 +7,18 @@ endpoints + 3 Kafka emit topics + 8 web routes.
 **Round 1 commit:** `9c782aa` on `main` (the closeout commit pushed
 2026-05-09).
 **Round 1 verdict:** **FAIL** — 2 BLOCKING + 4 MAJOR + 3 MINOR.
-**Round 2 commit:** the fix commit pushed 2026-05-09 with all 2
-BLOCKING + all 4 MAJOR addressed in code + tests.
-**Round 2 verdict:** _pending — please re-review._
+**Round 2 commit:** `aa2aefc` on `main` (Round 1 fixes pushed
+2026-05-09).
+**Round 2 verdict:** **FAIL** — 1 BLOCKING (`VisitorService.loadInternal`
+unscoped). The 2 R1 BLOCKINGs + 4 R1 MAJORs all confirmed FIXED by
+the reviewer. New R2 finding: direct `visitorId` workflows (sign-in,
+pre-reg, recurring) resolve via `loadInternal(id)` which used
+`WHERE v.id = $1` only — a School A actor with `saf-002:write` could
+attach a School B visitor record to a School A operational row.
+**Round 3 commit:** Round 2 BLOCKING fix pushed 2026-05-09 with the
+canonical `loadInternal()` school-scoping + JOIN defence-in-depth +
+4 new isolation regression tests.
+**Round 3 verdict:** _pending — please re-review._
 **Live verification reference:** `tenant_demo` 2026-05-09.
 
 ---
@@ -56,6 +65,50 @@ totalOnSite=4 entries=4           # BLOCKING 1 verified — 4 active sign-ins �
 
 CI parity green: vitest 67/67 (was 39 + 28 new), API + web builds clean,
 `format:check` + `lint:logs` clean, full `db:reset` completes in 23s.
+
+---
+
+## Round 2 fixes — applied in the round-3 commit
+
+| #   | Severity     | Finding                                                                                                                                                                      | Status    | Fix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 10  | **BLOCKING** | `VisitorService.loadInternal(id)` resolved by id only — direct `visitorId` paths (sign-in, pre-reg, recurring) could attach a School B visitor to a School A operational row | **Fixed** | `loadInternal` now reads `getCurrentTenant()` and adds `WHERE v.school_id = $1::uuid AND v.id = $2::uuid LIMIT 1`. Returns 404 (collapsed don't-leak-existence — caller cannot tell "doesn't exist" from "exists in another school"). Defence-in-depth applied to the JOIN templates: `SELECT_SIGNIN_BASE`, `SELECT_PREREG_BASE`, `SELECT_RECUR_BASE`, the muster batch INSERT, and the pre-reg scan SELECT all gain `AND v.school_id = s.school_id` (or `pr.school_id` / `r.school_id`) on the visitor JOIN. So even if a row predates the loadInternal() fix, the JOIN refuses to surface a cross-school visitor on the read path. New `apps/api/src/visitors/visitor.service.spec.ts` ships 4 regression tests verifying the SQL shape + cross-school 404 behaviour. |
+| 11  | (test-side)  | DTO regression: `accessSchedule` rejected as `forbidNonWhitelisted` because `@Type` alone wasn't enough                                                                      | **Fixed** | Added `@IsObject()` + `@ValidateNested()` to `CreateRecurringVisitorDto.accessSchedule` and `UpdateRecurringVisitorDto.accessSchedule`. Pre-existing latent bug — surfaced when the live R2 verification pushed a real recurring create through the new code path.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+
+---
+
+## Round 2 BLOCKING — live verification on `tenant_demo` 2026-05-09
+
+Synthetic foreign visitor inserted directly with a `school_id` that
+does not match the calling tenant's schoolId, then attempted via
+all three direct-`visitorId` paths:
+
+```
+Foreign visitor (school_id=ffffffff-ffff-ffff-ffff-ffffffffffff): 426707d7-5d9a-49b3-b15f-e02ff51ec08c
+
+=== Cross-school sign-in — expect 404 ===
+  404 {"message":"Visitor not found","error":"Not Found","statusCode":404}
+
+=== Cross-school pre-registration — expect 404 ===
+  404 {"message":"Visitor not found","error":"Not Found","statusCode":404}
+
+=== Cross-school recurring — expect 404 ===
+  404 {"message":"Visitor not found","error":"Not Found","statusCode":404}
+
+=== Verify NO operational rows landed against foreign visitorId ===
+    tbl    | count
+-----------+-------
+ sign_ins  | 0
+ pre_regs  | 0
+ recurring | 0
+```
+
+All three direct-`visitorId` workflows (sign-in, pre-registration,
+recurring) refuse to attach a foreign-school visitor record to a
+local-school operational row. Zero leak.
+
+CI parity green: vitest 71/71 (was 67 + 4 new isolation regression
+tests), API + web builds clean, `format:check` + `lint:logs` clean.
 
 ---
 

@@ -9,6 +9,7 @@ import {
   IsInt,
   IsISO8601,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -17,6 +18,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 
 export type VisitorBadgeColor = 'blue' | 'green' | 'amber' | 'rose' | 'purple' | 'gray';
@@ -336,6 +338,13 @@ export class AccessScheduleDto {
 export class CreateRecurringVisitorDto {
   @IsUUID() visitorId!: string;
 
+  // ValidateNested + @IsObject pair makes the global ValidationPipe
+  // recurse into the AccessScheduleDto. Without these, the pipe runs
+  // forbidNonWhitelisted on the parent and rejects accessSchedule as
+  // an unknown property because @Type alone is a class-transformer
+  // hint, not a validator.
+  @IsObject()
+  @ValidateNested()
   @Type(() => AccessScheduleDto)
   accessSchedule!: AccessScheduleDto;
 
@@ -345,7 +354,11 @@ export class CreateRecurringVisitorDto {
 }
 
 export class UpdateRecurringVisitorDto {
-  @IsOptional() @Type(() => AccessScheduleDto) accessSchedule?: AccessScheduleDto;
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => AccessScheduleDto)
+  accessSchedule?: AccessScheduleDto;
   @IsOptional() @IsDateString() validFrom?: string;
   @IsOptional() @IsDateString() validTo?: string | null;
   @IsOptional() @IsString() @MaxLength(2000) notes?: string;
