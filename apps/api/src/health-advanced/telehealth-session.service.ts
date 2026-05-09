@@ -119,10 +119,15 @@ export class TelehealthSessionService {
     // Validate the provider belongs to this school + is active.
     await this.providers.loadActiveOrFail(input.providerId);
 
-    // Validate the student belongs to this school.
+    // REVIEW-P2C3 MAJOR — validate the student is in THIS school via
+    // sis_students.school_id, not by id alone. Defence-in-depth: even
+    // though tenant_<x> schemas physically isolate one school per
+    // tenant today, the validator pattern matches the rest of the
+    // codebase's school-scoped existence checks.
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
-        'SELECT id FROM sis_students WHERE id = $1::uuid LIMIT 1',
+        'SELECT id FROM sis_students WHERE school_id = $1::uuid AND id = $2::uuid LIMIT 1',
+        tenant.schoolId,
         input.studentId,
       )) as Array<{ id: string }>;
       if (rows.length === 0) {
@@ -146,8 +151,10 @@ export class TelehealthSessionService {
         'SCHEDULED',
         input.meetingUrl ?? null,
       );
+      // School-scoped reload — REVIEW-P2C3 follow-up consistency.
       const rows = (await tx.$queryRawUnsafe(
-        SELECT_SESSION_BASE + 'WHERE s.id = $1::uuid LIMIT 1',
+        SELECT_SESSION_BASE + 'WHERE s.school_id = $1::uuid AND s.id = $2::uuid LIMIT 1',
+        tenant.schoolId,
         id,
       )) as SessionRow[];
       return this.rowToDto(rows[0]!);
@@ -270,10 +277,18 @@ export class TelehealthSessionService {
         if (target === 'COMPLETED') {
           sets.push('completed_at = now()');
         } else if (target === 'CANCELLED') {
-          sets.push('cancelled_at = now()');
-          if (input.cancellationReason !== undefined) {
-            push('cancellation_reason', input.cancellationReason);
+          // REVIEW-P2C3 BLOCKING #3 — CANCELLED requires a non-empty
+          // cancellation reason. The DB CHECK in migration 110 is the
+          // schema-side belt-and-braces; this service-layer check
+          // surfaces a friendly 400 before the UPDATE fires.
+          const reason = input.cancellationReason?.trim();
+          if (!reason) {
+            throw new BadRequestException(
+              'CANCELLED telehealth sessions require cancellationReason.',
+            );
           }
+          sets.push('cancelled_at = now()');
+          push('cancellation_reason', reason);
         }
       } else if (input.cancellationReason !== undefined) {
         push('cancellation_reason', input.cancellationReason);

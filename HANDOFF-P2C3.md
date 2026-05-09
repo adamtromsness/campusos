@@ -8,19 +8,20 @@
 
 ## Step status
 
-| # | Step | State |
-|---|------|-------|
-| 1 | Migration `109_hlth_advanced.sql` — 6 tables + access-log enum extension | DONE |
-| 2 | Seed `seed-health-advanced.ts` + IAM HLT-006 grants | DONE |
-| 3 | TelehealthProviderService + TelehealthSessionService | DONE |
-| 4 | ImmunisationRequirementService + ComplianceService + nightly Worker | DONE |
-| 5 | ScreeningReferralService | DONE |
-| 6 | Health UI: telehealth + immunisation + screening referrals | DONE |
-| 7 | Vertical-slice CAT script | DONE |
-| 8 | State compliance CSV report endpoint | DONE |
-| 9 | CI parity (format / lint:logs / vitest / API build / web build) | DONE |
-| 10 | HANDOFF + CLAUDE.md + REVIEW notes | DONE |
-| 11 | Git commit + push | PENDING |
+| #   | Step                                                                     | State |
+| --- | ------------------------------------------------------------------------ | ----- |
+| 1   | Migration `109_hlth_advanced.sql` — 6 tables + access-log enum extension | DONE  |
+| 2   | Seed `seed-health-advanced.ts` + IAM HLT-006 grants                      | DONE  |
+| 3   | TelehealthProviderService + TelehealthSessionService                     | DONE  |
+| 4   | ImmunisationRequirementService + ComplianceService + nightly Worker      | DONE  |
+| 5   | ScreeningReferralService                                                 | DONE  |
+| 6   | Health UI: telehealth + immunisation + screening referrals               | DONE  |
+| 7   | Vertical-slice CAT script                                                | DONE  |
+| 8   | State compliance CSV report endpoint                                     | DONE  |
+| 9   | CI parity (format / lint:logs / vitest / API build / web build)          | DONE  |
+| 10  | HANDOFF + CLAUDE.md + REVIEW notes                                       | DONE  |
+| 11  | Git commit + push                                                        | DONE  |
+| 12  | REVIEW-P2C3 Round 1 fixes — 3 BLOCKING + 1 actionable MAJOR              | DONE  |
 
 ## What landed
 
@@ -171,7 +172,7 @@ worker + 1 controller + 20 endpoints + 1 Kafka emit topic
   ("Platform-tier defaults cannot be edited; clone with a school_id
   override"). UNIQUE catch surfaces friendly 400.
 
-- **`ImmunisationComplianceService`** — `dashboard()` /  `list({status, grade})` /
+- **`ImmunisationComplianceService`** — `dashboard()` / `list({status, grade})` /
   `getForStudent(studentId)` / `runManually({studentId?})` /
   `computeForSchool()` / `stateReportCsv()`. **Two structural keystones**:
   (1) **UPSERT idempotency**: per-(student, academic_year_id) row
@@ -260,17 +261,146 @@ that captures SQL + args:
   outcome, accepts with outcome+date, overdue path filters
   status=REFERRED.
 
-Vitest suite 104 → **122 tests passing** (13 spec files; +18 new).
+Vitest suite 104 → **122 tests passing** at the original Step 9 cut.
+After the REVIEW-P2C3 Round 1 fixes (Step 12 below), the suite grew
+to **126 passing tests** (+4: CANCELLED-without-reason rejection,
+CANCELLED-with-reason happy path, controller permission-metadata
+gate for school-wide compliance, and the expanded
+`hlth.immunisation.noncompliant` payload contract test).
+
+## REVIEW-P2C3 Round 1 fix log (Step 12)
+
+Round 1 against `ffab646` returned **FAIL** with 3 BLOCKING + 4
+MAJOR. The closeout fix commit lands all 3 BLOCKING + the actionable
+MAJOR (school-scoped student validation in telehealth scheduling +
+post-insert reload). Remaining MAJORs (compliance row uniqueness
+including `school_id` for shared-schema future-proofing; ID-only
+post-insert reloads in places not flagged in the BLOCKINGs;
+integration-level authorization tests beyond the controller metadata
+assertions) move to the Phase 2 backlog per the reviewer's gate
+decision.
+
+### BLOCKING #1 — narrowing school-wide immunisation compliance
+
+`GET /health/immunisation/compliance`, `/dashboard`, and `/report`
+were gated on `hlt-001:read`, which Parent / Student / Teacher all
+hold via Cycle 10 grants. The reviewer correctly flagged this as a
+school-wide health-data privacy violation.
+
+**Fix.** New permission code `HLT-007 (Immunisation Compliance)`
+added to `packages/database/data/permissions.json`. Catalogue
+498 → **501** (1 new function × 3 tiers). `seed-iam.ts` grants
+`HLT-007:read+write` to Staff (the school-nurse persona); School
+Admin and Platform Admin pick up admin-tier through `everyFunction`.
+Parent / Student / Teacher are intentionally NOT granted any
+HLT-007 tier.
+
+Controller endpoints re-gated:
+
+- `GET /health/immunisation/compliance` → `hlt-007:read`
+- `GET /health/immunisation/compliance/dashboard` → `hlt-007:read`
+- `GET /health/immunisation/compliance/report` → `hlt-007:read`
+- `POST /health/immunisation/compliance/run` → `hlt-007:admin`
+
+The narrower per-student endpoint
+`GET /health/immunisation/compliance/:studentId` keeps `hlt-001:read`
+because the service-layer `getForStudent(studentId, actor)` already
+enforces guardian-link verification via `sis_student_guardians` for
+non-admin GUARDIAN actors and STAFF / nurse pass-through; non-linked
+callers get a collapsed 404. `assertAdmin` in the service was
+re-pointed at `hlt-007:admin` to match.
+
+Two new regression tests in `health-advanced.spec.ts` use
+`Reflect.getMetadata(PERMISSIONS_KEY, ...)` on the controller proto
+to assert the gating contract — future renames cannot silently fall
+back to the broader code.
+
+### BLOCKING #2 — `hlth.immunisation.noncompliant` event contract
+
+Implementation emitted `sourceModule: 'health'` (should be
+`'health-advanced'`) and a payload of `{studentId, schoolId,
+sourceRefId, detectedAt}` (should be `{schoolId, studentId,
+missingVaccines, computedAt}`). The `void this.emitNoncompliant(...)`
+call also lived inside the `executeInTenantTransaction` callback,
+which is the same transaction-boundary ambiguity P2C2 was flagged
+for.
+
+**Fix.** `computeForSchool` now collects
+`{studentId, missingVaccines, computedAt}` tuples inside the tx,
+returns `{computed, pending}` from the tx callback, and chains a
+`.then(async ({computed, pending}) => {...})` block that emits each
+event AFTER the tx resolves. The emit shape is now exactly:
+
+```ts
+await kafka.emit({
+  topic: 'hlth.immunisation.noncompliant',
+  key: studentId,
+  sourceModule: 'health-advanced',
+  payload: { schoolId, studentId, missingVaccines, computedAt },
+});
+```
+
+Existing emit-shape test rewritten to assert `sourceModule`,
+`schoolId`, `studentId`, `missingVaccines` array shape (vaccineName
+
+- dosesRequired + dosesReceived), and a parseable `computedAt`
+  timestamp.
+
+### BLOCKING #3 — CANCELLED telehealth sessions require a reason
+
+Migration 109 only enforced `cancelled_at NOT NULL` for `CANCELLED`,
+not a non-empty `cancellation_reason`. The service layer also
+allowed cancellation without a reason.
+
+**Fix at the service layer (`telehealth-session.service.ts`):**
+
+```ts
+if (target === 'CANCELLED') {
+  const reason = input.cancellationReason?.trim();
+  if (!reason) {
+    throw new BadRequestException('CANCELLED telehealth sessions require cancellationReason.');
+  }
+  sets.push('cancelled_at = now()');
+  push('cancellation_reason', reason);
+}
+```
+
+**Fix at the schema layer (new migration
+`110_hlth_telehealth_cancelled_reason.sql`):** splitter-safe DROP +
+ADD pattern tightens `hlth_th_sessions_cancelled_chk` to require
+`cancellation_reason IS NOT NULL AND length(trim(cancellation_reason)) > 0`
+when status is CANCELLED, and to require both columns NULL when
+status is anything else. The ALTER is idempotent across re-provisions.
+
+Two new regression tests cover the CANCELLED-without-reason
+rejection (both empty + whitespace-only) and a CANCELLED-with-reason
+happy path that verifies the UPDATE statement carries
+`cancelled_at = now()` + the reason argument.
+
+### MAJOR — school-scoped student validation in telehealth schedule
+
+`TelehealthSessionService.schedule()` validated the student id with
+`SELECT id FROM sis_students WHERE id = $1::uuid`. Tenant schemas
+physically isolate one school per tenant today, but P2 reviews have
+consistently required explicit `school_id` validation on direct-
+object references for defence-in-depth.
+
+**Fix.** Validator now reads
+`SELECT id FROM sis_students WHERE school_id = $1::uuid AND id = $2::uuid`.
+The post-insert reload at the end of `schedule()` was also tightened
+from `WHERE s.id = $1::uuid` to
+`WHERE s.school_id = $1::uuid AND s.id = $2::uuid` for consistency
+with the rest of the isolation pattern.
 
 ## CI parity (Step 9)
 
-| gate | result |
-|------|--------|
-| `pnpm format:check` | ✓ clean |
-| `pnpm lint:logs` | ✓ 556 files clean |
-| `pnpm --filter @campusos/api test` | ✓ 122/122 passing |
-| `pnpm --filter @campusos/api build` | ✓ clean |
-| `pnpm --filter @campusos/web build` | ✓ clean |
+| gate                                | result                                       |
+| ----------------------------------- | -------------------------------------------- |
+| `pnpm format:check`                 | ✓ clean                                      |
+| `pnpm lint:logs`                    | ✓ 556 files clean                            |
+| `pnpm --filter @campusos/api test`  | ✓ 126/126 passing (Round 1 fixes: 122 → 126) |
+| `pnpm --filter @campusos/api build` | ✓ clean                                      |
+| `pnpm --filter @campusos/web build` | ✓ clean                                      |
 
 ## Reviewer attention items (carried to Phase 2 backlog)
 

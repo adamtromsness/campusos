@@ -208,8 +208,15 @@ export class HealthAdvancedController {
 
   // ---------- Immunisation compliance ------------------------------------
 
+  // School-wide immunisation compliance is gated on the dedicated
+  // HLT-007 code (Staff + Admin only). HLT-001:read is held by Parent /
+  // Student / Teacher and was the original gate but the privacy
+  // boundary in P2C3-REVIEW required narrowing — parents and students
+  // reach own / linked-child data via /compliance/:studentId, which
+  // keeps hlt-001:read at the controller and adds relationship
+  // enforcement in the service layer.
   @Get('immunisation/compliance')
-  @RequirePermission('hlt-001:read')
+  @RequirePermission('hlt-007:read')
   async listCompliance(
     @Query() query: ListComplianceQueryDto,
   ): Promise<ImmunisationComplianceDto[]> {
@@ -217,17 +224,17 @@ export class HealthAdvancedController {
   }
 
   @Get('immunisation/compliance/dashboard')
-  @RequirePermission('hlt-001:read')
+  @RequirePermission('hlt-007:read')
   async complianceDashboard(): Promise<ComplianceDashboardDto> {
     return this.compliance.dashboard();
   }
 
   @Get('immunisation/compliance/report')
-  @RequirePermission('hlt-001:read')
+  @RequirePermission('hlt-007:read')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @ApiOperation({
     summary:
-      'State-formatted CSV. Columns: student_state_id, grade_level, vaccine_name, doses_required, doses_received, compliance_status, exemption_type. Source for the annual state immunisation submission.',
+      'State-formatted CSV. Columns: student_state_id, grade_level, vaccine_name, doses_required, doses_received, compliance_status, exemption_type. Source for the annual state immunisation submission. Gated on hlt-007:read (Staff + Admin) — Parent / Student / Teacher cannot export.',
   })
   async complianceReport(@Res() res: Response): Promise<void> {
     const csv = await this.compliance.stateReportCsv();
@@ -239,6 +246,8 @@ export class HealthAdvancedController {
     res.send(csv);
   }
 
+  // Per-student compliance read keeps hlt-001:read because the service
+  // enforces guardian / self relationship for non-admin actors.
   @Get('immunisation/compliance/:studentId')
   @RequirePermission('hlt-001:read')
   async getComplianceForStudent(
@@ -250,7 +259,7 @@ export class HealthAdvancedController {
   }
 
   @Post('immunisation/compliance/run')
-  @RequirePermission('hlt-001:admin')
+  @RequirePermission('hlt-007:admin')
   async runCompliance(
     @Req() req: AuthedRequest,
     @Body() input: ManualComputeDto,

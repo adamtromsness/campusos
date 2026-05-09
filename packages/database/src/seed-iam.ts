@@ -864,6 +864,14 @@ async function seedIam() {
         // catalogue's HLT-005 is "Dietary Profiles & Allergens"
         // already in use by Cycle 10; HLT-006 is the new code.
         'HLT-006': ['read', 'write'],
+        // REVIEW-P2C3 BLOCKING #1 — school-wide immunisation compliance
+        // (list / dashboard / state CSV report) is gated on a dedicated
+        // HLT-007 code instead of the broad HLT-001:read held by Parent /
+        // Student / Teacher. Staff (nurse) holds read+write; School Admin
+        // and Platform Admin pick up admin tier via everyFunction. Per-
+        // student self-service via getForStudent(:studentId) keeps using
+        // hlt-001:read with relationship enforcement at the service.
+        'HLT-007': ['read', 'write'],
         // Cycle 11 — Counselling & Student Support. Staff covers
         // counsellor + VP + admin assistant. Counsellors are the
         // canonical author of caseloads / referrals (COU-001/002),

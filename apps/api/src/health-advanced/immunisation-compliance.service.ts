@@ -232,153 +232,160 @@ export class ImmunisationComplianceService {
       return rows.length > 0 ? rows[0]!.id : null;
     });
 
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      const studentRows = (await tx.$queryRawUnsafe(
-        studentId
-          ? 'SELECT s.id::text AS id, s.grade_level FROM sis_students s WHERE s.id = $1::uuid LIMIT 1'
-          : 'SELECT s.id::text AS id, s.grade_level FROM sis_students s',
-        ...(studentId ? [studentId] : []),
-      )) as Array<{ id: string; grade_level: string | null }>;
+    return this.tenantPrisma
+      .executeInTenantTransaction(async (tx) => {
+        const studentRows = (await tx.$queryRawUnsafe(
+          studentId
+            ? 'SELECT s.id::text AS id, s.grade_level FROM sis_students s WHERE s.id = $1::uuid LIMIT 1'
+            : 'SELECT s.id::text AS id, s.grade_level FROM sis_students s',
+          ...(studentId ? [studentId] : []),
+        )) as Array<{ id: string; grade_level: string | null }>;
 
-      // Read existing compliance rows in one shot for newly-flag detection.
-      const existingRows = (await tx.$queryRawUnsafe(
-        'SELECT student_id::text AS student_id, status, exemption_type ' +
-          'FROM hlth_immunisation_compliance WHERE school_id = $1::uuid',
-        tenant.schoolId,
-      )) as Array<{ student_id: string; status: string; exemption_type: string | null }>;
-      const existingByStudent = new Map<
-        string,
-        { status: string; exemption_type: string | null }
-      >();
-      for (const r of existingRows) {
-        existingByStudent.set(r.student_id, {
-          status: r.status,
-          exemption_type: r.exemption_type,
-        });
-      }
+        // Read existing compliance rows in one shot for newly-flag detection.
+        const existingRows = (await tx.$queryRawUnsafe(
+          'SELECT student_id::text AS student_id, status, exemption_type ' +
+            'FROM hlth_immunisation_compliance WHERE school_id = $1::uuid',
+          tenant.schoolId,
+        )) as Array<{ student_id: string; status: string; exemption_type: string | null }>;
+        const existingByStudent = new Map<
+          string,
+          { status: string; exemption_type: string | null }
+        >();
+        for (const r of existingRows) {
+          existingByStudent.set(r.student_id, {
+            status: r.status,
+            exemption_type: r.exemption_type,
+          });
+        }
 
-      // Read all immunisations once.
-      const immunisations = (await tx.$queryRawUnsafe(
-        'SELECT i.health_record_id::text AS health_record_id, i.vaccine_name, i.status, ' +
-          '       hr.student_id::text AS student_id ' +
-          'FROM hlth_immunisations i ' +
-          'JOIN hlth_student_health_records hr ON hr.id = i.health_record_id ' +
-          'WHERE hr.school_id = $1::uuid',
-        tenant.schoolId,
-      )) as ImmunisationDoseRow[];
-      const dosesByStudent = new Map<string, Map<string, number>>();
-      for (const i of immunisations) {
-        if (i.status !== 'CURRENT') continue;
-        const m = dosesByStudent.get(i.student_id) ?? new Map<string, number>();
-        m.set(i.vaccine_name, (m.get(i.vaccine_name) ?? 0) + 1);
-        dosesByStudent.set(i.student_id, m);
-      }
+        // Read all immunisations once.
+        const immunisations = (await tx.$queryRawUnsafe(
+          'SELECT i.health_record_id::text AS health_record_id, i.vaccine_name, i.status, ' +
+            '       hr.student_id::text AS student_id ' +
+            'FROM hlth_immunisations i ' +
+            'JOIN hlth_student_health_records hr ON hr.id = i.health_record_id ' +
+            'WHERE hr.school_id = $1::uuid',
+          tenant.schoolId,
+        )) as ImmunisationDoseRow[];
+        const dosesByStudent = new Map<string, Map<string, number>>();
+        for (const i of immunisations) {
+          if (i.status !== 'CURRENT') continue;
+          const m = dosesByStudent.get(i.student_id) ?? new Map<string, number>();
+          m.set(i.vaccine_name, (m.get(i.vaccine_name) ?? 0) + 1);
+          dosesByStudent.set(i.student_id, m);
+        }
 
-      const newlyNonCompliantIds: string[] = [];
-      let computed = 0;
+        // Collect (studentId, missingVaccines, computedAt) tuples inside
+        // the tx so the post-commit emit carries the exact contract the
+        // reviewer specified. Emit happens AFTER the tx resolves so a
+        // Kafka outage cannot roll back the compliance row write.
+        const newlyNonCompliant: Array<{
+          studentId: string;
+          missingVaccines: MissingVaccineDto[];
+          computedAt: string;
+        }> = [];
+        let computed = 0;
 
-      for (const stu of studentRows) {
-        const grade = stu.grade_level;
-        const studentRank = grade ? gradeRank(grade) : 99;
-        const applicable = requirements.filter(
-          (r) => gradeRank(r.required_by_grade) <= studentRank,
-        );
-        const doses = dosesByStudent.get(stu.id) ?? new Map<string, number>();
+        for (const stu of studentRows) {
+          const grade = stu.grade_level;
+          const studentRank = grade ? gradeRank(grade) : 99;
+          const applicable = requirements.filter(
+            (r) => gradeRank(r.required_by_grade) <= studentRank,
+          );
+          const doses = dosesByStudent.get(stu.id) ?? new Map<string, number>();
 
-        const missing: MissingVaccineDto[] = [];
-        for (const r of applicable) {
-          const received = doses.get(r.vaccine_name) ?? 0;
-          if (received < r.required_doses) {
-            missing.push({
-              vaccineName: r.vaccine_name,
-              dosesReceived: received,
-              dosesRequired: r.required_doses,
+          const missing: MissingVaccineDto[] = [];
+          for (const r of applicable) {
+            const received = doses.get(r.vaccine_name) ?? 0;
+            if (received < r.required_doses) {
+              missing.push({
+                vaccineName: r.vaccine_name,
+                dosesReceived: received,
+                dosesRequired: r.required_doses,
+              });
+            }
+          }
+
+          const existing = existingByStudent.get(stu.id);
+          // Preserve existing EXEMPT / PROVISIONAL status if the school
+          // has already classified the student. The worker only flips
+          // COMPLIANT ↔ NON_COMPLIANT; manual EXEMPT / PROVISIONAL stays.
+          let newStatus: ComplianceStatus;
+          if (existing && (existing.status === 'EXEMPT' || existing.status === 'PROVISIONAL')) {
+            newStatus = existing.status as ComplianceStatus;
+          } else {
+            newStatus = missing.length === 0 ? 'COMPLIANT' : 'NON_COMPLIANT';
+          }
+
+          const wasNonCompliant = existing?.status === 'NON_COMPLIANT';
+          const isNowNonCompliant = newStatus === 'NON_COMPLIANT';
+          if (isNowNonCompliant && !wasNonCompliant) {
+            newlyNonCompliant.push({
+              studentId: stu.id,
+              missingVaccines: missing,
+              computedAt: new Date().toISOString(),
             });
           }
+
+          const id = existing ? null : generateId();
+          await tx.$executeRawUnsafe(
+            'INSERT INTO hlth_immunisation_compliance ' +
+              '(id, student_id, school_id, academic_year_id, status, missing_vaccines, ' +
+              ' exemption_type, last_computed_at) ' +
+              'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::jsonb, $7, now()) ' +
+              'ON CONFLICT (student_id, COALESCE(academic_year_id, ' +
+              "  '00000000-0000-0000-0000-000000000000'::uuid)) " +
+              'DO UPDATE SET status = EXCLUDED.status, ' +
+              '  missing_vaccines = EXCLUDED.missing_vaccines, ' +
+              '  last_computed_at = now(), updated_at = now()',
+            id ?? generateId(),
+            stu.id,
+            tenant.schoolId,
+            yearRow,
+            newStatus,
+            JSON.stringify(
+              missing.map((m) => ({
+                vaccine_name: m.vaccineName,
+                doses_received: m.dosesReceived,
+                doses_required: m.dosesRequired,
+              })),
+            ),
+            existing?.exemption_type ?? null,
+          );
+          computed += 1;
         }
 
-        const existing = existingByStudent.get(stu.id);
-        // Preserve existing EXEMPT / PROVISIONAL status if the school
-        // has already classified the student. The worker only flips
-        // COMPLIANT ↔ NON_COMPLIANT; manual EXEMPT / PROVISIONAL stays.
-        let newStatus: ComplianceStatus;
-        if (existing && (existing.status === 'EXEMPT' || existing.status === 'PROVISIONAL')) {
-          newStatus = existing.status as ComplianceStatus;
-        } else {
-          newStatus = missing.length === 0 ? 'COMPLIANT' : 'NON_COMPLIANT';
+        return { computed, pending: newlyNonCompliant };
+      })
+      .then(async ({ computed, pending }) => {
+        // Post-commit emit. Topic + sourceModule + payload shape match
+        // P2C3-REVIEW-NOTES.md exactly: the consumer needs the missing
+        // vaccine breakdown to render the parent notification body
+        // without a second round-trip back into the database.
+        for (const ev of pending) {
+          try {
+            await this.kafka.emit({
+              topic: 'hlth.immunisation.noncompliant',
+              key: ev.studentId,
+              sourceModule: 'health-advanced',
+              payload: {
+                schoolId: tenant.schoolId,
+                studentId: ev.studentId,
+                missingVaccines: ev.missingVaccines,
+                computedAt: ev.computedAt,
+              },
+            });
+          } catch (e: any) {
+            this.logger.warn(
+              'hlth.immunisation.noncompliant emit failed for student=' +
+                ev.studentId +
+                ': ' +
+                (e?.message || e),
+            );
+          }
         }
-
-        const wasNonCompliant = existing?.status === 'NON_COMPLIANT';
-        const isNowNonCompliant = newStatus === 'NON_COMPLIANT';
-        if (isNowNonCompliant && !wasNonCompliant) {
-          newlyNonCompliantIds.push(stu.id);
-        }
-
-        const id = existing ? null : generateId();
-        await tx.$executeRawUnsafe(
-          'INSERT INTO hlth_immunisation_compliance ' +
-            '(id, student_id, school_id, academic_year_id, status, missing_vaccines, ' +
-            ' exemption_type, last_computed_at) ' +
-            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::jsonb, $7, now()) ' +
-            'ON CONFLICT (student_id, COALESCE(academic_year_id, ' +
-            "  '00000000-0000-0000-0000-000000000000'::uuid)) " +
-            'DO UPDATE SET status = EXCLUDED.status, ' +
-            '  missing_vaccines = EXCLUDED.missing_vaccines, ' +
-            '  last_computed_at = now(), updated_at = now()',
-          id ?? generateId(),
-          stu.id,
-          tenant.schoolId,
-          yearRow,
-          newStatus,
-          JSON.stringify(
-            missing.map((m) => ({
-              vaccine_name: m.vaccineName,
-              doses_received: m.dosesReceived,
-              doses_required: m.dosesRequired,
-            })),
-          ),
-          existing?.exemption_type ?? null,
-        );
-        computed += 1;
-      }
-
-      // Emit AFTER tx commits (Kafka producer is best-effort; if it
-      // fails the next worker run will detect the same students as
-      // newly NON_COMPLIANT IF their existing status row hasn't been
-      // re-read… but since we just stamped them as NON_COMPLIANT, on
-      // next run wasNonCompliant=true so the emit won't repeat.
-      // That's the trade-off — emit-once at most, no retry. Schools
-      // can re-trigger via POST /compliance/run for a missed
-      // notification.
-      void this.emitNoncompliant(newlyNonCompliantIds, tenant.schoolId);
-
-      return { computed, newlyNonCompliant: newlyNonCompliantIds.length };
-    });
-  }
-
-  private async emitNoncompliant(studentIds: string[], schoolId: string): Promise<void> {
-    for (const sid of studentIds) {
-      try {
-        await this.kafka.emit({
-          topic: 'hlth.immunisation.noncompliant',
-          key: sid,
-          sourceModule: 'health',
-          payload: {
-            studentId: sid,
-            schoolId,
-            sourceRefId: sid,
-            detectedAt: new Date().toISOString(),
-          },
-        });
-      } catch (e: any) {
-        this.logger.warn(
-          'hlth.immunisation.noncompliant emit failed for student=' +
-            sid +
-            ': ' +
-            (e?.message || e),
-        );
-      }
-    }
+        return { computed, newlyNonCompliant: pending.length };
+      });
   }
 
   // ---------- helpers ------------------------------------------------------
@@ -394,11 +401,11 @@ export class ImmunisationComplianceService {
     if (actor.isSchoolAdmin) return;
     const tenant = getCurrentTenant();
     const ok = await this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'hlt-001:admin',
+      'hlt-007:admin',
     ]);
     if (!ok) {
       throw new ForbiddenException(
-        'Manual compliance recompute requires hlt-001:admin or school admin.',
+        'Manual compliance recompute requires hlt-007:admin or school admin.',
       );
     }
   }

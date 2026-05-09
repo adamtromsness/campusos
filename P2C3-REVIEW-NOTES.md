@@ -20,7 +20,7 @@ commit message>`
   Cycle 10's "Dietary Profiles & Allergens"). Catalogue total
   495 → 498.
 - New module `apps/api/src/health-advanced/` — 5 services + 1 worker
-  + 1 controller + 20 endpoints + 1 Kafka emit topic.
+  - 1 controller + 20 endpoints + 1 Kafka emit topic.
 - 3 new web routes under the existing Health tile (telehealth,
   immunisation compliance, screening referrals).
 - 18 new vitest unit tests; suite 104 → 122 passing.
@@ -50,7 +50,7 @@ commit message>`
 4. **Newly NON_COMPLIANT emits the right payload.**
    `hlth.immunisation.noncompliant` payload shape:
    `{schoolId, studentId, missingVaccines: [{vaccineName, dosesRequired,
-   dosesReceived}], computedAt}`. ADR-057 envelope wrapper applied
+dosesReceived}], computedAt}`. ADR-057 envelope wrapper applied
    by `KafkaProducerService.emit`. `source_module = 'health-advanced'`.
 
 5. **Multi-column lockstep on telehealth sessions.**
@@ -59,8 +59,8 @@ commit message>`
      `cancellation_reason` all NULL.
    - COMPLETED: `started_at` AND `ended_at` NOT NULL.
    - CANCELLED: `cancellation_reason` NOT NULL.
-   Service stamps the timestamps inside the same UPDATE so the
-   schema invariant never fires mid-flight.
+     Service stamps the timestamps inside the same UPDATE so the
+     schema invariant never fires mid-flight.
 
 6. **Multi-column lockstep on immunisation compliance.**
    `hlth_immunisation_compliance.exempt_chk`:
@@ -83,13 +83,13 @@ commit message>`
 
 ## Permissions matrix
 
-| Code | Read holders | Write holders | Admin |
-|------|--------------|---------------|-------|
-| HLT-001 | Teacher (allergies only stripped DTO), Parent, Student, Staff | Staff, Admin | School Admin (everyFunction) + Platform Admin |
-| HLT-002 | Staff | Staff | School Admin + Platform Admin |
-| HLT-004 | Staff | Staff | School Admin + Platform Admin |
-| HLT-005 (Dietary, Cycle 10) | Teacher, Parent, Staff | Staff | School Admin + Platform Admin |
-| **HLT-006 (Telehealth, NEW)** | **Staff** | **Staff** | **School Admin + Platform Admin** |
+| Code                          | Read holders                                                  | Write holders | Admin                                         |
+| ----------------------------- | ------------------------------------------------------------- | ------------- | --------------------------------------------- |
+| HLT-001                       | Teacher (allergies only stripped DTO), Parent, Student, Staff | Staff, Admin  | School Admin (everyFunction) + Platform Admin |
+| HLT-002                       | Staff                                                         | Staff         | School Admin + Platform Admin                 |
+| HLT-004                       | Staff                                                         | Staff         | School Admin + Platform Admin                 |
+| HLT-005 (Dietary, Cycle 10)   | Teacher, Parent, Staff                                        | Staff         | School Admin + Platform Admin                 |
+| **HLT-006 (Telehealth, NEW)** | **Staff**                                                     | **Staff**     | **School Admin + Platform Admin**             |
 
 The compliance dashboard is gated on `hlt-001:read` (Staff +
 Parent + Student + Teacher all hold this from Cycle 10), which is
@@ -115,12 +115,12 @@ code is Phase 2 polish.
 
 ## Verified deviations from the plan
 
-| # | Plan said | Shipped | Reason |
-|---|-----------|---------|--------|
-| 1 | Migration 101 | 109 | slot 101 taken by Cycle 31 partition activation |
-| 2 | HLT-005 = Telehealth | New code HLT-006 | Cycle 10 already has HLT-005 = Dietary Profiles |
-| 3 | "Aiden Park" in seed | Aiden Johnson | Seeded student name is Johnson, not Park |
-| 4 | Migration 109 block comment had `;` mid-sentence | Rewrote with "and" | Splitter trap (Cycles 4–onward known issue) |
+| #   | Plan said                                        | Shipped            | Reason                                          |
+| --- | ------------------------------------------------ | ------------------ | ----------------------------------------------- |
+| 1   | Migration 101                                    | 109                | slot 101 taken by Cycle 31 partition activation |
+| 2   | HLT-005 = Telehealth                             | New code HLT-006   | Cycle 10 already has HLT-005 = Dietary Profiles |
+| 3   | "Aiden Park" in seed                             | Aiden Johnson      | Seeded student name is Johnson, not Park        |
+| 4   | Migration 109 block comment had `;` mid-sentence | Rewrote with "and" | Splitter trap (Cycles 4–onward known issue)     |
 
 ## Files at peer review
 

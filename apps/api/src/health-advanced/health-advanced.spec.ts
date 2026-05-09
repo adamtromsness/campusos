@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { runWithTenantContext, TenantInfo } from '../tenant/tenant.context';
+import { PERMISSIONS_KEY } from '../auth/require-permission.decorator';
+import { HealthAdvancedController } from './health-advanced.controller';
 import { TelehealthProviderService } from './telehealth-provider.service';
 import { TelehealthSessionService } from './telehealth-session.service';
 import { ImmunisationRequirementService } from './immunisation-requirement.service';
@@ -198,6 +200,101 @@ describe('TelehealthSessionService — HIPAA audit on every read', () => {
       ),
     ).rejects.toThrow(/terminal status/);
   });
+
+  // REVIEW-P2C3 BLOCKING #3 — CANCELLED requires a non-empty
+  // cancellation_reason. The service surfaces a friendly 400 before
+  // the UPDATE fires; migration 110 is the schema-side belt-and-braces.
+  it('patch rejects CANCELLED transition without cancellationReason', async () => {
+    const fake = makeFake((c) => {
+      if (c.sql.toLowerCase().includes('for update')) {
+        return [{ id: 'sess-A', status: 'SCHEDULED' }];
+      }
+      return [];
+    });
+    const accessLog = { recordAccess: async () => undefined };
+    const providers = { loadActiveOrFail: async () => ({}) };
+    const svc = new TelehealthSessionService(
+      fake.tenantPrisma as never,
+      fake.permissions as never,
+      providers as never,
+      accessLog as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.patch('sess-A', { status: 'CANCELLED' }, ADMIN_ACTOR),
+      ),
+    ).rejects.toThrow(/cancellationReason/);
+    // Whitespace-only reason is also rejected — service trims before
+    // checking truthiness.
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.patch('sess-A', { status: 'CANCELLED', cancellationReason: '   ' }, ADMIN_ACTOR),
+      ),
+    ).rejects.toThrow(/cancellationReason/);
+  });
+
+  it('patch accepts CANCELLED with a valid cancellationReason', async () => {
+    let stage = 0;
+    const fake = makeFake((c) => {
+      stage += 1;
+      if (c.sql.toLowerCase().includes('for update')) {
+        return [{ id: 'sess-A', status: 'SCHEDULED' }];
+      }
+      // Final reload — return a row so rowToDto succeeds.
+      if (stage > 2) {
+        return [
+          {
+            id: 'sess-A',
+            school_id: SCHOOL.schoolId,
+            student_id: 'stu-1',
+            student_first: 'Maya',
+            student_last: 'Chen',
+            provider_id: 'prov-1',
+            provider_name: 'BetterMynd',
+            provider_speciality: 'Mental Health',
+            scheduled_at: new Date().toISOString(),
+            duration_minutes: 30,
+            status: 'CANCELLED',
+            meeting_url: null,
+            session_notes_s3_key: null,
+            consent_signature_id: null,
+            consent_received_at: null,
+            completed_at: null,
+            cancelled_at: new Date().toISOString(),
+            cancellation_reason: 'Family emergency',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ];
+      }
+      return [];
+    });
+    const accessLog = { recordAccess: async () => undefined };
+    const providers = { loadActiveOrFail: async () => ({}) };
+    const svc = new TelehealthSessionService(
+      fake.tenantPrisma as never,
+      fake.permissions as never,
+      providers as never,
+      accessLog as never,
+    );
+    const dto = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.patch(
+        'sess-A',
+        { status: 'CANCELLED', cancellationReason: 'Family emergency' },
+        ADMIN_ACTOR,
+      ),
+    );
+    expect(dto.status).toBe('CANCELLED');
+    expect(dto.cancellationReason).toBe('Family emergency');
+    // The UPDATE statement should have stamped cancellation_reason.
+    const updateCall = fake.capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('update hlth_telehealth_sessions'),
+    );
+    expect(updateCall).toBeTruthy();
+    expect(updateCall!.sql).toContain('cancelled_at = now()');
+    expect(updateCall!.sql).toContain('cancellation_reason');
+    expect(updateCall!.args).toContain('Family emergency');
+  });
 });
 
 describe('ImmunisationRequirementService — admin guard + UNIQUE catch', () => {
@@ -317,10 +414,10 @@ describe('ImmunisationComplianceService — UPSERT idempotency + state CSV', () 
         },
       ],
     };
-    const emits: { topic: string; payload: unknown }[] = [];
+    const emits: { topic: string; sourceModule?: string; payload: unknown }[] = [];
     const kafka = {
-      emit: async (opts: { topic: string; payload: unknown }) => {
-        emits.push({ topic: opts.topic, payload: opts.payload });
+      emit: async (opts: { topic: string; sourceModule?: string; payload: unknown }) => {
+        emits.push({ topic: opts.topic, sourceModule: opts.sourceModule, payload: opts.payload });
       },
     };
     const svc = new ImmunisationComplianceService(
@@ -333,13 +430,27 @@ describe('ImmunisationComplianceService — UPSERT idempotency + state CSV', () 
       svc.computeForSchool(null),
     );
     expect(out.newlyNonCompliant).toBe(1);
-    // The emit fires AFTER the tx commits via void — give it a microtask.
-    await new Promise((r) => setImmediate(r));
+    // REVIEW-P2C3 BLOCKING #2 — emit fires AFTER tx commits with the
+    // exact contract the consumer needs: topic, source module, and a
+    // payload that carries the missing-vaccine breakdown so the
+    // notification consumer doesn't have to round-trip back to the DB.
     expect(emits.length).toBeGreaterThanOrEqual(1);
     expect(emits[0]!.topic).toBe('hlth.immunisation.noncompliant');
-    const payload = emits[0]!.payload as { studentId: string; sourceRefId: string };
+    expect(emits[0]!.sourceModule).toBe('health-advanced');
+    const payload = emits[0]!.payload as {
+      schoolId: string;
+      studentId: string;
+      missingVaccines: Array<{ vaccineName: string; dosesRequired: number; dosesReceived: number }>;
+      computedAt: string;
+    };
+    expect(payload.schoolId).toBe(SCHOOL.schoolId);
     expect(payload.studentId).toBe('stu-1');
-    expect(payload.sourceRefId).toBe('stu-1');
+    expect(payload.missingVaccines).toHaveLength(1);
+    expect(payload.missingVaccines[0]!.vaccineName).toBe('DTaP');
+    expect(payload.missingVaccines[0]!.dosesRequired).toBe(5);
+    expect(payload.missingVaccines[0]!.dosesReceived).toBe(0);
+    expect(typeof payload.computedAt).toBe('string');
+    expect(Number.isNaN(Date.parse(payload.computedAt))).toBe(false);
   });
 
   it('computeForSchool preserves existing EXEMPT status across re-runs', async () => {
@@ -504,6 +615,32 @@ describe('ScreeningReferralService — FOLLOW_UP_COMPLETE precondition', () => {
     const sql = fake.capture[0]!.sql.toLowerCase();
     expect(sql).toContain("status = 'referred'");
     expect(sql).toContain('follow_up_date < current_date');
+  });
+});
+
+// REVIEW-P2C3 BLOCKING #1 — controller-level permission gate.
+// Asserts the @RequirePermission metadata each compliance endpoint
+// carries so future renames cannot silently fall back to hlt-001:read
+// (held by Parent / Student / Teacher) for school-wide reads.
+describe('HealthAdvancedController — compliance permission gate', () => {
+  const proto = HealthAdvancedController.prototype as unknown as Record<string, () => unknown>;
+
+  function gateFor(methodName: string): string[] {
+    return Reflect.getMetadata(PERMISSIONS_KEY, proto[methodName]!) ?? [];
+  }
+
+  it('school-wide list/dashboard/report/run are gated on hlt-007', () => {
+    expect(gateFor('listCompliance')).toEqual(['hlt-007:read']);
+    expect(gateFor('complianceDashboard')).toEqual(['hlt-007:read']);
+    expect(gateFor('complianceReport')).toEqual(['hlt-007:read']);
+    expect(gateFor('runCompliance')).toEqual(['hlt-007:admin']);
+  });
+
+  it('per-student getForStudent stays on hlt-001:read with relationship enforcement', () => {
+    // The narrower per-student endpoint can keep hlt-001:read because
+    // ImmunisationComplianceService.getForStudent enforces guardian /
+    // self relationship for non-admin actors.
+    expect(gateFor('getComplianceForStudent')).toEqual(['hlt-001:read']);
   });
 });
 
