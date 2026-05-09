@@ -86,6 +86,11 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Payroll — pay grades, salary scales, pay periods, payroll records (P2C4 sub-cycle a)',
     script: 'seed-payroll.ts',
   },
+  {
+    label:
+      'Recruitment — job postings, applications, panels, interviews, offers (P2C4 sub-cycle b)',
+    script: 'seed-recruitment.ts',
+  },
 ];
 
 async function main(): Promise<void> {

@@ -53,6 +53,7 @@
     "seed:incident": "tsx src/seed-incident.ts",
     "seed:health-advanced": "tsx src/seed-health-advanced.ts",
     "seed:payroll": "tsx src/seed-payroll.ts",
+    "seed:recruitment": "tsx src/seed-recruitment.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

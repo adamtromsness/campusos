@@ -162,6 +162,21 @@ async function seedPayroll() {
     { emp: employees[2]!, scale: grade1Step3, label: 'VP / Counsellor' },
   ];
 
+  // P2-4b — wire each employee's currently-effective primary position
+  // to the matching salary scale. This is the data PayrollService
+  // resolveEmployeesForProcessing reads when computing gross pay.
+  for (const t of recordTemplates) {
+    await client.$executeRawUnsafe(
+      'UPDATE ' +
+        TENANT_SCHEMA +
+        '.hr_employee_positions SET salary_scale_id = $1::uuid ' +
+        'WHERE employee_id = $2::uuid AND is_primary = true AND effective_to IS NULL',
+      t.scale.id,
+      t.emp.id,
+    );
+  }
+  console.log('  D-pre. 3 primary positions wired to salary scales');
+
   for (const t of recordTemplates) {
     const grossPay = round2(t.scale.salary / 26);
     const federalTax = round2(grossPay * 0.2 - 100);

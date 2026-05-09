@@ -773,6 +773,16 @@ async function seedIam() {
         // admin assistant) still read the directory + manage own leave +
         // view own certs.
         'HR-001': ['read'],
+        // P2-4b — Recruitment & Hiring. Staff (covering the school
+        // recruitment officer / HR coordinator) gets HR-002:read+write
+        // for the admin pipeline (job postings, applications, panels,
+        // interviews, evaluations, offers). School Admin / Platform
+        // Admin pick up admin tier through everyFunction. Teacher /
+        // Parent / Student intentionally NOT granted — the public
+        // job-board + apply paths bypass the IAM gate via @Public()
+        // and the OfferService.respond candidate path narrows by
+        // application.person_id at the service layer.
+        'HR-002': ['read', 'write'],
         'HR-003': ['read', 'write'],
         'HR-004': ['read'],
         // REVIEW-P2-4a BLOCKING #3 — HR-010 Payroll Management. The

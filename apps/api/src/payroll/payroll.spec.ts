@@ -188,8 +188,11 @@ describe('PayrollService — process() lifecycle + idempotency', () => {
         return [{ id: 'emp-A' }];
       if (sql.includes('from hr_employee_tax_info')) return [];
       if (sql.includes('from hr_employee_benefits')) return [];
-      if (sql.includes('from hr_salary_scales'))
-        return [{ id: 'sc-1', annual_salary: '52000', step: 3 }];
+      // P2-4b: resolveEmployeesForProcessing now joins
+      // hr_employee_positions → hr_salary_scales for the per-position
+      // scale assignment (migration 113 added the column).
+      if (sql.includes('from hr_employee_positions ep'))
+        return [{ employee_id: 'emp-A', salary_scale_id: 'sc-1', annual_salary: '52000' }];
       if (sql.includes('insert into hr_payroll_records')) {
         runStage += 1;
         return runStage === 1 ? [{ id: 'rec-A' }] : [];

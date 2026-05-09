@@ -53,6 +53,7 @@ import { VisitorsModule } from './visitors/visitors.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { HealthAdvancedModule } from './health-advanced/health-advanced.module';
 import { PayrollModule } from './payroll/payroll.module';
+import { RecruitmentModule } from './recruitment/recruitment.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -154,6 +155,13 @@ var devOnlyControllers: Type<unknown>[] =
     // computation, salary review queue. Emits hr.payroll.processed
     // for the Cycle 26 GLConsumer to post salary journal entries.
     PayrollModule,
+    // Phase 2 Cycle 4 sub-cycle b — Recruitment. Job postings (with
+    // public job-board endpoint), applications (with public apply
+    // path), interview panels, scheduling, evaluations, offers.
+    // OfferService.respond ACCEPTED auto-creates hr_employees +
+    // hr_employee_positions in the same tx and enqueues
+    // hr.offer.accepted via OutboxService.enqueueInTx.
+    RecruitmentModule,
   ],
   controllers: devOnlyControllers,
   providers: [

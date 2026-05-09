@@ -1,19 +1,23 @@
 # P2C4 — HR Advanced (M80 .1 + M87 Appraisals) — HANDOFF
 
-**Status:** P2-4a (Payroll) **COMPLETE + APPROVED** at the closeout
-commit (REVIEW-P2-4a — final verdict, 2026-05-09).
+**Status:** P2-4a (Payroll) **APPROVED**, P2-4b (Recruitment)
+**COMPLETE pending peer review** (2026-05-09).
 
-Tagged `p2c4a-complete` at `617e37c` (the Round 1 fix that earned
-PASS) and `p2c4a-approved` at the closeout commit. Round 1 against
-`1a5c3e8` returned **FAIL** with 3 BLOCKING + 4 MAJOR; Round 2
-against `617e37c` returned **PASS** — reviewer cache-busted each
-affected file in code on Round 2 and confirmed every fix matches.
-Two non-blocking items correctly carried to P2-4b/P2-4c per the
-reviewer's gate decision: salary-scale assignment stub (first
-commit in P2-4b) and salary-review department scope (Wave 2
-Phase 2 role-split work).
+P2-4a tagged `p2c4a-complete` at `617e37c` and `p2c4a-approved` at
+the closeout commit. Round 1 against `1a5c3e8` returned **FAIL**
+with 3 BLOCKING + 4 MAJOR; Round 2 against `617e37c` returned
+**PASS**. Two non-blocking carry-overs were absorbed by P2-4b: the
+salary-scale assignment stub (closed by migration 113 below) and
+the salary-review department scope (Wave 2 Phase 2 role-split work).
 
-Sub-cycles P2-4b (Recruitment) and P2-4c (Training + Appraisals)
+P2-4b ships **8 new tenant base tables** (migration 114), **~22
+endpoints** across 4 services, **2 Kafka emits via OutboxService**
+(`hr.job.posted`, `hr.offer.accepted`), **2 web routes**, **12 new
+unit tests** (vitest 147 → 159), the migration 113 ALTER closing
+P2-4a Round 1 MAJOR #1, and a `seed-recruitment.ts` populating the
+demo school with 1 LIVE posting + 3 candidates + 3 applications +
+1 panel + 2 interviews + 4 evaluations + 1 PENDING offer + 1 job
+alert. Sub-cycle P2-4c (Training + Appraisals + Step 12 CAT)
 deferred to a follow-up session.
 
 ## REVIEW-P2-4a Round 1 fix log
@@ -468,3 +472,295 @@ REFERENCES hr_salary_scales(id) ON DELETE SET NULL` plus a small
 `processPeriod()` SQL update to read the per-position scale instead
 of the school-wide first-scale fallback. Suggested as the first
 change in P2-4b.
+
+---
+
+## P2-4b deliverables
+
+### Carry-over closeout — `113_hr_employee_position_salary_scale.sql`
+
+Adds `salary_scale_id UUID` column to `hr_employee_positions` with
+FK to `hr_salary_scales` ON DELETE SET NULL, plus partial INDEX
+`(salary_scale_id) WHERE salary_scale_id IS NOT NULL` for the
+processPeriod join hot path. Closes P2-4a Round 1 MAJOR #1.
+`PayrollService.resolveEmployeesForProcessing()` rewritten to read
+each employee's currently-effective primary position
+(`is_primary=true AND effective_from <= CURRENT_DATE AND
+(effective_to IS NULL OR effective_to >= CURRENT_DATE)`) joined to
+`hr_salary_scales`. Employees whose effective position has no
+assigned scale are skipped from the run (counted as `skipped`)
+instead of being silently materialised against a school-wide
+fallback. `seed-payroll.ts` extended with section D-pre that
+UPDATEs each primary position with the matching scale before
+inserting payroll records, so the demo seed exercises the new
+join cleanly.
+
+Splitter trap caught + fixed pre-provision: stray `;` mid-block-
+comment on line 9 → em-dash. **Eighteenth migration in a row to
+clear the trap on first attempt after audit** (Cycles 4–onwards
+unbroken streak).
+
+### Schema (Step 4 — `114_hr_recruitment.sql`)
+
+8 new tenant base tables — tenant logical base table count after
+P2-4a (140 + 1 column-only via 113) → **148**.
+
+- **`hr_job_postings`** — public + admin job board entries.
+  6-value `status` CHECK DRAFT/PENDING_APPROVAL/APPROVED/LIVE/
+  CLOSED/CANCELLED. Multi-column `lifecycle_chk`: DRAFT/
+  PENDING_APPROVAL/APPROVED → posted_at NULL; LIVE/CLOSED →
+  posted_at NOT NULL. `closed_chk`: closed_at NULL except in
+  CLOSED/CANCELLED. INDEX(school_id, status) + partial INDEX
+  WHERE status='LIVE' for the public board hot path.
+- **`hr_applications`** — candidate submissions. 10-value `status`
+  CHECK SUBMITTED/UNDER_REVIEW/SCREENING/INTERVIEW_SCHEDULED/
+  INTERVIEW_COMPLETED/OFFER_EXTENDED/OFFER_ACCEPTED/OFFER_DECLINED/
+  NOT_SELECTED/WITHDRAWN. **UNIQUE(posting_id, person_id)** is the
+  schema-side dedup gate (translates to friendly 400 in
+  ApplicationService.apply with "You have already applied to this
+  posting.").
+- **`hr_interview_panels`** — named panels per posting.
+- **`hr_interview_panel_members`** — UNIQUE(panel_id,
+  panelist_person_id) + 3-value `role_in_panel` CHECK CHAIR/MEMBER/
+  OBSERVER.
+- **`hr_interviews`** — 4-value `status` CHECK SCHEDULED/COMPLETED/
+  NO_SHOW/CANCELLED. Multi-column `completed_chk`: COMPLETED →
+  completed_at NOT NULL. **`cancelled_chk`**: CANCELLED requires
+  non-empty `cancellation_reason` (same pattern as P2C3
+  `hlth_telehealth_sessions`).
+- **`hr_interview_evaluations`** — UNIQUE(interview_id, evaluator_id)
+  one row per (interview, evaluator). 5-value `rating` CHECK
+  STRONG_HIRE/HIRE/NEUTRAL/NO_HIRE/STRONG_NO_HIRE.
+- **`hr_offers`** — **UNIQUE(application_id)** one offer per
+  application. 5-value `status` CHECK PENDING/ACCEPTED/DECLINED/
+  EXPIRED/WITHDRAWN. 4-value `contract_type` CHECK ANNUAL/
+  MULTI_YEAR/AT_WILL/TEMPORARY. `responded_chk`: PENDING →
+  responded_at NULL; everything else → NOT NULL.
+- **`hr_job_alerts`** — opt-in alert subscriptions; soft FKs to
+  iam_person + platform.schools.
+
+7 new intra-tenant FKs (CASCADE × 5 on parent-child trees, NO
+ACTION × 2 preserving audit). 0 cross-schema FKs.
+
+### Backend (Step 5 — `apps/api/src/recruitment/`)
+
+**4 services + 1 controller + ~22 endpoints + 2 Kafka emits via
+OutboxService.enqueueInTx** (durable outbox pattern from P2-4a
+Round 1).
+
+- **`JobPostingService`** — CRUD + lifecycle. `patch()` LIVE
+  transition stamps `posted_at` and **enqueues `hr.job.posted` via
+  OutboxService.enqueueInTx** with payload `{postingId, schoolId,
+positionTitle, department, employmentType, salaryRangeLow,
+salaryRangeHigh, applicationDeadline, postedAt}`. CLOSED/
+  CANCELLED are terminal — `patch` refuses any transition out.
+  `listPublicLive()` backs the public job board (no auth).
+- **`ApplicationService`** — public `apply()` (no auth) creates
+  iam_person + platform_users on email miss with
+  `person_type='STAFF'` + `account_status='PENDING_VERIFICATION'`
+  - `account_type='HUMAN'`. UNIQUE(posting_id, person_id) catch
+    surfaces friendly "You have already applied" 400. Non-admin
+    reads row-scope to `actor.personId` (collapsed 404 on
+    cross-candidate id).
+- **`InterviewService`** — panels + members + interviews + UPSERT
+  evaluations on (interview_id, evaluator_id). Service-layer
+  panel-membership check on `submitEvaluation`. `schedule()`
+  advances application to INTERVIEW_SCHEDULED; `patch()` COMPLETED
+  advances to INTERVIEW_COMPLETED. CANCELLED requires non-empty
+  `cancellationReason` validated at the DTO via `@ValidateIf` +
+  `@Matches(/\S/)`.
+- **`OfferService` — KEYSTONE.** `respond()` ACCEPTED branch:
+  1. SELECT FOR UPDATE on offer; verify status=PENDING.
+  2. Candidate-only authorisation (admin OR `application.person_id
+=== actor.personId`, else Forbidden).
+  3. Resolve account_id from platform_users by person_id.
+  4. Map posting `employment_type` → hr_employees enum
+     (FULL_TIME/PART_TIME/CONTRACT/TEMPORARY).
+  5. INSERT hr_employees idempotently — reuse existing row,
+     re-activate TERMINATED → ACTIVE.
+  6. INSERT hr_employee_positions (is_primary=true, fte=1.000,
+     effective_from=offer.start_date) ON CONFLICT DO NOTHING.
+  7. Advance application to OFFER_ACCEPTED.
+  8. **Enqueue `hr.offer.accepted` via OutboxService.enqueueInTx**
+     with payload `{offerId, applicationId, schoolId, personId,
+employeeId, positionTitle, salary, startDate, contractType,
+acceptedAt}`, sourceModule='hr-recruitment'.
+
+Two structural keystones: **auto-hire on accept** (offer + employee
+
+- position created in same tx), and **idempotent re-hire** (existing
+  hr_employees row reused; ON CONFLICT DO NOTHING on positions; works
+  cleanly for re-hires of TERMINATED employees).
+
+### Permission gates
+
+Every admin endpoint gates on `hr-002:read` or `hr-002:write`
+(IAM seed grants both to Staff role). Public endpoints carry
+`@Public()`:
+
+- `GET /hr/jobs-public` — public job board.
+- `POST /hr/jobs/:postingId/apply` — public apply.
+
+`PATCH /hr/offers/:id` keeps `hr-002:read` so candidates reach
+the same controller; the service narrows by application.person_id
+so admins or the candidate alone can act.
+
+### Tests (Step 5 — `recruitment.spec.ts`)
+
+12 keystone unit tests added. Vitest suite **147 → 159 passing tests
+across 15 spec files** (1 file added). Coverage:
+
+- Admin gate (non-admin POST 400).
+- LIVE outbox emit + payload contract verification.
+- CLOSED terminal lockstep — cannot transition out.
+- Apply duplicate rejection via UNIQUE(posting, person).
+- Non-admin row scope 404 on cross-candidate lookup.
+- ACCEPTED auto-hire — INSERTs employees + positions + advances
+  application + enqueues outbox with full payload.
+- Idempotent re-hire — existing hr_employees row reused, no
+  double insert.
+- Candidate-only authorisation — Forbidden on cross-candidate.
+- Non-PENDING refusal — `respond()` rejects ACCEPTED→ACCEPTED.
+- Controller permission metadata distribution.
+
+### Web (Step 6 — `apps/web/src/app/(app)/hr/recruitment/`)
+
+2 routes shipped:
+
+- **`/hr/recruitment`** (4.38 kB First Load JS) — admin pipeline
+  with postings table + Publish/Close actions + expandable
+  applications board (Kanban-style by status). Gated on
+  hr-002:read/write/admin/sch-001:admin. Confirms with
+  `window.confirm` before publishing or closing.
+- **`/hr/recruitment/offers`** (3.88 kB First Load JS) — offer
+  list with admin Accept/Decline/Withdraw buttons. Confirms the
+  auto-hire path with a window.confirm dialog explaining that
+  hr_employees + hr_employee_positions will be created and
+  hr.offer.accepted enqueued. Renders `createdEmployeeId` when
+  populated.
+
+Hooks in `apps/web/src/hooks/use-recruitment.ts` cover all 7
+endpoints needed by the UI (postings list, patch, applications,
+offers list, extendOffer, respondToOffer). Types + label/pill
+maps + `formatCurrencyRange` helper colocated in the hooks file.
+
+### Seed (Step 11 partial — `seed-recruitment.ts`)
+
+Idempotent (gated on `hr_job_postings` count). 8 sections seeded
+on `tenant_demo`:
+
+- 1 LIVE posting "5th Grade Teacher" (FULL_TIME, $45-60K, deadline
+  +60d, posted -7d).
+- 3 candidate identities (iam_person + platform_users with
+  `person_type='STAFF'` + `account_status='PENDING_VERIFICATION'` +
+  `account_type='HUMAN'`).
+- 3 applications (INTERVIEW_COMPLETED / OFFER_EXTENDED /
+  NOT_SELECTED).
+- 1 panel "Grade 5 Hiring Panel" (Mitchell CHAIR + Park MEMBER).
+- 2 COMPLETED interviews tied to applications #1 and #2.
+- 4 evaluations (HIRE / NEUTRAL / STRONG_HIRE / HIRE).
+- 1 PENDING offer to Marcus Singh ($50K Annual, +30d start,
+  +14d acceptance deadline).
+- 1 job alert for Hannah Bauer (Elementary Education, grade 5,
+  FULL_TIME).
+
+Wired into `seed-all.ts` chain at position 41. `seed:recruitment`
+script added to `packages/database/package.json`.
+
+### IAM grants
+
+`HR-002 (Recruitment & Hiring)` was already in the catalogue from
+P2-4a. P2-4b extends Staff role with `'HR-002': ['read', 'write']`
+in `seed-iam.ts`. School Admin / Platform Admin retain admin tier
+via `everyFunction`. Catalogue total unchanged at 498 (P2C3 baseline).
+
+### CI parity
+
+- `pnpm format`: clean.
+- `pnpm format:check`: 571 files clean.
+- `pnpm lint:logs`: 571 files clean.
+- `pnpm --filter @campusos/api test`: **159/159 passing** across 15
+  spec files (was 147; +12 new recruitment tests).
+- `pnpm --filter @campusos/api build`: clean.
+- `pnpm --filter @campusos/web build`: clean (2 new routes ship).
+
+### Cross-module dependencies
+
+- **Closes P2-4a Round 1 MAJOR #1** via migration 113 +
+  `resolveEmployeesForProcessing` rewrite.
+- **`hr.offer.accepted` is consumed by** the future GLConsumer or
+  HR onboarding worker (out of scope here; the outbox row lands
+  durably and downstream consumers can subscribe).
+- The auto-hired hr_employees row + hr_employee_positions row
+  flow into payroll automatically once the next pay period runs
+  — the new salary_scale_id column on the position is the gate
+  (employees without an assigned scale are skipped, counted as
+  `skipped` in the processPeriod result).
+
+### Known limitations / Phase 2 backlog
+
+- Salary scale is **not** auto-assigned by the offer-accept path.
+  An admin must populate `hr_employee_positions.salary_scale_id`
+  before the next payroll run (or accept the new hire gets
+  skipped that cycle). Suggested follow-up: extend the offer DTO
+  with optional `salaryScaleId` and stamp it during the position
+  insert.
+- Reference checks, background checks, and onboarding tasks are
+  out of scope — they live in the existing `hr_onboarding_*`
+  tables (Cycle 4 Step 4) which the offer-accept path could
+  trigger via Kafka in a future cycle.
+- No public-facing application status page yet (candidate cannot
+  log in to see their own pipeline status). The accept/decline
+  link sent via email is the primary candidate touch-point.
+
+### Files at peer review
+
+```
+packages/database/prisma/tenant/migrations/113_hr_employee_position_salary_scale.sql
+packages/database/prisma/tenant/migrations/114_hr_recruitment.sql
+apps/api/src/recruitment/dto/recruitment.dto.ts
+apps/api/src/recruitment/job-posting.service.ts
+apps/api/src/recruitment/application.service.ts
+apps/api/src/recruitment/interview.service.ts
+apps/api/src/recruitment/offer.service.ts
+apps/api/src/recruitment/recruitment.controller.ts
+apps/api/src/recruitment/recruitment.module.ts
+apps/api/src/recruitment/recruitment.spec.ts
+apps/api/src/payroll/payroll.service.ts (resolveEmployeesForProcessing rewrite)
+apps/api/src/payroll/payroll.spec.ts (test mock updated for new SQL shape)
+apps/api/src/app.module.ts (RecruitmentModule registration)
+apps/web/src/hooks/use-recruitment.ts
+apps/web/src/app/(app)/hr/recruitment/page.tsx
+apps/web/src/app/(app)/hr/recruitment/offers/page.tsx
+packages/database/src/seed-recruitment.ts
+packages/database/src/seed-payroll.ts (D-pre salary_scale_id UPDATEs)
+packages/database/src/seed-all.ts (chain entry)
+packages/database/src/seed-iam.ts (Staff HR-002 grant)
+packages/database/package.json (seed:recruitment script)
+```
+
+### Continuation guidance for P2-4c
+
+P2-4c covers \*\*Training programmes + Appraisals + Lesson Observations
+
+- CAT script + GLConsumer wire to hr.payroll.processed\*\*:
+
+* Migration `115_hr_training.sql`: hr_training_programmes,
+  hr_training_events, hr_training_completions, hr_certification_types,
+  hr_employee_certifications.
+* Migration `116_hr_appraisals.sql`: hr_appraisal_frameworks,
+  hr_appraisal_cycles, hr_appraisals, hr_appraisal_goals,
+  hr_lesson_observations, hr_appraisal_comments, hr_expense_claims.
+* Modules: `apps/api/src/training/`, `apps/api/src/appraisals/`.
+* Emit `hr.training.completed` and `hr.certification.expiring`.
+* **Lesson observations** require a new `lesson_observation:write`
+  permission (analogous to P2C3 `student_counseling_record:read`)
+  granted only to Principal + dept-head equivalents — not to every
+  Staff member.
+* Web: `/hr/training`, `/hr/appraisals` cycle selector, lesson
+  observation form.
+* Step 11 finish: seed training + appraisals + observations data.
+* Step 12 CAT: 7-scenario vertical slice including the GLConsumer
+  wire to `hr.payroll.processed` (subscription + journal posting
+  handler addition to Cycle 26's GLConsumer).
+* Wave A closes with this sub-cycle.

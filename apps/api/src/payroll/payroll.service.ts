@@ -582,29 +582,62 @@ export class PayrollService {
       });
     }
 
-    // Salary scale assignment: read the seed mapping from a side-car
-    // table or fall back to picking the lowest-step scale on the only
-    // active grade. P2-4a ships the simple mapping: each employee gets
-    // the first salary scale in the school's first active grade. This
-    // is stub-shaped — P2-4b will introduce per-employee assignment
-    // via hr_employee_positions.salary_scale_id.
-    const scales = (await tx.$queryRawUnsafe(
-      'SELECT s.id::text AS id, s.annual_salary::text AS annual_salary, s.step ' +
-        'FROM hr_salary_scales s ' +
-        'JOIN hr_pay_grades g ON g.id = s.pay_grade_id ' +
-        'WHERE g.school_id = $1::uuid AND g.is_active = true ' +
-        'ORDER BY g.grade_name, s.step LIMIT 1',
-      schoolId,
-    )) as Array<{ id: string; annual_salary: string; step: number }>;
-    const defaultScale = scales[0] ?? null;
+    // P2-4b — read the per-employee salary-scale assignment from
+    // each employee's CURRENTLY-EFFECTIVE primary position. The
+    // hr_employee_positions.salary_scale_id column was added in
+    // migration 113. An employee with no primary position effective
+    // today, or whose position has salary_scale_id IS NULL, is
+    // skipped during processPeriod (counted as `skipped`) instead
+    // of being silently materialised against a school-wide default
+    // — that was the P2-4a stub the reviewer flagged as MAJOR #1.
+    //
+    // The "currently effective" predicate is:
+    //   is_primary = true
+    //   AND effective_from <= CURRENT_DATE
+    //   AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+    // Per migration 011 there is at most one such row per employee
+    // (partial UNIQUE INDEX on is_primary + effective_to IS NULL),
+    // but historical effective_to-set primaries can overlap, so
+    // ORDER BY effective_from DESC + LIMIT 1 picks the freshest.
+    const scaleRows = (await tx.$queryRawUnsafe(
+      'SELECT ep.employee_id::text AS employee_id, ' +
+        '       s.id::text AS salary_scale_id, ' +
+        '       s.annual_salary::text AS annual_salary ' +
+        'FROM hr_employee_positions ep ' +
+        'JOIN hr_salary_scales s ON s.id = ep.salary_scale_id ' +
+        'WHERE ep.employee_id = ANY($1::uuid[]) ' +
+        '  AND ep.is_primary = true ' +
+        '  AND ep.salary_scale_id IS NOT NULL ' +
+        '  AND ep.effective_from <= CURRENT_DATE ' +
+        '  AND (ep.effective_to IS NULL OR ep.effective_to >= CURRENT_DATE) ' +
+        'ORDER BY ep.employee_id, ep.effective_from DESC',
+      empIds,
+    )) as Array<{ employee_id: string; salary_scale_id: string; annual_salary: string }>;
+    const scaleByEmployee = new Map<string, { id: string; annualSalary: number }>();
+    for (const s of scaleRows) {
+      // First row per employee wins thanks to the ORDER BY desc.
+      if (!scaleByEmployee.has(s.employee_id)) {
+        scaleByEmployee.set(s.employee_id, {
+          id: s.salary_scale_id,
+          annualSalary: Number(s.annual_salary),
+        });
+      }
+    }
 
-    return employees.map((e) => ({
-      id: e.id,
-      scaleId: defaultScale?.id ?? null,
-      annualSalary: defaultScale ? Number(defaultScale.annual_salary) : 0,
-      taxInfo: taxByEmp.get(e.id) ?? { federalAllowances: 0, stateAllowances: 0, additional: 0 },
-      benefits: benByEmp.get(e.id) ?? [],
-    }));
+    return employees.map((e) => {
+      const scale = scaleByEmployee.get(e.id) ?? null;
+      return {
+        id: e.id,
+        scaleId: scale?.id ?? null,
+        annualSalary: scale?.annualSalary ?? 0,
+        taxInfo: taxByEmp.get(e.id) ?? {
+          federalAllowances: 0,
+          stateAllowances: 0,
+          additional: 0,
+        },
+        benefits: benByEmp.get(e.id) ?? [],
+      };
+    });
   }
 
   /**
