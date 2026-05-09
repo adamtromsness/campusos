@@ -1,6 +1,20 @@
 # P2C3 — Health Advanced (M23 Health .1) — HANDOFF
 
-**Status:** COMPLETE pending peer review.
+**Status:** COMPLETE + APPROVED at the closeout commit (REVIEW-P2C3
+Round 3 — final verdict, 2026-05-09).
+
+Tagged `p2c3-complete` at `4ad1dc2` (the Round 2 fix that earned PASS)
+and `p2c3-approved` at the closeout commit. Round 3 returned PASS with
+one non-blocking hardening note: tighten the guardian-link probe in
+`getForStudent()` to school-scope through `sis_students` for shape
+consistency with the student-self path. The closeout commit applies
+that cleanup — `sis_student_guardians sg JOIN sis_guardians g` now
+also JOINs `sis_students s ON s.id = sg.student_id` and adds
+`WHERE s.school_id = $tenant.schoolId` so cross-school guardian-id
+collisions collapse at the relationship gate rather than at the
+later compliance-row read. Tests stay 133/133 — the existing fake
+SQL probe matchers correctly identify the new join shape via the
+`from sis_student_guardians` prefix.
 
 **Plan:** `docs/campusos-p2c3-health-advanced.html`
 **CAT:** `docs/p2c3-cat-script.md`
@@ -23,6 +37,7 @@
 | 11  | Git commit + push                                                        | DONE  |
 | 12  | REVIEW-P2C3 Round 1 fixes — 3 BLOCKING + 1 actionable MAJOR              | DONE  |
 | 13  | REVIEW-P2C3 Round 2 fix — residual getForStudent privacy boundary        | DONE  |
+| 14  | REVIEW-P2C3 Round 3 PASS + closeout — guardian-probe school-scope        | DONE  |
 
 ## What landed
 

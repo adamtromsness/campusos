@@ -171,10 +171,21 @@ export class ImmunisationComplianceService {
     if (!actor.isSchoolAdmin) {
       const allowed = await this.tenantPrisma.executeInTenantContext(async (client) => {
         if (actor.personType === 'GUARDIAN' && actor.personId) {
+          // REVIEW-P2C3 Round 3 closeout — guardian probe is now
+          // school-scoped via the sis_students join. The compliance
+          // read below is already school-scoped, but joining at the
+          // relationship-check stage matches the student-self path
+          // shape and collapses cross-school guardian-id collisions
+          // to 404 at the relationship gate rather than at the
+          // compliance-row read.
           const rows = (await client.$queryRawUnsafe(
             'SELECT 1 FROM sis_student_guardians sg ' +
               'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-              'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
+              'JOIN sis_students s ON s.id = sg.student_id ' +
+              'WHERE s.school_id = $1::uuid ' +
+              '  AND sg.student_id = $2::uuid ' +
+              '  AND g.person_id = $3::uuid LIMIT 1',
+            tenant.schoolId,
             studentId,
             actor.personId,
           )) as unknown[];
