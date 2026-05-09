@@ -8908,3 +8908,299 @@ export interface RptStateReportTemplateDto {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── P2C1 Visitor Management ─────────────────────────────────────
+
+export type VisitorBadgeColor = 'blue' | 'green' | 'amber' | 'rose' | 'purple' | 'gray';
+export type SafeguardingStatus = 'PASSED' | 'FLAGGED' | 'BYPASSED_BY_ADMIN' | 'NOT_REQUIRED';
+export type BanType =
+  | 'COURT_ORDER'
+  | 'SCHOOL_DECISION'
+  | 'SAFEGUARDING'
+  | 'RESTRAINING_ORDER'
+  | 'OTHER';
+export type DrillType =
+  | 'FIRE_DRILL'
+  | 'LOCKDOWN'
+  | 'EVACUATION'
+  | 'BOMB_THREAT'
+  | 'WEATHER'
+  | 'OTHER';
+export type MusterEntryStatus = 'UNKNOWN' | 'ACCOUNTED_FOR' | 'EVACUATED' | 'ASSISTANCE_NEEDED';
+export type ScheduleDay = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
+
+export interface VisitorTypeDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description?: string | null;
+  requiresSafeguardingCheck: boolean;
+  badgeColor: VisitorBadgeColor;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateVisitorTypePayload {
+  name: string;
+  description?: string;
+  requiresSafeguardingCheck?: boolean;
+  badgeColor?: VisitorBadgeColor;
+}
+
+export interface UpdateVisitorTypePayload {
+  name?: string;
+  description?: string;
+  requiresSafeguardingCheck?: boolean;
+  badgeColor?: VisitorBadgeColor;
+  isActive?: boolean;
+}
+
+export interface VisitorDto {
+  id: string;
+  schoolId: string;
+  visitorTypeId: string;
+  visitorTypeName?: string;
+  badgeColor?: VisitorBadgeColor;
+  requiresSafeguardingCheck?: boolean;
+  firstName: string;
+  lastName: string;
+  company?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VisitorDetailDto extends VisitorDto {
+  email?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+}
+
+export interface SignInDto {
+  id: string;
+  schoolId: string;
+  visitorId: string;
+  visitorName: string;
+  visitorCompany?: string | null;
+  visitorTypeName: string;
+  badgeColor: VisitorBadgeColor;
+  signedInAt: string;
+  signedOutAt?: string | null;
+  hostId?: string | null;
+  hostName?: string | null;
+  purpose?: string | null;
+  buildingId?: string | null;
+  preRegistrationId?: string | null;
+  badgeNumber?: string | null;
+  safeguardingCheckStatus: SafeguardingStatus;
+  safeguardingCheckRef?: string | null;
+  bypassAdminId?: string | null;
+  bypassAdminName?: string | null;
+  bypassReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSignInPayload {
+  visitorId?: string;
+  visitorTypeId?: string;
+  firstName?: string;
+  lastName?: string;
+  company?: string;
+  email?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  hostId?: string;
+  purpose?: string;
+  buildingId?: string;
+  badgeNumber?: string;
+  safeguardingCheckRef?: string;
+}
+
+export interface BypassSafeguardingPayload {
+  reason: string;
+}
+
+export interface PreRegistrationDto {
+  id: string;
+  schoolId: string;
+  visitorId: string;
+  visitorName: string;
+  visitorCompany?: string | null;
+  expectedAt: string;
+  purpose?: string | null;
+  hostId?: string | null;
+  hostName?: string | null;
+  qrCodeToken: string;
+  expiresAt: string;
+  usedAt?: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface CreatePreRegistrationPayload {
+  visitorId?: string;
+  visitorTypeId?: string;
+  firstName?: string;
+  lastName?: string;
+  company?: string;
+  email?: string;
+  phone?: string;
+  expectedAt: string;
+  purpose?: string;
+  hostId?: string;
+  expiresInDays?: number;
+}
+
+export interface AccessSchedule {
+  days: ScheduleDay[];
+  timeStart: string;
+  timeEnd: string;
+}
+
+export interface RecurringVisitorDto {
+  id: string;
+  schoolId: string;
+  visitorId: string;
+  visitorName: string;
+  visitorCompany?: string | null;
+  accessSchedule: AccessSchedule;
+  validFrom: string;
+  validTo?: string | null;
+  approvedBy: string;
+  approvedByName?: string | null;
+  notes?: string | null;
+  isActive: boolean;
+}
+
+export interface CreateRecurringVisitorPayload {
+  visitorId: string;
+  accessSchedule: AccessSchedule;
+  validFrom: string;
+  validTo?: string;
+  notes?: string;
+}
+
+export interface BannedPersonDto {
+  id: string;
+  schoolId: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth?: string | null;
+  photoS3Key?: string | null;
+  banReason: string;
+  banType: BanType;
+  banOrderS3Key?: string | null;
+  addedBy: string;
+  addedByName?: string | null;
+  reviewedBy?: string | null;
+  reviewedByName?: string | null;
+  lastReviewedAt?: string | null;
+  isActive: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface CreateBannedPersonPayload {
+  firstName: string;
+  lastName: string;
+  dateOfBirth?: string;
+  banReason: string;
+  banType: BanType;
+  banOrderS3Key?: string;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  notes?: string;
+}
+
+export interface UpdateBannedPersonPayload {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string | null;
+  banReason?: string;
+  banType?: BanType;
+  banOrderS3Key?: string | null;
+  isActive?: boolean;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  notes?: string | null;
+  markReviewed?: boolean;
+}
+
+export interface MusterDto {
+  id: string;
+  schoolId: string;
+  drillType: DrillType;
+  description?: string | null;
+  incidentId?: string | null;
+  createdBy: string;
+  createdByName?: string | null;
+  totalOnSiteAtSnapshot: number;
+  closedAt?: string | null;
+  closedBy?: string | null;
+  createdAt: string;
+}
+
+export interface MusterEntryDto {
+  id: string;
+  musterId: string;
+  signInId: string;
+  visitorName: string;
+  visitorType: string;
+  visitorCompany?: string | null;
+  building?: string | null;
+  status: MusterEntryStatus;
+  notes?: string | null;
+  markedBy?: string | null;
+  markedByName?: string | null;
+  markedAt?: string | null;
+  createdAt: string;
+}
+
+export interface MusterSummaryDto {
+  total: number;
+  unknown: number;
+  accountedFor: number;
+  evacuated: number;
+  assistanceNeeded: number;
+}
+
+export interface MusterDetailDto {
+  muster: MusterDto;
+  entries: MusterEntryDto[];
+  summary: MusterSummaryDto;
+}
+
+export interface CreateMusterPayload {
+  drillType?: DrillType;
+  description?: string;
+  incidentId?: string;
+}
+
+export interface UpdateMusterEntryPayload {
+  status: MusterEntryStatus;
+  notes?: string;
+}
+
+export interface SignInSettingsDto {
+  id: string;
+  schoolId: string;
+  requirePhotoId: boolean;
+  requirePurpose: boolean;
+  autoSignOutHours: number;
+  safeguardingProvider?: string | null;
+  badgeTemplate: 'STANDARD' | 'COMPACT' | 'PHOTO';
+  kioskWelcomeMessage?: string | null;
+  updatedAt: string;
+}
+
+export interface UpdateSignInSettingsPayload {
+  requirePhotoId?: boolean;
+  requirePurpose?: boolean;
+  autoSignOutHours?: number;
+  safeguardingProvider?: string;
+  badgeTemplate?: 'STANDARD' | 'COMPACT' | 'PHOTO';
+  kioskWelcomeMessage?: string;
+}

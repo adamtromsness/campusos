@@ -74,7 +74,8 @@ export type AppKey =
   | 'analytics'
   | 'governance'
   | 'platform'
-  | 'configuration';
+  | 'configuration'
+  | 'visitors';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -689,6 +690,25 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/admin/configuration',
       routePrefix: '/admin/configuration',
       icon: CogIcon,
+    });
+  }
+
+  // P2C1 — Visitor Management. Tile gated on saf-002:read (Teacher,
+  // Staff, Admin). Reception staff (Staff) see the kiosk + on-site
+  // dashboard; admins additionally see the banned-persons + settings
+  // surfaces. Teachers see the read-only on-site list.
+  if (hasAnyPermission(user, ['saf-002:read'])) {
+    apps.push({
+      key: 'visitors',
+      label: 'Visitors',
+      description: isAdmin
+        ? 'Kiosk, banned persons, muster, and settings'
+        : isStaff
+          ? 'Kiosk sign-in, on-site list, and pre-registrations'
+          : 'Currently on-site visitors',
+      href: '/visitors',
+      routePrefix: '/visitors',
+      icon: ShieldIcon,
     });
   }
 

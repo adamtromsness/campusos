@@ -824,6 +824,11 @@
       "code": "student_counseling_record",
       "name": "Counselling Session Notes (FERPA)",
       "group": "Counselling & Student Support"
+    },
+    {
+      "code": "safeguarding_ban",
+      "name": "Banned Persons Registry (Safeguarding)",
+      "group": "Safety & Compliance"
     }
   ],
   "tiers": ["read", "write", "admin"],

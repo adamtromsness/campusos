@@ -354,7 +354,13 @@ async function seedIam() {
         // staff this cycle — IT-001 is the umbrella code the Step 4
         // TicketService gates on for all ticket categories.
         'IT-001': ['read', 'write'],
-        // Cycle 10 — health alerts only. Teacher receives HLT-001:read so
+        // P2C1 — Visitor Management (M90). Teachers see the on-site
+        // visitor list and the today's pre-registrations panel via
+        // SAF-002:read. They do NOT receive write (kiosk processing,
+        // pre-registration creation, banned-persons management) which
+        // belongs to Staff (reception / safeguarding officer) and
+        // School Admin via everyFunction.
+        'SAF-002': ['read'],
         // the future Step 5 HealthRecordService can return the
         // accommodation-level health summary used in the classroom (no
         // PII; the service strips management_plan, emergency_medical_notes,
@@ -781,6 +787,17 @@ async function seedIam() {
         // umbrella code, FAC-001 admin tier reached via everyFunction
         // for school admins.
         'IT-001': ['read', 'write'],
+        // P2C1 — Visitor Management (M90). Staff covers the
+        // reception desk and the safeguarding officer stand-in.
+        // SAF-002:read+write covers the kiosk processing surface,
+        // visitor type catalogue, pre-registration creation,
+        // recurring-visitor schedules, and emergency muster
+        // creation + per-entry accountability marking. The
+        // safeguarding_ban gate (banned-persons plaintext name +
+        // court-order S3 key) is admin-only — Staff cannot see
+        // banned-person details, only the BLOCKED kiosk outcome
+        // event via the silent vis.banned_person.detected emit.
+        'SAF-002': ['read', 'write'],
         // Cycle 9 — behaviour & discipline. VPs, counsellors, and
         // admin assistants log incidents the same way teachers do
         // (BEH-001 read+write). Counsellors are the canonical author

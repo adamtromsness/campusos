@@ -49,6 +49,7 @@ import { DlqModule } from './dlq/dlq.module';
 import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 import { ConfigurationModule } from './configuration/configuration.module';
 import { RegionModule } from './region/region.module';
+import { VisitorsModule } from './visitors/visitors.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -131,6 +132,10 @@ var devOnlyControllers: Type<unknown>[] =
     // globally; gates @HomeRegionRequired() routes on
     // tenant.homeRegion === process.env.AWS_REGION.
     RegionModule,
+    // Phase 2 Cycle 1 — M90 Visitor Management. Encrypted PII +
+    // HMAC blind index for kiosk lookup, banned-persons HMAC
+    // screening, emergency muster snapshot.
+    VisitorsModule,
   ],
   controllers: devOnlyControllers,
   providers: [

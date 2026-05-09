@@ -73,6 +73,7 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
   { label: 'Store — products, orders, inventory', script: 'seed-store.ts' },
   { label: 'Analytics — read models', script: 'seed-analytics.ts' },
   { label: 'DPO — governance + compliance', script: 'seed-dpo.ts' },
+  { label: 'Visitors — kiosk, banned persons, muster (P2C1)', script: 'seed-visitors.ts' },
 ];
 
 async function main(): Promise<void> {
