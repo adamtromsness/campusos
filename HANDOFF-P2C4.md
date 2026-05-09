@@ -964,3 +964,54 @@ CLAUDE.md (status block)
   admin patch can currently flip status to any allowed enum value.
   A future hardening could enforce a strict transition graph
   (SUBMITTED → UNDER_REVIEW → INTERVIEW_SCHEDULED → ...).
+
+---
+
+## REVIEW-P2-4b Round 2 — PASS (2026-05-09)
+
+Round 2 of REVIEW-P2-4b-CHATGPT (against `a86cbbf`) returned
+**PASS**. Reviewer's per-finding verification table:
+
+| Prior Finding                                                        |    Status |
+| -------------------------------------------------------------------- | --------: |
+| Recruitment admin pipeline exposed through broad HR-002 / Staff role | **FIXED** |
+| Offer acceptance could reuse another school's hr_employees row       | **FIXED** |
+| Public application apply could race a posting close/cancel           | **FIXED** |
+| `hr.job.posted` payload built from non-transactional reread          | **FIXED** |
+| Missing role_in_panel CHECK                                          | **FIXED** |
+| Auto-hire assigned arbitrary first active position                   | **FIXED** |
+| Regression tests                                                     | **FIXED** |
+
+Updated dimension scores all PASS: Schema Compliance, Security /
+Privacy, Multi-Tenancy / School Isolation, Public Apply Path,
+Kafka / Outbox Contract, Auto-Hire, Test Coverage.
+
+**Three non-blocking carry-overs from the Round 2 verdict** (move
+to Phase 2 / pre-pilot punch list):
+
+1. **Recruitment Administrator role split** (already documented in
+   Round 1 fix log + the broader role-split chain). HR-011 is held
+   today only by School Admin / Platform Admin through everyFunction.
+   Pre-pilot a dedicated Recruitment Administrator role gets HR-011
+   explicitly so non-admin recruiters can run the pipeline.
+
+2. **Candidate-facing HR-002:read onboarding story.** Service-layer
+   candidate row-scope (matched on application.person_id) is correct,
+   but external candidates currently have account_status=
+   PENDING_VERIFICATION with no IAM role assignment. Pre-pilot they
+   need a deliberate way to receive a minimal role/permission so
+   they can authenticate and self-serve `PATCH /hr/offers/:id`
+   Accept / Decline. The admin-on-behalf path already works for the
+   demo + CAT.
+
+3. **Application lifecycle transition graph.** Admin PATCH can
+   currently flip status to any enum value; pre-pilot hardening
+   enforces a strict transition map (e.g. SUBMITTED → UNDER_REVIEW →
+   INTERVIEW_SCHEDULED → ...). Recommendation-class today.
+
+Tagged `p2c4b-complete` at `a86cbbf` (the Round 1 fix commit that
+earned PASS) and `p2c4b-approved` at the closeout commit.
+
+**Wave A (Pilot Critical) ships P2-4b clean — Phase 2 Wave A
+continues with P2-4c (Training + Appraisals + Step 12 CAT) per
+the original plan's continuation guidance above.**
