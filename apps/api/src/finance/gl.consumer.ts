@@ -94,6 +94,19 @@ interface RefundIssuedPayload {
   schoolId?: string;
 }
 
+interface PayrollProcessedPayload {
+  payrollRecordId: string;
+  schoolId: string;
+  employeeId: string;
+  payPeriodId: string;
+  payDate: string;
+  grossPay: number | string;
+  totalDeductions: number | string;
+  netPay: number | string;
+  deductions?: Array<{ deductionType?: string; amount: number | string }>;
+  paidAt: string;
+}
+
 const CONSUMER_GROUP = 'gl-consumer';
 
 @Injectable()
@@ -116,13 +129,21 @@ export class GLConsumer implements OnModuleInit {
         prefixedTopic('pay.refund.issued'),
         prefixedTopic('pay.credit_note.issued'),
         prefixedTopic('pay.debt.written_off'),
+        // P2-4c — payroll integration. hr.payroll.processed posts a
+        // balanced batch: DR Salaries Expense (5100) for grossPay,
+        // CR Cash (1000) for netPay, CR Accrued Liabilities (2100)
+        // for totalDeductions. The math balances because
+        // grossPay = netPay + totalDeductions by definition.
+        prefixedTopic('hr.payroll.processed'),
       ],
       groupId: CONSUMER_GROUP,
       handler: function (msg: ConsumedMessage): Promise<void> {
         return self.handle(msg);
       },
     });
-    this.logger.log(`Subscribed to 5 dev.pay.* topics under group ${CONSUMER_GROUP}`);
+    this.logger.log(
+      `Subscribed to 5 dev.pay.* + 1 dev.hr.payroll.processed topic(s) under group ${CONSUMER_GROUP}`,
+    );
   }
 
   private async handle(msg: ConsumedMessage): Promise<void> {
@@ -292,6 +313,80 @@ export class GLConsumer implements OnModuleInit {
           referenceId,
         },
       ];
+    } else if (logical === 'hr.payroll.processed') {
+      // P2-4c — payroll posting. Balanced batch:
+      //   DR Salaries Expense (5100) for grossPay
+      //   CR Cash (1000)                for netPay
+      //   CR Accrued Liabilities (2100) for totalDeductions
+      // Math balances because grossPay = netPay + totalDeductions
+      // by definition. The deductions stay on the balance sheet
+      // until the school remits them (taxes to government, benefits
+      // to provider, etc.) — the school's downstream remittance
+      // workflow posts a separate batch DR Accrued Liabilities /
+      // CR Cash to clear them.
+      const p = event.payload as PayrollProcessedPayload;
+      const gross = Number(p.grossPay);
+      const net = Number(p.netPay);
+      const deductions = Number(p.totalDeductions);
+      if (!gross || gross <= 0 || net < 0 || deductions < 0) {
+        this.logger.warn(
+          `[${CONSUMER_GROUP}] hr.payroll.processed with non-positive grossPay or negative net/deductions — drop payrollRecordId=${p.payrollRecordId.slice(0, 8)}`,
+        );
+        return;
+      }
+      // Sanity — gross must equal net + deductions to within
+      // rounding tolerance. Reject otherwise as a configuration
+      // bug rather than silently posting an unbalanced batch.
+      if (Math.abs(gross - (net + deductions)) > 0.01) {
+        throw new Error(
+          `[${CONSUMER_GROUP}] hr.payroll.processed payroll record ${p.payrollRecordId} has gross=${gross} but net+deductions=${net + deductions} — refusing to post unbalanced batch`,
+        );
+      }
+      const payrollAccounts = await this.loadPayrollAccountMapping();
+      if (!payrollAccounts) {
+        throw new Error(
+          `[${CONSUMER_GROUP}] cannot resolve payroll accounts (Salaries 5100 + Accrued Liabilities 2100) for tenant ${event.tenant.schoolId} — finance configuration must include payroll posting accounts`,
+        );
+      }
+      batchType = 'AUTO_PAYROLL';
+      description = `Payroll processed — gross $${gross.toFixed(2)} net $${net.toFixed(2)} (recordId=${p.payrollRecordId.slice(0, 8)})`;
+      referenceType = 'hr_payroll_records';
+      referenceId = p.payrollRecordId;
+      const payrollEntries: CreateGLEntryLineDto[] = [
+        {
+          accountId: payrollAccounts.salaries,
+          fundId,
+          debit: gross,
+          credit: 0,
+          description: 'Salaries expense — gross pay',
+          referenceType,
+          referenceId,
+        },
+        {
+          accountId: cashAccount,
+          fundId,
+          debit: 0,
+          credit: net,
+          description: 'Cash disbursed — net pay',
+          referenceType,
+          referenceId,
+        },
+      ];
+      // Only emit the deductions credit when there ARE deductions,
+      // so a zero-deduction payroll batch stays tightly balanced
+      // with two lines instead of three.
+      if (deductions > 0) {
+        payrollEntries.push({
+          accountId: payrollAccounts.accruedLiabilities,
+          fundId,
+          debit: 0,
+          credit: deductions,
+          description: 'Payroll liabilities — taxes + benefits accrued',
+          referenceType,
+          referenceId,
+        });
+      }
+      entries = payrollEntries;
     } else {
       this.logger.debug(`[${CONSUMER_GROUP}] no GL handler for ${logical} — skip`);
       return;
@@ -302,7 +397,10 @@ export class GLConsumer implements OnModuleInit {
         batchNumber,
         description,
         batchType,
-        sourceModule: 'payments',
+        // P2-4c — sourceModule reflects the originating event so the
+        // finance audit trail can distinguish payment-driven posts
+        // from payroll-driven posts.
+        sourceModule: logical === 'hr.payroll.processed' ? 'payroll' : 'payments',
         accountingPeriodId: '00000000-0000-0000-0000-000000000000', // ignored when periodId omitted
         entries,
         sourceEventId: eventId,
@@ -340,6 +438,33 @@ export class GLConsumer implements OnModuleInit {
       ar: ar.id,
       fundId: cash.fund_id,
     };
+  }
+
+  /**
+   * P2-4c — payroll posting requires Salaries Expense (5100) +
+   * Accrued Liabilities (2100). Cash (1000) is shared with the
+   * payment-event mapping so we look those up via the existing
+   * loadAccountMapping. The seeded chart of accounts (Cycle 26
+   * seed-finance.ts) already includes both 5100 + 2100, so a
+   * tenant that ran the canonical finance seed has the rows.
+   * Returns null on missing config — the consumer THROWs and the
+   * standard retry/DLQ chain catches it (REVIEW-CYCLE26 BLOCKING 3
+   * pattern).
+   */
+  private async loadPayrollAccountMapping(): Promise<{
+    salaries: string;
+    accruedLiabilities: string;
+  } | null> {
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        `SELECT account_code, id::text AS id FROM fin_chart_of_accounts WHERE account_code IN ('5100', '2100') AND is_active = true`,
+      );
+    })) as Array<{ account_code: string; id: string }>;
+    const byCode = new Map(rows.map((r) => [r.account_code, r]));
+    const salaries = byCode.get('5100');
+    const accrued = byCode.get('2100');
+    if (!salaries || !accrued) return null;
+    return { salaries: salaries.id, accruedLiabilities: accrued.id };
   }
 
   private async resolveSyntheticActor(): Promise<ResolvedActor | null> {

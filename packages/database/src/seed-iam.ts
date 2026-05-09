@@ -335,6 +335,16 @@ async function seedIam() {
         'HR-001': ['read'],
         'HR-003': ['read', 'write'],
         'HR-004': ['read'],
+        // P2-4c — HR-005 Appraisals (own appraisal read), HR-012
+        // Expense Claims (own claim submit). Both row-scoped at the
+        // service layer to actor.employeeId. Lesson observations
+        // are intentionally NOT granted (lesson_observation:write is
+        // admin-only via everyFunction; teachers see their own
+        // observation reports through the appraisal detail surface
+        // because hr_lesson_observations.appraisal_id ties the row
+        // back to an HR-005-readable appraisal).
+        'HR-005': ['read'],
+        'HR-012': ['read', 'write'],
         // Profile & Household mini-cycle — every persona self-services
         // their own profile via /profile/me. Row scope at the service
         // layer keeps non-admins bound to their own iam_person row.
@@ -791,7 +801,23 @@ async function seedIam() {
         // 22 / 25 / 26 / 30 / 32 / 33 in the broader role-split
         // chain).
         'HR-003': ['read', 'write'],
-        'HR-004': ['read'],
+        // P2-4c — Staff covers the Principal / dept-head stand-in
+        // for the Cycle 4 demo until a dedicated role split lands
+        // pre-pilot. HR-004:write lets Staff create programmes,
+        // schedule events, and record completions; HR-005:read+write
+        // covers appraisal cycle creation + per-employee appraisal
+        // management. lesson_observation:write is intentionally NOT
+        // granted to Staff — it stays admin-only via everyFunction
+        // because classroom observation records are sensitive
+        // (mirrors the P2C3 student_counseling_record:read pattern).
+        // HR-012:read+write covers self-service expense claim
+        // submission AND admin approval routing — service-layer
+        // narrowing binds non-admin readers to actor.employeeId for
+        // the submit path, while admin approval is gated by the
+        // service-layer assertAdmin (everyFunction-derived).
+        'HR-004': ['read', 'write'],
+        'HR-005': ['read', 'write'],
+        'HR-012': ['read', 'write'],
         // REVIEW-P2-4a BLOCKING #3 — HR-010 Payroll Management. The
         // P2-4a payroll module added new admin pay-period / pay-grade
         // / aggregate-totals reads that must NOT be exposed via the

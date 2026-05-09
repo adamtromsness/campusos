@@ -30,7 +30,13 @@ export type FundType =
   | 'PERMANENT'
   | 'ENTERPRISE';
 export type PeriodStatus = 'FUTURE' | 'OPEN' | 'CLOSED' | 'LOCKED';
-export type BatchType = 'MANUAL' | 'AUTO_PAYMENT' | 'AUTO_INVOICE' | 'AUTO_REFUND' | 'ADJUSTMENT';
+export type BatchType =
+  | 'MANUAL'
+  | 'AUTO_PAYMENT'
+  | 'AUTO_INVOICE'
+  | 'AUTO_REFUND'
+  | 'ADJUSTMENT'
+  | 'AUTO_PAYROLL';
 export type BatchStatus = 'DRAFT' | 'POSTED' | 'VOIDED';
 export type SupplierType = 'VENDOR' | 'CONTRACTOR' | 'UTILITY' | 'OTHER';
 export type BudgetStatus = 'DRAFT' | 'APPROVED' | 'AMENDED';
@@ -57,6 +63,7 @@ const BATCH_TYPES: BatchType[] = [
   'AUTO_INVOICE',
   'AUTO_REFUND',
   'ADJUSTMENT',
+  'AUTO_PAYROLL',
 ];
 const SUPPLIER_TYPES: SupplierType[] = ['VENDOR', 'CONTRACTOR', 'UTILITY', 'OTHER'];
 const BUDGET_STATUSES: BudgetStatus[] = ['DRAFT', 'APPROVED', 'AMENDED'];

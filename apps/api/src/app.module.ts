@@ -54,6 +54,8 @@ import { IncidentsModule } from './incidents/incidents.module';
 import { HealthAdvancedModule } from './health-advanced/health-advanced.module';
 import { PayrollModule } from './payroll/payroll.module';
 import { RecruitmentModule } from './recruitment/recruitment.module';
+import { TrainingModule } from './training/training.module';
+import { AppraisalsModule } from './appraisals/appraisals.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -162,6 +164,22 @@ var devOnlyControllers: Type<unknown>[] =
     // hr_employee_positions in the same tx and enqueues
     // hr.offer.accepted via OutboxService.enqueueInTx.
     RecruitmentModule,
+    // P2-4c — Training & Certifications (M80 Workforce Core
+    // additional surface). Programmes + events + completions +
+    // certification types + employee certifications. Emits
+    // hr.training.completed via OutboxService.enqueueInTx and runs
+    // the AUTO-ISSUE keystone (matching hr_certification_types row
+    // gets an hr_employee_certifications row stamped on completion
+    // of mandatory programmes with renewal_months populated).
+    TrainingModule,
+    // P2-4c — Appraisals + Lesson Observations + Expense Claims.
+    // SIGNED_OFF is the immutable terminal status on hr_appraisals
+    // (mirrors Cycle 11 svc_session_notes locked + P2C3 telehealth
+    // COMPLETED). Lesson observations are KEYSTONE-gated on the
+    // new lesson_observation:write permission held only by School
+    // Admin / Platform Admin via everyFunction. Expense claims
+    // workflow uses multi-column decided_chk schema lockstep.
+    AppraisalsModule,
   ],
   controllers: devOnlyControllers,
   providers: [

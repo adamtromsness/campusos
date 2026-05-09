@@ -91,6 +91,14 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
       'Recruitment — job postings, applications, panels, interviews, offers (P2C4 sub-cycle b)',
     script: 'seed-recruitment.ts',
   },
+  {
+    label: 'Training — programmes, events, completions, certifications (P2C4 sub-cycle c)',
+    script: 'seed-training.ts',
+  },
+  {
+    label: 'Appraisals — frameworks, cycles, goals, expense claims (P2C4 sub-cycle c)',
+    script: 'seed-appraisals.ts',
+  },
 ];
 
 async function main(): Promise<void> {

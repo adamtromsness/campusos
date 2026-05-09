@@ -411,6 +411,16 @@
       "group": "Human Resources"
     },
     {
+      "code": "HR-012",
+      "name": "Expense Claims",
+      "group": "Human Resources"
+    },
+    {
+      "code": "lesson_observation",
+      "name": "Lesson Observations (Sensitive)",
+      "group": "Human Resources"
+    },
+    {
       "code": "IT-001",
       "name": "Helpdesk Tickets",
       "group": "IT & Technology"

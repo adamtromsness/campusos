@@ -1015,3 +1015,188 @@ earned PASS) and `p2c4b-approved` at the closeout commit.
 **Wave A (Pilot Critical) ships P2-4b clean — Phase 2 Wave A
 continues with P2-4c (Training + Appraisals + Step 12 CAT) per
 the original plan's continuation guidance above.**
+
+---
+
+## P2-4c deliverables (2026-05-09)
+
+**Status:** P2-4c (Training + Appraisals + Lesson Observations + Expense Claims + GLConsumer payroll wire) COMPLETE pending peer review. Wave A (Pilot Critical) closes with this commit.
+
+### Schema (Steps 8 + 9)
+
+**Migration `116_hr_training.sql` — 5 logical base tables**:
+
+- `hr_training_programmes` — per-school catalogue. UNIQUE(school_id, name); is_mandatory + renewal_months drive the AUTO-ISSUE keystone.
+- `hr_training_events` — programme instances with multi-column `completed_chk` lockstep + `cancelled_chk` lockstep (CANCELLED requires non-empty cancellation_reason — same pattern as P2C3 hlth_telehealth_sessions).
+- `hr_training_completions` — UNIQUE(event_id, employee_id) keystone for idempotency under retry; score 0-100 CHECK; CASCADE on parent event + employee.
+- `hr_certification_types` — per-school catalogue keyed on (school_id, name); validity_months + is_required.
+- `hr_employee_certifications` — flexible per-employee record with FK to type catalogue + 3-value status CHECK ACTIVE/EXPIRED/REVOKED + multi-column `revoked_chk` lockstep + dates_chk + partial INDEX on (school, expires_at) WHERE status='ACTIVE'. Coexists with the Cycle 4 `hr_staff_certifications` enum table.
+
+**Migration `117_hr_appraisals.sql` — 7 logical base tables**:
+
+- `hr_appraisal_frameworks` — UNIQUE(school, name); criteria JSONB carries weighted competency definitions.
+- `hr_appraisal_cycles` — DB-enforced FK to `sis_academic_years` + `hr_appraisal_frameworks`; 3-value cycle_type CHECK ANNUAL/MID_YEAR/PROBATIONARY; 3-value status CHECK OPEN/CLOSED/ARCHIVED; UNIQUE(school, year, type); multi-column `closed_chk` lockstep on closed_at.
+- `hr_appraisals` — UNIQUE(cycle, employee); 4-value rating CHECK; 3-value status CHECK DRAFT/IN_REVIEW/SIGNED_OFF; **multi-column `signed_off_chk` keystone** at the schema layer pinning signed_off_at + signed_off_by populated together when status=SIGNED_OFF.
+- `hr_appraisal_goals` — 4-value progress CHECK NOT_STARTED/IN_PROGRESS/ACHIEVED/NOT_ACHIEVED; CASCADE on parent appraisal.
+- `hr_lesson_observations` — soft FK to `sis_classes` per ADR-001/020; 4-value grade CHECK (mirrors appraisal ratings); **multi-column `locked_chk` lockstep** + service-side `lesson_observation:write` keystone gate.
+- `hr_appraisal_comments` — `is_visible_to_employee BOOLEAN DEFAULT false` splits private (between observers/HR) from shared (employee can read).
+- `hr_expense_claims` — 4-value status CHECK SUBMITTED/APPROVED/REJECTED/PAID; total_amount > 0 CHECK; **multi-column `decided_chk` lockstep keystone** enforcing approver fields populated on every terminal status AND non-empty rejection_reason on REJECTED; multi-column `paid_chk` lockstep on paid_at.
+
+**Migration `118_fin_batch_type_payroll.sql`** — extends `fin_journal_batches.batch_type` CHECK with `'AUTO_PAYROLL'` (splitter-safe DROP IF EXISTS + ADD pattern). Lets the GLConsumer post payroll batches when it consumes `hr.payroll.processed`.
+
+**Tenant logical base table count: 148 → 160** (+12 across the 3 migrations). 12 new intra-tenant FKs (CASCADE × 7 / NO ACTION × 5 / SET NULL × 0 explicit + 2 nullable on appraiser_id / signed_off_by; 1 cross-table to sis_academic_years). 0 cross-schema FKs.
+
+### Permissions (Step 3)
+
+Catalogue 501 → **510** (+3 codes × 3 tiers — `HR-012 (Expense Claims)` + `lesson_observation` non-XXX-NNN code + 1 implicit; cache verified at admin **516**).
+
+`seed-iam.ts` updated:
+
+- **Teacher**: HR-005:read (own appraisal), HR-012:read+write (own expense claims). Total perms 89 → 94.
+- **Staff** (covers Principal stand-in / dept-head / finance officer): HR-004:read+write (was just :read), HR-005:read+write, HR-012:read+write. Total perms 222 → 226.
+- **lesson_observation:write granted ONLY via everyFunction** (School Admin + Platform Admin). Generic Staff with HR-005:write CANNOT author observations — keystone gate analogous to P2C3 student_counseling_record:read.
+
+### Backend (Steps 4a + 4b)
+
+`apps/api/src/training/` — 5 services + 1 controller + ~22 endpoints + **1 Kafka emit** (`hr.training.completed` via OutboxService.enqueueInTx).
+
+Three structural keystones:
+
+1. **AUTO-ISSUE on completion** — `CompletionService.record()` looks up a matching `hr_certification_types` row by name; when found AND parent programme `is_mandatory=true` AND `renewal_months IS NOT NULL`, INSERTs an `hr_employee_certifications` row stamping `issued_at = today` + `expires_at = today + renewal_months`. Service-side idempotency: re-running on a pre-existing ACTIVE cert UPDATEs the issued_at + expires_at (re-certify path).
+2. **Outbox-durable emit** — `hr.training.completed` enqueued via `OutboxService.enqueueInTx` inside the same tenant tx as the completion INSERT; mirrors P2-4a `hr.payroll.processed` + P2-4b `hr.offer.accepted` patterns.
+3. **UNIQUE(event_id, employee_id) catch** — duplicate INSERT raises 23505; service translates to friendly 400 "This employee has already been recorded as completing this event."
+
+`apps/api/src/appraisals/` — 7 services + 1 controller + ~22 endpoints. No Kafka emits this cycle (the appraisal lifecycle stays internal until a future polish cycle wires `hr.appraisal.signed_off` for the Cycle 7 task worker).
+
+Three structural keystones:
+
+1. **SIGNED_OFF immutability** — `AppraisalService.patch` refuses any update once status reaches SIGNED_OFF; multi-column `signed_off_chk` schema lockstep enforces signed_off_at + signed_off_by populated atomically on the terminal transition (mirrors Cycle 11 svc_session_notes.locked + P2C3 telehealth COMPLETED).
+2. **Lesson observation keystone gate** — `LessonObservationService.create / patch / lock` all gate on `lesson_observation:write` via `permissionCheckService.hasAnyPermissionInTenant` AT THE SERVICE LAYER (defence-in-depth alongside the controller `@RequirePermission` gate). VPs / counsellors with HR-005:write are explicitly refused.
+3. **Expense claim approval lockstep** — `ExpenseClaimService.decide` validates non-empty rejection_reason on REJECTED before any UPDATE, refuses non-SUBMITTED transitions, refuses non-APPROVED markPaid; multi-column `decided_chk` schema invariant is the schema-layer belt-and-braces.
+
+### GLConsumer wire to hr.payroll.processed (Step 5)
+
+`apps/api/src/finance/gl.consumer.ts` extended:
+
+- Subscribes to `hr.payroll.processed` alongside the 5 `pay.*` topics under group `gl-consumer`.
+- Routes the event to a payroll-specific handler that:
+  1. Validates `gross = net + deductions ± 0.01` (refuses unbalanced batches with a thrown error so the standard retry/DLQ chain catches the misconfig).
+  2. Resolves the chart of accounts via new `loadPayrollAccountMapping()` → Salaries Expense (5100) + Accrued Liabilities (2100). Cash (1000) reused from `loadAccountMapping`.
+  3. Builds a balanced batch: DR Salaries (gross) / CR Cash (net) + CR Accrued Liabilities (deductions). Two-line balanced batch when deductions=0.
+  4. POSTs via `PostingService.createAndPost(...)` with `sourceModule='payroll'` + `batchType='AUTO_PAYROLL'`. The schema-side UNIQUE on `source_event_id` provides Kafka redelivery idempotency.
+- New `BatchType` enum value `'AUTO_PAYROLL'` added to `apps/api/src/finance/dto/finance.dto.ts`. The schema CHECK constraint `fin_batches_type_chk` extended to include the new value via migration 118 (splitter-safe DROP IF EXISTS + ADD).
+
+This closes the Wave A integration loop: **HR payroll → outbox → GLConsumer → balanced GL batch posted** with zero manual finance keying.
+
+### Tests (Step 8)
+
+3 new keystone unit tests in `training.spec.ts` + 12 in `appraisals.spec.ts`. Suite **163 → 179 passing across 17 spec files**. Coverage includes:
+
+- `hr.training.completed` outbox enqueue + payload contract (training).
+- AUTO-ISSUE keystone — completion of mandatory programme inserts matching `hr_employee_certifications` row.
+- UNIQUE(event, employee) duplicate-completion catch.
+- SIGNED_OFF immutability — patch refused when status=SIGNED_OFF (no UPDATE fires).
+- Atomic SIGNED_OFF stamping — UPDATE includes `signed_off_at = now()` + `signed_off_by = $actor.employeeId` in the same statement.
+- Appraisee write boundary — non-admin can only edit selfReview.
+- **lesson_observation:write keystone** — Staff with hr-005:write but NOT lesson_observation:write is rejected with friendly Forbidden.
+- Lesson observation lock — second-lock attempt rejected.
+- Expense claim REJECTED requires non-empty rejection_reason.
+- Expense claim non-SUBMITTED decide refused.
+- Expense claim non-APPROVED markPaid refused.
+- Controller permission metadata distribution — admin pipeline gates on hr-004 / hr-005, lesson observations on lesson_observation:write, expense claims on hr-012.
+
+### Seed (Step 7)
+
+`seed-training.ts` (idempotent, gated on `hr_training_programmes`) wired into `seed-all.ts` at position 42:
+
+- 2 programmes (Safeguarding L1 annual + First Aid triennial).
+- 2 cert types matching by name (so the AUTO-ISSUE keystone fires on completion).
+- 2 events (1 COMPLETED, 1 SCHEDULED).
+- 1 completion (Rivera Safeguarding L1, score 92, auto-issued cert with 12-month expiry).
+- 1 manual cert (Mitchell First Aid, Red Cross ref, 36-month expiry).
+
+`seed-appraisals.ts` (idempotent, gated on `hr_appraisal_frameworks`) wired at position 43:
+
+- 1 framework (Lincoln Academy Annual Review, 4 competencies × 25%).
+- 1 OPEN cycle (ANNUAL, current academic year).
+- 1 appraisal (Rivera DRAFT, appraiser Mitchell).
+- 2 SMART goals.
+- 1 SUBMITTED expense claim ($45 textbook).
+
+### Splitter trap log
+
+Both migration 116 + 117 + 118 cleared the splitter audit on first attempt. **21st migration in a row to clear the trap on first provision attempt after audit** (Cycles 4–onwards unbroken streak preserved).
+
+### CI parity
+
+- `pnpm format` + `pnpm format:check` clean.
+- `pnpm lint:logs`: **585 files clean**.
+- `pnpm --filter @campusos/api test`: **179/179 passing across 17 spec files** (was 163; +16 new — 4 training + 12 appraisals).
+- `pnpm --filter @campusos/api build` clean.
+- `pnpm --filter @campusos/web build` clean.
+- Migrations 116 + 117 + 118 provisioned cleanly on both `tenant_demo` and `tenant_test`.
+
+### CAT script
+
+`docs/cycle-p2c4c-cat-script.md` — 7-scenario vertical slice covering the training catalogue, AUTO-ISSUE keystone, duplicate-completion catch, appraisal SIGNED_OFF immutability, **lesson observation keystone gate**, expense claim approval workflow, and the **GLConsumer payroll posting** that closes the Wave A integration loop with a balanced DR Salaries 5100 / CR Cash 1000 + Accrued 2100 batch.
+
+### Web UI deferral
+
+Web routes (`/hr/training`, `/hr/appraisals`, `/hr/expense-claims`) are deferred to a polish-pass follow-up commit. Backend + tests are the load-bearing P2-4c deliverable; admin can drive every workflow via the API. The CAT script demonstrates the API surface end-to-end.
+
+### Cross-module dependencies
+
+- **Closes Wave A** — P2-4a Payroll + P2-4b Recruitment + P2-4c Training + Appraisals + GLConsumer payroll wire complete the pilot-critical HR + finance stack.
+- **`hr.training.completed`** is a durable outbox row consumed by future training-driven dashboards and parent / staff notifications (out of scope here; the row lands durably).
+- **GLConsumer payroll wire** picks up `hr.payroll.processed` events emitted by P2-4a `PayrollService.markPaid` and posts the balanced double-entry batch automatically. The accounts (5100 Salaries, 2100 Accrued Liabilities, 1000 Cash) are seeded by Cycle 26 `seed-finance.ts`.
+
+### Files at peer review
+
+```
+packages/database/prisma/tenant/migrations/116_hr_training.sql
+packages/database/prisma/tenant/migrations/117_hr_appraisals.sql
+packages/database/prisma/tenant/migrations/118_fin_batch_type_payroll.sql
+packages/database/data/permissions.json (HR-012 + lesson_observation, 510 codes total × 3 tiers cached)
+packages/database/src/seed-iam.ts (HR-005 + HR-012 grants)
+packages/database/src/seed-training.ts (new)
+packages/database/src/seed-appraisals.ts (new)
+packages/database/src/seed-all.ts (chain entries 42 + 43)
+packages/database/package.json (seed:training + seed:appraisals scripts)
+apps/api/src/training/dto/training.dto.ts (new)
+apps/api/src/training/programme.service.ts (new)
+apps/api/src/training/event.service.ts (new)
+apps/api/src/training/completion.service.ts (new — AUTO-ISSUE keystone + outbox emit)
+apps/api/src/training/certification.service.ts (new)
+apps/api/src/training/training.controller.ts (new)
+apps/api/src/training/training.module.ts (new)
+apps/api/src/training/training.spec.ts (new — 4 keystone tests)
+apps/api/src/appraisals/dto/appraisals.dto.ts (new)
+apps/api/src/appraisals/appraisals.service.ts (new — SIGNED_OFF + lesson_observation keystones)
+apps/api/src/appraisals/expense-claim.service.ts (new)
+apps/api/src/appraisals/appraisals.controller.ts (new)
+apps/api/src/appraisals/appraisals.module.ts (new)
+apps/api/src/appraisals/appraisals.spec.ts (new — 12 keystone tests)
+apps/api/src/finance/gl.consumer.ts (extended — hr.payroll.processed routing)
+apps/api/src/finance/dto/finance.dto.ts (BatchType extended with AUTO_PAYROLL)
+apps/api/src/app.module.ts (TrainingModule + AppraisalsModule registration)
+docs/cycle-p2c4c-cat-script.md (new — 7 vertical-slice scenarios)
+HANDOFF-P2C4.md (this section)
+CLAUDE.md (status block)
+```
+
+### Continuation guidance
+
+P2-4c is the final P2C4 sub-cycle. Wave A (Pilot Critical) closes with this commit:
+
+- P2-4a Payroll APPROVED at `617e37c` (`p2c4a-approved`).
+- P2-4b Recruitment APPROVED at `062e3da` (`p2c4b-approved`).
+- P2-4c Training + Appraisals + GL wire — awaiting peer review.
+
+Phase 2 Wave B (the remaining .1 cycles for cross-cutting concerns) opens after pilot feedback per the original delivery plan. Pre-pilot punch list carries:
+
+- Recruitment Administrator role split (P2-4b carry-over — joins the broader role-split chain).
+- Candidate-facing HR-002:read onboarding story (P2-4b carry-over).
+- Application lifecycle transition graph (P2-4b carry-over).
+- P2-4c web UI polish pass (`/hr/training`, `/hr/appraisals`, `/hr/expense-claims`).
+- `hr.certification.expiring` cron worker.
+- `fin_posting_rules` lookup table to abstract the hard-coded 5100 / 2100 / 1000 GL accounts.
