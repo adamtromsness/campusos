@@ -345,6 +345,279 @@ describe('ExpenseClaimService — approval lockstep', () => {
   });
 });
 
+// REVIEW-P2-4c BLOCKING 1 — actor-aware authorization on goal +
+// comment mutation. The previous implementation accepted `_actor`
+// (signaled unused) and trusted the controller gate; a Teacher
+// with hr-005:read could mutate any non-SIGNED_OFF appraisal by
+// guessing the appraisal id. Both services now run a 3-tier check
+// (admin OR appraiser OR appraisee on DRAFT/IN_REVIEW for goals;
+// admin OR appraiser OR appraisee for comments — with private
+// comments admin/appraiser only).
+describe('AppraisalGoalService — REVIEW-P2-4c BLOCKING 1 actor-aware authorization', () => {
+  function makeAppraisalsLoadFake(parent: {
+    employeeId: string;
+    appraiserId: string | null;
+    status: string;
+  }) {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('from hr_appraisals') && sql.includes('limit 1')) {
+        return [
+          {
+            id: 'a-1',
+            employee_id: parent.employeeId,
+            appraiser_id: parent.appraiserId,
+            status: parent.status,
+            school_id: SCHOOL.schoolId,
+          },
+        ];
+      }
+      // Goal patch: lock the goal row first.
+      if (sql.includes('from hr_appraisal_goals') && sql.includes('for update')) {
+        return [{ id: 'g-1', appraisal_id: 'a-1' }];
+      }
+      // Goal post-insert reload (SELECT_GOAL).
+      if (sql.includes('from hr_appraisal_goals') && sql.includes('limit 1')) {
+        return [
+          {
+            id: 'g-1',
+            appraisal_id: 'a-1',
+            goal_text: 'My own goal',
+            success_criteria: null,
+            target_date: null,
+            progress: 'NOT_STARTED',
+            progress_notes: null,
+            sort_order: 0,
+            created_at: '2026-05-09T00:00:00Z',
+          },
+        ];
+      }
+      return [];
+    });
+    return fake;
+  }
+
+  it('Teacher with hr-005:read but no relationship to the appraisal cannot create a goal', async () => {
+    // parent employee + appraiser are both NOT the Teacher actor.
+    const fake = makeAppraisalsLoadFake({
+      employeeId: 'emp-other',
+      appraiserId: 'app-other',
+      status: 'IN_REVIEW',
+    });
+    // Teacher actor lacks hr-005:write, so isAdmin() returns false.
+    const permissions = { hasAnyPermissionInTenant: async () => false };
+    const appraisals = new AppraisalService(fake.tenantPrisma as never, permissions as never);
+    const svc = new AppraisalGoalService(fake.tenantPrisma as never, appraisals);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.create('a-1', { goalText: 'Inject goal into other employee appraisal' }, TEACHER_ACTOR),
+      ),
+    ).rejects.toThrow(/Appraisal not found/);
+    // Verify NO INSERT INTO hr_appraisal_goals happened.
+    const insert = fake.capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into hr_appraisal_goals'),
+    );
+    expect(insert).toBeUndefined();
+  });
+
+  it('Teacher with hr-005:read but no relationship to the appraisal cannot patch a goal', async () => {
+    const fake = makeAppraisalsLoadFake({
+      employeeId: 'emp-other',
+      appraiserId: 'app-other',
+      status: 'IN_REVIEW',
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => false };
+    const appraisals = new AppraisalService(fake.tenantPrisma as never, permissions as never);
+    const svc = new AppraisalGoalService(fake.tenantPrisma as never, appraisals);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.patch('g-1', { progress: 'ACHIEVED' }, TEACHER_ACTOR),
+      ),
+    ).rejects.toThrow(/Appraisal not found/);
+    const update = fake.capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('update hr_appraisal_goals'),
+    );
+    expect(update).toBeUndefined();
+  });
+
+  it('appraisee CAN create a goal on own DRAFT/IN_REVIEW appraisal', async () => {
+    const fake = makeAppraisalsLoadFake({
+      employeeId: TEACHER_ACTOR.employeeId,
+      appraiserId: 'app-other',
+      status: 'DRAFT',
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => false };
+    const appraisals = new AppraisalService(fake.tenantPrisma as never, permissions as never);
+    const svc = new AppraisalGoalService(fake.tenantPrisma as never, appraisals);
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.create('a-1', { goalText: 'My own goal' }, TEACHER_ACTOR),
+    );
+    const insert = fake.capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into hr_appraisal_goals'),
+    );
+    expect(insert).toBeTruthy();
+  });
+});
+
+describe('AppraisalCommentService — REVIEW-P2-4c BLOCKING 1 authorization + private gate', () => {
+  function makeAppraisalsLoadFake(parent: {
+    employeeId: string;
+    appraiserId: string | null;
+    status: string;
+  }) {
+    return makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('from hr_appraisals') && sql.includes('limit 1')) {
+        return [
+          {
+            id: 'a-1',
+            employee_id: parent.employeeId,
+            appraiser_id: parent.appraiserId,
+            status: parent.status,
+            school_id: SCHOOL.schoolId,
+          },
+        ];
+      }
+      // Comment post-insert reload (SELECT_COMMENT_BASE).
+      if (sql.includes('from hr_appraisal_comments c')) {
+        return [
+          {
+            id: 'cmt-1',
+            appraisal_id: 'a-1',
+            author_id: 'au-1',
+            author_first: null,
+            author_last: null,
+            comment_text: 'My self-review reflection.',
+            is_visible_to_employee: true,
+            created_at: '2026-05-09T00:00:00Z',
+          },
+        ];
+      }
+      return [];
+    });
+  }
+
+  it('Teacher unrelated to the appraisal cannot post a comment', async () => {
+    const fake = makeAppraisalsLoadFake({
+      employeeId: 'emp-other',
+      appraiserId: 'app-other',
+      status: 'IN_REVIEW',
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => false };
+    const appraisals = new AppraisalService(fake.tenantPrisma as never, permissions as never);
+    const svc = new AppraisalCommentService(fake.tenantPrisma as never, appraisals);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.create('a-1', { commentText: 'injected', isVisibleToEmployee: true }, TEACHER_ACTOR),
+      ),
+    ).rejects.toThrow(/Appraisal not found/);
+  });
+
+  it('appraisee CANNOT author a private (hidden-from-self) comment on own appraisal', async () => {
+    const fake = makeAppraisalsLoadFake({
+      employeeId: TEACHER_ACTOR.employeeId,
+      appraiserId: 'app-other',
+      status: 'IN_REVIEW',
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => false };
+    const appraisals = new AppraisalService(fake.tenantPrisma as never, permissions as never);
+    const svc = new AppraisalCommentService(fake.tenantPrisma as never, appraisals);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.create(
+          'a-1',
+          { commentText: 'self-private?', isVisibleToEmployee: false },
+          TEACHER_ACTOR,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('appraisee CAN author a visible comment on own appraisal', async () => {
+    const fake = makeAppraisalsLoadFake({
+      employeeId: TEACHER_ACTOR.employeeId,
+      appraiserId: 'app-other',
+      status: 'IN_REVIEW',
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => false };
+    const appraisals = new AppraisalService(fake.tenantPrisma as never, permissions as never);
+    const svc = new AppraisalCommentService(fake.tenantPrisma as never, appraisals);
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.create(
+        'a-1',
+        { commentText: 'My self-review reflection.', isVisibleToEmployee: true },
+        TEACHER_ACTOR,
+      ),
+    );
+    const insert = fake.capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into hr_appraisal_comments'),
+    );
+    expect(insert).toBeTruthy();
+  });
+});
+
+describe('ExpenseClaimService — REVIEW-P2-4c BLOCKING 3 hr-013 admin gate', () => {
+  it('Teacher with hr-012:write but NOT hr-013 cannot decide a claim', async () => {
+    const fake = makeFake(() => []);
+    // Permission stub mirrors the live IAM grant: Teacher holds
+    // hr-012:write but no hr-013 codes. Only hr-013 codes return
+    // false; everything else returns true (so any non-admin check
+    // would otherwise pass).
+    const permissions = {
+      hasAnyPermissionInTenant: async (_accountId: string, _schoolId: string, codes: string[]) =>
+        !codes.some((c) => c.startsWith('hr-013')),
+    };
+    const svc = new ExpenseClaimService(fake.tenantPrisma as never, permissions as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.decide('cl-1', { decision: 'APPROVED' }, TEACHER_ACTOR),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('admin with hr-013 admin tier (via everyFunction) reaches the decide path', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('for update')) return [{ id: 'cl-1', status: 'SUBMITTED' }];
+      if (sql.includes('from hr_expense_claims c')) {
+        return [
+          {
+            id: 'cl-1',
+            employee_id: 'emp-X',
+            employee_first: 'X',
+            employee_last: 'Y',
+            school_id: SCHOOL.schoolId,
+            claim_title: 'X',
+            description: null,
+            incurred_on: '2026-05-01',
+            total_amount: '45.00',
+            receipt_s3_keys: [],
+            status: 'APPROVED',
+            approved_by: ADMIN_ACTOR.employeeId,
+            approved_by_first: 'Sarah',
+            approved_by_last: 'Mitchell',
+            approved_at: '2026-05-09T00:00:00Z',
+            rejection_reason: null,
+            paid_at: null,
+            created_at: '2026-05-01T00:00:00Z',
+          },
+        ];
+      }
+      return [];
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => true };
+    const svc = new ExpenseClaimService(fake.tenantPrisma as never, permissions as never);
+    const dto = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.decide('cl-1', { decision: 'APPROVED' }, ADMIN_ACTOR),
+    );
+    expect(dto.status).toBe('APPROVED');
+    const update = fake.capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('update hr_expense_claims'),
+    );
+    expect(update).toBeTruthy();
+  });
+});
+
 // Suppress unused-import warning for services exercised only by
 // controller-metadata tests below.
 void AppraisalGoalService;
@@ -374,10 +647,16 @@ describe('AppraisalsController — permission gate distribution', () => {
     expect(gateFor('listEmployeeObservations')).toEqual(['hr-005:read']);
   });
 
-  it('expense-claim endpoints carry hr-012 codes', () => {
+  // REVIEW-P2-4c BLOCKING 3 — expense-claim admin endpoints now
+  // gate on hr-013 (Expense Claim Administration) not hr-012:write.
+  // Self-submission stays on hr-012; the controller + service +
+  // seed are now consistent. School Admin / Platform Admin pick up
+  // hr-013 via everyFunction; generic Staff with hr-012:write
+  // can submit but not approve.
+  it('expense-claim self-submission carries hr-012; admin endpoints carry hr-013', () => {
     expect(gateFor('listClaims')).toEqual(['hr-012:read']);
     expect(gateFor('createClaim')).toEqual(['hr-012:write']);
-    expect(gateFor('decideClaim')).toEqual(['hr-012:write']);
-    expect(gateFor('markPaid')).toEqual(['hr-012:write']);
+    expect(gateFor('decideClaim')).toEqual(['hr-013:write']);
+    expect(gateFor('markPaid')).toEqual(['hr-013:write']);
   });
 });

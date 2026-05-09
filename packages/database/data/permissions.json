@@ -416,6 +416,11 @@
       "group": "Human Resources"
     },
     {
+      "code": "HR-013",
+      "name": "Expense Claim Administration",
+      "group": "Human Resources"
+    },
+    {
       "code": "lesson_observation",
       "name": "Lesson Observations (Sensitive)",
       "group": "Human Resources"

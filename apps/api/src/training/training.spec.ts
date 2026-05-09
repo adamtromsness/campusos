@@ -257,6 +257,67 @@ describe('CompletionService — hr.training.completed outbox emit + auto-issue',
   });
 });
 
+// REVIEW-P2-4c BLOCKING 2 — listForEvent self-scoped for non-admin.
+// Previously any HR-004:read holder (Teacher) could enumerate every
+// completion row for any event, exposing other employees' training
+// history (pass/fail, score, identity). The service now binds
+// non-admin actors to actor.employeeId.
+describe('CompletionService.listForEvent — REVIEW-P2-4c BLOCKING 2 row scope', () => {
+  it('Teacher with hr-004:read sees only their own completion row for the event', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('from hr_training_completions c')) {
+        // Mock returns rows that match the WHERE clause; the
+        // assertion checks the SQL WHERE clause + bound args
+        // include the actor's employeeId.
+        return [];
+      }
+      return [];
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => false };
+    const events = new TrainingEventService(fake.tenantPrisma as never, permissions as never);
+    const svc = new CompletionService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      { enqueueInTx: async () => undefined } as never,
+      events,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.listForEvent('event-1', TEACHER_ACTOR),
+    );
+    // Verify the SELECT ran with c.employee_id filter bound to
+    // the actor's employeeId.
+    const sel = fake.capture.find(
+      (c) => c.fn === 'q' && c.sql.toLowerCase().includes('from hr_training_completions c'),
+    );
+    expect(sel).toBeTruthy();
+    expect(sel!.sql.toLowerCase()).toContain('and c.employee_id =');
+    expect(sel!.args).toContain(TEACHER_ACTOR.employeeId);
+  });
+
+  it('admin (isSchoolAdmin=true) sees the full event roster — no employee filter', async () => {
+    const fake = makeFake(() => []);
+    const permissions = { hasAnyPermissionInTenant: async () => true };
+    const events = new TrainingEventService(fake.tenantPrisma as never, permissions as never);
+    const svc = new CompletionService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      { enqueueInTx: async () => undefined } as never,
+      events,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.listForEvent('event-1', ADMIN_ACTOR),
+    );
+    const sel = fake.capture.find(
+      (c) => c.fn === 'q' && c.sql.toLowerCase().includes('from hr_training_completions c'),
+    );
+    expect(sel).toBeTruthy();
+    // Admin path must NOT include the employee_id filter.
+    expect(sel!.sql.toLowerCase()).not.toContain('and c.employee_id =');
+    expect(sel!.args).not.toContain(ADMIN_ACTOR.employeeId);
+  });
+});
+
 describe('TrainingController — permission gate distribution', () => {
   const proto = TrainingController.prototype as unknown as Record<string, () => unknown>;
   function gateFor(methodName: string): string[] {

@@ -73,15 +73,30 @@ export class CompletionService {
     private readonly events: TrainingEventService,
   ) {}
 
-  async listForEvent(eventId: string): Promise<TrainingCompletionDto[]> {
+  /**
+   * REVIEW-P2-4c BLOCKING 2 — listForEvent now actor-aware. The
+   * full event roster (every employee's pass/fail score) is HR
+   * data and must NOT be exposed to a generic Teacher / Staff
+   * holder of hr-004:read. Admins (school admin OR hr-004:write/admin)
+   * see the full roster; non-admin actors see only their own
+   * completion row for the event (so an employee can confirm
+   * their own attendance was recorded). Anyone without an
+   * employee row gets an empty list.
+   */
+  async listForEvent(eventId: string, actor: ResolvedActor): Promise<TrainingCompletionDto[]> {
     const tenant = getCurrentTenant();
+    const isAdmin = await this.isAdmin(actor);
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      const params: unknown[] = [tenant.schoolId, eventId];
+      let where = 'WHERE c.school_id = $1::uuid AND c.event_id = $2::uuid';
+      if (!isAdmin) {
+        if (!actor.employeeId) return [];
+        params.push(actor.employeeId);
+        where += ` AND c.employee_id = $${params.length}::uuid`;
+      }
       const rows = (await client.$queryRawUnsafe(
-        SELECT_COMPLETION_BASE +
-          'WHERE c.school_id = $1::uuid AND c.event_id = $2::uuid ' +
-          'ORDER BY c.completed_at DESC',
-        tenant.schoolId,
-        eventId,
+        SELECT_COMPLETION_BASE + where + ' ORDER BY c.completed_at DESC',
+        ...params,
       )) as CompletionRow[];
       return rows.map((r) => this.rowToDto(r));
     });

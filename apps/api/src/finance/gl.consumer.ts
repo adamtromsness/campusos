@@ -189,7 +189,7 @@ export class GLConsumer implements OnModuleInit {
     // the PostingService requires an employee actor. We pick the
     // first ACTIVE hr_employee in the tenant. THROW on miss — see
     // the loadAccountMapping comment above for the same reasoning.
-    const cfo = await this.resolveSyntheticActor();
+    const cfo = await this.resolveSyntheticActor(event.tenant.schoolId);
     if (!cfo) {
       throw new Error(
         `[${CONSUMER_GROUP}] no ACTIVE hr_employees row available for tenant ${event.tenant.schoolId} — at least one staff member must exist before payment events can post to the GL`,
@@ -467,10 +467,26 @@ export class GLConsumer implements OnModuleInit {
     return { salaries: salaries.id, accruedLiabilities: accrued.id };
   }
 
-  private async resolveSyntheticActor(): Promise<ResolvedActor | null> {
+  /**
+   * REVIEW-P2-4c MAJOR — synthetic actor lookup is now scoped to
+   * the current school. The previous query selected the first
+   * ACTIVE employee in the tenant schema ordered by created_at
+   * with no school_id predicate; in a multi-school tenant schema
+   * this could pick a foreign-school employee as the posting
+   * actor. The schema-per-tenant model puts one school per
+   * tenant schema today, so the predicate is defensive and
+   * forward-compatible with a future multi-school tenancy model.
+   */
+  private async resolveSyntheticActor(schoolId: string): Promise<ResolvedActor | null> {
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT e.id::text AS employee_id, ip.id::text AS person_id, pu.id::text AS account_id FROM hr_employees e JOIN platform.iam_person ip ON ip.id = e.person_id LEFT JOIN platform.platform_users pu ON pu.person_id = ip.id WHERE e.employment_status = 'ACTIVE' ORDER BY e.created_at LIMIT 1`,
+        `SELECT e.id::text AS employee_id, ip.id::text AS person_id, pu.id::text AS account_id ` +
+          `FROM hr_employees e ` +
+          `JOIN platform.iam_person ip ON ip.id = e.person_id ` +
+          `LEFT JOIN platform.platform_users pu ON pu.person_id = ip.id ` +
+          `WHERE e.school_id = $1::uuid AND e.employment_status = 'ACTIVE' ` +
+          `ORDER BY e.created_at LIMIT 1`,
+        schoolId,
       );
     })) as Array<{ employee_id: string; person_id: string; account_id: string }>;
     if (rows.length === 0) return null;

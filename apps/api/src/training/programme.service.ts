@@ -93,7 +93,13 @@ export class TrainingProgrammeService {
         }
         throw e;
       }
-      return this.getById(id);
+      // REVIEW-P2-4c MAJOR — reread through tx (not this.getById).
+      const rows = (await tx.$queryRawUnsafe(
+        SELECT_PROGRAMME + 'WHERE school_id = $1::uuid AND id = $2::uuid LIMIT 1',
+        tenant.schoolId,
+        id,
+      )) as ProgrammeRow[];
+      return this.rowToDto(rows[0]!);
     });
   }
 
@@ -124,7 +130,15 @@ export class TrainingProgrammeService {
       if (input.isMandatory !== undefined) push('is_mandatory', input.isMandatory);
       if (input.renewalMonths !== undefined) push('renewal_months', input.renewalMonths);
       if (input.isActive !== undefined) push('is_active', input.isActive);
-      if (sets.length === 0) return this.getById(id);
+      const rereadInTx = async () => {
+        const rows = (await tx.$queryRawUnsafe(
+          SELECT_PROGRAMME + 'WHERE school_id = $1::uuid AND id = $2::uuid LIMIT 1',
+          tenant.schoolId,
+          id,
+        )) as ProgrammeRow[];
+        return this.rowToDto(rows[0]!);
+      };
+      if (sets.length === 0) return rereadInTx();
       sets.push('updated_at = now()');
       values.push(tenant.schoolId, id);
       try {
@@ -139,7 +153,7 @@ export class TrainingProgrammeService {
         }
         throw e;
       }
-      return this.getById(id);
+      return rereadInTx();
     });
   }
 

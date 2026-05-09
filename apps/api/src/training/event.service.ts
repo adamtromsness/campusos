@@ -124,7 +124,14 @@ export class TrainingEventService {
         input.maxParticipants ?? null,
         input.notes ?? null,
       );
-      return this.getById(id);
+      // REVIEW-P2-4c MAJOR — reread through tx (not this.getById,
+      // which opens a fresh tenant context).
+      const rows = (await tx.$queryRawUnsafe(
+        SELECT_EVENT_BASE + 'WHERE e.school_id = $1::uuid AND e.id = $2::uuid LIMIT 1',
+        tenant.schoolId,
+        id,
+      )) as EventRow[];
+      return this.rowToDto(rows[0]!);
     });
   }
 
@@ -175,7 +182,15 @@ export class TrainingEventService {
           push('cancellation_reason', input.cancellationReason);
         }
       }
-      if (sets.length === 0) return this.getById(id);
+      const rereadInTx = async () => {
+        const rows = (await tx.$queryRawUnsafe(
+          SELECT_EVENT_BASE + 'WHERE e.school_id = $1::uuid AND e.id = $2::uuid LIMIT 1',
+          tenant.schoolId,
+          id,
+        )) as EventRow[];
+        return this.rowToDto(rows[0]!);
+      };
+      if (sets.length === 0) return rereadInTx();
       sets.push('updated_at = now()');
       values.push(tenant.schoolId, id);
       await tx.$executeRawUnsafe(
@@ -183,7 +198,7 @@ export class TrainingEventService {
           `WHERE school_id = $${n}::uuid AND id = $${n + 1}::uuid`,
         ...values,
       );
-      return this.getById(id);
+      return rereadInTx();
     });
   }
 

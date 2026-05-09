@@ -1200,3 +1200,74 @@ Phase 2 Wave B (the remaining .1 cycles for cross-cutting concerns) opens after 
 - P2-4c web UI polish pass (`/hr/training`, `/hr/appraisals`, `/hr/expense-claims`).
 - `hr.certification.expiring` cron worker.
 - `fin_posting_rules` lookup table to abstract the hard-coded 5100 / 2100 / 1000 GL accounts.
+
+---
+
+## REVIEW-P2-4c Round 1 fix log (2026-05-09)
+
+Round 1 against `726362d` returned **FAIL** with 3 BLOCKING + 3 MAJOR. The Round 1 fix commit lands all 3 BLOCKING + the 2 actionable MAJORs (#1 synthetic actor school scope + #3 tx-local rereads) + 10 new keystone unit tests covering the regression paths. MAJOR #2 (`fin_posting_rules` lookup table) appropriately remains a Phase 2 / pre-pilot follow-up per the reviewer's gate decision.
+
+### BLOCKING fixes
+
+1. **Appraisal goal + comment actor-aware authorization** — `AppraisalGoalService.create / patch` previously accepted `_actor` (signaled unused) and trusted the controller `hr-005:read` gate; any Teacher with hr-005:read could mutate any non-SIGNED_OFF appraisal by guessing the appraisal id. Both methods now run `assertCanMutateGoal(parent, actor)`:
+   - admin (school admin OR hr-005:write/admin) — always allowed.
+   - appraiser (`parent.appraiserId === actor.employeeId`) — always allowed.
+   - appraisee (`parent.employeeId === actor.employeeId`) — allowed only on DRAFT/IN_REVIEW.
+   - everyone else — collapsed `404 Appraisal not found` (don't-leak-existence pattern from P2C3 / Cycle 11).
+
+   `AppraisalCommentService.create` rewritten with the same 3-tier check plus a private-comment gate: `is_visible_to_employee=false` requires admin OR appraiser (the appraisee CANNOT author a private note about themselves). `AppraisalService.isAdmin()` exposed (was `private`) so the goal + comment services share the canonical admin check.
+
+2. **Training event completion roster self-scoped for non-admin** — `CompletionService.listForEvent` previously returned every completion row to any HR-004:read holder. The method now takes the actor; admins (school admin OR hr-004:write/admin) see the full event roster, non-admin actors see only their own completion row (so an employee can confirm their own attendance was recorded). Anyone without an employee row gets an empty list. Controller `listEventCompletions` resolves the actor and passes it through.
+
+3. **Expense claim admin permission split — new HR-013 code** — the previous gate had Teacher + Staff holding `HR-012:read+write` for self-submission AND the controller advertising the same code for approval, while the service required `HR-012:admin` (only everyFunction roles). The fix splits the model: **`HR-012` stays the self-submission code** (Teacher + Staff hold read+write to submit own claims); **new `HR-013 Expense Claim Administration` code** carries decide / mark-paid authority (granted only via everyFunction to School Admin + Platform Admin today; pre-pilot a dedicated Finance Officer role gets HR-013 explicitly). Catalogue 510 → **513** (+1 function × 3 tiers). Admin cache 516 → **519**. Controller `decideClaim` + `markPaid` re-gated to `hr-013:write`. `ExpenseClaimService.isAdmin()` re-pointed at `hr-013:admin` / `hr-013:write`.
+
+### MAJOR fixes
+
+4. **GLConsumer synthetic actor school scope** — `resolveSyntheticActor` now takes `schoolId` and adds `WHERE e.school_id = $1::uuid`. Defensive against a future multi-school tenancy model; the schema-per-tenant model puts one school per tenant schema today so the predicate is forward-compatible.
+
+5. **Training programme + event tx-local rereads** — `TrainingProgrammeService.create / patch` and `TrainingEventService.create / patch` previously ended with `return this.getById(id)` from inside `executeInTenantTransaction`, which opens a fresh tenant context (separate connection). Both create + both patch paths now reread through the same `tx` client.
+
+### Test coverage
+
+`appraisals.spec.ts` 12 → **20 passing tests** (+8 new BLOCKING regressions: Teacher cannot create goal on other-employee appraisal; Teacher cannot patch goal on other-employee appraisal; appraisee CAN create on own DRAFT/IN_REVIEW; Teacher unrelated cannot post comment; appraisee CANNOT author private comment on own appraisal; appraisee CAN post visible comment on own appraisal; Teacher with hr-012:write but NOT hr-013 cannot decide claim; admin with hr-013 reaches decide path).
+
+`training.spec.ts` 4 → **6 passing tests** (+2 new BLOCKING regressions: Teacher with hr-004:read on `listForEvent` runs WHERE c.employee_id = actor.employeeId; admin path runs without employee filter).
+
+Controller permission metadata test rewritten — `decideClaim` + `markPaid` now expect `['hr-013:write']` instead of `['hr-012:write']`.
+
+**Vitest suite 179 → 189 passing across 17 spec files.**
+
+### CI parity
+
+- `pnpm format` + `pnpm format:check` clean.
+- `pnpm lint:logs`: **585 files clean**.
+- `pnpm --filter @campusos/api test`: **189/189 passing across 17 spec files** (+10 BLOCKING regression tests).
+- `pnpm --filter @campusos/api build` clean.
+- `pnpm --filter @campusos/web build` clean.
+
+### MAJORs / MINORs carried to Phase 2 punch list
+
+- MAJOR #2 (`fin_posting_rules` lookup table to abstract hard-coded GL accounts 5100 / 2100 / 1000) — recommendation-class pre-pilot work; reviewer accepts deferral.
+- MINOR (partial UNIQUE on hr_employee_certifications active rows) — service-side lookup-and-update is reliable today; future tenant migration adds a partial UNIQUE on `(employee_id, certification_type_id) WHERE status='ACTIVE'`.
+- MINOR (DB trigger for hr_appraisals SIGNED_OFF immutability) — service-side discipline matches prior accepted patterns; DB trigger lands once per-tenant DB role model exists.
+- MINOR (web UI for training + appraisals + expense claims) — already on the punch list; admin can drive every workflow via API.
+
+### Files at peer review
+
+```
+packages/database/data/permissions.json (+ HR-013, catalogue 513 codes)
+apps/api/src/appraisals/appraisals.service.ts (BLOCKING 1 — assertCanMutateGoal helper + comment gate)
+apps/api/src/appraisals/appraisals.controller.ts (BLOCKING 3 — hr-013 gates on decide/markPaid)
+apps/api/src/appraisals/expense-claim.service.ts (BLOCKING 3 — isAdmin → hr-013)
+apps/api/src/appraisals/appraisals.spec.ts (8 new BLOCKING regression tests + controller metadata refresh)
+apps/api/src/training/completion.service.ts (BLOCKING 2 — listForEvent actor-aware)
+apps/api/src/training/training.controller.ts (BLOCKING 2 — listEventCompletions resolves actor)
+apps/api/src/training/programme.service.ts (MAJOR — tx-local rereads)
+apps/api/src/training/event.service.ts (MAJOR — tx-local rereads)
+apps/api/src/training/training.spec.ts (2 new BLOCKING regression tests)
+apps/api/src/finance/gl.consumer.ts (MAJOR — resolveSyntheticActor school-scoped)
+HANDOFF-P2C4.md (this section)
+CLAUDE.md (status block)
+```
+
+Awaiting Round 2 verdict before tagging `p2c4c-complete` / `p2c4c-approved`.

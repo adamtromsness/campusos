@@ -58,8 +58,15 @@ const SELECT_CLAIM_BASE =
  * Self-service path: any employee with HR-012:read+write submits
  * own claim (service binds employee_id to actor.employeeId).
  *
- * Admin path: hr-012:write holders (Staff stand-in for finance
- * officer) approve / reject / mark paid. Multi-column decided_chk
+ * Admin path: hr-013 (Expense Claim Administration) holders
+ * approve / reject / mark paid. REVIEW-P2-4c BLOCKING 3 — the
+ * earlier P2-4c shipped an inconsistent gate where HR-012:write
+ * was held by both Teacher (self-submit) AND Staff (advertised as
+ * approver) but the service required HR-012:admin which only
+ * everyFunction roles received. Splitting administration into a
+ * dedicated HR-013 code mirrors the P2-4b HR-002 → HR-011 split
+ * and lets a future Finance Officer role hold HR-013 explicitly
+ * without inheriting recruitment scope. Multi-column decided_chk
  * lockstep at the schema layer enforces approver fields populated
  * on every terminal status, and rejection_reason populated on
  * REJECTED.
@@ -218,18 +225,24 @@ export class ExpenseClaimService {
 
   private async assertAdmin(actor: ResolvedActor): Promise<void> {
     if (await this.isAdmin(actor)) return;
-    throw new ForbiddenException('Approving expense claims requires hr-012:write or school admin.');
+    throw new ForbiddenException(
+      'Approving expense claims requires hr-013 (Expense Claim Administration) or school admin.',
+    );
   }
 
+  // REVIEW-P2-4c BLOCKING 3 — admin authority gated on the new
+  // HR-013 code (Expense Claim Administration) instead of the
+  // previously-overloaded HR-012:admin / HR-012:write. HR-012
+  // remains the self-submission code (held by Teacher + Staff for
+  // submitting own claims). HR-013 is granted only via
+  // everyFunction to School Admin / Platform Admin today; pre-
+  // pilot a dedicated Finance Officer role gets HR-013 explicitly.
   private async isAdmin(actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'hr-012:admin',
-      // hr-012:write is held by both teachers (self-submit) and
-      // staff (approve), so admin authority comes from
-      // isSchoolAdmin OR hr-012:admin specifically. The catalogue
-      // grants hr-012:admin only via everyFunction.
+      'hr-013:admin',
+      'hr-013:write',
     ]);
   }
 

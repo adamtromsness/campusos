@@ -869,7 +869,10 @@ export class AppraisalService {
     throw new ForbiddenException('Appraisal management requires hr-005:write or school admin.');
   }
 
-  private async isAdmin(actor: ResolvedActor): Promise<boolean> {
+  // REVIEW-P2-4c BLOCKING 1 — exposed (was private) so AppraisalGoalService
+  // and AppraisalCommentService can run their own authorization checks
+  // against the appraisal admin tier.
+  async isAdmin(actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
@@ -897,15 +900,20 @@ export class AppraisalGoalService {
   async create(
     appraisalId: string,
     input: CreateAppraisalGoalDto,
-    _actor: ResolvedActor,
+    actor: ResolvedActor,
   ): Promise<AppraisalGoalDto> {
     const parent = await this.appraisals.loadInternal(appraisalId);
     if (!parent) throw new NotFoundException('Appraisal not found');
     if (parent.status === 'SIGNED_OFF') {
       throw new BadRequestException('Cannot add goals to a SIGNED_OFF appraisal.');
     }
-    // Goal authoring permitted to admin/appraiser; the appraisee can
-    // also propose goals on their own appraisal in DRAFT.
+    // REVIEW-P2-4c BLOCKING 1 — actor-aware authorization. Goal
+    // authoring is permitted to admin/appraiser; the appraisee can
+    // propose goals on their OWN appraisal in DRAFT/IN_REVIEW.
+    // Anyone unrelated to the appraisal (e.g. a Teacher with
+    // hr-005:read but not the appraisee or appraiser) gets a
+    // collapsed 404 to avoid leaking the existence of the row.
+    await this.assertCanMutateGoal(parent, actor);
     const id = generateId();
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
@@ -930,7 +938,7 @@ export class AppraisalGoalService {
   async patch(
     id: string,
     input: UpdateAppraisalGoalDto,
-    _actor: ResolvedActor,
+    actor: ResolvedActor,
   ): Promise<AppraisalGoalDto> {
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lock = (await tx.$queryRawUnsafe(
@@ -943,6 +951,8 @@ export class AppraisalGoalService {
       if (parent.status === 'SIGNED_OFF') {
         throw new BadRequestException('Cannot edit goals on a SIGNED_OFF appraisal.');
       }
+      // REVIEW-P2-4c BLOCKING 1 — same actor-aware gate as create().
+      await this.assertCanMutateGoal(parent, actor);
       const sets: string[] = [];
       const values: unknown[] = [];
       let n = 1;
@@ -975,6 +985,31 @@ export class AppraisalGoalService {
       )) as GoalRow[];
       return this.rowToDto(rows[0]!);
     });
+  }
+
+  /**
+   * Authorization for goal mutation. The mutation matrix:
+   *   - admin (school admin OR hr-005:write/admin) — always allowed.
+   *   - appraiser (parent.appraiserId === actor.employeeId) — always allowed.
+   *   - appraisee (parent.employeeId === actor.employeeId) — allowed
+   *     only on DRAFT/IN_REVIEW (own appraisal).
+   *   - everyone else — collapsed 404 to avoid leaking row existence
+   *     (mirrors the P2C3 / Cycle 11 row-scope-don't-leak-existence
+   *     convention).
+   */
+  private async assertCanMutateGoal(
+    parent: { employeeId: string; appraiserId: string | null; status: string },
+    actor: ResolvedActor,
+  ): Promise<void> {
+    const isAdmin = await this.appraisals.isAdmin(actor);
+    if (isAdmin) return;
+    const isOwner = actor.employeeId !== null && actor.employeeId === parent.employeeId;
+    const isAppraiser = actor.employeeId !== null && parent.appraiserId === actor.employeeId;
+    if (isAppraiser) return;
+    if (isOwner && (parent.status === 'DRAFT' || parent.status === 'IN_REVIEW')) {
+      return;
+    }
+    throw new NotFoundException('Appraisal not found');
   }
 
   private rowToDto(r: GoalRow): AppraisalGoalDto {
@@ -1014,6 +1049,24 @@ export class AppraisalCommentService {
     if (parent.status === 'SIGNED_OFF') {
       throw new BadRequestException('Cannot add comments to a SIGNED_OFF appraisal.');
     }
+    // REVIEW-P2-4c BLOCKING 1 — actor-aware authorization. Only
+    // admin / appraiser / appraisee may comment. PRIVATE comments
+    // (is_visible_to_employee=false) are admin/appraiser only —
+    // the appraisee cannot author a private note about themselves.
+    const isAdmin = await this.appraisals.isAdmin(actor);
+    const isOwner = actor.employeeId === parent.employeeId;
+    const isAppraiser = parent.appraiserId !== null && actor.employeeId === parent.appraiserId;
+    if (!isAdmin && !isOwner && !isAppraiser) {
+      // Don't leak existence — mirrors the row-scope-don't-leak
+      // convention from P2C3 / Cycle 11.
+      throw new NotFoundException('Appraisal not found');
+    }
+    const isVisibleToEmployee = input.isVisibleToEmployee ?? false;
+    if (!isVisibleToEmployee && !isAdmin && !isAppraiser) {
+      throw new ForbiddenException(
+        'Private comments (isVisibleToEmployee=false) are restricted to the appraiser or admin.',
+      );
+    }
     const id = generateId();
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
@@ -1024,7 +1077,7 @@ export class AppraisalCommentService {
         appraisalId,
         actor.employeeId,
         input.commentText,
-        input.isVisibleToEmployee ?? false,
+        isVisibleToEmployee,
       );
       const rows = (await tx.$queryRawUnsafe(
         SELECT_COMMENT_BASE + 'WHERE c.id = $1::uuid LIMIT 1',

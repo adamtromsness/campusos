@@ -287,10 +287,10 @@ export class AppraisalsController {
   }
 
   @Patch('expense-claims/:id/decide')
-  @RequirePermission('hr-012:write')
+  @RequirePermission('hr-013:write')
   @ApiOperation({
     summary:
-      'Approve or reject an expense claim. Service-layer admin check (school admin OR hr-012:admin via everyFunction). REJECTED requires non-empty rejectionReason. Multi-column decided_chk schema invariant enforces approver fields populated.',
+      'Approve or reject an expense claim. REVIEW-P2-4c BLOCKING 3 — gated on the new HR-013 (Expense Claim Administration) code (held only by School Admin / Platform Admin via everyFunction). HR-012:write remains the self-submission code; the previous overload where HR-012:write meant both submit AND approve has been split. REJECTED requires non-empty rejectionReason. Multi-column decided_chk schema invariant enforces approver fields populated.',
   })
   async decideClaim(
     @Req() req: AuthedRequest,
@@ -302,7 +302,7 @@ export class AppraisalsController {
   }
 
   @Patch('expense-claims/:id/mark-paid')
-  @RequirePermission('hr-012:write')
+  @RequirePermission('hr-013:write')
   async markPaid(
     @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,

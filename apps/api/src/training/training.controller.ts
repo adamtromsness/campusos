@@ -130,10 +130,16 @@ export class TrainingController {
 
   @Get('training/events/:id/completions')
   @RequirePermission('hr-004:read')
+  @ApiOperation({
+    summary:
+      'List completions for a training event. REVIEW-P2-4c BLOCKING 2 — admin (school admin OR hr-004:write/admin) sees the full roster; non-admin actors see only their own completion row. Generic Teachers with hr-004:read CANNOT enumerate other employees’ training history.',
+  })
   async listEventCompletions(
+    @Req() req: AuthedRequest,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<TrainingCompletionDto[]> {
-    return this.completions.listForEvent(id);
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.completions.listForEvent(id, actor);
   }
 
   @Get('training/employees/:employeeId/completions')
