@@ -177,6 +177,8 @@ a.card{text-decoration:none;color:inherit}
     <a href="campusos-function-library-v11.html" class="card"><span class="pill pill-gray">FROZEN</span><h4>Function Library</h4><div class="desc">Every permission-gated function across all 38 modules. 150 function codes with 3-tier access (read / write / admin) defining the IAM surface.</div><div class="meta">150 functions &middot; 450 permission codes</div></a>
     <a href="campusos-business-strategy.html" class="card"><span class="pill pill-gray">FROZEN</span><h4>Business Strategy</h4><div class="desc">Market analysis, competitive positioning, go-to-market strategy, and product vision for the CampusOS platform.</div><div class="meta">Strategy &middot; Market &middot; GTM</div></a>
     <a href="campusos-dev-deployment-plan.html" class="card"><span class="pill pill-gray">FROZEN</span><h4>Development &amp; Deployment Plan</h4><div class="desc">Infrastructure architecture, CI/CD pipeline, environment strategy, and operational runbook for the CampusOS platform.</div><div class="meta">DevOps &middot; Infrastructure &middot; CI/CD</div></a>
+    <a href="campusos-phase2-build-plan.html" class="card"><span class="pill pill-purple">PHASE 2</span><h4>Phase 2 Build Plan</h4><div class="desc">30 cycles across 4 waves completing the remaining 422 tables. Visitor management, incidents, HR depth, payments, classroom AI, and full module completion.</div><div class="meta">30 cycles &middot; 4 waves &middot; 422 tables</div></a>
+    <a href="campusos-school-configuration-admin.html" class="card"><span class="pill pill-teal">ADMIN</span><h4>School Configuration Admin</h4><div class="desc">Three organizational structures (Facility, Academic, Position) with CRUD, hierarchy views, assignments, and an 8-step setup wizard for onboarding.</div><div class="meta">12 pages &middot; 9 endpoints &middot; 0 new tables</div></a>
   </div>
 
   <h2 class="sec">Key Architectural Decisions</h2>
@@ -407,6 +409,83 @@ a.card{text-decoration:none;color:inherit}
       <div class="cycle-row"><span class="cycle-num">32</span><span class="cycle-title">Multi-Region &amp; Disaster Recovery <span class="pill pill-blue">Next</span></span><span class="cycle-tables">Ops</span><span class="cycle-links"><a href="campusos-cycle32-implementation-plan.html" class="cl-plan">Plan</a></span></div>
     </div>
   </div>
+
+  <h2 class="sec">Phase 2 &mdash; Remaining 422 Tables</h2>
+  <p class="body">30 cycles across 4 waves completing every table in the ERD. <a href="campusos-phase2-build-plan.html" style="color:var(--accent-mid);font-weight:600;">Full Phase 2 Build Plan &rarr;</a></p>
+
+  <!-- P2 WAVE A -->
+  <div class="wave w-red open">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>P2 Wave A &mdash; Pilot Critical</h3>
+      <span class="wave-meta">4 cycles &middot; 53 tables &middot; Before pilot day 1</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">P2-1</span><span class="cycle-title">Visitor Management <span class="pill pill-blue">Next</span></span><span class="cycle-tables">9 tables</span><span class="cycle-links"><a href="campusos-p2c1-visitor-management.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-2</span><span class="cycle-title">Incident &amp; Emergency</span><span class="cycle-tables">11 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-3</span><span class="cycle-title">Health Advanced (10.1)</span><span class="cycle-tables">3 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-4</span><span class="cycle-title">HR Advanced (4.1)</span><span class="cycle-tables">30 tables</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- P2 WAVE B -->
+  <div class="wave w-amber">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>P2 Wave B &mdash; Pilot Enhancement</h3>
+      <span class="wave-meta">6 cycles &middot; 92 tables &middot; First 90 days</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">P2-5</span><span class="cycle-title">Enrolment Advanced (16.1)</span><span class="cycle-tables">9 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-6</span><span class="cycle-title">Payments Advanced (6.1)</span><span class="cycle-tables">17 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-7</span><span class="cycle-title">Classroom Advanced (2.1)</span><span class="cycle-tables">24 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-8</span><span class="cycle-title">Athletics Advanced (13.1)</span><span class="cycle-tables">18 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-9</span><span class="cycle-title">Sub Marketplace (M82)</span><span class="cycle-tables">9 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-10</span><span class="cycle-title">Food Service Advanced (20.1)</span><span class="cycle-tables">15 tables</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- P2 WAVE C -->
+  <div class="wave w-blue">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>P2 Wave C &mdash; Operational Depth</h3>
+      <span class="wave-meta">7 cycles &middot; 105 tables &middot; During pilot year</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">P2-11</span><span class="cycle-title">Transportation Advanced (19.1)</span><span class="cycle-tables">22 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-12</span><span class="cycle-title">Events &amp; Ticketing (M101)</span><span class="cycle-tables">9 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-13</span><span class="cycle-title">SIS Advanced (1.1)</span><span class="cycle-tables">24 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-14</span><span class="cycle-title">Behaviour Advanced (9.1)</span><span class="cycle-tables">5 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-15</span><span class="cycle-title">Analytics Read Models (29.1)</span><span class="cycle-tables">18 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-16</span><span class="cycle-title">HR Appraisals (M87)</span><span class="cycle-tables">7 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-17</span><span class="cycle-title">Scheduling Advanced (5.1)</span><span class="cycle-tables">20 tables</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- P2 WAVE D -->
+  <div class="wave w-gray">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>P2 Wave D &mdash; Module Completion</h3>
+      <span class="wave-meta">13 cycles &middot; 172 tables &middot; Product maturity</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">P2-18</span><span class="cycle-title">Facilities Advanced (21.1)</span><span class="cycle-tables">21 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-19</span><span class="cycle-title">Communications Advanced (14.1)</span><span class="cycle-tables">13 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-20</span><span class="cycle-title">IT Advanced (22.1)</span><span class="cycle-tables">10 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-21</span><span class="cycle-title">Platform Advanced (0.1)</span><span class="cycle-tables">26 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-22</span><span class="cycle-title">Alumni (M102)</span><span class="cycle-tables">8 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-23</span><span class="cycle-title">Accreditation (M85)</span><span class="cycle-tables">8 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-24</span><span class="cycle-title">Parent Engagement (M100)</span><span class="cycle-tables">5 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-25</span><span class="cycle-title">Library Advanced (12.1)</span><span class="cycle-tables">6 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-26</span><span class="cycle-title">Publications Advanced (25.1)</span><span class="cycle-tables">4 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-27</span><span class="cycle-title">Portfolio Advanced (24.1)</span><span class="cycle-tables">8 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-28</span><span class="cycle-title">Community .1 Bundle</span><span class="cycle-tables">~27 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-29</span><span class="cycle-title">Commerce .1 Bundle</span><span class="cycle-tables">~19 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-30</span><span class="cycle-title">Student Services .1</span><span class="cycle-tables">2 tables</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════ BUILD LOG ═══════ -->
@@ -628,15 +707,24 @@ a.card{text-decoration:none;color:inherit}
     <a href="cycle31-cat-script.md" class="card"><h4>Cycle 31 CAT</h4><div class="desc">Structured logging verified, tracing end-to-end, metrics baseline, load test targets met, partitions active, caching tuned, DLQ replay, envelope validation, circuit breakers, SLO alerts firing.</div><div class="meta">10 scenarios</div></a>
   </div>
 
-  <h2 class="sec">Phase 2 Punch List</h2>
-  <p class="body">Architectural and product items deferred from cycle reviews. All must land before pilot.</p>
+  <h2 class="sec">Phase 1 Punch List Status</h2>
+  <p class="body">Architectural items deferred from cycle reviews. Items resolved in Cycle 31 marked as done.</p>
   <div class="card-grid">
-    <div class="card"><h4>DLQ Dashboard</h4><div class="desc">Dead-letter-queue row dashboard + alert wiring for failed Kafka consumers.</div></div>
-    <div class="card"><h4>Consumer Envelope Validation</h4><div class="desc">Every Kafka consumer validates tenant_id in the ADR-057 envelope before processing.</div></div>
-    <div class="card"><h4>Transactional Outbox</h4><div class="desc">Replace direct Kafka emit with outbox pattern for guaranteed exactly-once delivery.</div></div>
-    <div class="card"><h4>Role Split</h4><div class="desc">Split Staff role into Nurse / Counsellor / VP / AD / Librarian / EO before pilot.</div></div>
-    <div class="card"><h4>Scheduled-Dose Dedup</h4><div class="desc">Advisory lock or partial UNIQUE on medication administrations to prevent duplicate dose logging.</div></div>
-    <div class="card"><h4>Wellbeing Score-Drop Alerts</h4><div class="desc">SIGNIFICANT_SCORE_DROP + PERSISTENT_LOW_SCORE alert types require longitudinal comparison across deployments.</div></div>
+    <div class="card"><h4>DLQ Dashboard <span class="pill pill-green">Resolved</span></h4><div class="desc">Shipped in Cycle 31 Step 7. Dead-letter-queue dashboard with replay at /admin/dlq.</div></div>
+    <div class="card"><h4>Consumer Envelope Validation <span class="pill pill-green">Resolved</span></h4><div class="desc">Shipped in Cycle 31 Step 7. All 17+ consumers validate ADR-057 envelope before processing.</div></div>
+    <div class="card"><h4>Transactional Outbox <span class="pill pill-green">Resolved</span></h4><div class="desc">Evaluated in Cycle 31 Step 7. Decision documented — implement or defer with rationale.</div></div>
+    <div class="card"><h4>Role Split <span class="pill pill-amber">Phase 2</span></h4><div class="desc">Split Staff role into Nurse / Counsellor / VP / AD / Librarian / EO. Tracked in Phase 2 Wave A.</div></div>
+    <div class="card"><h4>Scheduled-Dose Dedup <span class="pill pill-amber">Phase 2</span></h4><div class="desc">Advisory lock or partial UNIQUE on medication administrations. Tracked in P2-3 Health Advanced.</div></div>
+    <div class="card"><h4>Wellbeing Score-Drop Alerts <span class="pill pill-amber">Phase 2</span></h4><div class="desc">SIGNIFICANT_SCORE_DROP + PERSISTENT_LOW_SCORE. Tracked in P2-30 Student Services .1.</div></div>
+  </div>
+
+  <h2 class="sec">Phase 2 Build Plan</h2>
+  <p class="body">30 cycles across 4 waves completing the remaining 422 tables. <a href="campusos-phase2-build-plan.html" style="color:var(--accent-mid);font-weight:600;">View the full Phase 2 Build Plan &rarr;</a></p>
+  <div class="card-grid">
+    <div class="card" style="border-left:4px solid var(--red)"><h4>Wave A &mdash; Pilot Critical</h4><div class="desc">Visitor Management, Incident &amp; Emergency, Health Advanced, HR Advanced. Ship before pilot day 1.</div><div class="meta" style="color:var(--red)">4 cycles &middot; 53 tables</div></div>
+    <div class="card" style="border-left:4px solid var(--amber)"><h4>Wave B &mdash; Pilot Enhancement</h4><div class="desc">Enrolment, Payments, Classroom AI, Athletics, Sub Marketplace, Food Service depth. First 90 days.</div><div class="meta" style="color:var(--amber)">6 cycles &middot; 92 tables</div></div>
+    <div class="card" style="border-left:4px solid var(--blue)"><h4>Wave C &mdash; Operational Depth</h4><div class="desc">Transport fleet, Events, SIS completion, Behaviour, Analytics live consumers, Appraisals, Scheduling solver.</div><div class="meta" style="color:var(--blue)">7 cycles &middot; 105 tables</div></div>
+    <div class="card" style="border-left:4px solid #64748b"><h4>Wave D &mdash; Module Completion</h4><div class="desc">Facilities, Comms, IT, Platform marketplace, Alumni, Accreditation, remaining .1 bundles. Product maturity.</div><div class="meta" style="color:#64748b">13 cycles &middot; 172 tables</div></div>
   </div>
 </div>
 
