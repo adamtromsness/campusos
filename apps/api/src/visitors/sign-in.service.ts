@@ -77,7 +77,8 @@ const SELECT_SIGNIN_BASE =
   // from another school protects against historical rows that may
   // predate the loadInternal() school-scoping fix.
   'JOIN vis_visitors v ON v.id = s.visitor_id AND v.school_id = s.school_id ' +
-  'LEFT JOIN vis_visitor_types vt ON vt.id = v.visitor_type_id ' +
+  // REVIEW-P2C1 ROUND 3 BLOCKING — visitor-type join also school-bound.
+  'LEFT JOIN vis_visitor_types vt ON vt.id = v.visitor_type_id AND vt.school_id = v.school_id ' +
   'LEFT JOIN platform.platform_users hpu ON hpu.id = s.host_id ' +
   'LEFT JOIN platform.iam_person hp ON hp.id = hpu.person_id ' +
   'LEFT JOIN platform.platform_users bpu ON bpu.id = s.bypass_admin_id ' +

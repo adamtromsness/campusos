@@ -170,7 +170,8 @@ export class MusterService {
           'FROM vis_sign_ins s ' +
           // REVIEW-P2C1 ROUND 2 BLOCKING — defence-in-depth join predicate.
           'JOIN vis_visitors v ON v.id = s.visitor_id AND v.school_id = s.school_id ' +
-          'LEFT JOIN vis_visitor_types vt ON vt.id = v.visitor_type_id ' +
+          // REVIEW-P2C1 ROUND 3 BLOCKING — visitor-type join also school-bound.
+          'LEFT JOIN vis_visitor_types vt ON vt.id = v.visitor_type_id AND vt.school_id = v.school_id ' +
           'WHERE s.school_id = $2::uuid AND s.signed_out_at IS NULL',
         musterId,
         tenant.schoolId,

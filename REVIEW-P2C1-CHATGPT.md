@@ -15,10 +15,19 @@ the reviewer. New R2 finding: direct `visitorId` workflows (sign-in,
 pre-reg, recurring) resolve via `loadInternal(id)` which used
 `WHERE v.id = $1` only — a School A actor with `saf-002:write` could
 attach a School B visitor record to a School A operational row.
-**Round 3 commit:** Round 2 BLOCKING fix pushed 2026-05-09 with the
-canonical `loadInternal()` school-scoping + JOIN defence-in-depth +
-4 new isolation regression tests.
-**Round 3 verdict:** _pending — please re-review._
+**Round 3 commit:** `18e6e99` on `main` (Round 2 fixes pushed
+2026-05-09).
+**Round 3 verdict:** **FAIL** — 1 BLOCKING (`VisitorTypeService.
+loadOrFail` unscoped, analogous to the R2 visitor finding). Reviewer
+confirmed the R2 BLOCKING + every JOIN defence-in-depth landed
+correctly. New R3 finding: `visitorTypeId` direct-reference path
+allowed a School A user to attach a School B visitor-type to a new
+visitor.
+**Round 4 commit:** R3 BLOCKING fix pushed 2026-05-09 with
+`VisitorTypeService.loadOrFail()` school-scoping + `AND vt.school_id
+= v.school_id` JOIN predicate on every visitor-type JOIN +
+4 new visitor-type isolation regression tests.
+**Round 4 verdict:** _pending — please re-review._
 **Live verification reference:** `tenant_demo` 2026-05-09.
 
 ---
@@ -108,6 +117,49 @@ recurring) refuse to attach a foreign-school visitor record to a
 local-school operational row. Zero leak.
 
 CI parity green: vitest 71/71 (was 67 + 4 new isolation regression
+tests), API + web builds clean, `format:check` + `lint:logs` clean.
+
+---
+
+## Round 3 fixes — applied in the round-4 commit
+
+| #   | Severity     | Finding                                                                                                                                                                                                      | Status    | Fix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 12  | **BLOCKING** | `VisitorTypeService.loadOrFail(id)` resolved by id only — direct `visitorTypeId` paths (visitor create, sign-in new-visitor, pre-reg new-visitor) could attach a School B visitor type to a School A visitor | **Fixed** | `loadOrFail` now reads `getCurrentTenant()` and adds `WHERE school_id = $1::uuid AND id = $2::uuid`. Returns 404 (collapsed don't-leak-existence — caller cannot tell "doesn't exist" from "exists in another school") for cross-school UUIDs. Inactive same-school types still throw 400 with the canonical "Visitor type is inactive" message. Defence-in-depth `AND vt.school_id = v.school_id` JOIN predicate added to every visitor-type JOIN: `SELECT_VISITOR_BASE` (visitor service), `SELECT_SIGNIN_BASE` (sign-in service), and the muster `INSERT...SELECT`. The post-INSERT reload in `VisitorTypeService.create` also tightened to scope by `school_id` for consistency. New `apps/api/src/visitors/visitor.service.spec.ts` describe block ships 4 visitor-type isolation regression tests (SQL shape, same-school happy path, cross-school 404, missing 404). |
+
+---
+
+## Round 3 BLOCKING — live verification on `tenant_demo` 2026-05-09
+
+Synthetic foreign-school visitor type inserted directly with
+`school_id='ffffffff-...'`, then attempted via every direct-
+`visitorTypeId` path:
+
+```
+Foreign visitor type (school_id=ffffffff-ffff-ffff-ffff-ffffffffffff): 9ec265fd-954e-44f5-be1d-4dcb524ccc9b
+
+=== Cross-school sign-in attempt with foreign visitorTypeId ===
+  code=404
+  body: {"message":"Visitor type not found","error":"Not Found","statusCode":404}
+
+=== Cross-school visitor create ===
+  code=404
+  body: {"message":"Visitor type not found","error":"Not Found","statusCode":404}
+
+=== Cross-school pre-reg ===
+  code=404
+  body: {"message":"Visitor type not found","error":"Not Found","statusCode":404}
+
+=== Verify NO new visitors landed ===
+          ?column?          | count
+----------------------------+-------
+ visitors_with_foreign_type | 0
+```
+
+All three direct-`visitorTypeId` workflows refuse to attach a
+foreign-school visitor type to a local-school visitor. Zero leak.
+
+CI parity green: vitest 75/75 (was 71 + 4 new visitor-type isolation
 tests), API + web builds clean, `format:check` + `lint:logs` clean.
 
 ---

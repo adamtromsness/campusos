@@ -84,7 +84,10 @@ const SELECT_VISITOR_BASE =
   'TO_CHAR(v.created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
   'TO_CHAR(v.updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
   'FROM vis_visitors v ' +
-  'LEFT JOIN vis_visitor_types vt ON vt.id = v.visitor_type_id ';
+  // REVIEW-P2C1 ROUND 3 BLOCKING — defence-in-depth join predicate.
+  // Refuses to surface a visitor type that belongs to a different
+  // school than the visitor row, even if a stale row exists.
+  'LEFT JOIN vis_visitor_types vt ON vt.id = v.visitor_type_id AND vt.school_id = v.school_id ';
 
 /**
  * Visitor Type catalogue. Admin-only writes via SAF-002:admin; reads
@@ -151,11 +154,15 @@ export class VisitorTypeService {
         }
         throw err;
       }
+      // REVIEW-P2C1 ROUND 3 BLOCKING — reload scoped by school_id even
+      // though we just INSERTed the row with the calling tenant's
+      // schoolId; consistent with every other vis_visitor_types read.
       const rows = (await tx.$queryRawUnsafe(
         'SELECT id::text AS id, school_id::text AS school_id, name, description, requires_safeguarding_check, badge_color, is_active, ' +
           'TO_CHAR(created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
           'TO_CHAR(updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
-          'FROM vis_visitor_types WHERE id = $1::uuid',
+          'FROM vis_visitor_types WHERE school_id = $1::uuid AND id = $2::uuid',
+        tenant.schoolId,
         id,
       )) as VisitorTypeRow[];
       return this.rowToDto(rows[0]!);
@@ -232,18 +239,37 @@ export class VisitorTypeService {
     });
   }
 
-  /** Internal — used by VisitorService.create + SignInService to enforce the safeguarding contract. */
+  /**
+   * Internal — used by VisitorService.create / VisitorService.patch /
+   * SignInService.create / PreRegistrationService.create to enforce
+   * the safeguarding contract before INSERT.
+   *
+   * REVIEW-P2C1 ROUND 3 BLOCKING — analogous to the Round 2 fix on
+   * VisitorService.loadInternal. A School A reception user with
+   * saf-002:write must not be able to attach a School B
+   * visitorTypeId to a new School A visitor by guessing or replaying
+   * the UUID. School-scoped via getCurrentTenant. Returns 404
+   * (collapsed don't-leak-existence — caller cannot tell "doesn't
+   * exist" from "exists in another school"). Defence-in-depth
+   * alongside the AND vt.school_id = v.school_id JOIN predicate
+   * added to every visitor-type JOIN.
+   */
   async loadOrFail(id: string): Promise<VisitorTypeRow> {
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      const tenant = getCurrentTenant();
       const rows = (await client.$queryRawUnsafe(
         'SELECT id::text AS id, school_id::text AS school_id, name, description, requires_safeguarding_check, badge_color, is_active, ' +
           'TO_CHAR(created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at, ' +
           'TO_CHAR(updated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS updated_at ' +
-          'FROM vis_visitor_types WHERE id = $1::uuid',
+          'FROM vis_visitor_types WHERE school_id = $1::uuid AND id = $2::uuid',
+        tenant.schoolId,
         id,
       )) as VisitorTypeRow[];
-      if (rows.length === 0 || !rows[0]!.is_active) {
-        throw new BadRequestException('Visitor type not found or inactive');
+      if (rows.length === 0) {
+        throw new NotFoundException('Visitor type not found');
+      }
+      if (!rows[0]!.is_active) {
+        throw new BadRequestException('Visitor type is inactive');
       }
       return rows[0]!;
     });
