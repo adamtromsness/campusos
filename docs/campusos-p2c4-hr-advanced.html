@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-4: HR Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="index.html">Design Hub</a><a href="campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave A &mdash; Pilot Critical</div>
+    <h1>P2-4: HR Advanced</h1>
+    <div class="sub">The full HR lifecycle: payroll processing with pay periods, salary scales, deductions, and GL journal integration, recruitment pipeline from job posting through interview panels to offer acceptance, training programme management with certification tracking and renewal alerting, performance appraisals with lesson observations and goal tracking, expense claims with receipt management, employee documents, and return-to-work plans. The largest single cycle in the roadmap. Closes Wave A.</div>
+    <span class="version">May 2026 &middot; 12 Steps &middot; ERD v11 &middot; M80 HR .1 + M87 Appraisals (30 tables) &middot; HR-002 through HR-006 &middot; Phase 2 Cycle 4 &middot; Closes Wave A</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+  <p class="body-text">Phase 2 Cycle 4 completes the M80 HR module and builds the entire M87 HR Appraisals module &mdash; 30 new tables across 4 domains: Payroll (10), Recruitment (8), Training &amp; Certifications (5), and Appraisals &amp; Performance (7). This is the largest single cycle in the roadmap and closes Wave A (Pilot Critical). Cycle 4 built the HR core (positions, employees, leave types, leave balances, leave requests) &mdash; this cycle adds everything else a school HR department needs to operate.</p>
+
+  <p class="body-text">The payroll domain integrates with Cycle 26's GL via <code>hr.payroll.processed</code> Kafka emit &mdash; the GLConsumer auto-posts salary journal entries (DEBIT Salaries Expense + CREDIT Cash) just as it does for payment events. The recruitment domain introduces the first external-facing job board surface. The appraisals domain includes lesson observations &mdash; a classroom visit by a senior teacher or principal with structured feedback, which is a mandatory part of teacher evaluation in most school systems.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Cycle Size &mdash; 30 Tables</div>
+    <p style="font-size:15px;line-height:1.8;">This is the largest single cycle. If Claude Code hits context limits, split into 3 sub-cycles: <strong>P2-4a Payroll</strong> (Steps 1&ndash;4, 10 tables), <strong>P2-4b Recruitment</strong> (Steps 5&ndash;7, 8 tables), <strong>P2-4c Appraisals + Training</strong> (Steps 8&ndash;10, 12 tables). Each sub-cycle is independently shippable. Commit after each sub-cycle.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>Payroll:</strong> Admin configures salary scale (Grade 1: $35K&ndash;$45K, Grade 2: $45K&ndash;$60K) &rarr; assigns Rivera to Grade 2 Step 3 ($52K) &rarr; opens bi-weekly pay period &rarr; PayrollProcessingWorker computes: gross $2,000, federal tax deduction $400, state tax $120, health insurance $200, retirement $100 &rarr; net $1,180 &rarr; payroll record created &rarr; <code>hr.payroll.processed</code> fires &rarr; GLConsumer posts: DEBIT Salaries $2,000 + CREDIT Cash $1,180 + CREDIT Tax Payable $520 + CREDIT Benefits Payable $300 &rarr; payslip generated. <strong>Recruitment:</strong> Admin posts "5th Grade Teacher" (LIVE, deadline in 30 days) &rarr; 3 applications received &rarr; screening panel reviews &rarr; 2 advance to interview &rarr; interview panel (Principal + Dept Head) &rarr; evaluations submitted &rarr; offer extended to top candidate ($48K, start Aug 1) &rarr; candidate accepts &rarr; auto-creates hr_employees record. <strong>Training:</strong> Admin assigns "Safeguarding Level 2" training to all staff (required, annual renewal) &rarr; Rivera completes &rarr; certification recorded with expiry in 12 months &rarr; 30-day renewal alert scheduled. <strong>Appraisals:</strong> Admin creates appraisal cycle 2025-2026 &rarr; Principal Rivera appraises Teacher Hayes: 3 goals set, 1 lesson observation conducted (GOOD), overall rating GOOD &rarr; Hayes signs off via wsk_approval_requests.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (30 tables):</strong> Payroll: hr_pay_grades, hr_salary_scales, hr_pay_periods, hr_payroll_records, hr_payroll_deductions, hr_payroll_adjustments, hr_salary_review_requests, hr_employee_tax_info, hr_employee_benefits, hr_employee_documents. Recruitment: hr_job_postings, hr_applications, hr_interview_panels, hr_interview_panel_members, hr_interviews, hr_interview_evaluations, hr_offers, hr_job_alerts. Training: hr_training_programmes, hr_training_events, hr_training_completions, hr_certification_types, hr_employee_certifications. Appraisals: hr_appraisal_frameworks, hr_appraisal_cycles, hr_appraisals, hr_appraisal_goals, hr_lesson_observations, hr_appraisal_comments, hr_expense_claims.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Payroll direct deposit integration (manual payment recording this cycle). Tax form generation (W-2, 1099). Benefits enrolment portal. Return-to-work phased plans (hr_return_to_work_plans deferred). Applicant tracking system (ATS) integration. Background check API integration for recruitment. 360-degree feedback. Competency framework mapping. Expense claim receipt OCR.</p>
+  </div>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- PAYROLL DOMAIN -->
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Payroll Schema (10 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <div class="detail-heading">Tables</div>
+    <ol class="detail-list">
+      <li><strong>hr_pay_grades</strong> &mdash; <code>school_id UUID</code>, <code>grade_name TEXT NOT NULL</code>, <code>min_salary NUMERIC(10,2)</code>, <code>max_salary NUMERIC(10,2)</code>. UNIQUE(school_id, grade_name).</li>
+      <li><strong>hr_salary_scales</strong> &mdash; <code>pay_grade_id UUID FK</code>, <code>step INT NOT NULL</code>, <code>annual_salary NUMERIC(10,2) NOT NULL</code>. UNIQUE(pay_grade_id, step). Step-based salary progression within a grade.</li>
+      <li><strong>hr_pay_periods</strong> &mdash; <code>school_id UUID</code>, <code>start_date DATE</code>, <code>end_date DATE</code>, <code>pay_date DATE</code>, <code>status TEXT</code> 4-value CHECK (OPEN, PROCESSING, PAID, CLOSED). UNIQUE(school_id, start_date).</li>
+      <li><strong>hr_payroll_records</strong> &mdash; <code>employee_id UUID FK</code>, <code>pay_period_id UUID FK</code>, <code>gross_pay NUMERIC(10,2)</code>, <code>total_deductions NUMERIC(10,2)</code>, <code>net_pay NUMERIC(10,2)</code>, <code>status TEXT</code> 3-value CHECK (DRAFT, APPROVED, PAID). UNIQUE(employee_id, pay_period_id).</li>
+      <li><strong>hr_payroll_deductions</strong> &mdash; <code>payroll_record_id UUID FK</code>, <code>deduction_type TEXT</code> 7-value CHECK (FEDERAL_TAX, STATE_TAX, SOCIAL_SECURITY, MEDICARE, HEALTH_INSURANCE, RETIREMENT, OTHER), <code>amount NUMERIC(10,2)</code>. INDEX(payroll_record_id).</li>
+      <li><strong>hr_payroll_adjustments</strong> &mdash; <code>employee_id UUID FK</code>, <code>adjustment_type TEXT</code> 7-value CHECK (RETROACTIVE_PAY, BONUS, BACK_PAY, OVERPAYMENT_RECOVERY, SIGNING_BONUS, SEVERANCE, OTHER), <code>amount NUMERIC(10,2)</code>, <code>effective_pay_period_id UUID FK</code>, <code>reason TEXT NOT NULL</code>, <code>approved_by UUID FK</code>. INDEX(employee_id, effective_pay_period_id).</li>
+      <li><strong>hr_salary_review_requests</strong> &mdash; <code>requested_by UUID FK</code>, <code>employee_id UUID FK</code>, <code>review_type TEXT</code> 5-value CHECK (ANNUAL_INCREMENT, PROMOTION, MARKET_ADJUSTMENT, PERFORMANCE_BONUS, RETENTION), <code>current_salary NUMERIC(10,2)</code>, <code>recommended_salary NUMERIC(10,2)</code>, <code>justification TEXT NOT NULL</code>, <code>linked_approval_id UUID FK(wsk_approval_requests)</code>, <code>status TEXT</code> 6-value CHECK (DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, WITHDRAWN). INDEX(school_id, status).</li>
+      <li><strong>hr_employee_tax_info</strong> &mdash; <code>employee_id UUID FK UNIQUE</code>, <code>filing_status TEXT</code>, <code>federal_allowances INT</code>, <code>state_allowances INT</code>, <code>additional_withholding NUMERIC(10,2)</code>. Encrypted at rest (PII).</li>
+      <li><strong>hr_employee_benefits</strong> &mdash; <code>employee_id UUID FK</code>, <code>benefit_type TEXT</code> 5-value CHECK (HEALTH, DENTAL, VISION, LIFE, RETIREMENT), <code>plan_name TEXT</code>, <code>employee_contribution NUMERIC(10,2)</code>, <code>employer_contribution NUMERIC(10,2)</code>, <code>effective_from DATE</code>, <code>effective_to DATE</code>. INDEX(employee_id, benefit_type).</li>
+      <li><strong>hr_employee_documents</strong> &mdash; <code>employee_id UUID FK</code>, <code>document_type TEXT</code> 8-value CHECK (CONTRACT, OFFER_LETTER, ID_COPY, QUALIFICATION, BACKGROUND_CHECK, TAX_FORM, CERTIFICATION, OTHER), <code>title TEXT NOT NULL</code>, <code>s3_key TEXT NOT NULL</code>, <code>uploaded_by UUID FK</code>, <code>uploaded_at TIMESTAMPTZ</code>. INDEX(employee_id, document_type).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 10 tables. Migration: <code>102_hr_payroll.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Payroll NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>PayGradeService</strong> &mdash; CRUD for pay grades + salary scales. <code>GET /hr/pay-grades</code>, <code>POST /hr/pay-grades</code>, <code>GET /hr/pay-grades/:id/scales</code>.</li>
+      <li><strong>PayrollService</strong> &mdash; <code>POST /hr/pay-periods</code> (open period), <code>POST /hr/pay-periods/:id/process</code> (<strong>PAYROLL PROCESSING:</strong> for each active employee: compute gross from salary scale, apply deductions from hr_employee_tax_info + hr_employee_benefits + adjustments, compute net, create hr_payroll_records + hr_payroll_deductions rows), <code>POST /hr/pay-periods/:id/approve</code>, <code>POST /hr/pay-periods/:id/mark-paid</code> (emits <code>hr.payroll.processed</code> for GL journal posting). <code>GET /hr/payroll/:employeeId/payslips</code> (employee views own).</li>
+      <li><strong>SalaryReviewService</strong> &mdash; <code>POST /hr/salary-reviews</code> (DH submits via wsk_approval_requests), <code>GET /hr/salary-reviews</code>, <code>PATCH /hr/salary-reviews/:id</code>.</li>
+      <li><strong>ExpenseClaimService</strong> &mdash; <code>POST /hr/expense-claims</code>, <code>GET /hr/expense-claims</code>, <code>PATCH /hr/expense-claims/:id</code> (approve/reject).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~18 endpoints, 1 Kafka emit (<code>hr.payroll.processed</code>).</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Payroll UI</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Payroll Dashboard</strong> <code>/hr/payroll</code> &mdash; pay period timeline with status pills. Open/process/approve/mark-paid workflow buttons. Per-period: employee count, total gross, total deductions, total net.</li>
+      <li><strong>Payslip Viewer</strong> <code>/hr/payroll/payslips</code> &mdash; employee: own payslips with gross/deductions/net breakdown. Admin: any employee's history.</li>
+      <li><strong>Salary Scale Manager</strong> <code>/hr/pay-grades</code> &mdash; grade + step matrix editor. Assign employees to grades.</li>
+      <li><strong>Salary Review Queue</strong> <code>/hr/salary-reviews</code> &mdash; pending reviews from department heads. Approve/reject with notes.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Payroll dashboard, payslip viewer, salary scales, review queue.</div>
+  </div>
+
+  <!-- RECRUITMENT DOMAIN -->
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Recruitment Schema (8 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>hr_job_postings</strong> &mdash; <code>school_id UUID</code>, <code>position_title TEXT</code>, <code>department TEXT</code>, <code>description TEXT</code>, <code>qualifications_required TEXT</code>, <code>salary_range_low/high NUMERIC(10,2)</code>, <code>employment_type TEXT</code> 4-value CHECK (FULL_TIME, PART_TIME, TEMPORARY, LONG_TERM_SUBSTITUTE), <code>application_deadline DATE</code>, <code>status TEXT</code> 6-value CHECK (DRAFT, PENDING_APPROVAL, APPROVED, LIVE, CLOSED, CANCELLED). INDEX(status) WHERE status='LIVE'.</li>
+      <li><strong>hr_applications</strong> &mdash; <code>posting_id UUID FK</code>, <code>person_id UUID FK(iam_person)</code>, <code>status TEXT</code> 10-value CHECK (SUBMITTED, UNDER_REVIEW, SCREENING, INTERVIEW_SCHEDULED, INTERVIEW_COMPLETED, OFFER_EXTENDED, OFFER_ACCEPTED, OFFER_DECLINED, NOT_SELECTED, WITHDRAWN), <code>cover_letter_s3_key TEXT</code>, <code>resume_s3_key TEXT</code>. INDEX(posting_id, status).</li>
+      <li><strong>hr_interview_panels</strong> &mdash; <code>posting_id UUID FK</code>, <code>panel_name TEXT</code>.</li>
+      <li><strong>hr_interview_panel_members</strong> &mdash; <code>panel_id UUID FK</code>, <code>panelist_person_id UUID FK(iam_person)</code>. UNIQUE(panel_id, panelist_person_id).</li>
+      <li><strong>hr_interviews</strong> &mdash; <code>application_id UUID FK</code>, <code>panel_id UUID FK</code>, <code>scheduled_at TIMESTAMPTZ</code>, <code>location TEXT</code>, <code>status TEXT</code> 4-value CHECK (SCHEDULED, COMPLETED, NO_SHOW, CANCELLED).</li>
+      <li><strong>hr_interview_evaluations</strong> &mdash; <code>interview_id UUID FK</code>, <code>evaluator_id UUID FK</code>, <code>rating TEXT</code> 5-value CHECK (STRONG_HIRE, HIRE, NEUTRAL, NO_HIRE, STRONG_NO_HIRE), <code>strengths TEXT</code>, <code>concerns TEXT</code>, <code>notes TEXT</code>. UNIQUE(interview_id, evaluator_id).</li>
+      <li><strong>hr_offers</strong> &mdash; <code>application_id UUID FK UNIQUE</code>, <code>position_title TEXT</code>, <code>salary NUMERIC(10,2)</code>, <code>start_date DATE</code>, <code>contract_type TEXT</code> 4-value CHECK (ANNUAL, MULTI_YEAR, AT_WILL, TEMPORARY), <code>conditions JSONB</code>, <code>acceptance_deadline DATE</code>, <code>status TEXT</code> 5-value CHECK (PENDING, ACCEPTED, DECLINED, EXPIRED, WITHDRAWN).</li>
+      <li><strong>hr_job_alerts</strong> &mdash; <code>person_id UUID FK(iam_person)</code>, <code>subject_area TEXT</code>, <code>grade_level TEXT</code>, <code>employment_type TEXT</code>, <code>is_active BOOLEAN</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 tables. Migration: <code>103_hr_recruitment.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Recruitment NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>JobPostingService</strong> &mdash; CRUD + status workflow (DRAFT → LIVE → CLOSED). <code>GET /hr/jobs</code> (public: LIVE postings), <code>POST /hr/jobs</code>, <code>PATCH /hr/jobs/:id</code>. Emits <code>hr.job.posted</code> on LIVE for job alert matching.</li>
+      <li><strong>ApplicationService</strong> &mdash; <code>POST /hr/jobs/:id/apply</code> (external applicant: creates iam_person if new + application), <code>GET /hr/applications</code> (admin: pipeline view), <code>PATCH /hr/applications/:id</code> (advance status). <code>GET /hr/jobs/:id/applications</code> (all apps for a posting).</li>
+      <li><strong>InterviewService</strong> &mdash; <code>POST /hr/interviews</code> (schedule with panel), <code>POST /hr/interviews/:id/evaluate</code> (panelist submits), <code>GET /hr/interviews/:id/evaluations</code>.</li>
+      <li><strong>OfferService</strong> &mdash; <code>POST /hr/applications/:id/offer</code> (extend), <code>PATCH /hr/offers/:id</code> (accept/decline). On ACCEPTED: auto-creates hr_employees record + position assignment. Emits <code>hr.offer.accepted</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~16 endpoints, 2 Kafka emits.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Recruitment UI</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Job Board</strong> <code>/hr/jobs</code> &mdash; public-facing list of LIVE postings. Per-posting: title, department, salary range, deadline, apply button.</li>
+      <li><strong>Recruitment Pipeline</strong> <code>/hr/recruitment</code> &mdash; admin: Kanban view of applications by status stage. Drag to advance. Per-application: resume, cover letter, interview schedule, evaluations.</li>
+      <li><strong>Interview Manager</strong> &mdash; schedule interviews, assign panels, view evaluations. Rating summary per candidate.</li>
+      <li><strong>Offer Manager</strong> &mdash; extend offer form (salary, start date, contract type, conditions). Track acceptance/decline.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Job board, recruitment pipeline, interview manager, offer manager.</div>
+  </div>
+
+  <!-- TRAINING DOMAIN -->
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Training &amp; Certifications Schema (5 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>hr_training_programmes</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>is_mandatory BOOLEAN</code>, <code>renewal_months INT</code> (null = no renewal). UNIQUE(school_id, name).</li>
+      <li><strong>hr_training_events</strong> &mdash; <code>programme_id UUID FK</code>, <code>title TEXT</code>, <code>scheduled_at TIMESTAMPTZ</code>, <code>duration_minutes INT</code>, <code>location TEXT</code>, <code>facilitator TEXT</code>, <code>max_participants INT</code>, <code>status TEXT</code> 3-value CHECK (SCHEDULED, COMPLETED, CANCELLED).</li>
+      <li><strong>hr_training_completions</strong> &mdash; <code>event_id UUID FK</code>, <code>employee_id UUID FK</code>, <code>completed_at TIMESTAMPTZ</code>, <code>score NUMERIC(5,2)</code>, <code>passed BOOLEAN</code>. UNIQUE(event_id, employee_id).</li>
+      <li><strong>hr_certification_types</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>issuing_body TEXT</code>, <code>validity_months INT</code>, <code>is_required BOOLEAN</code>. UNIQUE(school_id, name).</li>
+      <li><strong>hr_employee_certifications</strong> &mdash; <code>employee_id UUID FK</code>, <code>certification_type_id UUID FK</code>, <code>issued_date DATE</code>, <code>expiry_date DATE</code>, <code>certificate_s3_key TEXT</code>, <code>status TEXT</code> 3-value CHECK (CURRENT, EXPIRING_SOON, EXPIRED). INDEX(employee_id, expiry_date). Alert: 30 days before expiry.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 5 tables. Migration: <code>104_hr_training.sql</code>.</div>
+  </div>
+
+  <!-- APPRAISALS DOMAIN -->
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Appraisals Schema (7 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>hr_appraisal_frameworks</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT</code>, <code>criteria JSONB</code> (competency areas with weightings). UNIQUE(school_id, name).</li>
+      <li><strong>hr_appraisal_cycles</strong> &mdash; <code>school_id UUID</code>, <code>academic_year_id UUID</code>, <code>cycle_type TEXT</code> 3-value CHECK (ANNUAL, MID_YEAR, PROBATIONARY), <code>framework_id UUID FK</code>, <code>status TEXT</code> 3-value CHECK (OPEN, CLOSED, ARCHIVED). UNIQUE(school_id, academic_year_id, cycle_type).</li>
+      <li><strong>hr_appraisals</strong> &mdash; <code>cycle_id UUID FK</code>, <code>employee_id UUID FK</code>, <code>appraiser_id UUID FK</code>, <code>overall_rating TEXT</code> 4-value CHECK (OUTSTANDING, GOOD, REQUIRES_IMPROVEMENT, INADEQUATE), <code>status TEXT</code> 3-value CHECK (DRAFT, IN_REVIEW, SIGNED_OFF), <code>linked_approval_id UUID FK(wsk_approval_requests)</code>. UNIQUE(cycle_id, employee_id).</li>
+      <li><strong>hr_appraisal_goals</strong> &mdash; <code>appraisal_id UUID FK</code>, <code>goal_text TEXT NOT NULL</code>, <code>target_date DATE</code>, <code>progress TEXT</code> 4-value CHECK (NOT_STARTED, IN_PROGRESS, ACHIEVED, NOT_ACHIEVED).</li>
+      <li><strong>hr_lesson_observations</strong> &mdash; <code>appraisal_id UUID FK</code>, <code>observer_id UUID FK</code>, <code>observed_employee_id UUID FK</code>, <code>observation_date DATE</code>, <code>observed_class_label TEXT</code> (denormalised snapshot), <code>observed_class_id UUID</code> (soft to sis_classes), <code>duration_minutes INT</code>, <code>overall_grade TEXT</code> 4-value CHECK (OUTSTANDING, GOOD, REQUIRES_IMPROVEMENT, INADEQUATE), <code>notes TEXT</code>. Requires lesson_observation:write permission.</li>
+      <li><strong>hr_appraisal_comments</strong> &mdash; <code>appraisal_id UUID FK</code>, <code>author_id UUID FK</code>, <code>comment_text TEXT</code>, <code>is_visible_to_employee BOOLEAN DEFAULT false</code>. INDEX(appraisal_id, created_at).</li>
+      <li><strong>hr_expense_claims</strong> &mdash; <code>employee_id UUID FK</code>, <code>claim_title TEXT</code>, <code>total_amount NUMERIC(10,2)</code>, <code>receipt_s3_keys TEXT[]</code>, <code>status TEXT</code> 4-value CHECK (SUBMITTED, APPROVED, REJECTED, PAID), <code>approved_by UUID FK</code>, <code>linked_approval_id UUID FK(wsk_approval_requests)</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 7 tables. Migration: <code>105_hr_appraisals.sql</code>. Total P2-4 tables: 30.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">Training + Appraisals NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>TrainingService</strong> &mdash; CRUD for programmes + events. <code>POST /hr/training/completions</code> (record completion). <code>GET /hr/training/my</code> (employee: own completions + upcoming). Emits <code>hr.training.completed</code>.</li>
+      <li><strong>CertificationService</strong> &mdash; CRUD for certification types + employee certs. <code>GET /hr/certifications/expiring</code> (30-day lookahead). Emits <code>hr.certification.expiring</code> for notification.</li>
+      <li><strong>AppraisalService</strong> &mdash; <code>POST /hr/appraisals</code> (create within cycle), <code>PATCH /hr/appraisals/:id</code> (submit rating, sign-off via wsk_approval_requests). <code>POST /hr/appraisals/:id/goals</code>, <code>POST /hr/appraisals/:id/observations</code> (lesson observation with class snapshot).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services, ~20 endpoints, 2 Kafka emits. Total P2-4 endpoints: ~54.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">Training + Appraisals UI</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Training Dashboard</strong> <code>/hr/training</code> &mdash; programme list, upcoming events, my completions, certification expiry alerts.</li>
+      <li><strong>Appraisal Manager</strong> <code>/hr/appraisals</code> &mdash; cycle selector. Per-employee: goals, lesson observations, rating, comments. Sign-off workflow. Overall-rating summary per cycle.</li>
+      <li><strong>Lesson Observation Form</strong> &mdash; observer selects class, records date/duration, rates per competency area, writes narrative feedback, assigns overall grade.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Training dashboard, appraisal manager, observation form.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">11</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li><strong>Payroll:</strong> 3 pay grades with 5 steps each. 1 pay period (PAID). 3 payroll records with deductions. 1 adjustment (BONUS). 1 salary review (APPROVED).</li>
+      <li><strong>Recruitment:</strong> 1 LIVE posting ("5th Grade Teacher"). 3 applications (INTERVIEW_COMPLETED, OFFER_EXTENDED, NOT_SELECTED). 1 panel with 2 members. 2 interviews with evaluations. 1 offer (PENDING).</li>
+      <li><strong>Training:</strong> 2 programmes ("Safeguarding Level 2" mandatory, "First Aid" optional). 1 completed event. 3 completions. 2 certification types. 3 employee certs (1 EXPIRING_SOON).</li>
+      <li><strong>Appraisals:</strong> 1 framework ("Lincoln Academy Teaching Standards"). 1 cycle (OPEN). 2 appraisals (1 SIGNED_OFF with GOOD rating, 1 DRAFT). 3 goals. 1 lesson observation.</li>
+      <li><strong>Permissions:</strong> HR-002:read+write to Admin (recruitment). HR-003:read to Employee (own leave/payslips); HR-003:write to Admin (payroll processing). HR-004:read to Employee (own training); HR-004:write to Admin (assign training). HR-005:read to Employee (own appraisal); HR-005:write to Admin, Principal (manage appraisals). HR-006:read+write to Employee (submit expense claims); Admin (approve).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich HR demo data across all 30 tables. HR-002..006 permissions.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">12</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <ol class="detail-list">
+      <li><strong>Payroll lifecycle:</strong> Configure pay grade. Assign employee. Open period. Process payroll (verify gross - deductions = net). Apply adjustment. Approve. Mark paid. Verify <code>hr.payroll.processed</code> fires. Verify employee sees own payslip.</li>
+      <li><strong>Recruitment pipeline:</strong> Post job (LIVE). Submit application. Screen. Schedule interview with panel. Submit evaluations. Extend offer. Accept. Verify hr_employees auto-created. Verify <code>hr.offer.accepted</code> fires.</li>
+      <li><strong>Training + certification:</strong> Create mandatory programme. Schedule event. Record completion. Create certification with 12-month expiry. Verify EXPIRING_SOON at 30 days. Verify <code>hr.certification.expiring</code> fires.</li>
+      <li><strong>Appraisal lifecycle:</strong> Open cycle. Create appraisal. Set 3 goals. Conduct lesson observation. Submit rating. Sign off via wsk_approval_requests. Verify locked after sign-off.</li>
+      <li><strong>Salary review:</strong> DH submits review for employee. Routes via wsk_approval_requests. Admin approves. Verify salary updated.</li>
+      <li><strong>GL integration:</strong> Verify <code>hr.payroll.processed</code> payload matches GLConsumer contract (employee_id, gross, deductions breakdown, net, journal entries mapping).</li>
+      <li><strong>Visibility:</strong> Employee sees own payslips, training, certifications, appraisal. Cannot see other employees. Admin manages all. Principal can appraise teachers. DH can submit salary reviews for reports.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified full HR lifecycle: payroll → recruitment → training → appraisals → GL integration. Wave A complete.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 30 new tables. Tenant table count: ~479.</li>
+      <li>HR API: ~54 new endpoints across payroll + recruitment + training + appraisals.</li>
+      <li>Payroll processing with deduction computation + GL journal emit.</li>
+      <li>Recruitment pipeline: posting → application → interview → evaluation → offer → hire.</li>
+      <li>Training management with mandatory programme tracking + certification renewal alerting.</li>
+      <li>Appraisals with lesson observations, goals, ratings, and sign-off workflow.</li>
+      <li><code>hr.payroll.processed</code> + <code>hr.offer.accepted</code> + <code>hr.training.completed</code> + <code>hr.certification.expiring</code> Kafka emits.</li>
+      <li>HANDOFF-P2C4.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave A (Pilot Critical) complete.</strong></li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 4 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M80 HR deferred tables + M87 HR Appraisals). Functions: HR-002 through HR-006. Cross-cycle: Cycle 4 hr_employees + hr_positions, Cycle 7 wsk_approval_requests, Cycle 26 GLConsumer for payroll journal entries. Closes Wave A.</p>
+  </div>
+</div>
+</body>
+</html>
