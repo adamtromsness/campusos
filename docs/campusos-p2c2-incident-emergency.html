@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-2: Incident &amp; Emergency</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="index.html">Design Hub</a><a href="campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave A &mdash; Pilot Critical</div>
+    <h1>P2-2: Incident &amp;<br>Emergency</h1>
+    <div class="sub">Emergency declarations with type-specific response procedures, an immutable incident timeline that serves as the legal record, student/staff/visitor accountability tracking with real-time summary materialisation, parent reunification with identity-verified release and correction audit trail, emergency drills with participation tracking, non-discipline incident logging (injuries, medical episodes, property damage), and the declaration outbox that orchestrates multi-step fan-out (tasks, muster, alerts) atomically. The safety backbone of the school.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M91 Incident &amp; Emergency (11 tables &mdash; all in scope) &middot; SAF-002 + SAF-003 &middot; Phase 2 Cycle 2</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+  <p class="body-text">Phase 2 Cycle 2 builds the M91 Incident &amp; Emergency module &mdash; all 11 ERD tables. This is the safety backbone: when a lockdown is declared, this module orchestrates the response. It extends Cycle 14's emergency alert system (which handles the notification fan-out) with the operational response layer: who declared it, what procedures to follow, where is everyone, who has been accounted for, and when was each student reunified with their parent.</p>
+  <p class="body-text">The module has two modes: (1) emergency declarations (lockdown, fire evacuation, shelter-in-place, etc.) with the full accountability + reunification lifecycle, and (2) non-discipline incident logging (student injury, medical episode, property damage, environmental) for day-to-day safety documentation that doesn't rise to emergency level.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Safety &mdash; Declaration Outbox Pattern</div>
+    <p style="font-size:15px;line-height:1.8;"><code>inc_declaration_outbox</code> is created atomically in the same transaction as <code>inc_incidents</code>. Each nullable TIMESTAMPTZ column represents one fan-out step: <code>tasks_created_at</code>, <code>muster_taken_at</code>, <code>alert_sent_at</code>. The outbox worker queries for NULL columns and executes the corresponding step. This means: if the server crashes mid-declaration, on restart the worker picks up from the last completed step. No fan-out step is ever skipped. Adding a new step is a single column addition &mdash; zero impact on existing code. Alert: any step NULL &gt;5 minutes after declaration triggers a PAGE.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin configures emergency procedures: LOCKDOWN (8-step procedure with time targets, primary contact = Principal Rivera, assembly point = gymnasium), FIRE_EVACUATION (6 steps, assembly = front parking lot), MEDICAL_EMERGENCY (5 steps) &rarr; admin schedules a fire drill for next Friday &rarr; real emergency: Principal Rivera declares a LOCKDOWN incident &rarr; inc_declaration_outbox created atomically &rarr; outbox worker step 1: creates URGENT wsk_tasks for all assigned responders (tasks_created_at stamped) &rarr; step 2: triggers vis_emergency_muster snapshot from P2-1's visitor data + student/staff muster from SIS rosters (muster_taken_at stamped) &rarr; step 3: fires Cycle 14 emergency alert to all staff + parents (alert_sent_at stamped) &rarr; emergency procedures surfaced to responders on their devices &rarr; immutable timeline entries logged: "10:32 LOCKDOWN declared", "10:33 Police notified", "10:35 Building A cleared" &rarr; accountability records: 250 students + 35 staff + 3 visitors tracked &rarr; accountability summary materialises in real-time: 245 accounted, 5 unknown, 0 missing &rarr; Rivera resolves incident at 10:55 &rarr; reunification begins: parents arrive, reception verifies identity, student released to parent (inc_reunification_records), released_by staff member logged &rarr; a parent correction: wrong student released (inc_reunification_corrections logged) &rarr; after-action: incident report auto-generated from the immutable timeline &rarr; separately, a teacher reports a student playground injury as a non-discipline incident: student name, location, description, linked to Cycle 8 service ticket for nurse follow-up.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (all 11 tables):</strong> inc_incident_types, inc_incidents, inc_emergency_procedures, inc_declaration_outbox, inc_incident_timeline, inc_accountability_records, inc_accountability_summary, inc_reunification_records, inc_reunification_corrections, inc_drills, inc_non_discipline_incidents. Functions SAF-002 (Emergency Management) + SAF-003 (Incident Reporting).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Automated student accountability from sis_attendance (manual entry this cycle; live sync from today's attendance is Phase 3). GPS-based staff accountability (manual check-in this cycle). Automated post-incident report PDF generation. Integration with local emergency services dispatch systems. Multi-school coordinated emergency response (single school this cycle). Drill analytics dashboard (rpt_drill_summary deferred to 29.1).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Incident Types + Incidents + Procedures Schema</td><td>Schema</td><td>inc_incident_types, inc_incidents, inc_emergency_procedures, inc_declaration_outbox</td></tr>
+    <tr><td><strong>2</strong></td><td>Timeline + Accountability + Reunification Schema</td><td>Schema</td><td>inc_incident_timeline, inc_accountability_records, inc_accountability_summary, inc_reunification_records, inc_reunification_corrections</td></tr>
+    <tr><td><strong>3</strong></td><td>Drills + Non-Discipline Incidents Schema</td><td>Schema</td><td>inc_drills, inc_non_discipline_incidents</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Types, Procedures, Incidents, Accountability, Drills</td><td>Seed</td><td>5 incident types, 3 emergency procedures, 1 resolved incident with timeline + accountability, 1 drill, 2 non-discipline incidents, SAF-002..003 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Emergency Declaration NestJS Module</td><td>Code</td><td>IncidentService, DeclarationOutboxWorker, ProcedureService. Atomic declaration + outbox. Multi-step fan-out. <code>inc.emergency.declared</code> Kafka emit.</td></tr>
+    <tr><td><strong>6</strong></td><td>Timeline + Accountability NestJS Module</td><td>Code</td><td>TimelineService (IMMUTABLE), AccountabilityService, AccountabilitySummaryWorker. Real-time summary materialisation.</td></tr>
+    <tr><td><strong>7</strong></td><td>Reunification + Drills + Non-Discipline NestJS Module</td><td>Code</td><td>ReunificationService, DrillService, NonDisciplineIncidentService. Identity-verified release. Correction audit. <code>inc.incident.reported</code> Kafka emit.</td></tr>
+    <tr><td><strong>8</strong></td><td>Emergency UI &mdash; Declaration + Procedures + Accountability</td><td>UI</td><td>"Emergency" app tile, declaration panel, procedure viewer, real-time accountability dashboard, timeline viewer</td></tr>
+    <tr><td><strong>9</strong></td><td>Emergency UI &mdash; Reunification + Drills + Incident Reporting</td><td>UI</td><td>Reunification station, drill scheduler + results, non-discipline incident form, after-action report</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Declaration → outbox fan-out → accountability → reunification → timeline immutability → drill → non-discipline incident</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Incident Types + Incidents + Procedures + Outbox Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>inc_incident_types</strong> &mdash; <code>school_id UUID</code>, <code>code TEXT NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>severity TEXT NOT NULL</code> 4-value CHECK (LOW, MEDIUM, HIGH, CRITICAL), <code>requires_lockdown BOOLEAN DEFAULT false</code>, <code>notification_template TEXT</code>. UNIQUE(COALESCE(school_id, '00000000-0000-0000-0000-000000000000'), code).</li>
+      <li><strong>inc_incidents</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>incident_type_id UUID FK</code>, <code>declared_by UUID FK NOT NULL</code>, <code>declared_at TIMESTAMPTZ NOT NULL</code>, <code>title TEXT</code>, <code>description TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, RESOLVED, CANCELLED), <code>resolved_at TIMESTAMPTZ</code>, <code>resolution_notes TEXT</code>. INDEX(school_id, status) WHERE status='ACTIVE'.</li>
+      <li><strong>inc_emergency_procedures</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>procedure_type TEXT NOT NULL</code> 9-value CHECK (FIRE_EVACUATION, LOCKDOWN, SHELTER_IN_PLACE, MEDICAL_EMERGENCY, BOMB_THREAT, HAZMAT, MISSING_STUDENT, SAFEGUARDING_CRISIS, GENERAL), <code>title TEXT NOT NULL</code>, <code>procedure_steps JSONB NOT NULL</code> (ordered array of {step_number, action, responsible_role, time_target_seconds}), <code>primary_contact_id UUID FK NOT NULL</code>, <code>secondary_contact_id UUID FK</code>, <code>external_contacts JSONB</code>, <code>assembly_points JSONB</code>, <code>last_reviewed_at DATE NOT NULL</code>, <code>reviewed_by UUID FK NOT NULL</code>, <code>next_review_date DATE NOT NULL</code>, <code>is_active BOOLEAN DEFAULT true</code>, <code>procedure_document_s3_key TEXT</code>. UNIQUE(school_id, procedure_type). Surfaced during active incidents.</li>
+      <li><strong>inc_declaration_outbox</strong> &mdash; <strong>ATOMIC ORCHESTRATION.</strong> <code>incident_id UUID FK UNIQUE</code>. Created in same transaction as inc_incidents. <code>tasks_created_at TIMESTAMPTZ</code> nullable, <code>muster_taken_at TIMESTAMPTZ</code> nullable, <code>alert_sent_at TIMESTAMPTZ</code> nullable. Outbox worker queries WHERE column IS NULL. Each step stamps its column. Any step NULL &gt;5 min after declaration = PAGE alert.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 tables. Migration: <code>098_inc_incidents.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Timeline + Accountability + Reunification Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <div class="detail-heading">Tables (5)</div>
+    <ol class="detail-list">
+      <li><strong>inc_incident_timeline</strong> &mdash; <strong>IMMUTABLE.</strong> <code>incident_id UUID FK NOT NULL</code>, <code>recorded_by UUID FK NOT NULL</code>, <code>event_type TEXT NOT NULL</code>, <code>description TEXT NOT NULL</code>, <code>metadata JSONB</code>, <code>recorded_at TIMESTAMPTZ NOT NULL</code>. NO UPDATE, NO DELETE. INDEX(incident_id, recorded_at). BRIN on recorded_at. Legal record of emergency response.</li>
+      <li><strong>inc_accountability_records</strong> &mdash; <code>incident_id UUID FK NOT NULL</code>, <code>person_id UUID FK(iam_person) NOT NULL</code>, <code>person_type TEXT NOT NULL</code> 3-value CHECK (STUDENT, STAFF, VISITOR), <code>status TEXT NOT NULL DEFAULT 'UNKNOWN'</code> 5-value CHECK (UNKNOWN, ACCOUNTED_FOR, EVACUATED, MEDICAL_ASSISTANCE, MISSING), <code>last_updated_by UUID FK</code>, <code>last_updated_at TIMESTAMPTZ</code>, <code>notes TEXT</code>. UNIQUE(incident_id, person_id).</li>
+      <li><strong>inc_accountability_summary</strong> &mdash; <code>incident_id UUID FK UNIQUE</code>, <code>total_people INT</code>, <code>accounted_for INT</code>, <code>unknown INT</code>, <code>missing INT</code>, <code>medical_assistance INT</code>, <code>last_updated_at TIMESTAMPTZ</code>. Materialised by worker as accountability_records are updated.</li>
+      <li><strong>inc_reunification_records</strong> &mdash; <code>incident_id UUID FK NOT NULL</code>, <code>student_id UUID FK NOT NULL</code>, <code>released_to_id UUID FK(vis_visitors) NOT NULL</code> (the adult collecting the student &mdash; must sign in as a visitor first), <code>released_by UUID FK NOT NULL</code> (staff member who released), <code>released_at TIMESTAMPTZ NOT NULL</code>, <code>notes TEXT</code>. UNIQUE(incident_id, student_id).</li>
+      <li><strong>inc_reunification_corrections</strong> &mdash; <code>reunification_record_id UUID FK NOT NULL</code>, <code>corrected_by UUID FK NOT NULL</code>, <code>correction_reason TEXT NOT NULL</code>, <code>corrected_at TIMESTAMPTZ NOT NULL</code>. Audit trail for reunification corrections.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 5 tables. Migration: <code>099_inc_accountability.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Drills + Non-Discipline Incidents Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <div class="detail-heading">Tables (2)</div>
+    <ol class="detail-list">
+      <li><strong>inc_drills</strong> &mdash; <code>school_id UUID</code>, <code>incident_type_id UUID FK</code>, <code>scheduled_at TIMESTAMPTZ</code>, <code>completed_at TIMESTAMPTZ</code>, <code>duration_seconds INT</code>, <code>participation_rate NUMERIC(5,4)</code>, <code>notes TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'SCHEDULED'</code> 3-value CHECK (SCHEDULED, COMPLETED, CANCELLED). Alert job: query schools with no drill of required type in last 90 days.</li>
+      <li><strong>inc_non_discipline_incidents</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>incident_type TEXT NOT NULL</code> 7-value CHECK (STUDENT_INJURY, STAFF_INJURY, MEDICAL_EPISODE, PROPERTY_DAMAGE, ENVIRONMENTAL, SECURITY, OTHER), <code>location TEXT</code>, <code>incident_date TIMESTAMPTZ NOT NULL</code>, <code>description TEXT NOT NULL</code>, <code>students_involved UUID[]</code> (soft to sis_students), <code>staff_involved UUID[]</code> (soft to hr_employees), <code>witnesses TEXT</code>, <code>reported_by UUID FK NOT NULL</code>, <code>severity TEXT NOT NULL DEFAULT 'LOW'</code> 3-value CHECK (LOW, MEDIUM, HIGH), <code>follow_up_ticket_id UUID</code> (soft to tkt_tickets), <code>resolution TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'OPEN'</code> 3-value CHECK (OPEN, UNDER_REVIEW, CLOSED). INDEX(school_id, status). Emits <code>inc.incident.reported</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 tables. Migration: <code>100_inc_drills.sql</code>. Total P2-2 tables: 11.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>5 incident types:</strong> LOCKDOWN (CRITICAL, requires_lockdown=true), FIRE_EVACUATION (CRITICAL), SHELTER_IN_PLACE (HIGH), MEDICAL_EMERGENCY (HIGH), MISSING_STUDENT (CRITICAL).</li>
+      <li><strong>3 emergency procedures:</strong> FIRE_EVACUATION (6 steps with time targets), LOCKDOWN (8 steps), MEDICAL_EMERGENCY (5 steps). Each with primary contact, assembly points, external contacts (police, fire).</li>
+      <li><strong>1 resolved incident + timeline + accountability:</strong> Fire drill last month (RESOLVED). 5 timeline entries (declared, building A cleared, building B cleared, all-clear, resolved). 15 accountability records (10 ACCOUNTED_FOR + 3 EVACUATED + 2 UNKNOWN → later all ACCOUNTED_FOR). Summary materialised.</li>
+      <li><strong>1 reunification record:</strong> From the resolved incident: 1 student released to parent, verified by staff.</li>
+      <li><strong>1 drill:</strong> Fire drill scheduled next Friday (SCHEDULED). Previous drill COMPLETED with 98% participation.</li>
+      <li><strong>2 non-discipline incidents:</strong> Playground injury (STUDENT_INJURY, MEDIUM, linked to tkt_ticket for nurse follow-up). Broken window (PROPERTY_DAMAGE, LOW, CLOSED).</li>
+      <li><strong>1 declaration outbox:</strong> For the resolved incident (all steps stamped: tasks_created_at, muster_taken_at, alert_sent_at).</li>
+      <li><strong>Permissions:</strong> SAF-002:read to Teacher, Staff (view procedures + drill schedules). SAF-002:write to Admin, Staff (declare emergencies, conduct accountability, manage reunification). SAF-002:admin to Admin (configure procedures, incident types). SAF-003:read to Teacher (view incidents I reported). SAF-003:write to Teacher, Staff (report incidents). SAF-003:admin to Admin (configure incident types, review all incidents). Admin gets all via everyFunction.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich emergency + incident demo data across all 11 tables. SAF-002..003 permissions.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Emergency Declaration NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>IncidentService</strong> &mdash; <code>POST /incidents/declare</code> (<strong>ATOMIC DECLARATION:</strong> inside one tx: creates inc_incidents + inc_declaration_outbox; emits <code>inc.emergency.declared</code>), <code>GET /incidents</code> (active + resolved with filters), <code>GET /incidents/:id</code> (with timeline + accountability + reunification inlined), <code>PATCH /incidents/:id/resolve</code> (ACTIVE → RESOLVED with resolution notes).</li>
+      <li><strong>DeclarationOutboxWorker</strong> &mdash; Polls inc_declaration_outbox WHERE tasks_created_at IS NULL (or other NULL columns). Per step: tasks_created_at → creates URGENT wsk_tasks for procedure contacts. muster_taken_at → triggers vis_emergency_muster snapshot (P2-1) + creates inc_accountability_records for all students (from sis_enrolments) + staff (from hr_employees) + currently signed-in visitors. alert_sent_at → emits to Cycle 14 emergency alert. 5-minute PAGE alert if any step remains NULL.</li>
+      <li><strong>ProcedureService</strong> &mdash; <code>GET /incidents/procedures</code>, <code>GET /incidents/procedures/:type</code> (returns the active procedure for a type &mdash; surfaced during active incidents), <code>POST /incidents/procedures</code>, <code>PATCH /incidents/procedures/:id</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; IncidentModule with 3 services, ~8 endpoints, 1 Kafka emit (<code>inc.emergency.declared</code>), 1 outbox worker.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Timeline + Accountability NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>TimelineService</strong> &mdash; <strong>IMMUTABLE.</strong> <code>POST /incidents/:id/timeline</code> (append event &mdash; no UPDATE, no DELETE at service layer), <code>GET /incidents/:id/timeline</code> (chronological; serves as the legal record + auto-generates after-action report).</li>
+      <li><strong>AccountabilityService</strong> &mdash; <code>GET /incidents/:id/accountability</code> (all records with status filters), <code>PATCH /incidents/accountability/:id</code> (update individual status: UNKNOWN → ACCOUNTED_FOR / EVACUATED / MEDICAL_ASSISTANCE / MISSING), <code>GET /incidents/:id/accountability/summary</code> (materialised counts). <code>POST /incidents/:id/accountability/bulk</code> (mark multiple people at once &mdash; e.g., "all of Room 201 are accounted for").</li>
+      <li><strong>AccountabilitySummaryWorker</strong> &mdash; On every inc_accountability_records UPDATE: re-aggregates counts into inc_accountability_summary. Real-time materialisation (not nightly).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services, ~6 endpoints. Immutable timeline + real-time accountability summary.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Reunification + Drills + Non-Discipline NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>ReunificationService</strong> &mdash; <code>POST /incidents/:id/reunification</code> (release student to verified adult: validates released_to_id is a signed-in visitor from P2-1; creates reunification record + updates accountability status to ACCOUNTED_FOR; writes immutable timeline entry), <code>GET /incidents/:id/reunification</code> (all releases), <code>POST /incidents/reunification/:id/correct</code> (correction with mandatory reason &mdash; creates inc_reunification_corrections audit row).</li>
+      <li><strong>DrillService</strong> &mdash; <code>GET /incidents/drills</code>, <code>POST /incidents/drills</code> (schedule), <code>PATCH /incidents/drills/:id</code> (complete with duration + participation rate). <code>GET /incidents/drills/overdue</code> (schools with no drill of required type in 90 days).</li>
+      <li><strong>NonDisciplineIncidentService</strong> &mdash; <code>GET /incidents/reports</code>, <code>POST /incidents/reports</code> (any staff reports; emits <code>inc.incident.reported</code>), <code>PATCH /incidents/reports/:id</code> (review, close, link follow-up ticket). <code>GET /incidents/reports/my</code> (teacher: incidents I reported).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services, ~10 endpoints, 1 Kafka emit (<code>inc.incident.reported</code>). Total P2-2 endpoints: ~24.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Emergency UI &mdash; Declaration + Procedures + Accountability</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Emergency Dashboard</strong> <code>/emergency</code> &mdash; "Emergency" app tile. If no active incident: drill schedule, procedure review dates, recent incident history. If ACTIVE incident: <strong>full-screen emergency mode</strong> with red header, incident title, time elapsed, accountability summary bar (unknown/accounted/missing in real-time), procedure steps checklist, timeline feed.</li>
+      <li><strong>Declaration Panel</strong> &mdash; Big red "Declare Emergency" button (admin only). Select incident type → confirmation modal with "This will trigger emergency alerts to all staff and parents" warning → declares.</li>
+      <li><strong>Procedure Viewer</strong> <code>/emergency/procedures</code> &mdash; procedure list by type. Per-procedure: steps with time targets, contacts, assembly points. Edit + review workflow.</li>
+      <li><strong>Accountability Dashboard</strong> (inline during active incident) &mdash; three columns: UNKNOWN (amber), ACCOUNTED_FOR (green), MISSING (rose). Per-person: name, type pill (STUDENT/STAFF/VISITOR), location. Click to update status. Bulk "Mark Room Accounted" button. Real-time summary bar at top.</li>
+      <li><strong>Timeline Feed</strong> (inline during active incident) &mdash; chronological immutable feed: "10:32 LOCKDOWN declared by Rivera", "10:33 Police notified", "10:35 Building A cleared". Auto-scrolls. Cannot edit or delete entries.</li>
+    </ol>
+    <div class="produces">Produces &rarr; "Emergency" app tile, declaration panel, procedure viewer, accountability dashboard, timeline feed.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">Emergency UI &mdash; Reunification + Drills + Incident Reporting</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Reunification Station</strong> <code>/emergency/reunification</code> &mdash; during active incident: student search by name. Select student → verify collecting adult (must be a signed-in visitor from P2-1) → release button → student marked ACCOUNTED_FOR + reunification record created. Correction button for errors.</li>
+      <li><strong>Drill Manager</strong> <code>/emergency/drills</code> &mdash; drill schedule calendar. Schedule new drill (type, date/time). After drill: enter duration + participation rate + notes. Overdue drill alerts (>90 days since last drill of required type).</li>
+      <li><strong>Incident Report Form</strong> <code>/emergency/report</code> &mdash; non-discipline incident form: type selector, location, date/time, description, students/staff involved (search + multi-select), severity, attach photos. Submit creates incident + emits Kafka event.</li>
+      <li><strong>Incident Log</strong> <code>/emergency/reports</code> &mdash; all non-discipline incidents with status filters. Per-incident: type pill, severity, date, reporter. Click for detail with follow-up ticket link.</li>
+      <li><strong>After-Action Report</strong> <code>/emergency/incidents/:id/report</code> &mdash; auto-generated from the immutable timeline. Printable format: incident summary, timeline of events, accountability results, reunification log, lessons learned (admin enters post-resolution). Export as PDF.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Reunification station, drill manager, incident report form, incident log, after-action report.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Emergency declaration + outbox:</strong> Admin declares LOCKDOWN. Verify inc_incidents + inc_declaration_outbox created in one tx. Verify <code>inc.emergency.declared</code> fires. Verify outbox worker stamps tasks_created_at, muster_taken_at, alert_sent_at in sequence.</li>
+      <li><strong>Outbox crash recovery:</strong> Simulate crash after tasks_created_at stamped but before muster_taken_at. Restart worker. Verify it picks up from muster step (not re-creates tasks).</li>
+      <li><strong>5-minute PAGE alert:</strong> Declare incident. Block outbox worker. Verify PAGE fires after 5 minutes for un-stamped steps.</li>
+      <li><strong>Accountability lifecycle:</strong> Declaration auto-creates accountability records for 10 students + 5 staff + 2 visitors (from P2-1 on-site list). Verify all start as UNKNOWN. Mark 8 students ACCOUNTED_FOR via bulk. Verify summary materialises: 8 accounted, 2 unknown students, etc.</li>
+      <li><strong>Timeline immutability:</strong> Add 3 timeline entries. Attempt UPDATE → rejected (no endpoint). Attempt DELETE → rejected. Verify entries persist with timestamps.</li>
+      <li><strong>Reunification + correction:</strong> Release student to signed-in visitor (from P2-1). Verify reunification record + accountability updated to ACCOUNTED_FOR. Submit correction with reason. Verify inc_reunification_corrections audit row created.</li>
+      <li><strong>Incident resolution:</strong> Resolve the LOCKDOWN. Verify status=RESOLVED + resolved_at stamped. Verify after-action report auto-generates from timeline.</li>
+      <li><strong>Drill scheduling + completion:</strong> Schedule fire drill. Complete with 95% participation. Verify no "overdue" alert. Wait 91 days (simulate). Verify overdue alert fires.</li>
+      <li><strong>Non-discipline incident:</strong> Teacher reports playground injury (STUDENT_INJURY, MEDIUM). Verify <code>inc.incident.reported</code> fires. Link follow-up ticket. Close incident.</li>
+      <li><strong>Visibility:</strong> Teacher can report non-discipline incidents + view own. Cannot declare emergencies. Admin can declare + manage accountability + reunify. Staff can update accountability during emergency. Parent sees emergency alerts (via Cycle 14) but cannot access the incident module.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified emergency lifecycle: declaration → outbox fan-out → accountability → reunification → immutable timeline → drill → non-discipline → after-action.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 11 new tables. Tenant table count: ~438.</li>
+      <li>Incident API: ~24 endpoints + 1 outbox worker + 1 accountability summary worker.</li>
+      <li>Atomic declaration: inc_incidents + inc_declaration_outbox in one transaction.</li>
+      <li>Outbox fan-out: tasks → muster → alerts, crash-recoverable, 5-min PAGE on stall.</li>
+      <li>Immutable incident timeline: no UPDATE, no DELETE. Legal record.</li>
+      <li>Real-time accountability summary materialisation.</li>
+      <li>Reunification with identity-verified release + correction audit trail.</li>
+      <li>Emergency procedures surfaced during active incidents.</li>
+      <li>Non-discipline incident logging with follow-up ticket linking.</li>
+      <li><code>inc.emergency.declared</code> + <code>inc.incident.reported</code> Kafka emits.</li>
+      <li>HANDOFF-P2C2.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 2 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M91 Incident &amp; Emergency, 11 tables). Functions: SAF-002 Emergency Management + SAF-003 Incident Reporting. Cross-cycle: P2-1 vis_emergency_muster + vis_visitors, Cycle 14 emergency alerts, Cycle 7 wsk_tasks, Cycle 8 tkt_tickets.</p>
+  </div>
+</div>
+</body>
+</html>
