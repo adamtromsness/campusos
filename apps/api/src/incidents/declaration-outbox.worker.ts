@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { TenantInfo, runWithTenantContextAsync } from '../tenant/tenant.context';
@@ -13,26 +14,37 @@ import { KafkaProducerService } from '../kafka/kafka-producer.service';
  * polls the outbox for unstamped step columns and runs each step
  * idempotently:
  *
- *   1. tasks_created_at  → creates URGENT tsk_tasks rows for the
- *      procedure's primary contact (and secondary contact when set)
- *      so a responder picks the task up on their phone.
+ *   1. tasks_created_at  → emits inc.emergency.task.requested per
+ *      procedure contact (one event per contact). Cycle 7
+ *      TaskWorker consumes via auto-task-rule and creates the
+ *      URGENT response task. **Per ADR-011 the Task Worker is the
+ *      sole writer to tsk_tasks** — this worker never inserts there.
  *
- *   2. muster_taken_at   → snapshots the on-site visitor list into
- *      vis_emergency_muster (cross-cycle to P2C1) and seeds
- *      inc_accountability_records for visitors currently signed in.
- *      (Roster muster — students from sis_enrollments and staff from
- *      hr_employees — is a Phase 3 follow-up; the schema accepts
- *      manual seeds today.)
+ *   2. muster_taken_at   → emits inc.emergency.muster.requested.
+ *      The Visitor module's VisitorMusterConsumer (P2C1) consumes
+ *      and creates the vis_emergency_muster row. The visitor-side
+ *      table belongs to Visitor Management — this worker does not
+ *      write to it. The visitor accountability seed
+ *      (inc_accountability_records insert reading from vis_sign_ins)
+ *      stays here because that table is M91-owned. The summary seed
+ *      (inc_accountability_summary) is also M91-owned.
  *
  *   3. alert_sent_at     → emits inc.emergency.alert.dispatch on
  *      the wire so Cycle 14's emergency-alert subscriber can fan
- *      out the school-wide notification (the alert handler
- *      auto-correlates by incident_id).
+ *      out the school-wide notification.
  *
- * Crash recovery: on restart the worker re-queries WHERE
- * tasks_created_at IS NULL OR muster_taken_at IS NULL OR
- * alert_sent_at IS NULL — completed steps are skipped because
- * their column is already stamped.
+ * REVIEW-P2C2 ROUND 1 BLOCKING fix — emit-first-stamp-after for all
+ * three steps. The prior version stamped the column inside the same
+ * tx as the write/emit; if the Kafka publish failed, the row was
+ * dropped from the pending query and the fan-out step was lost.
+ * Now: emit/work first; on success stamp the column in a fresh tx;
+ * on failure record last_error + attempt_count and leave the column
+ * NULL so the next poll retries.
+ *
+ * Crash recovery: a worker crash between emit success and stamp
+ * leaves the column NULL. The next tick re-emits with the same
+ * deterministic event_id (sha1(outboxId + ':step') formatted as a
+ * v5-shaped UUID) so consumers dedupe via their idempotency table.
  *
  * Stall detection: any unstamped step more than STALL_THRESHOLD_MS
  * after declared_at is logged at error level. The plan calls for a
@@ -81,6 +93,32 @@ const SELECT_OUTBOX_PENDING =
   'LEFT JOIN inc_incident_types it ON it.id = i.incident_type_id ' +
   'LEFT JOIN inc_emergency_procedures p ON p.school_id = o.school_id ' +
   '  AND p.procedure_type = it.code AND p.is_active = true ';
+
+/**
+ * Build a deterministic v5-shaped UUID from an outbox row id and a
+ * step suffix. Re-emits on retry land the same event_id so consumers
+ * dedupe via the standard `processWithIdempotency` claim-after-success
+ * pattern. Same shape as Cycle 4's `deterministicCoverageEventId`.
+ */
+export function deterministicStepEventId(outboxId: string, step: string): string {
+  const hash = createHash('sha1')
+    .update(outboxId + ':' + step + ':v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
 
 @Injectable()
 export class DeclarationOutboxWorker implements OnModuleInit, OnApplicationShutdown {
@@ -206,7 +244,7 @@ export class DeclarationOutboxWorker implements OnModuleInit, OnApplicationShutd
         await this.checkStall(row);
       } catch (e: any) {
         const msg = (e?.message || String(e)).slice(0, 1000);
-        await this.recordAttemptError(row.id, msg);
+        await this.recordStepError(row.id, msg);
         this.logger.warn(
           'outbox: incident=' + row.incident_id.slice(0, 8) + ' step failed: ' + msg,
         );
@@ -214,175 +252,203 @@ export class DeclarationOutboxWorker implements OnModuleInit, OnApplicationShutd
     }
   }
 
-  /** Step 1 — create URGENT tsk_tasks for the primary + secondary contact. */
-  private async runStepTasks(row: OutboxRow): Promise<void> {
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Lock the outbox row to serialize against any concurrent worker.
-      const lock = (await tx.$queryRawUnsafe(
-        'SELECT id, tasks_created_at FROM inc_declaration_outbox ' +
-          'WHERE id = $1::uuid FOR UPDATE',
-        row.id,
-      )) as Array<{ tasks_created_at: string | null }>;
-      if (lock.length === 0 || lock[0]!.tasks_created_at !== null) return;
+  // -------------------------------------------------------------------------
+  // Step 1 — emit inc.emergency.task.requested per procedure contact.
+  // -------------------------------------------------------------------------
+  // REVIEW-P2C2 ROUND 1 BLOCKING fix — was: direct INSERT into tsk_tasks,
+  // violating ADR-011 (Task Worker is the sole writer to tsk_tasks). Now:
+  // emit one Kafka event per contact, the Cycle 7 TaskWorker consumes via
+  // auto-task-rule and creates the URGENT response task with payload
+  // .recipientAccountId as the owner. Stamping is emit-first-success-after
+  // so a broker outage does NOT silently mark the step done.
+  async runStepTasks(row: OutboxRow): Promise<void> {
+    // Lock + re-check still pending under tx so concurrent workers serialise.
+    const stillPending = await this.checkStillPending(row.id, 'tasks_created_at');
+    if (!stillPending) return;
 
-      const contacts: string[] = [];
-      if (row.primary_contact_id) contacts.push(row.primary_contact_id);
-      if (row.secondary_contact_id && row.secondary_contact_id !== row.primary_contact_id) {
-        contacts.push(row.secondary_contact_id);
-      }
-      const incidentTitle = row.incident_title ?? row.incident_type_code ?? 'Emergency Incident';
-      for (const ownerId of contacts) {
-        const taskId = generateId();
-        await tx.$executeRawUnsafe(
-          'INSERT INTO tsk_tasks ' +
-            '(id, school_id, owner_id, title, description, source, source_ref_id, priority, ' +
-            ' status, due_at, task_category) ' +
-            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7::uuid, $8, $9, ' +
-            "        now() + INTERVAL '2 hours', $10) " +
-            'ON CONFLICT DO NOTHING',
-          taskId,
-          row.school_id,
-          ownerId,
-          'EMERGENCY: ' + incidentTitle,
-          'Lead the response procedure for this incident. Update the timeline with progress.',
-          'AUTO',
-          row.incident_id,
-          'URGENT',
-          'TODO',
-          'ADMINISTRATIVE',
-        );
-      }
-
-      await tx.$executeRawUnsafe(
-        'UPDATE inc_declaration_outbox SET tasks_created_at = now(), ' +
-          '  last_attempt_at = now(), attempt_count = attempt_count + 1, ' +
-          '  last_error = NULL, updated_at = now() ' +
-          'WHERE id = $1::uuid',
-        row.id,
+    const contacts: string[] = [];
+    if (row.primary_contact_id) contacts.push(row.primary_contact_id);
+    if (row.secondary_contact_id && row.secondary_contact_id !== row.primary_contact_id) {
+      contacts.push(row.secondary_contact_id);
+    }
+    if (contacts.length === 0) {
+      // No procedure contacts configured — stamp success and move on. The
+      // event chain still works for muster/alert; the school just has no
+      // emergency-response task assignee.
+      await this.stampStepSuccess(row.id, 'tasks_created_at');
+      this.logger.warn(
+        'outbox tasks_created (no contacts) incident=' + row.incident_id.slice(0, 8),
       );
-    });
+      return;
+    }
 
+    const incidentTitle = row.incident_title ?? row.incident_type_code ?? 'Emergency Incident';
+
+    // Emit one event per contact — fan-out is many-to-one task creations.
+    // Each event has a deterministic event_id derived from
+    // (outboxId, 'tasks-N') so retries land the same id and the
+    // TaskWorker's idempotency claim dedupes. The `sourceRefId =
+    // incident_id` is also the key the schema-side
+    // tsk_tasks_auto_dedup_idx (owner_id, source, source_ref_id) WHERE
+    // source<>'MANUAL' uses to catch duplicate task creations.
+    for (let i = 0; i < contacts.length; i++) {
+      const ownerId = contacts[i]!;
+      const eventId = deterministicStepEventId(row.id, 'tasks-' + i);
+      try {
+        await this.kafka.emit({
+          topic: 'inc.emergency.task.requested',
+          key: row.incident_id,
+          eventId,
+          sourceModule: 'incident',
+          payload: {
+            incidentId: row.incident_id,
+            schoolId: row.school_id,
+            recipientAccountId: ownerId,
+            title: 'EMERGENCY: ' + incidentTitle,
+            description:
+              'Lead the response procedure for this incident. Update the timeline with progress.',
+            priority: 'URGENT',
+            taskCategory: 'ADMINISTRATIVE',
+            dueOffsetHours: 2,
+            sourceRefId: row.incident_id,
+          },
+        });
+      } catch (e: any) {
+        // Emit failed for this contact — record the error and leave the
+        // step UNSTAMPED so the next poll retries the whole step. The
+        // events that already fired are deduped by the deterministic id.
+        const msg = ('emit task failed for contact ' + i + ': ' + (e?.message || e)).slice(0, 1000);
+        await this.recordStepError(row.id, msg);
+        return;
+      }
+    }
+
+    // All emits succeeded — stamp tasks_created_at in a fresh tx.
+    await this.stampStepSuccess(row.id, 'tasks_created_at');
     this.logger.log(
       'outbox tasks_created incident=' +
         row.incident_id.slice(0, 8) +
         ' contacts=' +
-        ((row.primary_contact_id ? 1 : 0) + (row.secondary_contact_id ? 1 : 0)),
+        contacts.length,
     );
   }
 
-  /** Step 2 — muster: snapshot vis_emergency_muster + seed visitor accountability. */
-  private async runStepMuster(row: OutboxRow): Promise<void> {
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      const lock = (await tx.$queryRawUnsafe(
-        'SELECT id, muster_taken_at FROM inc_declaration_outbox WHERE id = $1::uuid FOR UPDATE',
-        row.id,
-      )) as Array<{ muster_taken_at: string | null }>;
-      if (lock.length === 0 || lock[0]!.muster_taken_at !== null) return;
+  // -------------------------------------------------------------------------
+  // Step 2 — emit inc.emergency.muster.requested for the Visitor module to
+  // create the vis_emergency_muster row. Then seed the M91-owned
+  // accountability records (reading from vis_sign_ins is a defensible
+  // cross-cycle read; writing to inc_accountability_records / _summary is
+  // an M91 → M91 operation).
+  // -------------------------------------------------------------------------
+  // REVIEW-P2C2 ROUND 1 BLOCKING fix — was: direct INSERT into
+  // vis_emergency_muster, violating the v11 "no module writes to another
+  // module's tables" doctrine. Now: emit a request event for the Visitor
+  // module's consumer to handle the vis_emergency_muster INSERT. The
+  // M91-internal writes (accountability seed + summary seed) stay here.
+  async runStepMuster(row: OutboxRow): Promise<void> {
+    const stillPending = await this.checkStillPending(row.id, 'muster_taken_at');
+    if (!stillPending) return;
 
-      // Count currently signed-in visitors for the snapshot total.
-      const totalRows = (await tx.$queryRawUnsafe(
+    // Count currently signed-in visitors for the muster-request payload
+    // (the consumer needs the snapshot total so it does not have to
+    // re-read vis_sign_ins immediately).
+    const total = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      const r = (await client.$queryRawUnsafe(
         'SELECT COUNT(*)::int AS n FROM vis_sign_ins ' +
           'WHERE school_id = $1::uuid AND signed_out_at IS NULL',
         row.school_id,
       )) as Array<{ n: number }>;
-      const total = totalRows[0]?.n ?? 0;
-
-      const drillType = this.mapToMusterDrillType(row.procedure_type);
-      const musterId = generateId();
-      // Look up an admin user — in dev this is the principal who declared
-      // the incident; if absent the muster row carries the declarer.
-      const musterCreator = row.primary_contact_id ?? row.secondary_contact_id ?? row.school_id;
-      try {
-        await tx.$executeRawUnsafe(
-          'INSERT INTO vis_emergency_muster ' +
-            '(id, school_id, incident_id, drill_type, description, created_by, total_on_site_at_snapshot) ' +
-            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid, $7)',
-          musterId,
-          row.school_id,
-          row.incident_id,
-          drillType,
-          'Auto-muster from emergency declaration',
-          musterCreator,
-          total,
-        );
-      } catch (e: any) {
-        // If vis_emergency_muster does not exist (e.g. P2C1 not migrated),
-        // log and continue — accountability seeding is the load-bearing
-        // outcome here.
-        this.logger.warn('outbox muster: vis_emergency_muster insert failed: ' + (e?.message || e));
-      }
-
-      // Seed accountability records for currently-signed-in visitors so the
-      // dashboard surfaces them under UNKNOWN until reception confirms.
-      // Single-statement INSERT...SELECT walks the partial active-on-site
-      // index. ON CONFLICT (incident, person) DO NOTHING keeps redeliveries
-      // idempotent.
-      await tx.$executeRawUnsafe(
-        'INSERT INTO inc_accountability_records ' +
-          '(id, incident_id, person_id, person_type, status) ' +
-          'SELECT gen_random_uuid(), $1::uuid, s.visitor_id, $2, $3 ' +
-          'FROM vis_sign_ins s ' +
-          'WHERE s.school_id = $4::uuid AND s.signed_out_at IS NULL ' +
-          'ON CONFLICT (incident_id, person_id) DO NOTHING',
-        row.incident_id,
-        'VISITOR',
-        'UNKNOWN',
-        row.school_id,
-      );
-
-      // Seed an empty summary so the dashboard renders zero-rows correctly
-      // before the AccountabilitySummaryWorker computes the real numbers.
-      await tx.$executeRawUnsafe(
-        'INSERT INTO inc_accountability_summary ' +
-          '(id, incident_id, total_people, accounted_for, unknown, evacuated, ' +
-          ' medical_assistance, missing, last_updated_at) ' +
-          'VALUES ($1::uuid, $2::uuid, 0, 0, 0, 0, 0, 0, now()) ' +
-          'ON CONFLICT (incident_id) DO NOTHING',
-        generateId(),
-        row.incident_id,
-      );
-
-      await tx.$executeRawUnsafe(
-        'UPDATE inc_declaration_outbox SET muster_taken_at = now(), ' +
-          '  last_attempt_at = now(), attempt_count = attempt_count + 1, ' +
-          '  last_error = NULL, updated_at = now() ' +
-          'WHERE id = $1::uuid',
-        row.id,
-      );
+      return r[0]?.n ?? 0;
     });
 
+    const drillType = this.mapToMusterDrillType(row.procedure_type);
+    const musterCreator = row.primary_contact_id ?? row.secondary_contact_id ?? null;
+
+    // Emit muster-request event for the Visitor module to consume.
+    // VisitorMusterConsumer creates the vis_emergency_muster row keyed on
+    // (school_id, incident_id) — duplicate emits from a retry land a
+    // no-op via the consumer's idempotency claim on event_id.
+    try {
+      await this.kafka.emit({
+        topic: 'inc.emergency.muster.requested',
+        key: row.incident_id,
+        eventId: deterministicStepEventId(row.id, 'muster'),
+        sourceModule: 'incident',
+        payload: {
+          incidentId: row.incident_id,
+          schoolId: row.school_id,
+          drillType,
+          totalOnSiteAtSnapshot: total,
+          createdBy: musterCreator,
+          declaredAt: row.declared_at,
+          sourceRefId: row.incident_id,
+        },
+      });
+    } catch (e: any) {
+      const msg = ('emit muster failed: ' + (e?.message || e)).slice(0, 1000);
+      await this.recordStepError(row.id, msg);
+      return;
+    }
+
+    // Seed M91-owned accountability records + summary in a fresh tenant
+    // tx. These are M91 → M91 writes; the read from vis_sign_ins is a
+    // defensible cross-cycle lookup. ON CONFLICT (incident, person) DO
+    // NOTHING keeps retries idempotent.
+    try {
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          'INSERT INTO inc_accountability_records ' +
+            '(id, incident_id, person_id, person_type, status) ' +
+            'SELECT gen_random_uuid(), $1::uuid, s.visitor_id, $2, $3 ' +
+            'FROM vis_sign_ins s ' +
+            'WHERE s.school_id = $4::uuid AND s.signed_out_at IS NULL ' +
+            'ON CONFLICT (incident_id, person_id) DO NOTHING',
+          row.incident_id,
+          'VISITOR',
+          'UNKNOWN',
+          row.school_id,
+        );
+        await tx.$executeRawUnsafe(
+          'INSERT INTO inc_accountability_summary ' +
+            '(id, incident_id, total_people, accounted_for, unknown, evacuated, ' +
+            ' medical_assistance, missing, last_updated_at) ' +
+            'VALUES ($1::uuid, $2::uuid, 0, 0, 0, 0, 0, 0, now()) ' +
+            'ON CONFLICT (incident_id) DO NOTHING',
+          generateId(),
+          row.incident_id,
+        );
+      });
+    } catch (e: any) {
+      // The M91-internal seed failed. Leave the step unstamped — the next
+      // poll retries (the Kafka emit above is idempotent at the consumer
+      // via deterministic event_id).
+      const msg = ('accountability seed failed: ' + (e?.message || e)).slice(0, 1000);
+      await this.recordStepError(row.id, msg);
+      return;
+    }
+
+    await this.stampStepSuccess(row.id, 'muster_taken_at');
     this.logger.log('outbox muster_taken incident=' + row.incident_id.slice(0, 8));
   }
 
-  /** Step 3 — emit inc.emergency.alert.dispatch for Cycle 14 to consume. */
-  private async runStepAlert(row: OutboxRow): Promise<void> {
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      const lock = (await tx.$queryRawUnsafe(
-        'SELECT id, alert_sent_at FROM inc_declaration_outbox WHERE id = $1::uuid FOR UPDATE',
-        row.id,
-      )) as Array<{ alert_sent_at: string | null }>;
-      if (lock.length === 0 || lock[0]!.alert_sent_at !== null) return;
+  // -------------------------------------------------------------------------
+  // Step 3 — emit inc.emergency.alert.dispatch for Cycle 14 to consume.
+  // -------------------------------------------------------------------------
+  // REVIEW-P2C2 ROUND 1 BLOCKING fix — emit-first-stamp-after. The prior
+  // version stamped alert_sent_at FIRST and emitted second; if the broker
+  // was unreachable, the catch-and-log left the dashboard saying "alert
+  // sent" while the wire never carried the event. Now: emit first; on
+  // success stamp; on failure record last_error and leave the column NULL
+  // so the next poll retries.
+  async runStepAlert(row: OutboxRow): Promise<void> {
+    const stillPending = await this.checkStillPending(row.id, 'alert_sent_at');
+    if (!stillPending) return;
 
-      // Stamp first; emit after to avoid a duplicate emit if the tx commits
-      // but the kafka emit fires twice. The emit is idempotent at the
-      // consumer side via inc.alert.dispatch.event_id but stamping first
-      // prevents re-processing on the next tick.
-      await tx.$executeRawUnsafe(
-        'UPDATE inc_declaration_outbox SET alert_sent_at = now(), ' +
-          '  last_attempt_at = now(), attempt_count = attempt_count + 1, ' +
-          '  last_error = NULL, updated_at = now() ' +
-          'WHERE id = $1::uuid',
-        row.id,
-      );
-    });
-
-    // Emit OUTSIDE the tx — this is best-effort; if it fails the next tick
-    // re-emits because alert_sent_at is already stamped (no harm — the
-    // Cycle 14 consumer dedups on event_id).
-    await this.kafka
-      .emit({
+    try {
+      await this.kafka.emit({
         topic: 'inc.emergency.alert.dispatch',
         key: row.incident_id,
+        eventId: deterministicStepEventId(row.id, 'alert'),
         sourceModule: 'incident',
         payload: {
           incidentId: row.incident_id,
@@ -395,10 +461,79 @@ export class DeclarationOutboxWorker implements OnModuleInit, OnApplicationShutd
           declaredAt: row.declared_at,
           sourceRefId: row.incident_id,
         },
-      })
-      .catch((e) => this.logger.warn('outbox alert kafka emit failed: ' + (e?.message || e)));
+      });
+    } catch (e: any) {
+      const msg = ('emit alert failed: ' + (e?.message || e)).slice(0, 1000);
+      await this.recordStepError(row.id, msg);
+      return;
+    }
 
+    // Emit succeeded — stamp alert_sent_at in a fresh tx.
+    await this.stampStepSuccess(row.id, 'alert_sent_at');
     this.logger.log('outbox alert_sent incident=' + row.incident_id.slice(0, 8));
+  }
+
+  // -------------------------------------------------------------------------
+  // Helpers
+  // -------------------------------------------------------------------------
+
+  /**
+   * Lock the outbox row and check the named step column is still NULL.
+   * Returns false if the row has been stamped by another worker since the
+   * pending query saw it. Acquires + releases the lock inside this tx.
+   */
+  private async checkStillPending(
+    outboxId: string,
+    stepColumn: 'tasks_created_at' | 'muster_taken_at' | 'alert_sent_at',
+  ): Promise<boolean> {
+    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const lock = (await tx.$queryRawUnsafe(
+        'SELECT id, ' +
+          stepColumn +
+          ' AS step_at FROM inc_declaration_outbox ' +
+          'WHERE id = $1::uuid FOR UPDATE',
+        outboxId,
+      )) as Array<{ id: string; step_at: string | null }>;
+      if (lock.length === 0) return false;
+      return lock[0]!.step_at === null;
+    });
+  }
+
+  /**
+   * Stamp the named step column on success. Runs in a fresh tenant tx
+   * separate from the Kafka emit. Re-stamping a row already stamped is
+   * harmless (the WHERE predicate is a no-op).
+   */
+  private async stampStepSuccess(
+    outboxId: string,
+    stepColumn: 'tasks_created_at' | 'muster_taken_at' | 'alert_sent_at',
+  ): Promise<void> {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        'UPDATE inc_declaration_outbox SET ' +
+          stepColumn +
+          ' = now(), ' +
+          '  last_attempt_at = now(), attempt_count = attempt_count + 1, ' +
+          '  last_error = NULL, updated_at = now() ' +
+          'WHERE id = $1::uuid AND ' +
+          stepColumn +
+          ' IS NULL',
+        outboxId,
+      );
+    });
+  }
+
+  /** Record a step-level failure without stamping the column. */
+  private async recordStepError(outboxId: string, message: string): Promise<void> {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        'UPDATE inc_declaration_outbox SET last_attempt_at = now(), ' +
+          '  attempt_count = attempt_count + 1, last_error = $1, updated_at = now() ' +
+          'WHERE id = $2::uuid',
+        message,
+        outboxId,
+      );
+    });
   }
 
   /** Convert procedure_type to vis_emergency_muster.drill_type. */
@@ -435,17 +570,5 @@ export class DeclarationOutboxWorker implements OnModuleInit, OnApplicationShutd
         ' unstamped=' +
         unstamped.join(','),
     );
-  }
-
-  private async recordAttemptError(outboxId: string, message: string): Promise<void> {
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      await tx.$executeRawUnsafe(
-        'UPDATE inc_declaration_outbox SET last_attempt_at = now(), ' +
-          '  attempt_count = attempt_count + 1, last_error = $1, updated_at = now() ' +
-          'WHERE id = $2::uuid',
-        message,
-        outboxId,
-      );
-    });
   }
 }

@@ -139,20 +139,20 @@ a live tenant).
 
 What's covered by the 14 unit tests:
 
-| Invariant | How it's tested |
-| --------- | --------------- |
-| Timeline service exposes only POST + GET | `Object.getOwnPropertyNames` introspection |
-| Timeline cross-tenant 404 | Stubbed PrismaService captures SQL — assert `school_id` predicate |
-| Accountability summary materialisation | Stubbed COUNT(*) FILTER + UPSERT shape assertions |
-| Bulk update CTE shape | SQL string assertion |
-| Reunification rejects non-signed-in visitor | Stubbed COUNT returns 0 → assert thrown error message |
-| Reunification rejects non-ACTIVE incident | Stubbed status='RESOLVED' → assert thrown |
-| Correction reason min length | Service-side throw on input ≤ 19 chars |
-| Drill overdue CTE shape | Assert SQL contains `last_done` + `interval '90 days'` |
-| Drill complete state-machine | Stubbed status='COMPLETED' → assert reject |
-| Atomic declare commits both rows | Capture executes — assert insert into incidents AND outbox both fired |
-| Resolve requires ACTIVE | Stubbed status='RESOLVED' → assert thrown |
-| Inactive type rejection | Stubbed is_active=false → assert thrown |
+| Invariant                                   | How it's tested                                                       |
+| ------------------------------------------- | --------------------------------------------------------------------- |
+| Timeline service exposes only POST + GET    | `Object.getOwnPropertyNames` introspection                            |
+| Timeline cross-tenant 404                   | Stubbed PrismaService captures SQL — assert `school_id` predicate     |
+| Accountability summary materialisation      | Stubbed COUNT(\*) FILTER + UPSERT shape assertions                    |
+| Bulk update CTE shape                       | SQL string assertion                                                  |
+| Reunification rejects non-signed-in visitor | Stubbed COUNT returns 0 → assert thrown error message                 |
+| Reunification rejects non-ACTIVE incident   | Stubbed status='RESOLVED' → assert thrown                             |
+| Correction reason min length                | Service-side throw on input ≤ 19 chars                                |
+| Drill overdue CTE shape                     | Assert SQL contains `last_done` + `interval '90 days'`                |
+| Drill complete state-machine                | Stubbed status='COMPLETED' → assert reject                            |
+| Atomic declare commits both rows            | Capture executes — assert insert into incidents AND outbox both fired |
+| Resolve requires ACTIVE                     | Stubbed status='RESOLVED' → assert thrown                             |
+| Inactive type rejection                     | Stubbed is_active=false → assert thrown                               |
 
 What's covered by the CAT (live, end-to-end):
 
@@ -260,10 +260,10 @@ What's covered by the CAT (live, end-to-end):
   clean).
 - Service-side authorization: every mutation path calls
   `actor.isSchoolAdmin || hasAnyPermissionInTenant(actor.accountId,
-  schoolId, [code])`. The IAM cache is the authoritative source.
+schoolId, [code])`. The IAM cache is the authoritative source.
 - Row-scope across multi-persona endpoints (saf-003:read for
   Teacher) is enforced at the SQL layer — `WHERE n.reported_by =
-  actor.accountId` for non-reviewer callers.
+actor.accountId` for non-reviewer callers.
 - Don't-leak-existence: cross-school GETs return 404 NotFoundException,
   not 403 ForbiddenException. The collapsed 404 means a caller
   cannot tell "doesn't exist" from "exists in another school."

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { runWithTenantContext, TenantInfo } from '../tenant/tenant.context';
 import { TimelineService } from './timeline.service';
@@ -33,14 +33,13 @@ const SCHOOL_B: TenantInfo = {
   schoolId: '019e03f8-cf0b-7444-92d2-85e2c67b549b',
 };
 
-const ACTOR = {
+const ACTOR_BASE = {
   accountId: '99999999-9999-9999-9999-999999999999',
   personId: '88888888-8888-8888-8888-888888888888',
-  personType: 'STAFF',
+  personType: 'STAFF' as const,
   isSchoolAdmin: false,
-} as never;
-
-const ADMIN_ACTOR = { ...(ACTOR as never), isSchoolAdmin: true } as never;
+};
+const ADMIN_ACTOR = { ...ACTOR_BASE, isSchoolAdmin: true } as never;
 
 interface CapturedCall {
   sql: string;
@@ -357,7 +356,7 @@ describe('IncidentService — atomic declaration + lifecycle locks', () => {
             type_name: 'Lockdown',
             severity: 'CRITICAL',
             requires_lockdown: true,
-            declared_by: ADMIN_ACTOR.accountId,
+            declared_by: ACTOR_BASE.accountId,
             declared_by_first: 'Sarah',
             declared_by_last: 'Mitchell',
             declared_at: new Date().toISOString(),
@@ -427,5 +426,283 @@ describe('IncidentService — atomic declaration + lifecycle locks', () => {
         svc.declare({ incidentTypeId: 'type-1' }, ADMIN_ACTOR),
       ),
     ).rejects.toThrow(/inactive/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// REVIEW-P2C2 ROUND 1 — DeclarationOutboxWorker emit-first-stamp-after.
+// ---------------------------------------------------------------------------
+//
+// The reviewer's BLOCKING #1: the prior worker stamped `alert_sent_at`
+// inside the tx, then emitted Kafka outside the tx and swallowed
+// failures. A broker outage left the outbox saying "alert sent" while
+// the wire never carried the event. The fix: emit FIRST, stamp ONLY on
+// success.
+//
+// These tests use a stubbed TenantPrismaService that captures every SQL
+// shape. The asserts hinge on:
+//
+//   (a) On Kafka emit failure the column stays NULL and last_error is
+//       recorded.
+//   (b) On Kafka emit success the column is stamped and last_error is
+//       cleared.
+//   (c) Re-running after success does not re-emit (still-pending check
+//       returns false → step is a no-op).
+//   (d) The worker writes neither tsk_tasks (BLOCKING #2) nor
+//       vis_emergency_muster (BLOCKING #3) — only emits events for
+//       Cycle 7 / P2C1 to consume.
+//
+// The stub returns 0/[] for queries unless the test handler overrides.
+
+import { DeclarationOutboxWorker, deterministicStepEventId } from './declaration-outbox.worker';
+
+interface FakeOutboxRow {
+  id: string;
+  incident_id: string;
+  school_id: string;
+  declared_at: string;
+  tasks_created_at: string | null;
+  muster_taken_at: string | null;
+  alert_sent_at: string | null;
+  attempt_count: number;
+  incident_title: string | null;
+  incident_type_code: string | null;
+  procedure_type: string | null;
+  primary_contact_id: string | null;
+  secondary_contact_id: string | null;
+  notification_template: string | null;
+  severity: string | null;
+}
+
+function baseRow(overrides: Partial<FakeOutboxRow> = {}): FakeOutboxRow {
+  return {
+    id: 'outbox-id-12345',
+    incident_id: 'incident-id-67890',
+    school_id: SCHOOL_A.schoolId,
+    declared_at: new Date().toISOString(),
+    tasks_created_at: null,
+    muster_taken_at: null,
+    alert_sent_at: null,
+    attempt_count: 0,
+    incident_title: 'Test Lockdown',
+    incident_type_code: 'LOCKDOWN',
+    procedure_type: 'LOCKDOWN',
+    primary_contact_id: 'contact-A',
+    secondary_contact_id: 'contact-B',
+    notification_template: 'A lockdown is in effect.',
+    severity: 'CRITICAL',
+    ...overrides,
+  };
+}
+
+/** Build a fake worker + capture map keyed on column name. */
+function makeWorkerFake(opts: {
+  emitOk?: boolean;
+  emitError?: string;
+  // Initial column values so tests can simulate "step already stamped."
+  tasksAt?: string | null;
+  musterAt?: string | null;
+  alertAt?: string | null;
+  // For runStepMuster — the visitor count.
+  visitorCount?: number;
+}) {
+  const sqlCalls: { sql: string; args: unknown[]; fn: 'q' | 'e' }[] = [];
+  const emits: { topic: string; eventId: string; payload: unknown }[] = [];
+  // Mutable column state — UPDATE handlers will mutate this.
+  const cols = {
+    tasks_created_at: opts.tasksAt ?? null,
+    muster_taken_at: opts.musterAt ?? null,
+    alert_sent_at: opts.alertAt ?? null,
+    last_error: null as string | null,
+    attempt_count: 0,
+  };
+
+  const client = {
+    $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+      sqlCalls.push({ sql, args, fn: 'q' });
+      const lower = sql.toLowerCase();
+      // Lock + still-pending check: "SELECT id, <step> AS step_at FROM inc_declaration_outbox WHERE id ... FOR UPDATE"
+      if (lower.includes('for update') && lower.includes('inc_declaration_outbox')) {
+        let stepAt: string | null = null;
+        if (lower.includes('tasks_created_at as step_at')) stepAt = cols.tasks_created_at;
+        else if (lower.includes('muster_taken_at as step_at')) stepAt = cols.muster_taken_at;
+        else if (lower.includes('alert_sent_at as step_at')) stepAt = cols.alert_sent_at;
+        return [{ id: args[0], step_at: stepAt }];
+      }
+      // Visitor count for runStepMuster
+      if (lower.includes('count(*)::int as n from vis_sign_ins')) {
+        return [{ n: opts.visitorCount ?? 0 }];
+      }
+      return [];
+    },
+    $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+      sqlCalls.push({ sql, args, fn: 'e' });
+      const lower = sql.toLowerCase();
+      // Stamp success — UPDATE inc_declaration_outbox SET <step> = now()
+      if (lower.includes('update inc_declaration_outbox')) {
+        if (lower.includes('tasks_created_at = now()')) cols.tasks_created_at = 'STAMPED';
+        if (lower.includes('muster_taken_at = now()')) cols.muster_taken_at = 'STAMPED';
+        if (lower.includes('alert_sent_at = now()')) cols.alert_sent_at = 'STAMPED';
+        if (lower.includes('last_error = null')) cols.last_error = null;
+        // Step-error path: SET last_error = $1 (no column stamp).
+        if (lower.includes('last_error = $1')) cols.last_error = String(args[0]);
+        cols.attempt_count += 1;
+      }
+      return 0;
+    },
+  };
+  const tenantPrisma = {
+    executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+  };
+  const kafka = {
+    emit: async (opts2: { topic: string; eventId?: string; payload: unknown }) => {
+      if (!opts.emitOk) {
+        throw new Error(opts.emitError ?? 'broker unavailable');
+      }
+      emits.push({
+        topic: opts2.topic,
+        eventId: opts2.eventId ?? '<no-eventId>',
+        payload: opts2.payload,
+      });
+    },
+  };
+  const worker = new DeclarationOutboxWorker(tenantPrisma as never, kafka as never);
+  return { worker, sqlCalls, emits, cols };
+}
+
+describe('DeclarationOutboxWorker.runStepAlert — emit-first-stamp-after (BLOCKING #1)', () => {
+  it('on Kafka emit FAILURE leaves alert_sent_at NULL and records last_error', async () => {
+    const fake = makeWorkerFake({ emitOk: false, emitError: 'broker offline' });
+    await runWithTenantContext({ tenant: SCHOOL_A }, async () =>
+      fake.worker.runStepAlert(baseRow()),
+    );
+    // alert_sent_at MUST stay NULL so the next poll picks the row up.
+    expect(fake.cols.alert_sent_at).toBeNull();
+    expect(fake.cols.last_error).toContain('broker offline');
+    expect(fake.emits).toHaveLength(0);
+    // The row remains in the pending query result on the next tick.
+  });
+
+  it('on Kafka emit SUCCESS stamps alert_sent_at and clears last_error', async () => {
+    const fake = makeWorkerFake({ emitOk: true });
+    await runWithTenantContext({ tenant: SCHOOL_A }, async () =>
+      fake.worker.runStepAlert(baseRow()),
+    );
+    expect(fake.cols.alert_sent_at).toBe('STAMPED');
+    expect(fake.cols.last_error).toBeNull();
+    expect(fake.emits).toHaveLength(1);
+    expect(fake.emits[0]!.topic).toBe('inc.emergency.alert.dispatch');
+    // Deterministic event_id for retry-idempotency
+    expect(fake.emits[0]!.eventId).toBe(deterministicStepEventId('outbox-id-12345', 'alert'));
+  });
+
+  it('does NOT re-emit if alert_sent_at is already stamped (idempotent)', async () => {
+    const fake = makeWorkerFake({ emitOk: true, alertAt: '2026-05-09T10:00:00Z' });
+    await runWithTenantContext({ tenant: SCHOOL_A }, async () =>
+      fake.worker.runStepAlert(baseRow({ alert_sent_at: '2026-05-09T10:00:00Z' })),
+    );
+    expect(fake.emits).toHaveLength(0);
+  });
+});
+
+describe('DeclarationOutboxWorker.runStepTasks — no direct tsk_tasks INSERT (BLOCKING #2)', () => {
+  it('emits inc.emergency.task.requested per contact and never INSERTs into tsk_tasks', async () => {
+    const fake = makeWorkerFake({ emitOk: true });
+    await runWithTenantContext({ tenant: SCHOOL_A }, async () =>
+      fake.worker.runStepTasks(baseRow()),
+    );
+    // Two contacts → two emits, each with a distinct deterministic event_id.
+    expect(fake.emits).toHaveLength(2);
+    expect(fake.emits[0]!.topic).toBe('inc.emergency.task.requested');
+    expect(fake.emits[1]!.topic).toBe('inc.emergency.task.requested');
+    expect(fake.emits[0]!.eventId).toBe(deterministicStepEventId('outbox-id-12345', 'tasks-0'));
+    expect(fake.emits[1]!.eventId).toBe(deterministicStepEventId('outbox-id-12345', 'tasks-1'));
+    // CRITICAL: the worker never writes to tsk_tasks. ADR-011 says the
+    // Task Worker is the sole writer.
+    const inserts = fake.sqlCalls.filter(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into tsk_tasks'),
+    );
+    expect(inserts).toHaveLength(0);
+    expect(fake.cols.tasks_created_at).toBe('STAMPED');
+  });
+
+  it('on Kafka emit FAILURE for any contact leaves tasks_created_at NULL', async () => {
+    const fake = makeWorkerFake({ emitOk: false, emitError: 'broker offline' });
+    await runWithTenantContext({ tenant: SCHOOL_A }, async () =>
+      fake.worker.runStepTasks(baseRow()),
+    );
+    expect(fake.cols.tasks_created_at).toBeNull();
+    expect(fake.cols.last_error).toContain('emit task failed');
+  });
+
+  it('stamps tasks_created_at when no procedure contacts exist (no-op success path)', async () => {
+    const fake = makeWorkerFake({ emitOk: true });
+    await runWithTenantContext({ tenant: SCHOOL_A }, async () =>
+      fake.worker.runStepTasks(baseRow({ primary_contact_id: null, secondary_contact_id: null })),
+    );
+    expect(fake.emits).toHaveLength(0);
+    expect(fake.cols.tasks_created_at).toBe('STAMPED');
+  });
+});
+
+describe('DeclarationOutboxWorker.runStepMuster — no direct vis_emergency_muster INSERT (BLOCKING #3)', () => {
+  it('emits inc.emergency.muster.requested and never INSERTs into vis_emergency_muster', async () => {
+    const fake = makeWorkerFake({ emitOk: true, visitorCount: 3 });
+    await runWithTenantContext({ tenant: SCHOOL_A }, async () =>
+      fake.worker.runStepMuster(baseRow()),
+    );
+    expect(fake.emits).toHaveLength(1);
+    expect(fake.emits[0]!.topic).toBe('inc.emergency.muster.requested');
+    expect(fake.emits[0]!.eventId).toBe(deterministicStepEventId('outbox-id-12345', 'muster'));
+    const payload = fake.emits[0]!.payload as { totalOnSiteAtSnapshot: number; drillType: string };
+    expect(payload.totalOnSiteAtSnapshot).toBe(3);
+    expect(payload.drillType).toBe('LOCKDOWN');
+    // CRITICAL: no INSERT INTO vis_emergency_muster anywhere — the
+    // Visitor module owns that write via VisitorMusterConsumer.
+    const visMusterInserts = fake.sqlCalls.filter(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into vis_emergency_muster'),
+    );
+    expect(visMusterInserts).toHaveLength(0);
+    // The M91-internal accountability + summary seeds DO run.
+    const accInserts = fake.sqlCalls.filter(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into inc_accountability_records'),
+    );
+    expect(accInserts.length).toBeGreaterThan(0);
+    expect(fake.cols.muster_taken_at).toBe('STAMPED');
+  });
+
+  it('on Kafka emit FAILURE leaves muster_taken_at NULL', async () => {
+    const fake = makeWorkerFake({ emitOk: false, emitError: 'broker offline' });
+    await runWithTenantContext({ tenant: SCHOOL_A }, async () =>
+      fake.worker.runStepMuster(baseRow()),
+    );
+    expect(fake.cols.muster_taken_at).toBeNull();
+    expect(fake.cols.last_error).toContain('emit muster failed');
+  });
+});
+
+describe('deterministicStepEventId — retry-idempotency invariant', () => {
+  it('produces the same v5-shaped UUID for the same (outboxId, step)', () => {
+    const a = deterministicStepEventId('outbox-id', 'alert');
+    const b = deterministicStepEventId('outbox-id', 'alert');
+    expect(a).toBe(b);
+    // RFC-4122 v5 marker: high nibble of byte 6 = 5
+    expect(a[14]).toBe('5');
+  });
+
+  it('produces distinct IDs for different steps', () => {
+    const tasks = deterministicStepEventId('outbox-id', 'tasks-0');
+    const muster = deterministicStepEventId('outbox-id', 'muster');
+    const alert = deterministicStepEventId('outbox-id', 'alert');
+    expect(tasks).not.toBe(muster);
+    expect(muster).not.toBe(alert);
+    expect(tasks).not.toBe(alert);
+  });
+
+  it('produces distinct IDs for different outboxIds at the same step', () => {
+    expect(deterministicStepEventId('aaa', 'alert')).not.toBe(
+      deterministicStepEventId('bbb', 'alert'),
+    );
   });
 });

@@ -107,7 +107,15 @@ export class IncidentService {
     await this.assertEmergencyResponder(actor);
     const tenant = getCurrentTenant();
 
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    // REVIEW-P2C2 ROUND 1 MAJOR 2 fix — keep the Kafka emit OUTSIDE the
+    // tenant transaction so a slow/failing broker can't race the commit.
+    // The durable orchestrator is `inc_declaration_outbox` (created in
+    // the same tx as inc_incidents). The `inc.emergency.declared` emit
+    // is supplementary best-effort metadata for downstream consumers
+    // (analytics, audit feeds). Outbox guarantees the operational
+    // fan-out (tasks, muster, alerts) independently via
+    // DeclarationOutboxWorker's emit-first-stamp-after pattern.
+    const result = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // Validate the incident type exists and is active either at platform
       // (school_id IS NULL) scope or for this tenant.
       const types = (await tx.$queryRawUnsafe(
@@ -158,40 +166,43 @@ export class IncidentService {
         tenant.schoolId,
         incidentId,
       )) as IncidentRow[];
-      const dto = this.rowToDto(rows[0]!);
-
-      // Emit AFTER tx commits — best-effort, the outbox is the durable
-      // orchestrator. Emit failure does not roll back the declaration.
-      // Note: the kafka emit is wrapped in try/catch by the producer.
-      void this.kafka
-        .emit({
-          topic: 'inc.emergency.declared',
-          key: incidentId,
-          sourceModule: 'incident',
-          payload: {
-            incidentId,
-            schoolId: tenant.schoolId,
-            incidentTypeId: input.incidentTypeId,
-            incidentTypeCode: rows[0]!.type_code,
-            severity: rows[0]!.severity,
-            requiresLockdown: rows[0]!.requires_lockdown ?? false,
-            declaredBy: actor.accountId,
-            declaredAt,
-            title: rows[0]!.title,
-            sourceRefId: incidentId,
-          },
-        })
-        .catch((e) =>
-          this.logger.error(
-            'kafka emit failed for inc.emergency.declared (' +
-              incidentId +
-              '): ' +
-              (e?.message || e),
-          ),
-        );
-
-      return dto;
+      const head = rows[0]!;
+      return { dto: this.rowToDto(head), incidentId, declaredAt, head };
     });
+
+    // Emit AFTER the tenant tx has committed — outside the executeInTenantTransaction
+    // callback so a slow/failing broker can never race the DB commit.
+    try {
+      await this.kafka.emit({
+        topic: 'inc.emergency.declared',
+        key: result.incidentId,
+        sourceModule: 'incident',
+        payload: {
+          incidentId: result.incidentId,
+          schoolId: tenant.schoolId,
+          incidentTypeId: input.incidentTypeId,
+          incidentTypeCode: result.head.type_code,
+          severity: result.head.severity,
+          requiresLockdown: result.head.requires_lockdown ?? false,
+          declaredBy: actor.accountId,
+          declaredAt: result.declaredAt,
+          title: result.head.title,
+          sourceRefId: result.incidentId,
+        },
+      });
+    } catch (e: any) {
+      // The supplementary inc.emergency.declared emit is best-effort —
+      // operational fan-out is owned by the DeclarationOutboxWorker, which
+      // has its own emit-first-stamp-after durability per step.
+      this.logger.error(
+        'kafka emit failed for inc.emergency.declared (' +
+          result.incidentId +
+          '): ' +
+          (e?.message || e),
+      );
+    }
+
+    return result.dto;
   }
 
   /**

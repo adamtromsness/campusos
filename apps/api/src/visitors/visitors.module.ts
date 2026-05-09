@@ -6,6 +6,7 @@ import { BannedPersonService } from './banned-person.service';
 import { MusterService } from './muster.service';
 import { PreRegistrationService, RecurringVisitorService, SignInService } from './sign-in.service';
 import { SignInSettingsService, VisitorService, VisitorTypeService } from './visitor.service';
+import { VisitorMusterConsumer } from './visitor-muster.consumer';
 import { VisitorsController } from './visitors.controller';
 
 /**
@@ -54,6 +55,10 @@ import { VisitorsController } from './visitors.controller';
     RecurringVisitorService,
     BannedPersonService,
     MusterService,
+    // P2C2 Round 1 BLOCKING fix — owns the cross-module write to
+    // vis_emergency_muster on inc.emergency.muster.requested. M91 emits
+    // the request event; this consumer creates the muster row.
+    VisitorMusterConsumer,
   ],
   controllers: [VisitorsController],
   exports: [

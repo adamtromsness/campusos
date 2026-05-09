@@ -588,13 +588,45 @@ async function seedIncident() {
     new Date(declaredAt.getTime() + 18000).toISOString(),
   );
 
+  // ----- H) auto-task rule for inc.emergency.task.requested ---------------
+  // REVIEW-P2C2 ROUND 1 BLOCKING fix — the M91 DeclarationOutboxWorker now
+  // emits inc.emergency.task.requested per procedure contact instead of
+  // INSERTing into tsk_tasks directly. The Cycle 7 TaskWorker subscribes
+  // to this event via the rule below and creates the URGENT response task
+  // with payload.recipientAccountId as the owner. Per ADR-011 the Task
+  // Worker is the sole writer to tsk_tasks.
+  console.log('  Seeding inc.emergency.task.requested auto-task rule ...');
+  const taskRuleId = generateId();
+  await client.$executeRawUnsafe(
+    'INSERT INTO ' +
+      TENANT_SCHEMA +
+      '.tsk_auto_task_rules (id, school_id, trigger_event_type, target_role, ' +
+      ' title_template, description_template, priority, due_offset_hours, ' +
+      ' task_category, is_system, is_active) ' +
+      "VALUES ($1::uuid, $2::uuid, 'inc.emergency.task.requested', NULL, $3, $4, " +
+      " 'URGENT', 2, 'ADMINISTRATIVE', true, true)",
+    taskRuleId,
+    schoolId,
+    '{title}',
+    '{description}',
+  );
+  await client.$executeRawUnsafe(
+    'INSERT INTO ' +
+      TENANT_SCHEMA +
+      '.tsk_auto_task_actions (id, rule_id, action_type, action_config, sort_order) ' +
+      "VALUES ($1::uuid, $2::uuid, 'CREATE_TASK', '{}'::jsonb, 0)",
+    generateId(),
+    taskRuleId,
+  );
+
   console.log('');
   console.log('  M91 Incident & Emergency seed complete.');
   console.log('  - 5 incident types, 3 procedures, 1 RESOLVED incident with 5 timeline entries,');
   console.log(
     '  - 15 accountability records + 1 summary, 1 reunification, 2 drills, 2 non-discipline,',
   );
-  console.log('  - 1 outbox row (all steps stamped).');
+  console.log('  - 1 outbox row (all steps stamped),');
+  console.log('  - 1 auto-task rule for inc.emergency.task.requested (target_role=NULL fallback).');
   console.log('');
 }
 
