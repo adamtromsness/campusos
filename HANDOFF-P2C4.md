@@ -1271,3 +1271,56 @@ CLAUDE.md (status block)
 ```
 
 Awaiting Round 2 verdict before tagging `p2c4c-complete` / `p2c4c-approved`.
+
+---
+
+## REVIEW-P2-4c Round 2 — PASS (2026-05-09) — Wave A closes
+
+Round 2 of REVIEW-P2-4c-CHATGPT (against `9a515da`) returned **PASS**. Reviewer's per-finding verification table:
+
+| Prior Finding                                                  |    Status |
+| -------------------------------------------------------------- | --------: |
+| Teacher with HR-005:read could mutate appraisal goals/comments | **FIXED** |
+| Appraisal private comments not properly restricted             | **FIXED** |
+| Training event completion roster leaked to HR-004:read holders | **FIXED** |
+| Expense claim approval permission model inconsistent           | **FIXED** |
+| GLConsumer synthetic actor not school-scoped                   | **FIXED** |
+| Training programme/event used non-transactional rereads        | **FIXED** |
+| Regression tests for blockers                                  | **FIXED** |
+
+Updated dimension scores all **PASS**: Security / Privacy, Appraisals, Training & Certifications, Expense Claims, GLConsumer Payroll Wire, Transactional Correctness, Test Coverage.
+
+**Four non-blocking carry-overs from the Round 2 verdict** (Phase 2 / pre-pilot punch-list, not gate blockers):
+
+1. `fin_posting_rules` lookup table to abstract the hard-coded 5100 / 2100 / 1000 GL accounts.
+2. Partial UNIQUE index on `hr_employee_certifications(employee_id, certification_type_id) WHERE status='ACTIVE'`.
+3. DB trigger for `hr_appraisals` SIGNED_OFF immutability (service-side discipline holds today).
+4. Web UI polish for `/hr/training`, `/hr/appraisals`, `/hr/expense-claims`.
+
+Tagged `p2c4c-complete` at `9a515da` (the Round 1 fix commit that earned PASS) and `p2c4c-approved` at the closeout commit.
+
+---
+
+## Wave A (Pilot Critical) — CLOSED
+
+P2C4 ships clean across all three sub-cycles:
+
+- **P2-4a Payroll** — `p2c4a-complete` at `617e37c` / `p2c4a-approved` at the closeout commit.
+- **P2-4b Recruitment** — `p2c4b-complete` at `a86cbbf` / `p2c4b-approved` at `062e3da`.
+- **P2-4c Training + Appraisals + GLConsumer payroll wire** — `p2c4c-complete` at `9a515da` / `p2c4c-approved` at the closeout commit.
+
+**The pilot-critical HR + finance stack is now in repo:** payroll processing → outbox → GLConsumer → balanced double-entry batch posted; recruitment with auto-hire on offer accept; training with auto-issue on completion; appraisals with SIGNED_OFF immutability; lesson observations with the `lesson_observation:write` keystone gate; expense claims with split self-submission / administration authority via HR-012 / HR-013; salary scale per-position assignment closing the P2-4a Round 1 carry-over.
+
+Phase 2 Wave B (the remaining .1 cycles for cross-cutting concerns) opens after pilot feedback per the original delivery plan.
+
+### Pre-pilot punch list aggregated across P2C4
+
+- **Recruitment Administrator role split** (P2-4b carry-over) — HR-011 currently held only by School Admin / Platform Admin via everyFunction; pre-pilot a dedicated role grants HR-011 explicitly.
+- **Candidate-facing HR-002:read onboarding** (P2-4b carry-over) — external candidates have account_status=PENDING_VERIFICATION with no IAM role; need a minimal grant before pilot for self-service Accept / Decline.
+- **Application lifecycle transition graph** (P2-4b carry-over) — admin patch can flip status to any enum value; pre-pilot hardening enforces a strict transition map.
+- **`fin_posting_rules` lookup table** (P2-4c carry-over) — abstract hard-coded 5100 / 2100 / 1000 GL accounts.
+- **Partial UNIQUE on hr_employee_certifications active rows** (P2-4c carry-over).
+- **DB trigger for hr_appraisals SIGNED_OFF immutability** (P2-4c carry-over).
+- **`hr.certification.expiring` cron worker** (P2-4c carry-over).
+- **Web UI polish pass** for `/hr/training`, `/hr/appraisals`, `/hr/expense-claims` (P2-4c carry-over).
+- **Finance Officer role** holding HR-013 explicitly (P2-4c BLOCKING 3 fix carry-over).
