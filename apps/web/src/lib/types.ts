@@ -9719,3 +9719,314 @@ export interface UpdateScreeningReferralPayload {
   followUpNotes?: string;
   referredTo?: string;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// P2-4c — Training + Appraisals + Expense Claims
+// ─────────────────────────────────────────────────────────────────────────
+
+export type EventStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+export type CertificationStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+
+export interface TrainingProgrammeDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  isMandatory: boolean;
+  renewalMonths: number | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CreateTrainingProgrammePayload {
+  name: string;
+  description?: string;
+  isMandatory?: boolean;
+  renewalMonths?: number;
+}
+
+export interface UpdateTrainingProgrammePayload {
+  name?: string;
+  description?: string | null;
+  isMandatory?: boolean;
+  renewalMonths?: number | null;
+  isActive?: boolean;
+}
+
+export interface TrainingEventDto {
+  id: string;
+  programmeId: string;
+  programmeName: string | null;
+  schoolId: string;
+  title: string;
+  scheduledAt: string;
+  durationMinutes: number | null;
+  location: string | null;
+  facilitator: string | null;
+  maxParticipants: number | null;
+  status: EventStatus;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  notes: string | null;
+  completionCount: number;
+  createdAt: string;
+}
+
+export interface CreateTrainingEventPayload {
+  programmeId: string;
+  title: string;
+  scheduledAt: string;
+  durationMinutes?: number;
+  location?: string;
+  facilitator?: string;
+  maxParticipants?: number;
+  notes?: string;
+}
+
+export interface UpdateTrainingEventPayload {
+  title?: string;
+  scheduledAt?: string;
+  durationMinutes?: number;
+  location?: string;
+  facilitator?: string;
+  maxParticipants?: number;
+  status?: EventStatus;
+  cancellationReason?: string;
+  notes?: string;
+}
+
+export interface TrainingCompletionDto {
+  id: string;
+  eventId: string;
+  eventTitle: string | null;
+  programmeId: string | null;
+  programmeName: string | null;
+  employeeId: string;
+  employeeName: string | null;
+  schoolId: string;
+  completedAt: string;
+  score: number | null;
+  passed: boolean;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface RecordCompletionPayload {
+  employeeId: string;
+  completedAt?: string;
+  score?: number;
+  passed?: boolean;
+  notes?: string;
+}
+
+export interface CertificationTypeDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  issuingBody: string | null;
+  description: string | null;
+  validityMonths: number | null;
+  isRequired: boolean;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface EmployeeCertificationDto {
+  id: string;
+  employeeId: string;
+  employeeName: string | null;
+  certificationTypeId: string;
+  certificationTypeName: string | null;
+  schoolId: string;
+  issuedAt: string;
+  expiresAt: string | null;
+  documentS3Key: string | null;
+  referenceNumber: string | null;
+  status: CertificationStatus;
+  revokedAt: string | null;
+  revokedReason: string | null;
+  daysUntilExpiry: number | null;
+  createdAt: string;
+}
+
+// Appraisals
+
+export type AppraisalRating = 'OUTSTANDING' | 'GOOD' | 'REQUIRES_IMPROVEMENT' | 'INADEQUATE';
+export type AppraisalStatus = 'DRAFT' | 'IN_REVIEW' | 'SIGNED_OFF';
+export type CycleType = 'ANNUAL' | 'MID_YEAR' | 'PROBATIONARY';
+export type CycleStatus = 'OPEN' | 'CLOSED' | 'ARCHIVED';
+// Renamed AppraisalGoalProgress to avoid colliding with the
+// Cycle 11 counselling GoalProgress (different enum values).
+export type AppraisalGoalProgress = 'NOT_STARTED' | 'IN_PROGRESS' | 'ACHIEVED' | 'NOT_ACHIEVED';
+export type ExpenseStatus = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'PAID';
+
+export interface AppraisalFrameworkDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  criteria: unknown;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AppraisalCycleDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  frameworkId: string;
+  frameworkName: string | null;
+  cycleType: CycleType;
+  name: string;
+  startsOn: string;
+  endsOn: string;
+  status: CycleStatus;
+  closedAt: string | null;
+  createdAt: string;
+}
+
+export interface AppraisalGoalDto {
+  id: string;
+  appraisalId: string;
+  goalText: string;
+  successCriteria: string | null;
+  targetDate: string | null;
+  progress: AppraisalGoalProgress;
+  progressNotes: string | null;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface AppraisalCommentDto {
+  id: string;
+  appraisalId: string;
+  authorId: string;
+  authorName: string | null;
+  commentText: string;
+  isVisibleToEmployee: boolean;
+  createdAt: string;
+}
+
+export interface LessonObservationDto {
+  id: string;
+  appraisalId: string | null;
+  schoolId: string;
+  observerId: string;
+  observerName: string | null;
+  observedEmployeeId: string;
+  observedEmployeeName: string | null;
+  observationDate: string;
+  observedClassLabel: string;
+  observedClassId: string | null;
+  durationMinutes: number | null;
+  overallGrade: AppraisalRating | null;
+  strengths: string | null;
+  areasForDevelopment: string | null;
+  notes: string | null;
+  isLocked: boolean;
+  lockedAt: string | null;
+  lockedBy: string | null;
+  createdAt: string;
+}
+
+export interface AppraisalDto {
+  id: string;
+  cycleId: string;
+  cycleName: string | null;
+  cycleType: CycleType | null;
+  employeeId: string;
+  employeeName: string | null;
+  appraiserId: string | null;
+  appraiserName: string | null;
+  schoolId: string;
+  overallRating: AppraisalRating | null;
+  selfReview: string | null;
+  appraiserReview: string | null;
+  developmentPlan: string | null;
+  status: AppraisalStatus;
+  signedOffAt: string | null;
+  signedOffBy: string | null;
+  signedOffByName: string | null;
+  linkedApprovalId: string | null;
+  goals: AppraisalGoalDto[];
+  observations: LessonObservationDto[];
+  comments: AppraisalCommentDto[];
+  createdAt: string;
+}
+
+export interface UpdateAppraisalPayload {
+  appraiserId?: string;
+  overallRating?: AppraisalRating;
+  selfReview?: string;
+  appraiserReview?: string;
+  developmentPlan?: string;
+  status?: AppraisalStatus;
+}
+
+export interface CreateAppraisalGoalPayload {
+  goalText: string;
+  successCriteria?: string;
+  targetDate?: string;
+  sortOrder?: number;
+}
+
+export interface UpdateAppraisalGoalPayload {
+  goalText?: string;
+  successCriteria?: string;
+  targetDate?: string;
+  progress?: AppraisalGoalProgress;
+  progressNotes?: string;
+}
+
+export interface CreateAppraisalCommentPayload {
+  commentText: string;
+  isVisibleToEmployee?: boolean;
+}
+
+export interface CreateLessonObservationPayload {
+  appraisalId?: string;
+  observedEmployeeId: string;
+  observationDate: string;
+  observedClassLabel: string;
+  observedClassId?: string;
+  durationMinutes?: number;
+  overallGrade?: AppraisalRating;
+  strengths?: string;
+  areasForDevelopment?: string;
+  notes?: string;
+}
+
+// Expense claims
+
+export interface ExpenseClaimDto {
+  id: string;
+  employeeId: string;
+  employeeName: string | null;
+  schoolId: string;
+  claimTitle: string;
+  description: string | null;
+  incurredOn: string;
+  totalAmount: number;
+  receiptS3Keys: string[];
+  status: ExpenseStatus;
+  approvedBy: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  rejectionReason: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export interface CreateExpenseClaimPayload {
+  claimTitle: string;
+  description?: string;
+  incurredOn: string;
+  totalAmount: number;
+  receiptS3Keys?: string[];
+}
+
+export interface DecideExpenseClaimPayload {
+  decision: 'APPROVED' | 'REJECTED';
+  rejectionReason?: string;
+}

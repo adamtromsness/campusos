@@ -76,7 +76,9 @@ export type AppKey =
   | 'platform'
   | 'configuration'
   | 'visitors'
-  | 'emergency';
+  | 'emergency'
+  | 'development'
+  | 'expenses';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -332,6 +334,41 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'School-wide training compliance',
       href: '/compliance',
       icon: CheckCircleIcon,
+    });
+  }
+
+  // P2-4c — Training + Appraisals (Development) tile gated on
+  // hr-004:read OR hr-005:read so Teacher (own training history,
+  // own appraisal) and Staff/Admin (admin pipeline) both reach
+  // the surface. The /hr/training landing branches admin vs
+  // self-view internally.
+  if (hasAnyPermission(user, ['hr-004:read', 'hr-005:read', 'sch-001:admin'])) {
+    apps.push({
+      key: 'development',
+      label: 'Development',
+      description:
+        isStaff || isAdmin
+          ? 'Training programmes, appraisals, lesson observations'
+          : 'Your training history and appraisal',
+      href: '/hr/training',
+      routePrefix: '/hr',
+      icon: AcademicCapIcon,
+    });
+  }
+
+  // P2-4c — Expense claims tile gated on hr-012:read (every
+  // employee submits own claims; admin queue gated on HR-013 at
+  // the service layer).
+  if (hasAnyPermission(user, ['hr-012:read', 'hr-012:write', 'sch-001:admin'])) {
+    apps.push({
+      key: 'expenses',
+      label: 'Expenses',
+      description:
+        isStaff || isAdmin
+          ? 'Submit, approve, and track expense claims'
+          : 'Submit and track your expense claims',
+      href: '/hr/expense-claims',
+      icon: BanknotesIcon,
     });
   }
 

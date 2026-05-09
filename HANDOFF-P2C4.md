@@ -1324,3 +1324,43 @@ Phase 2 Wave B (the remaining .1 cycles for cross-cutting concerns) opens after 
 - **`hr.certification.expiring` cron worker** (P2-4c carry-over).
 - **Web UI polish pass** for `/hr/training`, `/hr/appraisals`, `/hr/expense-claims` (P2-4c carry-over).
 - **Finance Officer role** holding HR-013 explicitly (P2-4c BLOCKING 3 fix carry-over).
+
+---
+
+## P2-4c Step 10 — Web UI shipped (2026-05-09)
+
+The original P2C4 plan's Step 10 (Training + Appraisals UI) was deferred at P2-4c initial ship per the context budget; reviewer Round 2 PASS verdict accepted the deferral but it stayed on the pre-pilot punch list. This commit closes it out.
+
+**Three routes shipped under `/hr/`:**
+
+- **`/hr/training`** — admin pipeline with 3 tabs:
+  - **Programmes** — list + Create modal (name + description + isMandatory + renewalMonths). Per-row Deactivate / Reactivate toggle.
+  - **Events** — filterable by status; Schedule-event modal with programme picker + datetime + location + facilitator. Per-row Complete / Cancel actions (cancel prompts for non-empty `cancellationReason` matching the schema lockstep). Each row expands to a per-event completion roster (BLOCKING 2 self-scoped path verified live for non-admin actors).
+  - **Expiring certs** — admin dashboard sorted by nearest expiry; days-left tone (rose ≤30, amber ≤60, emerald >60); window picker (7-365 days).
+
+- **`/hr/appraisals`** — cycle picker + per-employee appraisal detail with:
+  - **Status transitions** (DRAFT → IN_REVIEW → SIGNED_OFF) with admin-only buttons; SIGNED_OFF banner is irreversible (matches the keystone schema lockstep).
+  - **Self-review + appraiser review + development plan + overall rating** — appraisee can edit own selfReview; admin can edit appraiser fields. All disabled once SIGNED_OFF.
+  - **Goals** with inline progress transitions (NOT_STARTED → IN_PROGRESS → ACHIEVED / NOT_ACHIEVED). Add-goal form for non-SIGNED_OFF appraisals.
+  - **Lesson observations** — KEYSTONE — Add-observation form gated on `lesson_observation:write` (admin tier only). Form carries the rose-tinted "Sensitive" banner. Per-row Lock button (irreversible). Locked observations render with a Locked pill so the observed employee sees them via the appraisal detail.
+  - **Comments** with `is_visible_to_employee` toggle (admin sees both; non-admin appraisee sees only visible ones). Private comments admin/appraiser only — the form clarifies the visibility per persona.
+
+- **`/hr/expense-claims`** — dual-tab surface:
+  - **My claims** (always visible) — Submit-claim modal with title + date + amount + description.
+  - **Approval queue** (admin tab, gated on HR-013 client-side; service-side gate is the actual access boundary) — status filter chips, Approve / Reject / Mark-paid actions; Reject prompts for non-empty `rejectionReason` matching the schema lockstep.
+
+**Launchpad tiles + sidebar entries** added for `Development` (gated on `hr-004:read OR hr-005:read`; routes to `/hr/training` with `routePrefix: '/hr'` so all three routes light up the same tile) + `Expenses` (gated on `hr-012:read`; routes to `/hr/expense-claims`). New `AppKey` values `'development'` + `'expenses'`.
+
+**Hooks + types**:
+
+- `apps/web/src/lib/types.ts` — appended ~30 P2-4c DTOs / payloads. Renamed the new `GoalProgress` type to **`AppraisalGoalProgress`** to avoid colliding with the Cycle 11 counselling `GoalProgress` (which uses `MET / NOT_MET` instead of `ACHIEVED / NOT_ACHIEVED`).
+- `apps/web/src/lib/hr-development-format.ts` — new label + pill class maps for every status enum (event, certification, appraisal, cycle, goal progress, expense), `formatCurrency` / `formatDate` / `formatDateTime` / `expiryTone(days)` helpers.
+- `apps/web/src/hooks/use-hr-development.ts` — **24 React Query hooks** covering training (programmes / events / completions / cert types / employee certs / expiring), appraisals (cycles / frameworks / list+detail + patch / goals / comments / observations / lock), expense claims (list / create / decide / mark-paid).
+
+**Build sizes**: `/hr/training` 3.45 kB / 117 kB First Load JS; `/hr/appraisals` 4.28 kB / 117 kB; `/hr/expense-claims` 2.49 kB / 116 kB.
+
+**No backend changes** — the UI sits entirely on the 44 endpoints already approved at `dd4df65`. Vitest suite stays at **189/189 passing across 17 spec files**.
+
+**CI parity green**: format + format:check + lint:logs (585 files clean) + vitest 189/189 + API + web build all clean.
+
+**Original 12-step P2C4 plan now fully shipped + APPROVED.** Pre-pilot punch list reduced from 9 items to 8 (web UI polish line removed).
