@@ -1461,6 +1461,67 @@ describe('REVIEW-P2-6 BLOCKING regressions', () => {
     expect(a).not.toBe(c);
     expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
+
+  // -------------------------------------------------------------------
+  // ROUND 2 closeout — auto-invoice generation school-scoping. The
+  // Round 2 reviewer flagged that runGeneration(), listRuns,
+  // getRunById, family-account lookup, and the duplicate-invoice
+  // check were unscoped. These tests pin the new SQL shapes.
+  // -------------------------------------------------------------------
+  it('Round 2 closeout — listRuns + getRunById carry school predicate', async () => {
+    const sqlSeen: string[] = [];
+    const { tenantPrisma } = makeFake((c) => {
+      sqlSeen.push(c.sql.toLowerCase());
+      return [];
+    });
+    const svc = new AutoInvoiceService(tenantPrisma as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await svc.listRuns({}, ADMIN_ACTOR);
+    });
+    expect(
+      sqlSeen.some(
+        (s) => s.includes('from pay_invoice_generation_runs') && s.includes('school_id'),
+      ),
+    ).toBe(true);
+    sqlSeen.length = 0;
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(svc.getRunById('cross-school-run', ADMIN_ACTOR)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+    expect(
+      sqlSeen.some(
+        (s) =>
+          s.includes('pay_invoice_generation_runs') &&
+          s.includes('school_id') &&
+          s.includes('id ='),
+      ),
+    ).toBe(true);
+  });
+
+  it('Round 2 closeout — runGeneration fee-schedule lookup is school-scoped', async () => {
+    const sqlSeen: string[] = [];
+    const { tenantPrisma } = makeFake((c) => {
+      sqlSeen.push(c.sql.toLowerCase());
+      // Fail fast: return empty schedule rows so generation aborts
+      // immediately after the school-scoped fee-schedule lookup.
+      return [];
+    });
+    const svc = new AutoInvoiceService(tenantPrisma as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      // generation aborts (schedule lookup empty) → run flips FAILED
+      // → the wrapping getRunById can't find the row. We don't care
+      // about the wrapping read — we care about the SQL the engine
+      // executed before aborting.
+      await expect(
+        svc.generateFromFeeSchedule('cross-school-fee', null, ADMIN_ACTOR),
+      ).rejects.toBeDefined();
+    });
+    // The fee-schedule lookup MUST carry school_id.
+    expect(
+      sqlSeen.some((s) => s.includes('from pay_fee_schedules') && s.includes('school_id')),
+    ).toBe(true);
+  });
 });
 
 // Avoid unused-import lint noise.

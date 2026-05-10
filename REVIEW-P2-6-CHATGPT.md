@@ -1,9 +1,41 @@
 # REVIEW-P2-6-CHATGPT — Phase 2 Cycle 6 Payments Advanced
 
 **Round 1 verdict**: REJECT — 4 BLOCKING + 4 MAJOR.
-**Round 2 verdict (post-fix)**: PENDING — closeout commit lands all 4
-BLOCKING + the 3 actionable MAJOR fixes with live test verification
-and 6 new pinned regression tests so the contract cannot regress.
+**Round 2 verdict (against `5f3ad04`)**: **PASS** — final gate
+decision. Reviewer confirmed every prior blocker FIXED + every
+dimension at PASS (Financial Aid / Billing Ops / Lunch Accounts /
+Auto-Invoice Rules / Payment Allocation / Saved Payment Methods /
+Test Coverage). One non-blocking hardening item carried to the
+closeout commit.
+
+**Closeout fix (Round 2 carry-forward, applied 2026-05-10)**:
+`AutoInvoiceService` school-scoping cleanup. The Round 2 reviewer
+flagged that `runGeneration()` loaded the fee schedule with
+`WHERE id = $1::uuid` (no school predicate); `listRuns` and
+`getRunById` used unscoped `WHERE 1=1` / `WHERE r.id = $1::uuid`;
+the family-account lookup inside generation joined only on
+`student_id`; and the existing-invoice duplicate check did not
+join on `school_id`. All 5 paths now thread `getCurrentTenant().schoolId`
+into the predicate:
+
+- `listRuns` SELECT adds `WHERE r.school_id = $1::uuid`.
+- `getRunById` SELECT adds `WHERE r.school_id = $1::uuid AND r.id = $2::uuid`
+  (cross-school UUIDs collapse to 404).
+- `runGeneration` fee-schedule lookup adds `WHERE school_id = $1::uuid AND id = $2::uuid`
+  so the manual `generateFromFeeSchedule(crossSchoolFeeId)` admin path aborts
+  BEFORE walking any students.
+- Family-account lookup inside generation now JOINs `pay_family_accounts`
+  on `school_id = $tenant.schoolId` so a leaked
+  `pay_family_account_students` row cannot pull in a foreign-school
+  family.
+- Existing-invoice duplicate check JOINs `pay_invoices` on
+  `school_id = $tenant.schoolId` so the dedup gate is school-scoped.
+
+Test coverage: 295 → **297 passing across 19 spec files** (+2 new
+regression tests pinning the new SQL shapes). CI parity green.
+
+**Tagged**: `p2c6-complete` at `5f3ad04` (the Round 1 fix that earned
+Round 2 PASS) and `p2c6-approved` at the closeout commit.
 
 ---
 
@@ -237,8 +269,16 @@ durable contract is locked in across the entire suite.
 
 ---
 
-## Awaiting Round 2 Verdict
+## Round 2 Verdict — PASS
 
-All 4 BLOCKING + 3 actionable MAJOR fixes lined up against the
-reviewer's exact wording. MAJOR 8 is a documentation recommendation,
-not a code fix; deferred to Phase 2 polish.
+Reviewer cache-busted each affected file in code on Round 2 and
+confirmed every fix matches the wording above. All 4 prior blockers
+FIXED; every dimension scored PASS. One non-blocking hardening item
+flagged (auto-invoice generation/run school-scoping) — addressed in
+the closeout commit (see top of file).
+
+**Tagged**:
+- `p2c6-complete` at `5f3ad04` (Round 1 fix that earned Round 2 PASS)
+- `p2c6-approved` at the closeout commit
+
+Phase 2 Cycle 6 ships clean.

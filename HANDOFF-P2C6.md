@@ -1,6 +1,41 @@
 # HANDOFF — Phase 2 Cycle 6 (P2-6) Payments Advanced
 
-**Status:** REVIEW-P2-6 ROUND 1 fixes applied (2026-05-10) — awaiting Round 2 verdict. Round 1 against `8198142`-equivalent (post-P2-6b commit) returned **REJECT** with **4 BLOCKING + 4 MAJOR**; closeout fix commit lands all 4 BLOCKING + 3 actionable MAJORs (5 + 6 + 7) with live test verification + 6 new pinned regression tests so the contract cannot regress. **All 10 steps of P2-6 itself shipped across two sessions:** P2-6a (steps 1–7 + 10) and P2-6b (steps 8 + 9 + tests). Plan reference: `docs/campusos-p2c6-payments-advanced.html`. Review fix log: `REVIEW-P2-6-CHATGPT.md`.
+**Status:** **COMPLETE + APPROVED at the Round 2 closeout commit (REVIEW-P2-6-CHATGPT — final verdict, 2026-05-10).** Round 1 against the post-P2-6b commit returned **REJECT** with **4 BLOCKING + 4 MAJOR**. Round 1 fix commit `5f3ad04` landed all 4 BLOCKING + 3 actionable MAJORs (5 + 6 + 7) and earned Round 2 verdict **PASS** (every prior blocker FIXED, every dimension at PASS). Closeout commit lands the one Round 2 hardening carry-forward (`AutoInvoiceService` generation/run school-scoping — `runGeneration` fee-schedule lookup + `listRuns` + `getRunById` + family-account lookup + existing-invoice duplicate check) with 2 new pinned regression tests. Tagged `p2c6-complete` at `5f3ad04` and `p2c6-approved` at the closeout commit. **All 10 steps of P2-6 itself shipped across two sessions:** P2-6a (steps 1–7 + 10) and P2-6b (steps 8 + 9 + tests). Plan reference: `docs/campusos-p2c6-payments-advanced.html`. Review fix log: `REVIEW-P2-6-CHATGPT.md`.
+
+## REVIEW-P2-6 ROUND 2 — closeout (PASS verdict)
+
+Round 2 against `5f3ad04` returned **PASS** — every prior blocker
+FIXED; every dimension at PASS (Financial Aid, Billing Ops / GL Events,
+Lunch Accounts, Auto-Invoice Rules, Payment Allocation, Saved Payment
+Methods, Test Coverage). Reviewer carried one non-blocking hardening
+item: auto-invoice `runGeneration` fee-schedule lookup, `listRuns`,
+`getRunById`, family-account lookup inside generation, and the
+existing-invoice duplicate check were still unscoped (admin-only
+surface so the practical risk is low, but inconsistent with the
+Phase 2 gate standard).
+
+**Closeout fix (this commit):** all 5 paths in
+`apps/api/src/payments/auto-invoice.service.ts` now thread
+`getCurrentTenant().schoolId` into the predicate:
+
+- `listRuns` SELECT adds `WHERE r.school_id = $1::uuid`.
+- `getRunById` SELECT adds `WHERE r.school_id = $1::uuid AND r.id = $2::uuid`
+  (cross-school UUIDs collapse to 404 don't-leak-existence).
+- `runGeneration` fee-schedule lookup adds `WHERE school_id = $1::uuid AND id = $2::uuid`
+  so a manual `generateFromFeeSchedule(crossSchoolFeeId)` aborts BEFORE walking any students.
+- Family-account lookup inside generation now JOINs `pay_family_accounts`
+  on `school_id = $tenant.schoolId` so a leaked `pay_family_account_students`
+  row alone cannot pull in a foreign-school family.
+- Existing-invoice duplicate check JOINs `pay_invoices` on
+  `school_id = $tenant.schoolId` so the dedup gate is school-scoped
+  and a cross-school invoice can never satisfy it.
+
+Test coverage: 295 → **297 passing across 19 spec files** (+2 new
+regression tests in the existing `describe('REVIEW-P2-6 BLOCKING regressions')`
+block — `Round 2 closeout — listRuns + getRunById carry school predicate`
+and `Round 2 closeout — runGeneration fee-schedule lookup is school-scoped`).
+CI parity: format:check + lint:logs (621 files clean) + API build clean +
+web build clean + vitest 297/297. **Phase 2 Cycle 6 ships clean.**
 
 ## REVIEW-P2-6 ROUND 1 fix log (2026-05-10)
 

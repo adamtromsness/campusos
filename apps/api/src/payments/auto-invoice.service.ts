@@ -364,10 +364,13 @@ export class AutoInvoiceService implements OnModuleInit {
   ): Promise<InvoiceGenerationRunResponseDto[]> {
     if (!actor.isSchoolAdmin)
       throw new ForbiddenException('Only admins can list invoice generation runs');
+    // REVIEW-P2-6 ROUND 2 closeout — school-scope so cross-school
+    // generation runs are not enumerated.
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      let sql = SELECT_RUN_BASE + 'WHERE 1=1 ';
-      const params: unknown[] = [];
-      let idx = 1;
+      let sql = SELECT_RUN_BASE + 'WHERE r.school_id = $1::uuid ';
+      const params: unknown[] = [schoolId];
+      let idx = 2;
       if (query.status) {
         sql += 'AND r.status = $' + idx + ' ';
         params.push(query.status);
@@ -387,8 +390,15 @@ export class AutoInvoiceService implements OnModuleInit {
   async getRunById(id: string, actor: ResolvedActor): Promise<InvoiceGenerationRunResponseDto> {
     if (!actor.isSchoolAdmin)
       throw new ForbiddenException('Only admins can read invoice generation runs');
+    // REVIEW-P2-6 ROUND 2 closeout — collapse cross-school UUIDs to 404
+    // (don't-leak-existence).
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
-      client.$queryRawUnsafe<RunRow[]>(SELECT_RUN_BASE + 'WHERE r.id = $1::uuid', id),
+      client.$queryRawUnsafe<RunRow[]>(
+        SELECT_RUN_BASE + 'WHERE r.school_id = $1::uuid AND r.id = $2::uuid',
+        schoolId,
+        id,
+      ),
     );
     if (rows.length === 0)
       throw new NotFoundException('Invoice generation run ' + id + ' not found');
@@ -445,7 +455,12 @@ export class AutoInvoiceService implements OnModuleInit {
             fee_category_id: string;
           }>
         >(
-          'SELECT id, name, amount::text, grade_level, applies_to_student_ids, due_date, fee_category_id FROM pay_fee_schedules WHERE id = $1::uuid',
+          // REVIEW-P2-6 ROUND 2 closeout — fee schedule lookup is
+          // school-scoped so a cross-school feeScheduleId surfaced
+          // through the manual generate-from-fee-schedule path
+          // collapses BEFORE generation walks any students.
+          'SELECT id, name, amount::text, grade_level, applies_to_student_ids, due_date, fee_category_id FROM pay_fee_schedules WHERE school_id = $1::uuid AND id = $2::uuid',
+          schoolId,
           args.feeScheduleId,
         ),
       )) as Array<{
@@ -492,10 +507,19 @@ export class AutoInvoiceService implements OnModuleInit {
       // Group students by family account.
       const familyByStudent = new Map<string, { familyAccountId: string; studentIds: string[] }>();
       for (const stu of studentRows) {
+        // REVIEW-P2-6 ROUND 2 closeout — family-account lookup joins
+        // through pay_family_accounts so the family-account row must
+        // belong to the calling school. Defence in depth: studentRows
+        // were already filtered by school_id above, so a leaked
+        // pay_family_account_students row alone cannot pull in a
+        // foreign-school family.
         const accountRows = (await this.tenantPrisma.executeInTenantContext(async (client) =>
           client.$queryRawUnsafe<Array<{ family_account_id: string }>>(
-            'SELECT family_account_id FROM pay_family_account_students WHERE student_id = $1::uuid LIMIT 1',
+            'SELECT fas.family_account_id FROM pay_family_account_students fas ' +
+              'JOIN pay_family_accounts fa ON fa.id = fas.family_account_id ' +
+              'WHERE fas.student_id = $1::uuid AND fa.school_id = $2::uuid LIMIT 1',
             stu.id,
+            schoolId,
           ),
         )) as Array<{ family_account_id: string }>;
         if (accountRows.length === 0) {
@@ -542,10 +566,14 @@ export class AutoInvoiceService implements OnModuleInit {
       for (const [familyAccountId, info] of familyByStudent.entries()) {
         try {
           // Skip if family already has a non-CANCELLED invoice attributed to this fee schedule.
+          // REVIEW-P2-6 ROUND 2 closeout — duplicate-check is
+          // school-scoped so a cross-school invoice never satisfies
+          // the dedup gate.
           const existingRows = (await this.tenantPrisma.executeInTenantContext(async (client) =>
             client.$queryRawUnsafe<Array<{ c: number }>>(
               'SELECT COUNT(*)::int AS c FROM pay_invoices i JOIN pay_invoice_line_items li ON li.invoice_id = i.id ' +
-                "WHERE i.family_account_id = $1::uuid AND li.fee_schedule_id = $2::uuid AND i.status != 'CANCELLED'",
+                "WHERE i.school_id = $1::uuid AND i.family_account_id = $2::uuid AND li.fee_schedule_id = $3::uuid AND i.status != 'CANCELLED'",
+              schoolId,
               familyAccountId,
               schedule.id,
             ),
