@@ -1,6 +1,21 @@
 # HANDOFF — Phase 2 Cycle 7 (P2-7) Classroom Advanced
 
-**Status:** **REVIEW-P2C7 ROUND 3 fix applied — awaiting Round 4 verdict.** Round 1 against `aad2f2a` returned **FAIL** (4 BLOCKING + 4 MAJOR) — fixes shipped at `0c97fc6`. Round 2 against `0c97fc6` returned **FAIL** with 1 residual BLOCKING (base session loader school-scope) — fix shipped at `8cc15fd`. Round 3 against `8cc15fd` returned **FAIL** with 1 residual BLOCKING — `listSessions()` built the WHERE clause only for non-admin actors, so school admins ran the base query with NO `school_id` predicate. A School A admin in a multi-school tenant pool could enumerate School B AI tutoring sessions. **Plus 3 CI lint failures** (TS6133 unused locals: `principalEmpId` in `seed-classroom-advanced.ts`, `schoolId` + `class1Id` in `seed-classroom-advanced-b.ts`). The Round 3 fix commit (this commit) lands the school-scoped `listSessions` for ALL actors + the 3 CI cleanups + 4 new pinned regression tests + a live cross-school list smoke on `tenant_demo`. Vitest 394 → **398 passing across 22 spec files**. CI parity green: format:check + lint:logs (662 files clean) + tsc --noEmit + API + web build + vitest 398/398.
+**Status:** **COMPLETE + APPROVED at the closeout commit (REVIEW-P2C7-CHATGPT — final verdict, 2026-05-10).** Round 4 against `fb38a9b` returned **PASS** — every dimension at PASS (Direct session UUID isolation / Session list isolation / AI learning-signal access / Event durability / Opt-out policy / Test coverage / CI parity). Tagged `p2c7-complete` at `fb38a9b` (the Round 3 fix that earned PASS) and `p2c7-approved` at the closeout commit. Round chain across 4 rounds: Round 1 against `aad2f2a` returned FAIL with 4 BLOCKING + 4 MAJOR (fix at `0c97fc6`); Round 2 against `0c97fc6` returned FAIL with 1 residual BLOCKING (base session loader school-scope, fix at `8cc15fd`); Round 3 against `8cc15fd` returned FAIL with 1 residual BLOCKING (`listSessions` school-scope) plus 3 CI lint failures (fix at `fb38a9b`); Round 4 against `fb38a9b` returned PASS. **Wave B (Pilot Enhancement) Cycle 7 ships clean** — 24 tables, 52 endpoints, 2 Kafka consumers, 1 background worker, 5 Kafka emit topics, 398 vitest tests across 22 spec files.
+
+## REVIEW-P2C7 — final verdict (Round 4 PASS, 2026-05-10)
+
+Round 4 verdict: **PASS** — final gate decision. Reviewer cache-busted each affected file in code on Round 4 and confirmed every fix:
+
+- `listSessions()` now initialises `params` with `tenant.schoolId` and starts with `WHERE s.school_id = $1::uuid` before applying any actor-specific filters.
+- Student-specific filtering appends `AND s.student_id = (...)` and no longer replaces the base school predicate.
+- Teacher filtering appends `AND s.student_id IN (...)` and no longer replaces the base school predicate.
+- Unsupported non-admin actors still return `[]` before executing the query.
+- Four new regression tests under `REVIEW-P2C7 ROUND 3 — listSessions school-scope` increase Vitest from 394 to 398 passing tests.
+- Live smoke accepted (planted 2 foreign-school AI tutoring sessions; School A admin list call returned exactly 2 in-tenant sessions, 0 foreign).
+
+All 7 dimensions at PASS. **No carry-overs from the cycle.** P2-7 ships clean to the next cycle.
+
+## REVIEW-P2C7 ROUND 3 — fix log (2026-05-10)
 
 ## REVIEW-P2C7 ROUND 3 — fix log (2026-05-10)
 

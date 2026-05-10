@@ -7,9 +7,34 @@
 **Round 2 fix commit:** `8cc15fd`. School-scoped `loadSessionRowOrThrow` + 6 supporting query tightenings + 7 new pinned regression tests + 4 live cross-school 404 verifications on `tenant_demo`.
 
 **Round 3 verdict: FAIL.** Reviewed against `8cc15fd`. 1 residual BLOCKING (`listSessions()` had no base school predicate for school admins — School A admin could enumerate School B sessions). Plus 3 CI lint failures (TS6133 unused locals).
-**Round 3 fix commit:** `<this commit>`. School-scoped `listSessions` for ALL actors + 3 CI lint cleanups + 4 new pinned regression tests + live cross-school list smoke on `tenant_demo` (4 total sessions, 2 foreign-school → principal sees 2, foreign count 0).
+**Round 3 fix commit:** `fb38a9b`. School-scoped `listSessions` for ALL actors + 3 CI lint cleanups + 4 new pinned regression tests + live cross-school list smoke on `tenant_demo` (4 total sessions, 2 foreign-school → principal sees 2, foreign count 0).
 
-**Awaiting Round 4 verdict before tagging `p2c7-complete`.**
+**Round 4 verdict: PASS.** Reviewed against `fb38a9b`. Final gate decision — every dimension at PASS (Direct session UUID isolation / Session list isolation / AI learning-signal access / Event durability / Opt-out policy / Test coverage / CI parity). No carry-overs.
+
+**Tagged `p2c7-complete` at `fb38a9b` (the Round 3 fix that earned Round 4 PASS) and `p2c7-approved` at the closeout commit.**
+
+## Final reviewer matrix (Round 4)
+
+| Prior Condition                                                            |       Status | Evidence                                                                                                                                                    |
+| -------------------------------------------------------------------------- | -----------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `listSessions()` must include base `school_id` predicate for school admins |    **FIXED** | `listSessions()` now initialises `params` with `tenant.schoolId` and starts with `WHERE s.school_id = $1::uuid` before applying any actor-specific filters. |
+| Student list branch must retain school scope                               |    **FIXED** | Student-specific filtering is appended with `AND s.student_id = (...)`; it no longer replaces the base school predicate.                                    |
+| Teacher/staff list branch must retain school scope                         |    **FIXED** | Teacher filtering is appended with `AND s.student_id IN (...)`; it also no longer replaces the base school predicate.                                       |
+| Unsupported actors should not query                                        |    **FIXED** | Unsupported non-admin actors still return `[]` before executing the query.                                                                                  |
+| Regression coverage                                                        |    **FIXED** | Four new regression tests under `REVIEW-P2C7 ROUND 3 — listSessions school-scope` increase Vitest from 394 to 398 passing tests.                            |
+| Live verification                                                          | **ACCEPTED** | Live smoke with two planted foreign-school AI tutoring sessions; School A admin list call returned only two School A sessions and zero foreign sessions.    |
+
+| Dimension                     | Final Rating |
+| ----------------------------- | -----------: |
+| Direct session UUID isolation |     **PASS** |
+| Session list isolation        |     **PASS** |
+| AI learning-signal access     |     **PASS** |
+| Event durability              |     **PASS** |
+| Opt-out policy                |     **PASS** |
+| Test Coverage                 |     **PASS** |
+| CI parity                     |     **PASS** |
+
+**Final gate: PASS. P2-7 tagged complete.**
 
 ## Round 3 fix — listSessions school-scope + CI cleanup
 
