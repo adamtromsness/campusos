@@ -140,10 +140,23 @@ export class TourBookingService {
 
   /**
    * Public booking endpoint. Anonymous (no auth) — the family
-   * provides contact info inline. Per ADR-055 we create an
-   * iam_person at booking so future application links resolve
-   * cleanly. The locked-row + current_chk CHECK is the keystone
-   * race-protection for the capacity contract.
+   * provides contact info inline. The locked-row + current_chk
+   * CHECK is the keystone race-protection for the capacity
+   * contract.
+   *
+   * REVIEW-P2-5 BLOCKING 1 + MAJOR 4 fix:
+   *   - Validate the slot (existence + published + non-cancelled +
+   *     capacity remaining) BEFORE creating any platform identity.
+   *     Pre-flight is a cheap unlocked read; the canonical race
+   *     protection still happens inside the locked tx in
+   *     createBookingForPerson().
+   *   - NEVER reuse an existing iam_person by email on the public
+   *     path (the email is unverified contact info). Always create
+   *     a fresh iam_person + platform_users so an attacker who
+   *     knows another family's email cannot attach a booking to
+   *     that account. Identity stitching is a deliberate admin
+   *     workflow via /tour-bookings/:id/link-application after
+   *     verification.
    */
   async bookPublic(slotId: string, input: AnonymousBookingInput): Promise<TourBookingResponseDto> {
     if (!input.firstName || !input.lastName) {
@@ -153,35 +166,70 @@ export class TourBookingService {
       throw new BadRequestException('contactEmail is required and must be a valid email');
     }
 
-    // Step 1 — resolve or create iam_person + platform_users from the
-    // contact email. The lookup is case-insensitive (email column is
-    // lowercased on insert).
-    const lowerEmail = input.contactEmail.toLowerCase();
-    let bookedBy: string | null = null;
-    const existing = await this.platformPrisma.platformUser.findFirst({
-      where: { email: lowerEmail },
-      select: { personId: true },
+    // BLOCKING 1 — pre-flight slot validation BEFORE any platform
+    // identity write. The unlocked read catches the abuse path
+    // (random/unpublished/cancelled/full slot ids) without leaving
+    // orphan iam_person rows behind. The canonical capacity gate
+    // still runs inside the locked tx in createBookingForPerson()
+    // (and the schema-side current_chk is the belt-and-braces for
+    // any direct-SQL bypass).
+    const tenant = getCurrentTenant();
+    await this.tenantPrisma.executeInTenantContext(async (client) => {
+      const rows = (await client.$queryRawUnsafe(
+        'SELECT max_bookings, current_bookings, is_published, is_cancelled, tour_date ' +
+          'FROM enr_tour_slots ' +
+          'WHERE school_id = $1::uuid AND id = $2::uuid LIMIT 1',
+        tenant.schoolId,
+        slotId,
+      )) as Array<{
+        max_bookings: number;
+        current_bookings: number;
+        is_published: boolean;
+        is_cancelled: boolean;
+        tour_date: string;
+      }>;
+      if (rows.length === 0) {
+        throw new NotFoundException('Tour slot not found');
+      }
+      const slot = rows[0]!;
+      if (!slot.is_published) {
+        throw new BadRequestException('Tour slot is not published');
+      }
+      if (slot.is_cancelled) {
+        throw new BadRequestException('Tour slot has been cancelled');
+      }
+      if (slot.current_bookings >= slot.max_bookings) {
+        throw new ConflictException(
+          'Tour slot is full (' + slot.current_bookings + '/' + slot.max_bookings + ')',
+        );
+      }
     });
-    if (existing) {
-      bookedBy = existing.personId;
-    } else {
-      bookedBy = generateId();
-      await this.platformPrisma.$executeRawUnsafe(
-        'INSERT INTO platform.iam_person (id, first_name, last_name, primary_phone, person_type) ' +
-          "VALUES ($1::uuid, $2, $3, $4, 'GUARDIAN')",
-        bookedBy,
-        input.firstName,
-        input.lastName,
-        input.contactPhone ?? null,
-      );
-      await this.platformPrisma.$executeRawUnsafe(
-        'INSERT INTO platform.platform_users (id, person_id, email, account_status, account_type) ' +
-          "VALUES ($1::uuid, $2::uuid, LOWER($3), 'PENDING_VERIFICATION', 'HUMAN')",
-        generateId(),
-        bookedBy,
-        input.contactEmail,
-      );
-    }
+
+    // MAJOR 4 — always create a fresh iam_person on the public
+    // path; do NOT create a platform_users row. Anyone can claim
+    // any email on the public booking form, so reusing an existing
+    // platform_users would let an attacker attach bookings to
+    // another family's account. And creating a NEW platform_users
+    // row would either collide with the existing one on the
+    // UNIQUE(email) constraint OR pollute the auth surface with
+    // unverified rows.
+    //
+    // The right shape: the booking is a "pending external contact"
+    // captured by an iam_person row alone. No platform_users
+    // means no login, no auth identity, no risk of collision. The
+    // contact email stays on enr_tour_bookings.contact_email. When
+    // the family later submits an application, the EO manually
+    // stitches identities via /tour-bookings/:id/link-application
+    // (which validates ownership through the application pipeline).
+    const bookedBy = generateId();
+    await this.platformPrisma.$executeRawUnsafe(
+      'INSERT INTO platform.iam_person (id, first_name, last_name, primary_phone, person_type) ' +
+        "VALUES ($1::uuid, $2, $3, $4, 'GUARDIAN')",
+      bookedBy,
+      input.firstName,
+      input.lastName,
+      input.contactPhone ?? null,
+    );
 
     return this.createBookingForPerson(slotId, bookedBy, input);
   }

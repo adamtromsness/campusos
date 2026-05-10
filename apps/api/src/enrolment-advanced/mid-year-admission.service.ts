@@ -122,6 +122,25 @@ export class MidYearAdmissionService {
     ]);
   }
 
+  /**
+   * REVIEW-P2-5 BLOCKING 3 — operator scope = school admin OR a
+   * STAFF actor with explicit STU-004 grant (Enrolment Officer or
+   * Vice Principal). Generic STAFF (counsellor, librarian, etc.)
+   * does NOT pass this check, so they cannot list every mid-year
+   * request school-wide. Replaces the old `personType === 'STAFF'`
+   * shortcut.
+   */
+  private async hasOperatorScope(actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    if (actor.personType !== 'STAFF') return false;
+    const tenant = getCurrentTenant();
+    return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'stu-003:admin',
+      'stu-004:write',
+      'stu-004:admin',
+    ]);
+  }
+
   private async hasWriteScope(actor: ResolvedActor): Promise<boolean> {
     if (await this.hasAdminScope(actor)) return true;
     const tenant = getCurrentTenant();
@@ -168,12 +187,14 @@ export class MidYearAdmissionService {
 
   async list(actor: ResolvedActor): Promise<MidYearAdmissionResponseDto[]> {
     const tenant = getCurrentTenant();
-    const isAdmin = await this.hasAdminScope(actor);
-    const isStaff = actor.personType === 'STAFF';
+    // REVIEW-P2-5 BLOCKING 3 — operator scope (admin OR EO/VP)
+    // sees school-wide; everyone else is row-scoped to own
+    // submissions.
+    const operator = await this.hasOperatorScope(actor);
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const args: unknown[] = [tenant.schoolId];
       let where = 'm.school_id = $1::uuid ';
-      if (!isAdmin && !isStaff) {
+      if (!operator) {
         args.push(actor.personId);
         where += '  AND m.requested_by = $' + args.length + '::uuid ';
       }
@@ -198,9 +219,10 @@ export class MidYearAdmissionService {
       )) as MyarRow[];
       if (rows.length === 0) throw new NotFoundException('Mid-year admission request not found');
       const row = rows[0] as MyarRow;
-      const isAdmin = await this.hasAdminScope(actor);
-      const isStaff = actor.personType === 'STAFF';
-      if (!isAdmin && !isStaff && row.requested_by !== actor.personId) {
+      // REVIEW-P2-5 BLOCKING 3 — operator scope replaces broad
+      // STAFF shortcut. Non-operator non-submitter gets 404.
+      const operator = await this.hasOperatorScope(actor);
+      if (!operator && row.requested_by !== actor.personId) {
         throw new NotFoundException('Mid-year admission request not found');
       }
       return rowToDto(row);

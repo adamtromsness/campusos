@@ -20,6 +20,17 @@ import {
 } from './dto/withdrawal.dto';
 import { ExitTaskTemplateService } from './exit-task-template.service';
 
+/**
+ * The minimal shape of an open tenant tx — just the two raw exec
+ * methods. Lets ReenrolmentService pass its own open tx into
+ * WithdrawalService.createInTx without dragging the full
+ * PrismaClient typing across services.
+ */
+export interface TenantTx {
+  $queryRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown>;
+  $executeRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown>;
+}
+
 interface WithdrawalRow {
   id: string;
   school_id: string;
@@ -194,9 +205,28 @@ export class WithdrawalService {
     ]);
   }
 
+  /**
+   * REVIEW-P2-5 BLOCKING 3 — "operator scope" replaces the old
+   * `actor.personType === 'STAFF'` shortcut. An operator is a
+   * school admin OR a STAFF actor who explicitly holds STU-004
+   * (i.e. Enrolment Officer / Vice Principal — both granted
+   * STU-004 admin via their specialist role specs). Generic Staff
+   * (counsellor, librarian, custodial, etc.) does NOT pass this
+   * check and so cannot list every school-wide withdrawal /
+   * initiate withdrawal for arbitrary students.
+   */
+  private async hasOperatorScope(actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    if (actor.personType !== 'STAFF') return false;
+    const tenant = getCurrentTenant();
+    return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'stu-004:write',
+      'stu-004:admin',
+    ]);
+  }
+
   private async assertGuardianOfStudent(actor: ResolvedActor, studentId: string): Promise<void> {
-    if (await this.hasAdminScope(actor)) return;
-    if (actor.personType === 'STAFF') return;
+    if (await this.hasOperatorScope(actor)) return;
     if (actor.personType !== 'GUARDIAN') {
       throw new ForbiddenException('Only guardians, EO, or admins can initiate a withdrawal.');
     }
@@ -223,13 +253,16 @@ export class WithdrawalService {
 
   async list(actor: ResolvedActor, statusFilter?: string): Promise<WithdrawalResponseDto[]> {
     const tenant = getCurrentTenant();
-    const isAdmin = await this.hasAdminScope(actor);
-    const isStaff = actor.personType === 'STAFF';
+    // REVIEW-P2-5 BLOCKING 3 — only operators (admin OR EO/VP) see
+    // school-wide; everyone else is row-scoped to own children
+    // (parent) or returns an empty list (other STAFF without
+    // STU-004 grant).
+    const operator = await this.hasOperatorScope(actor);
 
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const args: unknown[] = [tenant.schoolId];
       let where = 'w.school_id = $1::uuid ';
-      if (!isAdmin && !isStaff) {
+      if (!operator) {
         // Parent — bind to own children via guardian link.
         args.push(actor.personId);
         where +=
@@ -271,10 +304,11 @@ export class WithdrawalService {
       )) as WithdrawalRow[];
       if (rows.length === 0) throw new NotFoundException('Withdrawal not found');
       const row = rows[0] as WithdrawalRow;
-      const isAdmin = await this.hasAdminScope(actor);
-      const isStaff = actor.personType === 'STAFF';
-      if (!isAdmin && !isStaff) {
-        // Parent row-scope on the student.
+      const operator = await this.hasOperatorScope(actor);
+      if (!operator) {
+        // Parent row-scope on the student. Non-operator non-guardian
+        // (e.g. generic STAFF without STU-004) gets the same
+        // collapsed 404 — don't-leak-existence.
         const ok = (await client.$queryRawUnsafe(
           'SELECT 1 FROM sis_student_guardians sg ' +
             'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
@@ -309,18 +343,50 @@ export class WithdrawalService {
     input: WithdrawalCreateInternalInput,
     actor: ResolvedActor,
   ): Promise<WithdrawalResponseDto> {
-    const tenant = getCurrentTenant();
     if (!(await this.hasWriteScope(actor))) {
       throw new ForbiddenException('Initiating a withdrawal requires stu-004:write');
     }
     await this.assertGuardianOfStudent(actor, input.studentId);
 
+    const id = await this.tenantPrisma.executeInTenantTransaction(async (tx) =>
+      this.createInTx(tx as never, input, actor),
+    );
+    return this.getById(id, actor);
+  }
+
+  /**
+   * Internal-only helper used by both WithdrawalService.create AND
+   * ReenrolmentService.submit (the auto-withdrawal path).
+   *
+   * REVIEW-P2-5 BLOCKING 2 fix: ReenrolmentService now passes its
+   * own open `tx` so the auto-initiated withdrawal + the
+   * confirmation INSERT are atomic — if the confirmation hits the
+   * UNIQUE(student, year) collision, the withdrawal + its exit
+   * tasks roll back together. Previously WithdrawalService.create
+   * opened its own tx and committed before the confirmation row
+   * landed, leaking orphan withdrawals on the duplicate path.
+   *
+   * Caller must:
+   *   - Have already verified actor scope (assertWriter / assertAdmin).
+   *   - Have already verified guardian-of-student for non-admin actors.
+   *   - Pass an open tenant tx (search_path scoped to the calling
+   *     tenant schema).
+   *
+   * Returns the new withdrawal id. The caller is responsible for
+   * the post-tx getById / DTO shape if it needs the response.
+   */
+  async createInTx(
+    tx: TenantTx,
+    input: WithdrawalCreateInternalInput,
+    actor: ResolvedActor,
+  ): Promise<string> {
+    const tenant = getCurrentTenant();
     const requestedBy = input.requestedBy ?? actor.personId;
     const id = generateId();
 
-    // Resolve template tasks BEFORE the tx so a missing default
-    // template returns a friendly 400 to the caller without rolling
-    // back the empty insert.
+    // Resolve template tasks BEFORE the tx writes so a missing
+    // default template returns a friendly 400 cleanly. Lazy-seed
+    // happens here for fresh tenants.
     const templateTasks = await this.templates.listActive(tenant.schoolId, 'DEFAULT', actor);
     if (templateTasks.length === 0) {
       throw new BadRequestException(
@@ -328,53 +394,51 @@ export class WithdrawalService {
       );
     }
 
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Validate the student belongs to this school + still active.
-      const studentRows = (await tx.$queryRawUnsafe(
-        'SELECT id FROM sis_students WHERE school_id = $1::uuid AND id = $2::uuid LIMIT 1',
-        tenant.schoolId,
-        input.studentId,
-      )) as Array<{ id: string }>;
-      if (studentRows.length === 0) {
-        throw new BadRequestException('studentId does not match a student in this school');
-      }
+    // Validate the student belongs to this school.
+    const studentRows = (await tx.$queryRawUnsafe(
+      'SELECT id FROM sis_students WHERE school_id = $1::uuid AND id = $2::uuid LIMIT 1',
+      tenant.schoolId,
+      input.studentId,
+    )) as Array<{ id: string }>;
+    if (studentRows.length === 0) {
+      throw new BadRequestException('studentId does not match a student in this school');
+    }
 
+    await tx.$executeRawUnsafe(
+      'INSERT INTO enr_withdrawal_requests ' +
+        '(id, school_id, student_id, initiated_by, requested_by, withdrawal_reason_category, ' +
+        ' withdrawal_reason_detail, last_attendance_date, destination_school_name, ' +
+        ' destination_school_country, records_release_consented, status, notes) ' +
+        "VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6, $7, $8::date, $9, $10, $11, 'REQUESTED', $12)",
+      id,
+      tenant.schoolId,
+      input.studentId,
+      input.initiatedBy,
+      requestedBy,
+      input.withdrawalReasonCategory,
+      input.withdrawalReasonDetail ?? null,
+      input.lastAttendanceDate,
+      input.destinationSchoolName ?? null,
+      input.destinationSchoolCountry ?? null,
+      input.recordsReleaseConsented ?? false,
+      input.notes ?? null,
+    );
+
+    // Auto-create exit tasks from the template.
+    for (const t of templateTasks) {
       await tx.$executeRawUnsafe(
-        'INSERT INTO enr_withdrawal_requests ' +
-          '(id, school_id, student_id, initiated_by, requested_by, withdrawal_reason_category, ' +
-          ' withdrawal_reason_detail, last_attendance_date, destination_school_name, ' +
-          ' destination_school_country, records_release_consented, status, notes) ' +
-          "VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6, $7, $8::date, $9, $10, $11, 'REQUESTED', $12)",
+        'INSERT INTO enr_withdrawal_exit_tasks ' +
+          '(id, withdrawal_id, task_name, task_category, status, sort_order) ' +
+          "VALUES ($1::uuid, $2::uuid, $3, $4, 'PENDING', $5)",
+        generateId(),
         id,
-        tenant.schoolId,
-        input.studentId,
-        input.initiatedBy,
-        requestedBy,
-        input.withdrawalReasonCategory,
-        input.withdrawalReasonDetail ?? null,
-        input.lastAttendanceDate,
-        input.destinationSchoolName ?? null,
-        input.destinationSchoolCountry ?? null,
-        input.recordsReleaseConsented ?? false,
-        input.notes ?? null,
+        t.taskName,
+        t.taskCategory,
+        t.sortOrder,
       );
+    }
 
-      // Auto-create exit tasks from the template.
-      for (const t of templateTasks) {
-        await tx.$executeRawUnsafe(
-          'INSERT INTO enr_withdrawal_exit_tasks ' +
-            '(id, withdrawal_id, task_name, task_category, status, sort_order) ' +
-            "VALUES ($1::uuid, $2::uuid, $3, $4, 'PENDING', $5)",
-          generateId(),
-          id,
-          t.taskName,
-          t.taskCategory,
-          t.sortOrder,
-        );
-      }
-    });
-
-    return this.getById(id, actor);
+    return id;
   }
 
   /**
@@ -432,9 +496,15 @@ export class WithdrawalService {
         id,
       );
 
+      // REVIEW-P2-5 MAJOR 5 — school_id-scoped UPDATE for the
+      // hardening-by-default convention. The withdrawal row above
+      // is already locked + school-scoped; this is defence in
+      // depth against any future code path that might pass an
+      // attacker-supplied student_id directly.
       await tx.$executeRawUnsafe(
         "UPDATE sis_students SET enrollment_status = 'WITHDRAWN', updated_at = now() " +
-          'WHERE id = $1::uuid',
+          'WHERE school_id = $1::uuid AND id = $2::uuid',
+        tenant.schoolId,
         row.student_id,
       );
 
@@ -562,12 +632,9 @@ export class WithdrawalService {
     });
   }
 
-  /** Internal helper for ReenrolmentService — bootstraps a withdrawal in the same tenant tx. */
-  async createInternal(
-    input: WithdrawalCreateInternalInput,
-    actor: ResolvedActor,
-  ): Promise<{ withdrawalId: string }> {
-    const dto = await this.create(input, actor);
-    return { withdrawalId: dto.id };
-  }
+  // REVIEW-P2-5 BLOCKING 2 — the previous `createInternal` opened
+  // its own tenant tx which broke atomicity for ReenrolmentService.
+  // Callers that need an in-tx withdrawal create now call
+  // createInTx(tx, ...) directly. The public surface keeps `create`
+  // for the controller path.
 }

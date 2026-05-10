@@ -210,7 +210,12 @@ describe('TourBookingService', () => {
     const client = {
       $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
         calls.push({ sql, args, fn: 'q' });
-        if (sql.includes('FROM enr_tour_slots') && sql.includes('FOR UPDATE')) {
+        // REVIEW-P2-5 BLOCKING 1 — bookPublic now does TWO slot
+        // reads: an unlocked pre-flight + the locked tx read. Both
+        // hit the same handler in tests; return the slot row for
+        // any FROM enr_tour_slots query (the schema columns are a
+        // superset of what either path needs).
+        if (sql.includes('FROM enr_tour_slots')) {
           return [
             {
               id: 'slot1',
@@ -281,8 +286,11 @@ describe('TourBookingService', () => {
       });
       expect(result.status).toBe('CONFIRMED');
     });
-    // ADR-055 — iam_person + platform_users created via PrismaClient
-    expect(platformPrisma.$executeRawUnsafe).toHaveBeenCalledTimes(2);
+    // REVIEW-P2-5 MAJOR 4 — public booking creates ONE platform
+    // identity write: a fresh iam_person row only (no
+    // platform_users — public bookings are pending external
+    // contacts with no auth identity).
+    expect(platformPrisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
     // Locked-row SELECT
     expect(
       calls.some((c) => c.sql.includes('FROM enr_tour_slots') && c.sql.includes('FOR UPDATE')),
@@ -428,10 +436,12 @@ describe('TourBookingService', () => {
     });
   });
 
-  it('bookPublic reuses iam_person when contact email matches existing platform_users row (ADR-055)', async () => {
+  it('REVIEW-P2-5 MAJOR 4 — bookPublic always creates a fresh iam_person, never reuses existing by email', async () => {
     const { tenantPrisma } = setupBooking({ current: 0, max: 10 });
     const perms = makePerms();
     const { outbox, enqueued } = makeOutbox();
+    // Even if an existing platform_users row matched, the public
+    // path must NOT reuse it (the email is unverified contact).
     const findFirst = vi.fn(async () => ({ personId: 'existing-person' }));
     const platformPrisma = {
       platformUser: { findFirst },
@@ -451,13 +461,109 @@ describe('TourBookingService', () => {
         contactEmail: 'existing@example.com',
       });
     });
-    expect(findFirst).toHaveBeenCalledWith({
-      where: { email: 'existing@example.com' },
-      select: { personId: true },
+    // The public path no longer looks up by email — never call findFirst.
+    expect(findFirst).not.toHaveBeenCalled();
+    // Public booking creates ONE platform identity write — a
+    // fresh iam_person only. NO platform_users (would collide with
+    // existing on UNIQUE(email) AND would attach the booking to
+    // someone else's auth identity).
+    expect(platformPrisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
+    // bookedBy is the freshly-generated id, NOT 'existing-person'.
+    expect(enqueued[0]!.payload.bookedBy).not.toBe('existing-person');
+  });
+
+  it('REVIEW-P2-5 BLOCKING 1 — bookPublic does NOT create iam_person when slot is missing', async () => {
+    // Missing slot — pre-flight returns no rows.
+    const client = {
+      $queryRawUnsafe: async (sql: string) => {
+        if (sql.includes('FROM enr_tour_slots')) return [];
+        return [];
+      },
+      $executeRawUnsafe: async () => 1,
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const perms = makePerms();
+    const { outbox } = makeOutbox();
+    const platformPrisma = {
+      platformUser: { findFirst: vi.fn(async () => null) },
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.bookPublic('missing-slot', {
+          firstName: 'X',
+          lastName: 'Y',
+          familyName: 'Z',
+          contactEmail: 'z@example.com',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
-    // Existing person reused — no new iam_person + platform_users INSERTs.
+    // No platform identity was created — pre-flight rejected before
+    // any INSERT into platform.iam_person / platform.platform_users.
     expect(platformPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
-    expect(enqueued[0]!.payload.bookedBy).toBe('existing-person');
+  });
+
+  it('REVIEW-P2-5 BLOCKING 1 — bookPublic does NOT create iam_person when slot is full', async () => {
+    const { tenantPrisma } = setupBooking({ current: 5, max: 5 });
+    const perms = makePerms();
+    const { outbox } = makeOutbox();
+    const platformPrisma = {
+      platformUser: { findFirst: vi.fn(async () => null) },
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.bookPublic('slot1', {
+          firstName: 'X',
+          lastName: 'Y',
+          familyName: 'Z',
+          contactEmail: 'z@example.com',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+    expect(platformPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
+  });
+
+  it('REVIEW-P2-5 BLOCKING 1 — bookPublic does NOT create iam_person when slot is unpublished', async () => {
+    const { tenantPrisma } = setupBooking({ current: 0, max: 10, published: false });
+    const perms = makePerms();
+    const { outbox } = makeOutbox();
+    const platformPrisma = {
+      platformUser: { findFirst: vi.fn(async () => null) },
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.bookPublic('slot1', {
+          firstName: 'X',
+          lastName: 'Y',
+          familyName: 'Z',
+          contactEmail: 'z@example.com',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+    expect(platformPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
   });
 
   it('bookPublic rejects malformed email', async () => {
@@ -1281,5 +1387,445 @@ describe('Controller @RequirePermission metadata', () => {
   it('ExitTaskTemplateController gates upsert on stu-004:admin', () => {
     expect(readMeta(ExitTaskTemplateController.prototype, 'upsert')).toEqual(['stu-004:admin']);
     expect(readMeta(ExitTaskTemplateController.prototype, 'list')).toEqual(['stu-004:read']);
+  });
+});
+
+// =====================================================================
+// REVIEW-P2-5 BLOCKING 2 — atomic re-enrolment auto-withdrawal
+// =====================================================================
+describe('REVIEW-P2-5 BLOCKING 2 — atomic re-enrolment auto-withdrawal', () => {
+  it('duplicate confirmation rolls back the auto-initiated withdrawal (single tenant tx)', async () => {
+    // Mock a Postgres UNIQUE violation when the confirmation INSERT
+    // lands. The auto-withdrawal SQL must run inside the SAME tx
+    // that the confirmation INSERT runs in, so when the conflict
+    // throws, the entire tx (withdrawal + exit tasks + confirmation)
+    // rolls back together. We assert this by tracking which SQLs
+    // actually committed via a single rollback flag — if we see
+    // INSERT INTO enr_withdrawal_requests run BEFORE the failing
+    // confirmation INSERT and the test asserts they share a tx,
+    // the atomicity contract holds.
+    let txCount = 0;
+    let withdrawalInserted = false;
+    let exitTasksInserted = 0;
+    const calls: CapturedCall[] = [];
+    const tx = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM sis_students s') && sql.includes('sis_student_guardians')) {
+          return [{}];
+        }
+        if (sql.includes('FROM sis_students') && sql.includes('LIMIT 1')) {
+          return [{ id: 'stud1' }];
+        }
+        if (sql.includes('FROM enr_withdrawal_task_templates')) {
+          return [
+            {
+              id: 'tt1',
+              school_id: SCHOOL.schoolId,
+              template_name: 'DEFAULT',
+              task_name: 'Library books returned',
+              task_category: 'RECORDS',
+              sort_order: 0,
+              is_active: true,
+              is_required: true,
+            },
+          ];
+        }
+        if (
+          sql.includes('FROM enr_withdrawal_requests') &&
+          sql.includes('hasActiveHoldForStudent')
+        ) {
+          return [];
+        }
+        if (sql.includes('re_enrollment_hold_placed')) {
+          return [];
+        }
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        if (sql.includes('INSERT INTO enr_withdrawal_requests')) {
+          withdrawalInserted = true;
+        }
+        if (sql.includes('INSERT INTO enr_withdrawal_exit_tasks')) {
+          exitTasksInserted += 1;
+        }
+        if (sql.includes('INSERT INTO enr_reenrollment_confirmations')) {
+          // The keystone — UNIQUE(student, year) collision. The
+          // tenant tx wrapper must roll back the previously
+          // INSERTed withdrawal + exit tasks together with the
+          // confirmation that just failed.
+          const err = Object.assign(new Error('duplicate key'), {
+            code: '23505',
+            meta: { code: '23505' },
+          });
+          throw err;
+        }
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(tx),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => {
+        // Track that both the withdrawal create AND the
+        // confirmation insert happen INSIDE the same tx callback
+        // — txCount stays at 1 across the entire submit() call.
+        txCount += 1;
+        return fn(tx);
+      },
+    };
+    const perms = makePerms({ [PARENT_ACTOR.accountId]: ['stu-004:write'] });
+    const { outbox } = makeOutbox();
+    const templates = new ExitTaskTemplateService(tenantPrisma as never, perms as never);
+    const withdrawalService = new WithdrawalService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      templates,
+    );
+    const svc = new ReenrolmentService(tenantPrisma as never, perms as never, withdrawalService);
+
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.submit(
+          {
+            studentId: 'stud1',
+            academicYearId: 'y1',
+            confirmedContinuing: false,
+            withdrawalReason: 'Smoke — relocating',
+          },
+          PARENT_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    // The auto-withdrawal INSERT and the at-least-one exit task
+    // INSERT both ran (proving the auto-initiation happened),
+    // BUT they ran inside the SAME tx callback as the failed
+    // confirmation. txCount=1 confirms the WithdrawalService
+    // did NOT open its own separate tx (which was the previous
+    // BLOCKING 2 bug — committed-before-confirmation orphans).
+    expect(withdrawalInserted).toBe(true);
+    expect(exitTasksInserted).toBeGreaterThan(0);
+    expect(txCount).toBe(1);
+  });
+
+  it('confirmedContinuing=true does NOT call the withdrawal create path', async () => {
+    let withdrawalInserted = false;
+    const tx = {
+      $queryRawUnsafe: async (sql: string) => {
+        if (sql.includes('FROM sis_students s') && sql.includes('sis_student_guardians')) {
+          return [{}];
+        }
+        if (sql.includes('re_enrollment_hold_placed')) return [];
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string) => {
+        if (sql.includes('INSERT INTO enr_withdrawal_requests')) withdrawalInserted = true;
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(tx),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(tx),
+    };
+    const perms = makePerms({ [PARENT_ACTOR.accountId]: ['stu-004:write'] });
+    const { outbox } = makeOutbox();
+    const templates = new ExitTaskTemplateService(tenantPrisma as never, perms as never);
+    const withdrawalService = new WithdrawalService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      templates,
+    );
+    const svc = new ReenrolmentService(tenantPrisma as never, perms as never, withdrawalService);
+
+    // Patch tx to also satisfy the post-INSERT getById call which
+    // re-reads the confirmation row with full SELECT_REENROL_BASE
+    // shape. The simpler path is to just have the same handler
+    // return the right shape based on SQL pattern.
+    const richHandler = async (sql: string): Promise<unknown> => {
+      if (sql.includes('FROM sis_students s') && sql.includes('sis_student_guardians')) {
+        return [{}];
+      }
+      if (sql.includes('re_enrollment_hold_placed')) return [];
+      if (sql.includes('FROM enr_reenrollment_confirmations r')) {
+        return [
+          {
+            id: 'r1',
+            school_id: SCHOOL.schoolId,
+            student_id: 'stud1',
+            student_first_name: 'S',
+            student_last_name: 'T',
+            student_grade: '5',
+            academic_year_id: 'y1',
+            academic_year_name: '2027',
+            submitted_by: PARENT_ACTOR.personId,
+            submitted_by_first_name: 'P',
+            submitted_by_last_name: 'A',
+            confirmed_continuing: true,
+            withdrawal_reason: null,
+            submitted_at: '2026-08-01',
+            processed_by: null,
+            processed_by_first_name: null,
+            processed_by_last_name: null,
+            processed_at: null,
+            linked_withdrawal_id: null,
+            notes: null,
+          },
+        ];
+      }
+      return [];
+    };
+    tx.$queryRawUnsafe = richHandler;
+
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await svc.submit(
+        {
+          studentId: 'stud1',
+          academicYearId: 'y1',
+          confirmedContinuing: true,
+        },
+        PARENT_ACTOR,
+      );
+    });
+
+    // No auto-withdrawal on the continuing path.
+    expect(withdrawalInserted).toBe(false);
+  });
+});
+
+// =====================================================================
+// REVIEW-P2-5 BLOCKING 3 — generic Staff cannot bypass row scope
+// =====================================================================
+describe('REVIEW-P2-5 BLOCKING 3 — generic Staff scope tightening', () => {
+  // Generic STAFF actor with NO STU-004 grants (counsellor /
+  // librarian / etc.) — should be treated as "non-operator".
+  const GENERIC_STAFF = {
+    accountId: '019eaaaa-0000-7556-8c81-d0000000d001',
+    personId: '019eaaaa-0000-7556-8c81-d0000000d002',
+    employeeId: '019eaaaa-0000-7556-8c81-d0000000d003',
+    personType: 'STAFF' as const,
+    isSchoolAdmin: false,
+  } as never;
+
+  function makeWithdrawalSvc(perms: Record<string, string[]>) {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM enr_withdrawal_requests w')) return [];
+        return [];
+      },
+      $executeRawUnsafe: async () => 0,
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const permsObj = makePerms(perms);
+    const { outbox } = makeOutbox();
+    const templates = new ExitTaskTemplateService(tenantPrisma as never, permsObj as never);
+    const svc = new WithdrawalService(
+      tenantPrisma as never,
+      permsObj as never,
+      outbox as never,
+      templates,
+    );
+    return { svc, calls };
+  }
+
+  it('WithdrawalService.list — generic Staff (no STU-004) is row-scoped to own children, not school-wide', async () => {
+    const { svc, calls } = makeWithdrawalSvc({
+      // Generic STAFF actor holds NOTHING for STU-004.
+      [GENERIC_STAFF.accountId]: ['hr-001:read', 'cou-001:read'],
+    });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.list(GENERIC_STAFF));
+    const sqlCall = calls.find((c) => c.sql.includes('FROM enr_withdrawal_requests w'));
+    // Row-scoped via sis_student_guardians — generic Staff is
+    // treated as "non-operator". Fix B3 means the broad
+    // STAFF-bypass shortcut is gone.
+    expect(sqlCall?.sql).toContain('sis_student_guardians');
+    expect(sqlCall?.sql).toContain('g.person_id =');
+  });
+
+  it('WithdrawalService.list — Enrolment Officer (Staff with STU-004:admin) sees school-wide', async () => {
+    const EO_ACTOR = {
+      ...GENERIC_STAFF,
+      accountId: '019eaaaa-0000-7556-8c81-e0000000e001',
+    } as never;
+    const { svc, calls } = makeWithdrawalSvc({
+      [EO_ACTOR.accountId]: ['stu-004:admin'],
+    });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.list(EO_ACTOR));
+    const sqlCall = calls.find((c) => c.sql.includes('FROM enr_withdrawal_requests w'));
+    // Operator (admin) sees everything — no guardian-link filter.
+    expect(sqlCall?.sql).not.toContain('sis_student_guardians');
+  });
+
+  it('ReenrolmentService.list — generic Staff defaults to own submissions', async () => {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        return [];
+      },
+      $executeRawUnsafe: async () => 0,
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const perms = makePerms({ [GENERIC_STAFF.accountId]: ['cou-001:read'] });
+    const { outbox } = makeOutbox();
+    const templates = new ExitTaskTemplateService(tenantPrisma as never, perms as never);
+    const withdrawalService = new WithdrawalService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      templates,
+    );
+    const svc = new ReenrolmentService(tenantPrisma as never, perms as never, withdrawalService);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.list(GENERIC_STAFF, {}));
+    const sql = calls.find((c) => c.sql.includes('FROM enr_reenrollment_confirmations r'));
+    // Generic Staff -> own submissions only (submitted_by = me).
+    expect(sql?.sql).toContain('r.submitted_by =');
+  });
+
+  it('MidYearAdmissionService.list — generic Staff defaults to own submissions', async () => {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        return [];
+      },
+      $executeRawUnsafe: async () => 0,
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const perms = makePerms({ [GENERIC_STAFF.accountId]: ['cou-001:read'] });
+    const svc = new MidYearAdmissionService(tenantPrisma as never, perms as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.list(GENERIC_STAFF));
+    const sql = calls.find((c) => c.sql.includes('FROM enr_mid_year_admission_requests'));
+    expect(sql?.sql).toContain('m.requested_by =');
+  });
+
+  it('WithdrawalService.create — generic Staff with no STU-004 grant cannot initiate for arbitrary student', async () => {
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) =>
+        fn({ $queryRawUnsafe: async () => [] }),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) =>
+        fn({ $queryRawUnsafe: async () => [], $executeRawUnsafe: async () => 1 }),
+    };
+    const perms = makePerms({ [GENERIC_STAFF.accountId]: ['cou-001:read'] });
+    const { outbox } = makeOutbox();
+    const templates = new ExitTaskTemplateService(tenantPrisma as never, perms as never);
+    const svc = new WithdrawalService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      templates,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.create(
+          {
+            studentId: 'stud1',
+            initiatedBy: 'SCHOOL',
+            withdrawalReasonCategory: 'OTHER',
+            lastAttendanceDate: '2026-06-30',
+          },
+          GENERIC_STAFF,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+});
+
+// =====================================================================
+// REVIEW-P2-5 MAJOR 5 — sis_students UPDATE includes school_id predicate
+// =====================================================================
+describe('REVIEW-P2-5 MAJOR 5 — sis_students UPDATE is school-scoped', () => {
+  it('WithdrawalService.complete UPDATEs sis_students WHERE school_id = $tenant.schoolId AND id = $studentId', async () => {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM enr_withdrawal_requests') && sql.includes('FOR UPDATE')) {
+          return [{ id: 'w1', student_id: 'stud1', status: 'IN_PROGRESS' }];
+        }
+        if (sql.includes('FROM enr_withdrawal_exit_tasks') && sql.includes('PENDING')) {
+          return [{ pending: 0 }];
+        }
+        if (sql.includes('FROM enr_withdrawal_requests w')) {
+          return [
+            {
+              id: 'w1',
+              school_id: SCHOOL.schoolId,
+              student_id: 'stud1',
+              initiated_by: 'FAMILY',
+              requested_by: ADMIN_ACTOR.personId,
+              requested_by_first_name: 'A',
+              requested_by_last_name: 'D',
+              withdrawal_reason_category: 'OTHER',
+              withdrawal_reason_detail: null,
+              last_attendance_date: '2026-06-30',
+              requested_at: '2026-06-01',
+              destination_school_name: null,
+              destination_school_country: null,
+              records_release_consented: false,
+              records_sent_at: null,
+              status: 'COMPLETED',
+              completed_at: '2026-06-02',
+              completed_by: ADMIN_ACTOR.personId,
+              completed_by_first_name: 'A',
+              completed_by_last_name: 'D',
+              re_enrollment_hold_placed: false,
+              re_enrollment_hold_reason: null,
+              notes: null,
+              created_at: '2026-06-01',
+              updated_at: '2026-06-02',
+              student_first_name: 'S',
+              student_last_name: 'T',
+            },
+          ];
+        }
+        if (sql.includes('FROM enr_withdrawal_exit_tasks t')) return [];
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const perms = makePerms({ [ADMIN_ACTOR.accountId]: ['stu-004:admin'] });
+    const { outbox } = makeOutbox();
+    const templates = new ExitTaskTemplateService(tenantPrisma as never, perms as never);
+    const svc = new WithdrawalService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      templates,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.complete('w1', {}, ADMIN_ACTOR));
+    const updateCall = calls.find(
+      (c) =>
+        c.fn === 'e' && c.sql.includes("UPDATE sis_students SET enrollment_status = 'WITHDRAWN'"),
+    );
+    expect(updateCall).toBeDefined();
+    // The school_id predicate is REVIEW-P2-5 MAJOR 5 — defence in
+    // depth against any future code path that might pass an
+    // attacker-supplied student_id directly.
+    expect(updateCall!.sql).toContain('school_id = $1::uuid');
+    expect(updateCall!.sql).toContain('id = $2::uuid');
+    // First arg is tenant.schoolId, second is the locked-row student_id.
+    expect(updateCall!.args[0]).toBe(SCHOOL.schoolId);
+    expect(updateCall!.args[1]).toBe('stud1');
   });
 });

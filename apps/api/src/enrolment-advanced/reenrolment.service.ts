@@ -116,9 +116,25 @@ export class ReenrolmentService {
     ]);
   }
 
+  /**
+   * REVIEW-P2-5 BLOCKING 3 — operator scope replaces the old
+   * `personType === 'STAFF'` shortcut. Only school admin OR a
+   * STAFF actor who explicitly holds STU-004 (Enrolment Officer
+   * or Vice Principal) sees school-wide queues / bypasses the
+   * guardian check.
+   */
+  private async hasOperatorScope(actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    if (actor.personType !== 'STAFF') return false;
+    const tenant = getCurrentTenant();
+    return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'stu-004:write',
+      'stu-004:admin',
+    ]);
+  }
+
   private async assertGuardianOfStudent(actor: ResolvedActor, studentId: string): Promise<void> {
-    if (await this.hasAdminScope(actor)) return;
-    if (actor.personType === 'STAFF') return;
+    if (await this.hasOperatorScope(actor)) return;
     if (actor.personType !== 'GUARDIAN') {
       throw new ForbiddenException(
         'Only guardians or admins can submit a re-enrolment confirmation.',
@@ -170,31 +186,39 @@ export class ReenrolmentService {
 
     const tenant = getCurrentTenant();
     const id = generateId();
-    let linkedWithdrawalId: string | null = null;
 
-    // If non-continuing, auto-initiate the withdrawal first so we can
-    // stamp linked_withdrawal_id on the confirmation atomically.
-    if (!input.confirmedContinuing) {
-      const w = await this.withdrawals.createInternal(
-        {
-          studentId: input.studentId,
-          initiatedBy: 'FAMILY',
-          requestedBy: actor.personId,
-          withdrawalReasonCategory: 'OTHER',
-          withdrawalReasonDetail:
-            'Auto-initiated from re-enrolment confirmation (confirmed_continuing=false). Family reason: ' +
-            (input.withdrawalReason ?? ''),
-          lastAttendanceDate: new Date().toISOString().slice(0, 10),
-          notes: input.notes ?? undefined,
-        },
-        actor,
-      );
-      linkedWithdrawalId = w.withdrawalId;
-    }
-
+    // REVIEW-P2-5 BLOCKING 2 — single tenant tx for both
+    // confirmation INSERT AND auto-initiated withdrawal so a
+    // duplicate-confirmation collision rolls the withdrawal back
+    // atomically. Previously withdrawal lived in a committed-prior
+    // tx; if the confirmation INSERT failed on UNIQUE(student,
+    // academic_year_id) the school ended up with an orphan
+    // withdrawal in REQUESTED status.
     try {
-      await this.tenantPrisma.executeInTenantContext(async (client) => {
-        await client.$executeRawUnsafe(
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        let linkedWithdrawalId: string | null = null;
+        if (!input.confirmedContinuing) {
+          // Auto-initiate the withdrawal in the SAME tx as the
+          // confirmation INSERT so a UNIQUE collision rolls them
+          // back together.
+          linkedWithdrawalId = await this.withdrawals.createInTx(
+            tx as never,
+            {
+              studentId: input.studentId,
+              initiatedBy: 'FAMILY',
+              requestedBy: actor.personId,
+              withdrawalReasonCategory: 'OTHER',
+              withdrawalReasonDetail:
+                'Auto-initiated from re-enrolment confirmation (confirmed_continuing=false). Family reason: ' +
+                (input.withdrawalReason ?? ''),
+              lastAttendanceDate: new Date().toISOString().slice(0, 10),
+              notes: input.notes ?? undefined,
+            },
+            actor,
+          );
+        }
+
+        await tx.$executeRawUnsafe(
           'INSERT INTO enr_reenrollment_confirmations ' +
             '(id, school_id, student_id, academic_year_id, submitted_by, confirmed_continuing, ' +
             ' withdrawal_reason, linked_withdrawal_id, notes) ' +
@@ -231,9 +255,10 @@ export class ReenrolmentService {
       )) as ReenrolRow[];
       if (rows.length === 0) throw new NotFoundException('Re-enrolment confirmation not found');
       const row = rows[0] as ReenrolRow;
-      const isAdmin = await this.hasAdminScope(actor);
-      const isStaff = actor.personType === 'STAFF';
-      if (!isAdmin && !isStaff) {
+      // REVIEW-P2-5 BLOCKING 3 — operator scope replaces broad
+      // STAFF shortcut. Non-operator non-submitter gets 404.
+      const operator = await this.hasOperatorScope(actor);
+      if (!operator) {
         if (row.submitted_by !== actor.personId) {
           throw new NotFoundException('Re-enrolment confirmation not found');
         }
@@ -247,8 +272,7 @@ export class ReenrolmentService {
     args: { academicYearId?: string; mine?: boolean } = {},
   ): Promise<ReenrolResponseDto[]> {
     const tenant = getCurrentTenant();
-    const isAdmin = await this.hasAdminScope(actor);
-    const isStaff = actor.personType === 'STAFF';
+    const operator = await this.hasOperatorScope(actor);
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const sqlArgs: unknown[] = [tenant.schoolId];
       let where = 'r.school_id = $1::uuid ';
@@ -256,7 +280,7 @@ export class ReenrolmentService {
         sqlArgs.push(args.academicYearId);
         where += '  AND r.academic_year_id = $' + sqlArgs.length + '::uuid ';
       }
-      if (args.mine || (!isAdmin && !isStaff)) {
+      if (args.mine || !operator) {
         sqlArgs.push(actor.personId);
         where += '  AND r.submitted_by = $' + sqlArgs.length + '::uuid ';
       }

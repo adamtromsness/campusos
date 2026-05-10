@@ -78,7 +78,10 @@ export class ExitTaskService {
   }
 
   async listPending(actor: ResolvedActor, category?: TaskCategory): Promise<ExitTaskResponseDto[]> {
-    if (!(await this.hasWriteScope(actor)) && actor.personType !== 'STAFF') {
+    // REVIEW-P2-5 BLOCKING 3 — drop the broad `personType ===
+    // 'STAFF'` shortcut. Now strictly STU-004:write/admin OR
+    // school admin.
+    if (!(await this.hasWriteScope(actor))) {
       throw new ForbiddenException('Listing exit tasks requires staff stu-004:write');
     }
     const tenant = getCurrentTenant();

@@ -769,13 +769,21 @@ async function seedIam() {
         // manages onboarding. Held by Staff (covers EO) so the
         // pipeline endpoints clear the @RequirePermission gate.
         'STU-003': ['read', 'write'],
-        // P2-5 — withdrawal + transfer surface. Staff covers EO +
-        // per-department staff (librarian, IT, facilities, finance,
-        // registrar, transport, food service) closing exit tasks
-        // for their department. Service-layer per-department
-        // routing in ExitTaskService keeps a department staff
-        // member from completing another department's tasks.
-        'STU-004': ['read', 'write'],
+        // REVIEW-P2-5 BLOCKING 3 — STU-004 grant on Staff REMOVED.
+        // The generic Staff role covers VPs / counsellors / admin
+        // assistants + every other STAFF persona, so granting it
+        // STU-004:read+write let any STAFF actor list every
+        // school-wide withdrawal / re-enrolment / mid-year request
+        // and initiate withdrawals for arbitrary students. The
+        // dedicated `Enrolment Officer` specialist role holds
+        // STU-004:admin (admin → write → read) so the EO workflow
+        // still works. School Admin / Vice Principal / Platform
+        // Admin pick up STU-004:admin via everyFunction or their
+        // own role spec. Pre-pilot: when the Counsellor / Nurse /
+        // Librarian role splits land, the per-department exit task
+        // staff (librarian → RECORDS, IT → IT, etc.) get
+        // category-scoped function codes; until then exit task
+        // closure is admin / EO authority.
         // REVIEW-CYCLE14 MAJOR 6 — COM-004 not granted to Staff
         // because ModerationService.assertAdmin() requires
         // actor.isSchoolAdmin specifically (a stricter contract
@@ -1437,16 +1445,36 @@ async function seedIam() {
 
     var addCount = 0;
     var newRows: Array<{ id: string; roleId: string; permissionId: string }> = [];
+    var targetPermIds: Record<string, boolean> = {};
     for (var ti = 0; ti < targetCodes.length; ti++) {
       var code = targetCodes[ti]!;
       var permId = permIdByCode[code];
       if (!permId) continue;
+      targetPermIds[permId] = true;
       if (existingPermIds[permId]) continue;
       newRows.push({ id: generateId(), roleId: role.id, permissionId: permId });
       addCount++;
     }
     if (newRows.length > 0) {
       await client.rolePermission.createMany({ data: newRows });
+    }
+    // REVIEW-P2-5 BLOCKING 3 — also DROP rows that exist on the role
+    // but are no longer in the spec. Without this, removing a code
+    // from a role's `perms` map only stops it being added on a fresh
+    // run; existing grants stay live until manual cleanup. The
+    // reconciliation here mirrors the catalogue cleanup at the top
+    // of seed-iam.ts.
+    var stalePermIds: string[] = [];
+    for (var sk = 0; sk < existingRp.length; sk++) {
+      var existingPid = existingRp[sk]!.permissionId;
+      if (!targetPermIds[existingPid]) stalePermIds.push(existingPid);
+    }
+    var removeCount = 0;
+    if (stalePermIds.length > 0) {
+      var deleteResult = await client.rolePermission.deleteMany({
+        where: { roleId: role.id, permissionId: { in: stalePermIds } },
+      });
+      removeCount = deleteResult.count;
     }
     console.log(
       '  ' +
@@ -1455,7 +1483,9 @@ async function seedIam() {
         targetCodes.length +
         ' permissions targeted (' +
         addCount +
-        ' newly added)',
+        ' newly added' +
+        (removeCount > 0 ? ', ' + removeCount + ' stale removed' : '') +
+        ')',
     );
   }
 

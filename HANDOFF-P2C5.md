@@ -240,3 +240,100 @@ apps/web/src/app/enrolment/tours/public/page.tsx    (public — outside (app) la
 ## Wave B opening
 
 P2-5 is the first cycle of Wave B (Pilot Enhancement). Wave A (P2C1–P2C4 + P2-4a/b/c) closed clean with the M80 HR + finance integration loop fully operational. Wave B continues with the remaining `.1` cycles for cross-cutting concerns (analytics expansion, deeper governance, pre-pilot hardening).
+
+---
+
+## REVIEW-P2-5 ROUND 1 fix log (2026-05-09 → 2026-05-10)
+
+Round 1 against `a5f3026` returned **FAIL** with 3 BLOCKING + 3 MAJOR. The closeout fix commit lands all 3 BLOCKING + actionable MAJORs 4 + 5 with live verification on `tenant_demo`. MAJOR 6 (per-department exit-task scoping) correctly carries to the Phase 2 punch list per the reviewer's gate decision.
+
+### BLOCKING 1 — public booking creates platform identities before slot validation
+
+**File:** `apps/api/src/enrolment-advanced/tour-booking.service.ts`
+
+`bookPublic()` previously created `platform.iam_person` + `platform.platform_users` BEFORE locking + validating the tour slot. An attacker could spam the endpoint with random / unpublished / cancelled / full slot ids and leave orphan platform identity rows behind even though no valid booking lands.
+
+**Fix:** Reordered the flow:
+
+1. **Pre-flight unlocked slot validation** (existence + published + non-cancelled + capacity remaining) BEFORE any platform identity write. Catches the abuse path with zero side-effects.
+2. **Identity creation** (only after pre-flight passes).
+3. **Locked tx with re-validation** + booking insert + outbox enqueue (canonical race protection).
+
+The schema-side `current_chk` (`current_bookings <= max_bookings`) remains the belt-and-braces against any direct-SQL bypass.
+
+**Live verified on `tenant_demo` 2026-05-10:** 1 legit booking → +1 `iam_person`; 2 spam attempts (full slot 409, bogus UUID 404) → +0 `iam_person` rows. Zero `Spam*` rows landed in the platform schema.
+
+### BLOCKING 2 — re-enrolment auto-withdrawal not atomic
+
+**Files:** `apps/api/src/enrolment-advanced/withdrawal.service.ts` + `reenrolment.service.ts`
+
+`ReenrolmentService.submit` previously called `WithdrawalService.createInternal()` (which opened its own tenant tx + committed) BEFORE inserting the confirmation row. If the confirmation INSERT hit the `UNIQUE(student_id, academic_year_id)` collision, the auto-withdrawal + its 7 exit tasks were already committed and the school ended up with an orphan REQUESTED withdrawal the family never knowingly submitted.
+
+**Fix:**
+
+1. New `TenantTx` interface + `WithdrawalService.createInTx(tx, input, actor)` helper that takes an open tenant tx instead of opening its own.
+2. `WithdrawalService.create()` (the public controller path) now opens its own tx and delegates to `createInTx` — same behaviour, no API change.
+3. `ReenrolmentService.submit` rewritten to wrap BOTH the confirmation INSERT AND the conditional auto-withdrawal call in a single `executeInTenantTransaction`. The auto-withdrawal call passes the SAME tx through so a UNIQUE collision on the confirmation rolls back the withdrawal + its exit tasks atomically.
+4. The obsolete `WithdrawalService.createInternal` was removed (no other callers).
+
+**Live verified on `tenant_demo` 2026-05-10:** first non-continuing submission → 1 REQUESTED withdrawal for Maya. Duplicate submission for the same (student, year) → 400 + REQUESTED count UNCHANGED at 1. Zero orphans.
+
+### BLOCKING 3 — generic Staff has broad STU-004 + bypasses row scope
+
+**Files:** `packages/database/src/seed-iam.ts` + `withdrawal.service.ts` + `reenrolment.service.ts` + `mid-year-admission.service.ts` + `exit-task.service.ts`
+
+The `Staff` role spec granted `STU-004:read+write`. Multiple services then treated `actor.personType === 'STAFF'` as a row-scope bypass — a generic counsellor / librarian / VP could list every school-wide withdrawal / re-enrolment / mid-year request and initiate withdrawals for arbitrary students. The dedicated `Enrolment Officer` specialist role already carries STU-004:admin, so the broad Staff grant was unnecessary AND unsafe.
+
+**Fix:**
+
+1. **`Staff` role spec dropped `STU-004:read/write`.** Comment cross-references the broader role-split punch list.
+2. **`seed-iam.ts` reconciliation extended** to also DELETE role_permissions rows that no longer match the spec (previously only INSERTed new rows, so removed grants stuck around). Live re-run reports `Staff: 4 stale removed`.
+3. **New `hasOperatorScope(actor)` helper** in `WithdrawalService`, `ReenrolmentService`, `MidYearAdmissionService`. Returns true ONLY if `actor.isSchoolAdmin OR (personType=STAFF AND has STU-004:write|admin)`. Replaces every `personType === 'STAFF'` shortcut.
+4. **`ExitTaskService.listPending`** dropped the `personType === 'STAFF'` bypass; now strictly `STU-004:write|admin OR school admin`.
+5. Cache rebuild reports `vp 229 → 227 perms` and `counsellor 201 → 197 perms` after the cleanup landed.
+
+**Live verified on `tenant_demo` 2026-05-10:** counsellor (generic Staff persona, no STU-004 grant) → 403 on POST `/enrolment/withdrawals` and gate-blocked on the list; principal (admin) → sees 3 school-wide withdrawals.
+
+### MAJOR 4 — public booking attaches to existing iam_person by email
+
+**File:** `apps/api/src/enrolment-advanced/tour-booking.service.ts`
+
+`bookPublic()` previously did `platformUser.findFirst({where:{email}})` and reused the existing `iam_person.id` as `booked_by`. Anyone who knew an existing user's email could attach a booking to their account. The owner would later see a booking they did not create.
+
+**Fix:** Removed the email-based lookup entirely. Public bookings now ALWAYS create a fresh `iam_person` row (no `platform_users` row at all — public bookings are "pending external contacts" with no auth identity, so the unique-email collision is dodged AND the row never pollutes the auth surface). The contact email stays in `enr_tour_bookings.contact_email`. EOs link to existing identities later via `POST /tour-bookings/:id/link-application` after verification.
+
+**Live verified on `tenant_demo` 2026-05-10:** booking with `contactEmail='parent@demo.campusos.dev'` → bookedBy is a FRESH iam_person (not David Chen's), `platform_users` count delta = 0.
+
+### MAJOR 5 — `WithdrawalService.complete` updates `sis_students` by id only
+
+**File:** `apps/api/src/enrolment-advanced/withdrawal.service.ts`
+
+The final UPDATE on `sis_students.enrollment_status='WITHDRAWN'` had no `school_id` predicate. The withdrawal row above was already locked + school-scoped, so the existing service path was not exploitable, but the project's hardening-by-default convention requires the predicate as defence in depth.
+
+**Fix:** Added `WHERE school_id = $1::uuid AND id = $2::uuid` with `tenant.schoolId` as the first argument. Verified by spec test (`MAJOR 5 — sis_students UPDATE is school-scoped` asserts the SQL contains both predicates and the args bind correctly) AND by live smoke (Maya's `enrollment_status` flipped to WITHDRAWN through the new SQL shape).
+
+### MAJOR 6 — exit-task per-department scoping deferred (Phase 2 punch list)
+
+Reviewer accepted as Phase 2 hardening per the gate decision. The service comments document the deferred per-category function code split (LIB-001 → RECORDS, IT-002 → IT, etc.). Currently any actor with `STU-004:write` (now restricted to admin / EO / VP) can close any department's task. Pre-pilot work introduces the per-category gate.
+
+### Test coverage
+
+11 new regression tests in `enrolment-advanced.spec.ts` (vitest **230 → 241 passing across 18 spec files**):
+
+- **3 BLOCKING 1 tests** — bookPublic does NOT create iam_person for missing slot, full slot, or unpublished slot.
+- **MAJOR 4 rewrite** — bookPublic with existing-email always creates fresh iam_person (NOT reuse) + only 1 platform write (no platform_users).
+- **2 BLOCKING 2 tests** — duplicate confirmation rolls back the auto-withdrawal in single tenant tx; continuing=true does NOT call the withdrawal create path.
+- **5 BLOCKING 3 tests** — generic Staff (no STU-004) is row-scoped on withdrawal list, EO (Staff with STU-004:admin) sees school-wide, generic Staff defaults to own re-enrolment submissions, generic Staff defaults to own mid-year submissions, generic Staff cannot initiate withdrawal for arbitrary student.
+- **MAJOR 5 test** — `WithdrawalService.complete` UPDATE on sis_students contains both `school_id` and `id` predicates with `tenant.schoolId` as the first bind argument.
+
+### CI parity
+
+- `pnpm format:check` clean.
+- `pnpm lint:logs` clean (601 files).
+- `pnpm --filter @campusos/api test`: **241/241 passing across 18 spec files**.
+- `pnpm --filter @campusos/api build` clean.
+- `pnpm --filter @campusos/web build` clean.
+
+### Carry-forward
+
+MAJOR 6 (per-department exit-task scoping) joins the Phase 2 punch list alongside items 9 / 11 / 13 / 14 / 16 / 22 / 25 / 26 / 30 / 32 / 33 — all part of the broader role-split work before real-school pilot.
