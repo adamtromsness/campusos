@@ -1,13 +1,35 @@
 # HANDOFF — Phase 2 Cycle 6 (P2-6) Payments Advanced
 
-**Status:** COMPLETE pending peer review (Steps 1–7 + 10 of the 10-step plan).
+**Status:** COMPLETE pending peer review. **All 10 steps shipped across two sessions:** P2-6a (steps 1–7 + 10) and P2-6b (steps 8 + 9 + tests). Plan reference: `docs/campusos-p2c6-payments-advanced.html`.
 
-**Steps deferred to a follow-up session per the user's scope decision:**
+## P2-6b additions (2026-05-10)
 
-- Step 8 — UI for the 5 management surfaces (Financial Aid, Fee Schedules, Lunch Accounts, Payment Plans, Billing Ops). The 8-route, 30+-hook React surface is a separate session given size.
-- Step 9 — vertical-slice integration test script (`docs/p2c6-cat-script.md`). Inline schema + service smoke is captured in this handoff; a reproducible end-to-end CAT will land alongside the UI.
+- **Step 8 — UI for all 5 management surfaces.** 7 new web routes:
+  - `/payments` — hub page that branches per persona.
+  - `/payments/financial-aid` — admin programmes + queue + parent applications, review modal with APPROVE/REJECT/UNDER_REVIEW.
+  - `/payments/financial-aid/apply` — parent self-service application form (student picker, programme picker, statement, document references).
+  - `/payments/fees-advanced` — auto-invoice rules CRUD + trigger, discount rules CRUD, bulk Generate-from-fee-schedule modal, generation run history.
+  - `/payments/lunch` — admin low-balance dashboard + IMMUTABLE transfer modal + parent children grid.
+  - `/children/[id]/lunch` — parent per-child balance + transactions + deposit modal.
+  - `/payments/operations` — 4-tab admin surface (credit notes, payment reversals, late fees policy + scan, allocations explainer).
+  - All gated on the right `fin-001` / `fin-002` permission tier; service-layer row-scope is the actual access boundary for parent paths. New `Payments+` launchpad tile in `apps/web/src/components/shell/apps.tsx`.
+- **Step 8a — DTOs + hooks + format helpers.** `apps/web/src/hooks/use-payments-advanced.ts` exposes 24 React Query hooks covering all 21 P2-6 endpoints. `apps/web/src/lib/types.ts` extended with the full P2-6 DTO surface (40+ types/interfaces). `apps/web/src/lib/billing-format.ts` extended with label maps + pill class maps + `fundRemainingPct` / `fundRemainingTone` / `lunchBalanceTone` helpers. **Type-name disambiguation:** `ApplicationStatus` → `FinancialAidApplicationStatus`, `RunStatus` → `InvoiceGenerationRunStatus`, `RunType` → `InvoiceGenerationRunType` to avoid collisions with the existing enrolment + analytics types.
+- **Step 9 — vertical-slice CAT script** at `docs/p2c6-cat-script.md`. 4-check schema preamble + 10 plan scenarios end-to-end (financial aid lifecycle with atomic fund decrement; fee schedule + auto-invoicing; sibling discount; lunch deposit + IMMUTABLE transfer; LunchAccountConsumer dedup with same-event_id replay; credit note IMMUTABLE + offsetting CREDIT ledger entry; payment reversal IMMUTABLE; late fee policy + scan; multi-invoice allocation SUM=payment.amount validation; permission denials across personas). Cleanup section restores tenant_demo to seed shape exactly.
+- **Tests — `apps/api/src/payments/payments-advanced.spec.ts` 44 new tests** covering:
+  - **FinancialAidService — fund-pool decrement keystone:** atomic INSERT + decrement + award_id stamp; REJECTS over-fund; REJECTS non-admin; REJECTS terminal-status; REJECTS without awardAmount; UNIQUE catch friendly 400; parent row-scope via sis_guardians; parent createApplication for unlinked child REJECTED.
+  - **CreditNoteService IMMUTABLE invariants:** writes CREDIT ledger entry + emits pay.credit_note.issued; REJECTS CANCELLED invoice; REJECTS empty reason; REJECTS non-admin; **runtime check that no `update`/`delete`/`patch`/`remove` method exists on the service prototype.**
+  - **ReversalService:** **locks invoice FIRST then payment** (consistent ordering with PaymentService.pay + RefundService.issue); UNIQUE(payment_id) catch translates to friendly 400; REJECTS non-COMPLETED payments; **no update/delete/patch on prototype.**
+  - **LunchAccountService:** transfer locks BOTH source AND destination FOR UPDATE; REJECTS REFUND_TO_FAMILY without refundId; REJECTS same source+destination; REJECTS amount > balance; chargeMealFromConsumer dedups via partial UNIQUE on source_event_id; emits pay.lunch.low_balance when crossing threshold; parent CANNOT view another family's account (404 don't-leak-existence).
+  - **PaymentAllocationService SUM validation:** REJECTS allocation total != payment.amount; REJECTS allocations across families; accepts SUM = payment.amount; REJECTS non-admin.
+  - **LateFeeService:** REJECTS FIXED without feeAmount; REJECTS PERCENTAGE_MONTHLY without feePercentage; runScan no-ops when policy inactive; runScan + getPolicy REJECT non-admin.
+  - **DiscountRuleService:** REJECTS SIBLING without siblingOrder; REJECTS non-SIBLING with siblingOrder; REJECTS non-admin.
+  - **AutoInvoiceService:** REJECTS DATE_OF_MONTH without triggerDayOfMonth; REJECTS triggerRule on inactive rule; REJECTS non-admin.
+  - **SavedPaymentMethodService:** parent listForFamily REJECTED for stranger family (404); UNIQUE(stripe_payment_method_id) catch maps to friendly 400.
+  - **Controller permission metadata regression** for all 4 P2-6 controllers covering all 21 endpoints.
+- **Test count: 243 → 287 (vitest 19/19 spec files passing).**
+- **CI parity green:** format:check + lint:logs (621 files) + API build + web build + vitest 287/287.
 
-Plan reference: `docs/campusos-p2c6-payments-advanced.html`.
+The legacy "deferred steps" sub-section below described the P2-6a scope-cut from 2026-05-10 morning. It is preserved for review-trail traceability.
 
 ---
 

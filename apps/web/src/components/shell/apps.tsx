@@ -80,7 +80,8 @@ export type AppKey =
   | 'development'
   | 'expenses'
   | 'enrolment-tours'
-  | 'enrolment-withdrawals';
+  | 'enrolment-withdrawals'
+  | 'payments-advanced';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -286,6 +287,26 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
         : 'Fees, invoices, family accounts, and payments',
       href: isGuardian ? '/billing' : '/billing/accounts',
       routePrefix: '/billing',
+      icon: BanknotesIcon,
+    });
+  }
+
+  // P2-6 — Payments Advanced. Adds financial aid, lunch accounts, and the
+  // operational tooling (credit notes, reversals, late fees). Visible to
+  // admins, finance officers, and parents (for lunch accounts + financial
+  // aid applications).
+  if (
+    hasAnyPermission(user, ['fin-002:read', 'fin-002:write', 'fin-001:admin']) ||
+    (isGuardian && hasAnyPermission(user, ['fin-001:read']))
+  ) {
+    apps.push({
+      key: 'payments-advanced',
+      label: isGuardian ? 'Payments' : 'Payments+',
+      description: isGuardian
+        ? 'Financial aid + lunch accounts'
+        : 'Financial aid, fees, lunch, billing operations',
+      href: '/payments',
+      routePrefix: '/payments',
       icon: BanknotesIcon,
     });
   }

@@ -10373,3 +10373,449 @@ export interface TaskTemplateResponseDto {
   isActive: boolean;
   isRequired: boolean;
 }
+
+// ────────── P2-6 — Payments Advanced ──────────
+
+export type ReductionType = 'PERCENTAGE' | 'FIXED_AMOUNT';
+export type AwardStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+export type FinancialAidApplicationStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'WITHDRAWN';
+export type IncomeBand = 'BAND_A' | 'BAND_B' | 'BAND_C' | 'BAND_D' | 'BAND_E';
+
+export interface FinancialAidProgramDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  reductionType: ReductionType;
+  reductionValue: number;
+  totalFundAmount: number | null;
+  fundRemaining: number | null;
+  academicYearId: string | null;
+  isActive: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateFinancialAidProgramPayload {
+  name: string;
+  description?: string;
+  reductionType: ReductionType;
+  reductionValue: number;
+  totalFundAmount?: number;
+  academicYearId?: string;
+  isActive?: boolean;
+}
+
+export interface UpdateFinancialAidProgramPayload {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+  totalFundAmount?: number;
+}
+
+export interface FinancialAidApplicationDocument {
+  s3Key: string;
+  label: string;
+}
+
+export interface FinancialAidApplicationDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentName: string | null;
+  programId: string;
+  programName: string | null;
+  guardianId: string;
+  guardianName: string | null;
+  academicYearId: string;
+  householdIncomeBand: IncomeBand | null;
+  supportingDocuments: FinancialAidApplicationDocument[];
+  applicationStatement: string | null;
+  status: FinancialAidApplicationStatus;
+  submittedAt: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewerNotes: string | null;
+  awardId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateFinancialAidApplicationPayload {
+  studentId: string;
+  programId: string;
+  academicYearId: string;
+  householdIncomeBand?: IncomeBand;
+  supportingDocuments?: FinancialAidApplicationDocument[];
+  applicationStatement?: string;
+  submit?: boolean;
+}
+
+export interface UpdateFinancialAidApplicationPayload {
+  householdIncomeBand?: IncomeBand;
+  supportingDocuments?: FinancialAidApplicationDocument[];
+  applicationStatement?: string;
+}
+
+export interface ReviewFinancialAidApplicationPayload {
+  action: 'APPROVE' | 'REJECT' | 'UNDER_REVIEW';
+  awardAmount?: number;
+  awardEffectiveFrom?: string;
+  reviewerNotes?: string;
+}
+
+export interface FinancialAidAwardDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentName: string | null;
+  programId: string;
+  programName: string | null;
+  academicYearId: string;
+  awardAmount: number;
+  approvedBy: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  status: AwardStatus;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Discount rules ──
+
+export type DiscountType =
+  | 'SIBLING'
+  | 'EARLY_PAYMENT'
+  | 'LOYALTY'
+  | 'BURSARY'
+  | 'STAFF_CHILD'
+  | 'CUSTOM';
+export type CalculationMethod = 'PERCENTAGE' | 'FIXED_AMOUNT';
+
+export interface DiscountRuleDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  discountType: DiscountType;
+  calculationMethod: CalculationMethod;
+  value: number;
+  appliesToFeeCategoryId: string | null;
+  appliesToFeeCategoryName: string | null;
+  siblingOrder: number | null;
+  minimumInvoiceAmount: number | null;
+  academicYearId: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateDiscountRulePayload {
+  name: string;
+  description?: string;
+  discountType: DiscountType;
+  calculationMethod: CalculationMethod;
+  value: number;
+  appliesToFeeCategoryId?: string;
+  siblingOrder?: number;
+  minimumInvoiceAmount?: number;
+  academicYearId?: string;
+  isActive?: boolean;
+}
+
+export interface UpdateDiscountRulePayload {
+  name?: string;
+  description?: string;
+  value?: number;
+  isActive?: boolean;
+  minimumInvoiceAmount?: number;
+}
+
+// ── Auto-invoice rules + generation runs ──
+
+export type TriggerType =
+  | 'ENROLMENT_CONFIRMED'
+  | 'TERM_START'
+  | 'DATE_OF_MONTH'
+  | 'ACADEMIC_YEAR_START';
+export type InvoiceGenerationRunType = 'MANUAL_BATCH' | 'AUTO_RULE_TRIGGERED' | 'FEE_SCHEDULE_BULK';
+export type InvoiceGenerationRunStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+
+export interface AutoInvoiceRuleDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  triggerType: TriggerType;
+  feeScheduleId: string;
+  feeScheduleName: string | null;
+  triggerDayOfMonth: number | null;
+  triggerTermOffsetDays: number | null;
+  appliesToGradeLevel: string | null;
+  isActive: boolean;
+  lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAutoInvoiceRulePayload {
+  name: string;
+  description?: string;
+  triggerType: TriggerType;
+  feeScheduleId: string;
+  triggerDayOfMonth?: number;
+  triggerTermOffsetDays?: number;
+  appliesToGradeLevel?: string;
+  isActive?: boolean;
+}
+
+export interface UpdateAutoInvoiceRulePayload {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+  triggerDayOfMonth?: number;
+  triggerTermOffsetDays?: number;
+  appliesToGradeLevel?: string;
+}
+
+export interface InvoiceGenerationRunDto {
+  id: string;
+  schoolId: string;
+  runType: InvoiceGenerationRunType;
+  feeScheduleId: string | null;
+  feeScheduleName: string | null;
+  autoRuleId: string | null;
+  academicYearId: string | null;
+  initiatedBy: string | null;
+  totalFamiliesTargeted: number;
+  invoicesCreated: number;
+  invoicesSkipped: number;
+  invoicesFailed: number;
+  status: InvoiceGenerationRunStatus;
+  errorSummary: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TriggerAutoInvoiceRulePayload {
+  academicYearId?: string;
+}
+
+// ── Lunch accounts ──
+
+export type LunchTransactionType = 'MEAL_CHARGE' | 'DEPOSIT' | 'REFUND' | 'ADJUSTMENT';
+export type LunchTransferType = 'SIBLING_TRANSFER' | 'NEXT_YEAR_ROLLOVER' | 'REFUND_TO_FAMILY';
+
+export interface LunchAccountDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentName: string | null;
+  balance: number;
+  lowBalanceThreshold: number;
+  autoReplenishEnabled: boolean;
+  autoReplenishAmount: number | null;
+  lastLowBalanceAlertAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LunchTransactionDto {
+  id: string;
+  schoolId: string;
+  lunchAccountId: string;
+  amount: number;
+  transactionType: LunchTransactionType;
+  mealDate: string | null;
+  posDeviceId: string | null;
+  sourceEventId: string | null;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface LunchTransferDto {
+  id: string;
+  schoolId: string;
+  fromAccountId: string;
+  toAccountId: string | null;
+  transferType: LunchTransferType;
+  amount: number;
+  reason: string;
+  refundId: string | null;
+  processedBy: string;
+  processedAt: string;
+}
+
+export interface LunchAccountWithTransactionsDto {
+  account: LunchAccountDto;
+  transactions: LunchTransactionDto[];
+  lowBalance: boolean;
+}
+
+export interface DepositLunchAccountPayload {
+  amount: number;
+  notes?: string;
+}
+
+export interface TransferLunchBalancePayload {
+  fromAccountId: string;
+  toAccountId?: string;
+  transferType: LunchTransferType;
+  amount: number;
+  reason: string;
+  refundId?: string;
+}
+
+export interface UpdateLunchAccountPayload {
+  lowBalanceThreshold?: number;
+  autoReplenishEnabled?: boolean;
+  autoReplenishAmount?: number;
+}
+
+// ── Billing operations ──
+
+export type CreditCategory =
+  | 'GOODWILL'
+  | 'BILLING_ERROR'
+  | 'PROGRAMME_CANCELLED'
+  | 'OVERPAYMENT'
+  | 'OTHER';
+export type ReversalType =
+  | 'BOUNCED_CHEQUE'
+  | 'RECALLED_TRANSFER'
+  | 'CHARGEBACK'
+  | 'DUPLICATE_PAYMENT'
+  | 'OTHER';
+export type LateFeeType = 'FIXED' | 'PERCENTAGE_MONTHLY';
+export type SavedPaymentMethodType = 'CARD' | 'BANK_ACCOUNT';
+
+export interface CreditNoteDto {
+  id: string;
+  schoolId: string;
+  invoiceId: string;
+  lineItemId: string | null;
+  familyAccountId: string;
+  creditAmount: number;
+  creditCategory: CreditCategory;
+  reason: string;
+  ledgerEntryId: string | null;
+  issuedBy: string;
+  issuedAt: string;
+}
+
+export interface IssueCreditNotePayload {
+  creditAmount: number;
+  creditCategory?: CreditCategory;
+  reason: string;
+  lineItemId?: string;
+}
+
+export interface PaymentReversalDto {
+  id: string;
+  schoolId: string;
+  paymentId: string;
+  familyAccountId: string;
+  invoiceId: string;
+  reversalType: ReversalType;
+  reversalReason: string;
+  bankReference: string | null;
+  reversedAmount: number;
+  ledgerEntryId: string | null;
+  reversedBy: string;
+  reversedAt: string;
+}
+
+export interface ReversePaymentPayload {
+  reversalType: ReversalType;
+  reversalReason: string;
+  bankReference?: string;
+}
+
+export interface PaymentAllocationItemPayload {
+  invoiceId: string;
+  allocatedAmount: number;
+}
+
+export interface AllocatePaymentPayload {
+  allocations: PaymentAllocationItemPayload[];
+}
+
+export interface PaymentAllocationDto {
+  id: string;
+  schoolId: string;
+  paymentId: string;
+  invoiceId: string;
+  invoiceTitle: string | null;
+  allocatedAmount: number;
+  allocatedBy: string | null;
+  allocatedAt: string;
+}
+
+export interface LatePaymentPolicyDto {
+  id: string;
+  schoolId: string;
+  isActive: boolean;
+  gracePeriodDays: number;
+  feeType: LateFeeType;
+  feeAmount: number | null;
+  feePercentage: number | null;
+  maxLateFeeAmount: number | null;
+  appliesToFeeCategoryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertLatePaymentPolicyPayload {
+  isActive?: boolean;
+  gracePeriodDays?: number;
+  feeType: LateFeeType;
+  feeAmount?: number;
+  feePercentage?: number;
+  maxLateFeeAmount?: number;
+  appliesToFeeCategoryId?: string;
+}
+
+export interface LateFeesScanResponseDto {
+  invoicesEvaluated: number;
+  lateFeesApplied: number;
+  invoicesSkipped: number;
+  totalLateFeeAmount: number;
+}
+
+export interface SavedPaymentMethodDto {
+  id: string;
+  schoolId: string;
+  familyAccountId: string;
+  stripePaymentMethodId: string;
+  methodType: SavedPaymentMethodType;
+  cardLastFour: string | null;
+  cardBrand: string | null;
+  cardExpMonth: number | null;
+  cardExpYear: number | null;
+  bankLastFour: string | null;
+  isDefault: boolean;
+  addedAt: string;
+}
+
+export interface CreateSavedPaymentMethodPayload {
+  familyAccountId: string;
+  stripePaymentMethodId: string;
+  methodType?: SavedPaymentMethodType;
+  cardLastFour?: string;
+  cardBrand?: string;
+  cardExpMonth?: number;
+  cardExpYear?: number;
+  bankLastFour?: string;
+  isDefault?: boolean;
+}
