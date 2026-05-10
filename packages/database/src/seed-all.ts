@@ -103,6 +103,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Enrolment Advanced — tours, withdrawal, re-enrolment, mid-year admission (P2-5)',
     script: 'seed-enrolment-advanced.ts',
   },
+  {
+    label: 'Payments Advanced — financial aid, lunch accounts, billing ops (P2-6)',
+    script: 'seed-payments-advanced.ts',
+  },
 ];
 
 async function main(): Promise<void> {

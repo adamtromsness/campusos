@@ -17,6 +17,21 @@ import { PaymentController } from './payment.controller';
 import { RefundController } from './refund.controller';
 import { PaymentPlanController } from './payment-plan.controller';
 import { PaymentAccountWorker } from './consumers/payment-account.consumer';
+// P2-6 — Payments Advanced
+import { FinancialAidService } from './financial-aid.service';
+import { FinancialAidController } from './financial-aid.controller';
+import { DiscountRuleService } from './discount-rule.service';
+import { AutoInvoiceService } from './auto-invoice.service';
+import { BillingConfigController } from './billing-config.controller';
+import { LunchAccountService } from './lunch-account.service';
+import { LunchAccountController } from './lunch-account.controller';
+import { CreditNoteService } from './credit-note.service';
+import { ReversalService } from './reversal.service';
+import { PaymentAllocationService } from './payment-allocation.service';
+import { LateFeeService } from './late-fee.service';
+import { SavedPaymentMethodService } from './saved-payment-method.service';
+import { BillingOpsController } from './billing-ops.controller';
+import { LunchAccountConsumer } from './consumers/lunch-account.consumer';
 
 /**
  * Payments Module — M84 Family Billing (Cycle 6 Step 7).
@@ -74,6 +89,17 @@ import { PaymentAccountWorker } from './consumers/payment-account.consumer';
     RefundService,
     PaymentPlanService,
     PaymentAccountWorker,
+    // P2-6
+    FinancialAidService,
+    DiscountRuleService,
+    AutoInvoiceService,
+    LunchAccountService,
+    CreditNoteService,
+    ReversalService,
+    PaymentAllocationService,
+    LateFeeService,
+    SavedPaymentMethodService,
+    LunchAccountConsumer,
   ],
   controllers: [
     FeeScheduleController,
@@ -82,6 +108,11 @@ import { PaymentAccountWorker } from './consumers/payment-account.consumer';
     PaymentController,
     RefundController,
     PaymentPlanController,
+    // P2-6
+    FinancialAidController,
+    BillingConfigController,
+    LunchAccountController,
+    BillingOpsController,
   ],
   exports: [
     LedgerService,
@@ -91,6 +122,15 @@ import { PaymentAccountWorker } from './consumers/payment-account.consumer';
     PaymentService,
     RefundService,
     PaymentPlanService,
+    FinancialAidService,
+    DiscountRuleService,
+    AutoInvoiceService,
+    LunchAccountService,
+    CreditNoteService,
+    ReversalService,
+    PaymentAllocationService,
+    LateFeeService,
+    SavedPaymentMethodService,
   ],
 })
 export class PaymentsModule {}

@@ -506,6 +506,15 @@ async function seedIam() {
         // processes via STU-004 admin tier from everyFunction.
         'STU-004': ['read', 'write'],
         'FIN-001': ['read', 'write'],
+        // P2-6 — Financial Aid. Parents submit and track financial aid
+        // applications via the parent self-service surface; the
+        // FinancialAidService row-scope binds parent reads + writes to
+        // applications where guardian_id resolves to the calling
+        // parent via sis_guardians.person_id = actor.personId.
+        // Approval (which creates pay_financial_aid_awards and
+        // decrements the programme fund) is admin-only at the service
+        // layer regardless of permission tier.
+        'FIN-002': ['read', 'write'],
         // Profile & Household mini-cycle — own profile self-service +
         // shared-household editing (HouseholdsService gates on member
         // role HEAD_OF_HOUSEHOLD or SPOUSE).
