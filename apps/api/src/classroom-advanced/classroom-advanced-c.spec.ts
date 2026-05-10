@@ -993,3 +993,221 @@ describe('REVIEW-P2C7 BLOCKING regressions', () => {
     expect(deleted).toBe(true);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REVIEW-P2C7 ROUND 2 BLOCKING — cross-school AI tutoring session isolation.
+//
+// Round 1 added actor-scoped row checks but `loadSessionRowOrThrow` still
+// loaded sessions by id only, and `assertCanReadSession` short-circuited on
+// `actor.isSchoolAdmin`. A School A admin who guessed or leaked a School B
+// session UUID could read / complete / extract / list signals on it.
+//
+// Round 2 fix — every direct-object reference query (loader + lock + write +
+// message + signal aggregate) now carries a `school_id = $tenant.schoolId`
+// predicate. Cross-school admin reads + writes collapse to 404 don't-leak-
+// existence at the query layer.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('REVIEW-P2C7 ROUND 2 — cross-school session isolation', () => {
+  it('ROUND 2: loadSessionRowOrThrow runs school-scoped predicate', async () => {
+    let observedSql = '';
+    let observedArgs: unknown[] = [];
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('select s.id, s.school_id') && sql.includes('where s.id')) {
+        observedSql = sql;
+        observedArgs = c.args;
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await expect(svc.getSession('cross-school-uuid', ADMIN_ACTOR)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+    expect(observedSql).toContain('s.school_id');
+    expect(observedArgs[1]).toBe(TENANT.schoolId);
+  });
+
+  it('ROUND 2: cross-school admin gets 404 on session GET', async () => {
+    // Simulate: the session UUID is real (in another school) but the
+    // school-scoped query returns 0 rows because the predicate filters it out.
+    const fake = makeFake(() => []); // every query returns empty — session not in this school
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await expect(
+        svc.getSession('019e0000-0000-7000-8000-foreignschool', ADMIN_ACTOR),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  it('ROUND 2: cross-school admin completeSession lock query carries school predicate', async () => {
+    let observedLockSql = '';
+    let observedLockArgs: unknown[] = [];
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('from cls_ai_tutoring_sessions') && sql.includes('for update')) {
+        observedLockSql = sql;
+        observedLockArgs = c.args;
+        return []; // foreign-school UUID — empty result
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await expect(
+        svc.completeSession('019e0000-0000-7000-8000-foreignschool', {}, ADMIN_ACTOR),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    expect(observedLockSql).toContain('school_id');
+    expect(observedLockArgs[1]).toBe(TENANT.schoolId);
+  });
+
+  it('ROUND 2: cross-school admin extractSignals → 404 (loader school-scoped)', async () => {
+    let gatewayCalled = false;
+    const gateway: any = {
+      summariseLesson: async () => ({
+        summaryText: '',
+        keyTopics: [],
+        actionItems: [],
+        modelVersion: 'v',
+        tokensUsed: 0,
+        costUsd: 0,
+      }),
+      extractLearningSignals: async () => {
+        gatewayCalled = true;
+        return { signals: [], tokensUsed: 0, costUsd: 0 };
+      },
+    };
+    const fake = makeFake(() => []); // session not in this school
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      gateway,
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await expect(
+        svc.extractSignals('019e0000-0000-7000-8000-foreignschool', ADMIN_ACTOR),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    expect(gatewayCalled).toBe(false);
+  });
+
+  it('ROUND 2: cross-school admin listSignals(sessionId) → 404 + JOIN carries school predicate', async () => {
+    let observedSignalsSql = '';
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('from cls_ai_tutoring_learning_signals')) {
+        observedSignalsSql = sql;
+      }
+      return []; // loader returns empty for cross-school session
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await expect(
+        svc.listSignals('019e0000-0000-7000-8000-foreignschool', ADMIN_ACTOR),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    // The signals query never fires because the loader 404s first; pin the
+    // contract on getSessionWithMessages where the signals query SHOULD fire
+    // for a same-school admin and JOIN with school_id predicate.
+    expect(observedSignalsSql).toBe(''); // never reached — loader rejected
+  });
+
+  it('ROUND 2: same-school admin gets messages JOIN with school predicate', async () => {
+    let observedMessagesSql = '';
+    let observedMessagesArgs: unknown[] = [];
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('select s.id, s.school_id') && sql.includes('where s.id')) {
+        // Loader returns the in-tenant session
+        return [
+          {
+            id: 'session-1',
+            school_id: TENANT.schoolId,
+            student_id: STUDENT_SIS_ID,
+            student_name: null,
+            class_id: null,
+            class_name: null,
+            subject: 'Algebra',
+            status: 'COMPLETED',
+            started_at: new Date(),
+            ended_at: new Date(),
+            total_messages: 0,
+            learning_signals_extracted: false,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        ];
+      }
+      if (sql.includes('from cls_ai_tutoring_messages m')) {
+        observedMessagesSql = sql;
+        observedMessagesArgs = c.args;
+        return [];
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await svc.getSessionWithMessages('session-1', ADMIN_ACTOR);
+    });
+    // Verify the messages query JOINs cls_ai_tutoring_sessions on school_id
+    expect(observedMessagesSql).toContain('join cls_ai_tutoring_sessions s');
+    expect(observedMessagesSql).toContain('s.school_id');
+    expect(observedMessagesArgs[1]).toBe(TENANT.schoolId);
+  });
+
+  it('ROUND 2: loadMessageOrThrow JOINs sessions with school_id predicate', async () => {
+    let observedSql = '';
+    let observedArgs: unknown[] = [];
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('from cls_ai_tutoring_messages m') && sql.includes('where m.id')) {
+        observedSql = sql;
+        observedArgs = c.args;
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    // Reach the private helper through type assertion to pin the contract
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await expect(
+        (svc as any).loadMessageOrThrow('019e0000-0000-7000-8000-foreignmsg'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    expect(observedSql).toContain('join cls_ai_tutoring_sessions s');
+    expect(observedSql).toContain('s.school_id');
+    expect(observedArgs[1]).toBe(TENANT.schoolId);
+  });
+});

@@ -368,12 +368,20 @@ export class AITutoringService {
     // SAFETY RULE 2 — anonymisation. The Gateway sees only the opaque
     // anonId + the subject + the conversation transcript (no PII).
     const anonId = this.toAnonymousId(session.student_id, session.id);
+    // REVIEW-P2C7 ROUND 2 BLOCKING — defence-in-depth school-scope JOIN.
+    // The loader above already 404s on cross-school session UUIDs; this
+    // JOIN means even a manually-inserted message row pointing at a
+    // foreign-school session cannot leak into the AI Gateway prompt.
+    const tenant = getCurrentTenant();
     const history = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<MessageRow[]>(
-        'SELECT id::text AS id, session_id::text AS session_id, role, content, ' +
-          'sent_at, tokens_used, created_at ' +
-          'FROM cls_ai_tutoring_messages WHERE session_id = $1::uuid ORDER BY sent_at ASC',
+        'SELECT m.id::text AS id, m.session_id::text AS session_id, m.role, m.content, ' +
+          'm.sent_at, m.tokens_used, m.created_at ' +
+          'FROM cls_ai_tutoring_messages m ' +
+          'JOIN cls_ai_tutoring_sessions s ON s.id = m.session_id ' +
+          'WHERE m.session_id = $1::uuid AND s.school_id = $2::uuid ORDER BY m.sent_at ASC',
         sessionId,
+        tenant.schoolId,
       );
     });
 
@@ -411,10 +419,13 @@ export class AITutoringService {
         reply.content,
         reply.tokensUsed,
       );
-      // Bump total_messages by 2 (STUDENT + ASSISTANT)
+      // Bump total_messages by 2 (STUDENT + ASSISTANT). REVIEW-P2C7
+      // ROUND 2 — school-scoped UPDATE predicate (defence-in-depth).
       await tx.$executeRawUnsafe(
-        'UPDATE cls_ai_tutoring_sessions SET total_messages = total_messages + 2, updated_at = now() WHERE id = $1::uuid',
+        'UPDATE cls_ai_tutoring_sessions SET total_messages = total_messages + 2, ' +
+          'updated_at = now() WHERE id = $1::uuid AND school_id = $2::uuid',
         sessionId,
+        tenant.schoolId,
       );
     });
 
@@ -444,11 +455,16 @@ export class AITutoringService {
   ): Promise<AITutoringSessionWithMessagesDto> {
     const session = await this.loadSessionRowOrThrow(sessionId);
     await this.assertCanReadSession(session, actor);
+    // REVIEW-P2C7 ROUND 2 — defence-in-depth school-scope JOIN.
+    const tenant = getCurrentTenant();
     const messages = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<MessageRow[]>(
-        'SELECT id::text AS id, session_id::text AS session_id, role, content, sent_at, tokens_used, created_at ' +
-          'FROM cls_ai_tutoring_messages WHERE session_id = $1::uuid ORDER BY sent_at ASC',
+        'SELECT m.id::text AS id, m.session_id::text AS session_id, m.role, m.content, ' +
+          'm.sent_at, m.tokens_used, m.created_at FROM cls_ai_tutoring_messages m ' +
+          'JOIN cls_ai_tutoring_sessions s ON s.id = m.session_id ' +
+          'WHERE m.session_id = $1::uuid AND s.school_id = $2::uuid ORDER BY m.sent_at ASC',
         sessionId,
+        tenant.schoolId,
       );
     });
     return {
@@ -509,12 +525,18 @@ export class AITutoringService {
     _input: CompleteAISessionDto,
     actor: ResolvedActor,
   ): Promise<AITutoringSessionResponseDto> {
+    // REVIEW-P2C7 ROUND 2 BLOCKING — school-scoped FOR UPDATE lock so a
+    // cross-school session UUID cannot be transitioned by an out-of-school
+    // admin who short-circuits assertCanWriteSession.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<SessionRow[]>(
         'SELECT id, school_id, student_id::text AS student_id, class_id::text AS class_id, ' +
           'subject, status, started_at, ended_at, total_messages, learning_signals_extracted, ' +
-          'created_at, updated_at FROM cls_ai_tutoring_sessions WHERE id = $1::uuid FOR UPDATE',
+          'created_at, updated_at FROM cls_ai_tutoring_sessions ' +
+          'WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Session ' + id + ' not found');
       const row = rows[0]!;
@@ -523,8 +545,10 @@ export class AITutoringService {
       }
       await this.assertCanWriteSession(row, actor);
       await tx.$executeRawUnsafe(
-        "UPDATE cls_ai_tutoring_sessions SET status = 'COMPLETED', ended_at = now(), updated_at = now() WHERE id = $1::uuid",
+        "UPDATE cls_ai_tutoring_sessions SET status = 'COMPLETED', ended_at = now(), updated_at = now() " +
+          'WHERE id = $1::uuid AND school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     return this.getSession(id, actor);
@@ -551,20 +575,29 @@ export class AITutoringService {
     }
     await this.usage.assertWithinQuota(session.school_id);
 
+    // REVIEW-P2C7 ROUND 2 — defence-in-depth school-scope JOIN. Same
+    // shape as the postMessage history fetch.
+    const tenant = getCurrentTenant();
     const messages = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<MessageRow[]>(
-        'SELECT id::text AS id, session_id::text AS session_id, role, content, sent_at, tokens_used, created_at ' +
-          'FROM cls_ai_tutoring_messages WHERE session_id = $1::uuid ORDER BY sent_at ASC',
+        'SELECT m.id::text AS id, m.session_id::text AS session_id, m.role, m.content, ' +
+          'm.sent_at, m.tokens_used, m.created_at FROM cls_ai_tutoring_messages m ' +
+          'JOIN cls_ai_tutoring_sessions s ON s.id = m.session_id ' +
+          'WHERE m.session_id = $1::uuid AND s.school_id = $2::uuid ORDER BY m.sent_at ASC',
         id,
+        tenant.schoolId,
       );
     });
 
     if (messages.length === 0) {
-      // No messages — flip the flag so we don't try again
+      // No messages — flip the flag so we don't try again. School-scoped
+      // UPDATE predicate per REVIEW-P2C7 ROUND 2.
       await this.tenantPrisma.executeInTenantContext(async (client) => {
         await client.$executeRawUnsafe(
-          'UPDATE cls_ai_tutoring_sessions SET learning_signals_extracted = true, updated_at = now() WHERE id = $1::uuid',
+          'UPDATE cls_ai_tutoring_sessions SET learning_signals_extracted = true, ' +
+            'updated_at = now() WHERE id = $1::uuid AND school_id = $2::uuid',
           id,
+          tenant.schoolId,
         );
       });
       return [];
@@ -592,8 +625,10 @@ export class AITutoringService {
         );
       }
       await tx.$executeRawUnsafe(
-        'UPDATE cls_ai_tutoring_sessions SET learning_signals_extracted = true, updated_at = now() WHERE id = $1::uuid',
+        'UPDATE cls_ai_tutoring_sessions SET learning_signals_extracted = true, ' +
+          'updated_at = now() WHERE id = $1::uuid AND school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
 
@@ -621,12 +656,22 @@ export class AITutoringService {
     if (actor.personType === 'STUDENT') {
       throw new ForbiddenException('Students cannot view extracted learning signals.');
     }
+    // REVIEW-P2C7 ROUND 2 BLOCKING — school-scoped JOIN as defence-in-
+    // depth. The loader above already 404s on cross-school session UUIDs;
+    // this JOIN means the query itself can never return signals for a
+    // session outside the calling tenant.
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<SignalRow[]>(
-        'SELECT id::text AS id, session_id::text AS session_id, signal_type, signal_description, ' +
-          'standard_id::text AS standard_id, confidence, extracted_at, created_at ' +
-          'FROM cls_ai_tutoring_learning_signals WHERE session_id = $1::uuid ORDER BY extracted_at DESC',
+        'SELECT ls.id::text AS id, ls.session_id::text AS session_id, ls.signal_type, ' +
+          'ls.signal_description, ls.standard_id::text AS standard_id, ls.confidence, ' +
+          'ls.extracted_at, ls.created_at ' +
+          'FROM cls_ai_tutoring_learning_signals ls ' +
+          'JOIN cls_ai_tutoring_sessions s ON s.id = ls.session_id ' +
+          'WHERE ls.session_id = $1::uuid AND s.school_id = $2::uuid ' +
+          'ORDER BY ls.extracted_at DESC',
         sessionId,
+        tenant.schoolId,
       );
     });
     return rows.map(signalRowToDto);
@@ -724,23 +769,43 @@ export class AITutoringService {
 
   // ── helpers ──────────────────────────────────────────────────────────
 
+  /**
+   * REVIEW-P2C7 ROUND 2 BLOCKING — school-scoped session loader. Without
+   * this, school admins (who short-circuit `assertCanReadSession`) could
+   * read a foreign-school session by guessing or leaking its UUID. The
+   * tenant context's schoolId predicate is the actual access boundary
+   * for direct-object reference paths and must live on the loader, not
+   * on a downstream filter.
+   */
   private async loadSessionRowOrThrow(id: string): Promise<SessionRow> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<SessionRow[]>(
-        SELECT_SESSION_BASE + ' WHERE s.id = $1::uuid',
+        SELECT_SESSION_BASE + ' WHERE s.id = $1::uuid AND s.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     if (rows.length === 0) throw new NotFoundException('Session ' + id + ' not found');
     return rows[0]!;
   }
 
+  /**
+   * REVIEW-P2C7 ROUND 2 BLOCKING — school-scoped message loader so a
+   * leaked message UUID from another tenant collapses to 404 don't-leak-
+   * existence. Resolves the parent session.school_id then validates
+   * against the calling tenant.
+   */
   private async loadMessageOrThrow(id: string): Promise<AITutoringMessageResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<MessageRow[]>(
-        'SELECT id::text AS id, session_id::text AS session_id, role, content, sent_at, ' +
-          'tokens_used, created_at FROM cls_ai_tutoring_messages WHERE id = $1::uuid',
+        'SELECT m.id::text AS id, m.session_id::text AS session_id, m.role, m.content, ' +
+          'm.sent_at, m.tokens_used, m.created_at FROM cls_ai_tutoring_messages m ' +
+          'JOIN cls_ai_tutoring_sessions s ON s.id = m.session_id ' +
+          'WHERE m.id = $1::uuid AND s.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     if (rows.length === 0) throw new NotFoundException('Message ' + id + ' not found');

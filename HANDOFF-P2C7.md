@@ -1,6 +1,45 @@
 # HANDOFF — Phase 2 Cycle 7 (P2-7) Classroom Advanced
 
-**Status:** **REVIEW-P2C7 ROUND 1 fixes applied — awaiting Round 2 verdict.** Round 1 against `aad2f2a` returned **FAIL** with 4 BLOCKING + 4 MAJOR. The Round 1 fix commit (this commit) lands all 4 BLOCKING + the 3 actionable MAJORs (6 + 7 + 8) with 10 new pinned regression tests + live verification. Vitest 377 → **387 passing across 22 spec files**. CI parity green: format:check + lint:logs (662 files clean) + API + web build + vitest 387/387.
+**Status:** **REVIEW-P2C7 ROUND 2 fix applied — awaiting Round 3 verdict.** Round 1 against `aad2f2a` returned **FAIL** (4 BLOCKING + 4 MAJOR) — fixes shipped at `0c97fc6`. Round 2 against `0c97fc6` returned **FAIL** with 1 residual BLOCKING — base AI tutoring session loader was ID-only and school admins bypassed `assertCanReadSession`, exposing cross-school session UUIDs. The Round 2 fix commit (this commit) lands the school-scoped `loadSessionRowOrThrow` + 6 supporting query tightenings + 7 new pinned regression tests + 4 live cross-school 404 verifications on `tenant_demo`. Vitest 387 → **394 passing across 22 spec files**. CI parity green: format:check + lint:logs (662 files clean) + API + web build + vitest 394/394.
+
+## REVIEW-P2C7 ROUND 2 — fix log (2026-05-10)
+
+Round 2 verdict: **FAIL** with 1 residual BLOCKING (multi-school isolation). The reviewer confirmed all 4 Round 1 BLOCKING fixes plus the 3 MAJORs landed correctly, but flagged that `AITutoringService.loadSessionRowOrThrow` was still loading sessions with an ID-only WHERE clause. Combined with `assertCanReadSession` short-circuiting on `actor.isSchoolAdmin` BEFORE checking the loaded session belonged to the calling tenant, a School A admin who knew or guessed a School B session UUID could read / complete / extract signals / list signals on it.
+
+**Fix.** School-scope every direct-object reference query in `AITutoringService` so the access boundary lives at the query layer rather than at a downstream filter:
+
+- `loadSessionRowOrThrow` — adds `s.school_id = $tenant.schoolId` predicate. Cross-school UUIDs collapse to 404 `'Session ${id} not found'` (don't-leak-existence pattern). This is the keystone fix — every other session-handling endpoint funnels through this loader.
+- `loadMessageOrThrow` — JOIN `cls_ai_tutoring_messages m JOIN cls_ai_tutoring_sessions s ON s.id = m.session_id WHERE m.id = $1 AND s.school_id = $2`. Foreign-school message UUIDs collapse to 404.
+- `completeSession` — the `FOR UPDATE` lock query and the subsequent UPDATE both carry the school predicate so a cross-school session UUID cannot be transitioned by an out-of-school admin who short-circuits `assertCanWriteSession`.
+- `postMessage` history fetch — JOIN with `s.school_id = $tenant.schoolId` so the AI Gateway prompt can never include messages from a foreign-school session even via a manually-inserted soft-FK row.
+- `getSessionWithMessages` messages fetch — same JOIN pattern.
+- `extractSignals` transcript fetch — same JOIN pattern.
+- `extractSignals` two `learning_signals_extracted = true` UPDATEs — both add `school_id = $2::uuid` to the WHERE clause.
+- `postMessage` total_messages bump UPDATE — adds `school_id = $2::uuid`.
+- `listSignals(sessionId)` — JOIN with `s.school_id = $tenant.schoolId` (defence-in-depth — the loader above already 404s on cross-school session UUIDs, so this is belt-and-braces against any future code path that bypasses the loader).
+
+**Live verification on `tenant_demo` 2026-05-10:** planted a foreign-school session row (`school_id = ffffffff-ffff-...`) directly in `cls_ai_tutoring_sessions` to simulate a leaked cross-school UUID. Verified principal (school admin) hits 404 on all 4 affected paths:
+
+```
+S3: GET /classroom/ai-tutoring/sessions/<foreign>          → HTTP 404 "Session ... not found"
+S4: PATCH /classroom/ai-tutoring/sessions/<foreign>/complete → HTTP 404
+S5: POST  /classroom/ai-tutoring/sessions/<foreign>/extract-signals → HTTP 404
+S6: GET   /classroom/ai-tutoring/sessions/<foreign>/signals → HTTP 404
+```
+
+Same principal against the legitimate same-school seed session returns 200 with all 8 messages + 3 signals. Cleanup dropped the planted row.
+
+**Test coverage delta.** Vitest 387 → **394 passing across 22 spec files** (+7 new in `describe('REVIEW-P2C7 ROUND 2 — cross-school session isolation')`):
+
+- `loadSessionRowOrThrow runs school-scoped predicate` — captures SQL + asserts `s.school_id` predicate present + tenant.schoolId bound as 2nd arg.
+- `cross-school admin gets 404 on session GET` — every query returns empty → NotFoundException.
+- `cross-school admin completeSession lock query carries school predicate` — captures lock SQL + asserts `school_id` clause + tenant.schoolId bound.
+- `cross-school admin extractSignals → 404 (loader school-scoped)` — stubs gateway with `gatewayCalled` flag and asserts gateway is NEVER reached.
+- `cross-school admin listSignals → 404 + JOIN carries school predicate` — confirms loader rejects before the signals query fires.
+- `same-school admin gets messages JOIN with school predicate` — captures messages SQL + asserts JOIN + school_id + tenant arg binding.
+- `loadMessageOrThrow JOINs sessions with school_id predicate` — direct private-helper assertion via type-cast; foreign-school message UUID → 404 with JOIN + predicate verified.
+
+CI parity green: format:check + lint:logs (662 files clean) + API + web build + vitest 394/394.
 
 P2-7a (Hall Passes + Rubrics + Class Moments — 8 tables, ~18 endpoints, 1 worker, 2 Kafka emits) shipped at `70d690e`. P2-7b (Standards Gradebook + Peer Review — 8 tables, ~18 endpoints) shipped at `fdc95be`. P2-7c (AI Tutoring + Lesson Video — 8 tables, ~16 endpoints, 2 Kafka consumers, 3 Kafka emits) shipped at `aad2f2a`. Plan: `docs/campusos-p2c7-classroom-advanced.html`. Review notes: `P2C7-REVIEW-NOTES.md`. Review fix log: `REVIEW-P2C7-CHATGPT.md`.
 
