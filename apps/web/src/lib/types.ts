@@ -10819,3 +10819,296 @@ export interface CreateSavedPaymentMethodPayload {
   bankLastFour?: string;
   isDefault?: boolean;
 }
+
+// ──────────────────────────────────────────────────────────────────────
+// P2-9 Sub Marketplace (M82)
+// ──────────────────────────────────────────────────────────────────────
+
+// ── Profile + Search ──
+
+export type SubCredentialType =
+  | 'TEACHING_LICENSE'
+  | 'SAFEGUARDING'
+  | 'FIRST_AID'
+  | 'BACKGROUND_CHECK'
+  | 'SPECIALIST_QUALIFICATION'
+  | 'OTHER';
+export type SubVerificationStatus = 'PENDING' | 'VERIFIED' | 'EXPIRED';
+export type AvailabilityType = 'RECURRING' | 'SPECIFIC' | 'BLOCKED';
+export type PreferenceType = 'PREFERRED' | 'BLOCKED';
+export type PoolStatus = 'ACTIVE' | 'SUSPENDED' | 'REMOVED';
+export type SubJobType = 'FULL_DAY' | 'HALF_DAY' | 'SPECIFIC_PERIODS';
+export type SubJobStatus = 'OPEN' | 'FILLED' | 'CANCELLED' | 'EXPIRED' | 'UNFILLED';
+export type NotificationTier = 'POOL' | 'MARKETPLACE';
+export type NotificationResponse = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+export type SubAssignmentStatus =
+  | 'CONFIRMED'
+  | 'CHECKED_IN'
+  | 'CHECKED_OUT'
+  | 'NO_SHOW'
+  | 'CANCELLED';
+export type SubRaterType = 'SCHOOL_RATES_SUB' | 'SUB_RATES_SCHOOL';
+export type SubRateType = 'HOURLY' | 'DAILY' | 'HALF_DAY';
+export type SubCancelConsequence =
+  | 'WARNING_ONLY'
+  | 'TEMPORARY_POOL_SUSPENSION'
+  | 'PERMANENT_POOL_REMOVAL'
+  | 'RATING_PENALTY';
+
+export interface SubstituteProfileDto {
+  id: string;
+  personId: string;
+  displayName: string | null;
+  bio: string | null;
+  gradeLevels: string[];
+  subjectAreas: string[];
+  yearsExperience: number | null;
+  maxTravelMiles: number | null;
+  isAvailable: boolean;
+  overallRating: string | null;
+  totalAssignments: number;
+  isActive: boolean;
+}
+
+export interface CreateSubstituteProfilePayload {
+  personId: string;
+  displayName: string;
+  bio?: string;
+  gradeLevels: string[];
+  subjectAreas?: string[];
+  yearsExperience?: number;
+  maxTravelMiles?: number;
+}
+
+export interface SubstituteSearchArgs {
+  gradeLevels?: string[];
+  subjectAreas?: string[];
+  schoolId?: string;
+  availableOn?: string;
+  verifiedOnly?: boolean;
+}
+
+// ── Pool ──
+
+export interface SchoolPoolMemberDto {
+  id: string;
+  substituteId: string;
+  substituteName: string | null;
+  overallRating: string | null;
+  status: PoolStatus;
+  suspendedUntil: string | null;
+  suspensionReason: string | null;
+  addedAt: string;
+}
+
+export interface AddToPoolPayload {
+  substituteId: string;
+  notes?: string;
+}
+
+export interface UpdatePoolMemberPayload {
+  status?: PoolStatus;
+  suspendedUntil?: string;
+  suspensionReason?: string;
+}
+
+// ── Job + Notifications ──
+
+export interface SubJobClassDto {
+  id: string;
+  timetableSlotId: string;
+  className: string;
+  roomName: string | null;
+  periodLabel: string | null;
+}
+
+export interface SubJobNotificationDto {
+  id: string;
+  substituteId: string;
+  response: NotificationResponse;
+  notifiedAt: string;
+  respondedAt: string | null;
+  acceptanceWindowExpiresAt: string;
+  notificationTier: NotificationTier;
+}
+
+export interface SubJobPostingDto {
+  id: string;
+  schoolId: string;
+  absentTeacherId: string;
+  absentTeacherName: string | null;
+  jobDate: string;
+  startTime: string;
+  endTime: string;
+  jobType: SubJobType;
+  gradeLevel: string | null;
+  subject: string | null;
+  status: SubJobStatus;
+  notificationTier: NotificationTier;
+  acceptanceWindowMinutes: number;
+  escalateToMarketplaceAt: string | null;
+  filledAt: string | null;
+  createdAt: string;
+  classes: SubJobClassDto[];
+  notifications: SubJobNotificationDto[];
+}
+
+export interface PostJobPayload {
+  absentTeacherId: string;
+  jobDate: string;
+  startTime: string;
+  endTime: string;
+  jobType?: SubJobType;
+  gradeLevel?: string;
+  subject?: string;
+  specialRequirements?: string;
+  acceptanceWindowMinutes?: number;
+  timetableSlotIds?: string[];
+}
+
+// ── Assignment + Ratings + Notes ──
+
+export interface SubAssignmentDto {
+  id: string;
+  jobId: string;
+  substituteId: string;
+  confirmedAt: string;
+  status: SubAssignmentStatus;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  isLateCancellation: boolean;
+  cancelledAt: string | null;
+  cancelledByType: 'SCHOOL' | 'SUBSTITUTE' | null;
+  cancellationReason: string | null;
+}
+
+export interface CancelAssignmentPayload {
+  cancelledByType: 'SCHOOL' | 'SUBSTITUTE';
+  cancellationReason: string;
+}
+
+export interface SubRatingDto {
+  id: string;
+  assignmentId: string;
+  raterType: SubRaterType;
+  overallScore: string | null;
+  professionalism: string | null;
+  punctuality: string | null;
+  comments: string | null;
+  ratedAt: string;
+  ratedBy: string | null;
+}
+
+export interface CreateRatingPayload {
+  raterType: SubRaterType;
+  overallScore?: number;
+  professionalism?: number;
+  punctuality?: number;
+  comments?: string;
+}
+
+export interface SubSessionNoteDto {
+  id: string;
+  assignmentId: string;
+  notesText: string;
+  homeworkSet: string | null;
+  isVisibleToTeacher: boolean;
+  submittedAt: string;
+}
+
+export interface CreateSessionNotePayload {
+  notesText: string;
+  homeworkSet?: string;
+  isVisibleToTeacher?: boolean;
+}
+
+// ── Availability + Preferences ──
+
+export interface SubAvailabilityDto {
+  id: string;
+  substituteId: string;
+  availabilityType: AvailabilityType;
+  dayOfWeek: number | null;
+  specificDate: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  notes: string | null;
+}
+
+export interface CreateAvailabilityPayload {
+  availabilityType: AvailabilityType;
+  dayOfWeek?: number;
+  specificDate?: string;
+  startTime?: string;
+  endTime?: string;
+  notes?: string;
+}
+
+export interface SubPreferenceDto {
+  id: string;
+  substituteId: string;
+  schoolId: string;
+  preferenceType: PreferenceType;
+  reason: string | null;
+}
+
+export interface CreatePreferencePayload {
+  schoolId: string;
+  preferenceType: PreferenceType;
+  reason?: string;
+}
+
+// ── Pay Rates ──
+
+export interface SubPayRateDto {
+  id: string;
+  schoolId: string;
+  substituteId: string;
+  jobType: SubJobType;
+  rate: string;
+  rateType: SubRateType;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  notes: string | null;
+}
+
+export interface CreatePayRatePayload {
+  substituteId?: string;
+  jobType?: SubJobType;
+  rate: number;
+  rateType?: SubRateType;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  notes?: string;
+}
+
+export interface AssignmentPayDto {
+  assignmentId: string;
+  rate: string;
+  rateType: SubRateType;
+  rateSource: 'PER_SUBSTITUTE' | 'SCHOOL_DEFAULT';
+  payRateId: string | null;
+}
+
+// ── Cancellation Policy ──
+
+export interface SubCancellationPolicyDto {
+  id: string;
+  schoolId: string;
+  lateWindowHours: number;
+  consequence: SubCancelConsequence;
+  suspensionDurationDays: number | null;
+  repeatOffenceThreshold: number;
+  ratingPenaltyAmount: string | null;
+  notes: string | null;
+  updatedAt: string;
+}
+
+export interface UpsertCancellationPolicyPayload {
+  lateWindowHours?: number;
+  consequence?: SubCancelConsequence;
+  suspensionDurationDays?: number;
+  repeatOffenceThreshold?: number;
+  ratingPenaltyAmount?: number;
+  notes?: string;
+}

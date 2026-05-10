@@ -25,6 +25,7 @@ Thumbs.db
 # Test coverage
 coverage/
 !apps/web/src/app/(app)/schedule/coverage/
+!apps/web/src/app/(app)/substitutes/coverage/
 
 # Prisma
 packages/database/prisma/platform/migrations/*.sql.bak

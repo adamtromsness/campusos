@@ -33,6 +33,7 @@ import {
   ShoppingBagIcon,
   ShoppingCartIcon,
   SparklesIcon,
+  SubstitutesIcon,
   TrophyIcon,
 } from './icons';
 
@@ -81,7 +82,8 @@ export type AppKey =
   | 'expenses'
   | 'enrolment-tours'
   | 'enrolment-withdrawals'
-  | 'payments-advanced';
+  | 'payments-advanced'
+  | 'substitutes';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -225,6 +227,25 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'Holidays, PD days, and school events',
       href: '/calendar',
       icon: CalendarIcon,
+    });
+  }
+
+  // P2-9 Sub Marketplace tile. Substitute self-service (sub-001:read)
+  // routes to /substitutes/dashboard; admin coverage view (sch-004:read)
+  // routes to /substitutes/coverage. Both gates land on the same tile,
+  // and the routePrefix keeps the tile lit across every nested
+  // /substitutes/* route.
+  if (hasAnyPermission(user, ['sub-001:read', 'sch-004:read'])) {
+    const isAdminView = hasAnyPermission(user, ['sch-004:read', 'sch-004:write', 'sch-001:admin']);
+    apps.push({
+      key: 'substitutes',
+      label: 'Substitutes',
+      description: isAdminView
+        ? 'Coverage status, school pool, ratings, and pay rates'
+        : 'Your job offers, assignments, and schedule preferences',
+      href: isAdminView ? '/substitutes/coverage' : '/substitutes/dashboard',
+      routePrefix: '/substitutes',
+      icon: SubstitutesIcon,
     });
   }
 
