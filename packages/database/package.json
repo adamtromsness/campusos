@@ -60,6 +60,7 @@
     "seed:payments-advanced": "tsx src/seed-payments-advanced.ts",
     "seed:classroom-advanced": "tsx src/seed-classroom-advanced.ts",
     "seed:classroom-advanced-b": "tsx src/seed-classroom-advanced-b.ts",
+    "seed:classroom-advanced-c": "tsx src/seed-classroom-advanced-c.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

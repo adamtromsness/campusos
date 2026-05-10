@@ -388,4 +388,52 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn('Redis DEL failed (' + key + '): ' + (e?.message || e));
     }
   }
+
+  /**
+   * Atomic INCR + EX on first write. Used by the P2-7c AIUsageService to
+   * count tokens consumed per (school, day) for the per-tenant quota
+   * keystone. The first INCR returns 1, the EX sets the TTL only on that
+   * first write so the day rolls over cleanly. Returns the post-increment
+   * counter value.
+   *
+   * Best-effort — when Redis is unavailable returns 0 so the call site can
+   * decide whether to fail open (allow the call) or fail closed (block).
+   * AIUsageService.assertWithinQuota fails open in dev (the AI Gateway is
+   * stubbed) and fails closed in production by reading the
+   * AI_QUOTA_FAIL_CLOSED env flag.
+   */
+  async incrementCounter(key: string, delta: number, ttlSeconds: number): Promise<number> {
+    if (!this.connected || !this.client) return 0;
+    try {
+      var value = await this.client.incrby(key, delta);
+      // Only set TTL on the first write — value === delta means INCR just
+      // created the key. After that EXPIRE is a no-op because the TTL is
+      // already set.
+      if (Number(value) === delta) {
+        await this.client.expire(key, ttlSeconds);
+      }
+      return Number(value);
+    } catch (e: any) {
+      this.logger.warn('Redis INCRBY failed (' + key + '): ' + (e?.message || e));
+      return 0;
+    }
+  }
+
+  /**
+   * Read a counter without incrementing. Returns 0 on miss or when Redis
+   * is down. Used by the AIUsageService.getQuota endpoint to render the
+   * remaining-tokens indicator on the admin dashboard.
+   */
+  async readCounter(key: string): Promise<number> {
+    if (!this.connected || !this.client) return 0;
+    try {
+      var raw = await this.client.get(key);
+      if (!raw) return 0;
+      var n = Number(raw);
+      return Number.isFinite(n) ? n : 0;
+    } catch (e: any) {
+      this.logger.warn('Redis GET counter failed (' + key + '): ' + (e?.message || e));
+      return 0;
+    }
+  }
 }
