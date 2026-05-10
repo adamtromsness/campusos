@@ -106,6 +106,35 @@ function makeKafka() {
   return { kafka, emitted };
 }
 
+/**
+ * REVIEW-P2C7 BLOCKING 4 — outbox stub. The LessonRecordingService no
+ * longer calls KafkaProducerService directly; it enqueues durable
+ * envelopes into the outbox inside the same tenant tx as the domain
+ * write. Tests stub the outbox and capture the enqueueInTx calls.
+ */
+function makeOutbox() {
+  const enqueued: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    eventId: string | undefined;
+    payload: Record<string, unknown>;
+  }> = [];
+  const outbox = {
+    enqueueInTx: async (_tx: unknown, opts: any) => {
+      enqueued.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+      return 'outbox-id-' + enqueued.length;
+    },
+  };
+  return { outbox, enqueued };
+}
+
 function makeStubGateway() {
   return new AIGatewayService();
 }
@@ -490,8 +519,8 @@ describe('AIUsageService — quota counter', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // LessonRecordingService — emits + idempotent chain
 // ─────────────────────────────────────────────────────────────────────────────
-describe('LessonRecordingService — emit + idempotent chain', () => {
-  it('create emits video.uploaded with the documented payload contract', async () => {
+describe('LessonRecordingService — durable outbox + idempotent chain', () => {
+  it('create enqueues video.uploaded INSIDE the same tx (durable outbox)', async () => {
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
       if (sql.includes('select id::text as id, class_id::text as class_id from cls_lessons')) {
@@ -520,19 +549,20 @@ describe('LessonRecordingService — emit + idempotent chain', () => {
       }
       return [];
     });
-    const k = makeKafka();
-    const svc = new LessonRecordingService(fake.tenantPrisma as never, k.kafka as never);
+    const o = makeOutbox();
+    const svc = new LessonRecordingService(fake.tenantPrisma as never, o.outbox as never);
     await runWithTenantContext({ tenant: TENANT }, async () => {
       await svc.create(
         { lessonId: 'lesson-1', s3Key: 'demo/lesson.mp4', durationSeconds: 1800 },
         TEACHER_ACTOR,
       );
     });
-    expect(k.emitted.length).toBe(1);
-    expect(k.emitted[0]!.topic).toBe('video.uploaded');
-    expect(k.emitted[0]!.sourceModule).toBe('classroom');
-    expect(k.emitted[0]!.payload.lessonId).toBe('lesson-1');
-    expect(k.emitted[0]!.payload.s3Key).toBe('demo/lesson.mp4');
+    expect(o.enqueued.length).toBe(1);
+    expect(o.enqueued[0]!.topic).toBe('video.uploaded');
+    expect(o.enqueued[0]!.sourceModule).toBe('classroom');
+    expect(o.enqueued[0]!.eventId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}/); // v5-shape
+    expect(o.enqueued[0]!.payload.lessonId).toBe('lesson-1');
+    expect(o.enqueued[0]!.payload.s3Key).toBe('demo/lesson.mp4');
   });
 
   it('applyTranscript is idempotent — returns silently when transcript exists', async () => {
@@ -551,7 +581,10 @@ describe('LessonRecordingService — emit + idempotent chain', () => {
       }
       return [];
     });
-    const svc = new LessonRecordingService(fake.tenantPrisma as never, makeKafka().kafka as never);
+    const svc = new LessonRecordingService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+    );
     await svc.applyTranscript({
       recordingId: 'rec-1',
       transcriptText: 'transcript text',
@@ -560,37 +593,26 @@ describe('LessonRecordingService — emit + idempotent chain', () => {
     expect(inserts).toBe(0);
   });
 
-  it('applySummary emits lesson.summary.ready AFTER tx commits', async () => {
+  it('applySummary enqueues lesson.summary.ready INSIDE the same tx (durable outbox)', async () => {
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
       if (sql.includes('select processing_status as status, school_id::text')) {
-        return [{ status: 'SUMMARISING', school_id: TENANT.schoolId }];
-      }
-      if (sql.includes('select 1 as ok from cls_lesson_summaries')) return [];
-      if (sql.includes('insert into cls_lesson_summaries')) return 1;
-      if (sql.includes('select r.id, r.lesson_id::text as lesson_id')) {
         return [
           {
-            id: 'rec-1',
+            status: 'SUMMARISING',
+            school_id: TENANT.schoolId,
             lesson_id: 'lesson-1',
             class_id: 'class-1',
-            school_id: TENANT.schoolId,
             recorded_by: 'emp-1',
-            recorded_by_name: 'Teacher',
-            s3_key: 'demo.mp4',
-            duration_seconds: 1800,
-            recorded_at: new Date(),
-            processing_status: 'COMPLETE',
-            error_message: null,
-            created_at: new Date(),
-            updated_at: new Date(),
           },
         ];
       }
+      if (sql.includes('select 1 as ok from cls_lesson_summaries')) return [];
+      if (sql.includes('insert into cls_lesson_summaries')) return 1;
       return [];
     });
-    const k = makeKafka();
-    const svc = new LessonRecordingService(fake.tenantPrisma as never, k.kafka as never);
+    const o = makeOutbox();
+    const svc = new LessonRecordingService(fake.tenantPrisma as never, o.outbox as never);
     await svc.applySummary({
       recordingId: 'rec-1',
       summaryText: 'Summary text',
@@ -599,9 +621,29 @@ describe('LessonRecordingService — emit + idempotent chain', () => {
       modelVersion: 'stub-v1',
       tokensUsed: 100,
     });
-    expect(k.emitted.length).toBe(1);
-    expect(k.emitted[0]!.topic).toBe('lesson.summary.ready');
-    expect(k.emitted[0]!.payload.recordingId).toBe('rec-1');
+    expect(o.enqueued.length).toBe(1);
+    expect(o.enqueued[0]!.topic).toBe('lesson.summary.ready');
+    expect(o.enqueued[0]!.eventId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}/);
+    expect(o.enqueued[0]!.payload.recordingId).toBe('rec-1');
+    expect(o.enqueued[0]!.payload.schoolId).toBe(TENANT.schoolId);
+    expect(o.enqueued[0]!.payload.summaryText).toBe('Summary text');
+  });
+
+  it('REVIEW-P2C7 BLOCKING 4 — deterministic event id is stable across re-runs', async () => {
+    // Same recordingId must produce the same event id so a Kafka redelivery
+    // hits the consumer's idempotency cache and is a no-op.
+    const { deterministicVideoUploadedEventId, deterministicLessonSummaryReadyEventId } =
+      await import('./lesson-recording.service');
+    const id1 = deterministicVideoUploadedEventId('rec-fixed-1');
+    const id2 = deterministicVideoUploadedEventId('rec-fixed-1');
+    const id3 = deterministicVideoUploadedEventId('rec-fixed-2');
+    expect(id1).toBe(id2);
+    expect(id1).not.toBe(id3);
+    expect(id1).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    // The two topics produce distinct ids for the same recording id —
+    // so a single recordingId never collides on the bus.
+    const sumId = deterministicLessonSummaryReadyEventId('rec-fixed-1');
+    expect(sumId).not.toBe(id1);
   });
 });
 
@@ -689,5 +731,265 @@ describe('AIGatewayService — stub mode', () => {
     expect(out.summaryText.length).toBeGreaterThan(0);
     expect(out.modelVersion).toBe('stub-v1');
     expect(out.keyTopics.length).toBeGreaterThan(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REVIEW-P2C7 BLOCKING regressions — pin the fixes so they cannot regress.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('REVIEW-P2C7 BLOCKING regressions', () => {
+  // ── BLOCKING 1 — listSignalsForStudent is teacher/caseload row-scoped ──
+  it('BLOCKING 1: STAFF actor with no teaching/caseload relationship → 403', async () => {
+    let probedTeaching = false;
+    let probedCaseload = false;
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('select 1 as ok from sis_students where id') && sql.includes('school_id')) {
+        return [{ ok: 1 }]; // student exists in tenant
+      }
+      if (sql.includes('from sis_class_teachers ct')) {
+        probedTeaching = true;
+        return []; // not assigned
+      }
+      if (sql.includes('from svc_caseloads')) {
+        probedCaseload = true;
+        return []; // not on caseload
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await expect(svc.listSignalsForStudent(STUDENT_SIS_ID, TEACHER_ACTOR)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+    expect(probedTeaching).toBe(true);
+    expect(probedCaseload).toBe(true);
+  });
+
+  it('BLOCKING 1: school admin sees signals for any student (school-scoped)', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('select 1 as ok from sis_students where id') && sql.includes('school_id')) {
+        return [{ ok: 1 }];
+      }
+      if (sql.includes('from cls_ai_tutoring_learning_signals ls')) {
+        // Verify the SQL carries the school-scope predicate
+        expect(c.sql.toLowerCase()).toContain('s.school_id');
+        return [];
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      const out = await svc.listSignalsForStudent(STUDENT_SIS_ID, ADMIN_ACTOR);
+      expect(out).toEqual([]);
+    });
+  });
+
+  it('BLOCKING 1: STUDENT actor → 403 even on own student id', async () => {
+    const fake = makeFake(() => []);
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await expect(svc.listSignalsForStudent(STUDENT_SIS_ID, STUDENT_ACTOR)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+  });
+
+  // ── BLOCKING 2 — extractSignals also runs the row-scope check ──
+  it('BLOCKING 2: extractSignals refuses STAFF actor not assigned to the student', async () => {
+    let gatewayCalled = false;
+    const gateway: any = {
+      summariseLesson: async () => ({
+        summaryText: 's',
+        keyTopics: [],
+        actionItems: [],
+        modelVersion: 'v',
+        tokensUsed: 0,
+        costUsd: 0,
+      }),
+      extractLearningSignals: async () => {
+        gatewayCalled = true;
+        return { signals: [], tokensUsed: 0, costUsd: 0 };
+      },
+    };
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('select s.id, s.school_id')) {
+        return [
+          {
+            id: 'session-1',
+            school_id: TENANT.schoolId,
+            student_id: STUDENT_SIS_ID,
+            student_name: null,
+            class_id: null,
+            class_name: null,
+            subject: 'Algebra',
+            status: 'COMPLETED',
+            started_at: new Date(),
+            ended_at: new Date(),
+            total_messages: 4,
+            learning_signals_extracted: false,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        ];
+      }
+      if (sql.includes('from sis_class_teachers ct')) return []; // not assigned
+      if (sql.includes('from svc_caseloads')) return []; // not on caseload
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      gateway,
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await expect(svc.extractSignals('session-1', TEACHER_ACTOR)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+    expect(gatewayCalled).toBe(false);
+  });
+
+  // ── BLOCKING 3 — startSession does NOT INSERT for unauthorised teacher ──
+  it('BLOCKING 3: unauthorised teacher session creation does NOT INSERT', async () => {
+    let inserted = false;
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('select 1 as ok from sis_students') && sql.includes('school_id')) {
+        return [{ ok: 1 }];
+      }
+      if (sql.includes('from sis_class_teachers ct')) return []; // not teaching
+      if (sql.includes('from svc_caseloads')) return []; // not counsellor
+      if (sql.includes('insert into cls_ai_tutoring_sessions')) {
+        inserted = true;
+        return 1;
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await expect(
+        svc.startSession({ studentId: STUDENT_SIS_ID, subject: 'Algebra' }, TEACHER_ACTOR),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+    expect(inserted).toBe(false);
+  });
+
+  it('BLOCKING 3: school admin can create a session for any student in the school', async () => {
+    let inserted = false;
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('select 1 as ok from sis_students') && sql.includes('school_id')) {
+        return [{ ok: 1 }];
+      }
+      if (sql.includes('insert into cls_ai_tutoring_sessions')) {
+        inserted = true;
+        return 1;
+      }
+      if (sql.includes('select s.id, s.school_id')) {
+        return [
+          {
+            id: 'new-session',
+            school_id: TENANT.schoolId,
+            student_id: STUDENT_SIS_ID,
+            student_name: null,
+            class_id: null,
+            class_name: null,
+            subject: 'Algebra',
+            status: 'ACTIVE',
+            started_at: new Date(),
+            ended_at: null,
+            total_messages: 0,
+            learning_signals_extracted: false,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await svc.startSession({ studentId: STUDENT_SIS_ID, subject: 'Algebra' }, ADMIN_ACTOR);
+    });
+    expect(inserted).toBe(true);
+  });
+
+  // ── BLOCKING 5 — student cannot DELETE own opt-out (cannot opt back in) ──
+  it('BLOCKING 5: STUDENT cannot delete own opt-out — guardian/admin only', async () => {
+    let deleted = false;
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('delete from cls_ai_tutoring_opt_outs')) {
+        deleted = true;
+        return 1;
+      }
+      return [];
+    });
+    const svc = new AIOptOutService(fake.tenantPrisma as never);
+    await expect(svc.delete(STUDENT_SIS_ID, STUDENT_ACTOR)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(deleted).toBe(false);
+  });
+
+  it('BLOCKING 5: linked guardian CAN delete own child opt-out (opt back in)', async () => {
+    let deleted = false;
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('from sis_student_guardians sg')) return [{ ok: 1 }]; // linked
+      if (sql.includes('delete from cls_ai_tutoring_opt_outs')) {
+        deleted = true;
+        return 1;
+      }
+      return [];
+    });
+    const svc = new AIOptOutService(fake.tenantPrisma as never);
+    await svc.delete(STUDENT_SIS_ID, PARENT_ACTOR);
+    expect(deleted).toBe(true);
+  });
+
+  it('BLOCKING 5: school admin CAN delete any opt-out (emergency revocation)', async () => {
+    let deleted = false;
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('delete from cls_ai_tutoring_opt_outs')) {
+        deleted = true;
+        return 1;
+      }
+      return [];
+    });
+    const svc = new AIOptOutService(fake.tenantPrisma as never);
+    await svc.delete(STUDENT_SIS_ID, ADMIN_ACTOR);
+    expect(deleted).toBe(true);
   });
 });

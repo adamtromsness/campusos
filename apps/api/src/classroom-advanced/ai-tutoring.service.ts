@@ -171,20 +171,26 @@ export class AITutoringService {
 
   /**
    * Resolve the student id the calling actor is allowed to start a
-   * session for. STUDENT actors must use their own id; teachers and
-   * admins can pass an explicit studentId.
+   * session for. STUDENT actors must use their own id; teachers + admins
+   * can pass an explicit studentId — but the authorisation check
+   * (assertCanCreateSessionForStudent) runs SEPARATELY before the INSERT
+   * so we cannot resolve a student that the actor is not authorised
+   * for. The student must also exist in the CURRENT TENANT — REVIEW-P2C7
+   * BLOCKING 3 added the school-scoped sis_students predicate.
    */
   private async resolveStudentForActor(
     requestedStudentId: string | undefined,
     actor: ResolvedActor,
   ): Promise<string> {
+    const tenant = getCurrentTenant();
     if (actor.personType === 'STUDENT') {
       const own = await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe<Array<{ id: string }>>(
           'SELECT s.id::text AS id FROM sis_students s ' +
             'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-            'WHERE ps.person_id = $1::uuid',
+            'WHERE ps.person_id = $1::uuid AND s.school_id = $2::uuid',
           actor.personId,
+          tenant.schoolId,
         );
       });
       if (own.length === 0) {
@@ -201,17 +207,85 @@ export class AITutoringService {
     if (!requestedStudentId) {
       throw new BadRequestException('studentId is required for non-student actors.');
     }
-    // Verify the student exists in this tenant
+    // Verify the student exists in this tenant — school-scoped predicate
     const exists = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ ok: number }>>(
-        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid',
+        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid',
         requestedStudentId,
+        tenant.schoolId,
       );
     });
     if (exists.length === 0) {
       throw new NotFoundException('Student ' + requestedStudentId + ' not found');
     }
     return requestedStudentId;
+  }
+
+  /**
+   * REVIEW-P2C7 BLOCKING 3 — caller authorisation gate that runs BEFORE
+   * the session INSERT. Students may only start their own session
+   * (already enforced in resolveStudentForActor). For non-student
+   * actors:
+   *   - school admin: any student in the school.
+   *   - teacher (STAFF + employeeId): only students enrolled in
+   *     classes the teacher teaches (joined through sis_class_teachers
+   *     + sis_enrollments status=ACTIVE).
+   *   - counsellor: only students on their active caseload.
+   *   - other staff with tch-007:write: denied (no obvious teaching /
+   *     counselling relationship to the student).
+   * If `classId` is supplied the teacher path additionally requires
+   * the (student, class) pair to be enrolled AND the teacher to teach
+   * that class.
+   */
+  private async assertCanCreateSessionForStudent(
+    studentId: string,
+    classId: string | null,
+    actor: ResolvedActor,
+  ): Promise<void> {
+    if (actor.isSchoolAdmin) return;
+    if (actor.personType === 'STUDENT') return; // already validated in resolveStudentForActor
+    if (actor.personType !== 'STAFF' || !actor.employeeId) {
+      throw new ForbiddenException(
+        'Only students, assigned teachers, counsellors, or school admins may start an AI tutoring session.',
+      );
+    }
+    const tenant = getCurrentTenant();
+    const teaches = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      if (classId) {
+        // Teacher must teach the supplied class AND the student must be enrolled in it
+        return client.$queryRawUnsafe<Array<{ ok: number }>>(
+          'SELECT 1 AS ok FROM sis_class_teachers ct ' +
+            "JOIN sis_enrollments e ON e.class_id = ct.class_id AND e.status = 'ACTIVE' " +
+            'JOIN sis_classes c ON c.id = ct.class_id AND c.school_id = $4::uuid ' +
+            'WHERE ct.class_id = $1::uuid AND ct.teacher_employee_id = $2::uuid AND e.student_id = $3::uuid LIMIT 1',
+          classId,
+          actor.employeeId,
+          studentId,
+          tenant.schoolId,
+        );
+      }
+      return client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM sis_class_teachers ct ' +
+          "JOIN sis_enrollments e ON e.class_id = ct.class_id AND e.status = 'ACTIVE' " +
+          'WHERE ct.teacher_employee_id = $1::uuid AND e.student_id = $2::uuid LIMIT 1',
+        actor.employeeId,
+        studentId,
+      );
+    });
+    if (teaches.length > 0) return;
+    // Counsellor path — caseload-linked student
+    const onCaseload = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM svc_caseloads ' +
+          "WHERE counselor_id = $1::uuid AND student_id = $2::uuid AND status = 'ACTIVE' LIMIT 1",
+        actor.employeeId,
+        studentId,
+      );
+    });
+    if (onCaseload.length > 0) return;
+    throw new ForbiddenException(
+      'You may only start AI tutoring sessions for students you teach or counsel.',
+    );
   }
 
   /**
@@ -242,14 +316,19 @@ export class AITutoringService {
     if (input.classId) {
       const classExists = await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe<Array<{ ok: number }>>(
-          'SELECT 1 AS ok FROM sis_classes WHERE id = $1::uuid',
+          'SELECT 1 AS ok FROM sis_classes WHERE id = $1::uuid AND school_id = $2::uuid',
           input.classId,
+          tenant.schoolId,
         );
       });
       if (classExists.length === 0) {
         throw new BadRequestException('classId does not match a class in this school.');
       }
     }
+
+    // REVIEW-P2C7 BLOCKING 3 — authorise BEFORE the INSERT so we never
+    // create an orphaned session for an unauthorised teacher / staff.
+    await this.assertCanCreateSessionForStudent(studentId, input.classId ?? null, actor);
 
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
@@ -457,6 +536,11 @@ export class AITutoringService {
       throw new ForbiddenException('Only teachers and school admins can extract learning signals.');
     }
     const session = await this.loadSessionRowOrThrow(id);
+    // REVIEW-P2C7 BLOCKING 2 — extraction must additionally pass the
+    // session row-scope check (assigned teacher OR caseload-linked
+    // counsellor OR admin). Without this any STAFF actor could trigger
+    // expensive AI analysis on any session.
+    await this.assertCanReadSession(session, actor);
     if (session.learning_signals_extracted) {
       throw new BadRequestException('Learning signals already extracted for this session.');
     }
@@ -548,15 +632,79 @@ export class AITutoringService {
     return rows.map(signalRowToDto);
   }
 
-  /** GET /classroom/students/:studentId/learning-signals — aggregated across sessions. */
+  /**
+   * GET /classroom/students/:studentId/learning-signals — aggregated
+   * across sessions.
+   *
+   * REVIEW-P2C7 BLOCKING 1 — actor-scoped row scope. The previous
+   * implementation allowed any STAFF actor with `tch-007:read` to
+   * retrieve sensitive AI inferences (misconceptions, struggles,
+   * confidence) for any student in the tenant. This is now strictly
+   * row-scoped:
+   *   - school admin: any student in this school.
+   *   - teacher (STAFF + employeeId): only when the student is enrolled
+   *     in an active class the teacher teaches.
+   *   - counsellor: only when the student is on the counsellor's
+   *     active caseload (svc_caseloads from Cycle 11).
+   *   - other staff with tch-007:read: 403 — no teaching or counselling
+   *     relationship.
+   *   - student: 403 (per Cycle 7 policy — students do not see own signals).
+   */
   async listSignalsForStudent(
     studentId: string,
     actor: ResolvedActor,
   ): Promise<AILearningSignalResponseDto[]> {
+    if (actor.personType === 'STUDENT') {
+      throw new ForbiddenException('Students cannot view extracted learning signals.');
+    }
     if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
       throw new ForbiddenException(
         'Only teachers, counsellors, and admins can view learning signals.',
       );
+    }
+    const tenant = getCurrentTenant();
+    // Validate student exists in this tenant (school-scoped)
+    const studentExists = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid',
+        studentId,
+        tenant.schoolId,
+      );
+    });
+    if (studentExists.length === 0) {
+      throw new NotFoundException('Student ' + studentId + ' not found');
+    }
+    if (!actor.isSchoolAdmin) {
+      // STAFF + employeeId required (counsellor / teacher both have this)
+      if (!actor.employeeId) {
+        throw new ForbiddenException(
+          'You must be an assigned teacher, caseload-linked counsellor, or admin to view learning signals.',
+        );
+      }
+      const teaches = await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe<Array<{ ok: number }>>(
+          'SELECT 1 AS ok FROM sis_class_teachers ct ' +
+            "JOIN sis_enrollments e ON e.class_id = ct.class_id AND e.status = 'ACTIVE' " +
+            'WHERE ct.teacher_employee_id = $1::uuid AND e.student_id = $2::uuid LIMIT 1',
+          actor.employeeId,
+          studentId,
+        );
+      });
+      if (teaches.length === 0) {
+        const onCaseload = await this.tenantPrisma.executeInTenantContext(async (client) => {
+          return client.$queryRawUnsafe<Array<{ ok: number }>>(
+            'SELECT 1 AS ok FROM svc_caseloads ' +
+              "WHERE counselor_id = $1::uuid AND student_id = $2::uuid AND status = 'ACTIVE' LIMIT 1",
+            actor.employeeId,
+            studentId,
+          );
+        });
+        if (onCaseload.length === 0) {
+          throw new ForbiddenException(
+            'You may only view learning signals for students you teach or counsel.',
+          );
+        }
+      }
     }
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<SignalRow[]>(
@@ -565,8 +713,10 @@ export class AITutoringService {
           'ls.extracted_at, ls.created_at ' +
           'FROM cls_ai_tutoring_learning_signals ls ' +
           'JOIN cls_ai_tutoring_sessions s ON s.id = ls.session_id ' +
-          'WHERE s.student_id = $1::uuid ORDER BY ls.extracted_at DESC LIMIT 200',
+          'WHERE s.student_id = $1::uuid AND s.school_id = $2::uuid ' +
+          'ORDER BY ls.extracted_at DESC LIMIT 200',
         studentId,
+        tenant.schoolId,
       );
     });
     return rows.map(signalRowToDto);
@@ -626,6 +776,16 @@ export class AITutoringService {
         );
       });
       if (teaches.length > 0) return;
+      // Counsellor sees if student is on their active caseload
+      const onCaseload = await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe<Array<{ ok: number }>>(
+          'SELECT 1 AS ok FROM svc_caseloads ' +
+            "WHERE counselor_id = $1::uuid AND student_id = $2::uuid AND status = 'ACTIVE' LIMIT 1",
+          actor.employeeId,
+          session.student_id,
+        );
+      });
+      if (onCaseload.length > 0) return;
     }
     throw new NotFoundException('Session ' + session.id + ' not found');
   }

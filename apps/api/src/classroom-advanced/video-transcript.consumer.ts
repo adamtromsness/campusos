@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConsumedMessage, KafkaConsumerService } from '../kafka/kafka-consumer.service';
 import { IdempotencyService } from '../kafka/idempotency.service';
 import { prefixedTopic } from '../kafka/event-envelope';
@@ -140,10 +140,21 @@ export class VideoTranscriptConsumer implements OnModuleInit {
           '): ' +
           (e?.message || e),
       );
-      try {
-        await this.recordings.markFailed(p.recordingId, e?.message || 'Processing failed');
-      } catch (e2: any) {
-        this.logger.warn('Could not mark recording FAILED: ' + (e2?.message || e2));
+      // REVIEW-P2C7 MAJOR 8 — only flip the recording to FAILED on
+      // permanent error classes (NotFoundException = recording does
+      // not exist; the upstream service published a stale or invalid
+      // recordingId). Transient errors (DB blips, AI Gateway timeout)
+      // rethrow without marking FAILED so the consumer's
+      // claim-after-success path retries via Kafka redelivery — and a
+      // retry that succeeds finds the recording still in the
+      // expected status, not a permanently FAILED row that operators
+      // would need to manually unpick.
+      if (e instanceof NotFoundException) {
+        try {
+          await this.recordings.markFailed(p.recordingId, e?.message || 'Recording not found');
+        } catch (e2: any) {
+          this.logger.warn('Could not mark recording FAILED: ' + (e2?.message || e2));
+        }
       }
       throw e;
     }

@@ -1,7 +1,8 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
@@ -10,6 +11,42 @@ import {
   LessonSummaryResponseDto,
   LessonTranscriptResponseDto,
 } from './dto/ai-tutoring.dto';
+
+/**
+ * REVIEW-P2C7 BLOCKING 3 — deterministic event IDs for the durable
+ * video pipeline emits. Mirrors the P2-4a payroll, P2-6 credit-note,
+ * and P2-6 reversal helpers — sha1(<recordingId>:<topic>:v1) shaped
+ * as a v5-style UUID so a redelivery / retry produces the exact same
+ * event_id and downstream consumer idempotency catches the dup
+ * cleanly.
+ */
+function deterministicEventId(recordingId: string, topic: string): string {
+  const hash = createHash('sha1')
+    .update(recordingId + ':' + topic + ':v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20)
+  );
+}
+
+export function deterministicVideoUploadedEventId(recordingId: string): string {
+  return deterministicEventId(recordingId, 'video.uploaded');
+}
+
+export function deterministicLessonSummaryReadyEventId(recordingId: string): string {
+  return deterministicEventId(recordingId, 'lesson.summary.ready');
+}
 
 interface RecordingRow {
   id: string;
@@ -66,7 +103,7 @@ const SELECT_RECORDING_BASE =
 export class LessonRecordingService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   /** POST /classroom/lessons/:lessonId/recordings — teacher uploads (S3 key already obtained). */
@@ -106,8 +143,13 @@ export class LessonRecordingService {
       }
     }
     const id = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    // REVIEW-P2C7 BLOCKING 4 — durable outbox. The recording INSERT and
+    // the video.uploaded event enqueue commit together so a Kafka
+    // outage cannot lose the upload event. The OutboxPublisherWorker
+    // polls + publishes durably with the deterministic event_id so a
+    // redelivery resolves cleanly through the consumer's idempotency.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      await tx.$executeRawUnsafe(
         'INSERT INTO cls_lesson_recordings ' +
           '(id, lesson_id, class_id, school_id, recorded_by, s3_key, duration_seconds) VALUES ' +
           '($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6, $7::int)',
@@ -119,23 +161,22 @@ export class LessonRecordingService {
         input.s3Key,
         input.durationSeconds ?? null,
       );
-    });
-
-    // Emit AFTER tx commits — Video Processing service consumes this.
-    void this.kafka.emit({
-      topic: 'video.uploaded',
-      key: id,
-      sourceModule: 'classroom',
-      payload: {
-        recordingId: id,
-        sourceRefId: id,
-        schoolId: tenant.schoolId,
-        lessonId: input.lessonId,
-        classId,
-        s3Key: input.s3Key,
-        durationSeconds: input.durationSeconds ?? null,
-        recordedBy: actor.employeeId,
-      },
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'video.uploaded',
+        key: id,
+        sourceModule: 'classroom',
+        eventId: deterministicVideoUploadedEventId(id),
+        payload: {
+          recordingId: id,
+          sourceRefId: id,
+          schoolId: tenant.schoolId,
+          lessonId: input.lessonId,
+          classId,
+          s3Key: input.s3Key,
+          durationSeconds: input.durationSeconds ?? null,
+          recordedBy: actor.employeeId,
+        },
+      });
     });
 
     return this.getById(id, actor);
@@ -143,10 +184,16 @@ export class LessonRecordingService {
 
   /** GET /classroom/recordings/:id — recording with transcript + summary inlined. */
   async getById(id: string, actor: ResolvedActor): Promise<LessonRecordingResponseDto> {
+    // REVIEW-P2C7 MAJOR 7 — school-scoped query predicate so a leaked
+    // recording UUID from another tenant collapses to 404 don't-leak-
+    // existence at the query level (defence-in-depth alongside the
+    // service-layer assertCanRead row scope).
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<RecordingRow[]>(
-        SELECT_RECORDING_BASE + ' WHERE r.id = $1::uuid',
+        SELECT_RECORDING_BASE + ' WHERE r.id = $1::uuid AND r.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     if (rows.length === 0) throw new NotFoundException('Recording ' + id + ' not found');
@@ -178,10 +225,14 @@ export class LessonRecordingService {
     lessonId: string,
     actor: ResolvedActor,
   ): Promise<LessonRecordingResponseDto[]> {
+    // REVIEW-P2C7 MAJOR 7 — school-scoped query predicate.
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<RecordingRow[]>(
-        SELECT_RECORDING_BASE + ' WHERE r.lesson_id = $1::uuid ORDER BY r.recorded_at DESC',
+        SELECT_RECORDING_BASE +
+          ' WHERE r.lesson_id = $1::uuid AND r.school_id = $2::uuid ORDER BY r.recorded_at DESC',
         lessonId,
+        tenant.schoolId,
       );
     });
     const out: LessonRecordingResponseDto[] = [];
@@ -271,9 +322,24 @@ export class LessonRecordingService {
     modelVersion?: string | null;
     tokensUsed?: number | null;
   }): Promise<void> {
+    // REVIEW-P2C7 BLOCKING 4 — durable outbox. The summary INSERT, the
+    // recording.status flip to COMPLETE, and the lesson.summary.ready
+    // outbox row commit together so teacher notification fan-out can
+    // never be silently dropped on a Kafka outage. Idempotent — when
+    // the summary row already exists the helper short-circuits without
+    // re-enqueuing.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      const rows = await tx.$queryRawUnsafe<Array<{ status: string; school_id: string }>>(
-        'SELECT processing_status AS status, school_id::text AS school_id ' +
+      const rows = await tx.$queryRawUnsafe<
+        Array<{
+          status: string;
+          school_id: string;
+          lesson_id: string;
+          class_id: string;
+          recorded_by: string;
+        }>
+      >(
+        'SELECT processing_status AS status, school_id::text AS school_id, ' +
+          'lesson_id::text AS lesson_id, class_id::text AS class_id, recorded_by::text AS recorded_by ' +
           'FROM cls_lesson_recordings WHERE id = $1::uuid FOR UPDATE',
         input.recordingId,
       );
@@ -303,25 +369,24 @@ export class LessonRecordingService {
         "UPDATE cls_lesson_recordings SET processing_status = 'COMPLETE', updated_at = now() WHERE id = $1::uuid",
         input.recordingId,
       );
-    });
-
-    // Emit lesson.summary.ready AFTER tx commits — for teacher notification.
-    const recording = await this.loadRowOrThrow(input.recordingId);
-    void this.kafka.emit({
-      topic: 'lesson.summary.ready',
-      key: input.recordingId,
-      sourceModule: 'classroom',
-      payload: {
-        recordingId: input.recordingId,
-        sourceRefId: input.recordingId,
-        schoolId: recording.school_id,
-        lessonId: recording.lesson_id,
-        classId: recording.class_id,
-        recordedBy: recording.recorded_by,
-        summaryText: input.summaryText,
-        keyTopics: input.keyTopics,
-        actionItems: input.actionItems,
-      },
+      const recording = rows[0]!;
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'lesson.summary.ready',
+        key: input.recordingId,
+        sourceModule: 'classroom',
+        eventId: deterministicLessonSummaryReadyEventId(input.recordingId),
+        payload: {
+          recordingId: input.recordingId,
+          sourceRefId: input.recordingId,
+          schoolId: recording.school_id,
+          lessonId: recording.lesson_id,
+          classId: recording.class_id,
+          recordedBy: recording.recorded_by,
+          summaryText: input.summaryText,
+          keyTopics: input.keyTopics,
+          actionItems: input.actionItems,
+        },
+      });
     });
   }
 
@@ -340,17 +405,6 @@ export class LessonRecordingService {
   }
 
   // ── helpers ──────────────────────────────────────────────────────────
-
-  private async loadRowOrThrow(id: string): Promise<RecordingRow> {
-    const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<RecordingRow[]>(
-        SELECT_RECORDING_BASE + ' WHERE r.id = $1::uuid',
-        id,
-      );
-    });
-    if (rows.length === 0) throw new NotFoundException('Recording ' + id + ' not found');
-    return rows[0]!;
-  }
 
   private async loadTranscript(recordingId: string): Promise<LessonTranscriptResponseDto | null> {
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {

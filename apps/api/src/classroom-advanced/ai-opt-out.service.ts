@@ -127,9 +127,22 @@ export class AIOptOutService {
     return rowToDto(rows[0]!);
   }
 
-  /** DELETE /classroom/ai-tutoring/opt-out/:studentId — opt back in. */
+  /**
+   * DELETE /classroom/ai-tutoring/opt-out/:studentId — opt back in.
+   *
+   * REVIEW-P2C7 BLOCKING 5 — opt-out CREATE and DELETE authorities are
+   * NOT symmetric. Opt-out is a parental / student protection — letting
+   * a student silently opt themselves back in would let an under-13
+   * student bypass the COPPA / FERPA gate without parental confirmation.
+   * Delete authority is therefore restricted to:
+   *   - linked guardian (the create-time party), OR
+   *   - school admin (emergency revocation by an authorised operator).
+   * STUDENT actors cannot opt themselves back in. Production should
+   * additionally route guardian DELETE through a confirm-by-email flow,
+   * but the service layer is the load-bearing gate.
+   */
   async delete(studentId: string, actor: ResolvedActor): Promise<void> {
-    await this.assertCanOptOut(studentId, actor);
+    await this.assertCanRevokeOptOut(studentId, actor);
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
         'DELETE FROM cls_ai_tutoring_opt_outs WHERE student_id = $1::uuid',
@@ -140,6 +153,13 @@ export class AIOptOutService {
 
   // ── helpers ──────────────────────────────────────────────────────────
 
+  /**
+   * CREATE authority — parent / student-self / admin all allowed
+   * (subject to age-policy enforcement at the controller layer in
+   * production for student-self under-13 cases). The schema layer
+   * accepts any valid student_id; the relationship gate is what
+   * binds the actor.
+   */
   private async assertCanOptOut(studentId: string, actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
     if (actor.personType === 'GUARDIAN') {
@@ -179,9 +199,46 @@ export class AIOptOutService {
     );
   }
 
+  /**
+   * REVIEW-P2C7 BLOCKING 5 — REVOKE (delete) authority. Tighter than
+   * create. Students cannot opt themselves back in, because that would
+   * let a child silently undo a parental opt-out. Only linked guardian
+   * + school admin are authorised. The opt-out is intentionally a
+   * sticky protection.
+   */
+  private async assertCanRevokeOptOut(studentId: string, actor: ResolvedActor): Promise<void> {
+    if (actor.isSchoolAdmin) return;
+    if (actor.personType === 'GUARDIAN') {
+      const linked = await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe<Array<{ ok: number }>>(
+          'SELECT 1 AS ok FROM sis_student_guardians sg ' +
+            'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
+          studentId,
+          actor.personId,
+        );
+      });
+      if (linked.length === 0) {
+        throw new ForbiddenException(
+          'Guardians may only opt back in their own linked children. No relationship found.',
+        );
+      }
+      return;
+    }
+    if (actor.personType === 'STUDENT') {
+      throw new ForbiddenException(
+        'Students cannot opt themselves back into AI tutoring once opted out. Contact a parent or school admin.',
+      );
+    }
+    throw new ForbiddenException(
+      'Only a linked guardian or school admin may opt a student back into AI tutoring.',
+    );
+  }
+
   private async assertCanReadOptOut(studentId: string, actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin || actor.personType === 'STAFF') return;
-    // Otherwise reuse the write-side scope check
+    // Reuse the create-side scope check for reads (parent + student-self
+    // can confirm their own opt-out status).
     await this.assertCanOptOut(studentId, actor);
   }
 }

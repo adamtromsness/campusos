@@ -76,13 +76,24 @@ export class AIUsageService {
 
   /**
    * Throw 403 when the school has exhausted its daily token budget.
-   * Fail-closed by default — production should hold the line. In dev
-   * (no AI_GATEWAY_URL), the AI Gateway is stubbed so the cost is 0
-   * and the counter never increments past the limit.
+   *
+   * REVIEW-P2C7 MAJOR 6 — fail-closed env support. When
+   * AI_QUOTA_FAIL_CLOSED=1 is set, a Redis outage that returns 0 used
+   * is treated as a quota failure and the AI call is blocked. The
+   * default (Redis returns 0 used) is fail-OPEN, which is appropriate
+   * for dev / demo where the Gateway is stubbed and the cost is 0.
+   * Production schools that want strict cost enforcement should flip
+   * the env on.
    */
   async assertWithinQuota(schoolId: string): Promise<void> {
-    const used = await this.redis.readCounter(this.todayKey(schoolId));
+    const failClosed = process.env.AI_QUOTA_FAIL_CLOSED === '1';
     const limit = this.dailyLimit();
+    if (failClosed && !this.redis.isConnected()) {
+      throw new ForbiddenException(
+        'AI quota check unavailable (Redis offline) and AI_QUOTA_FAIL_CLOSED is set. Retry shortly or contact ops.',
+      );
+    }
+    const used = await this.redis.readCounter(this.todayKey(schoolId));
     if (used >= limit) {
       throw new ForbiddenException(
         'School has exhausted its daily AI token quota (' +

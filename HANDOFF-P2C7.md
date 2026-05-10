@@ -1,6 +1,62 @@
 # HANDOFF — Phase 2 Cycle 7 (P2-7) Classroom Advanced
 
-**Status:** **All 3 sub-cycles SHIPPED. Awaiting peer review.** P2-7a (Hall Passes + Rubrics + Class Moments — 8 tables, ~18 endpoints, 1 worker, 2 Kafka emits) shipped at `70d690e`. P2-7b (Standards Gradebook + Peer Review — 8 tables, ~18 endpoints) shipped at `fdc95be`. P2-7c (AI Tutoring + Lesson Video — 8 tables, ~16 endpoints, 2 Kafka consumers, 3 Kafka emits) shipped at `<this commit>`. Plan: `docs/campusos-p2c7-classroom-advanced.html`. Review notes: `P2C7-REVIEW-NOTES.md`.
+**Status:** **REVIEW-P2C7 ROUND 1 fixes applied — awaiting Round 2 verdict.** Round 1 against `aad2f2a` returned **FAIL** with 4 BLOCKING + 4 MAJOR. The Round 1 fix commit (this commit) lands all 4 BLOCKING + the 3 actionable MAJORs (6 + 7 + 8) with 10 new pinned regression tests + live verification. Vitest 377 → **387 passing across 22 spec files**. CI parity green: format:check + lint:logs (662 files clean) + API + web build + vitest 387/387.
+
+P2-7a (Hall Passes + Rubrics + Class Moments — 8 tables, ~18 endpoints, 1 worker, 2 Kafka emits) shipped at `70d690e`. P2-7b (Standards Gradebook + Peer Review — 8 tables, ~18 endpoints) shipped at `fdc95be`. P2-7c (AI Tutoring + Lesson Video — 8 tables, ~16 endpoints, 2 Kafka consumers, 3 Kafka emits) shipped at `aad2f2a`. Plan: `docs/campusos-p2c7-classroom-advanced.html`. Review notes: `P2C7-REVIEW-NOTES.md`. Review fix log: `REVIEW-P2C7-CHATGPT.md`.
+
+## REVIEW-P2C7 ROUND 1 fix log (2026-05-10)
+
+Round 1 against `aad2f2a` (peer review verdict: FAIL) flagged 4 BLOCKING access / event-durability issues + 4 MAJOR follow-ups. The fix commit lands all 4 BLOCKING + 3 actionable MAJORs with new regression tests pinning each contract.
+
+### BLOCKING 1 — `listSignalsForStudent` actor-scoped row scope
+
+`AITutoringService.listSignalsForStudent` previously gated only on STAFF + admin and then queried all signals for the supplied studentId. Any STAFF actor with `tch-007:read` could enumerate sensitive AI inferences (misconceptions, struggles, confidence) for any student in the tenant. **Fix**: actor-scoped row scope — school admin sees all in current school; teacher (STAFF + employeeId) only when student is enrolled in an active class they teach via `sis_class_teachers + sis_enrollments status=ACTIVE`; counsellor only when student is on the counsellor's active caseload via Cycle 11 `svc_caseloads`; other staff with tch-007:read 403; STUDENT 403 (existing — students do not see own signals). Plus `school_id = tenant.schoolId` predicates on both the student-existence pre-check and the signals query (defence-in-depth). Spec test pins all three branches (STAFF without scope → 403, school admin always-allowed, STUDENT → 403).
+
+### BLOCKING 2 — `extractSignals` runs `assertCanReadSession` before AI call
+
+`extractSignals` previously gated only on `STAFF + admin`. Any STAFF actor could trigger AI analysis on any session UUID and consume the school's quota for students outside their scope. **Fix**: added `await this.assertCanReadSession(session, actor)` BEFORE the quota check + AI Gateway call. The session-row scope check (assigned teacher OR caseload-linked counsellor OR admin) is the load-bearing gate. Spec test pins: a STAFF actor not teaching the student → 404 (don't-leak-existence) and the AI Gateway is never reached. Also extended `assertCanReadSession` itself with the counsellor caseload-linked path so a counsellor can read a session for a caseload student (was teacher-only).
+
+### BLOCKING 3 — `startSession` authorises BEFORE the INSERT
+
+`startSession` previously validated only that the student existed in the tenant via an id-only query, then INSERTed before the post-create `getSession(...)` ran row scope. An unauthorised teacher could create an orphan tutoring session for any student. **Fix**: new private `assertCanCreateSessionForStudent(studentId, classId, actor)` that runs BEFORE the INSERT — admin always allowed; teacher requires assigned class via `sis_class_teachers + sis_enrollments status=ACTIVE` (and when classId is supplied additionally requires the student be enrolled in that specific class with the teacher teaching it); counsellor requires active caseload; other staff 403. Plus `school_id = tenant.schoolId` predicates on the `sis_students` validation in `resolveStudentForActor` and on the `sis_classes` validation in `startSession` (defence-in-depth). Spec tests pin: unauthorised teacher → ForbiddenException with NO INSERT executed, and school admin can create session for any student in the school.
+
+### BLOCKING 4 — Durable outbox for `video.uploaded` + `lesson.summary.ready`
+
+`LessonRecordingService.create()` previously committed the recording row and then emitted `video.uploaded` best-effort via `KafkaProducerService`. `applySummary()` had the same shape — committed the summary + flipped status to COMPLETE before the emit. A Kafka outage between the commit and the emit silently lost the event with no retry marker. **Fix**: swapped `KafkaProducerService` for `OutboxService` and call `outbox.enqueueInTx(tx, opts)` INSIDE the same tenant tx as the recording / summary INSERT. The outbox row commits with the domain write; the existing Cycle 31 OutboxPublisherWorker polls + publishes durably. New helpers `deterministicVideoUploadedEventId(recordingId)` and `deterministicLessonSummaryReadyEventId(recordingId)` produce v5-shaped UUIDs via `sha1(<id>:<topic>:v1)` (same pattern as P2-4a `deterministicPayrollEventId`, P2-6 `deterministicCreditNoteEventId`, P2-6 `deterministicReversalEventId`) so retries land the same envelope and downstream consumer idempotency catches the dup cleanly. The `applySummary` tx now also reads the `lesson_id`, `class_id`, `recorded_by` fields under the existing `FOR UPDATE` lock so the outbox payload is built from the locked snapshot, not a separate read after commit. Module no longer imports KafkaProducerService for LessonRecordingService — outbox-only. Spec tests pin: video.uploaded enqueued INSIDE the same tx with v5-shaped event_id; lesson.summary.ready enqueued INSIDE the same tx; deterministic event id is stable across re-runs and distinct between the two topics.
+
+### BLOCKING 5 — Split opt-out CREATE vs DELETE authority
+
+`AIOptOutService.delete()` previously called `assertCanOptOut()` (the same helper used by `create()`). For STUDENT actors that helper allowed self-action whenever `actor.personId` matched the student. So a student could opt themselves back in without parental confirmation — for under-13 students this would let a child silently undo a parental opt-out, contradicting both the COPPA framing and the documented "no admin override, parental right" keystone. **Fix**: new private `assertCanRevokeOptOut(studentId, actor)` enforces tighter delete authority — STUDENT actors are 403 with the canonical message ("Students cannot opt themselves back into AI tutoring once opted out. Contact a parent or school admin."); GUARDIAN actors must still be linked via `sis_student_guardians`; school admin allowed for emergency revocation. The opt-out is intentionally a sticky protection. `assertCanOptOut` (the create-side helper) stays as-is and continues to allow student-self opt-out subject to the production controller-level age-policy check. Spec tests pin all three branches: STUDENT delete → 403 with NO DELETE executed; linked guardian delete → DELETE executed; school admin delete → DELETE executed.
+
+### MAJOR 6 — `AI_QUOTA_FAIL_CLOSED` env support
+
+`AIUsageService.assertWithinQuota` was unconditionally fail-OPEN — when Redis was down the call returned 0 used and the AI call proceeded. **Fix**: when `AI_QUOTA_FAIL_CLOSED=1` and `RedisService.isConnected()` returns false, the assert throws 403 with a canonical "AI quota check unavailable (Redis offline) and AI_QUOTA_FAIL_CLOSED is set" message. Default behaviour stays fail-OPEN (acceptable for dev / demo where the Gateway is stubbed), but production schools concerned with cost controls can flip the env on.
+
+### MAJOR 7 — School-scoped recording reads
+
+`LessonRecordingService.getById` and `listForLesson` previously loaded recordings by id / lesson_id with id-only WHERE clauses then relied on the service-level `assertCanRead` row-scope filter. **Fix**: both queries now include `r.school_id = $tenant.schoolId` predicate so a leaked recording UUID from another tenant collapses to 404 don't-leak-existence at the query level (defence-in-depth alongside the service-layer row scope). Aligns with the Phase 2 hardening standard set across REVIEW-CYCLE26 / REVIEW-P2-5 / REVIEW-P2-6.
+
+### MAJOR 8 — Consumer markFailed only on permanent errors
+
+`VideoTranscriptConsumer.process` previously called `recordings.markFailed(...)` on any caught error then rethrew. A transient AI Gateway outage would mark the recording permanently FAILED even though the next Kafka redelivery would succeed. **Fix**: `markFailed` is now only called for permanent error classes (currently `NotFoundException` — recording does not exist, the upstream service published an invalid recordingId). Transient errors rethrow without marking FAILED so the consumer's claim-after-success path retries via Kafka redelivery and a successful retry finds the recording in the expected status, not a permanently FAILED row that operators would need to manually unpick.
+
+### Test coverage delta
+
+Vitest 377 → **387 passing across 22 spec files** (+10 new pinned regression tests in a dedicated `describe('REVIEW-P2C7 BLOCKING regressions')` block):
+
+- BLOCKING 1: 3 tests (STAFF actor without scope → 403; school admin school-scoped query verified; STUDENT → 403).
+- BLOCKING 2: 1 test (STAFF actor not assigned to student → 404, AI Gateway never reached).
+- BLOCKING 3: 2 tests (unauthorised teacher → 403 with NO INSERT; school admin → INSERT executes).
+- BLOCKING 5: 3 tests (STUDENT delete → 403 with NO DELETE; linked guardian delete → DELETE executed; school admin delete → DELETE executed).
+- BLOCKING 4 deterministic event id: 1 test (stable across re-runs; distinct between the two topics; v5-shape verified).
+
+Existing `LessonRecordingService` tests rewritten to use the new `makeOutbox()` stub — `create` and `applySummary` now assert the outbox enqueue shape (topic + sourceModule + v5 event_id + payload) instead of the old kafka.emit shape.
+
+### MAJOR carry-forwards (Phase 2 punch list, not blocking)
+
+- **MAJOR 5 (CAT live-output capture pattern)** — recommendation-class polish for sensitive cycles, joins existing punch list item from REVIEW-CYCLE15.
+
+CI parity green: format:check + lint:logs (662 files clean) + API build + web build + vitest 387/387. Awaiting Round 2 verdict before tagging `p2c7-complete`. See `REVIEW-P2C7-CHATGPT.md` for the full triage table + per-fix verification trail.
 
 **Aggregate totals (P2-7a + P2-7b + P2-7c):**
 
