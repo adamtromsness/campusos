@@ -337,3 +337,38 @@ Reviewer accepted as Phase 2 hardening per the gate decision. The service commen
 ### Carry-forward
 
 MAJOR 6 (per-department exit-task scoping) joins the Phase 2 punch list alongside items 9 / 11 / 13 / 14 / 16 / 22 / 25 / 26 / 30 / 32 / 33 — all part of the broader role-split work before real-school pilot.
+
+## REVIEW-P2-5 ROUND 2 fix log (2026-05-10)
+
+Round 2 returned **REJECT** with 1 BLOCKING + 0 MAJOR. The 2 BLOCKINGs and 2 MAJORs from Round 1 were confirmed fixed; one BLOCKING remained:
+
+> **BLOCKING — public booking still creates orphan iam_person under last-seat race.** The Round 1 pre-flight slot read happens BEFORE iam_person creation, which catches bogus / unpublished / cancelled / already-full slot ids. But under concurrent last-seat pressure, two requests can both pass the unlocked pre-flight, both create fresh iam_person rows, and then only one wins the locked-tx capacity check — leaving the loser's iam_person + platform_users orphaned.
+
+Reviewer offered three acceptable fixes (A: ON CONFLICT DO NOTHING + lookup-or-resurrect; B: hold the per-slot lock around the entire booking incl. identity creation; C: no iam_person on public path — pure external-contact rows). **Took Option C** per the reviewer's note that it is "the cleanest abuse-resistant model".
+
+### Fix details
+
+(BLOCKING — Option C, no iam_person on public booking)
+
+**Migration `122_enr_tour_bookings_booked_by_nullable.sql`**: drops NOT NULL on `enr_tour_bookings.booked_by`. The booking row already carries `family_name + contact_email + contact_phone` plus a per-guest manifest in `enr_tour_booking_guests`, so the contact info is preserved without an iam_person row. The UNIQUE(slot_id, booked_by) constraint stays — Postgres treats NULL-vs-NULL as not-equal so multiple NULL rows per slot coexist (which is the right shape for distinct prospective families). Splitter trap caught + fixed pre-provision: `;` mid block-comment ("NULL on public bookings; EOs stitch identities later") rewritten with em-dash. Provisioned cleanly to both `tenant_demo` + `tenant_test` (119 migrations applied each). COMMENT ON COLUMN documents the new contract: `'Tenant-local soft reference to platform.iam_person(id) per ADR-001/020. NULL when the booking came in through the unauthenticated public path — no platform identity is created at booking time per REVIEW-P2-5 Round 2 BLOCKING fix to dodge orphan-identity races on the last-seat capacity gate. EOs stitch identities later via POST /tour-bookings/:id/link-application once a verified application surfaces. Authenticated bookings populate this with the actor person id at insert time.'`
+
+**`TourBookingService.bookPublic()` rewritten**: removed `PrismaClient` constructor injection (no longer needed since `bookPublic` does ZERO platform writes). Validates `firstName` / `lastName` / `contactEmail` and routes straight into `createBookingForPerson(slotId, null, input)`. The locked tx then INSERTs into `enr_tour_bookings` with `bookedBy=null` at `$4::uuid` (the cast accepts NULL). `createBookingForPerson` signature updated to `bookedBy: string | null`. Authenticated bookings (parent dashboard etc.) continue to populate `booked_by` from `actor.personId`. The `link-application` admin path still takes a separate `personId` argument so EOs can stitch identities post-hoc once a verified workflow proves ownership. `TourBookingResponseDto.bookedBy` widened to `string | null`. Outbox `enr.tour.booked` payload likewise carries `bookedBy: null` for public bookings.
+
+### Concurrency regression test (reviewer's explicit pass condition)
+
+Added 2 new vitest cases to `enrolment-advanced.spec.ts` (54 tests now, was 52):
+
+1. **"two concurrent bookings against a cap=1 slot — exactly 1 succeeds, ZERO platform writes from either"** — simulates Postgres `FOR UPDATE` by serialising tx callbacks through a per-slot mutex with mutable `current_bookings` state surviving across calls. Fires `Promise.allSettled([bookPublic(...), bookPublic(...)])` against a cap=1 slot. Asserts: 1 fulfilled + 1 rejected with `ConflictException`, `slotState.current === 1`, `platformPrisma.$executeRawUnsafe` was **never** called from either attempt (the keystone), exactly 1 outbox emit with `payload.bookedBy === null`.
+2. **"public booking writes booked_by=NULL into enr_tour_bookings (Option C contract)"** — verifies the INSERT into `enr_tour_bookings` carries `null` at positional argument `$4` (the `booked_by` slot) and the outbox payload's `bookedBy` is `null`.
+
+### Live verification on `tenant_demo` 2026-05-10
+
+Created cap=1 slot, captured pre-state (iam_person=39, platform_users=24), fired 5 parallel public booking requests against the slot. Result: `1× 201 + 4× 409`, **iam_person delta=0, platform_users delta=0** (Option C contract — public path creates ZERO platform identities), exactly 1 row landed in `enr_tour_bookings` with `booked_by=NULL`, slot ended at `1/1`, zero `Race%` rows in `platform.iam_person`. Cleanup restored tenant to seed shape.
+
+### CI parity
+
+- `pnpm format:check` clean
+- `pnpm lint:logs` clean (601 files)
+- `pnpm --filter @campusos/api test`: **243/243 passing across 18 spec files** (54 P2-5 tests, +2 from Round 1)
+- `pnpm --filter @campusos/api build` clean
+- `pnpm --filter @campusos/web build` clean

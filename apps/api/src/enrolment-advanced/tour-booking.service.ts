@@ -5,7 +5,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
@@ -25,7 +24,7 @@ interface BookingRow {
   id: string;
   slot_id: string;
   school_id: string;
-  booked_by: string;
+  booked_by: string | null;
   family_name: string;
   contact_email: string;
   contact_phone: string | null;
@@ -123,7 +122,6 @@ export class TourBookingService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permissions: PermissionCheckService,
     private readonly outbox: OutboxService,
-    private readonly platformPrisma: PrismaClient,
   ) {}
 
   private async assertWriter(actor: ResolvedActor): Promise<void> {
@@ -140,23 +138,34 @@ export class TourBookingService {
 
   /**
    * Public booking endpoint. Anonymous (no auth) — the family
-   * provides contact info inline. The locked-row + current_chk
-   * CHECK is the keystone race-protection for the capacity
-   * contract.
+   * provides contact info inline.
    *
-   * REVIEW-P2-5 BLOCKING 1 + MAJOR 4 fix:
-   *   - Validate the slot (existence + published + non-cancelled +
-   *     capacity remaining) BEFORE creating any platform identity.
-   *     Pre-flight is a cheap unlocked read; the canonical race
-   *     protection still happens inside the locked tx in
-   *     createBookingForPerson().
-   *   - NEVER reuse an existing iam_person by email on the public
-   *     path (the email is unverified contact info). Always create
-   *     a fresh iam_person + platform_users so an attacker who
-   *     knows another family's email cannot attach a booking to
-   *     that account. Identity stitching is a deliberate admin
-   *     workflow via /tour-bookings/:id/link-application after
-   *     verification.
+   * REVIEW-P2-5 Round 2 BLOCKING fix (Option C — the reviewer's
+   * "cleanest abuse-resistant model"):
+   *
+   *   No `iam_person` is created on the public path. The booking
+   *   row already carries family_name + contact_email +
+   *   contact_phone columns plus the per-guest manifest, so the
+   *   contact info is fully preserved without a platform identity.
+   *   `enr_tour_bookings.booked_by` is now nullable (migration
+   *   122) and stays NULL for public bookings. EOs stitch
+   *   identities later via /tour-bookings/:id/link-application
+   *   once an application or some other verified workflow proves
+   *   ownership.
+   *
+   *   Why this beats the Round 1 pre-flight + identity-then-locked
+   *   pattern: under concurrent last-seat pressure, two requests
+   *   could both pass the unlocked pre-flight, both create fresh
+   *   iam_person rows, then only one wins the locked tx capacity
+   *   check — leaving an orphan iam_person on the loser. Option C
+   *   eliminates that entire class of bug because no platform
+   *   write happens before (or after) the locked capacity gate.
+   *
+   *   The locked tx still runs the canonical race protection:
+   *   SELECT FOR UPDATE on the slot, capacity re-validation,
+   *   booking insert, current_bookings bump, outbox enqueue —
+   *   all atomic. Schema-side `current_chk` is belt-and-braces
+   *   against any direct-SQL bypass.
    */
   async bookPublic(slotId: string, input: AnonymousBookingInput): Promise<TourBookingResponseDto> {
     if (!input.firstName || !input.lastName) {
@@ -166,72 +175,9 @@ export class TourBookingService {
       throw new BadRequestException('contactEmail is required and must be a valid email');
     }
 
-    // BLOCKING 1 — pre-flight slot validation BEFORE any platform
-    // identity write. The unlocked read catches the abuse path
-    // (random/unpublished/cancelled/full slot ids) without leaving
-    // orphan iam_person rows behind. The canonical capacity gate
-    // still runs inside the locked tx in createBookingForPerson()
-    // (and the schema-side current_chk is the belt-and-braces for
-    // any direct-SQL bypass).
-    const tenant = getCurrentTenant();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      const rows = (await client.$queryRawUnsafe(
-        'SELECT max_bookings, current_bookings, is_published, is_cancelled, tour_date ' +
-          'FROM enr_tour_slots ' +
-          'WHERE school_id = $1::uuid AND id = $2::uuid LIMIT 1',
-        tenant.schoolId,
-        slotId,
-      )) as Array<{
-        max_bookings: number;
-        current_bookings: number;
-        is_published: boolean;
-        is_cancelled: boolean;
-        tour_date: string;
-      }>;
-      if (rows.length === 0) {
-        throw new NotFoundException('Tour slot not found');
-      }
-      const slot = rows[0]!;
-      if (!slot.is_published) {
-        throw new BadRequestException('Tour slot is not published');
-      }
-      if (slot.is_cancelled) {
-        throw new BadRequestException('Tour slot has been cancelled');
-      }
-      if (slot.current_bookings >= slot.max_bookings) {
-        throw new ConflictException(
-          'Tour slot is full (' + slot.current_bookings + '/' + slot.max_bookings + ')',
-        );
-      }
-    });
-
-    // MAJOR 4 — always create a fresh iam_person on the public
-    // path; do NOT create a platform_users row. Anyone can claim
-    // any email on the public booking form, so reusing an existing
-    // platform_users would let an attacker attach bookings to
-    // another family's account. And creating a NEW platform_users
-    // row would either collide with the existing one on the
-    // UNIQUE(email) constraint OR pollute the auth surface with
-    // unverified rows.
-    //
-    // The right shape: the booking is a "pending external contact"
-    // captured by an iam_person row alone. No platform_users
-    // means no login, no auth identity, no risk of collision. The
-    // contact email stays on enr_tour_bookings.contact_email. When
-    // the family later submits an application, the EO manually
-    // stitches identities via /tour-bookings/:id/link-application
-    // (which validates ownership through the application pipeline).
-    const bookedBy = generateId();
-    await this.platformPrisma.$executeRawUnsafe(
-      'INSERT INTO platform.iam_person (id, first_name, last_name, primary_phone, person_type) ' +
-        "VALUES ($1::uuid, $2, $3, $4, 'GUARDIAN')",
-      bookedBy,
-      input.firstName,
-      input.lastName,
-      input.contactPhone ?? null,
-    );
-
-    return this.createBookingForPerson(slotId, bookedBy, input);
+    // No platform identity work. The booking flows straight into
+    // the locked tx with bookedBy=NULL.
+    return this.createBookingForPerson(slotId, null, input);
   }
 
   /**
@@ -248,7 +194,7 @@ export class TourBookingService {
 
   private async createBookingForPerson(
     slotId: string,
-    bookedBy: string,
+    bookedBy: string | null,
     input: CreateTourBookingDto,
   ): Promise<TourBookingResponseDto> {
     const tenant = getCurrentTenant();
@@ -290,6 +236,10 @@ export class TourBookingService {
 
         const id = generateId();
         try {
+          // Public bookings pass bookedBy=null per the Round 2
+          // BLOCKING fix; the column is nullable as of migration
+          // 122. The `::uuid` cast accepts NULL too — Postgres
+          // treats it as NULL of type uuid.
           await tx.$executeRawUnsafe(
             'INSERT INTO enr_tour_bookings ' +
               '(id, slot_id, school_id, booked_by, family_name, contact_email, contact_phone, status, notes) ' +

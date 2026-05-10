@@ -269,12 +269,7 @@ describe('TourBookingService', () => {
       platformUser: { findFirst: vi.fn(async () => null) },
       $executeRawUnsafe: vi.fn(async () => 1),
     };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       const result = await svc.bookPublic('slot1', {
         firstName: 'Sarah',
@@ -286,11 +281,11 @@ describe('TourBookingService', () => {
       });
       expect(result.status).toBe('CONFIRMED');
     });
-    // REVIEW-P2-5 MAJOR 4 — public booking creates ONE platform
-    // identity write: a fresh iam_person row only (no
-    // platform_users — public bookings are pending external
-    // contacts with no auth identity).
-    expect(platformPrisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
+    // REVIEW-P2-5 Round 2 BLOCKING — public booking now creates
+    // ZERO platform identity writes. Booking + contact info
+    // live on enr_tour_bookings; booked_by stays NULL until
+    // an EO links a verified application via /tour-bookings/:id/link-application.
+    expect(platformPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
     // Locked-row SELECT
     expect(
       calls.some((c) => c.sql.includes('FROM enr_tour_slots') && c.sql.includes('FOR UPDATE')),
@@ -326,12 +321,7 @@ describe('TourBookingService', () => {
       platformUser: { findFirst: vi.fn(async () => null) },
       $executeRawUnsafe: vi.fn(async () => 1),
     };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.bookPublic('slot1', {
@@ -366,12 +356,7 @@ describe('TourBookingService', () => {
       platformUser: { findFirst: vi.fn(async () => null) },
       $executeRawUnsafe: vi.fn(async () => 1),
     };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.bookPublic('missing-slot', {
@@ -392,12 +377,7 @@ describe('TourBookingService', () => {
       platformUser: { findFirst: vi.fn(async () => null) },
       $executeRawUnsafe: vi.fn(async () => 1),
     };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.bookPublic('slot1', {
@@ -418,12 +398,7 @@ describe('TourBookingService', () => {
       platformUser: { findFirst: vi.fn(async () => null) },
       $executeRawUnsafe: vi.fn(async () => 1),
     };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.bookPublic('slot1', {
@@ -447,12 +422,7 @@ describe('TourBookingService', () => {
       platformUser: { findFirst },
       $executeRawUnsafe: vi.fn(async () => 1),
     };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await svc.bookPublic('slot1', {
         firstName: 'Sarah',
@@ -463,13 +433,12 @@ describe('TourBookingService', () => {
     });
     // The public path no longer looks up by email — never call findFirst.
     expect(findFirst).not.toHaveBeenCalled();
-    // Public booking creates ONE platform identity write — a
-    // fresh iam_person only. NO platform_users (would collide with
-    // existing on UNIQUE(email) AND would attach the booking to
-    // someone else's auth identity).
-    expect(platformPrisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
-    // bookedBy is the freshly-generated id, NOT 'existing-person'.
-    expect(enqueued[0]!.payload.bookedBy).not.toBe('existing-person');
+    // REVIEW-P2-5 Round 2 — public booking now creates ZERO
+    // platform writes (Option C). Booking attaches via
+    // booked_by=NULL.
+    expect(platformPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
+    // bookedBy in the outbox payload is null on public bookings.
+    expect(enqueued[0]!.payload.bookedBy).toBeNull();
   });
 
   it('REVIEW-P2-5 BLOCKING 1 — bookPublic does NOT create iam_person when slot is missing', async () => {
@@ -491,12 +460,7 @@ describe('TourBookingService', () => {
       platformUser: { findFirst: vi.fn(async () => null) },
       $executeRawUnsafe: vi.fn(async () => 1),
     };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.bookPublic('missing-slot', {
@@ -520,12 +484,7 @@ describe('TourBookingService', () => {
       platformUser: { findFirst: vi.fn(async () => null) },
       $executeRawUnsafe: vi.fn(async () => 1),
     };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.bookPublic('slot1', {
@@ -547,12 +506,7 @@ describe('TourBookingService', () => {
       platformUser: { findFirst: vi.fn(async () => null) },
       $executeRawUnsafe: vi.fn(async () => 1),
     };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.bookPublic('slot1', {
@@ -574,12 +528,7 @@ describe('TourBookingService', () => {
       platformUser: { findFirst: vi.fn(async () => null) },
       $executeRawUnsafe: vi.fn(async () => 1),
     };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.bookPublic('slot1', {
@@ -633,12 +582,7 @@ describe('TourBookingService', () => {
     const perms = makePerms({ [ADMIN_ACTOR.accountId]: ['stu-003:write'] });
     const { outbox } = makeOutbox();
     const platformPrisma = { platformUser: { findFirst: vi.fn() }, $executeRawUnsafe: vi.fn() };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       // Empty reason rejected
       await expect(
@@ -700,12 +644,7 @@ describe('TourBookingService', () => {
     const perms = makePerms({ [ADMIN_ACTOR.accountId]: ['stu-003:write'] });
     const { outbox } = makeOutbox();
     const platformPrisma = { platformUser: { findFirst: vi.fn() }, $executeRawUnsafe: vi.fn() };
-    const svc = new TourBookingService(
-      tenantPrisma as never,
-      perms as never,
-      outbox as never,
-      platformPrisma as never,
-    );
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       // Application not in this school → 400
       await expect(
@@ -1827,5 +1766,202 @@ describe('REVIEW-P2-5 MAJOR 5 — sis_students UPDATE is school-scoped', () => {
     // First arg is tenant.schoolId, second is the locked-row student_id.
     expect(updateCall!.args[0]).toBe(SCHOOL.schoolId);
     expect(updateCall!.args[1]).toBe('stud1');
+  });
+});
+
+// =====================================================================
+// REVIEW-P2-5 Round 2 BLOCKING — public booking is race-safe under
+// concurrent last-seat pressure (Option C: no iam_person on public path)
+// =====================================================================
+describe('REVIEW-P2-5 Round 2 — public booking race-safety + no orphan identities', () => {
+  it('two concurrent bookings against a cap=1 slot — exactly 1 succeeds, ZERO platform writes from either', async () => {
+    // Simulate the locked tx by serialising txCallback execution
+    // through a per-slot mutex AND tracking current_bookings as a
+    // mutable cell that survives across calls. This is the closest
+    // we can get to Postgres FOR UPDATE behaviour in a unit test
+    // without spinning up a real DB.
+    const slotState = { current: 0, max: 1, published: true, cancelled: false };
+    let txQueue: Promise<unknown> = Promise.resolve();
+
+    const platformPrisma = {
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM enr_tour_slots')) {
+          // Returns the CURRENT state of the slot. The locked-tx
+          // version reads under the per-slot mutex; the unlocked
+          // pre-flight (no longer in the code path post Round 2,
+          // but the test would still tolerate it) reads outside.
+          return [
+            {
+              id: 'slot1',
+              tour_date: '2027-01-01',
+              max_bookings: slotState.max,
+              current_bookings: slotState.current,
+              is_published: slotState.published,
+              is_cancelled: slotState.cancelled,
+            },
+          ];
+        }
+        if (sql.includes('FROM enr_tour_bookings') && sql.includes('LIMIT 1')) {
+          return [
+            {
+              id: 'bk-stub',
+              slot_id: 'slot1',
+              school_id: SCHOOL.schoolId,
+              booked_by: null,
+              family_name: 'F',
+              contact_email: 'e@x.com',
+              contact_phone: null,
+              status: 'CONFIRMED',
+              booked_at: '2027-01-01T00:00Z',
+              cancelled_at: null,
+              cancellation_reason: null,
+              linked_application_id: null,
+              notes: null,
+            },
+          ];
+        }
+        if (sql.includes('FROM enr_tour_booking_guests')) return [];
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        // The locked-tx INSERT into enr_tour_bookings + the
+        // current_bookings bump only fire after the capacity
+        // re-check passes. The bump simulates the tx commit.
+        if (sql.includes('UPDATE enr_tour_slots SET current_bookings = current_bookings + 1')) {
+          slotState.current += 1;
+        }
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      // Serialise tx callbacks so the second one sees the first's
+      // committed state — mimics FOR UPDATE on slot1.
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => {
+        const next = txQueue.then(() => fn(client));
+        txQueue = next.catch(() => undefined);
+        return next;
+      },
+    };
+    const perms = makePerms();
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
+
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      const results = await Promise.allSettled([
+        svc.bookPublic('slot1', {
+          firstName: 'Race',
+          lastName: 'A',
+          familyName: 'A',
+          contactEmail: 'a@example.com',
+        }),
+        svc.bookPublic('slot1', {
+          firstName: 'Race',
+          lastName: 'B',
+          familyName: 'B',
+          contactEmail: 'b@example.com',
+        }),
+      ]);
+
+      // Exactly one succeeds, exactly one rejects with ConflictException.
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r) => r.status === 'rejected');
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      const rej = rejected[0] as PromiseRejectedResult;
+      expect(rej.reason).toBeInstanceOf(ConflictException);
+
+      // Slot ended at exactly 1/1.
+      expect(slotState.current).toBe(1);
+
+      // ZERO platform writes from EITHER attempt — the keystone
+      // contract of Option C. No iam_person rows leak even when
+      // both requests passed any pre-flight check.
+      expect(platformPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
+
+      // Exactly one outbox emit (from the winning tx).
+      expect(enqueued).toHaveLength(1);
+      expect(enqueued[0]!.payload.bookedBy).toBeNull();
+    });
+  });
+
+  it('public booking writes booked_by=NULL into enr_tour_bookings (Option C contract)', async () => {
+    const calls: CapturedCall[] = [];
+    const slotState = { current: 0, max: 10, published: true, cancelled: false };
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM enr_tour_slots')) {
+          return [
+            {
+              id: 'slot1',
+              tour_date: '2027-01-01',
+              max_bookings: slotState.max,
+              current_bookings: slotState.current,
+              is_published: slotState.published,
+              is_cancelled: slotState.cancelled,
+            },
+          ];
+        }
+        if (sql.includes('FROM enr_tour_bookings') && sql.includes('LIMIT 1')) {
+          return [
+            {
+              id: 'bk1',
+              slot_id: 'slot1',
+              school_id: SCHOOL.schoolId,
+              booked_by: null,
+              family_name: 'F',
+              contact_email: 'e@x.com',
+              contact_phone: null,
+              status: 'CONFIRMED',
+              booked_at: '2027-01-01',
+              cancelled_at: null,
+              cancellation_reason: null,
+              linked_application_id: null,
+              notes: null,
+            },
+          ];
+        }
+        if (sql.includes('FROM enr_tour_booking_guests')) return [];
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const perms = makePerms();
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new TourBookingService(tenantPrisma as never, perms as never, outbox as never);
+
+    const result = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.bookPublic('slot1', {
+        firstName: 'Anon',
+        lastName: 'Public',
+        familyName: 'AnonFam',
+        contactEmail: 'anon@example.com',
+      }),
+    );
+    expect(result.bookedBy).toBeNull();
+
+    // The booking INSERT carried booked_by=null at $4 (positional).
+    const insertCall = calls.find(
+      (c) => c.fn === 'e' && c.sql.includes('INSERT INTO enr_tour_bookings'),
+    );
+    expect(insertCall).toBeDefined();
+    // Args order: id, slotId, schoolId, bookedBy, familyName, ...
+    expect(insertCall!.args[3]).toBeNull();
+    expect(enqueued[0]!.payload.bookedBy).toBeNull();
   });
 });

@@ -201,7 +201,7 @@ export interface TourBookingResponseDto {
   id: string;
   slotId: string;
   schoolId: string;
-  bookedBy: string;
+  bookedBy: string | null;
   familyName: string;
   contactEmail: string;
   contactPhone: string | null;
