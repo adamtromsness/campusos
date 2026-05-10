@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -9,7 +10,31 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
+
+/**
+ * REVIEW-P2-8 BLOCKING 4 — deterministic event_id helper for the
+ * highlight-clip portfolio-link outbox emit.
+ */
+export function deterministicHighlightLinkEventId(clipId: string): string {
+  const hash = createHash('sha1')
+    .update(clipId + ':ath.highlight_clip.portfolio_link_requested:v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
 import {
   CreateGameRecordingDto,
   CreateGameStreamDto,
@@ -162,7 +187,8 @@ export class GameStreamService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permissions: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+
+    private readonly outbox: OutboxService,
   ) {}
 
   async hasStreamScope(actor: ResolvedActor): Promise<boolean> {
@@ -521,6 +547,26 @@ export class GameStreamService {
           'Only the student, a linked guardian, or the AD/admin can record consent on this clip',
         );
       }
+      // REVIEW-P2-8 MAJOR 2 — under-13 COPPA gate. For under-13
+      // students, student-self consent is not legally valid. The
+      // student must defer to a linked guardian or to an AD/admin
+      // recording on their behalf. Resolves the student's date of
+      // birth from sis_students and rejects student-self consent
+      // when age < 13.
+      if (isStudent && !isAdmin && !isGuardian) {
+        const ageRows = await t.$queryRawUnsafe<Array<{ age_years: number | null }>>(
+          'SELECT EXTRACT(YEAR FROM age(p.date_of_birth))::int AS age_years ' +
+            'FROM sis_students s JOIN platform.platform_students ps ON ps.id = s.platform_student_id JOIN platform.iam_person p ON p.id = ps.person_id ' +
+            'WHERE s.id = $1::uuid',
+          lock[0]!.student_id,
+        );
+        const ageYears = ageRows[0]?.age_years ?? null;
+        if (ageYears !== null && ageYears < 13) {
+          throw new ForbiddenException(
+            'COPPA: students under 13 cannot self-consent to highlight clip publication. A linked guardian or admin must record consent on their behalf.',
+          );
+        }
+      }
       await t.$executeRawUnsafe(
         'UPDATE ath_highlight_clips SET consent_status = $1, consent_recorded_at = now(), updated_at = now() WHERE id = $2::uuid',
         input.consentStatus,
@@ -570,7 +616,6 @@ export class GameStreamService {
       throw new ForbiddenException('Only the AD or admin can link clips to portfolios');
     }
     const tenant = getCurrentTenant();
-    let kafkaPayload: Record<string, unknown> | null = null;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const t = tx as {
         $queryRawUnsafe: <T>(sql: string, ...args: unknown[]) => Promise<T>;
@@ -610,28 +655,24 @@ export class GameStreamService {
         'UPDATE ath_highlight_clips SET added_to_portfolio = true, updated_at = now() WHERE id = $1::uuid',
         clipId,
       );
-      kafkaPayload = {
-        clipId,
-        studentId: lock[0]!.student_id,
-        s3Key: lock[0]!.s3_key,
-        title: lock[0]!.title,
-        schoolId: tenant.schoolId,
-        sourceRefId: clipId,
-      };
+      // REVIEW-P2-8 BLOCKING 4 — durable outbox INSIDE the same tx so
+      // a Kafka outage never drops the portfolio-link request silently.
+      await this.outbox.enqueueInTx(tx as never, {
+        topic: 'ath.highlight_clip.portfolio_link_requested',
+        key: clipId,
+        sourceModule: 'athletics',
+        eventId: deterministicHighlightLinkEventId(clipId),
+        payload: {
+          clipId,
+          studentId: lock[0]!.student_id,
+          s3Key: lock[0]!.s3_key,
+          title: lock[0]!.title,
+          schoolId: tenant.schoolId,
+          sourceRefId: clipId,
+        },
+      });
     });
 
-    if (kafkaPayload) {
-      try {
-        await this.kafka.emit({
-          topic: 'ath.highlight_clip.portfolio_link_requested',
-          key: clipId,
-          payload: kafkaPayload,
-          sourceModule: 'athletics',
-        });
-      } catch {
-        // Best-effort emit
-      }
-    }
     return this.getClipById(clipId);
   }
 

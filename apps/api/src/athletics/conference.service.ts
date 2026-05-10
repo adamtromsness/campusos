@@ -139,11 +139,38 @@ export class ConferenceService {
     private readonly permissions: PermissionCheckService,
   ) {}
 
+  /**
+   * Local AD scope — admin OR holds ath-003:write. Authority over
+   * tenant-scoped surfaces: schedules involving THIS school, membership
+   * of THIS school's programmes. Per REVIEW-P2-8 BLOCKING 3 this scope
+   * does NOT cover catalogue mutation or cross-school schedule creation.
+   */
   async hasConferenceScope(actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
       'ath-003:write',
+    ]);
+  }
+
+  /**
+   * REVIEW-P2-8 BLOCKING 3 — conference catalogue admin scope. The
+   * `ath_conferences` rows are conceptually platform-level (the table
+   * spans schools per the migration COMMENT) so a single school AD must
+   * NOT be allowed to create/edit a shared conference record. Authority
+   * is reserved for Platform Admin / conference administrator.
+   *
+   * Mirrors `hasMarketplaceAdminScope` in OfficialService — checks the
+   * actor holds an admin permission at PLATFORM scope specifically.
+   * School Admin's role assignments live at SCHOOL scope, only Platform
+   * Admin holds an assignment at PLATFORM scope.
+   */
+  async hasCatalogueAdminScope(actor: ResolvedActor): Promise<boolean> {
+    const platformScope = await this.permissions.resolvePlatformScope();
+    if (!platformScope) return false;
+    return this.permissions.hasAnyPermission(actor.accountId, platformScope, [
+      'sys-001:admin',
+      'ath-003:admin',
     ]);
   }
 
@@ -176,8 +203,14 @@ export class ConferenceService {
   }
 
   async create(input: CreateConferenceDto, actor: ResolvedActor): Promise<ConferenceResponseDto> {
-    if (!(await this.hasConferenceScope(actor))) {
-      throw new ForbiddenException('Only the AD or admin can create conferences');
+    // REVIEW-P2-8 BLOCKING 3 — conference catalogue is conceptually
+    // platform-level (cross-school). Tenant ADs cannot author a shared
+    // conference record; the canonical row is reserved for Platform
+    // Admin / conference administrator authority.
+    if (!(await this.hasCatalogueAdminScope(actor))) {
+      throw new ForbiddenException(
+        'Only platform / conference admins can create conferences. The conference catalogue spans schools and is reserved for cross-school authority.',
+      );
     }
     const id = generateId();
     try {
@@ -208,8 +241,11 @@ export class ConferenceService {
     input: UpdateConferenceDto,
     actor: ResolvedActor,
   ): Promise<ConferenceResponseDto> {
-    if (!(await this.hasConferenceScope(actor))) {
-      throw new ForbiddenException('Only the AD or admin can edit conferences');
+    // REVIEW-P2-8 BLOCKING 3 — same gate as create.
+    if (!(await this.hasCatalogueAdminScope(actor))) {
+      throw new ForbiddenException(
+        'Only platform / conference admins can edit conferences. The canonical record spans schools.',
+      );
     }
     await this.getById(id);
     const sets: string[] = [];
@@ -340,6 +376,34 @@ export class ConferenceService {
     await this.getById(conferenceId);
     if (input.homeSchoolId === input.awaySchoolId) {
       throw new BadRequestException('Home and away school must differ');
+    }
+    // REVIEW-P2-8 BLOCKING 3 — restrict cross-school schedule fabrication.
+    // Tenant ADs may only schedule games involving their own school (as
+    // home or away). Cross-school authority (e.g. School A scheduling
+    // School B vs School C) is reserved for catalogue admin scope.
+    const tenant = getCurrentTenant();
+    const isCatalogueAdmin = await this.hasCatalogueAdminScope(actor);
+    if (
+      !isCatalogueAdmin &&
+      input.homeSchoolId !== tenant.schoolId &&
+      input.awaySchoolId !== tenant.schoolId
+    ) {
+      throw new ForbiddenException(
+        'Tenant ADs can only schedule games involving their own school. Cross-school schedule authority is reserved for the conference administrator.',
+      );
+    }
+    // Validate season belongs to the current school when supplied
+    if (input.seasonId) {
+      const seasonRows = (await this.tenantPrisma.executeInTenantContext((client) =>
+        client.$queryRawUnsafe<Array<{ id: string }>>(
+          'SELECT s.id FROM ath_seasons s JOIN ath_programmes pr ON pr.id = s.programme_id WHERE s.id = $1::uuid AND pr.school_id = $2::uuid',
+          input.seasonId,
+          tenant.schoolId,
+        ),
+      )) as Array<{ id: string }>;
+      if (seasonRows.length === 0) {
+        throw new BadRequestException('seasonId does not match a season in this school');
+      }
     }
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext((client) =>

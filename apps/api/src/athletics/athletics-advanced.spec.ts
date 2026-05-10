@@ -93,6 +93,7 @@ function makeKafka() {
     sourceModule: string;
     key: string;
     payload: Record<string, unknown>;
+    eventId?: string;
   }> = [];
   const kafka = {
     emit: async (opts: {
@@ -107,15 +108,46 @@ function makeKafka() {
   return { kafka, emits };
 }
 
+/**
+ * REVIEW-P2-8 BLOCKING 1 + 4 + 5 — outbox mock. Replaces the old
+ * best-effort kafka.emit with the durable outbox.enqueueInTx pattern.
+ * Captures every enqueued envelope so tests can assert topic +
+ * payload contract + deterministic event_id stability.
+ */
+function makeOutbox() {
+  const emits: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    payload: Record<string, unknown>;
+    eventId?: string;
+  }> = [];
+  const outbox = {
+    enqueueInTx: async (
+      _tx: unknown,
+      opts: {
+        topic: string;
+        sourceModule: string;
+        key: string;
+        payload: Record<string, unknown>;
+        eventId?: string;
+      },
+    ) => {
+      emits.push(opts);
+    },
+  };
+  return { outbox, emits };
+}
+
 describe('EquipmentService — AD scope gate', () => {
   it('non-admin without ath-004:write is rejected with Forbidden on create', async () => {
     const fake = makeFake(() => []);
     const permissions = { hasAnyPermissionInTenant: async () => false };
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new EquipmentService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -175,11 +207,11 @@ describe('EquipmentService.returnCheckout — replacement charge keystone', () =
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const { kafka, emits } = makeKafka();
+    const { outbox, emits } = makeOutbox();
     const svc = new EquipmentService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.returnCheckout(
@@ -248,11 +280,11 @@ describe('EquipmentService.returnCheckout — replacement charge keystone', () =
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const { kafka, emits } = makeKafka();
+    const { outbox, emits } = makeOutbox();
     const svc = new EquipmentService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.returnCheckout(checkoutId, { conditionAtReturn: 'LOST' }, ADMIN_ACTOR),
@@ -300,11 +332,11 @@ describe('EquipmentService.returnCheckout — replacement charge keystone', () =
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const { kafka, emits } = makeKafka();
+    const { outbox, emits } = makeOutbox();
     const svc = new EquipmentService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.returnCheckout(checkoutId, { conditionAtReturn: 'GOOD' }, ADMIN_ACTOR),
@@ -331,11 +363,11 @@ describe('EquipmentService.returnCheckout — replacement charge keystone', () =
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new EquipmentService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -411,10 +443,14 @@ describe('SafetyEquipmentService — UNIQUE keystone + AD gate', () => {
   });
 });
 
-describe('ConferenceService — UNIQUE(name, sport) + scope', () => {
-  it('non-admin without ath-003:write is rejected with Forbidden on create', async () => {
+describe('ConferenceService — REVIEW-P2-8 BLOCKING 3 catalogue authority + scope', () => {
+  it('non-admin (no ath-003:write) is rejected with Forbidden on create', async () => {
     const fake = makeFake(() => []);
-    const permissions = { hasAnyPermissionInTenant: async () => false };
+    const permissions = {
+      hasAnyPermissionInTenant: async () => false,
+      hasAnyPermission: async () => false,
+      resolvePlatformScope: async () => 'platform-scope-id',
+    };
     const svc = new ConferenceService(fake.tenantPrisma as never, permissions as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -423,7 +459,23 @@ describe('ConferenceService — UNIQUE(name, sport) + scope', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('UNIQUE(name, sport) catches duplicate as friendly 400', async () => {
+  it('REVIEW-P2-8 BLOCKING 3 — school admin (tenant-scope auth) is rejected on conference catalogue create', async () => {
+    const fake = makeFake(() => []);
+    // school admin holds ath-003:write at the SCHOOL scope but NOT at PLATFORM scope
+    const permissions = {
+      hasAnyPermissionInTenant: async () => true,
+      hasAnyPermission: async (_acct: string, _scope: string, _codes: string[]) => false,
+      resolvePlatformScope: async () => 'platform-scope-id',
+    };
+    const svc = new ConferenceService(fake.tenantPrisma as never, permissions as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.create({ name: 'Kansas 4A', sport: 'Basketball' }, ADMIN_ACTOR),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('platform admin (PLATFORM-scope auth) can create — UNIQUE catch translates to friendly 400', async () => {
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
       if (sql.includes('insert into ath_conferences')) {
@@ -433,7 +485,12 @@ describe('ConferenceService — UNIQUE(name, sport) + scope', () => {
       }
       return [];
     });
-    const permissions = { hasAnyPermissionInTenant: async () => true };
+    // platform admin: PLATFORM-scope sys-001:admin OR ath-003:admin
+    const permissions = {
+      hasAnyPermissionInTenant: async () => true,
+      hasAnyPermission: async () => true,
+      resolvePlatformScope: async () => 'platform-scope-id',
+    };
     const svc = new ConferenceService(fake.tenantPrisma as never, permissions as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -463,7 +520,11 @@ describe('ConferenceService — UNIQUE(name, sport) + scope', () => {
       }
       return [];
     });
-    const permissions = { hasAnyPermissionInTenant: async () => true };
+    const permissions = {
+      hasAnyPermissionInTenant: async () => true,
+      hasAnyPermission: async () => true,
+      resolvePlatformScope: async () => 'platform-scope-id',
+    };
     const svc = new ConferenceService(fake.tenantPrisma as never, permissions as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -478,6 +539,50 @@ describe('ConferenceService — UNIQUE(name, sport) + scope', () => {
         ),
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('REVIEW-P2-8 BLOCKING 3 — tenant AD cannot schedule School B vs School C (cross-school fabrication)', async () => {
+    const conferenceId = '019e0e69-aaaa-7000-8000-000000000070';
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('select c.id') && sql.includes('from ath_conferences c')) {
+        return [
+          {
+            id: conferenceId,
+            name: 'X',
+            sport: 'Basketball',
+            region: null,
+            governing_body: null,
+            is_active: true,
+            membership_count: 0,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          },
+        ];
+      }
+      return [];
+    });
+    // School AD: tenant ath-003:write but NO platform-scope catalogue admin
+    const permissions = {
+      hasAnyPermissionInTenant: async () => true,
+      hasAnyPermission: async () => false,
+      resolvePlatformScope: async () => 'platform-scope-id',
+    };
+    const svc = new ConferenceService(fake.tenantPrisma as never, permissions as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.addScheduleEntry(
+          conferenceId,
+          {
+            // Two foreign schools — neither is the actor's tenant
+            homeSchoolId: '019e0e69-aaaa-7000-8000-FFFFFFFFFFF1',
+            awaySchoolId: '019e0e69-aaaa-7000-8000-FFFFFFFFFFF2',
+            scheduledDate: '2026-01-15',
+          },
+          ADMIN_ACTOR,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
 
@@ -522,6 +627,114 @@ describe('TeamMediaService — AD scope gate', () => {
         ),
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('REVIEW-P2-8 BLOCKING regression tests — Equipment', () => {
+  it('BLOCKING 1 — replacement_charge emit lands in outbox with deterministic event_id', async () => {
+    const checkoutId = '019e0e69-aaaa-7000-8000-000000000300';
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('for update')) {
+        return [
+          {
+            id: checkoutId,
+            returned_at: null,
+            unit_cost: '95.00',
+            school_id: SCHOOL.schoolId,
+            equipment_id: '019e0e69-aaaa-7000-8000-000000000301',
+            assigned_to_person_id: '019e0e69-aaaa-7000-8000-000000000302',
+          },
+        ];
+      }
+      if (sql.includes('from ath_equipment_checkouts c')) {
+        return [
+          {
+            id: checkoutId,
+            equipment_id: '019e0e69-aaaa-7000-8000-000000000301',
+            equipment_name: 'X',
+            assigned_to_person_id: '019e0e69-aaaa-7000-8000-000000000302',
+            assigned_to_name: 'Y',
+            item_identifier: null,
+            checked_out_at: '2024-11-01',
+            expected_return_date: null,
+            returned_at: '2025-03-12',
+            condition_at_return: 'DAMAGED',
+            damage_notes: 'Torn',
+            replacement_charge: '95.00',
+            created_at: '2024-11-01T00:00:00Z',
+            updated_at: '2025-03-12T00:00:00Z',
+          },
+        ];
+      }
+      return [];
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => true };
+    const { outbox, emits } = makeOutbox();
+    const svc = new EquipmentService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      outbox as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.returnCheckout(checkoutId, { conditionAtReturn: 'DAMAGED' }, ADMIN_ACTOR),
+    );
+    expect(emits.length).toBe(1);
+    expect(emits[0]!.topic).toBe('ath.equipment.replacement_charge');
+    expect(emits[0]!.eventId).toBeDefined();
+    // v5-shaped UUID
+    expect(emits[0]!.eventId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+  });
+
+  it('BLOCKING 2 — checkout to a person not in current school is rejected', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('select e.id') && sql.includes('from ath_equipment')) {
+        // equipment exists in this school
+        return [
+          {
+            id: '019e0e69-aaaa-7000-8000-000000000400',
+            school_id: SCHOOL.schoolId,
+            programme_id: '019e0e69-aaaa-7000-8000-000000000401',
+            programme_name: 'BB',
+            item_type: 'UNIFORM',
+            item_name: 'Jersey',
+            quantity: 5,
+            condition: 'GOOD',
+            purchase_date: null,
+            unit_cost: '50.00',
+            created_at: '2026-05-01T00:00:00Z',
+            updated_at: '2026-05-01T00:00:00Z',
+          },
+        ];
+      }
+      if (sql.includes('hr_employees') && sql.includes('union all')) {
+        // assignee NOT in current school — both branches return empty
+        return [];
+      }
+      return [];
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => true };
+    const { outbox } = makeOutbox();
+    const svc = new EquipmentService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      outbox as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.checkout(
+          '019e0e69-aaaa-7000-8000-000000000400',
+          {
+            assignedToPersonId: '019e0e69-aaaa-7000-8000-FFFFFFFFFFFA',
+            itemIdentifier: 'JR-1',
+          },
+          ADMIN_ACTOR,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 

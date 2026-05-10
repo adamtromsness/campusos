@@ -47,21 +47,27 @@ export class OfficialController {
   @RequirePermission('ath-003:read')
   @ApiOperation({
     summary:
-      'Search the officials marketplace. Officials live in the platform schema (ADR-063) so search results are not tenant-scoped.',
+      'Search the officials marketplace. Officials live in the platform schema (ADR-063) so search results are not tenant-scoped. Per REVIEW-P2-8 MAJOR 3, contact email and phone are stripped for non-AD readers.',
   })
   async listProfiles(
+    @Req() req: AuthedRequest,
     @Query('sport') sport?: string,
     @Query('isAvailable', new ParseBoolPipe({ optional: true })) isAvailable?: boolean,
     @Query('availableDate') availableDate?: string,
     @Query('search') search?: string,
   ): Promise<OfficialProfileResponseDto[]> {
-    return this.officials.listProfiles({ sport, isAvailable, availableDate, search });
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.officials.listProfiles({ sport, isAvailable, availableDate, search }, actor);
   }
 
   @Get('officials/:id')
   @RequirePermission('ath-003:read')
-  async getProfile(@Param('id', ParseUUIDPipe) id: string): Promise<OfficialProfileResponseDto> {
-    return this.officials.getProfileById(id);
+  async getProfile(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OfficialProfileResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.officials.getProfileById(id, actor);
   }
 
   @Post('officials/profile')

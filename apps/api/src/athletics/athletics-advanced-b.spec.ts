@@ -104,6 +104,7 @@ function makeKafka() {
     sourceModule: string;
     key: string;
     payload: Record<string, unknown>;
+    eventId?: string;
   }> = [];
   const kafka = {
     emit: async (opts: {
@@ -118,15 +119,45 @@ function makeKafka() {
   return { kafka, emits };
 }
 
+/**
+ * REVIEW-P2-8 BLOCKING 1 + 4 + 5 — outbox mock matching the
+ * OutboxService.enqueueInTx signature. Replaces the best-effort
+ * kafka.emit in BLOCKING 4 + 5.
+ */
+function makeOutbox() {
+  const emits: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    payload: Record<string, unknown>;
+    eventId?: string;
+  }> = [];
+  const outbox = {
+    enqueueInTx: async (
+      _tx: unknown,
+      opts: {
+        topic: string;
+        sourceModule: string;
+        key: string;
+        payload: Record<string, unknown>;
+        eventId?: string;
+      },
+    ) => {
+      emits.push(opts);
+    },
+  };
+  return { outbox, emits };
+}
+
 describe('GameStreamService — AD scope gate', () => {
   it('non-admin without ath-005:write is rejected with Forbidden on configureStream', async () => {
     const fake = makeFake(() => []);
     const permissions = { hasAnyPermissionInTenant: async () => false };
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new GameStreamService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -161,11 +192,11 @@ describe('GameStreamService.addClipToPortfolio — consent keystone', () => {
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const { kafka, emits } = makeKafka();
+    const { outbox, emits } = makeOutbox();
     const svc = new GameStreamService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -195,11 +226,11 @@ describe('GameStreamService.addClipToPortfolio — consent keystone', () => {
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new GameStreamService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -256,11 +287,11 @@ describe('GameStreamService.addClipToPortfolio — consent keystone', () => {
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const { kafka, emits } = makeKafka();
+    const { outbox, emits } = makeOutbox();
     const svc = new GameStreamService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.addClipToPortfolio(clipId, ADMIN_ACTOR),
@@ -308,11 +339,11 @@ describe('OfficialService.createRating — bidirectional + UNIQUE keystone', () 
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new OfficialService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -359,11 +390,11 @@ describe('OfficialService.createRating — bidirectional + UNIQUE keystone', () 
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new OfficialService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -420,11 +451,11 @@ describe('OfficialService.transitionAssignment — COMPLETED emit + cancellation
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const { kafka, emits } = makeKafka();
+    const { outbox, emits } = makeOutbox();
     const svc = new OfficialService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.transitionAssignment(assignmentId, { status: 'COMPLETED' }, ADMIN_ACTOR),
@@ -461,11 +492,11 @@ describe('OfficialService.transitionAssignment — COMPLETED emit + cancellation
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new OfficialService(
       fake.tenantPrisma as never,
       permissions as never,
-      kafka as never,
+      outbox as never,
     );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
@@ -538,6 +569,218 @@ describe('RecruitingService — student-owned keystone', () => {
         svc.updateProfile(profileId, { coachRecommendation: 'I am a great athlete' }, studentSelf),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('REVIEW-P2-8 BLOCKING regression tests', () => {
+  it('BLOCKING 4 — portfolio link emit carries deterministic event_id (v5-shaped UUID)', async () => {
+    const clipId = '019e0e69-aaaa-7000-8000-000000000003';
+    const studentId = '019e0e69-aaaa-7000-8000-000000000030';
+    let returnAfterUpdate = false;
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('for update of c')) {
+        return [
+          {
+            id: clipId,
+            student_id: studentId,
+            consent_status: 'CONSENTED',
+            added_to_portfolio: false,
+            s3_key: 's3://test',
+            title: 'Test',
+            school_id: SCHOOL.schoolId,
+          },
+        ];
+      }
+      if (sql.includes('update ath_highlight_clips')) {
+        returnAfterUpdate = true;
+      }
+      if (sql.includes('from ath_highlight_clips c') && returnAfterUpdate) {
+        return [
+          {
+            id: clipId,
+            stream_id: '019e0e69-aaaa-7000-8000-000000000040',
+            student_id: studentId,
+            student_name: null,
+            start_time_seconds: 0,
+            end_time_seconds: 10,
+            title: 'Test',
+            description: null,
+            s3_key: 's3://test',
+            added_to_portfolio: true,
+            portfolio_item_id: null,
+            consent_status: 'CONSENTED',
+            consent_recorded_at: '2026-05-01T00:00:00Z',
+            created_by: null,
+            created_at: '2026-05-01T00:00:00Z',
+            updated_at: '2026-05-01T00:00:00Z',
+          },
+        ];
+      }
+      return [];
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => true };
+    const { outbox, emits } = makeOutbox();
+    const svc = new GameStreamService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      outbox as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.addClipToPortfolio(clipId, ADMIN_ACTOR),
+    );
+    expect(emits.length).toBe(1);
+    expect(emits[0]!.eventId).toBeDefined();
+    // v5-shaped UUID: third group starts with '5'
+    expect(emits[0]!.eventId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(emits[0]!.sourceModule).toBe('athletics');
+  });
+
+  it('BLOCKING 5 — assignment.completed emit carries deterministic event_id', async () => {
+    const assignmentId = '019e0e69-aaaa-7000-8000-000000000080';
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('for update of a')) {
+        return [
+          {
+            id: assignmentId,
+            status: 'CONFIRMED',
+            official_profile_id: '019e0e69-aaaa-7000-8000-000000000081',
+            game_id: '019e0e69-aaaa-7000-8000-000000000082',
+            fee: '75.00',
+            role: 'HEAD_REFEREE',
+            school_id: SCHOOL.schoolId,
+          },
+        ];
+      }
+      if (sql.includes('from ath_official_assignments')) {
+        return [
+          {
+            id: assignmentId,
+            game_id: '019e0e69-aaaa-7000-8000-000000000082',
+            official_profile_id: '019e0e69-aaaa-7000-8000-000000000081',
+            role: 'HEAD_REFEREE',
+            fee: '75.00',
+            status: 'COMPLETED',
+            payment_status: 'PENDING',
+            accepted_at: '2026-05-01T00:00:00Z',
+            confirmed_at: '2026-05-02T00:00:00Z',
+            completed_at: '2026-05-03T00:00:00Z',
+            cancelled_at: null,
+            cancellation_reason: null,
+            notes: null,
+            assigned_by: null,
+            created_at: '2026-05-01T00:00:00Z',
+            updated_at: '2026-05-03T00:00:00Z',
+          },
+        ];
+      }
+      return [];
+    });
+    const permissions = { hasAnyPermissionInTenant: async () => true };
+    const { outbox, emits } = makeOutbox();
+    const svc = new OfficialService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      outbox as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.transitionAssignment(assignmentId, { status: 'COMPLETED' }, ADMIN_ACTOR),
+    );
+    expect(emits.length).toBe(1);
+    expect(emits[0]!.eventId).toBeDefined();
+    expect(emits[0]!.eventId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+  });
+
+  it('BLOCKING 6 — school AD (tenant ath-003:write only) rejected on platform official profile create', async () => {
+    const fake = makeFake(() => []);
+    // School Admin holds ath-003:write at SCHOOL scope but NOT at PLATFORM scope.
+    const permissions = {
+      hasAnyPermissionInTenant: async () => true,
+      hasAnyPermission: async () => false,
+      resolvePlatformScope: async () => 'platform-scope-id',
+    };
+    const { outbox } = makeOutbox();
+    const svc = new OfficialService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      outbox as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createProfile(
+          {
+            personId: '019e0e69-aaaa-7000-8000-000000000200',
+            sports: ['BASKETBALL'],
+          },
+          ADMIN_ACTOR,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('BLOCKING 6 — platform admin (PLATFORM-scope auth) can create official profile', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('select id::text as id from platform.platform_official_profiles')) {
+        return []; // No existing profile for this person
+      }
+      if (sql.includes('insert into platform.platform_official_profiles')) {
+        return 1;
+      }
+      // getProfileById final read
+      if (sql.includes('select op.id::text')) {
+        return [
+          {
+            id: 'p1',
+            person_id: '019e0e69-aaaa-7000-8000-000000000200',
+            person_name: 'Test Official',
+            sports: ['BASKETBALL'],
+            certification_level: null,
+            certification_body: null,
+            certification_expiry: null,
+            years_experience: null,
+            max_travel_miles: null,
+            base_fee: null,
+            is_available: true,
+            bio: null,
+            contact_email: null,
+            contact_phone: null,
+            average_overall: null,
+            rating_count: 0,
+            created_at: '2026-05-01T00:00:00Z',
+            updated_at: '2026-05-01T00:00:00Z',
+          },
+        ];
+      }
+      return [];
+    });
+    // Platform admin has PLATFORM-scope assignment
+    const permissions = {
+      hasAnyPermissionInTenant: async () => true,
+      hasAnyPermission: async () => true,
+      resolvePlatformScope: async () => 'platform-scope-id',
+    };
+    const { outbox } = makeOutbox();
+    const svc = new OfficialService(
+      fake.tenantPrisma as never,
+      permissions as never,
+      outbox as never,
+    );
+    const result = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.createProfile(
+        {
+          personId: '019e0e69-aaaa-7000-8000-000000000200',
+          sports: ['BASKETBALL'],
+        },
+        ADMIN_ACTOR,
+      ),
+    );
+    expect(result.id).toBe('p1');
   });
 });
 

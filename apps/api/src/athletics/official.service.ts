@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -9,7 +10,31 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
+
+/**
+ * REVIEW-P2-8 BLOCKING 5 — deterministic event_id helper for the
+ * official-assignment completion outbox emit.
+ */
+export function deterministicAssignmentCompletedEventId(assignmentId: string): string {
+  const hash = createHash('sha1')
+    .update(assignmentId + ':ath.official.assignment.completed:v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
 import {
   CreateOfficialAssignmentDto,
   CreateOfficialAvailabilityDto,
@@ -164,9 +189,17 @@ export class OfficialService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permissions: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+
+    private readonly outbox: OutboxService,
   ) {}
 
+  /**
+   * Local AD scope — admin OR holds ath-003:write. Authority over
+   * tenant-scoped surfaces: assignment posting, lifecycle transitions,
+   * ratings. Per REVIEW-P2-8 BLOCKING 6 this scope does NOT cover
+   * canonical platform-official-profile mutation — `hasMarketplaceAdminScope`
+   * is the gate for that.
+   */
   async hasOfficialAdminScope(actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
@@ -175,14 +208,63 @@ export class OfficialService {
     ]);
   }
 
+  /**
+   * REVIEW-P2-8 BLOCKING 6 — platform marketplace admin scope. Officials
+   * are portable across schools (ADR-063) so their canonical profile +
+   * availability rows in `platform.platform_official_profiles` are
+   * platform-level data. A tenant AD must NOT be allowed to mutate the
+   * shared official's certification, base fee, sports list, or
+   * availability — that authority is reserved for Platform Admin /
+   * marketplace administrator.
+   *
+   * Verified by checking the actor holds an admin permission at
+   * PLATFORM scope specifically (not the school scope chain). School
+   * Admin's role assignments live at SCHOOL scope; only Platform Admin
+   * holds an assignment at PLATFORM scope. The Cycle 31 BLOCKING 2 helper
+   * `resolvePlatformScope()` is the load-bearing primitive.
+   *
+   * Today only Platform Admin holds this authority. A future dedicated
+   * marketplace-admin role can be added at PLATFORM scope once the
+   * official-self-service onboarding path lands.
+   */
+  async hasMarketplaceAdminScope(actor: ResolvedActor): Promise<boolean> {
+    const platformScope = await this.permissions.resolvePlatformScope();
+    if (!platformScope) return false;
+    return this.permissions.hasAnyPermission(actor.accountId, platformScope, [
+      'sys-001:admin',
+      'ath-003:admin',
+    ]);
+  }
+
   // ── Platform-schema profile management ──────────────────────────
 
-  async listProfiles(filters: {
-    sport?: string;
-    isAvailable?: boolean;
-    availableDate?: string;
-    search?: string;
-  }): Promise<OfficialProfileResponseDto[]> {
+  /**
+   * REVIEW-P2-8 MAJOR 3 — strip contact fields for readers without
+   * assignment authority. Direct contact (email + phone) is exposed
+   * only to ath-003:write holders + admins. Non-admin browse-only
+   * readers (other school staff with ath-003:read) get the public
+   * marketplace shape: certification + sports + base fee + bio +
+   * average rating, but not direct contact details.
+   */
+  private async stripContactsIfNeeded(
+    actor: ResolvedActor | undefined,
+    dto: OfficialProfileResponseDto,
+  ): Promise<OfficialProfileResponseDto> {
+    if (!actor) return { ...dto, contactEmail: null, contactPhone: null };
+    const hasAssignmentAuthority = await this.hasOfficialAdminScope(actor);
+    if (hasAssignmentAuthority) return dto;
+    return { ...dto, contactEmail: null, contactPhone: null };
+  }
+
+  async listProfiles(
+    filters: {
+      sport?: string;
+      isAvailable?: boolean;
+      availableDate?: string;
+      search?: string;
+    },
+    actor?: ResolvedActor,
+  ): Promise<OfficialProfileResponseDto[]> {
     const platform = this.tenantPrisma.getPlatformClient();
     const sql: string[] = [
       'SELECT op.id::text AS id, op.person_id::text AS person_id, ',
@@ -227,10 +309,12 @@ export class OfficialService {
     }
     sql.push('ORDER BY op.is_available DESC, p.last_name ASC LIMIT 200');
     const rows = (await platform.$queryRawUnsafe(sql.join(''), ...params)) as OfficialProfileRow[];
-    return rows.map((r) => this.profileRowToDto(r));
+    const dtos = rows.map((r) => this.profileRowToDto(r));
+    const stripped = await Promise.all(dtos.map((d) => this.stripContactsIfNeeded(actor, d)));
+    return stripped;
   }
 
-  async getProfileById(id: string): Promise<OfficialProfileResponseDto> {
+  async getProfileById(id: string, actor?: ResolvedActor): Promise<OfficialProfileResponseDto> {
     const platform = this.tenantPrisma.getPlatformClient();
     const rows = (await platform.$queryRawUnsafe(
       'SELECT op.id::text AS id, op.person_id::text AS person_id, ' +
@@ -266,7 +350,7 @@ export class OfficialService {
       dto.ratingCount = Number(ratingRows[0].cnt);
     }
     void tenant;
-    return dto;
+    return this.stripContactsIfNeeded(actor, dto);
   }
 
   private profileRowToDto(r: OfficialProfileRow): OfficialProfileResponseDto {
@@ -296,10 +380,14 @@ export class OfficialService {
     input: CreateOfficialProfileDto,
     actor: ResolvedActor,
   ): Promise<OfficialProfileResponseDto> {
-    // Officials are platform entities — admin-only by current AD authority
-    // (the official-self-service onboarding path is a Phase 2 carry-over).
-    if (!(await this.hasOfficialAdminScope(actor))) {
-      throw new ForbiddenException('Only the AD or admin can create official profiles');
+    // REVIEW-P2-8 BLOCKING 6 — official profiles live in the platform
+    // schema and are shared across schools (ADR-063). Tenant ADs must
+    // NOT be allowed to mutate the canonical record. Only platform
+    // marketplace admin / Platform Admin can create an official profile.
+    if (!(await this.hasMarketplaceAdminScope(actor))) {
+      throw new ForbiddenException(
+        'Only platform marketplace admins can create official profiles. School ADs can post assignments + submit ratings under ath-003:write but cannot mutate the canonical platform record.',
+      );
     }
     if (input.sports.length === 0) {
       throw new BadRequestException('sports must contain at least one entry');
@@ -341,8 +429,11 @@ export class OfficialService {
     input: UpdateOfficialProfileDto,
     actor: ResolvedActor,
   ): Promise<OfficialProfileResponseDto> {
-    if (!(await this.hasOfficialAdminScope(actor))) {
-      throw new ForbiddenException('Only the AD or admin can update official profiles');
+    // REVIEW-P2-8 BLOCKING 6 — same gate as createProfile.
+    if (!(await this.hasMarketplaceAdminScope(actor))) {
+      throw new ForbiddenException(
+        'Only platform marketplace admins can update official profiles. The canonical record is shared across schools.',
+      );
     }
     const platform = this.tenantPrisma.getPlatformClient();
     const sets: string[] = [];
@@ -444,8 +535,13 @@ export class OfficialService {
     input: CreateOfficialAvailabilityDto,
     actor: ResolvedActor,
   ): Promise<OfficialAvailabilityResponseDto> {
-    if (!(await this.hasOfficialAdminScope(actor))) {
-      throw new ForbiddenException('Only the AD or admin can set official availability');
+    // REVIEW-P2-8 BLOCKING 6 — availability is part of the canonical
+    // platform record. School ADs cannot author it on behalf; the
+    // official-self-service flow lives at marketplace-admin scope today.
+    if (!(await this.hasMarketplaceAdminScope(actor))) {
+      throw new ForbiddenException(
+        'Only platform marketplace admins can set official availability. The canonical record is shared across schools.',
+      );
     }
     if (
       (input.startTime !== undefined && input.endTime === undefined) ||
@@ -658,8 +754,6 @@ export class OfficialService {
     if (!(await this.hasOfficialAdminScope(actor))) {
       throw new ForbiddenException('Only the AD or admin can transition official assignments');
     }
-    let didEmitCompleted = false;
-    let kafkaPayload: Record<string, unknown> | null = null;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const t = tx as {
         $queryRawUnsafe: <T>(sql: string, ...args: unknown[]) => Promise<T>;
@@ -732,33 +826,30 @@ export class OfficialService {
           '::uuid',
         ...params,
       );
+      // REVIEW-P2-8 BLOCKING 5 — durable outbox INSIDE the same tx so
+      // a Kafka outage never drops the AP-billing event silently. The
+      // OutboxPublisherWorker delivers with retry; the deterministic
+      // event_id makes downstream AP consumer idempotency catch redelivery.
       if (input.status === 'COMPLETED') {
-        didEmitCompleted = true;
-        kafkaPayload = {
-          assignmentId: id,
-          gameId: lock[0]!.game_id,
-          officialProfileId: lock[0]!.official_profile_id,
-          role: lock[0]!.role,
-          fee: Number(lock[0]!.fee),
-          schoolId: tenant.schoolId,
-          completedAt: new Date().toISOString(),
-          sourceRefId: id,
-        };
+        await this.outbox.enqueueInTx(tx as never, {
+          topic: 'ath.official.assignment.completed',
+          key: id,
+          sourceModule: 'athletics',
+          eventId: deterministicAssignmentCompletedEventId(id),
+          payload: {
+            assignmentId: id,
+            gameId: lock[0]!.game_id,
+            officialProfileId: lock[0]!.official_profile_id,
+            role: lock[0]!.role,
+            fee: Number(lock[0]!.fee),
+            schoolId: tenant.schoolId,
+            completedAt: new Date().toISOString(),
+            sourceRefId: id,
+          },
+        });
       }
     });
 
-    if (didEmitCompleted && kafkaPayload) {
-      try {
-        await this.kafka.emit({
-          topic: 'ath.official.assignment.completed',
-          key: id,
-          payload: kafkaPayload,
-          sourceModule: 'athletics',
-        });
-      } catch {
-        // Best-effort emit
-      }
-    }
     return this.getAssignmentById(id);
   }
 

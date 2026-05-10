@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -9,7 +10,34 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
+
+/**
+ * REVIEW-P2-8 BLOCKING 1 — deterministic event_id helper for the
+ * replacement-charge outbox emit. Same v5-shaped UUID pattern as the
+ * P2-4a payroll + P2-6 credit-note + Cycle 7 video-uploaded helpers
+ * so a redelivered event lands the same envelope and the Cycle 6
+ * billing consumer's idempotency catches the dup cleanly.
+ */
+export function deterministicReplacementChargeEventId(checkoutId: string): string {
+  const hash = createHash('sha1')
+    .update(checkoutId + ':ath.equipment.replacement_charge:v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
 import {
   CheckoutEquipmentDto,
   CreateEquipmentDto,
@@ -160,8 +188,49 @@ export class EquipmentService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permissions: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
+
+  /**
+   * REVIEW-P2-8 BLOCKING 2 — validate that an `assignedToPersonId`
+   * UUID belongs to a current-school student or staff member before
+   * the checkout INSERT. Mirrors the Cycle 6.1 + Cycle 22 +
+   * Cycle 26 + Cycle 27 + Cycle 27 fix-pattern. Mirrors the
+   * `assertAccountInCurrentTenant` helper from `apps/api/src/it/`
+   * but is keyed on iam_person.id rather than platform_users.id.
+   *
+   * Resolves true for personIds that have at least one of:
+   *   - sis_students.platform_student_id → platform_students.person_id
+   *     match in the current school
+   *   - hr_employees.person_id match in the current school
+   *
+   * Other tenant projections (sis_guardians) are intentionally not
+   * accepted — equipment checkouts are issued to students or staff,
+   * not guardians.
+   */
+  private async assertAssigneeInCurrentSchool(
+    client: { $queryRawUnsafe: <T>(sql: string, ...args: unknown[]) => Promise<T> },
+    assigneePersonId: string,
+  ): Promise<void> {
+    const tenant = getCurrentTenant();
+    const rows = (await client.$queryRawUnsafe(
+      'SELECT 1::int AS hit FROM (' +
+        'SELECT s.id FROM sis_students s ' +
+        'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+        'WHERE ps.person_id = $1::uuid AND s.school_id = $2::uuid ' +
+        'UNION ALL ' +
+        'SELECT e.id FROM hr_employees e ' +
+        'WHERE e.person_id = $1::uuid AND e.school_id = $2::uuid' +
+        ') q LIMIT 1',
+      assigneePersonId,
+      tenant.schoolId,
+    )) as Array<{ hit: number }>;
+    if (rows.length === 0) {
+      throw new BadRequestException(
+        'assignedToPersonId does not match a student or staff member in this school',
+      );
+    }
+  }
 
   /**
    * AD scope — admin OR holds ATH-004:write. Generic Staff covers the
@@ -319,6 +388,13 @@ export class EquipmentService {
     await this.getById(equipmentId);
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2-8 BLOCKING 2 — verify the assignee belongs to the
+      // current school before the INSERT lands an iam_person ref the
+      // tenant has no relationship with.
+      await this.assertAssigneeInCurrentSchool(
+        client as { $queryRawUnsafe: <T>(sql: string, ...args: unknown[]) => Promise<T> },
+        input.assignedToPersonId,
+      );
       await client.$executeRawUnsafe(
         'INSERT INTO ath_equipment_checkouts (id, equipment_id, assigned_to_person_id, item_identifier, checked_out_at, expected_return_date) ' +
           'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::date, $6::date)',
@@ -342,8 +418,6 @@ export class EquipmentService {
       throw new ForbiddenException('Only the AD or admin can record equipment returns');
     }
     const tenant = getCurrentTenant();
-    let damaged = false;
-    let kafkaPayload: Record<string, unknown> | null = null;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // Lock checkout row + verify equipment is in this school
       const lockRows = (await tx.$queryRawUnsafe(
@@ -370,6 +444,7 @@ export class EquipmentService {
 
       // Default replacement_charge to equipment unit_cost when DAMAGED or LOST
       let charge: number | null = null;
+      let damaged = false;
       if (input.conditionAtReturn === 'DAMAGED' || input.conditionAtReturn === 'LOST') {
         damaged = true;
         if (input.replacementCharge !== undefined) {
@@ -391,32 +466,31 @@ export class EquipmentService {
         checkoutId,
       );
 
+      // REVIEW-P2-8 BLOCKING 1 — durable outbox INSIDE the same tx so
+      // a Kafka outage never drops the billing event silently. The
+      // OutboxPublisherWorker delivers with retry; the deterministic
+      // event_id makes downstream consumer idempotency catch redelivery
+      // cleanly.
       if (damaged && charge !== null) {
-        kafkaPayload = {
-          checkoutId,
-          equipmentId: row.equipment_id,
-          assignedToPersonId: row.assigned_to_person_id,
-          conditionAtReturn: input.conditionAtReturn,
-          replacementCharge: charge,
-          damageNotes: input.damageNotes ?? null,
-          schoolId: tenant.schoolId,
-          sourceRefId: checkoutId,
-        };
+        await this.outbox.enqueueInTx(tx as never, {
+          topic: 'ath.equipment.replacement_charge',
+          key: checkoutId,
+          sourceModule: 'athletics',
+          eventId: deterministicReplacementChargeEventId(checkoutId),
+          payload: {
+            checkoutId,
+            equipmentId: row.equipment_id,
+            assignedToPersonId: row.assigned_to_person_id,
+            conditionAtReturn: input.conditionAtReturn,
+            replacementCharge: charge,
+            damageNotes: input.damageNotes ?? null,
+            schoolId: tenant.schoolId,
+            sourceRefId: checkoutId,
+          },
+        });
       }
     });
 
-    if (kafkaPayload) {
-      try {
-        await this.kafka.emit({
-          topic: 'ath.equipment.replacement_charge',
-          key: checkoutId,
-          payload: kafkaPayload,
-          sourceModule: 'athletics',
-        });
-      } catch {
-        // Best-effort emit per existing convention
-      }
-    }
     return this.getCheckoutById(checkoutId);
   }
 

@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
@@ -233,6 +238,30 @@ export class TeamMediaService {
       );
       if (prog.length === 0) {
         throw new NotFoundException('Programme not found');
+      }
+    }
+    // REVIEW-P2-8 MAJOR 1 — validate seasonId belongs to the current
+    // school via ath_seasons → ath_programmes.school_id chain. If both
+    // programmeId and seasonId are supplied, also enforce the season
+    // belongs to that programme.
+    if (input.seasonId) {
+      const seasonSql =
+        input.programmeId !== undefined
+          ? 'SELECT s.id FROM ath_seasons s JOIN ath_programmes pr ON pr.id = s.programme_id WHERE s.id = $1::uuid AND pr.school_id = $2::uuid AND s.programme_id = $3::uuid'
+          : 'SELECT s.id FROM ath_seasons s JOIN ath_programmes pr ON pr.id = s.programme_id WHERE s.id = $1::uuid AND pr.school_id = $2::uuid';
+      const seasonArgs: unknown[] =
+        input.programmeId !== undefined
+          ? [input.seasonId, tenant.schoolId, input.programmeId]
+          : [input.seasonId, tenant.schoolId];
+      const seasonRows = (await this.tenantPrisma.executeInTenantContext((client) =>
+        client.$queryRawUnsafe<Array<{ id: string }>>(seasonSql, ...seasonArgs),
+      )) as Array<{ id: string }>;
+      if (seasonRows.length === 0) {
+        throw new BadRequestException(
+          input.programmeId !== undefined
+            ? 'seasonId does not match a season for this programme in this school'
+            : 'seasonId does not match a season in this school',
+        );
       }
     }
     const id = generateId();
