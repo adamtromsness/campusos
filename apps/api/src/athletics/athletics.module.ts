@@ -24,6 +24,14 @@ import { ConcussionProtocolService } from './concussion-protocol.service';
 import { ConcussionProtocolController } from './concussion-protocol.controller';
 import { MedicalClearanceService } from './medical-clearance.service';
 import { MedicalClearanceController } from './medical-clearance.controller';
+import { EquipmentService } from './equipment.service';
+import { EquipmentController } from './equipment.controller';
+import { SafetyEquipmentService } from './safety-equipment.service';
+import { SafetyEquipmentController } from './safety-equipment.controller';
+import { ConferenceService } from './conference.service';
+import { ConferenceController } from './conference.controller';
+import { TeamMediaService } from './team-media.service';
+import { TeamMediaController } from './team-media.controller';
 
 /**
  * Athletics Module — Cycle 13 Steps 5 + 6 + 7.
@@ -67,6 +75,11 @@ import { MedicalClearanceController } from './medical-clearance.controller';
     InjuryService,
     ConcussionProtocolService,
     MedicalClearanceService,
+    // P2-8a — Athletics Advanced (Equipment + Conferences + Media)
+    EquipmentService,
+    SafetyEquipmentService,
+    ConferenceService,
+    TeamMediaService,
   ],
   controllers: [
     ProgrammeController,
@@ -80,6 +93,11 @@ import { MedicalClearanceController } from './medical-clearance.controller';
     InjuryController,
     ConcussionProtocolController,
     MedicalClearanceController,
+    // P2-8a controllers
+    EquipmentController,
+    SafetyEquipmentController,
+    ConferenceController,
+    TeamMediaController,
   ],
   exports: [
     ProgrammeService,
@@ -93,6 +111,10 @@ import { MedicalClearanceController } from './medical-clearance.controller';
     InjuryService,
     ConcussionProtocolService,
     MedicalClearanceService,
+    EquipmentService,
+    SafetyEquipmentService,
+    ConferenceService,
+    TeamMediaService,
   ],
 })
 export class AthleticsModule {}

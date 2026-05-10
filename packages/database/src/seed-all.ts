@@ -107,6 +107,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Payments Advanced — financial aid, lunch accounts, billing ops (P2-6)',
     script: 'seed-payments-advanced.ts',
   },
+  {
+    label: 'Athletics Advanced — equipment, conferences, media (P2-8a)',
+    script: 'seed-athletics-advanced-a.ts',
+  },
 ];
 
 async function main(): Promise<void> {
