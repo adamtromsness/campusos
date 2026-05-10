@@ -161,3 +161,96 @@ tenant_demo.sub_cancellation_policies               (new — 1 demo row)
 ```
 
 Tenant base table count increment: +9. Total tenant base tables on `tenant_demo` after P2-9a: ~529 (was ~520 after P2-8).
+
+---
+
+# P2-9b additions (2026-05-10)
+
+This section extends the P2-9 review notes with the P2-9b backend completion. P2-9c will add UI + tests + the deferred shadow-employee path.
+
+## 11. Cover-arrangement consumer — CANCELLED-not-ASSIGNED design
+
+**The constraint:** `sch_coverage_requests.assigned_substitute_id` is a real DB-enforced FK to `hr_employees(id)` (Cycle 5 Step 3 schema, tenant-scoped). Marketplace substitutes per ADR-029 live in `platform.platform_substitute_profiles` with no `hr_employees` row in the calling tenant.
+
+**The choice:** `CoverArrangementConsumer.linkCoverArrangement` flips matching coverage requests OPEN → CANCELLED with notes pointing at the marketplace assignment id. This is the cleanest signal to the scheduling module that the slot is covered without trying to wedge a platform substitute into a tenant FK that won't satisfy.
+
+**The Phase 2 fix:** auto-create a shadow `hr_employees` row when a marketplace substitute first accepts a job at a school. The shadow row stamps `person_id` from the platform substitute's `iam_person.id`, sets `employment_type='SUBSTITUTE'`, and lives in the tenant for the lifetime of the school's relationship with that substitute. With the shadow row in place, the consumer can flip OPEN → ASSIGNED, populate `assigned_substitute_id`, and stamp `assigned_at`.
+
+**Why deferred:** the shadow row creation has knock-on implications for the Cycle 4 HR module (does this employee show up in the directory? in payroll? in the org chart?) and the Cycle 7 TaskWorker (does it own tasks? receive notifications?). These need a deliberate product decision before the auto-creation lands. P2-9c bandwidth permitting; otherwise carries to a Phase 2 punch list item alongside the Substitute role split.
+
+## 12. Late-cancellation policy escalation — service vs schema invariants
+
+The schema enforces:
+
+- `sub_assignments.cancelled_chk` keeps cancelled_at + cancelled_by_type populated atomically with status=CANCELLED/NO_SHOW.
+- `sub_cancellation_policies.suspension_chk` requires `suspension_duration_days IS NOT NULL` when `consequence='TEMPORARY_POOL_SUSPENSION'`.
+- `sub_cancellation_policies.penalty_chk` requires `rating_penalty_amount IS NOT NULL` when `consequence='RATING_PENALTY'`.
+
+The service enforces:
+
+- `AssignmentService.cancel` validates `cancellationReason` is non-empty before any UPDATE.
+- `CancellationPolicyService.upsert` validates the consequence/detail lockstep app-side BEFORE the INSERT/UPDATE so the DB CHECK never fires; PATCH semantics merge with the current row to honour partial updates.
+- `CancellationPolicyConsumer.applyConsequence` reads the policy + counts late cancellations atomically inside one tenant tx; the `late_cancellation_consequence_applied` stamp idempotently signals that the consequence has been processed.
+
+**6-month lookback window** for repeat-offence count is hard-coded for now. Schools with policies that need a different window (e.g. 12 months, or an academic year) will surface this in early pilot — the change is a single SQL interval edit in `CancellationPolicyConsumer`.
+
+## 13. RatingService re-materialisation — tenant scope today
+
+`RatingService.rematerialiseOverallRating(substituteId)` runs a query against the calling tenant's `sub_ratings` only. A substitute who works at multiple schools today gets each school's tenant computing its own AVG separately, with the platform-side `overall_rating` reflecting only the most recent tenant's view. This is a **known limitation documented in section 6 of the original review notes**.
+
+**Cross-tenant rolling AVG** would require either:
+
+- (a) Iterating every active school's tenant_schema in a single re-materialisation call (slow + tenant-routing-friendly but ops-heavy), or
+- (b) A platform-side rating-snapshot table that consumes `sub.rating.created` events from every tenant and maintains the cross-tenant aggregate (cleaner architecture but a Phase 2 polish task).
+
+For P2-9b the single-tenant aggregate is correct enough — most substitutes will work at one school for the foreseeable demo phase.
+
+## 14. RATING_PENALTY consequence — synthetic rating row
+
+The RATING_PENALTY branch in `CancellationPolicyConsumer` inserts a synthetic SCHOOL_RATES_SUB row tagged in `comments` as "AUTO-APPLIED RATING_PENALTY (cancellation policy)" with `overall_score = max(1.0, 5.0 - rating_penalty_amount)`. The UNIQUE(assignment_id, rater_type) catches a manual SCHOOL_RATES_SUB rating after the auto-applied one, so the CONFLICT DO NOTHING clause skips the auto-row when an admin has already submitted one — the admin rating wins.
+
+This means schools that configure `RATING_PENALTY` and then also actively rate the substitute will see the manual rating, not the auto-applied penalty. Documented; the natural product call is "if you're going to rate them anyway, do that, and skip the auto-penalty."
+
+## 15. Acceptance-window expiry — the partial-index hot path
+
+`AcceptanceExpiryWorker.tick` runs `UPDATE sub_job_notifications WHERE response='PENDING' AND acceptance_window_expires_at <= now()` per tenant. The schema's partial index `sub_job_notifications_pending_expiry_idx ON (acceptance_window_expires_at) WHERE response='PENDING'` is the planner's hot path — without it the worker would full-scan every notification row per tick.
+
+The worker's idempotency is structural: the WHERE-filter on `response='PENDING'` means a row that's already been flipped to EXPIRED (or ACCEPTED, or DECLINED) is excluded from the next sweep. No deterministic event_id, no Redis dedup needed — the schema is the gate.
+
+## 16. JobNotificationWorker — matching engine reuse
+
+The tier-2 escalation worker reuses the SubstituteProfileService matching engine SQL shape almost verbatim:
+
+```sql
+WHERE p.is_active=true AND p.is_available=true
+  AND NOT EXISTS (BLOCKED preference)
+  AND EXISTS (VERIFIED credential)
+  AND (RECURRING or SPECIFIC for date)
+  AND NOT EXISTS (BLOCKED for date)
+  AND grade_levels && ARRAY[$grade]::text[]  -- when job has grade_level
+```
+
+If no candidates exist, the worker still flips `notification_tier='MARKETPLACE'` so the job doesn't sit in re-poll forever. The next cron tick won't re-process the job (the tier filter excludes it). An admin can then manually mark the job UNFILLED via a future endpoint.
+
+## 17. Cancellation policy consumer reading school policy on each event
+
+`CancellationPolicyConsumer.applyConsequence` reads the school cancellation policy fresh on every event. This means a policy change between two late-cancellations applies the new policy to the second event. By design — the policy is the school's current intent.
+
+## CI parity status (P2-9b)
+
+- `pnpm --filter @campusos/api build` — clean.
+- `pnpm format:check` — clean.
+- `pnpm lint:logs` — 697 files clean (was 685 after P2-9a; +12 new TS files).
+- API boot — 21 P2-9b routes register at `/api/v1/substitutes/*` (verified live).
+- API boot — 2 workers schedule (`AcceptanceExpiryWorker`, `JobNotificationWorker`) with default warmup=30s/interval=60s.
+- API boot — 2 consumers register (`cancellation-policy-consumer` on `dev.sub.assignment.late_cancelled`, `cover-arrangement-consumer` on `dev.sub.assignment.confirmed`).
+- `pnpm vitest` — **not run** for P2-9b; vitest tests defer to P2-9c.
+
+## Cumulative Cycle 9 status after P2-9b
+
+- 13 tables (4 platform + 9 tenant, unchanged from P2-9a).
+- **34 endpoints** (13 P2-9a + 21 P2-9b).
+- **8 services + 1 consumer cluster (`SubstitutesModule`)** — Profile + SchoolPool + JobPosting (P2-9a) + Availability + Preference + Assignment + Rating + SessionNote + PayRate + CancellationPolicy (P2-9b).
+- **2 background workers** (P2-9b).
+- **2 Kafka consumers** (P2-9b).
+- **4 Kafka emit topics** (2 P2-9a outbox emits + 1 P2-9b deterministic outbox emit + 1 P2-9b worker outbox emit).

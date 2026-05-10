@@ -380,6 +380,9 @@ export class JobPostingService {
         checkInAt: null,
         checkOutAt: null,
         isLateCancellation: false,
+        cancelledAt: null,
+        cancelledByType: null,
+        cancellationReason: null,
       };
     });
   }

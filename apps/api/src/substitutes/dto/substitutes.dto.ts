@@ -278,4 +278,279 @@ export class AssignmentResponseDto {
   @ApiProperty({ nullable: true }) checkInAt!: string | null;
   @ApiProperty({ nullable: true }) checkOutAt!: string | null;
   @ApiProperty() isLateCancellation!: boolean;
+  @ApiProperty({ nullable: true }) cancelledAt!: string | null;
+  @ApiProperty({ nullable: true }) cancelledByType!: 'SCHOOL' | 'SUBSTITUTE' | null;
+  @ApiProperty({ nullable: true }) cancellationReason!: string | null;
+}
+
+// ── Availability DTOs ───────────────────────────────────────────────
+
+export const AVAILABILITY_TYPES = ['RECURRING', 'SPECIFIC', 'BLOCKED'] as const;
+export type AvailabilityType = (typeof AVAILABILITY_TYPES)[number];
+
+export class CreateAvailabilityDto {
+  @ApiProperty({ enum: AVAILABILITY_TYPES })
+  @IsIn(AVAILABILITY_TYPES as unknown as string[])
+  availabilityType!: AvailabilityType;
+
+  @ApiPropertyOptional({ description: '0=Sun..6=Sat; required when availabilityType=RECURRING.' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  dayOfWeek?: number;
+
+  @ApiPropertyOptional({ description: 'ISO date; required when SPECIFIC or BLOCKED.' })
+  @IsOptional()
+  @IsDateString()
+  specificDate?: string;
+
+  @ApiPropertyOptional({ description: 'HH:MM. Optional — NULL pair means whole-day window.' })
+  @IsOptional()
+  @IsString()
+  startTime?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  endTime?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class AvailabilityResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() substituteId!: string;
+  @ApiProperty({ enum: AVAILABILITY_TYPES }) availabilityType!: AvailabilityType;
+  @ApiProperty({ nullable: true }) dayOfWeek!: number | null;
+  @ApiProperty({ nullable: true }) specificDate!: string | null;
+  @ApiProperty({ nullable: true }) startTime!: string | null;
+  @ApiProperty({ nullable: true }) endTime!: string | null;
+  @ApiProperty({ nullable: true }) notes!: string | null;
+}
+
+// ── Preference DTOs ─────────────────────────────────────────────────
+
+export const PREFERENCE_TYPES = ['PREFERRED', 'BLOCKED'] as const;
+export type PreferenceType = (typeof PREFERENCE_TYPES)[number];
+
+export class CreatePreferenceDto {
+  @ApiProperty()
+  @IsUUID()
+  schoolId!: string;
+
+  @ApiProperty({ enum: PREFERENCE_TYPES })
+  @IsIn(PREFERENCE_TYPES as unknown as string[])
+  preferenceType!: PreferenceType;
+
+  @ApiPropertyOptional({ description: 'Private — visible to substitute only.' })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class PreferenceResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() substituteId!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty({ enum: PREFERENCE_TYPES }) preferenceType!: PreferenceType;
+  @ApiProperty({ nullable: true }) reason!: string | null;
+}
+
+// ── Assignment DTOs ─────────────────────────────────────────────────
+
+export class CancelAssignmentDto {
+  @ApiProperty({ enum: ['SCHOOL', 'SUBSTITUTE'] })
+  @IsIn(['SCHOOL', 'SUBSTITUTE'])
+  cancelledByType!: 'SCHOOL' | 'SUBSTITUTE';
+
+  @ApiProperty()
+  @IsString()
+  cancellationReason!: string;
+}
+
+// ── Rating DTOs ─────────────────────────────────────────────────────
+
+export const RATER_TYPES = ['SCHOOL_RATES_SUB', 'SUB_RATES_SCHOOL'] as const;
+export type RaterType = (typeof RATER_TYPES)[number];
+
+export class CreateRatingDto {
+  @ApiProperty({ enum: RATER_TYPES })
+  @IsIn(RATER_TYPES as unknown as string[])
+  raterType!: RaterType;
+
+  @ApiPropertyOptional({ description: '1.0–5.0' })
+  @IsOptional()
+  overallScore?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  professionalism?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  punctuality?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  comments?: string;
+}
+
+export class RatingResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() assignmentId!: string;
+  @ApiProperty({ enum: RATER_TYPES }) raterType!: RaterType;
+  @ApiProperty({ nullable: true }) overallScore!: string | null;
+  @ApiProperty({ nullable: true }) professionalism!: string | null;
+  @ApiProperty({ nullable: true }) punctuality!: string | null;
+  @ApiProperty({ nullable: true }) comments!: string | null;
+  @ApiProperty() ratedAt!: string;
+  @ApiProperty({ nullable: true }) ratedBy!: string | null;
+}
+
+// ── Session Note DTOs ───────────────────────────────────────────────
+
+export class CreateSessionNoteDto {
+  @ApiProperty()
+  @IsString()
+  notesText!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  homeworkSet?: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isVisibleToTeacher?: boolean;
+}
+
+export class SessionNoteResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() assignmentId!: string;
+  @ApiProperty() notesText!: string;
+  @ApiProperty({ nullable: true }) homeworkSet!: string | null;
+  @ApiProperty() isVisibleToTeacher!: boolean;
+  @ApiProperty() submittedAt!: string;
+}
+
+// ── Pay Rate DTOs ───────────────────────────────────────────────────
+
+export const RATE_TYPES = ['HOURLY', 'DAILY', 'HALF_DAY'] as const;
+export type RateType = (typeof RATE_TYPES)[number];
+
+export class CreatePayRateDto {
+  @ApiPropertyOptional({
+    description: 'Omit (or use the sentinel zero UUID) for the school default rate.',
+  })
+  @IsOptional()
+  @IsUUID()
+  substituteId?: string;
+
+  @ApiPropertyOptional({ enum: JOB_TYPES })
+  @IsOptional()
+  @IsIn(JOB_TYPES as unknown as string[])
+  jobType?: JobType;
+
+  @ApiProperty()
+  rate!: number;
+
+  @ApiPropertyOptional({ enum: RATE_TYPES, default: 'DAILY' })
+  @IsOptional()
+  @IsIn(RATE_TYPES as unknown as string[])
+  rateType?: RateType;
+
+  @ApiProperty()
+  @IsDateString()
+  effectiveFrom!: string;
+
+  @ApiPropertyOptional({ description: 'Open-ended when omitted.' })
+  @IsOptional()
+  @IsDateString()
+  effectiveTo?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class PayRateResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() substituteId!: string;
+  @ApiProperty({ enum: JOB_TYPES }) jobType!: JobType;
+  @ApiProperty() rate!: string;
+  @ApiProperty({ enum: RATE_TYPES }) rateType!: RateType;
+  @ApiProperty() effectiveFrom!: string;
+  @ApiProperty({ nullable: true }) effectiveTo!: string | null;
+  @ApiProperty({ nullable: true }) notes!: string | null;
+}
+
+export class AssignmentPayDto {
+  @ApiProperty() assignmentId!: string;
+  @ApiProperty() rate!: string;
+  @ApiProperty({ enum: RATE_TYPES }) rateType!: RateType;
+  @ApiProperty() rateSource!: 'PER_SUBSTITUTE' | 'SCHOOL_DEFAULT';
+  @ApiProperty({ nullable: true }) payRateId!: string | null;
+}
+
+// ── Cancellation Policy DTOs ────────────────────────────────────────
+
+export const CANCEL_CONSEQUENCES = [
+  'WARNING_ONLY',
+  'TEMPORARY_POOL_SUSPENSION',
+  'PERMANENT_POOL_REMOVAL',
+  'RATING_PENALTY',
+] as const;
+export type CancelConsequence = (typeof CANCEL_CONSEQUENCES)[number];
+
+export class UpsertCancellationPolicyDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  lateWindowHours?: number;
+
+  @ApiPropertyOptional({ enum: CANCEL_CONSEQUENCES })
+  @IsOptional()
+  @IsIn(CANCEL_CONSEQUENCES as unknown as string[])
+  consequence?: CancelConsequence;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  suspensionDurationDays?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  repeatOffenceThreshold?: number;
+
+  @ApiPropertyOptional({ description: '1.0–5.0 penalty applied on RATING_PENALTY.' })
+  @IsOptional()
+  ratingPenaltyAmount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class CancellationPolicyResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() lateWindowHours!: number;
+  @ApiProperty({ enum: CANCEL_CONSEQUENCES }) consequence!: CancelConsequence;
+  @ApiProperty({ nullable: true }) suspensionDurationDays!: number | null;
+  @ApiProperty() repeatOffenceThreshold!: number;
+  @ApiProperty({ nullable: true }) ratingPenaltyAmount!: string | null;
+  @ApiProperty({ nullable: true }) notes!: string | null;
+  @ApiProperty() updatedAt!: string;
 }
