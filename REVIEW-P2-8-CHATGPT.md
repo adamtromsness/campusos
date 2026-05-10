@@ -3,7 +3,11 @@
 **Plan:** `docs/campusos-p2c8-athletics-advanced.html` (M66 Athletics .1; 18 ERD tables across 2 sub-cycles).
 **Round 1 reviewed:** P2-8a `62ba7aa` + P2-8b `7d7c93d` (combined).
 **Round 1 verdict:** **FAIL — 6 BLOCKING + 4 MAJOR.**
-**Round 1 fix commit:** _this commit_.
+**Round 1 fix commit:** `e05b6ae`.
+**Round 2 reviewed:** `e05b6ae`.
+**Round 2 verdict:** **PASS — every dimension green.** Reviewer flagged 2 non-blocking follow-ups (controller metadata clarity for marketplace-admin routes; conference membership/schedule public-vs-admin DTO split) — both correctly carried as Phase 2 polish per the reviewer's gate decision.
+
+Tagged `p2c8-complete` at `e05b6ae` and `p2c8-approved` at the closeout commit. **Cycle 8 ships clean.**
 
 ---
 
