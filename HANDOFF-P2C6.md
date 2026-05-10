@@ -1,6 +1,37 @@
 # HANDOFF — Phase 2 Cycle 6 (P2-6) Payments Advanced
 
-**Status:** COMPLETE pending peer review. **All 10 steps shipped across two sessions:** P2-6a (steps 1–7 + 10) and P2-6b (steps 8 + 9 + tests). Plan reference: `docs/campusos-p2c6-payments-advanced.html`.
+**Status:** REVIEW-P2-6 ROUND 1 fixes applied (2026-05-10) — awaiting Round 2 verdict. Round 1 against `8198142`-equivalent (post-P2-6b commit) returned **REJECT** with **4 BLOCKING + 4 MAJOR**; closeout fix commit lands all 4 BLOCKING + 3 actionable MAJORs (5 + 6 + 7) with live test verification + 6 new pinned regression tests so the contract cannot regress. **All 10 steps of P2-6 itself shipped across two sessions:** P2-6a (steps 1–7 + 10) and P2-6b (steps 8 + 9 + tests). Plan reference: `docs/campusos-p2c6-payments-advanced.html`. Review fix log: `REVIEW-P2-6-CHATGPT.md`.
+
+## REVIEW-P2-6 ROUND 1 fix log (2026-05-10)
+
+**Round 1 verdict:** REJECT — 4 BLOCKING + 4 MAJOR.
+
+**BLOCKING fixes:**
+
+1. **School-scope every financial-aid read + write** (`apps/api/src/payments/financial-aid.service.ts`). Every `WHERE id = $1::uuid` lookup now reads `getCurrentTenant().schoolId` and adds `WHERE school_id = $1::uuid AND id = $2::uuid`. Cross-school UUIDs collapse to 404 don't-leak-existence. Applies to programmes (`listPrograms`/`getProgramById`/`createProgram`/`patchProgram`), applications (`listApplications`/`getApplicationById`/`reviewApplication` including FOR UPDATE locks + UPDATE), and awards (`listAwardsForStudent`/`getAwardById`).
+2. **`createApplication` validates student/guardian/academic_year against current school**. Student lookup joins `sis_students` with `school_id = $tenant.schoolId`. Academic year lookup joins `sis_academic_years` with `school_id = $tenant.schoolId`. Guardian linkage joins `sis_student_guardians + sis_guardians` with `school_id` predicates. Programme existence + `is_active` re-checked under the same constraint. All cross-school inputs return friendly 400 with the offending field name.
+3. **Durable outbox for `pay.credit_note.issued` + `pay.payment.reversed`** (`credit-note.service.ts` + `reversal.service.ts`). Both services swap `KafkaProducerService` for `OutboxService` in their constructors. New exported helpers `deterministicCreditNoteEventId(creditNoteId)` and `deterministicReversalEventId(reversalId)` produce v5-shaped UUIDs via `sha1(<id>:<topic>:v1)` — same pattern as P2-4a `deterministicPayrollEventId`. The `outbox.enqueueInTx(tx, opts)` call commits with the financial mutation, so a Kafka outage does not lose the GL event; the OutboxPublisherWorker retries until publish succeeds; consumer-side dedup catches redelivery. ReversalService also tightens the invoice + payment FOR UPDATE locks with school-scope predicates so a cross-school payment UUID collapses to 404 BEFORE the lock fires.
+4. **Durable `pay.lunch.low_balance`** (`lunch-account.service.ts`). The throttle stamp `UPDATE pay_lunch_accounts SET last_low_balance_alert_at = now()` and the alert emit now commit together inside the same tenant tx as the meal charge. New helper `deterministicLowBalanceEventId(accountId, alertedAt)` produces a v5 UUID keyed on `(accountId, alertedAt)` so a redelivered `fds.meal.served` event that re-stamps the same throttle window produces the same id (consumer-side dedup catches it). The throttle UPDATE adds `RETURNING last_low_balance_alert_at::text` so the timestamp is available inside the tx for the deterministic event_id. The student-name JOIN runs inside the tx so the payload is built without leaving the tenant context. `KafkaProducerService` injection removed (was the only producer dep).
+
+**MAJOR fixes (3 of 4 actionable, 1 carry-over):**
+
+5. **Auto-invoice rules school-scoped** (`auto-invoice.service.ts`). `listRules`/`getRuleById`/`updateRule` thread `getCurrentTenant().schoolId` into the predicate. `updateRule` UPDATE adds `WHERE school_id = $X::uuid AND id = $Y::uuid` so a cross-school admin cannot mutate a foreign rule even if they know the UUID.
+6. **Payment allocation invoice school-validation** (`payment-allocation.service.ts`). `listForPayment` adds `WHERE a.school_id = $1::uuid AND a.payment_id = $2::uuid`. `allocate()` payment FOR UPDATE lock and per-line invoice lookup carry the school predicate. Cross-school invoice UUIDs return the same friendly "Invoice X not found" message as a missing one (don't-leak-existence). The redundant runtime `payment.school_id !== schoolId` check was removed — the predicate is the access gate.
+7. **Saved payment method default-clear school predicate** (`saved-payment-method.service.ts`). `listForFamily`/`getById`/`remove`/`assertCanAccessFamily`/clear-default UPDATE inside `create()` all carry the school predicate so a cross-school admin cannot strip the default flag from a foreign-school family's primary card.
+8. **(MAJOR 8 carry-over)** CAT live-output capture pattern — recommendation-class polish; carried to Phase 2 backlog.
+
+**Test coverage** (Round 1 fix commit): 289 → **295 passing across 19 spec files**. New `describe('REVIEW-P2-6 BLOCKING regressions')` block in `apps/api/src/payments/payments-advanced.spec.ts` pins:
+
+- BLOCKING 1 — `getProgramById carries school predicate (cross-school 404)` + `listApplications carries school predicate`
+- BLOCKING 2 — `createApplication validates student against current school` (asserts the SQL queries `sis_students` with `school_id`)
+- BLOCKING 3 — deterministic event_id stability + v5-shape on both `deterministicCreditNoteEventId` and `deterministicReversalEventId`
+- BLOCKING 4 — same for `deterministicLowBalanceEventId`
+
+The existing `CreditNoteService.issue` / `ReversalService.reverse locks invoice FIRST then payment FOR UPDATE` / `chargeMealFromConsumer enqueues pay.lunch.low_balance via durable outbox INSIDE the throttle-stamp tx` tests were rewritten to use the `makeOutbox()` stub so the durable contract is locked in across the entire suite.
+
+**CI parity green:** `pnpm format:check` clean (621 files), `pnpm lint:logs` clean (621 files), `pnpm --filter @campusos/api build` clean, `pnpm --filter @campusos/api test` 295/295, `pnpm --filter @campusos/web build` clean.
+
+**Awaiting Round 2 verdict before tagging `p2c6-complete`.** See `REVIEW-P2-6-CHATGPT.md` for the full triage table + per-fix verification.
 
 ## P2-6b additions (2026-05-10)
 

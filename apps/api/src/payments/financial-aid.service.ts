@@ -221,18 +221,28 @@ export class FinancialAidService {
   /** ───── Programmes ───── */
 
   async listPrograms(includeInactive = false): Promise<FinancialAidProgramResponseDto[]> {
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      let sql = SELECT_PROGRAM_BASE + 'WHERE 1=1 ';
+      let sql = SELECT_PROGRAM_BASE + 'WHERE school_id = $1::uuid ';
       if (!includeInactive) sql += 'AND is_active = true ';
       sql += 'ORDER BY name';
-      return client.$queryRawUnsafe<ProgramRow[]>(sql);
+      return client.$queryRawUnsafe<ProgramRow[]>(sql, schoolId);
     });
     return rows.map(programRowToDto);
   }
 
+  // REVIEW-P2-6 BLOCKING 1 — every read/write is school-scoped via the
+  // tenant.schoolId predicate. Cross-school UUID guesses collapse to 404
+  // (don't-leak-existence), matching the convention in other Phase 2
+  // cycles (P2C1 visitors, P2C5 enrolment, P2C3 health).
   async getProgramById(id: string): Promise<FinancialAidProgramResponseDto> {
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<ProgramRow[]>(SELECT_PROGRAM_BASE + 'WHERE id = $1::uuid', id);
+      return client.$queryRawUnsafe<ProgramRow[]>(
+        SELECT_PROGRAM_BASE + 'WHERE school_id = $1::uuid AND id = $2::uuid',
+        schoolId,
+        id,
+      );
     });
     if (rows.length === 0)
       throw new NotFoundException('Financial aid programme ' + id + ' not found');
@@ -304,10 +314,12 @@ export class FinancialAidService {
     }
     if (body.totalFundAmount !== undefined) {
       // When raising the cap, also raise fund_remaining by the delta so
-      // the schema-side fund_chk stays satisfied.
+      // the schema-side fund_chk stays satisfied. School-scoped read
+      // (REVIEW-P2-6 BLOCKING 1).
       const existingRows = (await this.tenantPrisma.executeInTenantContext(async (c) =>
         c.$queryRawUnsafe<Array<{ total: string | null; remaining: string | null }>>(
-          'SELECT total_fund_amount::text AS total, fund_remaining::text AS remaining FROM pay_financial_aid_programs WHERE id = $1::uuid',
+          'SELECT total_fund_amount::text AS total, fund_remaining::text AS remaining FROM pay_financial_aid_programs WHERE school_id = $1::uuid AND id = $2::uuid',
+          getCurrentTenant().schoolId,
           id,
         ),
       )) as Array<{ total: string | null; remaining: string | null }>;
@@ -333,13 +345,19 @@ export class FinancialAidService {
     }
     if (sets.length === 0) return this.getProgramById(id);
     sets.push('updated_at = now()');
+    // REVIEW-P2-6 BLOCKING 1 — school_id predicate on the UPDATE so a
+    // cross-school UUID guess is a no-op rather than a silent overwrite.
+    const schoolIdForUpdate = getCurrentTenant().schoolId;
+    params.push(schoolIdForUpdate);
     params.push(id);
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       const result = await client.$executeRawUnsafe(
         'UPDATE pay_financial_aid_programs SET ' +
           sets.join(', ') +
-          ' WHERE id = $' +
+          ' WHERE school_id = $' +
           idx +
+          '::uuid AND id = $' +
+          (idx + 1) +
           '::uuid',
         ...params,
       );
@@ -354,10 +372,12 @@ export class FinancialAidService {
     query: ListFinancialAidApplicationsQueryDto,
     actor: ResolvedActor,
   ): Promise<FinancialAidApplicationResponseDto[]> {
+    // REVIEW-P2-6 BLOCKING 1 — school-scope every list query.
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      let sql = SELECT_APPLICATION_BASE + 'WHERE 1=1 ';
-      const params: unknown[] = [];
-      let idx = 1;
+      let sql = SELECT_APPLICATION_BASE + 'WHERE a.school_id = $1::uuid ';
+      const params: unknown[] = [schoolId];
+      let idx = 2;
       if (!actor.isSchoolAdmin) {
         // Non-admin: row-scope to applications submitted by the calling
         // guardian OR for any of their children. The sub-select goes
@@ -406,9 +426,14 @@ export class FinancialAidService {
     id: string,
     actor: ResolvedActor,
   ): Promise<FinancialAidApplicationResponseDto> {
+    // REVIEW-P2-6 BLOCKING 1 — school-scoped read; cross-school UUID
+    // collapses to 404 don't-leak-existence (matches the row-scope
+    // convention used by the rest of Phase 2).
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<ApplicationRow[]>(
-        SELECT_APPLICATION_BASE + 'WHERE a.id = $1::uuid',
+        SELECT_APPLICATION_BASE + 'WHERE a.school_id = $1::uuid AND a.id = $2::uuid',
+        schoolId,
         id,
       );
     });
@@ -464,15 +489,45 @@ export class FinancialAidService {
       if (!programRows[0]!.is_active)
         throw new BadRequestException('Financial aid programme is not active');
 
-      // Validate the calling guardian is on the student's guardian list
-      // (or the actor is admin).
+      // REVIEW-P2-6 BLOCKING 2 — validate the supplied studentId belongs
+      // to the current school. Without this, a parent could submit a
+      // School A application against a School B student/guardian and
+      // create cross-school orphan rows.
+      const studentRows = (await tx.$queryRawUnsafe(
+        'SELECT id FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid',
+        body.studentId,
+        schoolId,
+      )) as Array<{ id: string }>;
+      if (studentRows.length === 0)
+        throw new BadRequestException('studentId does not match a student in this school');
+
+      // REVIEW-P2-6 BLOCKING 2 — validate the supplied academicYearId
+      // belongs to the current school.
+      const yearRows = (await tx.$queryRawUnsafe(
+        'SELECT id FROM sis_academic_years WHERE id = $1::uuid AND school_id = $2::uuid',
+        body.academicYearId,
+        schoolId,
+      )) as Array<{ id: string }>;
+      if (yearRows.length === 0)
+        throw new BadRequestException(
+          'academicYearId does not match an academic year in this school',
+        );
+
+      // REVIEW-P2-6 BLOCKING 2 — guardian/student linkage validation
+      // joins through sis_students with the school_id predicate, so a
+      // School A actor can never resolve a School B student through a
+      // shared guardian record.
       let guardianId: string | null = null;
       if (actor.isSchoolAdmin) {
-        // Admin path — accept any guardian for the student.
+        // Admin path — accept any guardian for the student, but the
+        // join still requires the student to be in this school.
         const gRows = (await tx.$queryRawUnsafe(
-          'SELECT g.id FROM sis_student_guardians sg JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-            'WHERE sg.student_id = $1::uuid LIMIT 1',
+          'SELECT g.id FROM sis_student_guardians sg ' +
+            'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+            'JOIN sis_students s ON s.id = sg.student_id ' +
+            'WHERE sg.student_id = $1::uuid AND s.school_id = $2::uuid LIMIT 1',
           body.studentId,
+          schoolId,
         )) as Array<{ id: string }>;
         if (gRows.length === 0)
           throw new BadRequestException(
@@ -483,9 +538,11 @@ export class FinancialAidService {
         const gRows = (await tx.$queryRawUnsafe(
           'SELECT g.id FROM sis_guardians g ' +
             'JOIN sis_student_guardians sg ON sg.guardian_id = g.id ' +
-            'WHERE g.person_id = $1::uuid AND sg.student_id = $2::uuid LIMIT 1',
+            'JOIN sis_students s ON s.id = sg.student_id ' +
+            'WHERE g.person_id = $1::uuid AND sg.student_id = $2::uuid AND s.school_id = $3::uuid LIMIT 1',
           actor.personId,
           body.studentId,
+          schoolId,
         )) as Array<{ id: string }>;
         if (gRows.length === 0)
           throw new ForbiddenException(
@@ -551,13 +608,18 @@ export class FinancialAidService {
     }
     if (sets.length === 0) return application;
     sets.push('updated_at = now()');
+    // REVIEW-P2-6 BLOCKING 1 — UPDATE carries school_id predicate.
+    const schoolIdForUpdate = getCurrentTenant().schoolId;
+    params.push(schoolIdForUpdate);
     params.push(id);
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
         'UPDATE pay_financial_aid_applications SET ' +
           sets.join(', ') +
-          ' WHERE id = $' +
+          ' WHERE school_id = $' +
           idx +
+          '::uuid AND id = $' +
+          (idx + 1) +
           '::uuid',
         ...params,
       );
@@ -575,9 +637,12 @@ export class FinancialAidService {
         'Application is in status ' + app.status + '; only DRAFT applications can be submitted',
       );
     }
+    // REVIEW-P2-6 BLOCKING 1 — UPDATE carries school_id predicate.
+    const schoolId = getCurrentTenant().schoolId;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
-        "UPDATE pay_financial_aid_applications SET status = 'SUBMITTED', submitted_at = now(), updated_at = now() WHERE id = $1::uuid AND status = 'DRAFT'",
+        "UPDATE pay_financial_aid_applications SET status = 'SUBMITTED', submitted_at = now(), updated_at = now() WHERE school_id = $1::uuid AND id = $2::uuid AND status = 'DRAFT'",
+        schoolId,
         id,
       );
     });
@@ -596,9 +661,12 @@ export class FinancialAidService {
       );
     }
     const reason = body.reason ?? null;
+    // REVIEW-P2-6 BLOCKING 1 — UPDATE carries school_id predicate.
+    const schoolId = getCurrentTenant().schoolId;
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
-        "UPDATE pay_financial_aid_applications SET status = 'WITHDRAWN', reviewer_notes = COALESCE(reviewer_notes, '') || CASE WHEN $2::text IS NOT NULL THEN E'\\n[withdrawn] ' || $2::text ELSE '' END, updated_at = now() WHERE id = $1::uuid",
+        "UPDATE pay_financial_aid_applications SET status = 'WITHDRAWN', reviewer_notes = COALESCE(reviewer_notes, '') || CASE WHEN $3::text IS NOT NULL THEN E'\\n[withdrawn] ' || $3::text ELSE '' END, updated_at = now() WHERE school_id = $1::uuid AND id = $2::uuid",
+        schoolId,
         id,
         reason,
       );
@@ -622,8 +690,12 @@ export class FinancialAidService {
       throw new ForbiddenException('Only admins can review financial aid applications');
     const schoolId = getCurrentTenant().schoolId;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2-6 BLOCKING 1 — lock query carries the school_id
+      // predicate. Cross-school UUID guesses collapse to 404 instead of
+      // a service-layer rejection AFTER acquiring the row lock.
       const appRows = (await tx.$queryRawUnsafe(
-        'SELECT id, school_id, student_id, program_id, academic_year_id, status FROM pay_financial_aid_applications WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id, school_id, student_id, program_id, academic_year_id, status FROM pay_financial_aid_applications WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
+        schoolId,
         id,
       )) as Array<{
         id: string;
@@ -636,8 +708,6 @@ export class FinancialAidService {
       if (appRows.length === 0)
         throw new NotFoundException('Financial aid application ' + id + ' not found');
       const app = appRows[0]!;
-      if (app.school_id !== schoolId)
-        throw new ForbiddenException('Application does not belong to this school');
       if (app.status === 'APPROVED' || app.status === 'REJECTED' || app.status === 'WITHDRAWN') {
         throw new BadRequestException(
           'Application is in terminal status ' + app.status + ' and cannot be re-reviewed',
@@ -651,7 +721,8 @@ export class FinancialAidService {
           );
         }
         await tx.$executeRawUnsafe(
-          "UPDATE pay_financial_aid_applications SET status = 'UNDER_REVIEW', reviewer_notes = $2, updated_at = now() WHERE id = $1::uuid",
+          "UPDATE pay_financial_aid_applications SET status = 'UNDER_REVIEW', reviewer_notes = $3, updated_at = now() WHERE school_id = $1::uuid AND id = $2::uuid",
+          schoolId,
           id,
           body.reviewerNotes ?? null,
         );
@@ -660,7 +731,8 @@ export class FinancialAidService {
 
       if (body.action === 'REJECT') {
         await tx.$executeRawUnsafe(
-          "UPDATE pay_financial_aid_applications SET status = 'REJECTED', reviewed_by = $2::uuid, reviewed_at = now(), reviewer_notes = $3, updated_at = now() WHERE id = $1::uuid",
+          "UPDATE pay_financial_aid_applications SET status = 'REJECTED', reviewed_by = $3::uuid, reviewed_at = now(), reviewer_notes = $4, updated_at = now() WHERE school_id = $1::uuid AND id = $2::uuid",
+          schoolId,
           id,
           actor.accountId,
           body.reviewerNotes ?? null,
@@ -670,10 +742,13 @@ export class FinancialAidService {
 
       // APPROVE path — lock programme, validate fund remaining, create
       // award, decrement fund_remaining, link award_id to application.
+      // School-scoped programme lookup so we can never decrement a
+      // foreign-school programme's fund.
       if (!body.awardAmount || body.awardAmount <= 0)
         throw new BadRequestException('awardAmount > 0 is required to APPROVE an application');
       const programRows = (await tx.$queryRawUnsafe(
-        'SELECT id, fund_remaining::text, total_fund_amount::text FROM pay_financial_aid_programs WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id, fund_remaining::text, total_fund_amount::text FROM pay_financial_aid_programs WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
+        schoolId,
         app.program_id,
       )) as Array<{ id: string; fund_remaining: string | null; total_fund_amount: string | null }>;
       if (programRows.length === 0)
@@ -720,14 +795,16 @@ export class FinancialAidService {
       if (totalFund !== null && remaining !== null) {
         const newRemaining = Number((remaining - body.awardAmount).toFixed(2));
         await tx.$executeRawUnsafe(
-          'UPDATE pay_financial_aid_programs SET fund_remaining = $1::numeric, updated_at = now() WHERE id = $2::uuid',
+          'UPDATE pay_financial_aid_programs SET fund_remaining = $1::numeric, updated_at = now() WHERE school_id = $2::uuid AND id = $3::uuid',
           newRemaining.toFixed(2),
+          schoolId,
           app.program_id,
         );
       }
 
       await tx.$executeRawUnsafe(
-        "UPDATE pay_financial_aid_applications SET status = 'APPROVED', reviewed_by = $2::uuid, reviewed_at = now(), reviewer_notes = $3, award_id = $4::uuid, updated_at = now() WHERE id = $1::uuid",
+        "UPDATE pay_financial_aid_applications SET status = 'APPROVED', reviewed_by = $3::uuid, reviewed_at = now(), reviewer_notes = $4, award_id = $5::uuid, updated_at = now() WHERE school_id = $1::uuid AND id = $2::uuid",
+        schoolId,
         id,
         actor.accountId,
         body.reviewerNotes ?? null,
@@ -743,16 +820,24 @@ export class FinancialAidService {
     studentId: string,
     actor: ResolvedActor,
   ): Promise<FinancialAidAwardResponseDto[]> {
+    // REVIEW-P2-6 BLOCKING 1 — school-scope the student lookup AND the
+    // awards read so cross-school student UUIDs collapse to 404.
+    const schoolId = getCurrentTenant().schoolId;
     if (!actor.isSchoolAdmin) {
-      // Parent: must be linked to the student.
+      // Parent: must be linked to the student AND the student must be
+      // in the current school.
       if (actor.personType !== 'GUARDIAN' || !actor.personId) {
         throw new ForbiddenException('Only admins or linked guardians can list student awards');
       }
       const allowed = await this.tenantPrisma.executeInTenantContext(async (client) => {
         const r = (await client.$queryRawUnsafe(
-          'SELECT 1 FROM sis_student_guardians sg JOIN sis_guardians g ON g.id = sg.guardian_id WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
+          'SELECT 1 FROM sis_student_guardians sg ' +
+            'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+            'JOIN sis_students s ON s.id = sg.student_id ' +
+            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid AND s.school_id = $3::uuid LIMIT 1',
           studentId,
           actor.personId,
+          schoolId,
         )) as Array<unknown>;
         return r.length > 0;
       });
@@ -760,7 +845,9 @@ export class FinancialAidService {
     }
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<AwardRow[]>(
-        SELECT_AWARD_BASE + 'WHERE a.student_id = $1::uuid ORDER BY a.effective_from DESC',
+        SELECT_AWARD_BASE +
+          'WHERE a.school_id = $1::uuid AND a.student_id = $2::uuid ORDER BY a.effective_from DESC',
+        schoolId,
         studentId,
       );
     });
@@ -768,8 +855,14 @@ export class FinancialAidService {
   }
 
   async getAwardById(id: string): Promise<FinancialAidAwardResponseDto> {
+    // REVIEW-P2-6 BLOCKING 1 — school-scoped award read.
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<AwardRow[]>(SELECT_AWARD_BASE + 'WHERE a.id = $1::uuid', id);
+      return client.$queryRawUnsafe<AwardRow[]>(
+        SELECT_AWARD_BASE + 'WHERE a.school_id = $1::uuid AND a.id = $2::uuid',
+        schoolId,
+        id,
+      );
     });
     if (rows.length === 0) throw new NotFoundException('Financial aid award ' + id + ' not found');
     return awardRowToDto(rows[0]!);

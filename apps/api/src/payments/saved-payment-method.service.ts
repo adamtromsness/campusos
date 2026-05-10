@@ -72,10 +72,15 @@ export class SavedPaymentMethodService {
     actor: ResolvedActor,
   ): Promise<SavedPaymentMethodResponseDto[]> {
     await this.assertCanAccessFamily(familyAccountId, actor);
+    // REVIEW-P2-6 MAJOR 3 — school predicate so a cross-school family
+    // UUID never lists foreign payment methods.
+    const schoolId = getCurrentTenant().schoolId;
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<PMRow[]>(
         SELECT_BASE +
-          'WHERE family_account_id = $1::uuid AND removed_at IS NULL ORDER BY is_default DESC, added_at DESC',
+          'WHERE school_id = $1::uuid AND family_account_id = $2::uuid AND removed_at IS NULL ' +
+          'ORDER BY is_default DESC, added_at DESC',
+        schoolId,
         familyAccountId,
       ),
     )) as PMRow[];
@@ -91,9 +96,12 @@ export class SavedPaymentMethodService {
     const schoolId = getCurrentTenant().schoolId;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       if (body.isDefault) {
-        // Clear any other default for this family.
+        // REVIEW-P2-6 MAJOR 3 — clear-default UPDATE carries the
+        // school predicate so a cross-school admin can't strip the
+        // default flag from a foreign-school family's primary card.
         await tx.$executeRawUnsafe(
-          'UPDATE pay_saved_payment_methods SET is_default = false, added_at = added_at WHERE family_account_id = $1::uuid AND is_default = true AND removed_at IS NULL',
+          'UPDATE pay_saved_payment_methods SET is_default = false, added_at = added_at WHERE school_id = $1::uuid AND family_account_id = $2::uuid AND is_default = true AND removed_at IS NULL',
+          schoolId,
           body.familyAccountId,
         );
       }
@@ -129,9 +137,13 @@ export class SavedPaymentMethodService {
   }
 
   async getById(id: string, actor: ResolvedActor): Promise<SavedPaymentMethodResponseDto> {
+    // REVIEW-P2-6 MAJOR 3 — collapse cross-school UUIDs to 404 BEFORE
+    // any family-account check fires (don't-leak-existence).
+    const schoolId = getCurrentTenant().schoolId;
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<PMRow[]>(
-        SELECT_BASE + 'WHERE id = $1::uuid AND removed_at IS NULL',
+        SELECT_BASE + 'WHERE school_id = $1::uuid AND id = $2::uuid AND removed_at IS NULL',
+        schoolId,
         id,
       ),
     )) as PMRow[];
@@ -143,9 +155,14 @@ export class SavedPaymentMethodService {
 
   async remove(id: string, actor: ResolvedActor): Promise<{ id: string; removed: boolean }> {
     const dto = await this.getById(id, actor);
+    // REVIEW-P2-6 MAJOR 3 — soft-delete UPDATE carries the school
+    // predicate so even if getById's gate were bypassed (defence in
+    // depth), no cross-school row could be marked removed.
+    const schoolId = getCurrentTenant().schoolId;
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
-        'UPDATE pay_saved_payment_methods SET removed_at = now() WHERE id = $1::uuid AND removed_at IS NULL',
+        'UPDATE pay_saved_payment_methods SET removed_at = now() WHERE school_id = $1::uuid AND id = $2::uuid AND removed_at IS NULL',
+        schoolId,
         dto.id,
       );
     });
@@ -159,9 +176,14 @@ export class SavedPaymentMethodService {
     if (actor.isSchoolAdmin) return;
     if (!actor.personId)
       throw new ForbiddenException('Cannot access family billing without a personId');
+    // REVIEW-P2-6 MAJOR 3 — the existence check joins on school_id so
+    // a cross-school family UUID returns a friendly 404 even if the
+    // calling parent happens to share an iam_person between schools.
+    const schoolId = getCurrentTenant().schoolId;
     const ok = (await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<Array<unknown>>(
-        'SELECT 1 FROM pay_family_accounts WHERE id = $1::uuid AND account_holder_id = $2::uuid LIMIT 1',
+        'SELECT 1 FROM pay_family_accounts WHERE school_id = $1::uuid AND id = $2::uuid AND account_holder_id = $3::uuid LIMIT 1',
+        schoolId,
         familyAccountId,
         actor.personId,
       ),

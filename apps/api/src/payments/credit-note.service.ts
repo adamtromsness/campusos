@@ -4,10 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { LedgerService } from './ledger.service';
 import {
@@ -16,6 +17,32 @@ import {
   IssueCreditNoteDto,
   ListCreditNotesQueryDto,
 } from './dto/billing-ops.dto';
+
+/**
+ * REVIEW-P2-6 BLOCKING 3 — deterministic event_id helper. Mirrors the
+ * P2-4a payroll pattern (deterministicPayrollEventId). A retry on the
+ * same credit-note row produces the exact same Kafka event_id so the
+ * downstream GLConsumer's idempotency catches the redelivery cleanly.
+ */
+export function deterministicCreditNoteEventId(creditNoteId: string): string {
+  const hash = createHash('sha1')
+    .update(creditNoteId + ':pay.credit_note.issued:v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
 
 interface CreditNoteRow {
   id: string;
@@ -75,7 +102,7 @@ function rowToDto(r: CreditNoteRow): CreditNoteResponseDto {
 export class CreditNoteService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly ledger: LedgerService,
   ) {}
 
@@ -84,10 +111,12 @@ export class CreditNoteService {
     actor: ResolvedActor,
   ): Promise<CreditNoteResponseDto[]> {
     if (!actor.isSchoolAdmin) throw new ForbiddenException('Only admins can list credit notes');
+    // REVIEW-P2-6 follow-on — defence-in-depth: list is school-scoped.
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      let sql = SELECT_BASE + 'WHERE 1=1 ';
-      const params: unknown[] = [];
-      let idx = 1;
+      let sql = SELECT_BASE + 'WHERE school_id = $1::uuid ';
+      const params: unknown[] = [schoolId];
+      let idx = 2;
       if (query.invoiceId) {
         sql += 'AND invoice_id = $' + idx + '::uuid ';
         params.push(query.invoiceId);
@@ -106,8 +135,14 @@ export class CreditNoteService {
 
   async getById(id: string, actor: ResolvedActor): Promise<CreditNoteResponseDto> {
     if (!actor.isSchoolAdmin) throw new ForbiddenException('Only admins can read credit notes');
+    // REVIEW-P2-6 follow-on — school-scoped read.
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
-      client.$queryRawUnsafe<CreditNoteRow[]>(SELECT_BASE + 'WHERE id = $1::uuid', id),
+      client.$queryRawUnsafe<CreditNoteRow[]>(
+        SELECT_BASE + 'WHERE school_id = $1::uuid AND id = $2::uuid',
+        schoolId,
+        id,
+      ),
     );
     if (rows.length === 0) throw new NotFoundException('Credit note ' + id + ' not found');
     return rowToDto(rows[0]!);
@@ -124,81 +159,83 @@ export class CreditNoteService {
     if (trimmedReason.length === 0) throw new BadRequestException('reason is required');
     const schoolId = getCurrentTenant().schoolId;
     const creditId = generateId();
-    let snapshot: { familyAccountId: string; ledgerEntryId: string };
-    try {
-      snapshot = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-        const invoiceRows = (await tx.$queryRawUnsafe(
-          'SELECT id, school_id, family_account_id, total_amount::text, status FROM pay_invoices WHERE id = $1::uuid FOR UPDATE',
-          invoiceId,
-        )) as Array<{
-          id: string;
-          school_id: string;
-          family_account_id: string;
-          total_amount: string;
-          status: string;
-        }>;
-        if (invoiceRows.length === 0)
-          throw new NotFoundException('Invoice ' + invoiceId + ' not found');
-        const invoice = invoiceRows[0]!;
-        if (invoice.school_id !== schoolId)
-          throw new ForbiddenException('Invoice does not belong to this school');
-        if (invoice.status === 'CANCELLED')
-          throw new BadRequestException('Cannot issue credit against a CANCELLED invoice');
-        // Optional: validate line_item_id belongs to this invoice.
-        if (body.lineItemId) {
-          const liRows = (await tx.$queryRawUnsafe(
-            'SELECT id FROM pay_invoice_line_items WHERE id = $1::uuid AND invoice_id = $2::uuid',
-            body.lineItemId,
-            invoiceId,
-          )) as Array<unknown>;
-          if (liRows.length === 0)
-            throw new BadRequestException('lineItemId does not belong to this invoice');
-        }
-        const ledgerEntryId = await this.ledger.recordEntry(tx, {
-          familyAccountId: invoice.family_account_id,
-          entryType: 'CREDIT',
-          amount: -body.creditAmount,
-          referenceId: creditId,
-          description: 'CREDIT: ' + (body.creditCategory ?? 'GOODWILL') + ' — ' + trimmedReason,
-          createdBy: actor.accountId,
-        });
-        await tx.$executeRawUnsafe(
-          'INSERT INTO pay_credit_notes ' +
-            '(id, school_id, invoice_id, line_item_id, family_account_id, credit_amount, credit_category, reason, ledger_entry_id, issued_by) ' +
-            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, $7, $8, $9::uuid, $10::uuid)',
-          creditId,
-          schoolId,
-          invoiceId,
-          body.lineItemId ?? null,
-          invoice.family_account_id,
-          body.creditAmount.toFixed(2),
-          body.creditCategory ?? 'GOODWILL',
-          trimmedReason,
-          ledgerEntryId,
-          actor.accountId,
-        );
-        return { familyAccountId: invoice.family_account_id, ledgerEntryId };
-      });
-    } catch (err) {
-      throw err;
-    }
-    const dto = await this.getById(creditId, actor);
-    void this.kafka.emit({
-      topic: 'pay.credit_note.issued',
-      key: creditId,
-      sourceModule: 'payments',
-      payload: {
-        creditNoteId: creditId,
+    // REVIEW-P2-6 BLOCKING 3 — invoice lookup is school-scoped so the
+    // FOR UPDATE lock cannot acquire a foreign-school invoice.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const invoiceRows = (await tx.$queryRawUnsafe(
+        'SELECT id, school_id, family_account_id, total_amount::text, status FROM pay_invoices WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
+        schoolId,
         invoiceId,
-        familyAccountId: snapshot.familyAccountId,
-        creditAmount: dto.creditAmount,
-        creditCategory: dto.creditCategory,
-        reason: dto.reason,
-        issuedBy: actor.accountId,
-        ledgerEntryId: snapshot.ledgerEntryId,
-        sourceRefId: creditId,
-      },
+      )) as Array<{
+        id: string;
+        school_id: string;
+        family_account_id: string;
+        total_amount: string;
+        status: string;
+      }>;
+      if (invoiceRows.length === 0)
+        throw new NotFoundException('Invoice ' + invoiceId + ' not found');
+      const invoice = invoiceRows[0]!;
+      if (invoice.status === 'CANCELLED')
+        throw new BadRequestException('Cannot issue credit against a CANCELLED invoice');
+      // Optional: validate line_item_id belongs to this invoice.
+      if (body.lineItemId) {
+        const liRows = (await tx.$queryRawUnsafe(
+          'SELECT id FROM pay_invoice_line_items WHERE id = $1::uuid AND invoice_id = $2::uuid',
+          body.lineItemId,
+          invoiceId,
+        )) as Array<unknown>;
+        if (liRows.length === 0)
+          throw new BadRequestException('lineItemId does not belong to this invoice');
+      }
+      const ledgerEntryId = await this.ledger.recordEntry(tx, {
+        familyAccountId: invoice.family_account_id,
+        entryType: 'CREDIT',
+        amount: -body.creditAmount,
+        referenceId: creditId,
+        description: 'CREDIT: ' + (body.creditCategory ?? 'GOODWILL') + ' — ' + trimmedReason,
+        createdBy: actor.accountId,
+      });
+      await tx.$executeRawUnsafe(
+        'INSERT INTO pay_credit_notes ' +
+          '(id, school_id, invoice_id, line_item_id, family_account_id, credit_amount, credit_category, reason, ledger_entry_id, issued_by) ' +
+          'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::numeric, $7, $8, $9::uuid, $10::uuid)',
+        creditId,
+        schoolId,
+        invoiceId,
+        body.lineItemId ?? null,
+        invoice.family_account_id,
+        body.creditAmount.toFixed(2),
+        body.creditCategory ?? 'GOODWILL',
+        trimmedReason,
+        ledgerEntryId,
+        actor.accountId,
+      );
+
+      // REVIEW-P2-6 BLOCKING 3 — durable outbox INSIDE the same tx.
+      // The outbox row commits with the credit-note + ledger entry,
+      // and the OutboxPublisherWorker handles publish-with-retry. A
+      // broker outage no longer drops the GL event silently; the
+      // event ID is deterministic so consumer-side dedup catches
+      // redelivery.
+      await this.outbox.enqueueInTx(tx as never, {
+        topic: 'pay.credit_note.issued',
+        key: creditId,
+        sourceModule: 'payments',
+        eventId: deterministicCreditNoteEventId(creditId),
+        payload: {
+          creditNoteId: creditId,
+          invoiceId,
+          familyAccountId: invoice.family_account_id,
+          creditAmount: body.creditAmount,
+          creditCategory: body.creditCategory ?? 'GOODWILL',
+          reason: trimmedReason,
+          issuedBy: actor.accountId,
+          ledgerEntryId,
+          sourceRefId: creditId,
+        },
+      });
     });
-    return dto;
+    return this.getById(creditId, actor);
   }
 }

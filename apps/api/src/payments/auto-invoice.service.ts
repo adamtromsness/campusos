@@ -173,11 +173,15 @@ export class AutoInvoiceService implements OnModuleInit {
   ): Promise<AutoInvoiceRuleResponseDto[]> {
     if (!actor.isSchoolAdmin)
       throw new ForbiddenException('Only admins can list auto-invoice rules');
+    // REVIEW-P2-6 MAJOR 1 — school-scope so a foreign-school rule is
+    // never enumerated by an admin from a different school operating
+    // through the same connection pool.
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      let sql = SELECT_RULE_BASE + 'WHERE 1=1 ';
+      let sql = SELECT_RULE_BASE + 'WHERE r.school_id = $1::uuid ';
       if (!includeInactive) sql += 'AND r.is_active = true ';
       sql += 'ORDER BY r.name';
-      return client.$queryRawUnsafe<RuleRow[]>(sql);
+      return client.$queryRawUnsafe<RuleRow[]>(sql, schoolId);
     });
     return rows.map(ruleRowToDto);
   }
@@ -185,8 +189,15 @@ export class AutoInvoiceService implements OnModuleInit {
   async getRuleById(id: string, actor: ResolvedActor): Promise<AutoInvoiceRuleResponseDto> {
     if (!actor.isSchoolAdmin)
       throw new ForbiddenException('Only admins can read auto-invoice rules');
+    // REVIEW-P2-6 MAJOR 1 — collapse cross-school UUIDs to 404
+    // (don't-leak-existence pattern).
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
-      client.$queryRawUnsafe<RuleRow[]>(SELECT_RULE_BASE + 'WHERE r.id = $1::uuid', id),
+      client.$queryRawUnsafe<RuleRow[]>(
+        SELECT_RULE_BASE + 'WHERE r.school_id = $1::uuid AND r.id = $2::uuid',
+        schoolId,
+        id,
+      ),
     );
     if (rows.length === 0) throw new NotFoundException('Auto-invoice rule ' + id + ' not found');
     return ruleRowToDto(rows[0]!);
@@ -275,10 +286,23 @@ export class AutoInvoiceService implements OnModuleInit {
     }
     if (sets.length === 0) return this.getRuleById(id, actor);
     sets.push('updated_at = now()');
+    // REVIEW-P2-6 MAJOR 1 — school predicate on the UPDATE so a
+    // cross-school admin can't mutate a foreign rule even if they
+    // know the UUID.
+    const schoolId = getCurrentTenant().schoolId;
+    params.push(schoolId);
+    const schoolIdx = idx;
+    idx++;
     params.push(id);
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       const result = await client.$executeRawUnsafe(
-        'UPDATE pay_auto_invoice_rules SET ' + sets.join(', ') + ' WHERE id = $' + idx + '::uuid',
+        'UPDATE pay_auto_invoice_rules SET ' +
+          sets.join(', ') +
+          ' WHERE school_id = $' +
+          schoolIdx +
+          '::uuid AND id = $' +
+          idx +
+          '::uuid',
         ...params,
       );
       if (result === 0) throw new NotFoundException('Auto-invoice rule ' + id + ' not found');

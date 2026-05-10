@@ -99,6 +99,32 @@ function makeKafka() {
   return { kafka, emitted };
 }
 
+// REVIEW-P2-6 BLOCKING 3 + 4 — durable outbox stub. Asserts the
+// enqueue-inside-tx contract: every call captures topic/payload/eventId
+// so tests can verify the durable pattern.
+function makeOutbox() {
+  const enqueued: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    payload: Record<string, unknown>;
+    eventId?: string;
+  }> = [];
+  const outbox = {
+    enqueueInTx: vi.fn(async (_tx: unknown, opts: any) => {
+      enqueued.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        payload: opts.payload,
+        eventId: opts.eventId,
+      });
+      return 'outbox-' + Math.random().toString(36).slice(2, 10);
+    }),
+  };
+  return { outbox, enqueued };
+}
+
 function makeRedis() {
   return {
     invalidateLedgerBalance: vi.fn(),
@@ -346,10 +372,18 @@ describe('FinancialAidService — application row-scope', () => {
   });
 
   it('parent createApplication REJECTS for student they are NOT linked to', async () => {
+    // REVIEW-P2-6 BLOCKING 2 — student/year exist in current school, but
+    // the parent isn't on the student's guardian list. Should 403.
     const { tenantPrisma } = makeFake((c) => {
       const sql = c.sql.toLowerCase();
       if (sql.includes('from pay_financial_aid_programs') && sql.includes('is_active')) {
         return [{ id: 'p', is_active: true }];
+      }
+      if (sql.includes('from sis_students') && sql.includes('school_id')) {
+        return [{ id: 'student-in-school' }];
+      }
+      if (sql.includes('from sis_academic_years')) {
+        return [{ id: 'ay' }];
       }
       if (sql.includes('from sis_guardians g')) {
         return []; // not linked
@@ -360,10 +394,60 @@ describe('FinancialAidService — application row-scope', () => {
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.createApplication(
-          { studentId: 'stranger', programId: 'p', academicYearId: 'ay' },
+          { studentId: 'student-in-school', programId: 'p', academicYearId: 'ay' },
           PARENT_ACTOR,
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  // REVIEW-P2-6 BLOCKING 2 regression: cross-school student lands a
+  // friendly 400 BEFORE any guardian check fires.
+  it('createApplication REJECTS cross-school student with 400', async () => {
+    const { tenantPrisma } = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('from pay_financial_aid_programs') && sql.includes('is_active')) {
+        return [{ id: 'p', is_active: true }];
+      }
+      if (sql.includes('from sis_students') && sql.includes('school_id')) {
+        return []; // student NOT in current school
+      }
+      return [];
+    });
+    const svc = new FinancialAidService(tenantPrisma as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.createApplication(
+          { studentId: 'foreign-student', programId: 'p', academicYearId: 'ay' },
+          PARENT_ACTOR,
+        ),
+      ).rejects.toThrow(/does not match a student in this school/);
+    });
+  });
+
+  // REVIEW-P2-6 BLOCKING 2 regression: cross-school academic year lands 400.
+  it('createApplication REJECTS cross-school academicYearId with 400', async () => {
+    const { tenantPrisma } = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('from pay_financial_aid_programs') && sql.includes('is_active')) {
+        return [{ id: 'p', is_active: true }];
+      }
+      if (sql.includes('from sis_students') && sql.includes('school_id')) {
+        return [{ id: 's' }];
+      }
+      if (sql.includes('from sis_academic_years')) {
+        return []; // year NOT in current school
+      }
+      return [];
+    });
+    const svc = new FinancialAidService(tenantPrisma as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.createApplication(
+          { studentId: 's', programId: 'p', academicYearId: 'foreign-year' },
+          PARENT_ACTOR,
+        ),
+      ).rejects.toThrow(/does not match an academic year in this school/);
     });
   });
 });
@@ -407,8 +491,8 @@ describe('CreditNoteService — IMMUTABLE invariants', () => {
       return [];
     });
     const ledger = makeLedger((entry) => ledgerEntries.push(entry));
-    const { kafka, emitted } = makeKafka();
-    const svc = new CreditNoteService(tenantPrisma as never, kafka as never, ledger as never);
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new CreditNoteService(tenantPrisma as never, outbox as never, ledger as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await svc.issue(
         'inv-1',
@@ -419,10 +503,15 @@ describe('CreditNoteService — IMMUTABLE invariants', () => {
     expect(ledgerEntries).toHaveLength(1);
     expect(ledgerEntries[0]!.entryType).toBe('CREDIT');
     expect(ledgerEntries[0]!.amount).toBe(-25);
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0]!.topic).toBe('pay.credit_note.issued');
-    expect(emitted[0]!.sourceModule).toBe('payments');
-    expect(emitted[0]!.payload.creditAmount).toBe(25);
+    // REVIEW-P2-6 BLOCKING 3 — durable outbox INSIDE the tenant tx.
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]!.topic).toBe('pay.credit_note.issued');
+    expect(enqueued[0]!.sourceModule).toBe('payments');
+    expect(enqueued[0]!.payload.creditAmount).toBe(25);
+    // Deterministic event_id is a v5-shaped UUID.
+    expect(enqueued[0]!.eventId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
   });
 
   it('issue REJECTS on CANCELLED invoice', async () => {
@@ -442,7 +531,7 @@ describe('CreditNoteService — IMMUTABLE invariants', () => {
     });
     const svc = new CreditNoteService(
       tenantPrisma as never,
-      makeKafka().kafka as never,
+      makeOutbox().outbox as never,
       makeLedger() as never,
     );
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
@@ -456,7 +545,7 @@ describe('CreditNoteService — IMMUTABLE invariants', () => {
     const { tenantPrisma } = makeFake(() => []);
     const svc = new CreditNoteService(
       tenantPrisma as never,
-      makeKafka().kafka as never,
+      makeOutbox().outbox as never,
       makeLedger() as never,
     );
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
@@ -470,7 +559,7 @@ describe('CreditNoteService — IMMUTABLE invariants', () => {
     const { tenantPrisma } = makeFake(() => []);
     const svc = new CreditNoteService(
       tenantPrisma as never,
-      makeKafka().kafka as never,
+      makeOutbox().outbox as never,
       makeLedger() as never,
     );
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
@@ -499,14 +588,19 @@ describe('ReversalService — IMMUTABLE + consistent lock ordering', () => {
     const lockOrder: string[] = [];
     const { tenantPrisma } = makeFake((c) => {
       const sql = c.sql.toLowerCase();
+      // REVIEW-P2-6 BLOCKING 3 — payment lookup is now school-scoped.
       if (sql.includes('select invoice_id::text as invoice_id from pay_payments')) {
         return [{ invoice_id: 'inv-1' }];
       }
-      if (sql.includes('from pay_invoices where id') && sql.includes('for update')) {
+      if (sql.includes('from pay_invoices') && sql.includes('for update')) {
         lockOrder.push('invoice');
         return [];
       }
-      if (sql.includes('from pay_payments where id') && sql.includes('for update')) {
+      if (
+        sql.includes('from pay_payments') &&
+        sql.includes('for update') &&
+        sql.includes('status')
+      ) {
         lockOrder.push('payment');
         return [
           {
@@ -544,8 +638,8 @@ describe('ReversalService — IMMUTABLE + consistent lock ordering', () => {
       return [];
     });
     const ledger = makeLedger();
-    const { kafka, emitted } = makeKafka();
-    const svc = new ReversalService(tenantPrisma as never, kafka as never, ledger as never);
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new ReversalService(tenantPrisma as never, outbox as never, ledger as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await svc.reverse(
         'pay-1',
@@ -554,8 +648,12 @@ describe('ReversalService — IMMUTABLE + consistent lock ordering', () => {
       );
     });
     expect(lockOrder).toEqual(['invoice', 'payment']);
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0]!.topic).toBe('pay.payment.reversed');
+    // REVIEW-P2-6 BLOCKING 3 — durable outbox INSIDE the tenant tx.
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]!.topic).toBe('pay.payment.reversed');
+    expect(enqueued[0]!.eventId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
   });
 
   it('UNIQUE(payment_id) catch translates to friendly 400', async () => {
@@ -583,7 +681,7 @@ describe('ReversalService — IMMUTABLE + consistent lock ordering', () => {
     });
     const svc = new ReversalService(
       tenantPrisma as never,
-      makeKafka().kafka as never,
+      makeOutbox().outbox as never,
       makeLedger() as never,
     );
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
@@ -612,7 +710,7 @@ describe('ReversalService — IMMUTABLE + consistent lock ordering', () => {
     });
     const svc = new ReversalService(
       tenantPrisma as never,
-      makeKafka().kafka as never,
+      makeOutbox().outbox as never,
       makeLedger() as never,
     );
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
@@ -647,7 +745,7 @@ describe('LunchAccountService — IMMUTABLE transfer + dedup', () => {
       }
       return [];
     });
-    const svc = new LunchAccountService(tenantPrisma as never, makeKafka().kafka as never);
+    const svc = new LunchAccountService(tenantPrisma as never, makeOutbox().outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       try {
         await svc.transfer(
@@ -669,7 +767,7 @@ describe('LunchAccountService — IMMUTABLE transfer + dedup', () => {
 
   it('transfer REJECTS REFUND_TO_FAMILY without refundId', async () => {
     const { tenantPrisma } = makeFake(() => []);
-    const svc = new LunchAccountService(tenantPrisma as never, makeKafka().kafka as never);
+    const svc = new LunchAccountService(tenantPrisma as never, makeOutbox().outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.transfer(
@@ -687,7 +785,7 @@ describe('LunchAccountService — IMMUTABLE transfer + dedup', () => {
 
   it('transfer REJECTS SIBLING_TRANSFER with same source and destination', async () => {
     const { tenantPrisma } = makeFake(() => []);
-    const svc = new LunchAccountService(tenantPrisma as never, makeKafka().kafka as never);
+    const svc = new LunchAccountService(tenantPrisma as never, makeOutbox().outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.transfer(
@@ -711,7 +809,7 @@ describe('LunchAccountService — IMMUTABLE transfer + dedup', () => {
       }
       return [];
     });
-    const svc = new LunchAccountService(tenantPrisma as never, makeKafka().kafka as never);
+    const svc = new LunchAccountService(tenantPrisma as never, makeOutbox().outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(
         svc.transfer(
@@ -752,7 +850,7 @@ describe('LunchAccountService — IMMUTABLE transfer + dedup', () => {
       }
       return [];
     });
-    const svc = new LunchAccountService(tenantPrisma as never, makeKafka().kafka as never);
+    const svc = new LunchAccountService(tenantPrisma as never, makeOutbox().outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       const r1 = await svc.chargeMealFromConsumer({
         studentId: 'stu-1',
@@ -775,8 +873,8 @@ describe('LunchAccountService — IMMUTABLE transfer + dedup', () => {
     });
   });
 
-  it('chargeMealFromConsumer emits pay.lunch.low_balance when crossing threshold', async () => {
-    let alertedAt: string | null = null;
+  it('chargeMealFromConsumer enqueues pay.lunch.low_balance via durable outbox INSIDE the throttle-stamp tx', async () => {
+    let stampedAt: string | null = null;
     const { tenantPrisma } = makeFake((c) => {
       const sql = c.sql.toLowerCase();
       if (sql.includes('from pay_lunch_accounts') && sql.includes('for update')) {
@@ -789,6 +887,21 @@ describe('LunchAccountService — IMMUTABLE transfer + dedup', () => {
           },
         ];
       }
+      // REVIEW-P2-6 BLOCKING 4 — throttle stamp now uses RETURNING.
+      if (
+        sql.includes('update pay_lunch_accounts') &&
+        sql.includes('last_low_balance_alert_at = now()') &&
+        sql.includes('returning')
+      ) {
+        stampedAt = '2026-05-10T12:00:00Z';
+        return [{ alerted_at: stampedAt }];
+      }
+      // Student-name JOIN inside the tx so we can build the payload
+      // without leaving the tenant tx.
+      if (sql.includes('from sis_students s') && sql.includes('join platform.platform_students')) {
+        return [{ student_id: 'stu-1', student_name: 'Maya' }];
+      }
+      // Reload after the tx for the return DTO.
       if (sql.includes('select a.id') && sql.includes('pay_lunch_accounts')) {
         return [
           {
@@ -806,13 +919,10 @@ describe('LunchAccountService — IMMUTABLE transfer + dedup', () => {
           },
         ];
       }
-      if (sql.includes('update pay_lunch_accounts') && sql.includes('last_low_balance_alert_at')) {
-        alertedAt = '2026-05-10';
-      }
       return [];
     });
-    const { kafka, emitted } = makeKafka();
-    const svc = new LunchAccountService(tenantPrisma as never, kafka as never);
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new LunchAccountService(tenantPrisma as never, outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await svc.chargeMealFromConsumer({
         studentId: 'stu-1',
@@ -823,8 +933,19 @@ describe('LunchAccountService — IMMUTABLE transfer + dedup', () => {
         sourceEventId: 'evt-cross',
       });
     });
-    expect(alertedAt).toBe('2026-05-10');
-    expect(emitted.some((e) => e.topic === 'pay.lunch.low_balance')).toBe(true);
+    // REVIEW-P2-6 BLOCKING 4 — throttle stamp + outbox enqueue commit
+    // atomically. Verify both happened in one tx.
+    expect(stampedAt).toBe('2026-05-10T12:00:00Z');
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]!.topic).toBe('pay.lunch.low_balance');
+    expect(enqueued[0]!.payload.balance).toBe(7.5);
+    expect(enqueued[0]!.payload.threshold).toBe(10);
+    expect(enqueued[0]!.payload.studentName).toBe('Maya');
+    // Deterministic event_id derived from (accountId, alertedAt) so a
+    // redelivered fds.meal.served event carries the same id.
+    expect(enqueued[0]!.eventId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
   });
 
   it("parent CANNOT view another family's lunch account (404 don't-leak)", async () => {
@@ -850,7 +971,7 @@ describe('LunchAccountService — IMMUTABLE transfer + dedup', () => {
       }
       return [];
     });
-    const svc = new LunchAccountService(tenantPrisma as never, makeKafka().kafka as never);
+    const svc = new LunchAccountService(tenantPrisma as never, makeOutbox().outbox as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await expect(svc.getForStudent('other', PARENT_ACTOR)).rejects.toBeInstanceOf(
         NotFoundException,
@@ -935,7 +1056,8 @@ describe('PaymentAllocationService — SUM validation', () => {
           },
         ];
       }
-      if (sql.includes('from pay_invoices where id')) {
+      // REVIEW-P2-6 MAJOR 2 — invoice lookup is now school-scoped.
+      if (sql.includes('from pay_invoices') && sql.includes('school_id')) {
         return [{ id: 'inv-1', family_account_id: 'fa-1' }];
       }
       // listForPayment final read
@@ -1215,6 +1337,129 @@ describe('Controller permission metadata', () => {
     expect(permFor(BillingOpsController, 'createSavedPaymentMethod')).toEqual(['fin-001:write']);
     expect(permFor(BillingOpsController, 'removeSavedPaymentMethod')).toEqual(['fin-001:write']);
     expect(permFor(BillingOpsController, 'listSavedPaymentMethods')).toEqual(['fin-001:read']);
+  });
+});
+
+// =====================================================================
+// REVIEW-P2-6 BLOCKING REGRESSION TESTS (Round 2 verdict conditions)
+//
+// Each test below pins the exact contract the reviewer demanded so a
+// future refactor cannot regress the four BLOCKING fixes silently.
+// =====================================================================
+describe('REVIEW-P2-6 BLOCKING regressions', () => {
+  // -------------------------------------------------------------------
+  // BLOCKING 1 — financial-aid reads + writes are school-scoped.
+  // A foreign-school programme/application/award UUID must collapse
+  // to 404 and never leak across the connection pool.
+  // -------------------------------------------------------------------
+  it('BLOCKING 1 — getProgramById carries school predicate (cross-school 404)', async () => {
+    const sqlSeen: string[] = [];
+    const { tenantPrisma } = makeFake((c) => {
+      sqlSeen.push(c.sql.toLowerCase());
+      return [];
+    });
+    const svc = new FinancialAidService(tenantPrisma as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(svc.getProgramById('cross-school-id')).rejects.toBeInstanceOf(NotFoundException);
+    });
+    // Every programme lookup must include the school predicate.
+    expect(
+      sqlSeen.some((s) => s.includes('pay_financial_aid_programs') && s.includes('school_id')),
+    ).toBe(true);
+  });
+
+  it('BLOCKING 1 — listApplications carries school predicate', async () => {
+    const sqlSeen: string[] = [];
+    const { tenantPrisma } = makeFake((c) => {
+      sqlSeen.push(c.sql.toLowerCase());
+      return [];
+    });
+    const svc = new FinancialAidService(tenantPrisma as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await svc.listApplications({}, ADMIN_ACTOR);
+    });
+    expect(
+      sqlSeen.some((s) => s.includes('pay_financial_aid_applications') && s.includes('school_id')),
+    ).toBe(true);
+  });
+
+  // -------------------------------------------------------------------
+  // BLOCKING 2 — createApplication validates student/guardian/year
+  // against current school. Cycle 6 already covers the cross-school
+  // student + academic-year cases via dedicated tests; here we pin the
+  // SQL shape so a future refactor cannot drop the school predicate.
+  // -------------------------------------------------------------------
+  it('BLOCKING 2 — createApplication validates student against current school', async () => {
+    const sqlSeen: string[] = [];
+    const { tenantPrisma } = makeFake((c) => {
+      sqlSeen.push(c.sql.toLowerCase());
+      // Programme exists + active so the next gate (student lookup)
+      // is the one that fires.
+      if (c.sql.includes('pay_financial_aid_programs')) {
+        return [{ id: 'prog-1', is_active: true }];
+      }
+      // Cross-school student returns no rows → 400 with the canonical
+      // "studentId does not match a student in this school" message.
+      return [];
+    });
+    const svc = new FinancialAidService(tenantPrisma as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.createApplication(
+          {
+            programId: 'prog-1',
+            studentId: 'stu-1',
+            academicYearId: 'ay-1',
+            adjustedGrossIncome: 50000,
+            householdSize: 4,
+          },
+          ADMIN_ACTOR,
+        ),
+      ).rejects.toBeDefined();
+    });
+    // Student validation MUST query sis_students with school_id.
+    expect(sqlSeen.some((s) => s.includes('sis_students') && s.includes('school_id'))).toBe(true);
+  });
+
+  // -------------------------------------------------------------------
+  // BLOCKING 3 — pay.credit_note.issued + pay.payment.reversed go
+  // through the durable outbox INSIDE the same tenant tx as the
+  // financial mutation. Pinned via the deterministic event_id helpers
+  // (which are exported precisely for this reason).
+  // -------------------------------------------------------------------
+  it('BLOCKING 3 — deterministicCreditNoteEventId is stable + v5-shaped', async () => {
+    const { deterministicCreditNoteEventId } = await import('./credit-note.service');
+    const a = deterministicCreditNoteEventId('019d1234-aaaa-7000-8000-000000000001');
+    const b = deterministicCreditNoteEventId('019d1234-aaaa-7000-8000-000000000001');
+    const c = deterministicCreditNoteEventId('019d5678-bbbb-7000-8000-000000000002');
+    expect(a).toBe(b); // deterministic — retries get the same id
+    expect(a).not.toBe(c); // distinct inputs → distinct ids
+    // v5 marker (version nibble 5, variant nibble 8/9/a/b)
+    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it('BLOCKING 3 — deterministicReversalEventId is stable + v5-shaped', async () => {
+    const { deterministicReversalEventId } = await import('./reversal.service');
+    const a = deterministicReversalEventId('rev-1');
+    const b = deterministicReversalEventId('rev-1');
+    expect(a).toBe(b);
+    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  // -------------------------------------------------------------------
+  // BLOCKING 4 — pay.lunch.low_balance is durable. The throttle stamp
+  // and the outbox enqueue commit together so a Kafka outage cannot
+  // suppress the alert. Pinned via the deterministic event_id helper
+  // which is keyed on (accountId, alertedAt) for redelivery dedup.
+  // -------------------------------------------------------------------
+  it('BLOCKING 4 — deterministicLowBalanceEventId is stable + v5-shaped', async () => {
+    const { deterministicLowBalanceEventId } = await import('./lunch-account.service');
+    const a = deterministicLowBalanceEventId('la-1', '2026-05-10T12:00:00Z');
+    const b = deterministicLowBalanceEventId('la-1', '2026-05-10T12:00:00Z');
+    const c = deterministicLowBalanceEventId('la-1', '2026-05-11T12:00:00Z');
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 });
 

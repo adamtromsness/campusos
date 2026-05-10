@@ -4,10 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { LedgerService } from './ledger.service';
 import {
@@ -16,6 +17,31 @@ import {
   ReversalType,
   ReversePaymentDto,
 } from './dto/billing-ops.dto';
+
+/**
+ * REVIEW-P2-6 BLOCKING 3 — deterministic event_id for the durable
+ * outbox so a redelivered envelope carries the same id as the original
+ * publish. Cycle 26 GLConsumer dedupes on event_id.
+ */
+export function deterministicReversalEventId(reversalId: string): string {
+  const hash = createHash('sha1')
+    .update(reversalId + ':pay.payment.reversed:v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
 
 interface ReversalRow {
   id: string;
@@ -81,7 +107,7 @@ function rowToDto(r: ReversalRow): PaymentReversalResponseDto {
 export class ReversalService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly ledger: LedgerService,
   ) {}
 
@@ -91,10 +117,12 @@ export class ReversalService {
   ): Promise<PaymentReversalResponseDto[]> {
     if (!actor.isSchoolAdmin)
       throw new ForbiddenException('Only admins can list payment reversals');
+    // REVIEW-P2-6 follow-on — defence-in-depth school scoping.
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      let sql = SELECT_BASE + 'WHERE 1=1 ';
-      const params: unknown[] = [];
-      let idx = 1;
+      let sql = SELECT_BASE + 'WHERE school_id = $1::uuid ';
+      const params: unknown[] = [schoolId];
+      let idx = 2;
       if (query.familyAccountId) {
         sql += 'AND family_account_id = $' + idx + '::uuid ';
         params.push(query.familyAccountId);
@@ -114,8 +142,14 @@ export class ReversalService {
   async getById(id: string, actor: ResolvedActor): Promise<PaymentReversalResponseDto> {
     if (!actor.isSchoolAdmin)
       throw new ForbiddenException('Only admins can read payment reversals');
+    // REVIEW-P2-6 follow-on — defence-in-depth school scoping.
+    const schoolId = getCurrentTenant().schoolId;
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
-      client.$queryRawUnsafe<ReversalRow[]>(SELECT_BASE + 'WHERE id = $1::uuid', id),
+      client.$queryRawUnsafe<ReversalRow[]>(
+        SELECT_BASE + 'WHERE school_id = $1::uuid AND id = $2::uuid',
+        schoolId,
+        id,
+      ),
     );
     if (rows.length === 0) throw new NotFoundException('Payment reversal ' + id + ' not found');
     return rowToDto(rows[0]!);
@@ -131,23 +165,28 @@ export class ReversalService {
     if (trimmedReason.length === 0) throw new BadRequestException('reversalReason is required');
     const schoolId = getCurrentTenant().schoolId;
     const reversalId = generateId();
-    let snapshot: { familyAccountId: string; invoiceId: string; reversedAmount: number };
-    snapshot = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Lock invoice first.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2-6 BLOCKING 3 — payment lookup is school-scoped so a
+      // cross-school payment UUID collapses to 404 BEFORE we lock the
+      // parent invoice. Lock invoice FIRST then payment (consistent
+      // ordering with PaymentService.pay + RefundService.issue).
       const paymentInvoiceRows = (await tx.$queryRawUnsafe(
-        'SELECT invoice_id::text AS invoice_id FROM pay_payments WHERE id = $1::uuid',
+        'SELECT invoice_id::text AS invoice_id FROM pay_payments WHERE school_id = $1::uuid AND id = $2::uuid',
+        schoolId,
         paymentId,
       )) as Array<{ invoice_id: string }>;
       if (paymentInvoiceRows.length === 0)
         throw new NotFoundException('Payment ' + paymentId + ' not found');
       const invoiceId = paymentInvoiceRows[0]!.invoice_id;
       await tx.$queryRawUnsafe(
-        'SELECT id FROM pay_invoices WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id FROM pay_invoices WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
+        schoolId,
         invoiceId,
       );
 
       const paymentRows = (await tx.$queryRawUnsafe(
-        'SELECT id, school_id, family_account_id, amount::text, status FROM pay_payments WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id, school_id, family_account_id, amount::text, status FROM pay_payments WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
+        schoolId,
         paymentId,
       )) as Array<{
         id: string;
@@ -159,8 +198,6 @@ export class ReversalService {
       if (paymentRows.length === 0)
         throw new NotFoundException('Payment ' + paymentId + ' not found');
       const payment = paymentRows[0]!;
-      if (payment.school_id !== schoolId)
-        throw new ForbiddenException('Payment does not belong to this school');
       if (payment.status !== 'COMPLETED') {
         throw new BadRequestException(
           'Cannot reverse payment in status ' +
@@ -235,25 +272,27 @@ export class ReversalService {
           }
         }
       }
-      return { familyAccountId: payment.family_account_id, invoiceId, reversedAmount };
+      // REVIEW-P2-6 BLOCKING 3 — durable outbox INSIDE the same tx as
+      // the reversal + ledger write. Cycle 26 GLConsumer dedupes on
+      // event_id, so retries and Kafka redelivery are safe.
+      await this.outbox.enqueueInTx(tx as never, {
+        topic: 'pay.payment.reversed',
+        key: reversalId,
+        sourceModule: 'payments',
+        eventId: deterministicReversalEventId(reversalId),
+        payload: {
+          reversalId,
+          paymentId,
+          invoiceId,
+          familyAccountId: payment.family_account_id,
+          reversalType: body.reversalType,
+          reversalReason: trimmedReason,
+          reversedAmount,
+          reversedBy: actor.accountId,
+          sourceRefId: reversalId,
+        },
+      });
     });
-    const dto = await this.getById(reversalId, actor);
-    void this.kafka.emit({
-      topic: 'pay.payment.reversed',
-      key: reversalId,
-      sourceModule: 'payments',
-      payload: {
-        reversalId,
-        paymentId,
-        invoiceId: snapshot.invoiceId,
-        familyAccountId: snapshot.familyAccountId,
-        reversalType: dto.reversalType,
-        reversalReason: dto.reversalReason,
-        reversedAmount: snapshot.reversedAmount,
-        reversedBy: actor.accountId,
-        sourceRefId: reversalId,
-      },
-    });
-    return dto;
+    return this.getById(reversalId, actor);
   }
 }

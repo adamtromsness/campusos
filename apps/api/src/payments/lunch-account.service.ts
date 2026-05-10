@@ -8,8 +8,37 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { createHash } from 'crypto';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+
+/**
+ * REVIEW-P2-6 BLOCKING 4 — deterministic event_id for the durable
+ * low-balance outbox enqueue. Hash of (accountId, alertedAt) so a
+ * redelivered fds.meal.served event that re-stamps the same throttle
+ * window produces the same id (consumer-side dedup catches it). Same
+ * v5-shaped UUID pattern as deterministicCreditNoteEventId /
+ * deterministicReversalEventId / deterministicPayrollEventId.
+ */
+export function deterministicLowBalanceEventId(accountId: string, alertedAt: string): string {
+  const hash = createHash('sha1')
+    .update(accountId + ':' + alertedAt + ':pay.lunch.low_balance:v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
 import {
   DepositLunchAccountDto,
   LunchAccountResponseDto,
@@ -145,7 +174,7 @@ export class LunchAccountService {
 
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   async getForStudent(
@@ -472,10 +501,43 @@ export class LunchAccountService {
       const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
       if (oldBalance > threshold && newBalance <= threshold && lastAlertAt < oneDayAgo) {
         result.balanceCrossedThreshold = true;
-        await tx.$executeRawUnsafe(
-          'UPDATE pay_lunch_accounts SET last_low_balance_alert_at = now() WHERE id = $1::uuid',
+        // REVIEW-P2-6 BLOCKING 4 — stamp the throttle row AND enqueue
+        // the durable outbox envelope INSIDE the same tenant tx. If
+        // Kafka is down the OutboxPublisherWorker retries until it
+        // succeeds, but the throttle stamp does not "lose" the alert
+        // because both rows commit atomically. If the tx rolls back
+        // the throttle stamp also rolls back so the next event will
+        // re-evaluate. Resolve student name via JOINs inside the tx
+        // so we do not have to read the account back outside the tx.
+        const stampRows = (await tx.$queryRawUnsafe(
+          'UPDATE pay_lunch_accounts SET last_low_balance_alert_at = now() WHERE id = $1::uuid RETURNING last_low_balance_alert_at::text AS alerted_at',
           account.id,
-        );
+        )) as Array<{ alerted_at: string }>;
+        const alertedAt = stampRows[0]?.alerted_at ?? new Date().toISOString();
+        const studentRows = (await tx.$queryRawUnsafe(
+          "SELECT s.id::text AS student_id, p.first_name || ' ' || p.last_name AS student_name " +
+            'FROM sis_students s ' +
+            'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            'JOIN platform.iam_person p ON p.id = ps.person_id ' +
+            'WHERE s.id = $1::uuid',
+          input.studentId,
+        )) as Array<{ student_id: string; student_name: string }>;
+        const studentName = studentRows[0]?.student_name ?? '';
+        await this.outbox.enqueueInTx(tx as never, {
+          topic: 'pay.lunch.low_balance',
+          key: account.id,
+          sourceModule: 'payments',
+          eventId: deterministicLowBalanceEventId(account.id, alertedAt),
+          payload: {
+            lunchAccountId: account.id,
+            studentId: input.studentId,
+            studentName,
+            schoolId,
+            balance: newBalance,
+            threshold,
+            sourceRefId: account.id,
+          },
+        });
       }
     });
     if (result.created) {
@@ -486,24 +548,6 @@ export class LunchAccountService {
         ),
       )) as AccountRow[];
       result.account = accountRows.length > 0 ? accountRowToDto(accountRows[0]!) : null;
-      if (result.balanceCrossedThreshold && result.account) {
-        const account = result.account;
-        const tenant = getCurrentTenant();
-        void this.kafka.emit({
-          topic: 'pay.lunch.low_balance',
-          key: account.id,
-          sourceModule: 'payments',
-          payload: {
-            lunchAccountId: account.id,
-            studentId: account.studentId,
-            studentName: account.studentName,
-            schoolId: tenant.schoolId,
-            balance: account.balance,
-            threshold: account.lowBalanceThreshold,
-            sourceRefId: account.id,
-          },
-        });
-      }
     }
     return result;
   }

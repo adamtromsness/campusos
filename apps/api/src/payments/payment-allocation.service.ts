@@ -65,9 +65,14 @@ export class PaymentAllocationService {
   ): Promise<PaymentAllocationResponseDto[]> {
     if (!actor.isSchoolAdmin)
       throw new ForbiddenException('Only admins can list payment allocations');
+    // REVIEW-P2-6 MAJOR 2 — school predicate so a cross-school payment
+    // UUID returns the empty list instead of leaking allocation rows.
+    const schoolId = getCurrentTenant().schoolId;
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<AllocationRow[]>(
-        SELECT_BASE + 'WHERE a.payment_id = $1::uuid ORDER BY a.allocated_at',
+        SELECT_BASE +
+          'WHERE a.school_id = $1::uuid AND a.payment_id = $2::uuid ORDER BY a.allocated_at',
+        schoolId,
         paymentId,
       ),
     )) as AllocationRow[];
@@ -83,8 +88,11 @@ export class PaymentAllocationService {
     const total = body.allocations.reduce((sum, a) => sum + a.allocatedAmount, 0);
     const schoolId = getCurrentTenant().schoolId;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2-6 MAJOR 2 — payment lookup is school-scoped so a
+      // cross-school payment UUID collapses to 404 BEFORE the lock.
       const paymentRows = (await tx.$queryRawUnsafe(
-        'SELECT id, school_id, family_account_id, amount::text, status FROM pay_payments WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id, school_id, family_account_id, amount::text, status FROM pay_payments WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
+        schoolId,
         paymentId,
       )) as Array<{
         id: string;
@@ -96,8 +104,6 @@ export class PaymentAllocationService {
       if (paymentRows.length === 0)
         throw new NotFoundException('Payment ' + paymentId + ' not found');
       const payment = paymentRows[0]!;
-      if (payment.school_id !== schoolId)
-        throw new ForbiddenException('Payment does not belong to this school');
       const paymentAmount = Number(payment.amount);
       if (Math.abs(total - paymentAmount) > 0.001) {
         throw new BadRequestException(
@@ -119,8 +125,13 @@ export class PaymentAllocationService {
         if (a.allocatedAmount <= 0) {
           throw new BadRequestException('allocatedAmount must be > 0 for invoice ' + a.invoiceId);
         }
+        // REVIEW-P2-6 MAJOR 2 — invoice lookup is school-scoped. A
+        // cross-school invoice UUID returns the same friendly error
+        // as a missing one (don't-leak-existence). The same-family
+        // check stays as the secondary gate.
         const invoiceRows = (await tx.$queryRawUnsafe(
-          'SELECT id, family_account_id FROM pay_invoices WHERE id = $1::uuid',
+          'SELECT id, family_account_id FROM pay_invoices WHERE school_id = $1::uuid AND id = $2::uuid',
+          schoolId,
           a.invoiceId,
         )) as Array<{ id: string; family_account_id: string }>;
         if (invoiceRows.length === 0)
