@@ -68,6 +68,30 @@ export default function AthleticsLandingPage() {
             Injury log
           </Link>
         ) : null}
+        {isAd ? (
+          <Link
+            href="/athletics/streaming"
+            className="inline-flex items-center rounded-lg bg-violet-50 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-100"
+          >
+            Streaming
+          </Link>
+        ) : null}
+        {isAd ? (
+          <Link
+            href="/athletics/officials"
+            className="inline-flex items-center rounded-lg bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100"
+          >
+            Officials
+          </Link>
+        ) : null}
+        {isStudent || isAd ? (
+          <Link
+            href="/athletics/recruiting"
+            className="inline-flex items-center rounded-lg bg-emerald-50 px-3 py-1.5 text-sm text-emerald-700 hover:bg-emerald-100"
+          >
+            Recruiting
+          </Link>
+        ) : null}
       </div>
 
       {/* Active programmes */}

@@ -111,6 +111,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Athletics Advanced — equipment, conferences, media (P2-8a)',
     script: 'seed-athletics-advanced-a.ts',
   },
+  {
+    label: 'Athletics Advanced — streaming, officials, recruiting (P2-8b)',
+    script: 'seed-athletics-advanced-b.ts',
+  },
 ];
 
 async function main(): Promise<void> {

@@ -978,3 +978,55 @@ model CurStandardPlatform {
   @@map("cur_standards_platform")
   @@schema("platform")
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// P2-8b — Athletics Officials Marketplace (ADR-063)
+// Officials are portable across schools and live in the platform
+// schema so a single official can work games in multiple tenants
+// without per-school duplication. Tenant ath_official_assignments
+// rows carry a soft UUID ref to platform_official_profiles.id per
+// ADR-001/020 (no DB-enforced FK across the schema boundary).
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model PlatformOfficialProfile {
+  id                  String   @id @db.Uuid
+  personId            String   @unique @map("person_id") @db.Uuid
+  sports              String[] @db.Text
+  certificationLevel  String?  @map("certification_level")
+  certificationBody   String?  @map("certification_body")
+  certificationExpiry DateTime? @map("certification_expiry") @db.Date
+  yearsExperience     Int?     @map("years_experience")
+  maxTravelMiles      Int?     @map("max_travel_miles")
+  baseFee             Decimal? @map("base_fee") @db.Decimal(8, 2)
+  isAvailable         Boolean  @default(true) @map("is_available")
+  bio                 String?
+  contactEmail        String?  @map("contact_email")
+  contactPhone        String?  @map("contact_phone")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  availability PlatformOfficialAvailability[]
+
+  @@index([isAvailable])
+  @@map("platform_official_profiles")
+  @@schema("platform")
+}
+
+model PlatformOfficialAvailability {
+  id                String   @id @db.Uuid
+  officialProfileId String   @map("official_profile_id") @db.Uuid
+  availableDate     DateTime @map("available_date") @db.Date
+  startTime         DateTime? @map("start_time") @db.Time(0)
+  endTime           DateTime? @map("end_time") @db.Time(0)
+  isAvailable       Boolean  @default(true) @map("is_available")
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  profile PlatformOfficialProfile @relation(fields: [officialProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([officialProfileId, availableDate, startTime])
+  @@index([availableDate, isAvailable])
+  @@map("platform_official_availability")
+  @@schema("platform")
+}

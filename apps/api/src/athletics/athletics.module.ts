@@ -32,6 +32,12 @@ import { ConferenceService } from './conference.service';
 import { ConferenceController } from './conference.controller';
 import { TeamMediaService } from './team-media.service';
 import { TeamMediaController } from './team-media.controller';
+import { GameStreamService } from './game-stream.service';
+import { GameStreamController } from './game-stream.controller';
+import { OfficialService } from './official.service';
+import { OfficialController } from './official.controller';
+import { RecruitingService } from './recruiting.service';
+import { RecruitingController } from './recruiting.controller';
 
 /**
  * Athletics Module — Cycle 13 Steps 5 + 6 + 7.
@@ -80,6 +86,10 @@ import { TeamMediaController } from './team-media.controller';
     SafetyEquipmentService,
     ConferenceService,
     TeamMediaService,
+    // P2-8b — Athletics Advanced (Streaming + Officials + Recruiting)
+    GameStreamService,
+    OfficialService,
+    RecruitingService,
   ],
   controllers: [
     ProgrammeController,
@@ -98,6 +108,10 @@ import { TeamMediaController } from './team-media.controller';
     SafetyEquipmentController,
     ConferenceController,
     TeamMediaController,
+    // P2-8b controllers
+    GameStreamController,
+    OfficialController,
+    RecruitingController,
   ],
   exports: [
     ProgrammeService,
@@ -115,6 +129,9 @@ import { TeamMediaController } from './team-media.controller';
     SafetyEquipmentService,
     ConferenceService,
     TeamMediaService,
+    GameStreamService,
+    OfficialService,
+    RecruitingService,
   ],
 })
 export class AthleticsModule {}

@@ -541,3 +541,610 @@ export function useCreateMediaAsset() {
     },
   });
 }
+
+// ════════════════════════════════════════════════════════════════
+// P2-8b — Streaming + Officials + Recruiting
+// ════════════════════════════════════════════════════════════════
+
+export type StreamStatus = 'SCHEDULED' | 'LIVE' | 'ENDED' | 'FAILED';
+export type StreamAccessLevel = 'PUBLIC' | 'SCHOOL_ONLY' | 'BOTH_SCHOOLS' | 'COACHES_ONLY';
+export type HighlightConsentStatus = 'PENDING' | 'CONSENTED' | 'DECLINED';
+export type RecordingType = 'FULL_GAME' | 'HIGHLIGHT_REEL' | 'COACHES_FILM';
+export type OfficialRole =
+  | 'HEAD_REFEREE'
+  | 'ASSISTANT_REFEREE'
+  | 'UMPIRE'
+  | 'LINE_JUDGE'
+  | 'SCORER'
+  | 'TIMER'
+  | 'OTHER';
+export type OfficialAssignmentStatus =
+  | 'POSTED'
+  | 'ACCEPTED'
+  | 'CONFIRMED'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'NO_SHOW';
+export type OfficialPaymentStatus = 'PENDING' | 'PROCESSED' | 'PAID';
+export type RaterType = 'SCHOOL_RATES_OFFICIAL' | 'OFFICIAL_RATES_SCHOOL';
+export type RecruitingInterestLevel = 'EXPLORING' | 'INTERESTED' | 'APPLIED' | 'COMMITTED';
+
+export interface GameStreamDto {
+  id: string;
+  gameId: string;
+  streamUrl: string | null;
+  streamStatus: StreamStatus;
+  accessLevel: StreamAccessLevel;
+  recordingS3Key: string | null;
+  recordingDurationSeconds: number | null;
+  configuredBy: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HighlightClipDto {
+  id: string;
+  streamId: string;
+  studentId: string;
+  studentName: string | null;
+  startTimeSeconds: number;
+  endTimeSeconds: number;
+  title: string | null;
+  description: string | null;
+  s3Key: string;
+  addedToPortfolio: boolean;
+  portfolioItemId: string | null;
+  consentStatus: HighlightConsentStatus;
+  consentRecordedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GameRecordingDto {
+  id: string;
+  gameId: string;
+  recordingType: RecordingType;
+  s3Key: string;
+  durationSeconds: number | null;
+  title: string | null;
+  description: string | null;
+  uploadedBy: string | null;
+  uploadedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OfficialProfileDto {
+  id: string;
+  personId: string;
+  personName: string | null;
+  sports: string[];
+  certificationLevel: string | null;
+  certificationBody: string | null;
+  certificationExpiry: string | null;
+  yearsExperience: number | null;
+  maxTravelMiles: number | null;
+  baseFee: number | null;
+  isAvailable: boolean;
+  bio: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  averageOverallRating: number | null;
+  ratingCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OfficialAvailabilityDto {
+  id: string;
+  officialProfileId: string;
+  availableDate: string;
+  startTime: string | null;
+  endTime: string | null;
+  isAvailable: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OfficialAssignmentDto {
+  id: string;
+  gameId: string;
+  officialProfileId: string;
+  officialName: string | null;
+  role: OfficialRole;
+  fee: number;
+  status: OfficialAssignmentStatus;
+  paymentStatus: OfficialPaymentStatus;
+  acceptedAt: string | null;
+  confirmedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  notes: string | null;
+  assignedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OfficialRatingDto {
+  id: string;
+  assignmentId: string;
+  raterType: RaterType;
+  professionalism: number | null;
+  knowledge: number | null;
+  communication: number | null;
+  punctuality: number | null;
+  overall: number;
+  comments: string | null;
+  ratedBy: string | null;
+  ratedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecruitingProfileDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  sport: string;
+  graduationYear: number;
+  position: string | null;
+  heightInches: number | null;
+  weightLbs: number | null;
+  gpa: number | null;
+  gpaSnapshotAt: string | null;
+  highlightReelS3Key: string | null;
+  isPublished: boolean;
+  publishedAt: string | null;
+  coachRecommendation: string | null;
+  achievements: string | null;
+  contactEmail: string | null;
+  interestCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecruitingInterestDto {
+  id: string;
+  recruitingProfileId: string;
+  collegeName: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  interestLevel: RecruitingInterestLevel;
+  lastContactDate: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Streams ─────────────────────────────────────────────────────
+
+export function useLiveStreams() {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'streams', 'live'],
+    queryFn: () => apiFetch<GameStreamDto[]>(`${PREFIX}/athletics/streams/live`),
+    staleTime: 15_000,
+  });
+}
+
+export function useGameStream(gameId: string | null) {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'games', gameId, 'stream'],
+    queryFn: () => apiFetch<GameStreamDto | null>(`${PREFIX}/athletics/games/${gameId}/stream`),
+    enabled: !!gameId,
+  });
+}
+
+export function useConfigureStream(gameId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { streamUrl?: string; accessLevel?: StreamAccessLevel }) =>
+      apiFetch<GameStreamDto>(`${PREFIX}/athletics/games/${gameId}/stream`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['athletics-advanced', 'games', gameId] });
+      qc.invalidateQueries({ queryKey: ['athletics-advanced', 'streams'] });
+    },
+  });
+}
+
+export function usePatchStream(streamId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      streamStatus?: StreamStatus;
+      streamUrl?: string;
+      accessLevel?: StreamAccessLevel;
+      recordingS3Key?: string;
+      recordingDurationSeconds?: number;
+    }) =>
+      apiFetch<GameStreamDto>(`${PREFIX}/athletics/streams/${streamId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['athletics-advanced', 'streams'] });
+    },
+  });
+}
+
+export function useStreamClips(streamId: string | null) {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'streams', streamId, 'clips'],
+    queryFn: () => apiFetch<HighlightClipDto[]>(`${PREFIX}/athletics/streams/${streamId}/clips`),
+    enabled: !!streamId,
+  });
+}
+
+export function useStudentClips(studentId: string | null) {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'students', studentId, 'clips'],
+    queryFn: () =>
+      apiFetch<HighlightClipDto[]>(`${PREFIX}/athletics/students/${studentId}/highlight-clips`),
+    enabled: !!studentId,
+  });
+}
+
+export function useCreateClip(streamId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      studentId: string;
+      startTimeSeconds: number;
+      endTimeSeconds: number;
+      title?: string;
+      description?: string;
+      s3Key: string;
+    }) =>
+      apiFetch<HighlightClipDto>(`${PREFIX}/athletics/streams/${streamId}/clips`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['athletics-advanced', 'streams', streamId, 'clips'] });
+    },
+  });
+}
+
+export function useRecordClipConsent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      clipId,
+      consentStatus,
+    }: {
+      clipId: string;
+      consentStatus: 'CONSENTED' | 'DECLINED';
+    }) =>
+      apiFetch<HighlightClipDto>(`${PREFIX}/athletics/highlight-clips/${clipId}/consent`, {
+        method: 'POST',
+        body: JSON.stringify({ consentStatus }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['athletics-advanced'] });
+    },
+  });
+}
+
+export function useAddClipToPortfolio() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (clipId: string) =>
+      apiFetch<HighlightClipDto>(`${PREFIX}/athletics/highlight-clips/${clipId}/add-to-portfolio`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['athletics-advanced'] });
+    },
+  });
+}
+
+export function useGameRecordings(gameId: string | null) {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'games', gameId, 'recordings'],
+    queryFn: () => apiFetch<GameRecordingDto[]>(`${PREFIX}/athletics/games/${gameId}/recordings`),
+    enabled: !!gameId,
+  });
+}
+
+// ── Officials ───────────────────────────────────────────────────
+
+export function useOfficials(filters?: {
+  sport?: string;
+  isAvailable?: boolean;
+  availableDate?: string;
+  search?: string;
+}) {
+  const params = new URLSearchParams();
+  if (filters?.sport) params.set('sport', filters.sport);
+  if (filters?.isAvailable !== undefined) params.set('isAvailable', String(filters.isAvailable));
+  if (filters?.availableDate) params.set('availableDate', filters.availableDate);
+  if (filters?.search) params.set('search', filters.search);
+  const qs = params.toString();
+  return useQuery({
+    queryKey: ['athletics-advanced', 'officials', filters],
+    queryFn: () =>
+      apiFetch<OfficialProfileDto[]>(`${PREFIX}/athletics/officials${qs ? `?${qs}` : ''}`),
+    staleTime: 30_000,
+  });
+}
+
+export function useOfficial(id: string | null) {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'officials', id],
+    queryFn: () => apiFetch<OfficialProfileDto>(`${PREFIX}/athletics/officials/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useCreateOfficialProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      personId: string;
+      sports: string[];
+      certificationLevel?: string;
+      certificationBody?: string;
+      certificationExpiry?: string;
+      yearsExperience?: number;
+      maxTravelMiles?: number;
+      baseFee?: number;
+      isAvailable?: boolean;
+      bio?: string;
+      contactEmail?: string;
+      contactPhone?: string;
+    }) =>
+      apiFetch<OfficialProfileDto>(`${PREFIX}/athletics/officials/profile`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['athletics-advanced', 'officials'] });
+    },
+  });
+}
+
+export function useOfficialAvailability(officialProfileId: string | null) {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'officials', officialProfileId, 'availability'],
+    queryFn: () =>
+      apiFetch<OfficialAvailabilityDto[]>(
+        `${PREFIX}/athletics/officials/${officialProfileId}/availability`,
+      ),
+    enabled: !!officialProfileId,
+  });
+}
+
+export function useCreateAvailability(officialProfileId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      availableDate: string;
+      startTime?: string;
+      endTime?: string;
+      isAvailable?: boolean;
+      notes?: string;
+    }) =>
+      apiFetch<OfficialAvailabilityDto>(
+        `${PREFIX}/athletics/officials/${officialProfileId}/availability`,
+        { method: 'POST', body: JSON.stringify(payload) },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ['athletics-advanced', 'officials', officialProfileId, 'availability'],
+      });
+    },
+  });
+}
+
+export function useGameAssignments(gameId: string | null) {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'games', gameId, 'officials'],
+    queryFn: () =>
+      apiFetch<OfficialAssignmentDto[]>(`${PREFIX}/athletics/games/${gameId}/officials`),
+    enabled: !!gameId,
+  });
+}
+
+export function useCreateAssignment(gameId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      officialProfileId: string;
+      role: OfficialRole;
+      fee: number;
+      notes?: string;
+    }) =>
+      apiFetch<OfficialAssignmentDto>(`${PREFIX}/athletics/games/${gameId}/officials`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['athletics-advanced', 'games', gameId] });
+    },
+  });
+}
+
+export function useTransitionAssignment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      assignmentId,
+      ...payload
+    }: {
+      assignmentId: string;
+      status: 'ACCEPTED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+      cancellationReason?: string;
+      notes?: string;
+    }) =>
+      apiFetch<OfficialAssignmentDto>(`${PREFIX}/athletics/official-assignments/${assignmentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['athletics-advanced'] });
+    },
+  });
+}
+
+export function useAssignmentRatings(assignmentId: string | null) {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'assignments', assignmentId, 'ratings'],
+    queryFn: () =>
+      apiFetch<OfficialRatingDto[]>(
+        `${PREFIX}/athletics/official-assignments/${assignmentId}/ratings`,
+      ),
+    enabled: !!assignmentId,
+  });
+}
+
+export function useCreateRating() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      assignmentId,
+      ...payload
+    }: {
+      assignmentId: string;
+      raterType: RaterType;
+      professionalism?: number;
+      knowledge?: number;
+      communication?: number;
+      punctuality?: number;
+      overall: number;
+      comments?: string;
+    }) =>
+      apiFetch<OfficialRatingDto>(`${PREFIX}/athletics/official-assignments/${assignmentId}/rate`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['athletics-advanced', 'assignments'] });
+    },
+  });
+}
+
+// ── Recruiting ──────────────────────────────────────────────────
+
+export function useRecruitingProfiles(filters?: {
+  graduationYear?: number;
+  sport?: string;
+  isPublished?: boolean;
+}) {
+  const params = new URLSearchParams();
+  if (filters?.graduationYear) params.set('graduationYear', String(filters.graduationYear));
+  if (filters?.sport) params.set('sport', filters.sport);
+  if (filters?.isPublished !== undefined) params.set('isPublished', String(filters.isPublished));
+  const qs = params.toString();
+  return useQuery({
+    queryKey: ['athletics-advanced', 'recruiting', filters],
+    queryFn: () =>
+      apiFetch<RecruitingProfileDto[]>(`${PREFIX}/athletics/recruiting${qs ? `?${qs}` : ''}`),
+  });
+}
+
+export function useRecruitingProfile(id: string | null) {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'recruiting', id],
+    queryFn: () => apiFetch<RecruitingProfileDto>(`${PREFIX}/athletics/recruiting/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useStudentRecruitingProfile(studentId: string | null) {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'students', studentId, 'recruiting'],
+    queryFn: () =>
+      apiFetch<RecruitingProfileDto | null>(`${PREFIX}/athletics/students/${studentId}/recruiting`),
+    enabled: !!studentId,
+  });
+}
+
+export function useCreateRecruitingProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      studentId: string;
+      sport: string;
+      graduationYear: number;
+      position?: string;
+      heightInches?: number;
+      weightLbs?: number;
+      highlightReelS3Key?: string;
+      achievements?: string;
+      contactEmail?: string;
+    }) =>
+      apiFetch<RecruitingProfileDto>(`${PREFIX}/athletics/recruiting`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['athletics-advanced', 'recruiting'] });
+    },
+  });
+}
+
+export function useUpdateRecruitingProfile(profileId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      sport?: string;
+      graduationYear?: number;
+      position?: string;
+      heightInches?: number;
+      weightLbs?: number;
+      highlightReelS3Key?: string;
+      isPublished?: boolean;
+      coachRecommendation?: string;
+      achievements?: string;
+      contactEmail?: string;
+    }) =>
+      apiFetch<RecruitingProfileDto>(`${PREFIX}/athletics/recruiting/${profileId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['athletics-advanced', 'recruiting'] });
+    },
+  });
+}
+
+export function useRecruitingInterests(profileId: string | null) {
+  return useQuery({
+    queryKey: ['athletics-advanced', 'recruiting', profileId, 'interests'],
+    queryFn: () =>
+      apiFetch<RecruitingInterestDto[]>(`${PREFIX}/athletics/recruiting/${profileId}/interests`),
+    enabled: !!profileId,
+  });
+}
+
+export function useCreateInterest(profileId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      collegeName: string;
+      contactName?: string;
+      contactEmail?: string;
+      contactPhone?: string;
+      interestLevel?: RecruitingInterestLevel;
+      lastContactDate?: string;
+      notes?: string;
+    }) =>
+      apiFetch<RecruitingInterestDto>(`${PREFIX}/athletics/recruiting/${profileId}/interests`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ['athletics-advanced', 'recruiting', profileId, 'interests'],
+      });
+    },
+  });
+}
