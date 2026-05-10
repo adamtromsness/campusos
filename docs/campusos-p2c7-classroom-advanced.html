@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-7: Classroom Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.split-card{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:16px 0}
+.split-card h3{font-size:16px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.split-card p{font-size:14px;line-height:1.8;margin:0}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="index.html">Design Hub</a><a href="campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave B &mdash; Pilot Enhancement</div>
+    <h1>P2-7: Classroom Advanced</h1>
+    <div class="sub">Hall passes with configurable limits and location tracking, rubrics engine with weighted criteria and per-criterion scoring, standards-based gradebook with evidence linking, peer review assignments with anonymised feedback, AI tutoring sessions with conversation history and learning signal extraction, lesson video recording with transcription pipeline and AI-generated summaries, and class moments photo sharing. The highest teacher-engagement feature set in CampusOS. Pre-split into 3 sub-cycles.</div>
+    <span class="version">May 2026 &middot; 3 Sub-Cycles &middot; ERD v11 &middot; M21 Classroom .1 (24 tables) &middot; ATT-005 + TCH-001..009 &middot; Phase 2 Cycle 7</span>
+  </div>
+
+  <h2 class="section-heading">Sub-Cycle Structure</h2>
+  <p class="body-text">24 tables is too large for a single Claude Code session. This cycle is pre-split into 3 independently shippable sub-cycles. Each has its own schema, seed, services, UI, tests, and commit. Dependencies flow forward: P2-7a has none, P2-7b extends the gradebook, P2-7c requires the AI Inference extracted service.</p>
+
+  <div class="split-card">
+    <h3>P2-7a &mdash; Hall Passes + Rubrics + Class Moments (8 tables)</h3>
+    <p>Teacher daily ops: digital hall passes with configurable limits + destination tracking, rubrics engine with weighted criteria + per-submission scoring, class moments photo feed for families. No external service dependencies. Ship immediately.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-7b &mdash; Standards Gradebook + Peer Review (8 tables)</h3>
+    <p>Assessment depth: standards-based gradebook with per-standard evidence linking (extends Cycle 23 cur_standards), peer review assignments with anonymised feedback + rubric-based scoring, student progress notes, report card subjects. No external service dependencies.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-7c &mdash; AI Tutoring + Lesson Video (8 tables)</h3>
+    <p>AI-powered features: AI tutoring sessions with conversation history + learning signal extraction for counsellors, lesson video recording with S3 upload + transcription pipeline + AI-generated summaries, AI usage logging with per-tenant quota enforcement. Requires AI Inference + Video Processing extracted services.</p>
+  </div>
+
+  <h2 class="section-heading">P2-7a: Hall Passes + Rubrics + Class Moments</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema (8 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>cls_hall_pass_settings</strong> &mdash; <code>school_id UUID UNIQUE</code>, <code>max_concurrent_passes_per_class INT DEFAULT 3</code>, <code>max_daily_passes_per_student INT DEFAULT 5</code>, <code>default_duration_minutes INT DEFAULT 10</code>, <code>destinations TEXT[] DEFAULT '{"Bathroom","Nurse","Office","Library","Other"}'</code>, <code>require_teacher_approval BOOLEAN DEFAULT true</code>.</li>
+      <li><strong>cls_hall_passes</strong> &mdash; <code>school_id UUID</code>, <code>student_id UUID FK NOT NULL</code>, <code>class_id UUID FK NOT NULL</code>, <code>issued_by UUID FK NOT NULL</code> (teacher), <code>destination TEXT NOT NULL</code>, <code>issued_at TIMESTAMPTZ NOT NULL</code>, <code>expected_return_at TIMESTAMPTZ NOT NULL</code>, <code>returned_at TIMESTAMPTZ</code> nullable, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 4-value CHECK (ACTIVE, RETURNED, OVERDUE, RECALLED). INDEX(school_id, status) WHERE status='ACTIVE'. INDEX(student_id, issued_at DESC). Emits <code>cls.hall_pass.issued</code> + <code>cls.hall_pass.overdue</code> (when expected_return_at passes without return).</li>
+      <li><strong>cls_rubrics</strong> &mdash; <code>school_id UUID</code>, <code>created_by UUID FK</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>is_template BOOLEAN DEFAULT false</code> (template rubrics shared across assignments), <code>total_points NUMERIC(6,2)</code>. INDEX(school_id, created_by).</li>
+      <li><strong>cls_rubric_criteria</strong> &mdash; <code>rubric_id UUID FK NOT NULL</code>, <code>criterion_name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>weight NUMERIC(5,2) NOT NULL</code> (% of total; SUM per rubric should = 100), <code>max_points NUMERIC(5,2) NOT NULL</code>, <code>sort_order INT NOT NULL</code>, <code>performance_levels JSONB</code> (array of {level_name, description, points}: e.g., [{Excellent, 10}, {Good, 8}, {Developing, 5}, {Beginning, 2}]). INDEX(rubric_id, sort_order).</li>
+      <li><strong>cls_rubric_scores</strong> &mdash; <code>submission_id UUID FK(cls_submissions) NOT NULL</code>, <code>criterion_id UUID FK NOT NULL</code>, <code>scored_by UUID FK NOT NULL</code> (teacher or peer), <code>points_awarded NUMERIC(5,2) NOT NULL</code>, <code>performance_level TEXT</code>, <code>feedback TEXT</code>. UNIQUE(submission_id, criterion_id, scored_by). INDEX(submission_id).</li>
+      <li><strong>cls_class_moments</strong> &mdash; <code>class_id UUID FK NOT NULL</code>, <code>posted_by UUID FK NOT NULL</code> (teacher), <code>caption TEXT</code>, <code>posted_at TIMESTAMPTZ NOT NULL</code>, <code>is_approved BOOLEAN DEFAULT true</code> (auto-approved for teachers; student-posted moments require approval if enabled). INDEX(class_id, posted_at DESC).</li>
+      <li><strong>cls_class_moment_photos</strong> &mdash; <code>moment_id UUID FK NOT NULL</code>, <code>s3_key TEXT NOT NULL</code>, <code>sort_order INT DEFAULT 0</code>. INDEX(moment_id).</li>
+      <li><strong>cls_class_moment_reactions</strong> &mdash; <code>moment_id UUID FK NOT NULL</code>, <code>reacted_by UUID FK NOT NULL</code>, <code>reaction_type TEXT NOT NULL DEFAULT 'LIKE'</code> 3-value CHECK (LIKE, LOVE, CELEBRATE). UNIQUE(moment_id, reacted_by).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 tables. Migration: <code>112_cls_hall_rubric_moments.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Seed + Services + UI + Tests</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>1 hall pass settings row. 5 hall passes (2 ACTIVE, 1 RETURNED, 1 OVERDUE, 1 RECALLED).</li>
+      <li>2 rubrics (1 template "Narrative Writing" with 4 criteria, 1 assignment-specific). 8 rubric scores across 2 submissions.</li>
+      <li>3 class moments with 5 photos + 8 reactions.</li>
+      <li>Permissions: ATT-005 hall passes (Teacher write, Student request). TCH-001 rubrics (Teacher write). TCH-009 class moments (Teacher write, Parent read).</li>
+    </ol>
+    <div class="detail-heading">Services (~18 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>HallPassService</strong> &mdash; <code>POST /classroom/hall-passes</code> (validates concurrent + daily limits before issuing), <code>GET /classroom/hall-passes/active</code> (teacher: active passes in my classes), <code>PATCH /classroom/hall-passes/:id/return</code>, <code>PATCH /classroom/hall-passes/:id/recall</code>. HallPassOverdueWorker: checks every minute for passes past expected_return_at, flips to OVERDUE, emits event. <code>GET/PATCH /classroom/hall-pass-settings</code>.</li>
+      <li><strong>RubricService</strong> &mdash; CRUD for rubrics + criteria. <code>POST /classroom/rubrics/:id/clone</code> (clone template to assignment). <code>POST /classroom/rubric-scores</code> (score a submission against a rubric). <code>GET /classroom/submissions/:id/rubric-scores</code> (all criteria scores for a submission).</li>
+      <li><strong>ClassMomentService</strong> &mdash; <code>POST /classroom/classes/:id/moments</code> (teacher posts with photos), <code>GET /classroom/classes/:id/moments</code> (class feed, parent-visible), <code>POST /classroom/moments/:id/react</code>, <code>DELETE /classroom/moments/:id</code>.</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Hall Pass Dashboard</strong> <code>/classroom/hall-passes</code> &mdash; teacher: active passes (timer per pass), issue pass form (student selector + destination + duration), daily/concurrent limit indicators. Student: request pass button. Admin: settings.</li>
+      <li><strong>Rubric Builder</strong> <code>/classroom/rubrics</code> &mdash; criteria editor with drag-reorder + weight allocation + performance levels per criterion. Template library. Attach rubric to assignment.</li>
+      <li><strong>Rubric Scoring</strong> (inline on submission grading) &mdash; per-criterion scoring with performance level selector + feedback. Total auto-computed from weighted criteria.</li>
+      <li><strong>Class Moments Feed</strong> <code>/classroom/classes/:id/moments</code> &mdash; photo timeline. Teacher: post with caption + multi-photo upload. Parent: view + react. Instagram-lite for classrooms.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-7a: 8 tables, ~18 endpoints, 1 worker, 2 Kafka emits. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-7b: Standards Gradebook + Peer Review</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Schema (8 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>cls_standard_grades</strong> &mdash; <code>student_id UUID FK</code>, <code>standard_id UUID FK(cur_standards)</code>, <code>class_id UUID FK</code>, <code>proficiency_level TEXT NOT NULL</code> 5-value CHECK (EXCEEDING, MEETING, APPROACHING, BELOW, NOT_ASSESSED), <code>assessed_by UUID FK</code>, <code>assessed_at TIMESTAMPTZ</code>. UNIQUE(student_id, standard_id, class_id). Standards-based grading distinct from traditional cls_grades.</li>
+      <li><strong>cls_standard_grade_evidence</strong> &mdash; <code>standard_grade_id UUID FK</code>, <code>evidence_type TEXT NOT NULL</code> 4-value CHECK (SUBMISSION, OBSERVATION, ASSESSMENT, TEACHER_NOTE), <code>evidence_ref_id UUID</code> (soft to cls_submissions, cls_grades, etc.), <code>description TEXT</code>, <code>added_at TIMESTAMPTZ</code>. INDEX(standard_grade_id). Links proficiency ratings to the work that demonstrates them.</li>
+      <li><strong>cls_peer_review_assignments</strong> &mdash; <code>assignment_id UUID FK(cls_assignments) NOT NULL</code>, <code>review_type TEXT NOT NULL</code> 2-value CHECK (RANDOM, TEACHER_ASSIGNED), <code>reviews_per_student INT NOT NULL DEFAULT 2</code>, <code>is_anonymous BOOLEAN DEFAULT true</code>, <code>rubric_id UUID FK(cls_rubrics)</code> nullable (when set: peer reviewers score using this rubric), <code>due_date TIMESTAMPTZ</code>. UNIQUE(assignment_id). Peer review is opt-in per assignment.</li>
+      <li><strong>cls_peer_reviews</strong> &mdash; <code>peer_assignment_id UUID FK NOT NULL</code>, <code>reviewer_student_id UUID FK NOT NULL</code>, <code>reviewee_submission_id UUID FK(cls_submissions) NOT NULL</code>, <code>feedback TEXT</code>, <code>overall_rating TEXT</code> 4-value CHECK (EXCELLENT, GOOD, DEVELOPING, NEEDS_WORK) nullable, <code>status TEXT NOT NULL DEFAULT 'ASSIGNED'</code> 3-value CHECK (ASSIGNED, SUBMITTED, REVIEWED_BY_TEACHER), <code>submitted_at TIMESTAMPTZ</code>. UNIQUE(peer_assignment_id, reviewer_student_id, reviewee_submission_id). When is_anonymous=true: reviewer identity hidden from reviewee.</li>
+      <li><strong>cls_student_progress_notes</strong> &mdash; <code>class_id UUID FK</code>, <code>student_id UUID FK</code>, <code>teacher_id UUID FK</code>, <code>note_text TEXT NOT NULL</code>, <code>note_type TEXT NOT NULL</code> 3-value CHECK (PROGRESS, CONCERN, COMMENDATION), <code>is_shared_with_parent BOOLEAN DEFAULT false</code>. INDEX(class_id, student_id, created_at DESC). Lighter than report cards &mdash; mid-term observations.</li>
+      <li><strong>cls_report_card_subjects</strong> &mdash; <code>report_card_id UUID FK(cls_report_cards)</code>, <code>subject_label TEXT NOT NULL</code> (snapshot &mdash; may differ from sis_courses), <code>course_id UUID</code> nullable (soft to sis_courses), <code>final_grade TEXT</code>, <code>grade_value NUMERIC(5,2)</code>, <code>teacher_comments TEXT</code>, <code>effort_grade TEXT</code>. INDEX(report_card_id).</li>
+      <li><strong>cls_formative_assessments</strong> &mdash; <code>class_id UUID FK</code>, <code>created_by UUID FK</code>, <code>title TEXT NOT NULL</code>, <code>assessment_type TEXT NOT NULL</code> 4-value CHECK (EXIT_TICKET, POLL, QUICK_CHECK, DO_NOW), <code>questions JSONB NOT NULL</code>, <code>is_active BOOLEAN DEFAULT false</code>. INDEX(class_id, is_active).</li>
+      <li><strong>cls_formative_responses</strong> &mdash; <code>assessment_id UUID FK</code>, <code>student_id UUID FK</code>, <code>responses JSONB NOT NULL</code>, <code>submitted_at TIMESTAMPTZ</code>. UNIQUE(assessment_id, student_id). Real-time classroom check-for-understanding.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 tables. Migration: <code>113_cls_standards_peer.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed + Services + UI + Tests</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>5 standard grades with 3 evidence links each. 1 peer review assignment (RANDOM, 2 reviews each, anonymous, rubric-linked) with 4 peer reviews (2 SUBMITTED, 2 ASSIGNED). 3 progress notes (1 COMMENDATION shared with parent, 1 CONCERN internal). 2 report card subjects. 1 formative assessment (EXIT_TICKET) with 5 responses.</li>
+    </ol>
+    <div class="detail-heading">Services (~18 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>StandardGradeService</strong> &mdash; <code>POST /classroom/standard-grades</code> (teacher rates student against a Cycle 23 standard), <code>GET /classroom/students/:id/standard-grades</code> (proficiency profile across all standards), <code>POST /classroom/standard-grades/:id/evidence</code> (link evidence). <code>GET /classroom/classes/:id/standards-report</code> (class-wide proficiency heatmap per standard).</li>
+      <li><strong>PeerReviewService</strong> &mdash; <code>POST /classroom/assignments/:id/peer-review</code> (teacher enables with config), <code>POST /classroom/peer-reviews/assign</code> (RandomAssigner distributes submissions; teacher-assigned alternative), <code>GET /classroom/peer-reviews/my</code> (student: reviews I need to do), <code>PATCH /classroom/peer-reviews/:id</code> (student submits feedback + optional rubric scores). Anonymisation: reviewer identity stripped from response when is_anonymous=true.</li>
+      <li><strong>ProgressNoteService</strong> &mdash; CRUD for progress notes. <code>GET /classroom/students/:id/progress-notes</code> (teacher: all; parent: shared-with-parent only).</li>
+      <li><strong>FormativeAssessmentService</strong> &mdash; <code>POST /classroom/formative-assessments</code> (teacher creates), <code>PATCH /classroom/formative-assessments/:id/activate</code> (opens for student responses), <code>POST /classroom/formative-assessments/:id/respond</code> (student submits), <code>GET /classroom/formative-assessments/:id/results</code> (teacher: real-time response summary).</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Standards Gradebook</strong> <code>/classroom/standards</code> &mdash; matrix view: students × standards. Proficiency level colour-coded (green exceeding → red below). Click cell to rate + link evidence. Class-wide heatmap.</li>
+      <li><strong>Peer Review Manager</strong> (inline on assignment) &mdash; teacher enables peer review. Config: reviews per student, anonymous toggle, rubric selection. Student: review queue with submission to read + feedback form.</li>
+      <li><strong>Progress Notes</strong> (inline on student profile in classroom) &mdash; teacher writes + categorises notes. Share toggle for parent visibility.</li>
+      <li><strong>Formative Assessment</strong> <code>/classroom/formative</code> &mdash; teacher creates quick check. Activates live. Students respond on devices. Real-time response bar chart.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-7b: 8 tables, ~18 endpoints. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-7c: AI Tutoring + Lesson Video</h2>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">External Service Dependencies</div>
+    <p style="font-size:14px;line-height:1.8;">P2-7c requires two extracted services: <strong>AI Inference</strong> (AI Gateway per ADR-004) for tutoring conversation + learning signal extraction + lesson summary generation, and <strong>Video Processing</strong> for lesson video transcription. If these services are not yet deployed, the schema + service layer can still be built with stubbed AI/video calls &mdash; the pipeline processes manually-entered transcripts and returns placeholder summaries. Swap in the real services when deployed.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Schema (8 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>cls_ai_tutoring_sessions</strong> &mdash; <code>student_id UUID FK</code>, <code>class_id UUID FK</code>, <code>subject TEXT NOT NULL</code>, <code>started_at TIMESTAMPTZ</code>, <code>ended_at TIMESTAMPTZ</code>, <code>status TEXT</code> 3-value CHECK (ACTIVE, COMPLETED, ABANDONED), <code>total_messages INT DEFAULT 0</code>, <code>learning_signals_extracted BOOLEAN DEFAULT false</code>. INDEX(student_id, started_at DESC). AI must never access student PII &mdash; anonymised IDs only per ADR-004.</li>
+      <li><strong>cls_ai_tutoring_messages</strong> &mdash; <code>session_id UUID FK NOT NULL</code>, <code>role TEXT NOT NULL</code> 2-value CHECK (STUDENT, ASSISTANT), <code>content TEXT NOT NULL</code>, <code>sent_at TIMESTAMPTZ NOT NULL</code>, <code>tokens_used INT</code>. INDEX(session_id, sent_at). RANGE partition by created_at monthly.</li>
+      <li><strong>cls_ai_tutoring_learning_signals</strong> &mdash; <code>session_id UUID FK NOT NULL</code>, <code>signal_type TEXT NOT NULL</code> 5-value CHECK (MISCONCEPTION, STRENGTH, STRUGGLE, INTEREST, ENGAGEMENT), <code>signal_description TEXT NOT NULL</code>, <code>standard_id UUID</code> (soft to cur_standards), <code>confidence NUMERIC(3,2)</code>, <code>extracted_at TIMESTAMPTZ</code>. INDEX(session_id). Visible to teacher + counsellor (with consent per ADR-004). Never visible to other students.</li>
+      <li><strong>cls_lesson_recordings</strong> &mdash; <code>lesson_id UUID FK(cls_lessons)</code>, <code>class_id UUID FK</code>, <code>recorded_by UUID FK</code>, <code>s3_key TEXT NOT NULL</code>, <code>duration_seconds INT</code>, <code>recorded_at TIMESTAMPTZ</code>, <code>processing_status TEXT NOT NULL DEFAULT 'UPLOADED'</code> 4-value CHECK (UPLOADED, TRANSCRIBING, SUMMARISING, COMPLETE). Emits <code>video.uploaded</code> for transcription pipeline.</li>
+      <li><strong>cls_lesson_transcripts</strong> &mdash; <code>recording_id UUID FK UNIQUE</code>, <code>transcript_text TEXT NOT NULL</code>, <code>word_count INT</code>, <code>language TEXT DEFAULT 'en'</code>, <code>generated_at TIMESTAMPTZ</code>. Produced by Video Processing service consuming <code>video.uploaded</code>.</li>
+      <li><strong>cls_lesson_summaries</strong> &mdash; <code>recording_id UUID FK UNIQUE</code>, <code>summary_text TEXT NOT NULL</code>, <code>key_topics TEXT[]</code>, <code>action_items TEXT[]</code>, <code>model_version TEXT</code>, <code>generated_at TIMESTAMPTZ</code>. Produced by AI Inference service. Emits <code>lesson.summary.ready</code> for teacher notification.</li>
+      <li><strong>cls_ai_usage_log</strong> &mdash; <code>school_id UUID</code>, <code>job_type TEXT NOT NULL</code> 4-value CHECK (GRADING, SUMMARISATION, TUTORING, STUDENT_SUMMARY), <code>tokens_used INT</code>, <code>cost_usd NUMERIC(8,4)</code>, <code>created_at TIMESTAMPTZ</code>. RANGE partition by created_at monthly. Per-tenant AI quota enforcement via Redis counters.</li>
+      <li><strong>cls_ai_tutoring_opt_outs</strong> &mdash; <code>student_id UUID FK</code>, <code>opted_out_by UUID FK NOT NULL</code> (parent or student &ge;13), <code>opted_out_at TIMESTAMPTZ</code>, <code>reason TEXT</code>. UNIQUE(student_id). When opted out: AI tutoring endpoint returns 403 for this student.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 tables. Migration: <code>114_cls_ai_tutoring_video.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Seed + Services + UI + Tests</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>2 tutoring sessions (1 COMPLETED with 8 messages + 3 learning signals, 1 ACTIVE). 1 lesson recording (COMPLETE with transcript + summary). 3 AI usage log entries. 1 opt-out (parent opted out Ethan).</li>
+    </ol>
+    <div class="detail-heading">Services (~16 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>AITutoringService</strong> &mdash; <code>POST /classroom/ai-tutoring/sessions</code> (start session &mdash; checks opt-out, checks quota), <code>POST /classroom/ai-tutoring/sessions/:id/message</code> (student sends message → AI Gateway → response; logs tokens to cls_ai_usage_log; checks quota per message), <code>GET /classroom/ai-tutoring/sessions</code> (student: own; teacher: students in my classes), <code>POST /classroom/ai-tutoring/sessions/:id/extract-signals</code> (AI Gateway extracts learning signals from conversation history). <code>GET /classroom/students/:id/learning-signals</code> (teacher + counsellor: signals for a student).</li>
+      <li><strong>LessonRecordingService</strong> &mdash; <code>POST /classroom/lessons/:id/recordings</code> (upload video to S3 → emits <code>video.uploaded</code>), <code>GET /classroom/recordings/:id</code> (with transcript + summary inlined when available). VideoTranscriptConsumer: consumes <code>video.transcribed</code> → creates cls_lesson_transcripts → emits for summarisation. LessonSummaryConsumer: consumes <code>lesson.summary.ready</code> → creates cls_lesson_summaries.</li>
+      <li><strong>AIUsageService</strong> &mdash; <code>GET /classroom/ai-usage</code> (admin: per-school usage + cost), <code>GET /classroom/ai-usage/quota</code> (remaining daily tokens for this tenant).</li>
+      <li><strong>AIOptOutService</strong> &mdash; <code>POST /classroom/ai-tutoring/opt-out</code> (parent/student opts out), <code>DELETE /classroom/ai-tutoring/opt-out/:studentId</code> (opt back in), <code>GET /classroom/ai-tutoring/opt-out/:studentId</code> (check status).</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>AI Tutor</strong> <code>/classroom/ai-tutor</code> &mdash; student: chat interface with subject selector. Message history. Session list. Teacher: student session history with learning signals panel.</li>
+      <li><strong>Lesson Video Manager</strong> <code>/classroom/lessons/:id/video</code> &mdash; teacher: upload recording. Processing status indicator. Transcript viewer. AI summary card with key topics + action items.</li>
+      <li><strong>AI Usage Dashboard</strong> <code>/classroom/ai-usage</code> &mdash; admin: daily/monthly usage chart. Cost breakdown by job type. Quota remaining indicator.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-7c: 8 tables, ~16 endpoints, 2 Kafka consumers, 3 Kafka emits. Requires AI Inference + Video Processing (stubbed if not deployed).</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist (Full P2-7)</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 24 new tables across 3 migrations. Tenant table count: ~522.</li>
+      <li>Classroom API: ~52 new endpoints across hall passes, rubrics, moments, standards, peer review, formative assessment, AI tutoring, lesson video.</li>
+      <li>Hall passes with configurable concurrent + daily limits + overdue detection.</li>
+      <li>Rubrics engine with weighted criteria + performance levels + per-submission scoring.</li>
+      <li>Standards-based gradebook with evidence linking to Cycle 23 standards.</li>
+      <li>Peer review with anonymised feedback + optional rubric-based scoring.</li>
+      <li>AI tutoring with conversation history + learning signal extraction + opt-out.</li>
+      <li>Lesson video pipeline: upload → transcription → AI summary.</li>
+      <li>Per-tenant AI usage logging + quota enforcement.</li>
+      <li>AI must NEVER write to cls_grades (ADR-004 safety rule).</li>
+      <li>AI must NEVER access student PII in prompts (anonymised IDs only).</li>
+      <li>HANDOFF-P2C7.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 7 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M21 Classroom deferred tables). Functions: ATT-005 Hall Passes + TCH-001..009. Cross-cycle: Cycle 2 cls_submissions + cls_grades + cls_assignments, Cycle 23 cur_standards, ADR-004 AI Gateway. Pre-split into 3 sub-cycles (P2-7a/b/c) for Claude Code session management.</p>
+  </div>
+</div>
+</body>
+</html>
