@@ -72,7 +72,6 @@ async function seedClassroomAdvancedB() {
   // ── 1. School lookup ────────────────────────────────────────
   const school = await client.school.findFirst({ where: { subdomain: 'demo' } });
   if (!school) throw new Error('demo school not found — run pnpm seed first');
-  const schoolId = school.id;
 
   // Gate — has any cls_standard_grades row already landed for this school?
   const existingGrades = (await client.$queryRawUnsafe(
@@ -132,7 +131,6 @@ async function seedClassroomAdvancedB() {
   if (classes.length === 0) {
     throw new Error('Need at least 1 sis_classes with active enrollments — run seed:sis first');
   }
-  const class1Id = classes[0]!.id;
 
   // Verify Maya is actually enrolled in that class — if not pick a class she IS enrolled in
   let mayaClass: string;

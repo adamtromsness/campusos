@@ -4,9 +4,72 @@
 **Round 1 fix commit:** `0c97fc6`. All 4 BLOCKING + 3 actionable MAJORs landed with 10 new pinned regression tests.
 
 **Round 2 verdict: FAIL.** Reviewed against `0c97fc6`. 1 residual BLOCKING (multi-school isolation — base AI tutoring session loader was ID-only, school admins bypassed `assertCanReadSession`).
-**Round 2 fix commit:** `<this commit>`. School-scoped `loadSessionRowOrThrow` + 6 supporting query tightenings + 7 new pinned regression tests + 4 live cross-school 404 verifications on `tenant_demo`.
+**Round 2 fix commit:** `8cc15fd`. School-scoped `loadSessionRowOrThrow` + 6 supporting query tightenings + 7 new pinned regression tests + 4 live cross-school 404 verifications on `tenant_demo`.
 
-**Awaiting Round 3 verdict before tagging `p2c7-complete`.**
+**Round 3 verdict: FAIL.** Reviewed against `8cc15fd`. 1 residual BLOCKING (`listSessions()` had no base school predicate for school admins — School A admin could enumerate School B sessions). Plus 3 CI lint failures (TS6133 unused locals).
+**Round 3 fix commit:** `<this commit>`. School-scoped `listSessions` for ALL actors + 3 CI lint cleanups + 4 new pinned regression tests + live cross-school list smoke on `tenant_demo` (4 total sessions, 2 foreign-school → principal sees 2, foreign count 0).
+
+**Awaiting Round 4 verdict before tagging `p2c7-complete`.**
+
+## Round 3 fix — listSessions school-scope + CI cleanup
+
+### Reviewer finding
+
+`listSessions(actor)` built the WHERE clause only for non-admin actors. School admins ran the base query with NO `school_id` predicate, so a School A admin in a multi-school tenant pool could list School B AI tutoring sessions (subject, status, message counts, learning-signals-extracted flag). Same school-boundary issue as Round 2, just on the collection endpoint instead of direct UUID endpoints. Plus 3 CI failures from the original P2-7 commits — TS6133 unused locals (`principalEmpId`, `schoolId`, `class1Id`) flagged by `noUnusedLocals: true`.
+
+### Fix shape
+
+**BLOCKING — `listSessions` school-scope.** `s.school_id = $1::uuid` is now the BASE predicate for EVERY actor including school admin. Actor-specific predicates AND on top:
+
+```ts
+const tenant = getCurrentTenant();
+const params: unknown[] = [tenant.schoolId];
+let where = ' WHERE s.school_id = $1::uuid';
+let i = 2;
+if (!actor.isSchoolAdmin) {
+  if (actor.personType === 'STUDENT') where += ' AND s.student_id = (...)';
+  else if (actor.personType === 'STAFF' && actor.employeeId) where += ' AND s.student_id IN (...)';
+  else return [];
+}
+```
+
+**CI lint cleanup.** Three unused locals from the original P2-7 commits removed (deletion was cleaner than `_` prefix because `noUnusedLocals` doesn't honour the prefix for locals):
+
+- `seed-classroom-advanced.ts` — `principalEmpId` removed (resolved but never used after the post-bridge cleanup).
+- `seed-classroom-advanced-b.ts` — `schoolId` removed (replaced by inline `school.id` in the JOIN-based gate).
+- `seed-classroom-advanced-b.ts` — `class1Id` removed (forward-compat capture; the load-bearing class lookup is `mayaClass` below).
+
+### Live verification on tenant_demo (2026-05-10)
+
+Planted 2 foreign-school session rows in `tenant_demo.cls_ai_tutoring_sessions` with `school_id = 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid`. Tenant-side: 4 total sessions, 2 belonging to the foreign school, 2 belonging to `tenant_demo`. Principal (school admin for `tenant_demo`) called `GET /classroom/ai-tutoring/sessions`:
+
+```
+S1: principal lists sessions
+  total returned: 2
+    - Photosynthesis review schoolId= 019e0cf8-bbb8-7556-8c81-f07b3369e584
+    - Algebra — Quadratic Equations schoolId= 019e0cf8-bbb8-7556-8c81-f07b3369e584
+  FOREIGN sessions in result: 0 (MUST be 0)
+```
+
+The `s.school_id` BASE predicate is the actual access boundary. Cleanup dropped the planted rows.
+
+### Test coverage delta
+
+Vitest 394 → **398 passing across 22 spec files** (+4 new in a dedicated `describe('REVIEW-P2C7 ROUND 3 — listSessions school-scope')` block):
+
+- `school admin list query carries s.school_id predicate as base` — captures SQL + asserts `where s.school_id` present + `tenant.schoolId` bound as 1st arg.
+- `teacher list query carries s.school_id predicate before AND clause` — verifies `where s.school_id` then `and s.student_id in` + arg order (school 1st, employeeId 2nd).
+- `student list query carries s.school_id predicate before AND clause` — same shape with `and s.student_id =` for the student branch.
+- `parent (no allowed branch) returns empty list — no query fired` — flag-based check that the early `return []` short-circuits before any DB query.
+
+### CI parity
+
+- `pnpm format:check` — clean.
+- `pnpm lint:logs` — 662 files clean.
+- `pnpm --filter @campusos/database exec tsc --noEmit` — clean (3 TS6133 errors fixed).
+- `pnpm --filter @campusos/api build` — clean.
+- `pnpm --filter @campusos/web build` — clean.
+- `pnpm vitest run` (apps/api) — **398 passing across 22 spec files**.
 
 ## Round 2 fix — multi-school session isolation
 

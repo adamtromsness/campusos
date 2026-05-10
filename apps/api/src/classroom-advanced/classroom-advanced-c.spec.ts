@@ -1211,3 +1211,129 @@ describe('REVIEW-P2C7 ROUND 2 — cross-school session isolation', () => {
     expect(observedArgs[1]).toBe(TENANT.schoolId);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REVIEW-P2C7 ROUND 3 BLOCKING — listSessions school-scope.
+//
+// Round 2 fixed direct-object UUID paths but listSessions() still built a
+// where clause only for non-admin actors. School admins ran the base query
+// with no school predicate — so a School A admin in a multi-school tenant
+// pool could list School B AI tutoring sessions.
+//
+// Round 3 fix — `s.school_id = $1::uuid` is the BASE predicate for every
+// actor including school admin. Actor-specific filters AND on top.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('REVIEW-P2C7 ROUND 3 — listSessions school-scope', () => {
+  it('ROUND 3: school admin list query carries s.school_id predicate as base', async () => {
+    let observedSql = '';
+    let observedArgs: unknown[] = [];
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (
+        sql.includes('select s.id, s.school_id') &&
+        sql.includes('from cls_ai_tutoring_sessions')
+      ) {
+        observedSql = sql;
+        observedArgs = c.args;
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      const out = await svc.listSessions(ADMIN_ACTOR);
+      expect(out).toEqual([]);
+    });
+    // The admin path must STILL include the school predicate as the base
+    // WHERE clause — not skip it.
+    expect(observedSql).toContain('where s.school_id');
+    expect(observedArgs[0]).toBe(TENANT.schoolId);
+  });
+
+  it('ROUND 3: teacher list query carries s.school_id predicate before AND clause', async () => {
+    let observedSql = '';
+    let observedArgs: unknown[] = [];
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (
+        sql.includes('select s.id, s.school_id') &&
+        sql.includes('from cls_ai_tutoring_sessions')
+      ) {
+        observedSql = sql;
+        observedArgs = c.args;
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await svc.listSessions(TEACHER_ACTOR);
+    });
+    expect(observedSql).toContain('where s.school_id');
+    expect(observedSql).toContain('and s.student_id in');
+    expect(observedArgs[0]).toBe(TENANT.schoolId);
+    expect(observedArgs[1]).toBe(TEACHER_ACTOR.employeeId);
+  });
+
+  it('ROUND 3: student list query carries s.school_id predicate before AND clause', async () => {
+    let observedSql = '';
+    let observedArgs: unknown[] = [];
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (
+        sql.includes('select s.id, s.school_id') &&
+        sql.includes('from cls_ai_tutoring_sessions')
+      ) {
+        observedSql = sql;
+        observedArgs = c.args;
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      await svc.listSessions(STUDENT_ACTOR);
+    });
+    expect(observedSql).toContain('where s.school_id');
+    expect(observedSql).toContain('and s.student_id =');
+    expect(observedArgs[0]).toBe(TENANT.schoolId);
+    expect(observedArgs[1]).toBe(STUDENT_ACTOR.personId);
+  });
+
+  it('ROUND 3: parent (no allowed branch) returns empty list — no query fired', async () => {
+    let queryFired = false;
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (
+        sql.includes('select s.id, s.school_id') &&
+        sql.includes('from cls_ai_tutoring_sessions')
+      ) {
+        queryFired = true;
+      }
+      return [];
+    });
+    const svc = new AITutoringService(
+      fake.tenantPrisma as never,
+      { assertWithinQuota: async () => {}, recordUsage: async () => {} } as never,
+      { isOptedOut: async () => false } as never,
+      makeStubGateway(),
+    );
+    await runWithTenantContext({ tenant: TENANT }, async () => {
+      const out = await svc.listSessions(PARENT_ACTOR);
+      expect(out).toEqual([]);
+    });
+    expect(queryFired).toBe(false);
+  });
+});

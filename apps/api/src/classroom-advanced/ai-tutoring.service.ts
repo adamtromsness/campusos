@@ -480,16 +480,27 @@ export class AITutoringService {
     return sessionRowToDto(session);
   }
 
-  /** GET /classroom/ai-tutoring/sessions — list with row scope. */
+  /**
+   * GET /classroom/ai-tutoring/sessions — list with row scope.
+   *
+   * REVIEW-P2C7 ROUND 3 BLOCKING — school_id is the BASE predicate for
+   * EVERY actor including school admin. Without it, a School A admin in
+   * a multi-school tenant pool could list School B AI tutoring sessions
+   * (student identity, class context, subject, status, message counts,
+   * learning-signals-extracted flag are all sensitive). The
+   * `s.school_id = $1::uuid` clause runs first; actor-specific
+   * predicates AND on top.
+   */
   async listSessions(actor: ResolvedActor): Promise<AITutoringSessionResponseDto[]> {
-    const params: unknown[] = [];
-    let where = '';
-    let i = 1;
+    const tenant = getCurrentTenant();
+    const params: unknown[] = [tenant.schoolId];
+    let where = ' WHERE s.school_id = $1::uuid';
+    let i = 2;
 
     if (!actor.isSchoolAdmin) {
       if (actor.personType === 'STUDENT') {
-        where =
-          ' WHERE s.student_id = (SELECT s2.id FROM sis_students s2 ' +
+        where +=
+          ' AND s.student_id = (SELECT s2.id FROM sis_students s2 ' +
           'JOIN platform.platform_students ps2 ON ps2.id = s2.platform_student_id ' +
           'WHERE ps2.person_id = $' +
           i++ +
@@ -497,8 +508,8 @@ export class AITutoringService {
         params.push(actor.personId);
       } else if (actor.personType === 'STAFF' && actor.employeeId) {
         // Teachers see sessions for students in classes they teach
-        where =
-          ' WHERE s.student_id IN (' +
+        where +=
+          ' AND s.student_id IN (' +
           'SELECT DISTINCT e.student_id FROM sis_class_teachers ct ' +
           "JOIN sis_enrollments e ON e.class_id = ct.class_id AND e.status = 'ACTIVE' " +
           'WHERE ct.teacher_employee_id = $' +

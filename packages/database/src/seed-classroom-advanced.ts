@@ -111,7 +111,6 @@ async function seedClassroomAdvanced() {
   }
 
   const teacherEmpId = await findEmployeeId('teacher@demo.campusos.dev');
-  const principalEmpId = await findEmployeeId('principal@demo.campusos.dev');
   const teacherPersonId = await findPersonId('teacher@demo.campusos.dev');
   const principalPersonId = await findPersonId('principal@demo.campusos.dev');
   const parentPersonId = await findPersonId('parent@demo.campusos.dev');

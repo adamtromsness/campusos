@@ -1,6 +1,80 @@
 # HANDOFF — Phase 2 Cycle 7 (P2-7) Classroom Advanced
 
-**Status:** **REVIEW-P2C7 ROUND 2 fix applied — awaiting Round 3 verdict.** Round 1 against `aad2f2a` returned **FAIL** (4 BLOCKING + 4 MAJOR) — fixes shipped at `0c97fc6`. Round 2 against `0c97fc6` returned **FAIL** with 1 residual BLOCKING — base AI tutoring session loader was ID-only and school admins bypassed `assertCanReadSession`, exposing cross-school session UUIDs. The Round 2 fix commit (this commit) lands the school-scoped `loadSessionRowOrThrow` + 6 supporting query tightenings + 7 new pinned regression tests + 4 live cross-school 404 verifications on `tenant_demo`. Vitest 387 → **394 passing across 22 spec files**. CI parity green: format:check + lint:logs (662 files clean) + API + web build + vitest 394/394.
+**Status:** **REVIEW-P2C7 ROUND 3 fix applied — awaiting Round 4 verdict.** Round 1 against `aad2f2a` returned **FAIL** (4 BLOCKING + 4 MAJOR) — fixes shipped at `0c97fc6`. Round 2 against `0c97fc6` returned **FAIL** with 1 residual BLOCKING (base session loader school-scope) — fix shipped at `8cc15fd`. Round 3 against `8cc15fd` returned **FAIL** with 1 residual BLOCKING — `listSessions()` built the WHERE clause only for non-admin actors, so school admins ran the base query with NO `school_id` predicate. A School A admin in a multi-school tenant pool could enumerate School B AI tutoring sessions. **Plus 3 CI lint failures** (TS6133 unused locals: `principalEmpId` in `seed-classroom-advanced.ts`, `schoolId` + `class1Id` in `seed-classroom-advanced-b.ts`). The Round 3 fix commit (this commit) lands the school-scoped `listSessions` for ALL actors + the 3 CI cleanups + 4 new pinned regression tests + a live cross-school list smoke on `tenant_demo`. Vitest 394 → **398 passing across 22 spec files**. CI parity green: format:check + lint:logs (662 files clean) + tsc --noEmit + API + web build + vitest 398/398.
+
+## REVIEW-P2C7 ROUND 3 — fix log (2026-05-10)
+
+Round 3 verdict: **FAIL** with 1 residual BLOCKING (multi-school list isolation) plus 3 CI lint failures.
+
+### BLOCKING — `listSessions()` school-scope for all actors
+
+`AITutoringService.listSessions(actor)` previously built the WHERE clause only for non-admin actors:
+
+```ts
+let where = '';
+if (!actor.isSchoolAdmin) {
+  if (actor.personType === 'STUDENT') where = ' WHERE s.student_id = ...';
+  else if (actor.personType === 'STAFF' && actor.employeeId) where = ' WHERE s.student_id IN (...)';
+  else return [];
+}
+// final query: SELECT_SESSION_BASE + where + ' ORDER BY ...'
+```
+
+Round 2 fixed direct UUID paths but the list path still leaked the same data category (student identity, class context, subject, status, message counts, learning-signals-extracted flag) tenant-wide for school admins — same school-boundary issue, just on the collection endpoint instead of direct UUID endpoints.
+
+**Fix.** `school_id = $1::uuid` is now the BASE predicate for EVERY actor including school admin. Actor-specific predicates AND on top:
+
+```ts
+const tenant = getCurrentTenant();
+const params: unknown[] = [tenant.schoolId];
+let where = ' WHERE s.school_id = $1::uuid';
+let i = 2;
+if (!actor.isSchoolAdmin) {
+  if (actor.personType === 'STUDENT') where += ' AND s.student_id = (...)';
+  else if (actor.personType === 'STAFF' && actor.employeeId) where += ' AND s.student_id IN (...)';
+  else return [];
+}
+```
+
+**Live verification on `tenant_demo` 2026-05-10:** planted 2 foreign-school session rows (`school_id = ffffffff-...`) directly in `cls_ai_tutoring_sessions`. Tenant-side state: 4 total sessions, 2 belonging to the foreign school. Principal (school admin for `tenant_demo`) called `GET /classroom/ai-tutoring/sessions`:
+
+```
+S1: principal lists sessions
+  total returned: 2
+    - Photosynthesis review schoolId= 019e0cf8-bbb8-7556-8c81-f07b3369e584
+    - Algebra — Quadratic Equations schoolId= 019e0cf8-bbb8-7556-8c81-f07b3369e584
+  FOREIGN sessions in result: 0 (MUST be 0)
+```
+
+The `s.school_id` BASE predicate is the actual access boundary. Cleanup dropped the planted rows.
+
+### CI lint cleanup (TS6133)
+
+GitHub Actions Lint & Type Check + Unit Tests workflows reported 3 unused locals from the original P2-7 commits:
+
+- `principalEmpId` in `packages/database/src/seed-classroom-advanced.ts` line 114 — resolved but never read after the post-bridge cleanup. Removed (never referenced; the seed exercises only the teacher-employee path).
+- `schoolId` in `packages/database/src/seed-classroom-advanced-b.ts` line 75 — resolved but never used after the gate-by-JOIN was rewritten to read directly from `school.id` inline. Removed.
+- `class1Id` in `packages/database/src/seed-classroom-advanced-b.ts` line 138 — captured for forward-compat but never referenced; the load-bearing class lookup is `mayaClass` below. Removed.
+
+The repo's `noUnusedLocals: true` + `noUnusedParameters: true` (in `packages/tsconfig/base.json`) does not honour the `_` prefix for locals, so simple deletion was the cleanest fix. None of the three vars affected behaviour.
+
+### Test coverage delta
+
+Vitest 394 → **398 passing across 22 spec files** (+4 new in `describe('REVIEW-P2C7 ROUND 3 — listSessions school-scope')`):
+
+- `school admin list query carries s.school_id predicate as base` — captures SQL + asserts `where s.school_id` present + `tenant.schoolId` bound as 1st arg.
+- `teacher list query carries s.school_id predicate before AND clause` — verifies `where s.school_id` then `and s.student_id in` chain + arg order (school first, employeeId second).
+- `student list query carries s.school_id predicate before AND clause` — same shape with `and s.student_id =` for the student branch.
+- `parent (no allowed branch) returns empty list — no query fired` — flag-based check that the early `return []` short-circuits before any DB query, so parents don't even hit the executor.
+
+### CI parity
+
+- `pnpm format:check` — All files use Prettier code style.
+- `pnpm lint:logs` — 662 files clean.
+- `pnpm --filter @campusos/database exec tsc --noEmit` — clean (3 TS6133 errors fixed).
+- `pnpm --filter @campusos/api build` — clean.
+- `pnpm --filter @campusos/web build` — clean.
+- `pnpm vitest run` (apps/api) — **398 passing across 22 spec files**.
 
 ## REVIEW-P2C7 ROUND 2 — fix log (2026-05-10)
 
