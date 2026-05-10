@@ -372,3 +372,13 @@ Created cap=1 slot, captured pre-state (iam_person=39, platform_users=24), fired
 - `pnpm --filter @campusos/api test`: **243/243 passing across 18 spec files** (54 P2-5 tests, +2 from Round 1)
 - `pnpm --filter @campusos/api build` clean
 - `pnpm --filter @campusos/web build` clean
+
+## REVIEW-P2-5 ROUND 3 — closeout (PASS verdict)
+
+Round 3 against `c5c87d7` returned **PASS**. Reviewer's per-finding verification table marks every prior blocker FIXED and confirmed every dimension score (Public Tours / Schema Compliance / Transactional Correctness / Identity-Privacy Model / Test Coverage / Prior P2-5 Blockers) at PASS.
+
+One non-blocking documentation cleanup item flagged: the class-level legacy comment in `TourBookingService` still described the older ADR-055 flow where public booking creates/reuses `iam_person` and `platform_users`. The executable path was correct; only the JSDoc was stale. Closeout commit rewrites the class-level comment to describe the Option C no-platform-identity flow with the 7-step procedure (validate → lock → check capacity → INSERT booked_by=NULL → guests → bump → outbox), the rationale for choosing Option C ("two requests could both pass an unlocked pre-flight, both create fresh iam_person rows, then only one wins the locked capacity check — leaving the loser orphaned"), and the EO stitching path via `link-application`.
+
+CI parity: format:check + lint:logs (601 files) + vitest 243/243 + API + web build all clean.
+
+Tagged `p2c5-complete` at `c5c87d7` (the Round 2 fix that earned PASS) and `p2c5-approved` at the closeout commit. **Phase 2 Wave B (Pilot Enhancement) ships P2-5 clean — Wave B continues with the next cycle on the roadmap.**

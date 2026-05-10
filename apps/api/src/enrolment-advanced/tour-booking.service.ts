@@ -91,20 +91,32 @@ interface AnonymousBookingInput extends CreateTourBookingDto {
 /**
  * TourBookingService — public booking + admin lifecycle.
  *
- * Public booking flow (ADR-055):
- *   1. Lock slot row FOR UPDATE inside a tenant tx.
- *   2. Validate slot is published, non-cancelled, future, and has
+ * Public booking flow (REVIEW-P2-5 Round 2 — Option C, no platform identity):
+ *   1. Validate firstName + lastName + contactEmail on the input.
+ *   2. Lock slot row FOR UPDATE inside a tenant tx.
+ *   3. Validate slot is published, non-cancelled, future, and has
  *      capacity remaining (current_bookings < max_bookings).
- *   3. Resolve booked_by — if the family contact_email matches an
- *      existing platform.iam_person + platform_users row, reuse it;
- *      otherwise create a new iam_person (person_type=GUARDIAN) and
- *      a placeholder platform_users row with account_status=
- *      PENDING_VERIFICATION.
- *   4. INSERT enr_tour_bookings (status=CONFIRMED).
+ *   4. INSERT enr_tour_bookings with booked_by = NULL — no
+ *      iam_person, no platform_users created on the public path.
+ *      Family identity is stored on the booking row itself
+ *      (family_name + contact_email + contact_phone) plus the
+ *      per-guest manifest in enr_tour_booking_guests.
  *   5. INSERT every guest into enr_tour_booking_guests.
  *   6. Bump slot.current_bookings by 1.
- *   7. Enqueue enr.tour.booked via OutboxService.enqueueInTx so
- *      a Kafka outage cannot roll back the user's booking.
+ *   7. Enqueue enr.tour.booked via OutboxService.enqueueInTx with
+ *      bookedBy:null so a Kafka outage cannot roll back the user's
+ *      booking.
+ *
+ * Why no iam_person on the public path: under concurrent last-seat
+ * pressure two requests could both pass an unlocked pre-flight,
+ * both create fresh iam_person rows, then only one wins the locked
+ * capacity check — leaving the loser orphaned. Option C eliminates
+ * the race entirely. EOs stitch identities later via
+ * POST /tour-bookings/:id/link-application once a verified
+ * application surfaces.
+ *
+ * Authenticated bookings (parent dashboard etc.) continue to populate
+ * booked_by from actor.personId at insert time.
  *
  * The CHECK current_chk on enr_tour_slots (current_bookings <=
  * max_bookings) is the schema-side belt-and-braces — even if the
