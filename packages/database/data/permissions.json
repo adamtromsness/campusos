@@ -691,6 +691,11 @@
       "group": "Scheduling & Calendar"
     },
     {
+      "code": "SUB-001",
+      "name": "Substitute Self-Service",
+      "group": "Sub Marketplace"
+    },
+    {
       "code": "STR-001",
       "name": "Store Management",
       "group": "School Store"

@@ -58,6 +58,7 @@ import { PayrollModule } from './payroll/payroll.module';
 import { RecruitmentModule } from './recruitment/recruitment.module';
 import { TrainingModule } from './training/training.module';
 import { AppraisalsModule } from './appraisals/appraisals.module';
+import { SubstitutesModule } from './substitutes/substitutes.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -184,6 +185,21 @@ var devOnlyControllers: Type<unknown>[] =
     // Admin / Platform Admin via everyFunction. Expense claims
     // workflow uses multi-column decided_chk schema lockstep.
     AppraisalsModule,
+    // Phase 2 Cycle 9 sub-cycle a — Sub Marketplace (M82). Platform-
+    // portable substitute profiles (extended from the ADR-014 forward-
+    // compat skeleton with grade_levels TEXT[] GIN-indexed +
+    // overall_rating + total_assignments) with credential verification +
+    // multi-shape availability (RECURRING / SPECIFIC / BLOCKED) + per-
+    // school preferences. Tenant school pool, job postings with tier-1
+    // POOL fan-out fired inline by JobPostingService.post (tier-2
+    // MARKETPLACE escalation worker is P2-9b), bidirectional ratings
+    // + session notes + EXCLUDE-gist pay rates + cancellation policies
+    // are all in schema (migrations 132 + 133) but the request-path
+    // surface is split across P2-9a (this commit, profile + pool +
+    // jobs + accept/decline + sub.job.posted + sub.assignment.confirmed
+    // outbox emits) and P2-9b (assignments lifecycle + ratings + session
+    // notes + pay rate computation + cancellation policy worker).
+    SubstitutesModule,
   ],
   controllers: devOnlyControllers,
   providers: [

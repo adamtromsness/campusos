@@ -363,8 +363,17 @@ model VolunteerProfile {
   @@schema("platform")
 }
 
-// ── Substitute Profiles (ADR-014) ────────────────────────────
-// Cross-school visibility. Substitute availability and credentials.
+// ── Substitute Profiles (ADR-014 forward-compat + P2-9 marketplace) ──
+// Platform-portable profile per ADR-029. Tenant sub_school_pool + sub_job_*
+// + sub_assignments + sub_ratings + sub_pay_rates carry soft UUID refs to
+// SubstituteProfile.id per ADR-001/020. The legacy ADR-014 columns
+// (phone, backgroundCheck*, certifications JSONB, gradeRange single string,
+// dailyRate, subjectQualifications) are retained additively per the
+// project's "no DROP COLUMN" policy and are nullable. Service code
+// reads/writes the P2-9 columns (displayName, bio, gradeLevels TEXT[],
+// subjectAreas TEXT[], yearsExperience, isAvailable, profilePhotoS3Key,
+// overallRating, totalAssignments). maxDistanceMiles is reused as the
+// canonical max-travel column (P2-9 plan calls it max_travel_miles).
 model SubstituteProfile {
   id                    String              @id @db.Uuid
   personId              String              @unique @map("person_id") @db.Uuid
@@ -381,9 +390,86 @@ model SubstituteProfile {
   isActive              Boolean             @default(true) @map("is_active")
   createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz()
 
-  person IamPerson @relation(fields: [personId], references: [id])
+  // P2-9 columns
+  displayName        String?  @map("display_name")
+  bio                String?
+  gradeLevels        String[] @default([]) @map("grade_levels")
+  subjectAreas       String[] @default([]) @map("subject_areas")
+  yearsExperience    Int?     @map("years_experience")
+  isAvailable        Boolean  @default(true) @map("is_available")
+  profilePhotoS3Key  String?  @map("profile_photo_s3_key")
+  overallRating      Decimal? @map("overall_rating") @db.Decimal(2, 1)
+  totalAssignments   Int      @default(0) @map("total_assignments")
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
+  person       IamPerson                @relation(fields: [personId], references: [id])
+  credentials  PlatformSubCredential[]
+  availability PlatformSubAvailability[]
+  preferences  PlatformSubPreference[]
+
+  @@index([isAvailable])
   @@map("platform_substitute_profiles")
+  @@schema("platform")
+}
+
+// ── P2-9 Sub Marketplace platform tables ─────────────────────────────
+
+model PlatformSubCredential {
+  id                  String    @id @db.Uuid
+  substituteId        String    @map("substitute_id") @db.Uuid
+  credentialType      String    @map("credential_type")
+  credentialName      String    @map("credential_name")
+  issuingBody         String?   @map("issuing_body")
+  issueDate           DateTime? @map("issue_date") @db.Date
+  expiryDate          DateTime? @map("expiry_date") @db.Date
+  documentS3Key       String?   @map("document_s3_key")
+  verificationStatus  String    @default("PENDING") @map("verification_status")
+  verifiedBy          String?   @map("verified_by") @db.Uuid
+  verifiedAt          DateTime? @map("verified_at") @db.Timestamptz()
+  verificationNotes   String?   @map("verification_notes")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  substitute SubstituteProfile @relation(fields: [substituteId], references: [id], onDelete: Cascade)
+
+  @@index([substituteId, credentialType, verificationStatus, expiryDate])
+  @@map("platform_sub_credentials")
+  @@schema("platform")
+}
+
+model PlatformSubAvailability {
+  id               String    @id @db.Uuid
+  substituteId     String    @map("substitute_id") @db.Uuid
+  availabilityType String    @map("availability_type")
+  dayOfWeek        Int?      @map("day_of_week") @db.SmallInt
+  specificDate     DateTime? @map("specific_date") @db.Date
+  startTime        DateTime? @map("start_time") @db.Time(0)
+  endTime          DateTime? @map("end_time") @db.Time(0)
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  substitute SubstituteProfile @relation(fields: [substituteId], references: [id], onDelete: Cascade)
+
+  @@index([substituteId, availabilityType])
+  @@map("platform_sub_availability")
+  @@schema("platform")
+}
+
+model PlatformSubPreference {
+  id             String   @id @db.Uuid
+  substituteId   String   @map("substitute_id") @db.Uuid
+  schoolId       String   @map("school_id") @db.Uuid
+  preferenceType String   @map("preference_type")
+  reason         String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  substitute SubstituteProfile @relation(fields: [substituteId], references: [id], onDelete: Cascade)
+
+  @@unique([substituteId, schoolId])
+  @@index([schoolId, preferenceType])
+  @@map("platform_sub_preferences")
   @@schema("platform")
 }
 

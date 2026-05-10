@@ -63,6 +63,7 @@
     "seed:classroom-advanced-c": "tsx src/seed-classroom-advanced-c.ts",
     "seed:athletics-advanced-a": "tsx src/seed-athletics-advanced-a.ts",
     "seed:athletics-advanced-b": "tsx src/seed-athletics-advanced-b.ts",
+    "seed:substitutes": "tsx src/seed-substitutes.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

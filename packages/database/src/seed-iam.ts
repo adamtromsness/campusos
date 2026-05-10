@@ -301,8 +301,13 @@ async function seedIam() {
         'SCH-003': ['read'],
         // Cycle 5 — coverage read so a teacher sees their own coverage,
         // room booking read+write so they can request and manage rooms.
+        // P2-9 — SUB-001:read so a returning teacher sees the handover
+        // session notes the substitute wrote for their classes during
+        // the absence. Teachers do not get SUB-001:write — substitute
+        // self-service is the operator persona / Substitute role.
         'SCH-004': ['read'],
         'SCH-005': ['read', 'write'],
+        'SUB-001': ['read'],
         'BEH-001': ['read', 'write'],
         // Cycle 9 — teachers read BIPs for students in their classes and
         // submit teacher feedback on strategy effectiveness. The Step 5
@@ -823,8 +828,19 @@ async function seedIam() {
         // Cycle 5 — coverage read so VPs and counsellors who fill in as
         // substitutes can see their assignments, room booking read+write
         // so non-teaching staff can book the hall, library, etc.
-        'SCH-004': ['read'],
+        // P2-9 — Sub Marketplace step 4. Staff covers the Sub Marketplace
+        // operator persona (admin assistant or scheduling coordinator) who
+        // posts jobs, manages the school pool, configures pay rates, and
+        // sees coverage status. The dedicated Sub Coordinator role split
+        // is a Wave 2 Phase 2 punch list item joining Counsellor / Nurse /
+        // Librarian / AD splits before pilot. SUB-001 is granted to Staff
+        // for the same reason — the substitute self-service surface (own
+        // profile, availability, accept jobs, write notes, rate schools)
+        // currently runs through Staff persona until a dedicated
+        // Substitute role is added.
+        'SCH-004': ['read', 'write'],
         'SCH-005': ['read', 'write'],
+        'SUB-001': ['read', 'write'],
         // Cycle 4 HR — staff who aren't teachers (counsellor, vp,
         // admin assistant) still read the directory + manage own leave +
         // view own certs.
