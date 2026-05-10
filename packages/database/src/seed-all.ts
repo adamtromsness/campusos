@@ -99,6 +99,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Appraisals — frameworks, cycles, goals, expense claims (P2C4 sub-cycle c)',
     script: 'seed-appraisals.ts',
   },
+  {
+    label: 'Enrolment Advanced — tours, withdrawal, re-enrolment, mid-year admission (P2-5)',
+    script: 'seed-enrolment-advanced.ts',
+  },
 ];
 
 async function main(): Promise<void> {

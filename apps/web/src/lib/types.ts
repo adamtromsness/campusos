@@ -10030,3 +10030,346 @@ export interface DecideExpenseClaimPayload {
   decision: 'APPROVED' | 'REJECTED';
   rejectionReason?: string;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// P2-5 Enrolment Advanced — tours, withdrawal, re-enrolment, mid-year
+// ─────────────────────────────────────────────────────────────────────────
+
+export type TourType =
+  | 'GENERAL_OPEN_DAY'
+  | 'INDIVIDUAL_FAMILY_TOUR'
+  | 'VIRTUAL_TOUR'
+  | 'SPECIALIST_TOUR';
+
+export type BookingStatus = 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW' | 'COMPLETED';
+
+export type GuestType = 'ADULT' | 'CHILD' | 'PROSPECTIVE_STUDENT';
+
+export interface TourSlotResponseDto {
+  id: string;
+  schoolId: string;
+  tourDate: string;
+  startTime: string;
+  endTime: string;
+  maxBookings: number;
+  currentBookings: number;
+  availableSpots: number;
+  tourType: TourType;
+  ledByEmployeeId: string | null;
+  ledByName: string | null;
+  meetingPoint: string | null;
+  notes: string | null;
+  isPublished: boolean;
+  isCancelled: boolean;
+  isFull: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTourSlotPayload {
+  tourDate: string;
+  startTime: string;
+  endTime: string;
+  maxBookings?: number;
+  tourType?: TourType;
+  ledByEmployeeId?: string | null;
+  meetingPoint?: string | null;
+  notes?: string | null;
+  isPublished?: boolean;
+}
+
+export interface UpdateTourSlotPayload {
+  isPublished?: boolean;
+  isCancelled?: boolean;
+  meetingPoint?: string | null;
+  notes?: string | null;
+  ledByEmployeeId?: string | null;
+}
+
+export interface TourGuestInputDto {
+  guestType: GuestType;
+  firstName: string;
+  lastName: string;
+  age?: number | null;
+  notes?: string | null;
+}
+
+export interface TourGuestResponseDto extends TourGuestInputDto {
+  id: string;
+  bookingId: string;
+}
+
+export interface CreateTourBookingPayload {
+  familyName: string;
+  contactEmail: string;
+  contactPhone?: string | null;
+  notes?: string | null;
+  guests?: TourGuestInputDto[];
+}
+
+export interface PublicTourBookingPayload extends CreateTourBookingPayload {
+  firstName: string;
+  lastName: string;
+}
+
+export interface UpdateTourBookingPayload {
+  status?: BookingStatus;
+  cancellationReason?: string | null;
+  notes?: string | null;
+}
+
+export interface LinkApplicationPayload {
+  applicationId: string;
+}
+
+export interface TourBookingResponseDto {
+  id: string;
+  slotId: string;
+  schoolId: string;
+  bookedBy: string;
+  familyName: string;
+  contactEmail: string;
+  contactPhone: string | null;
+  status: BookingStatus;
+  bookedAt: string;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  linkedApplicationId: string | null;
+  notes: string | null;
+  guests: TourGuestResponseDto[];
+}
+
+export type WithdrawalReason =
+  | 'FAMILY_RELOCATION'
+  | 'TRANSFER_TO_OTHER_SCHOOL'
+  | 'HOME_EDUCATION'
+  | 'EXCLUSION'
+  | 'MEDICAL'
+  | 'FEE_DEFAULT'
+  | 'SAFEGUARDING'
+  | 'GRADUATION'
+  | 'DECEASED'
+  | 'OTHER';
+
+export type InitiatedBy = 'FAMILY' | 'SCHOOL';
+
+export type WithdrawalStatus = 'REQUESTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+
+export type ExitTaskCategory =
+  | 'ADMINISTRATIVE'
+  | 'FINANCE'
+  | 'IT'
+  | 'FACILITIES'
+  | 'TRANSPORT'
+  | 'RECORDS';
+
+export type ExitTaskStatus = 'PENDING' | 'COMPLETED' | 'WAIVED' | 'NOT_APPLICABLE';
+
+export type MidYearReason =
+  | 'FAMILY_RELOCATION'
+  | 'TRANSFER_FROM_OTHER_SCHOOL'
+  | 'RETURNING_FROM_ABROAD'
+  | 'HOME_EDUCATION_ENDING'
+  | 'LOOKED_AFTER_CHILD'
+  | 'OTHER';
+
+export type MidYearStatus =
+  | 'RECEIVED'
+  | 'CAPACITY_CHECKED'
+  | 'OFFER_MADE'
+  | 'ENROLLED'
+  | 'DECLINED'
+  | 'WITHDRAWN';
+
+export interface CreateWithdrawalPayload {
+  studentId: string;
+  initiatedBy: InitiatedBy;
+  withdrawalReasonCategory: WithdrawalReason;
+  withdrawalReasonDetail?: string;
+  lastAttendanceDate: string;
+  destinationSchoolName?: string;
+  destinationSchoolCountry?: string;
+  recordsReleaseConsented?: boolean;
+  notes?: string;
+}
+
+export interface CompleteWithdrawalPayload {
+  notes?: string;
+}
+
+export interface CancelWithdrawalPayload {
+  reason: string;
+}
+
+export interface PlaceReenrolHoldPayload {
+  hold: boolean;
+  reason?: string;
+}
+
+export interface UpdateExitTaskPayload {
+  status: ExitTaskStatus;
+  notes?: string;
+}
+
+export interface ExitTaskResponseDto {
+  id: string;
+  withdrawalId: string;
+  taskName: string;
+  taskCategory: ExitTaskCategory;
+  status: ExitTaskStatus;
+  completedBy: string | null;
+  completedByName: string | null;
+  completedAt: string | null;
+  notes: string | null;
+  sortOrder: number;
+}
+
+export interface WithdrawalResponseDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  initiatedBy: InitiatedBy;
+  requestedBy: string;
+  requestedByName: string | null;
+  withdrawalReasonCategory: WithdrawalReason;
+  withdrawalReasonDetail: string | null;
+  lastAttendanceDate: string;
+  requestedAt: string;
+  destinationSchoolName: string | null;
+  destinationSchoolCountry: string | null;
+  recordsReleaseConsented: boolean;
+  recordsSentAt: string | null;
+  status: WithdrawalStatus;
+  completedAt: string | null;
+  completedBy: string | null;
+  completedByName: string | null;
+  reEnrollmentHoldPlaced: boolean;
+  reEnrollmentHoldReason: string | null;
+  notes: string | null;
+  exitTasks: ExitTaskResponseDto[];
+  exitTaskSummary: {
+    pending: number;
+    completed: number;
+    waived: number;
+    notApplicable: number;
+    total: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReenrolPayload {
+  studentId: string;
+  academicYearId: string;
+  confirmedContinuing: boolean;
+  withdrawalReason?: string;
+  notes?: string;
+}
+
+export interface ReenrolResponseDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  studentFirstName: string | null;
+  studentLastName: string | null;
+  academicYearId: string;
+  academicYearName: string | null;
+  submittedBy: string;
+  submittedByName: string | null;
+  confirmedContinuing: boolean;
+  withdrawalReason: string | null;
+  submittedAt: string;
+  processedBy: string | null;
+  processedByName: string | null;
+  processedAt: string | null;
+  linkedWithdrawalId: string | null;
+  notes: string | null;
+}
+
+export interface ReenrolSummaryDto {
+  academicYearId: string;
+  academicYearName: string | null;
+  totalStudents: number;
+  totalConfirmed: number;
+  continuing: number;
+  departing: number;
+  outstanding: number;
+  perGrade: Array<{
+    gradeLevel: string;
+    continuing: number;
+    departing: number;
+    outstanding: number;
+    total: number;
+  }>;
+}
+
+export interface CreateMidYearAdmissionPayload {
+  studentFirstName: string;
+  studentLastName: string;
+  studentDateOfBirth: string;
+  applyingForGradeLevel: string;
+  requestedStartDate: string;
+  admissionReason: MidYearReason;
+  admissionReasonDetail?: string;
+  previousSchoolName?: string;
+  previousSchoolCountry?: string;
+  recordsRequested?: boolean;
+  notes?: string;
+}
+
+export interface UpdateMidYearAdmissionPayload {
+  status?: MidYearStatus;
+  capacityAvailable?: boolean;
+  linkedApplicationId?: string;
+  notes?: string;
+}
+
+export interface MidYearAdmissionResponseDto {
+  id: string;
+  schoolId: string;
+  requestedBy: string;
+  requestedByName: string | null;
+  studentFirstName: string;
+  studentLastName: string;
+  studentDateOfBirth: string;
+  applyingForGradeLevel: string;
+  requestedStartDate: string;
+  admissionReason: MidYearReason;
+  admissionReasonDetail: string | null;
+  previousSchoolName: string | null;
+  previousSchoolCountry: string | null;
+  recordsRequested: boolean;
+  status: MidYearStatus;
+  capacityAvailable: boolean | null;
+  capacityCheckedAt: string | null;
+  capacityCheckedBy: string | null;
+  capacityCheckedByName: string | null;
+  linkedApplicationId: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskTemplateRowPayload {
+  taskName: string;
+  taskCategory: ExitTaskCategory;
+  isRequired?: boolean;
+  isActive?: boolean;
+}
+
+export interface UpsertTaskTemplatePayload {
+  tasks: TaskTemplateRowPayload[];
+}
+
+export interface TaskTemplateResponseDto {
+  id: string;
+  schoolId: string;
+  templateName: string;
+  taskName: string;
+  taskCategory: ExitTaskCategory;
+  sortOrder: number;
+  isActive: boolean;
+  isRequired: boolean;
+}

@@ -499,6 +499,12 @@ async function seedIam() {
         // the row-scope check at the service layer (account_holder_id =
         // actor.personId) keeps parents bound to their own family account.
         'STU-003': ['read', 'write'],
+        // P2-5 — withdrawal + re-enrolment self-service for parents.
+        // WithdrawalService gates initiate-by-family on (actor as guardian
+        // of the student) via sis_student_guardians. ReenrolmentService
+        // is parent-write only for the family confirmation; admin
+        // processes via STU-004 admin tier from everyFunction.
+        'STU-004': ['read', 'write'],
         'FIN-001': ['read', 'write'],
         // Profile & Household mini-cycle — own profile self-service +
         // shared-household editing (HouseholdsService gates on member
@@ -763,6 +769,13 @@ async function seedIam() {
         // manages onboarding. Held by Staff (covers EO) so the
         // pipeline endpoints clear the @RequirePermission gate.
         'STU-003': ['read', 'write'],
+        // P2-5 — withdrawal + transfer surface. Staff covers EO +
+        // per-department staff (librarian, IT, facilities, finance,
+        // registrar, transport, food service) closing exit tasks
+        // for their department. Service-layer per-department
+        // routing in ExitTaskService keeps a department staff
+        // member from completing another department's tasks.
+        'STU-004': ['read', 'write'],
         // REVIEW-CYCLE14 MAJOR 6 — COM-004 not granted to Staff
         // because ModerationService.assertAdmin() requires
         // actor.isSchoolAdmin specifically (a stricter contract
@@ -1155,6 +1168,9 @@ async function seedIam() {
         'STU-001': ['read', 'write', 'admin'],
         'STU-002': ['read', 'write', 'admin'],
         'STU-003': ['read', 'write'],
+        // P2-5 — VP often handles withdrawal + re-enrolment when EO
+        // is unavailable.
+        'STU-004': ['read', 'write', 'admin'],
         'ATT-001': ['read', 'write', 'admin'],
         'ATT-002': ['read', 'write'],
         'ATT-003': ['read', 'write'],
@@ -1263,6 +1279,10 @@ async function seedIam() {
       roleName: 'Enrolment Officer',
       perms: {
         'STU-003': ['read', 'write', 'admin'],
+        // P2-5 — EO owns the full withdrawal lifecycle, the
+        // re-enrolment dashboard for next year's roster, and the
+        // mid-year admission queue.
+        'STU-004': ['read', 'write', 'admin'],
         'STU-001': ['read'],
         'COM-001': ['read', 'write'],
       },

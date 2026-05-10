@@ -109,7 +109,7 @@ export class OutboxService {
     await tx.$executeRawUnsafe(
       `INSERT INTO platform.platform_outbox
         (id, topic, envelope, message_key, tenant_id, source_module, created_at)
-       VALUES ($1::uuid, $2, $3::jsonb, $4, $5, $6, now())`,
+       VALUES ($1::uuid, $2, $3::jsonb, $4, $5::uuid, $6, now())`,
       id,
       opts.topic,
       JSON.stringify({

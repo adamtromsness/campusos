@@ -56,6 +56,7 @@
     "seed:recruitment": "tsx src/seed-recruitment.ts",
     "seed:training": "tsx src/seed-training.ts",
     "seed:appraisals": "tsx src/seed-appraisals.ts",
+    "seed:enrolment-advanced": "tsx src/seed-enrolment-advanced.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

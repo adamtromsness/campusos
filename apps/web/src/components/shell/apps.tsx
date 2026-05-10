@@ -78,7 +78,9 @@ export type AppKey =
   | 'visitors'
   | 'emergency'
   | 'development'
-  | 'expenses';
+  | 'expenses'
+  | 'enrolment-tours'
+  | 'enrolment-withdrawals';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -241,6 +243,36 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       description: 'Submit and track admissions applications',
       href: '/apply',
       routePrefix: '/apply',
+      icon: AcademicCapIcon,
+    });
+  }
+
+  // P2-5 Tours — admin manages slots; everyone (incl. anonymous public)
+  // can browse public slots, but the launchpad tile only shows for staff
+  // who can manage them.
+  if (hasAnyPermission(user, ['stu-003:read', 'stu-003:write', 'stu-003:admin'])) {
+    apps.push({
+      key: 'enrolment-tours',
+      label: 'Tours',
+      description: hasAnyPermission(user, ['stu-003:admin'])
+        ? 'Schedule + publish campus tour slots, track bookings'
+        : 'View available campus tours',
+      href: '/enrolment/tours',
+      routePrefix: '/enrolment/tours',
+      icon: AcademicCapIcon,
+    });
+  }
+
+  // P2-5 Withdrawal + Re-enrolment + Mid-Year — STU-004 surface.
+  if (hasAnyPermission(user, ['stu-004:read', 'stu-004:write', 'stu-004:admin'])) {
+    apps.push({
+      key: 'enrolment-withdrawals',
+      label: isGuardian ? 'Withdrawal & Re-enrolment' : 'Withdrawals',
+      description: isGuardian
+        ? 'Confirm next year, request mid-year admission, initiate withdrawal'
+        : 'Manage withdrawals, re-enrolment, mid-year admissions, exit task templates',
+      href: '/enrolment/withdrawals',
+      routePrefix: '/enrolment',
       icon: AcademicCapIcon,
     });
   }

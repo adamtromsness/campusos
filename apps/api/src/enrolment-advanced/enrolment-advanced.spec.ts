@@ -1,0 +1,1285 @@
+import 'reflect-metadata';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import { runWithTenantContext } from '../tenant/tenant.context';
+import { PERMISSIONS_KEY } from '../auth/require-permission.decorator';
+import { TourSlotService } from './tour-slot.service';
+import { TourBookingService } from './tour-booking.service';
+import { WithdrawalService } from './withdrawal.service';
+import { ExitTaskService } from './exit-task.service';
+import { ReenrolmentService } from './reenrolment.service';
+import { MidYearAdmissionService } from './mid-year-admission.service';
+import { ExitTaskTemplateService } from './exit-task-template.service';
+import { TourController } from './tour.controller';
+import { WithdrawalController } from './withdrawal.controller';
+import { ReenrolmentController } from './reenrolment.controller';
+import { MidYearAdmissionController } from './mid-year-admission.controller';
+import { ExitTaskTemplateController } from './exit-task-template.controller';
+
+const SCHOOL = { schoolId: '019eaaaa-0000-7556-8c81-aaaaaaaaaaaa', subdomain: 'demo' } as never;
+const ADMIN_ACTOR = {
+  accountId: '019eaaaa-0000-7556-8c81-a0000000a001',
+  personId: '019eaaaa-0000-7556-8c81-a0000000a002',
+  employeeId: '019eaaaa-0000-7556-8c81-a0000000a003',
+  personType: 'STAFF' as const,
+  isSchoolAdmin: true,
+} as never;
+const PARENT_ACTOR = {
+  accountId: '019eaaaa-0000-7556-8c81-b0000000b001',
+  personId: '019eaaaa-0000-7556-8c81-b0000000b002',
+  employeeId: null,
+  personType: 'GUARDIAN' as const,
+  isSchoolAdmin: false,
+} as never;
+const TEACHER_ACTOR = {
+  accountId: '019eaaaa-0000-7556-8c81-c0000000c001',
+  personId: '019eaaaa-0000-7556-8c81-c0000000c002',
+  employeeId: '019eaaaa-0000-7556-8c81-c0000000c003',
+  personType: 'STAFF' as const,
+  isSchoolAdmin: false,
+} as never;
+
+interface CapturedCall {
+  sql: string;
+  args: unknown[];
+  fn: 'q' | 'e';
+}
+
+function makeFake(handler: (call: CapturedCall) => unknown) {
+  const capture: CapturedCall[] = [];
+  const client = {
+    $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+      const call: CapturedCall = { sql, args, fn: 'q' };
+      capture.push(call);
+      return handler(call) ?? [];
+    },
+    $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+      const call: CapturedCall = { sql, args, fn: 'e' };
+      capture.push(call);
+      return handler(call) ?? 0;
+    },
+  };
+  const tenantPrisma = {
+    executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+  };
+  return { capture, client, tenantPrisma };
+}
+
+function makeOutbox() {
+  const enqueued: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    payload: Record<string, unknown>;
+  }> = [];
+  const outbox = {
+    enqueueInTx: async (_tx: unknown, opts: any) => {
+      enqueued.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        payload: opts.payload,
+      });
+      return 'outbox-id';
+    },
+  };
+  return { outbox, enqueued };
+}
+
+function makePerms(grants: Record<string, string[]> = {}) {
+  return {
+    hasAnyPermissionInTenant: vi.fn(
+      async (accountId: string, _scopeId: string, codes: string[]) => {
+        const held = grants[accountId] ?? [];
+        return codes.some((c) => held.includes(c));
+      },
+    ),
+  };
+}
+
+// =====================================================================
+// TourSlotService
+// =====================================================================
+describe('TourSlotService', () => {
+  it('listPublic filters by school + published + future + non-cancelled + capacity remaining', async () => {
+    const { capture, tenantPrisma } = makeFake((c) => {
+      if (c.sql.includes('FROM enr_tour_slots s')) {
+        return [
+          {
+            id: 'slot1',
+            school_id: SCHOOL.schoolId,
+            tour_date: '2026-09-01',
+            start_time: '10:00',
+            end_time: '11:00',
+            max_bookings: 10,
+            current_bookings: 3,
+            tour_type: 'GENERAL_OPEN_DAY',
+            led_by: null,
+            led_by_first_name: null,
+            led_by_last_name: null,
+            meeting_point: 'Lobby',
+            notes: null,
+            is_published: true,
+            is_cancelled: false,
+            created_at: '2026-08-01T00:00Z',
+            updated_at: '2026-08-01T00:00Z',
+          },
+        ];
+      }
+      return [];
+    });
+    const perms = makePerms();
+    const svc = new TourSlotService(tenantPrisma as never, perms as never);
+    const rows = await runWithTenantContext({ tenant: SCHOOL }, async () => svc.listPublic());
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.availableSpots).toBe(7);
+    expect(rows[0]!.isFull).toBe(false);
+    const sqlCall = capture.find((c) => c.sql.includes('FROM enr_tour_slots s'));
+    expect(sqlCall?.sql).toContain('is_published = true');
+    expect(sqlCall?.sql).toContain('is_cancelled = false');
+    expect(sqlCall?.sql).toContain('current_bookings < s.max_bookings');
+  });
+
+  it('create rejects non-admin caller', async () => {
+    const { tenantPrisma } = makeFake(() => []);
+    const perms = makePerms({});
+    const svc = new TourSlotService(tenantPrisma as never, perms as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.create(
+          {
+            tourDate: '2026-09-15',
+            startTime: '10:00',
+            endTime: '11:00',
+          },
+          PARENT_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  it('create rejects endTime <= startTime', async () => {
+    const { tenantPrisma } = makeFake(() => []);
+    const perms = makePerms({ [ADMIN_ACTOR.accountId]: ['stu-003:admin'] });
+    const svc = new TourSlotService(tenantPrisma as never, perms as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.create({ tourDate: '2026-09-15', startTime: '11:00', endTime: '10:00' }, ADMIN_ACTOR),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  it('create translates 23505 UNIQUE collision into a friendly 400', async () => {
+    const { tenantPrisma } = makeFake((c) => {
+      if (c.fn === 'e' && c.sql.includes('INSERT INTO enr_tour_slots')) {
+        const err = Object.assign(new Error('duplicate key'), {
+          code: '23505',
+          meta: { code: '23505' },
+        });
+        throw err;
+      }
+      return [];
+    });
+    const perms = makePerms({ [ADMIN_ACTOR.accountId]: ['stu-003:admin'] });
+    const svc = new TourSlotService(tenantPrisma as never, perms as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.create({ tourDate: '2026-09-15', startTime: '10:00', endTime: '11:00' }, ADMIN_ACTOR),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+});
+
+// =====================================================================
+// TourBookingService
+// =====================================================================
+describe('TourBookingService', () => {
+  function setupBooking(slotState: {
+    current: number;
+    max: number;
+    published?: boolean;
+    cancelled?: boolean;
+  }) {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM enr_tour_slots') && sql.includes('FOR UPDATE')) {
+          return [
+            {
+              id: 'slot1',
+              tour_date: '2026-09-01',
+              max_bookings: slotState.max,
+              current_bookings: slotState.current,
+              is_published: slotState.published ?? true,
+              is_cancelled: slotState.cancelled ?? false,
+            },
+          ];
+        }
+        if (sql.includes('FROM enr_tour_bookings') && sql.includes('LIMIT 1')) {
+          return [
+            {
+              id: 'bk1',
+              slot_id: 'slot1',
+              school_id: SCHOOL.schoolId,
+              booked_by: 'p1',
+              family_name: 'F',
+              contact_email: 'e@x.com',
+              contact_phone: null,
+              status: 'CONFIRMED',
+              booked_at: '2026-09-01T00:00Z',
+              cancelled_at: null,
+              cancellation_reason: null,
+              linked_application_id: null,
+              notes: null,
+            },
+          ];
+        }
+        if (sql.includes('FROM enr_tour_booking_guests')) return [];
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    return { calls, client, tenantPrisma };
+  }
+
+  it('bookPublic locks the slot row, increments current_bookings, emits enr.tour.booked via outbox', async () => {
+    const { calls, tenantPrisma } = setupBooking({ current: 0, max: 1 });
+    const perms = makePerms();
+    const { outbox, enqueued } = makeOutbox();
+    const platformPrisma = {
+      platformUser: { findFirst: vi.fn(async () => null) },
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      const result = await svc.bookPublic('slot1', {
+        firstName: 'Sarah',
+        lastName: 'Test',
+        familyName: 'Test Family',
+        contactEmail: 'sarah@example.com',
+        contactPhone: '+1-555-0100',
+        guests: [{ guestType: 'ADULT', firstName: 'Sarah', lastName: 'Test', age: 38 }],
+      });
+      expect(result.status).toBe('CONFIRMED');
+    });
+    // ADR-055 — iam_person + platform_users created via PrismaClient
+    expect(platformPrisma.$executeRawUnsafe).toHaveBeenCalledTimes(2);
+    // Locked-row SELECT
+    expect(
+      calls.some((c) => c.sql.includes('FROM enr_tour_slots') && c.sql.includes('FOR UPDATE')),
+    ).toBe(true);
+    // INSERT booking + INSERT guest + UPDATE current_bookings
+    expect(calls.some((c) => c.fn === 'e' && c.sql.includes('INSERT INTO enr_tour_bookings'))).toBe(
+      true,
+    );
+    expect(
+      calls.some((c) => c.fn === 'e' && c.sql.includes('INSERT INTO enr_tour_booking_guests')),
+    ).toBe(true);
+    expect(
+      calls.some(
+        (c) =>
+          c.fn === 'e' &&
+          c.sql.includes('UPDATE enr_tour_slots SET current_bookings = current_bookings + 1'),
+      ),
+    ).toBe(true);
+    // Outbox emit
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]!.topic).toBe('enr.tour.booked');
+    expect(enqueued[0]!.sourceModule).toBe('enrolment-advanced');
+    expect(enqueued[0]!.payload.bookingId).toBeDefined();
+    expect(enqueued[0]!.payload.slotId).toBe('slot1');
+    expect(enqueued[0]!.payload.guestCount).toBe(1);
+  });
+
+  it('bookPublic throws ConflictException when slot is full', async () => {
+    const { tenantPrisma } = setupBooking({ current: 10, max: 10 });
+    const perms = makePerms();
+    const { outbox } = makeOutbox();
+    const platformPrisma = {
+      platformUser: { findFirst: vi.fn(async () => null) },
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.bookPublic('slot1', {
+          firstName: 'Sarah',
+          lastName: 'Test',
+          familyName: 'Test Family',
+          contactEmail: 'sarah@example.com',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  it('bookPublic throws NotFoundException for missing slot', async () => {
+    const { tenantPrisma } = (() => {
+      const client = {
+        $queryRawUnsafe: async (sql: string) => {
+          if (sql.includes('FROM enr_tour_slots') && sql.includes('FOR UPDATE')) return [];
+          return [];
+        },
+        $executeRawUnsafe: async () => 0,
+      };
+      return {
+        tenantPrisma: {
+          executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+          executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+        },
+      };
+    })();
+    const perms = makePerms();
+    const { outbox } = makeOutbox();
+    const platformPrisma = {
+      platformUser: { findFirst: vi.fn(async () => null) },
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.bookPublic('missing-slot', {
+          firstName: 'X',
+          lastName: 'Y',
+          familyName: 'Z',
+          contactEmail: 'z@example.com',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  it('bookPublic refuses unpublished slots', async () => {
+    const { tenantPrisma } = setupBooking({ current: 0, max: 10, published: false });
+    const perms = makePerms();
+    const { outbox } = makeOutbox();
+    const platformPrisma = {
+      platformUser: { findFirst: vi.fn(async () => null) },
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.bookPublic('slot1', {
+          firstName: 'A',
+          lastName: 'B',
+          familyName: 'C',
+          contactEmail: 'a@example.com',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  it('bookPublic refuses cancelled slots', async () => {
+    const { tenantPrisma } = setupBooking({ current: 0, max: 10, cancelled: true });
+    const perms = makePerms();
+    const { outbox } = makeOutbox();
+    const platformPrisma = {
+      platformUser: { findFirst: vi.fn(async () => null) },
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.bookPublic('slot1', {
+          firstName: 'A',
+          lastName: 'B',
+          familyName: 'C',
+          contactEmail: 'a@example.com',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  it('bookPublic reuses iam_person when contact email matches existing platform_users row (ADR-055)', async () => {
+    const { tenantPrisma } = setupBooking({ current: 0, max: 10 });
+    const perms = makePerms();
+    const { outbox, enqueued } = makeOutbox();
+    const findFirst = vi.fn(async () => ({ personId: 'existing-person' }));
+    const platformPrisma = {
+      platformUser: { findFirst },
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await svc.bookPublic('slot1', {
+        firstName: 'Sarah',
+        lastName: 'Test',
+        familyName: 'F',
+        contactEmail: 'existing@example.com',
+      });
+    });
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { email: 'existing@example.com' },
+      select: { personId: true },
+    });
+    // Existing person reused — no new iam_person + platform_users INSERTs.
+    expect(platformPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
+    expect(enqueued[0]!.payload.bookedBy).toBe('existing-person');
+  });
+
+  it('bookPublic rejects malformed email', async () => {
+    const { tenantPrisma } = setupBooking({ current: 0, max: 10 });
+    const perms = makePerms();
+    const { outbox } = makeOutbox();
+    const platformPrisma = {
+      platformUser: { findFirst: vi.fn(async () => null) },
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.bookPublic('slot1', {
+          firstName: 'X',
+          lastName: 'Y',
+          familyName: 'Z',
+          contactEmail: 'no-at-sign',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  it('patch CANCELLED requires non-empty cancellationReason and decrements current_bookings', async () => {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM enr_tour_bookings') && sql.includes('FOR UPDATE')) {
+          return [{ id: 'bk1', slot_id: 'slot1', status: 'CONFIRMED' }];
+        }
+        if (sql.includes('FROM enr_tour_bookings') && sql.includes('LIMIT 1')) {
+          return [
+            {
+              id: 'bk1',
+              slot_id: 'slot1',
+              school_id: SCHOOL.schoolId,
+              booked_by: 'p1',
+              family_name: 'F',
+              contact_email: 'e@x.com',
+              contact_phone: null,
+              status: 'CANCELLED',
+              booked_at: '2026-09-01T00:00Z',
+              cancelled_at: '2026-09-02T00:00Z',
+              cancellation_reason: 'sick',
+              linked_application_id: null,
+              notes: null,
+            },
+          ];
+        }
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const perms = makePerms({ [ADMIN_ACTOR.accountId]: ['stu-003:write'] });
+    const { outbox } = makeOutbox();
+    const platformPrisma = { platformUser: { findFirst: vi.fn() }, $executeRawUnsafe: vi.fn() };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      // Empty reason rejected
+      await expect(
+        svc.patch('bk1', { status: 'CANCELLED', cancellationReason: '   ' }, ADMIN_ACTOR),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      // With reason, succeeds + decrements current_bookings
+      await svc.patch('bk1', { status: 'CANCELLED', cancellationReason: 'sick' }, ADMIN_ACTOR);
+    });
+    expect(
+      calls.some(
+        (c) =>
+          c.fn === 'e' &&
+          c.sql.includes(
+            'UPDATE enr_tour_slots SET current_bookings = GREATEST(current_bookings - 1, 0)',
+          ),
+      ),
+    ).toBe(true);
+  });
+
+  it('linkApplication validates the application belongs to this school', async () => {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM enr_tour_bookings') && sql.includes('FOR UPDATE')) {
+          return [{ id: 'bk1' }];
+        }
+        if (sql.includes('FROM enr_applications')) return [];
+        if (sql.includes('FROM enr_tour_bookings') && sql.includes('LIMIT 1')) {
+          return [
+            {
+              id: 'bk1',
+              slot_id: 'slot1',
+              school_id: SCHOOL.schoolId,
+              booked_by: 'p1',
+              family_name: 'F',
+              contact_email: 'e@x.com',
+              contact_phone: null,
+              status: 'COMPLETED',
+              booked_at: '2026-09-01T00:00Z',
+              cancelled_at: null,
+              cancellation_reason: null,
+              linked_application_id: null,
+              notes: null,
+            },
+          ];
+        }
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const perms = makePerms({ [ADMIN_ACTOR.accountId]: ['stu-003:write'] });
+    const { outbox } = makeOutbox();
+    const platformPrisma = { platformUser: { findFirst: vi.fn() }, $executeRawUnsafe: vi.fn() };
+    const svc = new TourBookingService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      platformPrisma as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      // Application not in this school → 400
+      await expect(
+        svc.linkApplication(
+          'bk1',
+          { applicationId: '019eaaaa-9999-7556-8c81-deadbeefdead' },
+          ADMIN_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+});
+
+// =====================================================================
+// WithdrawalService
+// =====================================================================
+describe('WithdrawalService', () => {
+  function setupWithdrawal(
+    opts: {
+      pendingTaskCount?: number;
+      withdrawalStatus?: string;
+      perms?: Record<string, string[]>;
+      guardianMatches?: boolean;
+      templateTasks?: Array<{ taskName: string; taskCategory: string; sortOrder: number }>;
+    } = {},
+  ) {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM sis_students s') && sql.includes('sis_student_guardians')) {
+          return opts.guardianMatches !== false ? [{}] : [];
+        }
+        if (sql.includes('FROM sis_students') && sql.includes('LIMIT 1')) {
+          return [{ id: '019eaaaa-stud-7556-8c81-000000000001' }];
+        }
+        if (sql.includes('FROM enr_withdrawal_requests') && sql.includes('FOR UPDATE')) {
+          return [
+            {
+              id: 'w1',
+              student_id: 'stud1',
+              status: opts.withdrawalStatus ?? 'IN_PROGRESS',
+              requested_by: ADMIN_ACTOR.personId,
+            },
+          ];
+        }
+        if (sql.includes('FROM enr_withdrawal_exit_tasks') && sql.includes('PENDING')) {
+          return [{ pending: opts.pendingTaskCount ?? 0 }];
+        }
+        if (sql.includes('SELECT w.id') || sql.includes('FROM enr_withdrawal_requests w')) {
+          return [
+            {
+              id: 'w1',
+              school_id: SCHOOL.schoolId,
+              student_id: 'stud1',
+              initiated_by: 'FAMILY',
+              requested_by: ADMIN_ACTOR.personId,
+              requested_by_first_name: 'Adm',
+              requested_by_last_name: 'In',
+              withdrawal_reason_category: 'OTHER',
+              withdrawal_reason_detail: null,
+              last_attendance_date: '2026-06-30',
+              requested_at: '2026-06-01T00:00Z',
+              destination_school_name: null,
+              destination_school_country: null,
+              records_release_consented: false,
+              records_sent_at: null,
+              status: opts.withdrawalStatus ?? 'IN_PROGRESS',
+              completed_at: null,
+              completed_by: null,
+              completed_by_first_name: null,
+              completed_by_last_name: null,
+              re_enrollment_hold_placed: false,
+              re_enrollment_hold_reason: null,
+              notes: null,
+              created_at: '2026-06-01T00:00Z',
+              updated_at: '2026-06-01T00:00Z',
+              student_first_name: 'S',
+              student_last_name: 'T',
+            },
+          ];
+        }
+        if (sql.includes('FROM enr_withdrawal_exit_tasks t')) return [];
+        if (sql.includes('FROM enr_withdrawal_task_templates')) {
+          return opts.templateTasks
+            ? opts.templateTasks.map((t) => ({
+                id: 'tt-' + t.sortOrder,
+                school_id: SCHOOL.schoolId,
+                template_name: 'DEFAULT',
+                task_name: t.taskName,
+                task_category: t.taskCategory,
+                sort_order: t.sortOrder,
+                is_active: true,
+                is_required: true,
+              }))
+            : [];
+        }
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const perms = makePerms(opts.perms ?? { [ADMIN_ACTOR.accountId]: ['stu-004:admin'] });
+    const { outbox, enqueued } = makeOutbox();
+    const templates = new ExitTaskTemplateService(tenantPrisma as never, perms as never);
+    const svc = new WithdrawalService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      templates,
+    );
+    return { svc, calls, enqueued };
+  }
+
+  it('list filters parents to own children only via sis_student_guardians', async () => {
+    const { svc, calls } = setupWithdrawal();
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.list(PARENT_ACTOR));
+    const sqlCall = calls.find((c) => c.sql.includes('FROM enr_withdrawal_requests w'));
+    expect(sqlCall?.sql).toContain('sis_student_guardians');
+    expect(sqlCall?.sql).toContain('g.person_id =');
+  });
+
+  it('list as admin includes no guardian filter', async () => {
+    const { svc, calls } = setupWithdrawal();
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.list(ADMIN_ACTOR));
+    const sqlCall = calls.find((c) => c.sql.includes('FROM enr_withdrawal_requests w'));
+    expect(sqlCall?.sql).not.toContain('sis_student_guardians');
+  });
+
+  it('create rejects when parent is not a guardian of the supplied student', async () => {
+    const { svc } = setupWithdrawal({
+      guardianMatches: false,
+      perms: { [PARENT_ACTOR.accountId]: ['stu-004:write'] },
+    });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.create(
+          {
+            studentId: 'stud-other',
+            initiatedBy: 'FAMILY',
+            withdrawalReasonCategory: 'OTHER',
+            lastAttendanceDate: '2026-06-30',
+          },
+          PARENT_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  it('create rejects when no template tasks configured', async () => {
+    const { svc } = setupWithdrawal({
+      templateTasks: [],
+      perms: { [ADMIN_ACTOR.accountId]: ['stu-004:admin', 'stu-004:write'] },
+    });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      // Override the lazy-seed path by also disabling adminScope check would make it write but
+      // template returns empty so create rejects.
+      await expect(
+        svc.create(
+          {
+            studentId: 'stud1',
+            initiatedBy: 'SCHOOL',
+            withdrawalReasonCategory: 'OTHER',
+            lastAttendanceDate: '2026-06-30',
+          },
+          ADMIN_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  it('complete refuses when any exit task remains PENDING', async () => {
+    const { svc } = setupWithdrawal({
+      pendingTaskCount: 3,
+      perms: { [ADMIN_ACTOR.accountId]: ['stu-004:admin'] },
+    });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(svc.complete('w1', {}, ADMIN_ACTOR)).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  it('complete flips sis_students.enrollment_status to WITHDRAWN and emits enr.student.withdrawn', async () => {
+    const { svc, calls, enqueued } = setupWithdrawal({
+      pendingTaskCount: 0,
+      perms: { [ADMIN_ACTOR.accountId]: ['stu-004:admin'] },
+    });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.complete('w1', {}, ADMIN_ACTOR));
+    expect(
+      calls.some(
+        (c) =>
+          c.fn === 'e' && c.sql.includes("UPDATE sis_students SET enrollment_status = 'WITHDRAWN'"),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some(
+        (c) =>
+          c.fn === 'e' && c.sql.includes("UPDATE enr_withdrawal_requests SET status = 'COMPLETED'"),
+      ),
+    ).toBe(true);
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]!.topic).toBe('enr.student.withdrawn');
+    expect(enqueued[0]!.sourceModule).toBe('enrolment-advanced');
+    expect(enqueued[0]!.payload.studentId).toBe('stud1');
+    expect(enqueued[0]!.payload.completedBy).toBe(ADMIN_ACTOR.personId);
+  });
+
+  it('complete rejects already-COMPLETED withdrawals', async () => {
+    const { svc } = setupWithdrawal({
+      withdrawalStatus: 'COMPLETED',
+      perms: { [ADMIN_ACTOR.accountId]: ['stu-004:admin'] },
+    });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(svc.complete('w1', {}, ADMIN_ACTOR)).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  it('placeReenrolHold requires non-empty reason when hold=true (hold_chk schema invariant)', async () => {
+    const { svc } = setupWithdrawal({
+      perms: { [ADMIN_ACTOR.accountId]: ['stu-004:admin'] },
+    });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(svc.placeReenrolHold('w1', { hold: true }, ADMIN_ACTOR)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+  });
+
+  it('non-admin caller cannot complete a withdrawal', async () => {
+    const { svc } = setupWithdrawal({
+      perms: { [TEACHER_ACTOR.accountId]: ['stu-004:write'] },
+    });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(svc.complete('w1', {}, TEACHER_ACTOR)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+  });
+});
+
+// =====================================================================
+// ReenrolmentService
+// =====================================================================
+describe('ReenrolmentService', () => {
+  function setupReenrol(opts: { holdActive?: boolean; perms?: Record<string, string[]> } = {}) {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM sis_students s') && sql.includes('sis_student_guardians')) {
+          return [{}];
+        }
+        if (
+          sql.includes('FROM enr_withdrawal_requests') &&
+          sql.includes('re_enrollment_hold_placed')
+        ) {
+          return opts.holdActive ? [{}] : [];
+        }
+        if (sql.includes('FROM enr_reenrollment_confirmations')) {
+          return [
+            {
+              id: 'r1',
+              school_id: SCHOOL.schoolId,
+              student_id: 'stud1',
+              student_first_name: 'S',
+              student_last_name: 'T',
+              student_grade: '5',
+              academic_year_id: 'y1',
+              academic_year_name: '2027-2028',
+              submitted_by: PARENT_ACTOR.personId,
+              submitted_by_first_name: 'P',
+              submitted_by_last_name: 'A',
+              confirmed_continuing: true,
+              withdrawal_reason: null,
+              submitted_at: '2026-08-01T00:00Z',
+              processed_by: null,
+              processed_by_first_name: null,
+              processed_by_last_name: null,
+              processed_at: null,
+              linked_withdrawal_id: null,
+              notes: null,
+            },
+          ];
+        }
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const perms = makePerms(opts.perms ?? { [PARENT_ACTOR.accountId]: ['stu-004:write'] });
+    const { outbox } = makeOutbox();
+    const templates = new ExitTaskTemplateService(tenantPrisma as never, perms as never);
+    const withdrawalService = new WithdrawalService(
+      tenantPrisma as never,
+      perms as never,
+      outbox as never,
+      templates,
+    );
+    const svc = new ReenrolmentService(tenantPrisma as never, perms as never, withdrawalService);
+    return { svc, calls };
+  }
+
+  it('submit rejects continuing=true with a withdrawalReason payload', async () => {
+    const { svc } = setupReenrol();
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.submit(
+          {
+            studentId: 'stud1',
+            academicYearId: 'y1',
+            confirmedContinuing: true,
+            withdrawalReason: 'should not have',
+          },
+          PARENT_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  it('submit rejects continuing=false without a withdrawalReason (reason_chk schema invariant)', async () => {
+    const { svc } = setupReenrol();
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.submit(
+          {
+            studentId: 'stud1',
+            academicYearId: 'y1',
+            confirmedContinuing: false,
+          },
+          PARENT_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  it('submit rejects when student has an active re-enrolment hold', async () => {
+    const { svc } = setupReenrol({ holdActive: true });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.submit(
+          { studentId: 'stud1', academicYearId: 'y1', confirmedContinuing: true },
+          PARENT_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  it('summary admin-only', async () => {
+    const { svc } = setupReenrol({ perms: { [PARENT_ACTOR.accountId]: ['stu-004:read'] } });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(svc.summary(PARENT_ACTOR, 'y1')).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+});
+
+// =====================================================================
+// MidYearAdmissionService
+// =====================================================================
+describe('MidYearAdmissionService', () => {
+  function setup(perms: Record<string, string[]> = {}) {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM enr_mid_year_admission_requests m')) {
+          return [
+            {
+              id: 'm1',
+              school_id: SCHOOL.schoolId,
+              requested_by: PARENT_ACTOR.personId,
+              requested_by_first_name: 'P',
+              requested_by_last_name: 'A',
+              student_first_name: 'X',
+              student_last_name: 'Y',
+              student_date_of_birth: '2014-08-22',
+              applying_for_grade_level: '5',
+              requested_start_date: '2026-09-01',
+              admission_reason: 'OTHER',
+              admission_reason_detail: null,
+              previous_school_name: null,
+              previous_school_country: null,
+              records_requested: false,
+              status: 'RECEIVED',
+              capacity_available: null,
+              capacity_checked_at: null,
+              capacity_checked_by: null,
+              capacity_checked_by_first_name: null,
+              capacity_checked_by_last_name: null,
+              linked_application_id: null,
+              notes: null,
+              created_at: '2026-08-01T00:00Z',
+              updated_at: '2026-08-01T00:00Z',
+            },
+          ];
+        }
+        if (sql.includes('FROM enr_mid_year_admission_requests') && sql.includes('FOR UPDATE')) {
+          return [{ id: 'm1' }];
+        }
+        if (sql.includes('FROM enr_applications')) return [];
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const permsObj = makePerms(perms);
+    const svc = new MidYearAdmissionService(tenantPrisma as never, permsObj as never);
+    return { svc, calls };
+  }
+
+  it('list filters parent to own submissions', async () => {
+    const { svc, calls } = setup({ [PARENT_ACTOR.accountId]: ['stu-004:read'] });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.list(PARENT_ACTOR));
+    const sql = calls.find((c) => c.sql.includes('FROM enr_mid_year_admission_requests'));
+    expect(sql?.sql).toContain('m.requested_by =');
+  });
+
+  it('patch refuses when caller is not admin', async () => {
+    const { svc } = setup({ [PARENT_ACTOR.accountId]: ['stu-004:read'] });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.patch('m1', { capacityAvailable: true }, PARENT_ACTOR),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  it('patch with linkedApplicationId rejects when application not in this school', async () => {
+    const { svc } = setup({ [ADMIN_ACTOR.accountId]: ['stu-004:admin'] });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.patch(
+          'm1',
+          { linkedApplicationId: '019eaaaa-9999-7556-8c81-deadbeefdead' },
+          ADMIN_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  it('submit by parent with stu-004:write writes the row', async () => {
+    const { svc, calls } = setup({ [PARENT_ACTOR.accountId]: ['stu-004:write'] });
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.submit(
+        {
+          studentFirstName: 'A',
+          studentLastName: 'B',
+          studentDateOfBirth: '2015-01-01',
+          applyingForGradeLevel: '4',
+          requestedStartDate: '2026-09-01',
+          admissionReason: 'OTHER',
+        },
+        PARENT_ACTOR,
+      ),
+    );
+    expect(
+      calls.some(
+        (c) => c.fn === 'e' && c.sql.includes('INSERT INTO enr_mid_year_admission_requests'),
+      ),
+    ).toBe(true);
+  });
+});
+
+// =====================================================================
+// ExitTaskService
+// =====================================================================
+describe('ExitTaskService', () => {
+  function setup(opts: { withdrawalStatus?: string; perms?: Record<string, string[]> } = {}) {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM enr_withdrawal_exit_tasks t') && sql.includes('FOR UPDATE OF t')) {
+          return [
+            {
+              id: 'task1',
+              status: 'PENDING',
+              task_category: 'IT',
+              withdrawal_status: opts.withdrawalStatus ?? 'IN_PROGRESS',
+            },
+          ];
+        }
+        if (sql.includes('FROM enr_withdrawal_exit_tasks') && sql.includes('id = $1::uuid')) {
+          return [
+            {
+              id: 'task1',
+              withdrawal_id: 'w1',
+              task_name: 'Return device',
+              task_category: 'IT',
+              status: 'COMPLETED',
+              completed_by: ADMIN_ACTOR.personId,
+              completed_at: '2026-09-01T00:00Z',
+              notes: 'done',
+              sort_order: 0,
+            },
+          ];
+        }
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const perms = makePerms(opts.perms ?? { [ADMIN_ACTOR.accountId]: ['stu-004:write'] });
+    const svc = new ExitTaskService(tenantPrisma as never, perms as never);
+    return { svc, calls };
+  }
+
+  it('patch COMPLETED stamps completed_by + completed_at', async () => {
+    const { svc, calls } = setup();
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.patch('task1', { status: 'COMPLETED', notes: 'done' }, ADMIN_ACTOR),
+    );
+    const updateCall = calls.find(
+      (c) =>
+        c.fn === 'e' &&
+        c.sql.includes('UPDATE enr_withdrawal_exit_tasks SET status = $1, completed_by = $2'),
+    );
+    expect(updateCall).toBeDefined();
+    expect(updateCall!.args[1]).toBe(ADMIN_ACTOR.personId);
+  });
+
+  it('patch refuses when parent withdrawal is COMPLETED', async () => {
+    const { svc } = setup({ withdrawalStatus: 'COMPLETED' });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(svc.patch('task1', { status: 'COMPLETED' }, ADMIN_ACTOR)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+  });
+
+  it('patch flips parent withdrawal REQUESTED -> IN_PROGRESS on first transition', async () => {
+    const { svc, calls } = setup({ withdrawalStatus: 'REQUESTED' });
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.patch('task1', { status: 'COMPLETED' }, ADMIN_ACTOR),
+    );
+    expect(
+      calls.some(
+        (c) =>
+          c.fn === 'e' &&
+          c.sql.includes("UPDATE enr_withdrawal_requests SET status = 'IN_PROGRESS'"),
+      ),
+    ).toBe(true);
+  });
+
+  it('patch refuses without write scope', async () => {
+    const { svc } = setup({ perms: { [PARENT_ACTOR.accountId]: ['stu-004:read'] } });
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.patch('task1', { status: 'COMPLETED' }, PARENT_ACTOR),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+});
+
+// =====================================================================
+// ExitTaskTemplateService
+// =====================================================================
+describe('ExitTaskTemplateService', () => {
+  it('listActive lazy-seeds the 7-task DEFAULT baseline', async () => {
+    const calls: CapturedCall[] = [];
+    let templateRows: Array<Record<string, unknown>> = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'q' });
+        if (sql.includes('FROM enr_withdrawal_task_templates')) return templateRows;
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args, fn: 'e' });
+        if (sql.includes('INSERT INTO enr_withdrawal_task_templates')) {
+          templateRows.push({
+            id: args[0],
+            school_id: args[1],
+            template_name: args[2],
+            task_name: args[3],
+            task_category: args[4],
+            sort_order: args[5],
+            is_active: true,
+            is_required: args[6],
+          });
+        }
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const perms = makePerms({ [ADMIN_ACTOR.accountId]: ['stu-004:admin'] });
+    const svc = new ExitTaskTemplateService(tenantPrisma as never, perms as never);
+    const rows = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.listActive(SCHOOL.schoolId, 'DEFAULT', ADMIN_ACTOR),
+    );
+    expect(rows.length).toBe(7);
+    const cats = rows.map((r) => r.taskCategory).sort();
+    expect(cats).toContain('RECORDS');
+    expect(cats).toContain('IT');
+    expect(cats).toContain('FACILITIES');
+    expect(cats).toContain('FINANCE');
+    expect(cats).toContain('TRANSPORT');
+    expect(cats).toContain('ADMINISTRATIVE');
+  });
+
+  it('upsert refuses non-admin', async () => {
+    const { tenantPrisma } = makeFake(() => []);
+    const perms = makePerms({});
+    const svc = new ExitTaskTemplateService(tenantPrisma as never, perms as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      await expect(
+        svc.upsert({ tasks: [{ taskName: 'X', taskCategory: 'IT' }] }, PARENT_ACTOR),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+});
+
+// =====================================================================
+// Controller permission metadata
+// =====================================================================
+describe('Controller @RequirePermission metadata', () => {
+  function readMeta(target: unknown, methodName: string): string[] {
+    return (
+      Reflect.getMetadata(
+        PERMISSIONS_KEY,
+        (target as Record<string, unknown>)[methodName] as object,
+      ) ?? []
+    );
+  }
+
+  it('TourController gates admin endpoints on stu-003:admin and reads on stu-003:read', () => {
+    expect(readMeta(TourController.prototype, 'createSlot')).toEqual(['stu-003:admin']);
+    expect(readMeta(TourController.prototype, 'patchSlot')).toEqual(['stu-003:admin']);
+    expect(readMeta(TourController.prototype, 'listAdmin')).toEqual(['stu-003:read']);
+    expect(readMeta(TourController.prototype, 'patchBooking')).toEqual(['stu-003:write']);
+    expect(readMeta(TourController.prototype, 'linkApplication')).toEqual(['stu-003:write']);
+  });
+
+  it('WithdrawalController gates complete/hold on stu-004:admin', () => {
+    expect(readMeta(WithdrawalController.prototype, 'list')).toEqual(['stu-004:read']);
+    expect(readMeta(WithdrawalController.prototype, 'create')).toEqual(['stu-004:write']);
+    expect(readMeta(WithdrawalController.prototype, 'complete')).toEqual(['stu-004:admin']);
+    expect(readMeta(WithdrawalController.prototype, 'placeHold')).toEqual(['stu-004:admin']);
+    expect(readMeta(WithdrawalController.prototype, 'patchTask')).toEqual(['stu-004:write']);
+    expect(readMeta(WithdrawalController.prototype, 'cancel')).toEqual(['stu-004:write']);
+  });
+
+  it('ReenrolmentController gates summary on stu-004:admin', () => {
+    expect(readMeta(ReenrolmentController.prototype, 'summary')).toEqual(['stu-004:admin']);
+    expect(readMeta(ReenrolmentController.prototype, 'submit')).toEqual(['stu-004:write']);
+    expect(readMeta(ReenrolmentController.prototype, 'list')).toEqual(['stu-004:read']);
+  });
+
+  it('MidYearAdmissionController gates patch on stu-004:admin', () => {
+    expect(readMeta(MidYearAdmissionController.prototype, 'patch')).toEqual(['stu-004:admin']);
+    expect(readMeta(MidYearAdmissionController.prototype, 'submit')).toEqual(['stu-004:write']);
+    expect(readMeta(MidYearAdmissionController.prototype, 'list')).toEqual(['stu-004:read']);
+  });
+
+  it('ExitTaskTemplateController gates upsert on stu-004:admin', () => {
+    expect(readMeta(ExitTaskTemplateController.prototype, 'upsert')).toEqual(['stu-004:admin']);
+    expect(readMeta(ExitTaskTemplateController.prototype, 'list')).toEqual(['stu-004:read']);
+  });
+});

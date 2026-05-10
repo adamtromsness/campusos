@@ -1373,14 +1373,14 @@ Peer review of `50ffa5a` returned **PASS** with 2 non-blocking UI follow-ups. Th
 
 **Reviewer's verification table** marks every dimension at PASS:
 
-| Dimension | Verdict |
-|-----------|---------|
-| Scope Compliance | **PASS** |
+| Dimension               | Verdict                                                                    |
+| ----------------------- | -------------------------------------------------------------------------- |
+| Scope Compliance        | **PASS**                                                                   |
 | Backend Regression Risk | **PASS** (no backend changes; UI sits on previously approved 44 endpoints) |
-| Training UI | **PASS** with follow-up (now fixed) |
-| Appraisals UI | **PASS** |
-| Expense Claims UI | **PASS** |
-| Permission Alignment | **PASS** with follow-up (now fixed) |
+| Training UI             | **PASS** with follow-up (now fixed)                                        |
+| Appraisals UI           | **PASS**                                                                   |
+| Expense Claims UI       | **PASS**                                                                   |
+| Permission Alignment    | **PASS** with follow-up (now fixed)                                        |
 
 ### Inline fix in this commit
 
