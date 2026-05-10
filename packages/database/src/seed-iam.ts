@@ -242,6 +242,11 @@ async function seedIam() {
         'TCH-003': ['read', 'write'],
         'TCH-004': ['read', 'write'],
         'TCH-006': ['read', 'write'],
+        // P2-7a — Class Moments. Teachers post photos with captions
+        // to a class feed visible to enrolled students' families
+        // (Parent has TCH-009:read). The Step 6 ClassMomentService
+        // gates POST /classroom/classes/:id/moments on tch-009:write.
+        'TCH-009': ['read', 'write'],
         // Cycle 23 — Curriculum Management. Teachers (acting as
         // Department Head / Curriculum Coordinator) create maps,
         // units, alignments, lesson links, and resources. Row scope
@@ -461,6 +466,11 @@ async function seedIam() {
         // Cycle 23 — Curriculum Management. Parents browse
         // PUBLISHED curriculum maps + non-teacher-only resources.
         'TCH-008': ['read'],
+        // P2-7a — Class Moments. Parents view the class photo feed
+        // for their children's classes. Row scope at the Step 6
+        // ClassMomentService binds reads to enrolled students plus
+        // their guardians via sis_student_guardians + sis_enrollments.
+        'TCH-009': ['read'],
         // Cycle 24 — Achievements + Student Portfolio. Parents
         // view their child's achievements (ACH-001:read row-scoped
         // via sis_student_guardians) and the child's portfolio
@@ -625,6 +635,12 @@ async function seedIam() {
       roleName: 'Student',
       perms: {
         'ATT-001': ['read'],
+        // P2-7a — Hall Passes. Students view their own active +
+        // historical hall passes via ATT-005:read. The Step 6
+        // HallPassService row-scopes my-passes reads to the calling
+        // student's sis_students.id; admins see all. Issuance is
+        // teacher-only via att-005:write.
+        'ATT-005': ['read'],
         'STU-001': ['read'],
         'TCH-001': ['read'],
         'TCH-002': ['read', 'write'],

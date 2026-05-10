@@ -278,6 +278,7 @@ flagged (auto-invoice generation/run school-scoping) — addressed in
 the closeout commit (see top of file).
 
 **Tagged**:
+
 - `p2c6-complete` at `5f3ad04` (Round 1 fix that earned Round 2 PASS)
 - `p2c6-approved` at the closeout commit
 
