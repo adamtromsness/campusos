@@ -161,12 +161,16 @@ export class FleetStatusService {
 
     // Resolve days-until-expiry across document categories. Cycle 19
     // trn_vehicle_documents stores document_type + expiry_date.
+    // REVIEW-P2C11 ROUND 1 MAJOR 1 — JOIN through trn_vehicles so the
+    // school predicate carries through every related read.
     const docRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        'SELECT document_type, expiry_date FROM trn_vehicle_documents ' +
-          'WHERE vehicle_id = $1::uuid AND expiry_date IS NOT NULL ' +
-          'ORDER BY expiry_date ASC',
+        'SELECT d.document_type, d.expiry_date FROM trn_vehicle_documents d ' +
+          'JOIN trn_vehicles vv ON vv.id = d.vehicle_id ' +
+          'WHERE d.vehicle_id = $1::uuid AND vv.school_id = $2::uuid AND d.expiry_date IS NOT NULL ' +
+          'ORDER BY d.expiry_date ASC',
         vehicleId,
+        tenant.schoolId,
       );
     })) as Array<{ document_type: string; expiry_date: Date }>;
 
@@ -181,12 +185,14 @@ export class FleetStatusService {
     const daysMot = daysUntil('MOT');
     // Licence expiry from driver credentials — pick the driver assigned to a
     // route this vehicle is on, otherwise leave null.
+    // REVIEW-P2C11 ROUND 1 MAJOR 1 — route JOIN constrained to current school.
     const licenceRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT MIN(c.expiry_date) AS earliest FROM trn_routes r ' +
           "JOIN trn_driver_credentials c ON c.driver_id = r.driver_id AND c.credential_type = 'CDL' AND c.status = 'VALID' " +
-          'WHERE r.vehicle_id = $1::uuid',
+          'WHERE r.vehicle_id = $1::uuid AND r.school_id = $2::uuid',
         vehicleId,
+        tenant.schoolId,
       );
     })) as Array<{ earliest: Date | null }>;
     const daysLicence =
@@ -195,44 +201,57 @@ export class FleetStatusService {
         : Math.floor((licenceRows[0]!.earliest!.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
 
     // Open safety-critical repair count
+    // REVIEW-P2C11 ROUND 1 MAJOR 1 — JOIN through trn_vehicles for school predicate.
     const repairRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT COUNT(*)::int AS n FROM trn_vehicle_repairs r ' +
+          'JOIN trn_vehicles vv ON vv.id = r.vehicle_id ' +
           'LEFT JOIN trn_repair_categories c ON c.id = r.category_id ' +
-          "WHERE r.vehicle_id = $1::uuid AND r.status IN ('SCHEDULED', 'IN_PROGRESS') " +
+          "WHERE r.vehicle_id = $1::uuid AND vv.school_id = $2::uuid AND r.status IN ('SCHEDULED', 'IN_PROGRESS') " +
           'AND c.is_safety_critical = true',
         vehicleId,
+        tenant.schoolId,
       );
     })) as Array<{ n: number }>;
     const openSafetyCritical = repairRows[0]?.n ?? 0;
     const maintenanceOverdue = openSafetyCritical > 0 || vehicle.status === 'MAINTENANCE';
 
-    // Last position
+    // Last position — REVIEW-P2C11 ROUND 1 MAJOR 1: JOIN through trn_vehicles.
     const lastPosRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        'SELECT MAX(recorded_at) AS last_at FROM trn_vehicle_positions WHERE vehicle_id = $1::uuid',
+        'SELECT MAX(p.recorded_at) AS last_at FROM trn_vehicle_positions p ' +
+          'JOIN trn_vehicles vv ON vv.id = p.vehicle_id ' +
+          'WHERE p.vehicle_id = $1::uuid AND vv.school_id = $2::uuid',
         vehicleId,
+        tenant.schoolId,
       );
     })) as Array<{ last_at: Date | null }>;
     const lastPositionAt = lastPosRows[0]?.last_at ?? null;
 
     // Current route assignment
+    // REVIEW-P2C11 ROUND 1 MAJOR 1 — predicate on route school_id directly.
     const routeRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        "SELECT id::text AS id, name FROM trn_routes WHERE vehicle_id = $1::uuid AND status = 'ACTIVE' ORDER BY name ASC LIMIT 1",
+        "SELECT id::text AS id, name FROM trn_routes WHERE vehicle_id = $1::uuid AND school_id = $2::uuid AND status = 'ACTIVE' ORDER BY name ASC LIMIT 1",
         vehicleId,
+        tenant.schoolId,
       );
     })) as Array<{ id: string; name: string }>;
     const currentRoute = routeRows[0];
 
     // Fuel efficiency last 30 days
+    // REVIEW-P2C11 ROUND 1 MAJOR 1 — JOIN through trn_vehicles.
     const fuelRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        'SELECT SUM(fuel_quantity)::text AS total_fuel, ' +
-          'MAX(odometer_reading)::text AS max_odo, MIN(odometer_reading)::text AS min_odo, ' +
+        'SELECT SUM(f.fuel_quantity)::text AS total_fuel, ' +
+          'MAX(f.odometer_reading)::text AS max_odo, MIN(f.odometer_reading)::text AS min_odo, ' +
           'COUNT(*)::int AS n ' +
-          "FROM trn_vehicle_fuel_logs WHERE vehicle_id = $1::uuid AND log_date >= (CURRENT_DATE - INTERVAL '30 days')",
+          'FROM trn_vehicle_fuel_logs f ' +
+          'JOIN trn_vehicles vv ON vv.id = f.vehicle_id ' +
+          'WHERE f.vehicle_id = $1::uuid AND vv.school_id = $2::uuid ' +
+          "AND f.log_date >= (CURRENT_DATE - INTERVAL '30 days')",
         vehicleId,
+        tenant.schoolId,
       );
     })) as Array<{
       total_fuel: string | null;

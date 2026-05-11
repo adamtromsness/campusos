@@ -4,10 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService, OutboxTxClient } from '../kafka/outbox.service';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   CreatePartDto,
@@ -48,19 +50,54 @@ function rowToDto(r: PartRow): PartResponseDto {
   };
 }
 
+/**
+ * REVIEW-P2C11 ROUND 1 BLOCKING 3 — deterministic event id for the
+ * trn.parts.low outbox row. Keys on partId + an opaque crossedAt token
+ * (the timestamp the threshold crossing landed) so retries from the
+ * outbox publisher dedup cleanly downstream. Same shape as
+ * deterministicCreditNoteEventId / deterministicInventoryLowEventId.
+ */
+export function deterministicPartsLowEventId(partId: string, crossedAt: string): string {
+  const hash = createHash('sha256')
+    .update(partId + ':' + crossedAt + ':trn.parts.low:v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
+
 @Injectable()
 export class PartsService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
+    private readonly permCheck: PermissionCheckService,
   ) {}
 
-  private assertCanManage(actor: ResolvedActor): void {
+  // REVIEW-P2C11 ROUND 1 BLOCKING 6 — explicit TRN-002:write check.
+  private async assertCanManageFleet(actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
-    throw new ForbiddenException(
-      'Only school admins or transportation staff can manage parts inventory',
-    );
+    const tenant = getCurrentTenant();
+    const ok = await this.permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'trn-002:write',
+      'trn-002:admin',
+    ]);
+    if (!ok) {
+      throw new ForbiddenException(
+        'Only school admins or transportation staff with trn-002:write can manage parts inventory',
+      );
+    }
   }
 
   async list(args: { lowStockOnly?: boolean }): Promise<PartResponseDto[]> {
@@ -91,7 +128,7 @@ export class PartsService {
   }
 
   async create(input: CreatePartDto, actor: ResolvedActor): Promise<PartResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManageFleet(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
     const qty = input.quantityOnHand ?? 0;
@@ -130,7 +167,7 @@ export class PartsService {
     input: UpdatePartDto,
     actor: ResolvedActor,
   ): Promise<PartResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManageFleet(actor);
     const tenant = getCurrentTenant();
     const sets: string[] = [];
     const params: unknown[] = [];
@@ -176,34 +213,37 @@ export class PartsService {
   /**
    * Restock or consume parts. Positive `quantityDelta` adds stock; the
    * caller may use the consume path by passing a negative delta — that
-   * is restricted to the consume endpoint and gated separately. After
-   * the update, if the new on-hand quantity is at or below
-   * min_stock_level AND a threshold crossing happened (prior was above,
-   * now at or below), we emit trn.parts.low so the TC dashboard can
-   * raise the alert.
+   * is restricted to the consume endpoint and gated separately.
+   *
+   * REVIEW-P2C11 ROUND 1 BLOCKING 3 — the trn.parts.low emit now goes
+   * through OutboxService.enqueueInTx inside the same transaction as
+   * the quantity UPDATE. Deterministic event_id keyed on
+   * (partId + crossedAt). The OutboxPublisherWorker handles the actual
+   * Kafka publish + retry; a Kafka outage no longer drops the alert.
    */
   async restock(
     partId: string,
     input: RestockPartDto,
     actor: ResolvedActor,
   ): Promise<PartResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManageFleet(actor);
     const tenant = getCurrentTenant();
-    let crossedBelow = false;
-    let priorQty = 0;
-    let newQty = 0;
-    let newMin = 0;
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = (await tx.$queryRawUnsafe(
-        'SELECT quantity_on_hand, min_stock_level FROM trn_parts_inventory WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
+        'SELECT quantity_on_hand, min_stock_level, part_name, part_number FROM trn_parts_inventory WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
         tenant.schoolId,
         partId,
-      )) as Array<{ quantity_on_hand: number; min_stock_level: number }>;
+      )) as Array<{
+        quantity_on_hand: number;
+        min_stock_level: number;
+        part_name: string;
+        part_number: string | null;
+      }>;
       if (rows.length === 0) throw new NotFoundException('Part not found');
-      priorQty = rows[0]!.quantity_on_hand;
-      newMin = rows[0]!.min_stock_level;
-      newQty = priorQty + input.quantityDelta;
+      const priorQty = rows[0]!.quantity_on_hand;
+      const newMin = rows[0]!.min_stock_level;
+      const newQty = priorQty + input.quantityDelta;
       if (newQty < 0) {
         throw new BadRequestException('Restock would drive quantity below zero');
       }
@@ -233,30 +273,28 @@ export class PartsService {
           '::uuid',
         ...params,
       );
+
       // Threshold crossing: prior strictly above, now at or below.
       if (priorQty > newMin && newQty <= newMin) {
-        crossedBelow = true;
+        const crossedAt = new Date().toISOString();
+        await this.outbox.enqueueInTx(tx as unknown as OutboxTxClient, {
+          topic: 'trn.parts.low',
+          key: partId,
+          sourceModule: 'transport',
+          eventId: deterministicPartsLowEventId(partId, crossedAt),
+          payload: {
+            partId,
+            schoolId: tenant.schoolId,
+            partName: rows[0]!.part_name,
+            partNumber: rows[0]!.part_number,
+            quantityOnHand: newQty,
+            minStockLevel: newMin,
+            actorAccountId: actor.accountId,
+            crossedAt,
+          },
+        });
       }
     });
-
-    if (crossedBelow) {
-      const dto = await this.getById(partId);
-      await this.kafka.emit({
-        topic: 'trn.parts.low',
-        key: partId,
-        sourceModule: 'transport',
-        payload: {
-          partId,
-          schoolId: tenant.schoolId,
-          partName: dto.partName,
-          partNumber: dto.partNumber,
-          quantityOnHand: dto.quantityOnHand,
-          minStockLevel: dto.minStockLevel,
-          actorAccountId: actor.accountId,
-          crossedAt: new Date().toISOString(),
-        },
-      });
-    }
 
     return this.getById(partId);
   }

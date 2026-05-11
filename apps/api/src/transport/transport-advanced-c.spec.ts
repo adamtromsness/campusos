@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { runWithTenantContext } from '../tenant/tenant.context';
 import { VehiclePositionService } from './vehicle-position.service';
@@ -105,6 +105,36 @@ function makeKafka() {
     },
   };
   return { kafka, emitted };
+}
+
+function makeOutbox() {
+  const enqueued: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    eventId?: string;
+    payload: Record<string, unknown>;
+  }> = [];
+  const outbox = {
+    enqueueInTx: vi.fn(async (_tx: unknown, opts: any) => {
+      enqueued.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+      return 'outbox-id';
+    }),
+  };
+  return { outbox, enqueued };
+}
+
+function makePermCheck(opts: { allow?: boolean } = {}) {
+  const allow = opts.allow ?? true;
+  return {
+    hasAnyPermissionInTenant: vi.fn(async () => allow),
+  };
 }
 
 // ============================================================
@@ -253,9 +283,14 @@ describe('VehiclePositionService — permission gate', () => {
 describe('GeofenceService — boundary check + emit keystone', () => {
   it('create() refuses STUDENT actors', async () => {
     const fake = makeFake(() => []);
-    const { kafka } = makeKafka();
     const positions = new VehiclePositionService(fake.tenantPrisma as never);
-    const svc = new GeofenceService(fake.tenantPrisma as never, kafka as never, positions);
+    // REVIEW-P2C11 BLOCKING 6 — non-admin without trn-002:write is refused.
+    const svc = new GeofenceService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      positions,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.create(
@@ -278,7 +313,12 @@ describe('GeofenceService — boundary check + emit keystone', () => {
     const fake = makeFake(() => []);
     const { kafka } = makeKafka();
     const positions = new VehiclePositionService(fake.tenantPrisma as never);
-    const svc = new GeofenceService(fake.tenantPrisma as never, kafka as never, positions);
+    const svc = new GeofenceService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      positions,
+      makePermCheck() as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.create(
@@ -305,7 +345,12 @@ describe('GeofenceService — boundary check + emit keystone', () => {
     });
     const { kafka } = makeKafka();
     const positions = new VehiclePositionService(fake.tenantPrisma as never);
-    const svc = new GeofenceService(fake.tenantPrisma as never, kafka as never, positions);
+    const svc = new GeofenceService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      positions,
+      makePermCheck() as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.create(
@@ -356,9 +401,14 @@ describe('GeofenceService — boundary check + emit keystone', () => {
       }
       return [];
     });
-    const { kafka, emitted } = makeKafka();
+    const { outbox, enqueued } = makeOutbox();
     const positions = new VehiclePositionService(fake.tenantPrisma as never);
-    const svc = new GeofenceService(fake.tenantPrisma as never, kafka as never, positions);
+    const svc = new GeofenceService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      positions,
+      makePermCheck() as never,
+    );
 
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.checkAndEmitEvents(VEHICLE_ID, 39.7, -89.6, 25),
@@ -368,12 +418,15 @@ describe('GeofenceService — boundary check + emit keystone', () => {
       c.sql.toLowerCase().includes('insert into trn_geofence_events'),
     );
     expect(insertEvent, 'INSERT into trn_geofence_events').toBeTruthy();
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0]!.topic).toBe('trn.geofence.entered');
-    expect(emitted[0]!.sourceModule).toBe('transport');
-    expect(emitted[0]!.payload.eventType).toBe('ENTER');
-    expect(emitted[0]!.payload.vehicleId).toBe(VEHICLE_ID);
-    expect(emitted[0]!.payload.schoolId).toBe(SCHOOL.schoolId);
+    // REVIEW-P2C11 BLOCKING 3 — emit lands via outbox.enqueueInTx
+    // inside the same tx as the geofence event INSERT.
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]!.topic).toBe('trn.geofence.entered');
+    expect(enqueued[0]!.sourceModule).toBe('transport');
+    expect(enqueued[0]!.eventId, 'deterministic event_id present').toBeTruthy();
+    expect(enqueued[0]!.payload.eventType).toBe('ENTER');
+    expect(enqueued[0]!.payload.vehicleId).toBe(VEHICLE_ID);
+    expect(enqueued[0]!.payload.schoolId).toBe(SCHOOL.schoolId);
   });
 
   it('checkAndEmitEvents() — vehicle still inside emits nothing (no transition)', async () => {
@@ -408,13 +461,18 @@ describe('GeofenceService — boundary check + emit keystone', () => {
       }
       return [];
     });
-    const { kafka, emitted } = makeKafka();
+    const { outbox, enqueued } = makeOutbox();
     const positions = new VehiclePositionService(fake.tenantPrisma as never);
-    const svc = new GeofenceService(fake.tenantPrisma as never, kafka as never, positions);
+    const svc = new GeofenceService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      positions,
+      makePermCheck() as never,
+    );
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.checkAndEmitEvents(VEHICLE_ID, 39.7, -89.6, 25),
     );
-    expect(emitted).toHaveLength(0);
+    expect(enqueued).toHaveLength(0);
     const insertEvent = fake.capture.find((c) =>
       c.sql.toLowerCase().includes('insert into trn_geofence_events'),
     );
@@ -452,16 +510,22 @@ describe('GeofenceService — boundary check + emit keystone', () => {
       }
       return [];
     });
-    const { kafka, emitted } = makeKafka();
+    const { outbox, enqueued } = makeOutbox();
     const positions = new VehiclePositionService(fake.tenantPrisma as never);
-    const svc = new GeofenceService(fake.tenantPrisma as never, kafka as never, positions);
+    const svc = new GeofenceService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      positions,
+      makePermCheck() as never,
+    );
     // Move 1km away — far outside the 200m radius
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.checkAndEmitEvents(VEHICLE_ID, 39.71, -89.59, 35),
     );
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0]!.topic).toBe('trn.geofence.exited');
-    expect(emitted[0]!.payload.eventType).toBe('EXIT');
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]!.topic).toBe('trn.geofence.exited');
+    expect(enqueued[0]!.eventId, 'deterministic event_id present').toBeTruthy();
+    expect(enqueued[0]!.payload.eventType).toBe('EXIT');
   });
 });
 
@@ -610,7 +674,11 @@ describe('DispatchService — permission gate + validation', () => {
 describe('ParentTrackingService — token keystone', () => {
   it('createToken() refuses STUDENT actors', async () => {
     const fake = makeFake(() => []);
-    const svc = new ParentTrackingService(fake.tenantPrisma as never);
+    // REVIEW-P2C11 BLOCKING 6 — non-admin without trn-001:write is refused.
+    const svc = new ParentTrackingService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.createToken({ studentId: STUDENT_ID, routeId: ROUTE_ID }, STUDENT_ACTOR),
@@ -626,7 +694,7 @@ describe('ParentTrackingService — token keystone', () => {
       }
       return [];
     });
-    const svc = new ParentTrackingService(fake.tenantPrisma as never);
+    const svc = new ParentTrackingService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.createToken({ studentId: STUDENT_ID, routeId: ROUTE_ID }, ADMIN_ACTOR),
@@ -642,7 +710,7 @@ describe('ParentTrackingService — token keystone', () => {
       }
       return [];
     });
-    const svc = new ParentTrackingService(fake.tenantPrisma as never);
+    const svc = new ParentTrackingService(fake.tenantPrisma as never, makePermCheck() as never);
     const token = await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.createToken({ studentId: STUDENT_ID, routeId: ROUTE_ID, expiresInDays: 14 }, ADMIN_ACTOR),
     );
@@ -662,7 +730,7 @@ describe('ParentTrackingService — token keystone', () => {
 
   it('viewByToken() — UNAUTH path returns 404 for unknown token', async () => {
     const fake = makeFake(() => []);
-    const svc = new ParentTrackingService(fake.tenantPrisma as never);
+    const svc = new ParentTrackingService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.viewByToken('bogus-token-not-in-db'),
@@ -689,7 +757,7 @@ describe('ParentTrackingService — token keystone', () => {
       }
       return [];
     });
-    const svc = new ParentTrackingService(fake.tenantPrisma as never);
+    const svc = new ParentTrackingService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () => svc.viewByToken('revoked-token')),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -714,7 +782,7 @@ describe('ParentTrackingService — token keystone', () => {
       }
       return [];
     });
-    const svc = new ParentTrackingService(fake.tenantPrisma as never);
+    const svc = new ParentTrackingService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () => svc.viewByToken('expired-token')),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -760,7 +828,7 @@ describe('ParentTrackingService — token keystone', () => {
       }
       return [];
     });
-    const svc = new ParentTrackingService(fake.tenantPrisma as never);
+    const svc = new ParentTrackingService(fake.tenantPrisma as never, makePermCheck() as never);
     const view = await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.viewByToken('active-token-x'),
     );
@@ -882,5 +950,88 @@ describe('GpsFleetController — permission metadata', () => {
     const ctrl = GpsFleetController.prototype as never;
     const perms = Reflect.getMetadata(PERMISSIONS_KEY, (ctrl as any).materialiseAll);
     expect(perms).toEqual(['trn-002:admin']);
+  });
+});
+
+// ============================================================
+// REVIEW-P2C11 ROUND 1 — parent token school-defence + outbox
+// ============================================================
+describe('REVIEW-P2C11 ROUND 1 — ParentTrackingService school-defensive', () => {
+  it('BLOCKING 4 — viewByToken lookup filters on school_id', async () => {
+    const fake = makeFake(() => []);
+    const svc = new ParentTrackingService(fake.tenantPrisma as never, makePermCheck() as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () => svc.viewByToken('cross-school-token')),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    // The SQL must contain school_id predicate on the token lookup.
+    const lookup = fake.capture.find((c) =>
+      c.sql.toLowerCase().includes('from trn_parent_tracking_tokens t'),
+    );
+    expect(lookup, 'viewByToken lookup SQL').toBeTruthy();
+    expect(lookup!.sql.toLowerCase()).toContain('t.school_id = $2::uuid');
+  });
+
+  it('BLOCKING 4 — revokeToken UPDATE filters on school_id', async () => {
+    const fake = makeFake(() => 0);
+    const svc = new ParentTrackingService(fake.tenantPrisma as never, makePermCheck() as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.revokeToken('019e0f00-cccc-7000-8000-aaaa11110000', ADMIN_ACTOR),
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    const update = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('update trn_parent_tracking_tokens set is_active = false') &&
+        c.sql.toLowerCase().includes('school_id = $2::uuid'),
+    );
+    expect(update, 'revoke UPDATE carries school_id').toBeTruthy();
+  });
+
+  it('BLOCKING 4 — listForStudent SELECT filters on school_id', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('from sis_students where id')) return [{ ok: 1 }];
+      return [];
+    });
+    const svc = new ParentTrackingService(fake.tenantPrisma as never, makePermCheck() as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.listForStudent(STUDENT_ID));
+    const list = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('from trn_parent_tracking_tokens') &&
+        c.sql.toLowerCase().includes('order by created_at desc'),
+    );
+    expect(list, 'listForStudent SELECT').toBeTruthy();
+    expect(list!.sql.toLowerCase()).toContain('school_id = $1::uuid');
+  });
+
+  it('BLOCKING 4 — createToken INSERT carries school_id', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('s_ok') && sql.includes('r_ok')) return [{ s_ok: 1, r_ok: 1 }];
+      return [];
+    });
+    const svc = new ParentTrackingService(fake.tenantPrisma as never, makePermCheck() as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.createToken({ studentId: STUDENT_ID, routeId: ROUTE_ID }, ADMIN_ACTOR),
+    );
+    const insert = fake.capture.find((c) =>
+      c.sql.toLowerCase().includes('insert into trn_parent_tracking_tokens'),
+    );
+    expect(insert, 'token INSERT').toBeTruthy();
+    // Columns include school_id — the new migration 139 column.
+    expect(insert!.sql.toLowerCase()).toContain('school_id');
+  });
+});
+
+describe('REVIEW-P2C11 ROUND 1 — Geofence deterministic event id', () => {
+  it('BLOCKING 3 — deterministicGeofenceEventEventId is stable + v5-shaped per ENTER/EXIT', async () => {
+    const { deterministicGeofenceEventEventId } = await import('./geofence.service');
+    const enterA = deterministicGeofenceEventEventId('gfe-1', 'ENTER');
+    const enterB = deterministicGeofenceEventEventId('gfe-1', 'ENTER');
+    const exitC = deterministicGeofenceEventEventId('gfe-1', 'EXIT');
+    expect(enterA).toBe(enterB);
+    expect(enterA).not.toBe(exitC);
+    expect(enterA.charAt(14)).toBe('5');
+    expect(exitC.charAt(14)).toBe('5');
   });
 });

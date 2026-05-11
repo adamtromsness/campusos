@@ -162,11 +162,18 @@ export class ETAService {
       );
     });
 
+    // REVIEW-P2C11 ROUND 1 MAJOR 2 — final reload joins through
+    // trn_vehicles so the school predicate carries through. The vehicle
+    // + stop both validated above, but the reload is defence in depth
+    // against a leaked id from another school.
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        SELECT_ETA_BASE + 'WHERE e.vehicle_id = $1::uuid AND e.stop_id = $2::uuid LIMIT 1',
+        SELECT_ETA_BASE +
+          'JOIN trn_vehicles vv ON vv.id = e.vehicle_id ' +
+          'WHERE e.vehicle_id = $1::uuid AND e.stop_id = $2::uuid AND vv.school_id = $3::uuid LIMIT 1',
         vehicleId,
         stopId,
+        tenant.schoolId,
       );
     })) as EtaRow[];
     if (rows.length === 0) throw new NotFoundException('ETA not found after upsert');

@@ -7,6 +7,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   CreateRepairCategoryDto,
@@ -45,6 +46,9 @@ interface RepairRow {
   updated_at: Date;
 }
 
+// REVIEW-P2C11 ROUND 1 BLOCKING 1 — every repair read joins through
+// trn_vehicles so a school predicate can be added at the WHERE level.
+// REVIEW-P2C11 ROUND 1 BLOCKING 6 — see assertCanManageFleet below.
 const SELECT_REPAIR_BASE =
   'SELECT r.id::text AS id, r.vehicle_id::text AS vehicle_id, ' +
   'r.category_id::text AS category_id, c.name AS category_name, c.is_safety_critical AS is_safety_critical, ' +
@@ -53,7 +57,9 @@ const SELECT_REPAIR_BASE =
   'r.performed_by_type, r.vendor_account_id::text AS vendor_account_id, r.warranty_claim, ' +
   'r.invoice_s3_key, r.status, r.scheduled_at, r.started_at, r.completed_at, r.notes, ' +
   'r.created_at, r.updated_at ' +
-  'FROM trn_vehicle_repairs r LEFT JOIN trn_repair_categories c ON c.id = r.category_id ';
+  'FROM trn_vehicle_repairs r ' +
+  'JOIN trn_vehicles v ON v.id = r.vehicle_id ' +
+  'LEFT JOIN trn_repair_categories c ON c.id = r.category_id ';
 
 function rowToDto(r: RepairRow): RepairResponseDto {
   return {
@@ -85,12 +91,31 @@ function rowToDto(r: RepairRow): RepairResponseDto {
 
 @Injectable()
 export class RepairService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
-  private assertCanManage(actor: ResolvedActor): void {
+  /**
+   * REVIEW-P2C11 ROUND 1 BLOCKING 6 — replace `personType === 'STAFF'`
+   * with an explicit TRN-002:write check via the tenant-scoped
+   * PermissionCheckService. Mirrors the P2-10a / P2-10b FSM scope
+   * pattern. A future Transportation Coordinator role split will hold
+   * TRN-002:write alone; until then the IAM seed grants generic Staff
+   * the perm.
+   */
+  private async assertCanManageFleet(actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
-    throw new ForbiddenException('Only school admins or transportation staff can manage repairs');
+    const tenant = getCurrentTenant();
+    const ok = await this.permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'trn-002:write',
+      'trn-002:admin',
+    ]);
+    if (!ok) {
+      throw new ForbiddenException(
+        'Only school admins or transportation staff with trn-002:write can manage repairs',
+      );
+    }
   }
 
   // ── Categories ──
@@ -127,7 +152,7 @@ export class RepairService {
     input: CreateRepairCategoryDto,
     actor: ResolvedActor,
   ): Promise<RepairCategoryResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManageFleet(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
@@ -166,7 +191,7 @@ export class RepairService {
     input: UpdateRepairCategoryDto,
     actor: ResolvedActor,
   ): Promise<RepairCategoryResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManageFleet(actor);
     const tenant = getCurrentTenant();
     const sets: string[] = [];
     const params: unknown[] = [];
@@ -210,20 +235,30 @@ export class RepairService {
   }
 
   // ── Repairs ──
+  // REVIEW-P2C11 ROUND 1 BLOCKING 1 — every read carries the tenant
+  // school predicate at the JOIN level.
   async listForVehicle(vehicleId: string): Promise<RepairResponseDto[]> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_REPAIR_BASE +
-          'WHERE r.vehicle_id = $1::uuid ORDER BY r.repair_date DESC, r.created_at DESC LIMIT 500',
+          'WHERE r.vehicle_id = $1::uuid AND v.school_id = $2::uuid ' +
+          'ORDER BY r.repair_date DESC, r.created_at DESC LIMIT 500',
         vehicleId,
+        tenant.schoolId,
       );
     })) as RepairRow[];
     return rows.map(rowToDto);
   }
 
   async getById(repairId: string): Promise<RepairResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_REPAIR_BASE + 'WHERE r.id = $1::uuid LIMIT 1', repairId);
+      return client.$queryRawUnsafe(
+        SELECT_REPAIR_BASE + 'WHERE r.id = $1::uuid AND v.school_id = $2::uuid LIMIT 1',
+        repairId,
+        tenant.schoolId,
+      );
     })) as RepairRow[];
     if (rows.length === 0) throw new NotFoundException('Repair not found');
     return rowToDto(rows[0]!);
@@ -234,7 +269,6 @@ export class RepairService {
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_REPAIR_BASE +
-          'JOIN trn_vehicles v ON v.id = r.vehicle_id ' +
           "WHERE v.school_id = $1::uuid AND c.is_safety_critical = true AND r.status IN ('SCHEDULED','IN_PROGRESS') " +
           'ORDER BY r.repair_date ASC LIMIT 200',
         tenant.schoolId,
@@ -248,13 +282,17 @@ export class RepairService {
    * time flip trn_vehicles.status to MAINTENANCE inside the same tenant
    * transaction so the vehicle is blocked from dispatch until the
    * repair completes.
+   *
+   * REVIEW-P2C11 ROUND 1 BLOCKING 1 — vehicle lock + safety-critical
+   * UPDATE both carry the school predicate. A School A actor cannot
+   * mutate a School B vehicle by guessing the UUID.
    */
   async create(
     vehicleId: string,
     input: CreateRepairDto,
     actor: ResolvedActor,
   ): Promise<RepairResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManageFleet(actor);
     const id = generateId();
     const status: RepairStatus = input.status ?? 'COMPLETED';
     const performedByType = input.performedByType;
@@ -265,11 +303,13 @@ export class RepairService {
       );
     }
 
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Verify vehicle exists in tenant
+      // Verify vehicle exists in tenant — REVIEW-P2C11 BLOCKING 1
       const vRows = (await tx.$queryRawUnsafe(
-        'SELECT id::text AS id, status FROM trn_vehicles WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id::text AS id, status FROM trn_vehicles WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         vehicleId,
+        tenant.schoolId,
       )) as Array<{ id: string; status: string }>;
       if (vRows.length === 0) {
         throw new NotFoundException('Vehicle not found');
@@ -278,7 +318,6 @@ export class RepairService {
       // Verify category belongs to tenant when supplied + resolve safety flag
       let isSafetyCritical = false;
       if (input.categoryId) {
-        const tenant = getCurrentTenant();
         const cRows = (await tx.$queryRawUnsafe(
           'SELECT is_safety_critical FROM trn_repair_categories WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
           input.categoryId,
@@ -322,10 +361,12 @@ export class RepairService {
       );
 
       // Safety-critical, non-COMPLETED repair → flip vehicle to MAINTENANCE.
+      // REVIEW-P2C11 BLOCKING 1 — UPDATE includes school predicate.
       if (isSafetyCritical && status !== 'COMPLETED' && status !== 'CANCELLED') {
         await tx.$executeRawUnsafe(
-          "UPDATE trn_vehicles SET status = 'MAINTENANCE', updated_at = now() WHERE id = $1::uuid AND status = 'ACTIVE'",
+          "UPDATE trn_vehicles SET status = 'MAINTENANCE', updated_at = now() WHERE id = $1::uuid AND school_id = $2::uuid AND status = 'ACTIVE'",
           vehicleId,
+          tenant.schoolId,
         );
       }
     });
@@ -337,21 +378,29 @@ export class RepairService {
    * Patch a repair. When a safety-critical repair transitions to
    * COMPLETED and no other open safety-critical repair remains on the
    * vehicle, flip the vehicle back to ACTIVE.
+   *
+   * REVIEW-P2C11 ROUND 1 BLOCKING 1 — repair lock + UPDATE carry the
+   * school predicate via JOIN to trn_vehicles. Vehicle release UPDATE
+   * also predicates on school_id.
    */
   async patch(
     repairId: string,
     input: UpdateRepairDto,
     actor: ResolvedActor,
   ): Promise<RepairResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManageFleet(actor);
+    const tenant = getCurrentTenant();
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = (await tx.$queryRawUnsafe(
         'SELECT r.id::text AS id, r.vehicle_id::text AS vehicle_id, r.category_id::text AS category_id, ' +
           'r.status, COALESCE(c.is_safety_critical, false) AS is_safety_critical ' +
-          'FROM trn_vehicle_repairs r LEFT JOIN trn_repair_categories c ON c.id = r.category_id ' +
-          'WHERE r.id = $1::uuid FOR UPDATE',
+          'FROM trn_vehicle_repairs r ' +
+          'JOIN trn_vehicles v ON v.id = r.vehicle_id ' +
+          'LEFT JOIN trn_repair_categories c ON c.id = r.category_id ' +
+          'WHERE r.id = $1::uuid AND v.school_id = $2::uuid FOR UPDATE OF r',
         repairId,
+        tenant.schoolId,
       )) as Array<{
         id: string;
         vehicle_id: string;
@@ -407,6 +456,9 @@ export class RepairService {
       if (sets.length === 0) return;
       sets.push('updated_at = now()');
       params.push(repairId);
+      // The repair lock above already proved the school predicate; the
+      // UPDATE is by repair ID. The next SELECT inside getById re-asserts
+      // the school predicate so a leaked id cannot return data.
       await tx.$executeRawUnsafe(
         'UPDATE trn_vehicle_repairs SET ' +
           sets.join(', ') +
@@ -417,6 +469,7 @@ export class RepairService {
       );
 
       // Release the vehicle if this was the last open safety-critical repair.
+      // REVIEW-P2C11 BLOCKING 1 — vehicle release UPDATE carries school predicate.
       if (prior.is_safety_critical && newStatus === 'COMPLETED' && prior.status !== 'COMPLETED') {
         const remRows = (await tx.$queryRawUnsafe(
           'SELECT COUNT(*)::int AS c FROM trn_vehicle_repairs r ' +
@@ -427,8 +480,9 @@ export class RepairService {
         )) as Array<{ c: number }>;
         if (remRows[0]!.c === 0) {
           await tx.$executeRawUnsafe(
-            "UPDATE trn_vehicles SET status = 'ACTIVE', updated_at = now() WHERE id = $1::uuid AND status = 'MAINTENANCE'",
+            "UPDATE trn_vehicles SET status = 'ACTIVE', updated_at = now() WHERE id = $1::uuid AND school_id = $2::uuid AND status = 'MAINTENANCE'",
             prior.vehicle_id,
+            tenant.schoolId,
           );
         }
       }

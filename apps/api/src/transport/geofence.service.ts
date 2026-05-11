@@ -9,7 +9,9 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { createHash } from 'crypto';
+import { OutboxService, OutboxTxClient } from '../kafka/outbox.service';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { VehiclePositionService } from './vehicle-position.service';
 import {
@@ -131,6 +133,35 @@ export function isPointInBoundary(lat: number, lng: number, boundary: GeofenceBo
 }
 
 /**
+ * REVIEW-P2C11 ROUND 1 BLOCKING 3 — deterministic event id for
+ * trn.geofence.entered + trn.geofence.exited. Keys on the geofence
+ * event row id so a redelivered outbox row carries the same envelope.
+ */
+export function deterministicGeofenceEventEventId(
+  geofenceEventId: string,
+  eventType: 'ENTER' | 'EXIT',
+): string {
+  const topic = eventType === 'ENTER' ? 'trn.geofence.entered' : 'trn.geofence.exited';
+  const hash = createHash('sha256')
+    .update(geofenceEventId + ':' + topic + ':v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
+
+/**
  * GeofenceService — per-school zone definitions plus the GeofenceWorker
  * boundary check fired after every position update.
  *
@@ -148,8 +179,9 @@ export class GeofenceService implements OnModuleInit {
 
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly positions: VehiclePositionService,
+    private readonly permCheck: PermissionCheckService,
   ) {}
 
   onModuleInit(): void {
@@ -159,10 +191,22 @@ export class GeofenceService implements OnModuleInit {
     });
   }
 
-  private assertCanManage(actor: ResolvedActor): void {
+  /**
+   * REVIEW-P2C11 ROUND 1 BLOCKING 6 — replace `personType === 'STAFF'`
+   * with explicit TRN-002:write check.
+   */
+  private async assertCanManage(actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
-    throw new ForbiddenException('Only school admins or transportation staff can manage geofences');
+    const tenant = getCurrentTenant();
+    const ok = await this.permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'trn-002:write',
+      'trn-002:admin',
+    ]);
+    if (!ok) {
+      throw new ForbiddenException(
+        'Only school admins or transportation staff with trn-002:write can manage geofences',
+      );
+    }
   }
 
   // ── Geofence CRUD ──
@@ -236,7 +280,7 @@ export class GeofenceService implements OnModuleInit {
   }
 
   async create(input: CreateGeofenceDto, actor: ResolvedActor): Promise<GeofenceResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     this.validateBoundary(input.boundary);
     const tenant = getCurrentTenant();
     const id = generateId();
@@ -272,7 +316,7 @@ export class GeofenceService implements OnModuleInit {
     input: UpdateGeofenceDto,
     actor: ResolvedActor,
   ): Promise<GeofenceResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     if (input.boundary) this.validateBoundary(input.boundary);
     const tenant = getCurrentTenant();
 
@@ -375,12 +419,18 @@ export class GeofenceService implements OnModuleInit {
       // No transition — skip
       if (nowInside === wasInside) continue;
 
-      const eventType = nowInside ? 'ENTER' : 'EXIT';
+      const eventType: 'ENTER' | 'EXIT' = nowInside ? 'ENTER' : 'EXIT';
       const eventId = generateId();
       const recordedAt = new Date();
 
-      await this.tenantPrisma.executeInTenantContext(async (client) => {
-        await client.$executeRawUnsafe(
+      // REVIEW-P2C11 ROUND 1 BLOCKING 3 — geofence event INSERT and
+      // the trn.geofence.entered / trn.geofence.exited outbox emit
+      // commit inside one tenant tx. Deterministic event_id keyed on
+      // the geofence event row so a redelivered outbox row dedups
+      // cleanly downstream. A Kafka outage no longer drops the
+      // parent-notification fan-out signal.
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        await tx.$executeRawUnsafe(
           'INSERT INTO trn_geofence_events (id, geofence_id, vehicle_id, event_type, recorded_at, speed_at_event, latitude, longitude) ' +
             'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::timestamptz, $6::numeric, $7::numeric, $8::numeric)',
           eventId,
@@ -392,14 +442,11 @@ export class GeofenceService implements OnModuleInit {
           latitude,
           longitude,
         );
-      });
-
-      // Emit Kafka event (best-effort, never blocks the INSERT)
-      try {
-        await this.kafka.emit({
+        await this.outbox.enqueueInTx(tx as unknown as OutboxTxClient, {
           topic: eventType === 'ENTER' ? 'trn.geofence.entered' : 'trn.geofence.exited',
           key: vehicleId,
           sourceModule: 'transport',
+          eventId: deterministicGeofenceEventEventId(eventId, eventType),
           payload: {
             eventId,
             geofenceId: gf.id,
@@ -415,16 +462,7 @@ export class GeofenceService implements OnModuleInit {
             recordedAt: recordedAt.toISOString(),
           },
         });
-      } catch (err) {
-        this.logger.warn(
-          'Failed to emit trn.geofence.' +
-            eventType.toLowerCase() +
-            ' for vehicle ' +
-            vehicleId +
-            ': ' +
-            String(err),
-        );
-      }
+      });
     }
   }
 

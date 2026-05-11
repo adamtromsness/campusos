@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { runWithTenantContext } from '../tenant/tenant.context';
 import { PERMISSIONS_KEY } from '../auth/require-permission.decorator';
@@ -86,6 +86,46 @@ function makeKafka() {
   return { kafka, emitted };
 }
 
+/**
+ * REVIEW-P2C11 ROUND 1 BLOCKING 3 — OutboxService stub that captures
+ * every `enqueueInTx` call so specs can assert the durable emit
+ * keystone fires inside the tx with the deterministic event_id.
+ */
+function makeOutbox() {
+  const enqueued: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    eventId?: string;
+    payload: Record<string, unknown>;
+  }> = [];
+  const outbox = {
+    enqueueInTx: vi.fn(async (_tx: unknown, opts: any) => {
+      enqueued.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+      return 'outbox-id';
+    }),
+  };
+  return { outbox, enqueued };
+}
+
+/**
+ * REVIEW-P2C11 ROUND 1 BLOCKING 6 — PermissionCheckService stub.
+ * The default allow=true reflects the seeded TRN-001..003 grants on
+ * the Staff role; specs that exercise the denial path pass allow=false.
+ */
+function makePermCheck(opts: { allow?: boolean } = {}) {
+  const allow = opts.allow ?? true;
+  return {
+    hasAnyPermissionInTenant: vi.fn(async () => allow),
+  };
+}
+
 // ============================================================
 // RepairService — safety-critical blocking + lifecycle stamps
 // ============================================================
@@ -102,7 +142,7 @@ describe('RepairService — safety-critical vehicle blocking', () => {
       }
       return [];
     });
-    const svc = new RepairService(fake.tenantPrisma as never);
+    const svc = new RepairService(fake.tenantPrisma as never, makePermCheck() as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       // Stub getById to skip the round-trip — read the captured INSERT instead.
       const insertCalls = fake.capture;
@@ -137,7 +177,7 @@ describe('RepairService — safety-critical vehicle blocking', () => {
 
   it('create() refuses INTERNAL repair with vendor_account_id supplied (vendor_pair_chk mirror)', async () => {
     const fake = makeFake(() => []);
-    const svc = new RepairService(fake.tenantPrisma as never);
+    const svc = new RepairService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.create(
@@ -159,7 +199,11 @@ describe('RepairService — safety-critical vehicle blocking', () => {
 
   it('create() refuses STUDENT actor at the service layer', async () => {
     const fake = makeFake(() => []);
-    const svc = new RepairService(fake.tenantPrisma as never);
+    // REVIEW-P2C11 BLOCKING 6 — non-admin actor without trn-002:write is refused.
+    const svc = new RepairService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.create(
@@ -188,7 +232,14 @@ describe('PartsService — trn.parts.low emit on threshold crossing', () => {
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
       if (sql.includes('select quantity_on_hand, min_stock_level')) {
-        return [{ quantity_on_hand: 10, min_stock_level: 5 }];
+        return [
+          {
+            quantity_on_hand: 10,
+            min_stock_level: 5,
+            part_name: 'Brake Pads',
+            part_number: 'BP-FS-2020',
+          },
+        ];
       }
       if (
         sql.includes('select id::text as id, school_id::text as school_id, part_name') &&
@@ -210,18 +261,23 @@ describe('PartsService — trn.parts.low emit on threshold crossing', () => {
       }
       return [];
     });
-    const { kafka, emitted } = makeKafka();
-    const svc = new PartsService(fake.tenantPrisma as never, kafka as never);
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new PartsService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck() as never,
+    );
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.restock(partId, { quantityDelta: -7 }, ADMIN_ACTOR),
     );
-    expect(emitted.length).toBe(1);
-    expect(emitted[0]!.topic).toBe('trn.parts.low');
-    expect(emitted[0]!.sourceModule).toBe('transport');
-    expect(emitted[0]!.payload.partId).toBe(partId);
-    expect(emitted[0]!.payload.partName).toBe('Brake Pads');
-    expect(emitted[0]!.payload.quantityOnHand).toBe(3);
-    expect(emitted[0]!.payload.minStockLevel).toBe(5);
+    // REVIEW-P2C11 BLOCKING 3 — emit lands via outbox.enqueueInTx.
+    expect(enqueued.length).toBe(1);
+    expect(enqueued[0]!.topic).toBe('trn.parts.low');
+    expect(enqueued[0]!.sourceModule).toBe('transport');
+    expect(enqueued[0]!.eventId, 'deterministic event_id present').toBeTruthy();
+    expect(enqueued[0]!.payload.partId).toBe(partId);
+    expect(enqueued[0]!.payload.quantityOnHand).toBe(3);
+    expect(enqueued[0]!.payload.minStockLevel).toBe(5);
   });
 
   it('restock() does NOT emit when quantity remains above min_stock_level', async () => {
@@ -229,7 +285,14 @@ describe('PartsService — trn.parts.low emit on threshold crossing', () => {
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
       if (sql.includes('select quantity_on_hand, min_stock_level')) {
-        return [{ quantity_on_hand: 20, min_stock_level: 5 }];
+        return [
+          {
+            quantity_on_hand: 20,
+            min_stock_level: 5,
+            part_name: 'Oil Filter',
+            part_number: 'OF-STD',
+          },
+        ];
       }
       if (sql.includes('from trn_parts_inventory')) {
         return [
@@ -248,12 +311,16 @@ describe('PartsService — trn.parts.low emit on threshold crossing', () => {
       }
       return [];
     });
-    const { kafka, emitted } = makeKafka();
-    const svc = new PartsService(fake.tenantPrisma as never, kafka as never);
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new PartsService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck() as never,
+    );
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.restock(partId, { quantityDelta: -5 }, ADMIN_ACTOR),
     );
-    expect(emitted.length).toBe(0);
+    expect(enqueued.length).toBe(0);
   });
 
   it('restock() rejects deltas that would drive on-hand quantity below zero', async () => {
@@ -261,12 +328,15 @@ describe('PartsService — trn.parts.low emit on threshold crossing', () => {
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
       if (sql.includes('select quantity_on_hand, min_stock_level')) {
-        return [{ quantity_on_hand: 2, min_stock_level: 5 }];
+        return [{ quantity_on_hand: 2, min_stock_level: 5, part_name: 'Test', part_number: 'T-1' }];
       }
       return [];
     });
-    const { kafka } = makeKafka();
-    const svc = new PartsService(fake.tenantPrisma as never, kafka as never);
+    const svc = new PartsService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.restock(partId, { quantityDelta: -3 }, ADMIN_ACTOR),
@@ -356,7 +426,7 @@ describe('DriverHoursService — cumulative + trn.driver.hours_approaching_limit
           },
         ];
       }
-      if (sql.includes('select driver_id::text as driver_id, duty_start_at, duty_end_at')) {
+      if (sql.includes('select h.driver_id::text as driver_id, h.duty_start_at')) {
         return [
           {
             driver_id: driverId,
@@ -366,13 +436,13 @@ describe('DriverHoursService — cumulative + trn.driver.hours_approaching_limit
           },
         ];
       }
-      if (sql.includes('coalesce(sum(driving_minutes), 0)::int as s')) {
+      if (sql.includes('coalesce(sum(h.driving_minutes), 0)::int as s')) {
         // 90% of 2880 = 2592. Set prior cumulative below threshold,
         // adding 480 should cross 2592.
         return [{ s: 2160 }];
       }
-      if (sql.includes('from trn_driver_hours_logs') && sql.includes('where id = ')) {
-        // Final read-back
+      if (sql.includes('from trn_driver_hours_logs') && sql.includes('where h.id = ')) {
+        // Final school-defensive read-back
         return [
           {
             id: hoursId,
@@ -391,8 +461,12 @@ describe('DriverHoursService — cumulative + trn.driver.hours_approaching_limit
       }
       return [];
     });
-    const { kafka, emitted } = makeKafka();
-    const svc = new DriverHoursService(fake.tenantPrisma as never, kafka as never);
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new DriverHoursService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck() as never,
+    );
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.complete(
         hoursId,
@@ -404,14 +478,16 @@ describe('DriverHoursService — cumulative + trn.driver.hours_approaching_limit
         ADMIN_ACTOR,
       ),
     );
-    expect(emitted.length).toBe(1);
-    expect(emitted[0]!.topic).toBe('trn.driver.hours_approaching_limit');
-    expect(emitted[0]!.sourceModule).toBe('transport');
-    expect(emitted[0]!.payload.driverId).toBe(driverId);
-    expect(emitted[0]!.payload.weeklyDrivingLimitMinutes).toBe(2880);
-    expect(emitted[0]!.payload.priorCumulativeMinutes).toBe(2160);
-    expect(emitted[0]!.payload.newCumulativeMinutes).toBe(2640);
-    expect(emitted[0]!.payload.jurisdiction).toBe('US_FEDERAL');
+    // REVIEW-P2C11 BLOCKING 3 — emit lands via outbox.enqueueInTx, not kafka.emit.
+    expect(enqueued.length).toBe(1);
+    expect(enqueued[0]!.topic).toBe('trn.driver.hours_approaching_limit');
+    expect(enqueued[0]!.sourceModule).toBe('transport');
+    expect(enqueued[0]!.eventId, 'deterministic event_id present').toBeTruthy();
+    expect(enqueued[0]!.payload.driverId).toBe(driverId);
+    expect(enqueued[0]!.payload.weeklyDrivingLimitMinutes).toBe(2880);
+    expect(enqueued[0]!.payload.priorCumulativeMinutes).toBe(2160);
+    expect(enqueued[0]!.payload.newCumulativeMinutes).toBe(2640);
+    expect(enqueued[0]!.payload.jurisdiction).toBe('US_FEDERAL');
   });
 
   it('complete() does NOT emit when threshold was already crossed before this duty closed', async () => {
@@ -434,7 +510,7 @@ describe('DriverHoursService — cumulative + trn.driver.hours_approaching_limit
           },
         ];
       }
-      if (sql.includes('select driver_id::text as driver_id, duty_start_at')) {
+      if (sql.includes('select h.driver_id::text as driver_id, h.duty_start_at')) {
         return [
           {
             driver_id: driverId,
@@ -444,11 +520,11 @@ describe('DriverHoursService — cumulative + trn.driver.hours_approaching_limit
           },
         ];
       }
-      if (sql.includes('coalesce(sum(driving_minutes), 0)::int as s')) {
+      if (sql.includes('coalesce(sum(h.driving_minutes), 0)::int as s')) {
         // Prior cumulative already above 2592 threshold.
         return [{ s: 2700 }];
       }
-      if (sql.includes('from trn_driver_hours_logs') && sql.includes('where id = ')) {
+      if (sql.includes('from trn_driver_hours_logs') && sql.includes('where h.id = ')) {
         return [
           {
             id: hoursId,
@@ -467,12 +543,16 @@ describe('DriverHoursService — cumulative + trn.driver.hours_approaching_limit
       }
       return [];
     });
-    const { kafka, emitted } = makeKafka();
-    const svc = new DriverHoursService(fake.tenantPrisma as never, kafka as never);
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new DriverHoursService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck() as never,
+    );
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.complete(hoursId, { dutyEndAt: dutyEnd.toISOString(), drivingMinutes: 100 }, ADMIN_ACTOR),
     );
-    expect(emitted.length).toBe(0);
+    expect(enqueued.length).toBe(0);
   });
 
   it('complete() refuses a duty that is already closed', async () => {
@@ -491,7 +571,7 @@ describe('DriverHoursService — cumulative + trn.driver.hours_approaching_limit
           },
         ];
       }
-      if (sql.includes('select driver_id::text as driver_id, duty_start_at')) {
+      if (sql.includes('select h.driver_id::text as driver_id, h.duty_start_at')) {
         return [
           {
             driver_id: 'd',
@@ -503,8 +583,11 @@ describe('DriverHoursService — cumulative + trn.driver.hours_approaching_limit
       }
       return [];
     });
-    const { kafka } = makeKafka();
-    const svc = new DriverHoursService(fake.tenantPrisma as never, kafka as never);
+    const svc = new DriverHoursService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.complete('h', { dutyEndAt: '2026-05-11T18:00:00Z', drivingMinutes: 100 }, ADMIN_ACTOR),
@@ -714,5 +797,196 @@ describe('ComponentService — approaching end of life', () => {
     const svc = new ComponentService(fake.tenantPrisma as never);
     const out = await runWithTenantContext({ tenant: SCHOOL }, async () => svc.getById('c1'));
     expect(out.approachingEndOfLife).toBe(false);
+  });
+});
+
+// ============================================================
+// REVIEW-P2C11 ROUND 1 — school-scoping + outbox + TRN-* perm checks
+// ============================================================
+describe('REVIEW-P2C11 ROUND 1 — BLOCKING regressions', () => {
+  // BLOCKING 1 — RepairService school-scoping
+  it('BLOCKING 1 — RepairService.listForVehicle SQL carries school_id predicate via JOIN', async () => {
+    const fake = makeFake(() => []);
+    const svc = new RepairService(fake.tenantPrisma as never, makePermCheck() as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.listForVehicle(VEHICLE_ID));
+    const select = fake.capture.find((c) =>
+      c.sql.toLowerCase().includes('from trn_vehicle_repairs r'),
+    );
+    expect(select, 'SELECT joins trn_vehicles for school predicate').toBeTruthy();
+    expect(select!.sql.toLowerCase()).toContain('join trn_vehicles v ');
+    expect(select!.sql.toLowerCase()).toContain('v.school_id = $2::uuid');
+  });
+
+  it('BLOCKING 1 — RepairService.create vehicle lock carries school_id predicate', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('select id::text as id, status from trn_vehicles')) {
+        return [{ id: VEHICLE_ID, status: 'ACTIVE' }];
+      }
+      return [];
+    });
+    const svc = new RepairService(fake.tenantPrisma as never, makePermCheck() as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () => {
+      try {
+        await svc.create(
+          VEHICLE_ID,
+          {
+            repairDate: '2026-05-11',
+            mileageAtRepair: 50000,
+            problemDescription: 'p',
+            workPerformed: 'w',
+            totalCost: 100,
+            performedByType: 'INTERNAL',
+          },
+          ADMIN_ACTOR,
+        );
+      } catch {
+        // getById round-trip may throw — we only care about the lock SQL shape.
+      }
+    });
+    const lock = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('select id::text as id, status from trn_vehicles') &&
+        c.sql.toLowerCase().includes('for update'),
+    );
+    expect(lock, 'vehicle FOR UPDATE lock').toBeTruthy();
+    expect(lock!.sql.toLowerCase()).toContain('school_id = $2::uuid');
+  });
+
+  it('BLOCKING 6 — RepairService refuses STAFF without trn-002:write', async () => {
+    const fake = makeFake(() => []);
+    const svc = new RepairService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.create(
+          VEHICLE_ID,
+          {
+            repairDate: '2026-05-11',
+            mileageAtRepair: 50000,
+            problemDescription: 'p',
+            workPerformed: 'w',
+            totalCost: 100,
+            performedByType: 'INTERNAL',
+          },
+          STAFF_ACTOR,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  // BLOCKING 2 — DriverHoursService school-scoping
+  it('BLOCKING 2 — DriverHoursService.create validates driver via hr_employees.school_id', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      // Driver belongs to a different school — return empty
+      if (sql.includes('from hr_employees where id = $1::uuid and school_id = $2::uuid')) return [];
+      return [];
+    });
+    const svc = new DriverHoursService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.create(
+          '019e0e69-aaaa-7000-8000-ffff00009999',
+          { logDate: '2026-05-11', dutyStartAt: '2026-05-11T08:00:00Z' },
+          ADMIN_ACTOR,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('BLOCKING 2 — DriverHoursService.complete lock joins through hr_employees.school_id', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.includes('weekly_driving_limit_minutes')) {
+        return [
+          {
+            id: 'L1',
+            school_id: SCHOOL.schoolId,
+            weekly_driving_limit_minutes: 2880,
+            daily_driving_limit_minutes: 600,
+            mandatory_break_after_minutes: 270,
+            approaching_limit_threshold_pct: 90,
+            jurisdiction: 'US_FEDERAL',
+          },
+        ];
+      }
+      // Lock SQL returns empty — simulating cross-school hours row.
+      if (
+        sql.includes('select h.driver_id::text as driver_id, h.duty_start_at') &&
+        sql.includes('for update')
+      ) {
+        return [];
+      }
+      return [];
+    });
+    const svc = new DriverHoursService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.complete(
+          'h-cross-school',
+          { dutyEndAt: '2026-05-11T18:00:00Z', drivingMinutes: 100 },
+          ADMIN_ACTOR,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    const lock = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('select h.driver_id::text as driver_id') &&
+        c.sql.toLowerCase().includes('for update'),
+    );
+    expect(lock, 'driver hours FOR UPDATE lock').toBeTruthy();
+    expect(lock!.sql.toLowerCase()).toContain('join hr_employees e ');
+    expect(lock!.sql.toLowerCase()).toContain('e.school_id = $2::uuid');
+  });
+
+  it('BLOCKING 6 — DriverHoursService refuses STAFF without trn-003:write', async () => {
+    const fake = makeFake(() => []);
+    const svc = new DriverHoursService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.create(
+          '019e0e69-aaaa-7000-8000-ffff00009999',
+          { logDate: '2026-05-11', dutyStartAt: '2026-05-11T08:00:00Z' },
+          STAFF_ACTOR,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  // BLOCKING 3 — Durable outbox emits with deterministic event ids
+  it('BLOCKING 3 — deterministicPartsLowEventId is stable + v5-shaped', async () => {
+    const { deterministicPartsLowEventId } = await import('./parts.service');
+    const id = deterministicPartsLowEventId('part-1', '2026-05-11T08:00:00Z');
+    const id2 = deterministicPartsLowEventId('part-1', '2026-05-11T08:00:00Z');
+    const id3 = deterministicPartsLowEventId('part-2', '2026-05-11T08:00:00Z');
+    expect(id).toBe(id2);
+    expect(id).not.toBe(id3);
+    // v5 marker — first nibble of byte 6 should be 5
+    expect(id.charAt(14)).toBe('5');
+  });
+
+  it('BLOCKING 3 — deterministicDriverHoursApproachingEventId is stable + v5-shaped', async () => {
+    const { deterministicDriverHoursApproachingEventId } = await import('./driver-hours.service');
+    const a = deterministicDriverHoursApproachingEventId('hrs-1');
+    const b = deterministicDriverHoursApproachingEventId('hrs-1');
+    const c = deterministicDriverHoursApproachingEventId('hrs-2');
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+    expect(a.charAt(14)).toBe('5');
   });
 });

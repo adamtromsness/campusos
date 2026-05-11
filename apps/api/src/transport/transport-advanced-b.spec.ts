@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { runWithTenantContext } from '../tenant/tenant.context';
 import { PERMISSIONS_KEY } from '../auth/require-permission.decorator';
@@ -79,6 +79,36 @@ function makeFake(handler: (call: CapturedCall) => unknown) {
     executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
   };
   return { capture, client, tenantPrisma };
+}
+
+function makeOutbox() {
+  const enqueued: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    eventId?: string;
+    payload: Record<string, unknown>;
+  }> = [];
+  const outbox = {
+    enqueueInTx: vi.fn(async (_tx: unknown, opts: any) => {
+      enqueued.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+      return 'outbox-id';
+    }),
+  };
+  return { outbox, enqueued };
+}
+
+function makePermCheck(opts: { allow?: boolean } = {}) {
+  const allow = opts.allow ?? true;
+  return {
+    hasAnyPermissionInTenant: vi.fn(async () => allow),
+  };
 }
 
 function makeKafka() {
@@ -191,7 +221,11 @@ describe('RouteGenerationService — queue + manual candidate + approve', () => 
   it('queueRequest() refuses requestType=FULL_YEAR without academicYearId', async () => {
     const fake = makeFake(() => []);
     const { kafka } = makeKafka();
-    const svc = new RouteGenerationService(fake.tenantPrisma as never, kafka as never);
+    const svc = new RouteGenerationService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.queueRequest(
@@ -208,7 +242,11 @@ describe('RouteGenerationService — queue + manual candidate + approve', () => 
   it('queueRequest() refuses DATE_RANGE without dateFrom/dateTo', async () => {
     const fake = makeFake(() => []);
     const { kafka } = makeKafka();
-    const svc = new RouteGenerationService(fake.tenantPrisma as never, kafka as never);
+    const svc = new RouteGenerationService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.queueRequest(
@@ -228,7 +266,11 @@ describe('RouteGenerationService — queue + manual candidate + approve', () => 
       return [];
     });
     const { kafka } = makeKafka();
-    const svc = new RouteGenerationService(fake.tenantPrisma as never, kafka as never);
+    const svc = new RouteGenerationService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.queueRequest(
@@ -246,7 +288,11 @@ describe('RouteGenerationService — queue + manual candidate + approve', () => 
   it('addManualCandidate() refuses duplicate sequence_order across stops', async () => {
     const fake = makeFake(() => [{ status: 'RUNNING' }]);
     const { kafka } = makeKafka();
-    const svc = new RouteGenerationService(fake.tenantPrisma as never, kafka as never);
+    const svc = new RouteGenerationService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.addManualCandidate(
@@ -290,7 +336,11 @@ describe('RouteGenerationService — queue + manual candidate + approve', () => 
       return [];
     });
     const { kafka } = makeKafka();
-    const svc = new RouteGenerationService(fake.tenantPrisma as never, kafka as never);
+    const svc = new RouteGenerationService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.addManualCandidate(
@@ -321,6 +371,9 @@ describe('RouteGenerationService — queue + manual candidate + approve', () => 
   it('approveCandidate() — keystone: creates trn_routes + trn_stops + trn_student_assignments inside one tx', async () => {
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
+      // REVIEW-P2C11 BLOCKING 5 — lock SQL now JOINs through
+      // trn_generation_requests for the school predicate and returns
+      // academic_year_id inline.
       if (sql.includes('from trn_generation_candidates') && sql.includes('for update')) {
         return [
           {
@@ -331,11 +384,9 @@ describe('RouteGenerationService — queue + manual candidate + approve', () => 
             review_status: 'PENDING',
             total_students: 3,
             total_stops: 2,
+            academic_year_id: null,
           },
         ];
-      }
-      if (sql.includes('from trn_generation_requests') && sql.includes('where id = $1::uuid')) {
-        return [{ school_id: SCHOOL.schoolId, status: 'RUNNING', academic_year_id: null }];
       }
       if (sql.includes('from trn_vehicles where id')) {
         return [{ ok: 1 }];
@@ -402,7 +453,11 @@ describe('RouteGenerationService — queue + manual candidate + approve', () => 
       return [];
     });
     const { kafka } = makeKafka();
-    const svc = new RouteGenerationService(fake.tenantPrisma as never, kafka as never);
+    const svc = new RouteGenerationService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await svc.approveCandidate(
         CANDIDATE_ID,
@@ -460,7 +515,11 @@ describe('RouteGenerationService — queue + manual candidate + approve', () => 
       return [];
     });
     const { kafka } = makeKafka();
-    const svc = new RouteGenerationService(fake.tenantPrisma as never, kafka as never);
+    const svc = new RouteGenerationService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.approveCandidate(CANDIDATE_ID, { routeName: 'X' }, ADMIN_ACTOR),
@@ -516,16 +575,23 @@ describe('RouteGenerationService — queue + manual candidate + approve', () => 
       }
       return [];
     });
-    const { kafka, emitted } = makeKafka();
-    const svc = new RouteGenerationService(fake.tenantPrisma as never, kafka as never);
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new RouteGenerationService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck() as never,
+    );
     await runWithTenantContext({ tenant: SCHOOL }, async () => {
       await svc.markRequestCompleted(REQUEST_ID, ADMIN_ACTOR);
     });
 
-    expect(emitted.length, 'one trn.generation.completed envelope').toBe(1);
-    expect(emitted[0]!.topic).toBe('trn.generation.completed');
-    expect(emitted[0]!.sourceModule).toBe('transport');
-    expect(emitted[0]!.payload).toMatchObject({
+    // REVIEW-P2C11 BLOCKING 3 — emit lands via outbox.enqueueInTx,
+    // not best-effort kafka.emit.
+    expect(enqueued.length, 'one trn.generation.completed envelope').toBe(1);
+    expect(enqueued[0]!.topic).toBe('trn.generation.completed');
+    expect(enqueued[0]!.sourceModule).toBe('transport');
+    expect(enqueued[0]!.eventId, 'deterministic event_id present').toBeTruthy();
+    expect(enqueued[0]!.payload).toMatchObject({
       requestId: REQUEST_ID,
       schoolId: SCHOOL.schoolId,
       routesGenerated: 3,
@@ -868,5 +934,104 @@ describe('RouteGenerationController — @RequirePermission metadata', () => {
       const flat = codes.join(',');
       expect(flat).toMatch(/(trn-001:read|trn-005:read)/);
     }
+  });
+});
+
+// ============================================================
+// REVIEW-P2C11 ROUND 1 — school-scoping + outbox regression
+// ============================================================
+describe('REVIEW-P2C11 ROUND 1 — RouteGenerationService school-scoping + outbox', () => {
+  it('BLOCKING 5 — cancelRequest lock + UPDATE both carry the school predicate', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (
+        sql.includes('select status from trn_generation_requests') &&
+        sql.includes('for update')
+      ) {
+        return [{ status: 'RUNNING' }];
+      }
+      if (sql.includes('select r.id::text as id') && sql.includes('from trn_generation_requests')) {
+        return [
+          {
+            id: REQUEST_ID,
+            school_id: SCHOOL.schoolId,
+            requested_by: ADMIN_ACTOR.accountId,
+            request_type: 'FULL_YEAR',
+            academic_year_id: null,
+            term_id: null,
+            date_from: null,
+            date_to: null,
+            constraint_id: CONSTRAINT_ID,
+            constraint_name: 'X',
+            directions: 'BOTH',
+            status: 'CANCELLED',
+            optimiser_run_id: null,
+            routes_generated: null,
+            students_covered: null,
+            students_uncovered: null,
+            error_message: null,
+            queued_at: new Date(),
+            started_at: null,
+            completed_at: new Date(),
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new RouteGenerationService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck() as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.cancelRequest(REQUEST_ID, ADMIN_ACTOR),
+    );
+    const lock = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('select status from trn_generation_requests') &&
+        c.sql.toLowerCase().includes('for update'),
+    );
+    expect(lock, 'cancelRequest lock').toBeTruthy();
+    expect(lock!.sql.toLowerCase()).toContain('school_id = $1::uuid');
+    expect(lock!.args[0]).toBe(SCHOOL.schoolId);
+
+    const update = fake.capture.find((c) =>
+      c.sql.toLowerCase().includes("update trn_generation_requests set status = 'cancelled'"),
+    );
+    expect(update, 'cancelRequest UPDATE').toBeTruthy();
+    expect(update!.sql.toLowerCase()).toContain('school_id = $1::uuid');
+  });
+
+  it('BLOCKING 6 — RouteGenerationService refuses STAFF without trn-001:write', async () => {
+    const fake = makeFake(() => []);
+    const svc = new RouteGenerationService(
+      fake.tenantPrisma as never,
+      makeOutbox().outbox as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.queueRequest(
+          {
+            requestType: 'FULL_YEAR',
+            constraintId: CONSTRAINT_ID,
+            academicYearId: '019e0f00-aaaa-7000-8000-ffffffffffff',
+          },
+          STAFF_ACTOR,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('BLOCKING 3 — deterministicGenerationCompletedEventId is stable + v5-shaped', async () => {
+    const { deterministicGenerationCompletedEventId } = await import('./route-generation.service');
+    const a = deterministicGenerationCompletedEventId('req-1');
+    const b = deterministicGenerationCompletedEventId('req-1');
+    const c = deterministicGenerationCompletedEventId('req-2');
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+    expect(a.charAt(14)).toBe('5');
   });
 });

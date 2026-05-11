@@ -2,14 +2,40 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService, OutboxTxClient } from '../kafka/outbox.service';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+
+/**
+ * REVIEW-P2C11 ROUND 1 BLOCKING 3 — deterministic event id for the
+ * trn.generation.completed outbox row. Keys on the generation request
+ * id so retries dedup cleanly downstream.
+ */
+export function deterministicGenerationCompletedEventId(requestId: string): string {
+  const hash = createHash('sha256')
+    .update(requestId + ':trn.generation.completed:v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
 import {
   ApproveCandidateDto,
   CandidateDirection,
@@ -204,19 +230,30 @@ function stopRowToDto(r: CandidateStopRow): GenerationCandidateStopResponseDto {
  */
 @Injectable()
 export class RouteGenerationService {
-  private readonly logger = new Logger(RouteGenerationService.name);
-
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
+    private readonly permCheck: PermissionCheckService,
   ) {}
 
-  private assertCanManage(actor: ResolvedActor): void {
+  /**
+   * REVIEW-P2C11 ROUND 1 BLOCKING 6 — replace `personType === 'STAFF'`
+   * with an explicit TRN-001:write check. Route generation writes live
+   * trn_routes + trn_stops + trn_student_assignments, so the gate
+   * must be the management permission, not generic Staff.
+   */
+  private async assertCanManage(actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
-    throw new ForbiddenException(
-      'Only school admins or transportation staff can manage route generation',
-    );
+    const tenant = getCurrentTenant();
+    const ok = await this.permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'trn-001:write',
+      'trn-001:admin',
+    ]);
+    if (!ok) {
+      throw new ForbiddenException(
+        'Only school admins or transportation staff with trn-001:write can manage route generation',
+      );
+    }
   }
 
   // ── Generation requests ──
@@ -267,7 +304,7 @@ export class RouteGenerationService {
     input: QueueGenerationRequestDto,
     actor: ResolvedActor,
   ): Promise<GenerationRequestResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
 
     // Validate scope by request_type — required date / term / year scope
@@ -330,10 +367,15 @@ export class RouteGenerationService {
     requestId: string,
     actor: ResolvedActor,
   ): Promise<GenerationRequestResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C11 ROUND 1 BLOCKING 5 — lock + UPDATE both carry
+      // the school predicate. A School A actor cannot cancel a
+      // School B generation request by guessing the UUID.
       const locked = (await tx.$queryRawUnsafe(
-        'SELECT status FROM trn_generation_requests WHERE id = $1::uuid FOR UPDATE',
+        'SELECT status FROM trn_generation_requests WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
+        tenant.schoolId,
         requestId,
       )) as Array<{ status: string }>;
       if (locked.length === 0) throw new NotFoundException('Generation request not found');
@@ -345,7 +387,8 @@ export class RouteGenerationService {
         );
       }
       await tx.$executeRawUnsafe(
-        "UPDATE trn_generation_requests SET status = 'CANCELLED', completed_at = COALESCE(completed_at, now()), updated_at = now() WHERE id = $1::uuid",
+        "UPDATE trn_generation_requests SET status = 'CANCELLED', completed_at = COALESCE(completed_at, now()), updated_at = now() WHERE school_id = $1::uuid AND id = $2::uuid",
+        tenant.schoolId,
         requestId,
       );
     });
@@ -367,7 +410,7 @@ export class RouteGenerationService {
     input: CreateManualCandidateDto,
     actor: ResolvedActor,
   ): Promise<GenerationCandidateResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
     // Validate stops have unique sequence_order
     const seen = new Set<number>();
@@ -396,10 +439,13 @@ export class RouteGenerationService {
         );
       }
 
-      // Flip request to RUNNING on first candidate
+      // Flip request to RUNNING on first candidate — REVIEW-P2C11 BLOCKING 5
+      // UPDATE carries school predicate as defence in depth (the row was
+      // already locked under the school-scoped SELECT above).
       if (reqStatus === 'QUEUED') {
         await tx.$executeRawUnsafe(
-          "UPDATE trn_generation_requests SET status = 'RUNNING', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = $1::uuid",
+          "UPDATE trn_generation_requests SET status = 'RUNNING', started_at = COALESCE(started_at, now()), updated_at = now() WHERE school_id = $1::uuid AND id = $2::uuid",
+          tenant.schoolId,
           requestId,
         );
       }
@@ -448,19 +494,13 @@ export class RouteGenerationService {
     requestId: string,
     actor: ResolvedActor,
   ): Promise<GenerationRequestResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
 
-    let envelope: {
-      requestId: string;
-      schoolId: string;
-      routesGenerated: number;
-      studentsCovered: number;
-      studentsUncovered: number;
-      requestedBy: string;
-      completedAt: string;
-    } | null = null;
-
+    // REVIEW-P2C11 ROUND 1 BLOCKING 3 + 5 — UPDATE and outbox emit
+    // both inside the same locked tx. The school predicate carries
+    // through every read + write so a leaked request UUID cannot
+    // mutate a foreign-school row.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const reqRows = (await tx.$queryRawUnsafe(
         'SELECT status, school_id::text AS school_id, requested_by::text AS requested_by FROM trn_generation_requests WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
@@ -486,39 +526,38 @@ export class RouteGenerationService {
       const studentsCovered = counts[0]?.students_covered ?? 0;
 
       await tx.$executeRawUnsafe(
-        "UPDATE trn_generation_requests SET status = 'COMPLETED', completed_at = now(), routes_generated = $1::int, students_covered = $2::int, students_uncovered = COALESCE(students_uncovered, 0), updated_at = now() WHERE id = $3::uuid",
+        "UPDATE trn_generation_requests SET status = 'COMPLETED', completed_at = now(), routes_generated = $1::int, students_covered = $2::int, students_uncovered = COALESCE(students_uncovered, 0), updated_at = now() WHERE school_id = $3::uuid AND id = $4::uuid",
         routesGenerated,
         studentsCovered,
+        tenant.schoolId,
         requestId,
       );
 
       const final = (await tx.$queryRawUnsafe(
-        'SELECT students_uncovered, completed_at FROM trn_generation_requests WHERE id = $1::uuid',
+        'SELECT students_uncovered, completed_at FROM trn_generation_requests WHERE school_id = $1::uuid AND id = $2::uuid',
+        tenant.schoolId,
         requestId,
       )) as Array<{ students_uncovered: number | null; completed_at: Date }>;
-      envelope = {
-        requestId,
-        schoolId: tenant.schoolId,
-        routesGenerated,
-        studentsCovered,
-        studentsUncovered: final[0]?.students_uncovered ?? 0,
-        requestedBy: reqRows[0]!.requested_by,
-        completedAt: final[0]!.completed_at.toISOString(),
-      };
-    });
 
-    if (envelope) {
-      try {
-        await this.kafka.emit({
-          topic: 'trn.generation.completed',
-          key: requestId,
-          sourceModule: 'transport',
-          payload: envelope,
-        });
-      } catch (err) {
-        this.logger.warn('Failed to emit trn.generation.completed: ' + String(err));
-      }
-    }
+      // REVIEW-P2C11 BLOCKING 3 — durable outbox emit inside the tx.
+      // Deterministic event_id keyed on the request id so retries
+      // dedup cleanly downstream.
+      await this.outbox.enqueueInTx(tx as unknown as OutboxTxClient, {
+        topic: 'trn.generation.completed',
+        key: requestId,
+        sourceModule: 'transport',
+        eventId: deterministicGenerationCompletedEventId(requestId),
+        payload: {
+          requestId,
+          schoolId: tenant.schoolId,
+          routesGenerated,
+          studentsCovered,
+          studentsUncovered: final[0]?.students_uncovered ?? 0,
+          requestedBy: reqRows[0]!.requested_by,
+          completedAt: final[0]!.completed_at.toISOString(),
+        },
+      });
+    });
 
     return this.getRequestById(requestId);
   }
@@ -566,15 +605,20 @@ export class RouteGenerationService {
     input: ApproveCandidateDto,
     actor: ResolvedActor,
   ): Promise<GenerationCandidateResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C11 ROUND 1 BLOCKING 5 — candidate lock joins through
+      // trn_generation_requests so the school predicate defends the row.
       const candRows = (await tx.$queryRawUnsafe(
-        'SELECT id::text AS id, request_id::text AS request_id, candidate_name, direction, ' +
-          'review_status, total_students, total_stops FROM trn_generation_candidates ' +
-          'WHERE id = $1::uuid FOR UPDATE',
+        'SELECT cand.id::text AS id, cand.request_id::text AS request_id, cand.candidate_name, cand.direction, ' +
+          'cand.review_status, cand.total_students, cand.total_stops, req.academic_year_id::text AS academic_year_id ' +
+          'FROM trn_generation_candidates cand ' +
+          'JOIN trn_generation_requests req ON req.id = cand.request_id ' +
+          'WHERE cand.id = $1::uuid AND req.school_id = $2::uuid FOR UPDATE OF cand',
         candidateId,
+        tenant.schoolId,
       )) as Array<{
         id: string;
         request_id: string;
@@ -583,6 +627,7 @@ export class RouteGenerationService {
         review_status: string;
         total_students: number;
         total_stops: number;
+        academic_year_id: string | null;
       }>;
       if (candRows.length === 0) throw new NotFoundException('Candidate not found');
       const cand = candRows[0]!;
@@ -592,20 +637,14 @@ export class RouteGenerationService {
         );
       }
 
-      // Verify parent request is in current tenant
-      const reqRows = (await tx.$queryRawUnsafe(
-        'SELECT school_id::text AS school_id, status, academic_year_id::text AS academic_year_id FROM trn_generation_requests WHERE id = $1::uuid',
-        cand.request_id,
-      )) as Array<{ school_id: string; status: string; academic_year_id: string | null }>;
-      if (reqRows.length === 0 || reqRows[0]!.school_id !== tenant.schoolId) {
-        throw new NotFoundException('Candidate not found');
-      }
-
-      // Verify vehicle + driver belong to this tenant if supplied
+      // REVIEW-P2C11 BLOCKING 5 — vehicle + driver validated against the
+      // calling school. Vehicle has school_id on trn_vehicles; driver
+      // joins through hr_employees.school_id.
       if (input.vehicleId) {
         const v = (await tx.$queryRawUnsafe(
-          'SELECT 1 AS ok FROM trn_vehicles WHERE id = $1::uuid LIMIT 1',
+          'SELECT 1 AS ok FROM trn_vehicles WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
           input.vehicleId,
+          tenant.schoolId,
         )) as Array<{ ok: number }>;
         if (v.length === 0) {
           throw new BadRequestException('vehicleId does not match a vehicle in this school');
@@ -613,13 +652,20 @@ export class RouteGenerationService {
       }
       if (input.driverId) {
         const d = (await tx.$queryRawUnsafe(
-          'SELECT 1 AS ok FROM hr_employees WHERE id = $1::uuid LIMIT 1',
+          'SELECT 1 AS ok FROM hr_employees WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
           input.driverId,
+          tenant.schoolId,
         )) as Array<{ ok: number }>;
         if (d.length === 0) {
           throw new BadRequestException('driverId does not match an employee in this school');
         }
       }
+
+      // Pull the academic year from the candidate row (which already
+      // joined the request and was school-validated).
+      const reqRows: Array<{ academic_year_id: string | null }> = [
+        { academic_year_id: cand.academic_year_id },
+      ];
 
       const academicYearId = input.academicYearId ?? reqRows[0]!.academic_year_id ?? null;
 
@@ -704,11 +750,17 @@ export class RouteGenerationService {
     input: RejectCandidateDto,
     actor: ResolvedActor,
   ): Promise<GenerationCandidateResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C11 ROUND 1 BLOCKING 5 — JOIN to request carries the
+      // school predicate.
       const rows = (await tx.$queryRawUnsafe(
-        'SELECT review_status FROM trn_generation_candidates WHERE id = $1::uuid FOR UPDATE',
+        'SELECT cand.review_status FROM trn_generation_candidates cand ' +
+          'JOIN trn_generation_requests req ON req.id = cand.request_id ' +
+          'WHERE cand.id = $1::uuid AND req.school_id = $2::uuid FOR UPDATE OF cand',
         candidateId,
+        tenant.schoolId,
       )) as Array<{ review_status: string }>;
       if (rows.length === 0) throw new NotFoundException('Candidate not found');
       if (rows[0]!.review_status !== 'PENDING') {
