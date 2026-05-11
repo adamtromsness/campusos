@@ -1,12 +1,8 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   ChargeStaffMealDto,
@@ -16,6 +12,7 @@ import {
   UpdateStaffMealAccountDto,
 } from './dto/food-service-advanced.dto';
 import { isUniqueViolation } from './food-service.errors';
+import { assertFsmAdminScope } from './fsm-scope';
 
 /**
  * StaffMealService — employee meal accounts with PAYROLL / PREPAID /
@@ -33,14 +30,18 @@ import { isUniqueViolation } from './food-service.errors';
  */
 @Injectable()
 export class StaffMealService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
-  private assertCanManage(actor: ResolvedActor): void {
-    if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
-    throw new ForbiddenException(
-      'Only school admins or food service staff can manage staff meal accounts',
-    );
+  /**
+   * REVIEW-P2-10a ROUND 1 BLOCKING 4 — gates on FDS-006:write (Food
+   * Service Administration). Generic STAFF persona without the
+   * code is refused.
+   */
+  private async assertCanManage(actor: ResolvedActor): Promise<void> {
+    await assertFsmAdminScope(this.permCheck, actor, 'manage staff meal accounts');
   }
 
   async list(): Promise<StaffMealAccountResponseDto[]> {
@@ -73,7 +74,7 @@ export class StaffMealService {
     input: CreateStaffMealAccountDto,
     actor: ResolvedActor,
   ): Promise<StaffMealAccountResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
@@ -125,7 +126,7 @@ export class StaffMealService {
     input: UpdateStaffMealAccountDto,
     actor: ResolvedActor,
   ): Promise<StaffMealAccountResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const sets: string[] = [];
     const params: unknown[] = [];
     const push = (col: string, val: unknown): void => {
@@ -136,13 +137,24 @@ export class StaffMealService {
     if (input.dailyLimit !== undefined) push('daily_limit', input.dailyLimit);
     if (sets.length === 0) return this.getById(id);
     sets.push('updated_at = now()');
+    // REVIEW-P2-10a ROUND 1 MAJOR 5 — UPDATE now predicates on both
+    // id AND school_id. Previously the UPDATE ran by id alone and
+    // relied on the school-scoped reload to surface a cross-school
+    // hit as 404 — but the mutation already landed. Now the UPDATE
+    // never touches a foreign-school row.
+    const tenant = getCurrentTenant();
     params.push(id);
+    const idPlaceholder = params.length;
+    params.push(tenant.schoolId);
+    const schoolPlaceholder = params.length;
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       const result = await client.$executeRawUnsafe(
         'UPDATE fds_staff_meal_accounts SET ' +
           sets.join(', ') +
           ' WHERE id = $' +
-          params.length +
+          idPlaceholder +
+          '::uuid AND school_id = $' +
+          schoolPlaceholder +
           '::uuid',
         ...params,
       );
@@ -165,7 +177,7 @@ export class StaffMealService {
     input: ChargeStaffMealDto,
     actor: ResolvedActor,
   ): Promise<StaffMealAccountResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     if (input.amount <= 0) throw new BadRequestException('amount must be > 0');
     const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {

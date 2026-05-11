@@ -1,12 +1,8 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   CreateIngredientDto,
@@ -19,6 +15,7 @@ import {
   UpdateRecipeDto,
 } from './dto/food-service-advanced.dto';
 import { isUniqueViolation } from './food-service.errors';
+import { assertFsmAdminScope } from './fsm-scope';
 
 /**
  * RecipeService — Recipe + Ingredient CRUD with auto-computed
@@ -39,12 +36,42 @@ import { isUniqueViolation } from './food-service.errors';
  */
 @Injectable()
 export class RecipeService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
-  private assertCanManage(actor: ResolvedActor): void {
-    if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
-    throw new ForbiddenException('Only school admins or food service staff can manage recipes');
+  /**
+   * REVIEW-P2-10a ROUND 1 BLOCKING 4 — every mutation path now gates
+   * on FDS-006:write (Food Service Administration) instead of the
+   * broad `personType === 'STAFF'` check. Generic teaching or office
+   * staff without FDS-006 can no longer mutate recipes.
+   */
+  private async assertCanManage(actor: ResolvedActor): Promise<void> {
+    await assertFsmAdminScope(this.permCheck, actor, 'manage recipes');
+  }
+
+  /**
+   * REVIEW-P2-10a ROUND 1 BLOCKING 1 — every ingredient mutation must
+   * lock the parent recipe by `(id, school_id)`, not by id alone, so a
+   * food-service actor in School A cannot mutate ingredients on a
+   * School B recipe by guessing its UUID.
+   */
+  private async assertInventoryItemBelongsToSchool(
+    tx: { $queryRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown> },
+    inventoryItemId: string,
+  ): Promise<void> {
+    const tenant = getCurrentTenant();
+    const rows = (await tx.$queryRawUnsafe(
+      'SELECT 1 AS ok FROM fds_inventory_items WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+      inventoryItemId,
+      tenant.schoolId,
+    )) as Array<{ ok: number }>;
+    if (rows.length === 0) {
+      throw new BadRequestException(
+        'inventoryItemId does not match an inventory item in this school',
+      );
+    }
   }
 
   async list(args: { category?: string; includeInactive?: boolean }): Promise<RecipeResponseDto[]> {
@@ -98,7 +125,7 @@ export class RecipeService {
   }
 
   async create(input: CreateRecipeDto, actor: ResolvedActor): Promise<RecipeResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
@@ -132,7 +159,7 @@ export class RecipeService {
     input: UpdateRecipeDto,
     actor: ResolvedActor,
   ): Promise<RecipeResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
     const sets: string[] = [];
     const params: unknown[] = [];
@@ -181,16 +208,23 @@ export class RecipeService {
     input: CreateIngredientDto,
     actor: ResolvedActor,
   ): Promise<RecipeResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
+    const tenant = getCurrentTenant();
     const ingredientId = generateId();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Lock the parent recipe so concurrent ingredient writes serialise
-      // on the recomputation.
+      // REVIEW-P2-10a ROUND 1 BLOCKING 1 — lock by (id, school_id)
+      // so a School A actor cannot mutate ingredients on a School B
+      // recipe even with the recipe UUID. Collapses to 404 don't-
+      // leak-existence on a cross-school attempt.
       const locked = (await tx.$queryRawUnsafe(
-        'SELECT id, school_id, serving_yield FROM fds_recipes WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id, school_id, serving_yield FROM fds_recipes WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         recipeId,
+        tenant.schoolId,
       )) as Array<{ id: string; school_id: string; serving_yield: number }>;
       if (locked.length === 0) throw new NotFoundException('Recipe not found');
+      if (input.inventoryItemId) {
+        await this.assertInventoryItemBelongsToSchool(tx, input.inventoryItemId);
+      }
       try {
         await tx.$executeRawUnsafe(
           'INSERT INTO fds_recipe_ingredients (id, recipe_id, inventory_item_id, ingredient_name, quantity, unit, allergens, unit_cost, notes) ' +
@@ -223,16 +257,25 @@ export class RecipeService {
     input: UpdateIngredientDto,
     actor: ResolvedActor,
   ): Promise<RecipeResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
+    const tenant = getCurrentTenant();
     let recipeId = '';
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2-10a ROUND 1 BLOCKING 1 — JOIN includes r.school_id =
+      // $tenant.schoolId so a cross-school ingredient UUID cannot
+      // reach this mutation path.
       const parent = (await tx.$queryRawUnsafe(
         'SELECT i.recipe_id::text AS recipe_id FROM fds_recipe_ingredients i ' +
-          'JOIN fds_recipes r ON r.id = i.recipe_id WHERE i.id = $1::uuid FOR UPDATE OF r',
+          'JOIN fds_recipes r ON r.id = i.recipe_id AND r.school_id = $2::uuid ' +
+          'WHERE i.id = $1::uuid FOR UPDATE OF r',
         ingredientId,
+        tenant.schoolId,
       )) as Array<{ recipe_id: string }>;
       if (parent.length === 0) throw new NotFoundException('Ingredient not found');
       recipeId = parent[0]!.recipe_id;
+      if (input.inventoryItemId !== undefined && input.inventoryItemId !== null) {
+        await this.assertInventoryItemBelongsToSchool(tx, input.inventoryItemId);
+      }
 
       const sets: string[] = [];
       const params: unknown[] = [];
@@ -279,13 +322,18 @@ export class RecipeService {
   }
 
   async deleteIngredient(ingredientId: string, actor: ResolvedActor): Promise<RecipeResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
+    const tenant = getCurrentTenant();
     let recipeId = '';
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2-10a ROUND 1 BLOCKING 1 — JOIN includes r.school_id =
+      // $tenant.schoolId so a cross-school ingredient UUID 404s here.
       const parent = (await tx.$queryRawUnsafe(
         'SELECT i.recipe_id::text AS recipe_id FROM fds_recipe_ingredients i ' +
-          'JOIN fds_recipes r ON r.id = i.recipe_id WHERE i.id = $1::uuid FOR UPDATE OF r',
+          'JOIN fds_recipes r ON r.id = i.recipe_id AND r.school_id = $2::uuid ' +
+          'WHERE i.id = $1::uuid FOR UPDATE OF r',
         ingredientId,
+        tenant.schoolId,
       )) as Array<{ recipe_id: string }>;
       if (parent.length === 0) throw new NotFoundException('Ingredient not found');
       recipeId = parent[0]!.recipe_id;

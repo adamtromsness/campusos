@@ -1,14 +1,41 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService, OutboxTxClient } from '../kafka/outbox.service';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { assertFsmAdminScope } from './fsm-scope';
+
+/**
+ * REVIEW-P2-10a ROUND 1 BLOCKING 3 — deterministic event id for
+ * `fds.inventory.low`. A retry / redelivery on the same low-stock
+ * transaction produces the exact same Kafka event_id so any
+ * downstream consumer (Procurement requisition auto-create, Cycle
+ * 14 notifications) catches the dup cleanly. Same v5-shaped UUID
+ * pattern as P2-4a deterministicPayrollEventId + P2-6
+ * deterministicCreditNoteEventId.
+ */
+export function deterministicInventoryLowEventId(transactionId: string): string {
+  const hash = createHash('sha256')
+    .update(transactionId + ':fds.inventory.low:v1')
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return (
+    hex.slice(0, 8) +
+    '-' +
+    hex.slice(8, 12) +
+    '-' +
+    hex.slice(12, 16) +
+    '-' +
+    hex.slice(16, 20) +
+    '-' +
+    hex.slice(20, 32)
+  );
+}
 import {
   CreateInventoryGroupDto,
   CreateInventoryItemDto,
@@ -51,13 +78,19 @@ import { isUniqueViolation } from './food-service.errors';
 export class InventoryService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
+    private readonly permCheck: PermissionCheckService,
   ) {}
 
-  private assertCanManage(actor: ResolvedActor): void {
-    if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
-    throw new ForbiddenException('Only school admins or food service staff can manage inventory');
+  /**
+   * REVIEW-P2-10a ROUND 1 BLOCKING 4 — every mutation path now gates
+   * on FDS-006:write (Food Service Administration) instead of the
+   * broad `personType === 'STAFF'` check. A generic teacher/office
+   * Staff persona without FDS-006 can no longer mutate inventory,
+   * stocktake, or transfer.
+   */
+  private async assertCanManage(actor: ResolvedActor): Promise<void> {
+    await assertFsmAdminScope(this.permCheck, actor, 'manage inventory');
   }
 
   // ─── Groups ─────────────────────────────────────────────────────────
@@ -83,7 +116,7 @@ export class InventoryService {
     input: CreateInventoryGroupDto,
     actor: ResolvedActor,
   ): Promise<InventoryGroupResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
@@ -116,7 +149,7 @@ export class InventoryService {
     input: UpdateInventoryGroupDto,
     actor: ResolvedActor,
   ): Promise<InventoryGroupResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const sets: string[] = [];
     const params: unknown[] = [];
     const push = (col: string, val: unknown): void => {
@@ -181,7 +214,7 @@ export class InventoryService {
     input: CreateInventoryItemDto,
     actor: ResolvedActor,
   ): Promise<InventoryItemResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
@@ -217,7 +250,7 @@ export class InventoryService {
     input: UpdateInventoryItemDto,
     actor: ResolvedActor,
   ): Promise<InventoryItemResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const sets: string[] = [];
     const params: unknown[] = [];
     const push = (col: string, val: unknown): void => {
@@ -290,7 +323,7 @@ export class InventoryService {
     input: ReceiveInventoryDto,
     actor: ResolvedActor,
   ): Promise<InventoryTransactionResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     return this.movement('RECEIPT', input.groupId, input.itemId, input.quantity, actor, {
       notes: input.notes,
     });
@@ -300,7 +333,7 @@ export class InventoryService {
     input: UsageInventoryDto,
     actor: ResolvedActor,
   ): Promise<InventoryTransactionResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     return this.movement('USAGE', input.groupId, input.itemId, -input.quantity, actor, {
       notes: input.notes,
       relatedSessionId: input.relatedSessionId,
@@ -311,7 +344,7 @@ export class InventoryService {
     input: WasteInventoryDto,
     actor: ResolvedActor,
   ): Promise<InventoryTransactionResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     return this.movement('WASTE', input.groupId, input.itemId, -input.quantity, actor, {
       notes: input.notes,
     });
@@ -327,23 +360,32 @@ export class InventoryService {
     input: StocktakeInventoryDto,
     actor: ResolvedActor,
   ): Promise<InventoryTransactionResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
     let txnDto: InventoryTransactionResponseDto | null = null;
-    let crossedBelow = false;
-    let reorderThreshold: number | null = null;
-    let priorQty = 0;
-    let newQty = 0;
-    let itemNameForEvent = '';
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Lock or create the level row.
+      let crossedBelow = false;
+      let reorderThreshold: number | null = null;
+      let priorQty = 0;
+      let newQty = 0;
+      let itemNameForEvent = '';
+
+      // REVIEW-P2-10a ROUND 1 BLOCKING 2 — existing-level lock JOINs
+      // both fds_inventory_groups + fds_inventory_items and requires
+      // both rows' school_id = $tenant.schoolId. A School A actor
+      // providing a (groupId, itemId) pair that exists in School B
+      // can no longer lock and update the foreign-school level row.
       const locked = (await tx.$queryRawUnsafe(
         'SELECT l.id::text AS id, l.quantity_on_hand AS quantity_on_hand, i.reorder_threshold AS reorder_threshold, i.name AS item_name, i.school_id::text AS school_id ' +
-          'FROM fds_inventory_levels l JOIN fds_inventory_items i ON i.id = l.item_id ' +
-          'WHERE l.group_id = $1::uuid AND l.item_id = $2::uuid FOR UPDATE OF l',
+          'FROM fds_inventory_levels l ' +
+          'JOIN fds_inventory_groups g ON g.id = l.group_id ' +
+          'JOIN fds_inventory_items i ON i.id = l.item_id ' +
+          'WHERE l.group_id = $1::uuid AND l.item_id = $2::uuid ' +
+          'AND g.school_id = $3::uuid AND i.school_id = $3::uuid FOR UPDATE OF l',
         input.groupId,
         input.itemId,
+        tenant.schoolId,
       )) as Array<{
         id: string;
         quantity_on_hand: number;
@@ -355,11 +397,16 @@ export class InventoryService {
       if (locked.length === 0) {
         // Verify the item + group belong to this tenant before creating.
         const item = (await tx.$queryRawUnsafe(
-          'SELECT name, reorder_threshold FROM fds_inventory_items WHERE id = $1::uuid AND school_id = $2::uuid',
+          'SELECT i.name, i.reorder_threshold ' +
+            'FROM fds_inventory_items i ' +
+            'JOIN fds_inventory_groups g ON g.school_id = i.school_id ' +
+            'WHERE i.id = $1::uuid AND g.id = $2::uuid AND i.school_id = $3::uuid',
           input.itemId,
+          input.groupId,
           tenant.schoolId,
         )) as Array<{ name: string; reorder_threshold: number | null }>;
-        if (item.length === 0) throw new NotFoundException('Inventory item not found');
+        if (item.length === 0)
+          throw new NotFoundException('Inventory item or group not found for this school');
         levelId = generateId();
         await tx.$executeRawUnsafe(
           'INSERT INTO fds_inventory_levels (id, group_id, item_id, quantity_on_hand) VALUES ($1::uuid, $2::uuid, $3::uuid, 0)',
@@ -406,19 +453,36 @@ export class InventoryService {
 
       crossedBelow =
         reorderThreshold !== null && priorQty > reorderThreshold && newQty <= reorderThreshold;
+
+      // REVIEW-P2-10a ROUND 1 BLOCKING 3 — durable outbox emit
+      // INSIDE the tx that bumped the level + wrote the immutable
+      // transaction. If the broker is down the outbox row commits
+      // with the parent tx and the OutboxPublisherWorker publishes
+      // when the broker comes back. Deterministic event_id keys on
+      // the transaction id so retries dedup cleanly downstream.
+      if (crossedBelow) {
+        await this.outbox.enqueueInTx(tx as unknown as OutboxTxClient, {
+          topic: 'fds.inventory.low',
+          key: input.itemId,
+          sourceModule: 'food-service',
+          eventId: deterministicInventoryLowEventId(txnId),
+          payload: {
+            schoolId: tenant.schoolId,
+            groupId: input.groupId,
+            itemId: input.itemId,
+            itemName: itemNameForEvent,
+            previousQuantity: priorQty,
+            newQuantity: newQty,
+            reorderThreshold: reorderThreshold!,
+            transactionId: txnId,
+          },
+        });
+      }
     });
 
-    if (crossedBelow && txnDto !== null) {
-      const dtoLocal = txnDto as InventoryTransactionResponseDto;
-      await this.emitInventoryLow({
-        groupId: dtoLocal.groupId,
-        itemId: dtoLocal.itemId,
-        itemName: itemNameForEvent,
-        previousQuantity: priorQty,
-        newQuantity: newQty,
-        reorderThreshold: reorderThreshold!,
-      });
-    }
+    // REVIEW-P2-10a ROUND 1 BLOCKING 3 — emit is enqueued in the
+    // tx above via OutboxService.enqueueInTx, not via a post-tx
+    // best-effort call.
     if (!txnDto) {
       throw new Error('Stocktake transaction failed to materialise');
     }
@@ -445,20 +509,28 @@ export class InventoryService {
     }
     const tenant = getCurrentTenant();
     let txnDto: InventoryTransactionResponseDto | null = null;
-    let crossedBelow = false;
-    let reorderThreshold: number | null = null;
-    let priorQty = 0;
-    let newQty = 0;
-    let itemNameForEvent = '';
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Verify item + group + lock the level row (creating if missing).
+      let crossedBelow = false;
+      let reorderThreshold: number | null = null;
+      let priorQty = 0;
+      let newQty = 0;
+      let itemNameForEvent = '';
+
+      // REVIEW-P2-10a ROUND 1 BLOCKING 2 — existing-level lock JOINs
+      // both fds_inventory_groups + fds_inventory_items and requires
+      // both rows' school_id = $tenant.schoolId. Mirror of the
+      // stocktake fix.
       const locked = (await tx.$queryRawUnsafe(
         'SELECT l.id::text AS id, l.quantity_on_hand AS quantity_on_hand, i.reorder_threshold AS reorder_threshold, i.name AS item_name, i.school_id::text AS school_id ' +
-          'FROM fds_inventory_levels l JOIN fds_inventory_items i ON i.id = l.item_id ' +
-          'WHERE l.group_id = $1::uuid AND l.item_id = $2::uuid FOR UPDATE OF l',
+          'FROM fds_inventory_levels l ' +
+          'JOIN fds_inventory_groups g ON g.id = l.group_id ' +
+          'JOIN fds_inventory_items i ON i.id = l.item_id ' +
+          'WHERE l.group_id = $1::uuid AND l.item_id = $2::uuid ' +
+          'AND g.school_id = $3::uuid AND i.school_id = $3::uuid FOR UPDATE OF l',
         groupId,
         itemId,
+        tenant.schoolId,
       )) as Array<{
         id: string;
         quantity_on_hand: number;
@@ -534,19 +606,31 @@ export class InventoryService {
 
       crossedBelow =
         reorderThreshold !== null && priorQty > reorderThreshold && newQty <= reorderThreshold;
+
+      // REVIEW-P2-10a ROUND 1 BLOCKING 3 — durable outbox emit INSIDE
+      // the same tx that bumped the level + wrote the immutable
+      // transaction. Deterministic event_id keys on the transaction
+      // id so retries dedup cleanly downstream.
+      if (crossedBelow) {
+        await this.outbox.enqueueInTx(tx as unknown as OutboxTxClient, {
+          topic: 'fds.inventory.low',
+          key: itemId,
+          sourceModule: 'food-service',
+          eventId: deterministicInventoryLowEventId(txnId),
+          payload: {
+            schoolId: tenant.schoolId,
+            groupId,
+            itemId,
+            itemName: itemNameForEvent,
+            previousQuantity: priorQty,
+            newQuantity: newQty,
+            reorderThreshold: reorderThreshold!,
+            transactionId: txnId,
+          },
+        });
+      }
     });
 
-    if (crossedBelow && txnDto !== null) {
-      const dtoLocal = txnDto as InventoryTransactionResponseDto;
-      await this.emitInventoryLow({
-        groupId: dtoLocal.groupId,
-        itemId: dtoLocal.itemId,
-        itemName: itemNameForEvent,
-        previousQuantity: priorQty,
-        newQuantity: newQty,
-        reorderThreshold: reorderThreshold!,
-      });
-    }
     if (!txnDto) {
       throw new Error('Inventory transaction failed to materialise');
     }
@@ -589,30 +673,13 @@ export class InventoryService {
     };
   }
 
-  private async emitInventoryLow(opts: {
-    groupId: string;
-    itemId: string;
-    itemName: string;
-    previousQuantity: number;
-    newQuantity: number;
-    reorderThreshold: number;
-  }): Promise<void> {
-    const tenant = getCurrentTenant();
-    await this.kafka.emit({
-      topic: 'fds.inventory.low',
-      key: opts.itemId,
-      sourceModule: 'food-service',
-      payload: {
-        schoolId: tenant.schoolId,
-        groupId: opts.groupId,
-        itemId: opts.itemId,
-        itemName: opts.itemName,
-        previousQuantity: opts.previousQuantity,
-        newQuantity: opts.newQuantity,
-        reorderThreshold: opts.reorderThreshold,
-      },
-    });
-  }
+  // REVIEW-P2-10a ROUND 1 BLOCKING 3 — the legacy `emitInventoryLow`
+  // helper that used best-effort `KafkaProducerService.emit` after the
+  // tenant tx committed has been removed. `fds.inventory.low` is now
+  // enqueued via `OutboxService.enqueueInTx` INSIDE the same tx that
+  // updated the level row + wrote the immutable transaction, so a
+  // broker outage no longer drops the notification request after the
+  // stock state has been committed.
 
   /**
    * List transactions for an item or group with pagination cursor.

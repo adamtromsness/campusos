@@ -1109,6 +1109,17 @@ async function seedIam() {
         // FDS-001..004; pre-pilot, a dedicated FSM role holds these
         // codes alone.
         'FDS-005': ['read', 'write'],
+        // REVIEW-P2-10a ROUND 1 BLOCKING 4 — Food Service
+        // Administration. Generic "STAFF personType" no longer
+        // implies food-service administrative authority. The
+        // recipe/inventory/transfer/staff-meal services now gate
+        // mutation paths on FDS-006:write specifically, so a
+        // generic Staff user without FDS-006 is refused even
+        // though they hold the broader FDS-001..005 surfaces.
+        // Joins the broader role-split work in the Wave 2 Phase 2
+        // punch list — pre-pilot, a dedicated Food Service Manager
+        // role would hold FDS-006 alone.
+        'FDS-006': ['read', 'write'],
         // Cycle 21 — Facilities Management. Staff covers the
         // Facilities Manager (FM) — the eighth specialist operator
         // persona. Per REVIEW-CYCLE21 BLOCKING 1, the FAC-001 admin

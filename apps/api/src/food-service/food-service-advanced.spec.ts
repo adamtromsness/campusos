@@ -113,6 +113,47 @@ function makeKafka() {
   return { kafka, emitted };
 }
 
+/**
+ * REVIEW-P2-10a ROUND 1 BLOCKING 3 — OutboxService stub that captures
+ * every `enqueueInTx` call so specs can assert the durable emit
+ * keystone fires inside the tx with the deterministic event_id.
+ */
+function makeOutbox() {
+  const enqueued: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    eventId?: string;
+    payload: Record<string, unknown>;
+  }> = [];
+  const outbox = {
+    enqueueInTx: vi.fn(async (_tx: unknown, opts: any) => {
+      enqueued.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+      return 'outbox-id';
+    }),
+  };
+  return { outbox, enqueued };
+}
+
+/**
+ * REVIEW-P2-10a ROUND 1 BLOCKING 4 — PermissionCheckService stub.
+ * Default returns `true` so tests that rely on the FDS-006 gate
+ * passing continue to work. Override to `false` for the
+ * "generic STAFF without FDS-006" denial tests.
+ */
+function makePermCheck(opts: { allow?: boolean } = {}) {
+  const allow = opts.allow ?? true;
+  return {
+    hasAnyPermissionInTenant: vi.fn(async () => allow),
+  };
+}
+
 // ── 1. Recipe addIngredient triggers allergen UNION + cost recompute ────
 
 describe('RecipeService — auto-compute allergens + cost_per_serving', () => {
@@ -167,7 +208,7 @@ describe('RecipeService — auto-compute allergens + cost_per_serving', () => {
       }
       return [];
     });
-    const svc = new RecipeService(fake.tenantPrisma as never);
+    const svc = new RecipeService(fake.tenantPrisma as never, makePermCheck() as never);
     // RecipeService.addIngredient calls getById at the end which uses
     // tenantContext to read both recipe + ingredients. The fake handler
     // returns the parent FOR UPDATE row for the lock, then triggers the
@@ -243,7 +284,7 @@ describe('RecipeService.deleteIngredient', () => {
       }
       return [];
     });
-    const svc = new RecipeService(fake.tenantPrisma as never);
+    const svc = new RecipeService(fake.tenantPrisma as never, makePermCheck() as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.deleteIngredient('ing1', ADMIN_ACTOR),
     );
@@ -271,7 +312,7 @@ describe('RecipeService.getScaling', () => {
       }
       return [];
     });
-    const svc = new RecipeService(fake.tenantPrisma as never);
+    const svc = new RecipeService(fake.tenantPrisma as never, makePermCheck() as never);
     const result = await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.getScaling('r1', 250),
     );
@@ -287,7 +328,7 @@ describe('RecipeService.getScaling', () => {
 
   it('refuses non-positive targetServings', async () => {
     const fake = makeFake(() => []);
-    const svc = new RecipeService(fake.tenantPrisma as never);
+    const svc = new RecipeService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () => svc.getScaling('r1', 0)),
     ).rejects.toThrow(BadRequestException);
@@ -335,7 +376,11 @@ describe('IMMUTABLE invariant — fds_inventory_transactions', () => {
 describe('InventoryService — fds.inventory.low emit gating', () => {
   it('RECEIPT that lands above threshold does not emit fds.inventory.low', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('FROM fds_inventory_levels l JOIN fds_inventory_items i')) {
+      if (
+        call.sql.includes('FROM fds_inventory_levels l') &&
+        call.sql.includes('JOIN fds_inventory_groups g') &&
+        call.sql.includes('JOIN fds_inventory_items i')
+      ) {
         // Prior on-hand 50, threshold 30
         return [
           {
@@ -365,13 +410,19 @@ describe('InventoryService — fds.inventory.low emit gating', () => {
       }
       return [];
     });
-    const { kafka, emitted } = makeKafka();
-    const svc = new InventoryService(fake.tenantPrisma as never, kafka as never);
+    const { kafka } = makeKafka();
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new InventoryService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck() as never,
+    );
+    void kafka;
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.receive({ groupId: 'g1', itemId: 'i1', quantity: 10 }, ADMIN_ACTOR),
     );
-    // After RECEIPT new on-hand = 60, still above 30 — no emit.
-    const lows = emitted.filter((e) => e.topic === 'fds.inventory.low');
+    // After RECEIPT new on-hand = 60, still above 30 — no outbox enqueue.
+    const lows = enqueued.filter((e) => e.topic === 'fds.inventory.low');
     expect(lows).toEqual([]);
   });
 });
@@ -381,7 +432,11 @@ describe('InventoryService — fds.inventory.low emit gating', () => {
 describe('InventoryService — USAGE crossing reorder_threshold downward', () => {
   it('emits fds.inventory.low with ADR-057 envelope shape', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('FROM fds_inventory_levels l JOIN fds_inventory_items i')) {
+      if (
+        call.sql.includes('FROM fds_inventory_levels l') &&
+        call.sql.includes('JOIN fds_inventory_groups g') &&
+        call.sql.includes('JOIN fds_inventory_items i')
+      ) {
         return [
           {
             id: 'l1',
@@ -410,16 +465,30 @@ describe('InventoryService — USAGE crossing reorder_threshold downward', () =>
       }
       return [];
     });
-    const { kafka, emitted } = makeKafka();
-    const svc = new InventoryService(fake.tenantPrisma as never, kafka as never);
+    const { kafka } = makeKafka();
+    // REVIEW-P2-10a ROUND 1 BLOCKING 3 — assertion switched from
+    // KafkaProducerService.emit (best-effort, post-commit) to the
+    // OutboxService.enqueueInTx call inside the same tenant tx.
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new InventoryService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck() as never,
+    );
+    void kafka;
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.usage({ groupId: 'g1', itemId: 'i1', quantity: 10 }, ADMIN_ACTOR),
     );
-    // Prior 35, after -10 = 25; threshold 30; crossed downward — emit.
-    const lows = emitted.filter((e) => e.topic === 'fds.inventory.low');
+    // Prior 35, after -10 = 25; threshold 30; crossed downward —
+    // outbox enqueue fired.
+    const lows = enqueued.filter((e) => e.topic === 'fds.inventory.low');
     expect(lows).toHaveLength(1);
     expect(lows[0]!.sourceModule).toBe('food-service');
     expect(lows[0]!.key).toBe('i1');
+    // Deterministic event_id v5-shape, keyed on transactionId.
+    expect(lows[0]!.eventId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
     expect(lows[0]!.payload).toMatchObject({
       schoolId: SCHOOL.schoolId,
       groupId: 'g1',
@@ -483,7 +552,7 @@ describe('TransferService.complete — paired transactions + shared ref', () => 
       }
       return [];
     });
-    const svc = new TransferService(fake.tenantPrisma as never);
+    const svc = new TransferService(fake.tenantPrisma as never, makePermCheck() as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () => svc.complete('tr1', ADMIN_ACTOR));
     expect(inserts).toHaveLength(2);
     // Both inserts share transfer_reference_id (positional arg 7).
@@ -518,7 +587,7 @@ describe('TransferService.complete — paired transactions + shared ref', () => 
       }
       return [];
     });
-    const svc = new TransferService(fake.tenantPrisma as never);
+    const svc = new TransferService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () => svc.complete('tr1', ADMIN_ACTOR)),
     ).rejects.toThrow(BadRequestException);
@@ -538,7 +607,7 @@ describe('StaffMealService.charge', () => {
       }
       return [];
     });
-    const svc = new StaffMealService(fake.tenantPrisma as never);
+    const svc = new StaffMealService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.charge('a1', { amount: 5.0 }, ADMIN_ACTOR),
@@ -560,7 +629,7 @@ describe('StaffMealService.charge', () => {
       }
       return [];
     });
-    const svc = new StaffMealService(fake.tenantPrisma as never);
+    const svc = new StaffMealService(fake.tenantPrisma as never, makePermCheck() as never);
     // For getById final read after charge:
     fake.client.$queryRawUnsafe = (async (sql: string, ...args: unknown[]) => {
       if (sql.includes('FROM fds_staff_meal_accounts WHERE id') && sql.includes('FOR UPDATE')) {
@@ -598,7 +667,7 @@ describe('StaffMealService.charge', () => {
       }
       return [];
     });
-    const svc = new StaffMealService(fake.tenantPrisma as never);
+    const svc = new StaffMealService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.charge('a1', { amount: 20.0 }, ADMIN_ACTOR),
@@ -611,8 +680,14 @@ describe('StaffMealService.charge', () => {
 
 describe('P2-10a permission gates', () => {
   it('RecipeService refuses STUDENT actor at assertCanManage', async () => {
+    // REVIEW-P2-10a ROUND 1 BLOCKING 4 — STUDENT does not hold
+    // FDS-006:write so the permission-check stub returns false; the
+    // service throws Forbidden.
     const fake = makeFake(() => []);
-    const svc = new RecipeService(fake.tenantPrisma as never);
+    const svc = new RecipeService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.create({ name: 'X', category: 'ENTREE', servingYield: 1 }, STUDENT_ACTOR),
@@ -623,7 +698,13 @@ describe('P2-10a permission gates', () => {
   it('InventoryService refuses STUDENT actor at assertCanManage', async () => {
     const fake = makeFake(() => []);
     const { kafka } = makeKafka();
-    const svc = new InventoryService(fake.tenantPrisma as never, kafka as never);
+    const outbox = makeOutbox().outbox;
+    const svc = new InventoryService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    void kafka;
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.receive({ groupId: 'g1', itemId: 'i1', quantity: 1 }, STUDENT_ACTOR),
@@ -633,7 +714,10 @@ describe('P2-10a permission gates', () => {
 
   it('TransferService refuses STUDENT actor at assertCanManage', async () => {
     const fake = makeFake(() => []);
-    const svc = new TransferService(fake.tenantPrisma as never);
+    const svc = new TransferService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.create(
@@ -646,7 +730,10 @@ describe('P2-10a permission gates', () => {
 
   it('StaffMealService refuses STUDENT actor at assertCanManage', async () => {
     const fake = makeFake(() => []);
-    const svc = new StaffMealService(fake.tenantPrisma as never);
+    const svc = new StaffMealService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.create({ employeeId: 'e1' }, STUDENT_ACTOR),
@@ -656,7 +743,11 @@ describe('P2-10a permission gates', () => {
 
   it('STAFF actor passes assertCanManage on InventoryService.receive', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('FROM fds_inventory_levels l JOIN fds_inventory_items i')) {
+      if (
+        call.sql.includes('FROM fds_inventory_levels l') &&
+        call.sql.includes('JOIN fds_inventory_groups g') &&
+        call.sql.includes('JOIN fds_inventory_items i')
+      ) {
         return [
           {
             id: 'l1',
@@ -686,7 +777,13 @@ describe('P2-10a permission gates', () => {
       return [];
     });
     const { kafka } = makeKafka();
-    const svc = new InventoryService(fake.tenantPrisma as never, kafka as never);
+    const outbox = makeOutbox().outbox;
+    const svc = new InventoryService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck() as never,
+    );
+    void kafka;
     // Should not throw.
     const dto = await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.receive({ groupId: 'g1', itemId: 'i1', quantity: 5 }, STAFF_ACTOR),
@@ -731,7 +828,7 @@ describe('FoodServiceAdvancedController — @RequirePermission metadata', () => 
 describe('Recipe/Transfer/StaffMeal NotFoundException propagation', () => {
   it('RecipeService.getById throws NotFoundException for missing id', async () => {
     const fake = makeFake(() => []);
-    const svc = new RecipeService(fake.tenantPrisma as never);
+    const svc = new RecipeService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () => svc.getById('missing')),
     ).rejects.toThrow(NotFoundException);
@@ -739,7 +836,7 @@ describe('Recipe/Transfer/StaffMeal NotFoundException propagation', () => {
 
   it('TransferService.getById throws NotFoundException for missing id', async () => {
     const fake = makeFake(() => []);
-    const svc = new TransferService(fake.tenantPrisma as never);
+    const svc = new TransferService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () => svc.getById('missing')),
     ).rejects.toThrow(NotFoundException);
@@ -747,7 +844,7 @@ describe('Recipe/Transfer/StaffMeal NotFoundException propagation', () => {
 
   it('StaffMealService.getByEmployee throws NotFoundException for missing employee', async () => {
     const fake = makeFake(() => []);
-    const svc = new StaffMealService(fake.tenantPrisma as never);
+    const svc = new StaffMealService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () => svc.getByEmployee('missing')),
     ).rejects.toThrow(NotFoundException);
@@ -1351,5 +1448,319 @@ describe('PreorderService.generateProductionReport', () => {
     expect(result.totalOrders).toBe(3);
     expect(result.itemBreakdown[0]!.menuItemName).toBe('Veggie Pasta');
     expect(result.dietaryBreakdown[0]!.allergen).toBe('WHEAT');
+  });
+});
+
+// ─── REVIEW-P2-10a ROUND 1 fixes ─────────────────────────────────────
+
+describe('REVIEW-P2-10a ROUND 1 — BLOCKING 1 recipe ingredient school-scope', () => {
+  it('addIngredient lock includes school_id predicate', async () => {
+    const capturedSql: string[] = [];
+    const fake = makeFake((call) => {
+      capturedSql.push(call.sql);
+      if (call.sql.includes('FROM fds_recipes WHERE id') && call.sql.includes('FOR UPDATE')) {
+        return [{ id: 'r1', school_id: SCHOOL.schoolId, serving_yield: 100 }];
+      }
+      if (call.sql.includes('FROM fds_recipe_ingredients WHERE recipe_id')) {
+        return [];
+      }
+      if (call.sql.includes('SELECT serving_yield FROM fds_recipes')) {
+        return [{ serving_yield: 100 }];
+      }
+      if (call.sql.includes('FROM fds_recipes WHERE id') && call.sql.includes('school_id')) {
+        return [
+          {
+            id: 'r1',
+            school_id: SCHOOL.schoolId,
+            name: 'X',
+            category: 'ENTREE',
+            serving_yield: 100,
+            prep_time_minutes: null,
+            cook_time_minutes: null,
+            instructions: null,
+            allergens: [],
+            cost_per_serving: null,
+            menu_item_id: null,
+            is_active: true,
+            created_by: ADMIN_ACTOR.accountId,
+            created_at: new Date(),
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new RecipeService(fake.tenantPrisma as never, makePermCheck() as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.addIngredient(
+        'r1',
+        { ingredientName: 'New', quantity: 1, unit: 'lb', allergens: [], unitCost: 1.5 },
+        ADMIN_ACTOR,
+      ),
+    );
+    const lockSql = capturedSql.find(
+      (s) => s.includes('FROM fds_recipes WHERE id') && s.includes('FOR UPDATE'),
+    );
+    expect(lockSql).toBeDefined();
+    expect(lockSql).toMatch(/WHERE id = \$1::uuid AND school_id = \$2::uuid/);
+  });
+
+  it('addIngredient with cross-school inventoryItemId is refused with 400', async () => {
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM fds_recipes WHERE id') && call.sql.includes('FOR UPDATE')) {
+        return [{ id: 'r1', school_id: SCHOOL.schoolId, serving_yield: 100 }];
+      }
+      if (
+        call.sql.includes('FROM fds_inventory_items WHERE id') &&
+        call.sql.includes('school_id')
+      ) {
+        return []; // No match — cross-school inventoryItemId
+      }
+      return [];
+    });
+    const svc = new RecipeService(fake.tenantPrisma as never, makePermCheck() as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.addIngredient(
+          'r1',
+          {
+            ingredientName: 'Cross-school',
+            quantity: 1,
+            unit: 'lb',
+            allergens: [],
+            unitCost: 1.0,
+            inventoryItemId: '019e0cf8-bbbb-7000-bbbb-000000000099',
+          },
+          ADMIN_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('updateIngredient JOIN includes r.school_id predicate', async () => {
+    const capturedSql: string[] = [];
+    const fake = makeFake((call) => {
+      capturedSql.push(call.sql);
+      return [];
+    });
+    const svc = new RecipeService(fake.tenantPrisma as never, makePermCheck() as never);
+    // ingredient not found → throws, but the JOIN SQL is captured.
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.updateIngredient('bogus', { ingredientName: 'X' }, ADMIN_ACTOR),
+      ),
+    ).rejects.toThrow(NotFoundException);
+    const joinSql = capturedSql.find(
+      (s) =>
+        s.includes('FROM fds_recipe_ingredients i') &&
+        s.includes('JOIN fds_recipes r ON r.id = i.recipe_id'),
+    );
+    expect(joinSql).toBeDefined();
+    expect(joinSql).toContain('AND r.school_id = $2::uuid');
+  });
+});
+
+describe('REVIEW-P2-10a ROUND 1 — BLOCKING 2 inventory existing-level school-scope', () => {
+  it('movement existing-level lock SQL JOINs both groups and items with school predicates', async () => {
+    const capturedSql: string[] = [];
+    const fake = makeFake((call) => {
+      capturedSql.push(call.sql);
+      // Return no row so we exercise the new-level "verify" path. The
+      // SQL capture from the FIRST query (the existing-level lock) is
+      // what we're asserting on.
+      if (call.sql.includes('FROM fds_inventory_items i JOIN fds_inventory_groups g')) {
+        return [{ name: 'X', reorder_threshold: null, school_id: SCHOOL.schoolId }];
+      }
+      if (call.sql.includes('FROM fds_inventory_transactions WHERE id')) {
+        return [
+          {
+            id: 't1',
+            group_id: 'g1',
+            item_id: 'i1',
+            transaction_type: 'RECEIPT',
+            quantity_delta: 1,
+            performed_by: ADMIN_ACTOR.accountId,
+            transaction_at: new Date(),
+            transfer_reference_id: null,
+            related_session_id: null,
+            notes: null,
+          },
+        ];
+      }
+      return [];
+    });
+    const { outbox } = makeOutbox();
+    const svc = new InventoryService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck() as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.receive({ groupId: 'g1', itemId: 'i1', quantity: 1 }, ADMIN_ACTOR),
+    );
+    const lockSql = capturedSql.find(
+      (s) => s.includes('FROM fds_inventory_levels l') && s.includes('FOR UPDATE OF l'),
+    );
+    expect(lockSql).toBeDefined();
+    expect(lockSql).toContain('JOIN fds_inventory_groups g ON g.id = l.group_id');
+    expect(lockSql).toContain('JOIN fds_inventory_items i ON i.id = l.item_id');
+    expect(lockSql).toContain('g.school_id = $3::uuid');
+    expect(lockSql).toContain('i.school_id = $3::uuid');
+  });
+});
+
+describe('REVIEW-P2-10a ROUND 1 — BLOCKING 3 fds.inventory.low durable outbox', () => {
+  it('deterministicInventoryLowEventId is stable + v5-shaped', async () => {
+    const { deterministicInventoryLowEventId } = await import('./inventory.service');
+    const id1 = deterministicInventoryLowEventId('019e0cf8-aaaa-7000-aaaa-000000000abc');
+    const id2 = deterministicInventoryLowEventId('019e0cf8-aaaa-7000-aaaa-000000000abc');
+    expect(id1).toBe(id2);
+    expect(id1).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    // Different transaction id → different event id.
+    const id3 = deterministicInventoryLowEventId('019e0cf8-aaaa-7000-aaaa-000000000def');
+    expect(id3).not.toBe(id1);
+  });
+
+  it('emit is enqueued via outbox.enqueueInTx INSIDE the tenant tx, never via kafka.emit', async () => {
+    const fake = makeFake((call) => {
+      if (
+        call.sql.includes('FROM fds_inventory_levels l') &&
+        call.sql.includes('JOIN fds_inventory_groups g') &&
+        call.sql.includes('JOIN fds_inventory_items i')
+      ) {
+        return [
+          {
+            id: 'l1',
+            quantity_on_hand: 35,
+            reorder_threshold: 30,
+            item_name: 'Chicken',
+            school_id: SCHOOL.schoolId,
+          },
+        ];
+      }
+      if (call.sql.includes('FROM fds_inventory_transactions WHERE id')) {
+        return [
+          {
+            id: 't1',
+            group_id: 'g1',
+            item_id: 'i1',
+            transaction_type: 'USAGE',
+            quantity_delta: -10,
+            performed_by: ADMIN_ACTOR.accountId,
+            transaction_at: new Date(),
+            transfer_reference_id: null,
+            related_session_id: null,
+            notes: null,
+          },
+        ];
+      }
+      return [];
+    });
+    const { kafka, emitted } = makeKafka();
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new InventoryService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck() as never,
+    );
+    void kafka;
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.usage({ groupId: 'g1', itemId: 'i1', quantity: 10 }, ADMIN_ACTOR),
+    );
+    // BLOCKING 3 contract — emit via outbox, not via best-effort kafka.
+    expect(emitted).toEqual([]);
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]!.topic).toBe('fds.inventory.low');
+    expect(enqueued[0]!.eventId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+  });
+});
+
+describe('REVIEW-P2-10a ROUND 1 — BLOCKING 4 generic STAFF refused without FDS-006', () => {
+  it('generic STAFF without fds-006:write cannot mutate recipes', async () => {
+    const fake = makeFake(() => []);
+    const svc = new RecipeService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.create({ name: 'X', category: 'ENTREE', servingYield: 1 }, STAFF_ACTOR),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('generic STAFF without fds-006:write cannot mutate inventory', async () => {
+    const fake = makeFake(() => []);
+    const { outbox } = makeOutbox();
+    const svc = new InventoryService(
+      fake.tenantPrisma as never,
+      outbox as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.receive({ groupId: 'g1', itemId: 'i1', quantity: 1 }, STAFF_ACTOR),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('generic STAFF without fds-006:write cannot mutate transfers', async () => {
+    const fake = makeFake(() => []);
+    const svc = new TransferService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.create({ fromGroupId: 'g1', toGroupId: 'g2', itemId: 'i1', quantity: 1 }, STAFF_ACTOR),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('generic STAFF without fds-006:write cannot mutate staff meal accounts', async () => {
+    const fake = makeFake(() => []);
+    const svc = new StaffMealService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.create({ employeeId: 'e1' }, STAFF_ACTOR),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+});
+
+describe('REVIEW-P2-10a ROUND 1 — MAJOR 5 staff meal patch school-scope', () => {
+  it('patch UPDATE includes school_id predicate', async () => {
+    const capturedSql: string[] = [];
+    const fake = makeFake((call) => {
+      capturedSql.push(call.sql);
+      if (call.sql.includes('UPDATE fds_staff_meal_accounts SET')) {
+        return 1; // simulate 1 row updated
+      }
+      // Return a row for getById reload after patch.
+      if (call.sql.includes('FROM fds_staff_meal_accounts')) {
+        return [
+          {
+            id: 'a1',
+            employee_id: 'e1',
+            school_id: SCHOOL.schoolId,
+            balance: 0,
+            deduction_method: 'PAYROLL',
+            daily_limit: null,
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new StaffMealService(fake.tenantPrisma as never, makePermCheck() as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.patch('a1', { deductionMethod: 'PREPAID' }, ADMIN_ACTOR),
+    );
+    const updateSql = capturedSql.find((s) => s.includes('UPDATE fds_staff_meal_accounts SET'));
+    expect(updateSql).toBeDefined();
+    expect(updateSql).toMatch(/AND school_id = \$\d+::uuid/);
   });
 });

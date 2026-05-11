@@ -1,13 +1,10 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { assertFsmAdminScope } from './fsm-scope';
 import {
   CreateTransferRequestDto,
   TransferDecisionDto,
@@ -34,14 +31,18 @@ import {
  */
 @Injectable()
 export class TransferService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
-  private assertCanManage(actor: ResolvedActor): void {
-    if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
-    throw new ForbiddenException(
-      'Only school admins or food service staff can manage inventory transfers',
-    );
+  /**
+   * REVIEW-P2-10a ROUND 1 BLOCKING 4 — every transfer mutation gates
+   * on FDS-006:write (Food Service Administration) instead of the
+   * broad `personType === 'STAFF'` check.
+   */
+  private async assertCanManage(actor: ResolvedActor): Promise<void> {
+    await assertFsmAdminScope(this.permCheck, actor, 'manage inventory transfers');
   }
 
   async list(args: { status?: TransferStatus }): Promise<TransferRequestResponseDto[]> {
@@ -78,7 +79,7 @@ export class TransferService {
     input: CreateTransferRequestDto,
     actor: ResolvedActor,
   ): Promise<TransferRequestResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     if (input.fromGroupId === input.toGroupId) {
       throw new BadRequestException('fromGroupId and toGroupId must be different');
     }
@@ -134,7 +135,7 @@ export class TransferService {
     input: TransferDecisionDto,
     actor: ResolvedActor,
   ): Promise<TransferRequestResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const locked = (await tx.$queryRawUnsafe(
@@ -169,7 +170,7 @@ export class TransferService {
    * inside one locked tenant tx.
    */
   async complete(id: string, actor: ResolvedActor): Promise<TransferRequestResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const locked = (await tx.$queryRawUnsafe(
@@ -288,7 +289,7 @@ export class TransferService {
   }
 
   async cancel(id: string, actor: ResolvedActor): Promise<TransferRequestResponseDto> {
-    this.assertCanManage(actor);
+    await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const locked = (await tx.$queryRawUnsafe(
