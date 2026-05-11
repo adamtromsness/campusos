@@ -8,6 +8,7 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { PermissionCheckService } from '../iam/permission-check.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   TRANSCRIPT_REQUEST_STATUSES,
@@ -24,6 +25,7 @@ import {
   type TranscriptStatus,
   type TranscriptType,
 } from './dto/sis-transcripts.dto';
+import { deterministicTranscriptFeeRequestedEventId } from './event-ids';
 
 interface TranscriptRow {
   id: string;
@@ -128,6 +130,7 @@ export class TranscriptService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permissions: PermissionCheckService,
+    private readonly outbox: OutboxService,
   ) {}
 
   // ─── Mapping helpers ───
@@ -226,38 +229,72 @@ export class TranscriptService {
 
   private async resolveOwnStudentId(actor: ResolvedActor): Promise<string | null> {
     if (actor.personType !== 'STUDENT') return null;
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = await client.$queryRawUnsafe<Array<{ id: string }>>(
         'SELECT s.id::text AS id FROM sis_students s ' +
           'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-          'WHERE ps.person_id = $1::uuid LIMIT 1',
+          'WHERE s.school_id = $1::uuid AND ps.person_id = $2::uuid LIMIT 1',
+        tenant.schoolId,
         actor.personId,
       );
       return rows[0]?.id ?? null;
     });
   }
 
+  /**
+   * REVIEW-P2C13 BLOCKING 6 — every read scope check now requires
+   * sis_students.school_id = tenant.schoolId. Even the registrar
+   * bypass is preceded by a student-exists-in-this-school check via
+   * assertStudentInTenant in the request-path callers + the JOIN
+   * predicate inside the buildTranscriptSelectBase SELECT.
+   */
   private async assertCanReadStudent(studentId: string, actor: ResolvedActor): Promise<void> {
-    if (await this.hasRegistrarScope(actor)) return;
+    if (await this.hasRegistrarScope(actor)) {
+      // Registrar / staff still requires the student to belong to the
+      // current school. Cross-school transcript reads by UUID are
+      // refused at the JOIN predicate inside every SELECT — the
+      // explicit check here gives a friendlier collapsed 404.
+      await this.assertStudentInTenantSoft(studentId);
+      return;
+    }
     if (actor.personType === 'STUDENT') {
       const ownId = await this.resolveOwnStudentId(actor);
       if (ownId === studentId) return;
       throw new NotFoundException('Student not found');
     }
     if (actor.personType === 'GUARDIAN') {
+      const tenant = getCurrentTenant();
       const linked = await this.tenantPrisma.executeInTenantContext(async (client) =>
         client.$queryRawUnsafe<Array<{ ok: number }>>(
           'SELECT 1 AS ok FROM sis_student_guardians sg ' +
             'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
+            'JOIN sis_students s ON s.id = sg.student_id ' +
+            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid ' +
+            'AND s.school_id = $3::uuid LIMIT 1',
           studentId,
           actor.personId,
+          tenant.schoolId,
         ),
       );
       if (linked.length > 0) return;
       throw new NotFoundException('Student not found');
     }
     throw new NotFoundException('Student not found');
+  }
+
+  private async assertStudentInTenantSoft(studentId: string): Promise<void> {
+    const tenant = getCurrentTenant();
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
+      client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        studentId,
+        tenant.schoolId,
+      ),
+    );
+    if (rows.length === 0) {
+      throw new NotFoundException('Student not found');
+    }
   }
 
   private async assertStudentInTenant(studentId: string): Promise<void> {
@@ -276,6 +313,13 @@ export class TranscriptService {
 
   // ─── Transcript reads ───
 
+  /**
+   * REVIEW-P2C13 BLOCKING 6 — select base now JOINs sis_students with
+   * the school predicate. Every read goes through this base so a
+   * registrar / parent / student cannot resolve a foreign-school
+   * transcript by guessing the transcript UUID — the JOIN collapses
+   * the result to 0 rows.
+   */
   private buildTranscriptSelectBase(): string {
     return (
       'SELECT t.id::text, t.student_id::text, ' +
@@ -288,52 +332,66 @@ export class TranscriptService {
       't.linked_request_id::text, t.status, ' +
       't.sent_at::text, t.revoked_at::text, t.revoke_reason ' +
       'FROM sis_transcripts t ' +
-      'LEFT JOIN sis_students s ON s.id = t.student_id ' +
+      'JOIN sis_students s ON s.id = t.student_id ' +
       'LEFT JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
       'LEFT JOIN platform.iam_person sip ON sip.id = ps.person_id ' +
       'LEFT JOIN platform.iam_person gp ON gp.id = t.generated_by '
     );
   }
 
-  private async loadCoursesForTranscript(transcriptId: string): Promise<TranscriptCourseRow[]> {
+  private async loadCoursesForTranscript(
+    transcriptId: string,
+    schoolId: string,
+  ): Promise<TranscriptCourseRow[]> {
     return this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<TranscriptCourseRow[]>(
-        'SELECT id::text, academic_year, term, course_name, course_code, ' +
-          'credits::text, grade, grade_points::text, is_honors, is_ap ' +
-          'FROM sis_transcript_courses WHERE transcript_id = $1::uuid ORDER BY sort_order, academic_year, term',
+        'SELECT tc.id::text, tc.academic_year, tc.term, tc.course_name, tc.course_code, ' +
+          'tc.credits::text, tc.grade, tc.grade_points::text, tc.is_honors, tc.is_ap ' +
+          'FROM sis_transcript_courses tc ' +
+          'JOIN sis_transcripts t ON t.id = tc.transcript_id ' +
+          'JOIN sis_students s ON s.id = t.student_id ' +
+          'WHERE tc.transcript_id = $1::uuid AND s.school_id = $2::uuid ' +
+          'ORDER BY tc.sort_order, tc.academic_year, tc.term',
         transcriptId,
+        schoolId,
       ),
     );
   }
 
   async listForStudent(studentId: string, actor: ResolvedActor): Promise<TranscriptDto[]> {
     await this.assertCanReadStudent(studentId, actor);
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<TranscriptRow[]>(
         this.buildTranscriptSelectBase() +
-          'WHERE t.student_id = $1::uuid ORDER BY t.generated_at DESC',
+          'WHERE t.student_id = $1::uuid AND s.school_id = $2::uuid ' +
+          'ORDER BY t.generated_at DESC',
         studentId,
+        tenant.schoolId,
       ),
     );
     const out: TranscriptDto[] = [];
     for (const r of rows) {
-      const courses = await this.loadCoursesForTranscript(r.id);
+      const courses = await this.loadCoursesForTranscript(r.id, tenant.schoolId);
       out.push(this.rowToDto(r, courses));
     }
     return out;
   }
 
   async getById(id: string, actor: ResolvedActor): Promise<TranscriptDto> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<TranscriptRow[]>(
-        this.buildTranscriptSelectBase() + 'WHERE t.id = $1::uuid LIMIT 1',
+        this.buildTranscriptSelectBase() +
+          'WHERE t.id = $1::uuid AND s.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       ),
     );
     if (rows.length === 0) throw new NotFoundException('Transcript not found');
     const row = rows[0]!;
     await this.assertCanReadStudent(row.student_id, actor);
-    const courses = await this.loadCoursesForTranscript(row.id);
+    const courses = await this.loadCoursesForTranscript(row.id, tenant.schoolId);
     return this.rowToDto(row, courses);
   }
 
@@ -497,15 +555,19 @@ export class TranscriptService {
         sortOrder += 10;
       }
 
-      // If linkedRequestId is set, flip the request to PROCESSING and stamp
-      // processed_at so the requester sees the workflow advance.
+      // If linkedRequestId is set, flip the request to PROCESSING and
+      // stamp processed_at. REVIEW-P2C13 BLOCKING 6 — UPDATE is scoped
+      // by sis_students.school_id through a subselect so a foreign-
+      // school request UUID cannot be advanced from this generate.
       if (dto.linkedRequestId) {
         await tx.$executeRawUnsafe(
-          'UPDATE sis_transcript_requests SET status = ' +
-            "CASE WHEN status = 'SUBMITTED' THEN 'PROCESSING' ELSE status END, " +
-            'processed_at = COALESCE(processed_at, now()), updated_at = now() ' +
-            'WHERE id = $1::uuid',
+          'UPDATE sis_transcript_requests r SET status = ' +
+            "CASE WHEN r.status = 'SUBMITTED' THEN 'PROCESSING' ELSE r.status END, " +
+            'processed_at = COALESCE(r.processed_at, now()), updated_at = now() ' +
+            'FROM sis_students s ' +
+            'WHERE r.id = $1::uuid AND s.id = r.student_id AND s.school_id = $2::uuid',
           dto.linkedRequestId,
+          tenant.schoolId,
         );
       }
     });
@@ -530,10 +592,18 @@ export class TranscriptService {
       throw new BadRequestException('revokeReason is required when status=REVOKED.');
     }
 
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C13 BLOCKING 6 — lock + UPDATE both join through
+    // sis_students with the school predicate so a registrar in school
+    // A cannot patch a transcript belonging to school B by guessing
+    // the UUID.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<Array<{ status: string }>>(
-        'SELECT status FROM sis_transcripts WHERE id = $1::uuid FOR UPDATE',
+        'SELECT t.status FROM sis_transcripts t ' +
+          'JOIN sis_students s ON s.id = t.student_id ' +
+          'WHERE t.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF t',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Transcript not found');
       const current = rows[0]!.status as TranscriptStatus;
@@ -559,6 +629,11 @@ export class TranscriptService {
 
   // ─── Requests ───
 
+  /**
+   * REVIEW-P2C13 BLOCKING 6 / 7 — request select base JOINs sis_students
+   * so a foreign-school request UUID never resolves into the caller's
+   * tenant view.
+   */
   private buildRequestSelectBase(): string {
     return (
       'SELECT r.id::text, r.student_id::text, ' +
@@ -571,7 +646,7 @@ export class TranscriptService {
       'r.processed_at::text, r.sent_at::text, r.picked_up_at::text, ' +
       'r.cancelled_at::text, r.cancel_reason, r.created_at::text ' +
       'FROM sis_transcript_requests r ' +
-      'LEFT JOIN sis_students s ON s.id = r.student_id ' +
+      'JOIN sis_students s ON s.id = r.student_id ' +
       'LEFT JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
       'LEFT JOIN platform.iam_person sip ON sip.id = ps.person_id ' +
       'LEFT JOIN platform.iam_person rp ON rp.id = r.requested_by '
@@ -602,11 +677,20 @@ export class TranscriptService {
     const copies = dto.copies ?? 1;
     const feeAmount = dto.feeAmount ?? null;
 
+    // REVIEW-P2C13 BLOCKING 7 — SIS no longer writes pay_invoices /
+    // pay_invoice_line_items directly. Instead the request lands in
+    // sis_transcript_requests and a durable outbox event
+    // sis.transcript_request.fee_requested fires when feeAmount > 0.
+    // The Payments module owns pay_* tables and the Phase 2 follow-up
+    // TranscriptFeeConsumer materialises the invoice + line items and
+    // back-fills linked_invoice_id via an event of its own.
+    //
+    // The family-account validation moves to a soft pre-flight: SIS
+    // still confirms the account exists in this tenant + is ACTIVE so
+    // an invalid request fails fast at submission, but the actual
+    // pay_* row creation is deferred to the Payments consumer.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      let invoiceId: string | null = null;
-
       if (feeAmount !== null && feeAmount > 0) {
-        // Validate family account belongs to this school.
         const accountRows = await tx.$queryRawUnsafe<Array<{ status: string }>>(
           'SELECT status FROM pay_family_accounts WHERE id = $1::uuid AND school_id = $2::uuid',
           dto.familyAccountId,
@@ -622,38 +706,14 @@ export class TranscriptService {
             `Family account is in status ${accountRows[0]!.status}; cannot bill the transcript fee`,
           );
         }
-        const lineTotal = Number((feeAmount * copies).toFixed(2));
-        invoiceId = generateId();
-        await tx.$executeRawUnsafe(
-          'INSERT INTO pay_invoices (id, school_id, family_account_id, title, description, ' +
-            'total_amount, due_date, status) ' +
-            "VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::numeric, NULL, 'DRAFT')",
-          invoiceId,
-          tenant.schoolId,
-          dto.familyAccountId,
-          `Transcript request — ${dto.transcriptType} × ${copies}`,
-          `Transcript request fee for ${dto.recipientName}`,
-          lineTotal.toFixed(2),
-        );
-        await tx.$executeRawUnsafe(
-          'INSERT INTO pay_invoice_line_items (id, invoice_id, fee_schedule_id, description, ' +
-            'quantity, unit_price, total, sort_order) ' +
-            'VALUES ($1::uuid, $2::uuid, NULL, $3, $4::numeric, $5::numeric, $6::numeric, 0)',
-          generateId(),
-          invoiceId,
-          `${dto.transcriptType} transcript`,
-          copies.toFixed(2),
-          feeAmount.toFixed(2),
-          lineTotal.toFixed(2),
-        );
       }
 
       await tx.$executeRawUnsafe(
         'INSERT INTO sis_transcript_requests (id, student_id, requested_by, recipient_name, ' +
           'recipient_address, recipient_email, transcript_type, copies, fee_amount, fee_paid, ' +
           'linked_invoice_id, status, notes) ' +
-          'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::numeric, $10, $11::uuid, ' +
-          "'SUBMITTED', $12)",
+          'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9::numeric, $10, NULL, ' +
+          "'SUBMITTED', $11)",
         requestId,
         dto.studentId,
         actor.personId,
@@ -664,9 +724,33 @@ export class TranscriptService {
         copies,
         feeAmount,
         false,
-        invoiceId,
         dto.notes ?? null,
       );
+
+      // Durable cross-module event. Payments consumer materialises the
+      // pay_invoice and updates linked_invoice_id back via its own emit.
+      if (feeAmount !== null && feeAmount > 0) {
+        const lineTotal = Number((feeAmount * copies).toFixed(2));
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'sis.transcript_request.fee_requested',
+          key: requestId,
+          sourceModule: 'sis-transcripts',
+          eventId: deterministicTranscriptFeeRequestedEventId(requestId),
+          payload: {
+            requestId,
+            schoolId: tenant.schoolId,
+            studentId: dto.studentId,
+            familyAccountId: dto.familyAccountId,
+            transcriptType: dto.transcriptType,
+            copies,
+            feeAmount,
+            lineTotal,
+            recipientName: dto.recipientName,
+            requestedBy: actor.personId,
+            sourceRefId: requestId,
+          },
+        });
+      }
     });
 
     return this.getRequestById(requestId, actor);
@@ -698,10 +782,15 @@ export class TranscriptService {
         params.push(own);
         nextParam += 1;
       } else if (actor.personType === 'GUARDIAN') {
+        // REVIEW-P2C13 BLOCKING 6 — guardian-children subquery joins
+        // through sis_students to bind the result to the calling
+        // school. A guardian linked across schools sees only their
+        // child(ren) in this school.
         conditions.push(
           `r.student_id IN (SELECT sg.student_id FROM sis_student_guardians sg ` +
             `JOIN sis_guardians g ON g.id = sg.guardian_id ` +
-            `WHERE g.person_id = $${nextParam}::uuid)`,
+            `JOIN sis_students gs ON gs.id = sg.student_id ` +
+            `WHERE g.person_id = $${nextParam}::uuid AND gs.school_id = $1::uuid)`,
         );
         params.push(actor.personId);
         nextParam += 1;
@@ -731,10 +820,12 @@ export class TranscriptService {
   }
 
   async getRequestById(id: string, actor: ResolvedActor): Promise<TranscriptRequestDto> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<RequestRow[]>(
-        this.buildRequestSelectBase() + 'WHERE r.id = $1::uuid LIMIT 1',
+        this.buildRequestSelectBase() + 'WHERE r.id = $1::uuid AND s.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       ),
     );
     if (rows.length === 0) throw new NotFoundException('Transcript request not found');
@@ -762,10 +853,17 @@ export class TranscriptService {
       throw new BadRequestException('cancelReason is required when status=CANCELLED.');
     }
 
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C13 BLOCKING 6 — lock joins through sis_students so
+      // a registrar cannot transition a request that belongs to a
+      // different school by guessing the UUID.
       const rows = await tx.$queryRawUnsafe<Array<{ status: string }>>(
-        'SELECT status FROM sis_transcript_requests WHERE id = $1::uuid FOR UPDATE',
+        'SELECT r.status FROM sis_transcript_requests r ' +
+          'JOIN sis_students s ON s.id = r.student_id ' +
+          'WHERE r.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF r',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Transcript request not found');
       const current = rows[0]!.status as TranscriptRequestStatus;

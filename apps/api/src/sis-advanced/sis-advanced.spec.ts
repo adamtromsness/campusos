@@ -141,6 +141,33 @@ function makePerms(grant = true) {
   };
 }
 
+/**
+ * REVIEW-P2C13 outbox stub — captures every enqueueInTx so tests can
+ * assert durable emits land with the deterministic event_id helper.
+ */
+function makeOutbox() {
+  const enqueued: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    eventId?: string;
+    payload: Record<string, unknown>;
+  }> = [];
+  const outbox = {
+    enqueueInTx: async (_tx: unknown, opts: any) => {
+      enqueued.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+      return 'outbox-id';
+    },
+  };
+  return { outbox, enqueued };
+}
+
 // ─── S1: getOrCreate auto-inserts when missing ───
 
 describe('SIS Advanced — P2-13a', () => {
@@ -148,7 +175,10 @@ describe('SIS Advanced — P2-13a', () => {
     let firstSelect = true;
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
-      if (sql.includes('select id::text, student_id::text, bio,')) {
+      if (
+        sql.includes('select id::text, student_id::text, bio,') ||
+        sql.includes('select p.id::text, p.student_id::text, p.bio,')
+      ) {
         if (firstSelect) {
           firstSelect = false;
           return [];
@@ -177,11 +207,11 @@ describe('SIS Advanced — P2-13a', () => {
       }
       return [];
     });
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new StudentProfileService(
       fake.tenantPrisma as never,
       makePerms() as never,
-      kafka as never,
+      outbox as never,
     );
     const dto = await runWithTenantContext({ tenant: SCHOOL } as never, async () =>
       svc.getOrCreateProfile(STUDENT_ID, ADMIN_ACTOR),
@@ -206,11 +236,11 @@ describe('SIS Advanced — P2-13a', () => {
       }
       return [];
     });
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new StudentProfileService(
       fake.tenantPrisma as never,
       makePerms() as never,
-      kafka as never,
+      outbox as never,
     );
     await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
       await expect(
@@ -230,7 +260,10 @@ describe('SIS Advanced — P2-13a', () => {
       if (sql.includes('select id::text as id from sis_student_profiles')) {
         return [{ id: PROFILE_ID }];
       }
-      if (sql.startsWith('select id::text, student_id::text, bio,')) {
+      if (
+        sql.startsWith('select id::text, student_id::text, bio,') ||
+        sql.startsWith('select p.id::text, p.student_id::text, p.bio,')
+      ) {
         return [
           {
             id: PROFILE_ID,
@@ -252,11 +285,11 @@ describe('SIS Advanced — P2-13a', () => {
       }
       return [];
     });
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new StudentProfileService(
       fake.tenantPrisma as never,
       makePerms() as never,
-      kafka as never,
+      outbox as never,
     );
     const dto = await runWithTenantContext({ tenant: SCHOOL } as never, async () =>
       svc.uploadAvatar(STUDENT_ID, { s3Key: 'avatars/new.jpg' }, STUDENT_ACTOR),
@@ -275,10 +308,16 @@ describe('SIS Advanced — P2-13a', () => {
     let reviewedYet = false;
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
-      if (sql.includes('select id::text as id, avatar_status as status')) {
+      if (
+        sql.includes('select id::text as id, avatar_status as status') ||
+        sql.includes('select p.id::text as id, p.avatar_status as status')
+      ) {
         return [{ id: PROFILE_ID, status: 'PENDING_APPROVAL' }];
       }
-      if (sql.startsWith('select id::text, student_id::text, bio,')) {
+      if (
+        sql.startsWith('select id::text, student_id::text, bio,') ||
+        sql.startsWith('select p.id::text, p.student_id::text, p.bio,')
+      ) {
         return [
           {
             id: PROFILE_ID,
@@ -303,22 +342,23 @@ describe('SIS Advanced — P2-13a', () => {
       }
       return [];
     });
-    const { kafka, emits } = makeKafka();
+    const { outbox, enqueued } = makeOutbox();
     const svc = new StudentProfileService(
       fake.tenantPrisma as never,
       makePerms() as never,
-      kafka as never,
+      outbox as never,
     );
     const dto = await runWithTenantContext({ tenant: SCHOOL } as never, async () =>
       svc.reviewAvatar(PROFILE_ID, { decision: 'APPROVED' }, TEACHER_ACTOR),
     );
     expect(dto.avatarStatus).toBe('APPROVED');
-    // Yield to micro-task queue so the kafka.emit fire-and-forget completes.
-    await new Promise((r) => setTimeout(r, 0));
-    expect(emits.length).toBe(1);
-    expect(emits[0]!.topic).toBe('sis.avatar.reviewed');
-    expect(emits[0]!.sourceModule).toBe('sis-advanced');
-    expect((emits[0]!.payload as { decision: string }).decision).toBe('APPROVED');
+    // REVIEW-P2C13 — durable outbox emit lands inside the same tx as the
+    // status flip; assert via the OutboxService stub.
+    expect(enqueued.length).toBe(1);
+    expect(enqueued[0]!.topic).toBe('sis.avatar.reviewed');
+    expect(enqueued[0]!.sourceModule).toBe('sis-advanced');
+    expect(enqueued[0]!.eventId).toBeTruthy();
+    expect((enqueued[0]!.payload as { decision: string }).decision).toBe('APPROVED');
   });
 
   // ─── S5: createDefinition rejects ENUM without enumOptions ───
@@ -447,11 +487,11 @@ describe('SIS Advanced — P2-13a', () => {
       }
       return [];
     });
-    const { kafka, emits } = makeKafka();
+    const { outbox, enqueued } = makeOutbox();
     const svc = new ParentUpdateService(
       fake.tenantPrisma as never,
       makePerms() as never,
-      kafka as never,
+      outbox as never,
     );
     const dto = await runWithTenantContext({ tenant: SCHOOL } as never, async () =>
       svc.submitRequest(
@@ -465,9 +505,12 @@ describe('SIS Advanced — P2-13a', () => {
     );
     expect(dto.status).toBe('AUTO_APPROVED');
     expect(dto.appliedAt).not.toBeNull();
-    await new Promise((r) => setTimeout(r, 0));
-    expect(emits[0]!.topic).toBe('sis.parent_update.submitted');
-    expect((emits[0]!.payload as { autoApproved: boolean }).autoApproved).toBe(true);
+    // REVIEW-P2C13 — durable outbox emit lands inside the same tenant tx
+    // as the INSERT so the downstream notification cannot be dropped.
+    expect(enqueued.length).toBe(1);
+    expect(enqueued[0]!.topic).toBe('sis.parent_update.submitted');
+    expect(enqueued[0]!.eventId).toBeTruthy();
+    expect((enqueued[0]!.payload as { autoApproved: boolean }).autoApproved).toBe(true);
   });
 
   it('S9: ParentUpdateService lands PENDING when any field lacks an auto_approve rule', async () => {
@@ -501,11 +544,11 @@ describe('SIS Advanced — P2-13a', () => {
       }
       return [];
     });
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new ParentUpdateService(
       fake.tenantPrisma as never,
       makePerms() as never,
-      kafka as never,
+      outbox as never,
     );
     const dto = await runWithTenantContext({ tenant: SCHOOL } as never, async () =>
       svc.submitRequest(
@@ -554,19 +597,22 @@ describe('SIS Advanced — P2-13a', () => {
       }
       return [];
     });
-    const { kafka, emits } = makeKafka();
+    const { outbox, enqueued } = makeOutbox();
     const svc = new ParentUpdateService(
       fake.tenantPrisma as never,
       makePerms() as never,
-      kafka as never,
+      outbox as never,
     );
     const dto = await runWithTenantContext({ tenant: SCHOOL } as never, async () =>
       svc.reviewRequest('req-3', { decision: 'APPROVED' } as never, ADMIN_ACTOR),
     );
     expect(dto.status).toBe('APPROVED');
     expect(dto.appliedAt).not.toBeNull();
-    await new Promise((r) => setTimeout(r, 0));
-    expect(emits[0]!.topic).toBe('sis.parent_update.reviewed');
+    // REVIEW-P2C13 — durable outbox emit lands inside the same tenant tx
+    // as the lock + UPDATE.
+    expect(enqueued.length).toBe(1);
+    expect(enqueued[0]!.topic).toBe('sis.parent_update.reviewed');
+    expect(enqueued[0]!.eventId).toBeTruthy();
   });
 
   // ─── S11: CONFIDENTIAL + visible_to_parent rejected ───
@@ -672,16 +718,120 @@ describe('SIS Advanced — P2-13a', () => {
   // ─── Integration: STU-002 and STU-001 NotFoundException for missing student ───
   it('integration: getOrCreateProfile throws NotFound on missing student', async () => {
     const fake = makeFake();
-    const { kafka } = makeKafka();
+    const { outbox } = makeOutbox();
     const svc = new StudentProfileService(
       fake.tenantPrisma as never,
       makePerms() as never,
-      kafka as never,
+      outbox as never,
     );
     await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
       await expect(svc.getOrCreateProfile(STUDENT_ID, ADMIN_ACTOR)).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });
+  });
+
+  // ─── REVIEW-P2C13 REGRESSION TESTS ───
+
+  /**
+   * R-B1: profile reads carry school_id on every direct object lookup.
+   * The assertStudentExists query is the foundational gate; it must
+   * include `school_id = $2::uuid`.
+   */
+  it('R-B1: assertStudentExists binds tenant.schoolId', async () => {
+    const fake = makeFake(() => []);
+    const { outbox } = makeOutbox();
+    const svc = new StudentProfileService(
+      fake.tenantPrisma as never,
+      makePerms() as never,
+      outbox as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await expect(svc.getOrCreateProfile(STUDENT_ID, ADMIN_ACTOR)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+    const lookup = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('select 1 as ok from sis_students') &&
+        c.sql.toLowerCase().includes('school_id = $2::uuid'),
+    );
+    expect(lookup).toBeDefined();
+  });
+
+  /**
+   * R-B1b: STAFF (non-admin) actors no longer blanket-bypass profile
+   * row-scope. A teacher without stu-002:write and without an
+   * assigned-class link to the student is refused.
+   */
+  it('R-B1b: STAFF without stu-002:write or assigned-class link is refused', async () => {
+    const fake = makeFake((c) => {
+      const sql = c.sql.toLowerCase();
+      if (sql.startsWith('select 1 as ok from sis_students')) return [{ ok: 1 }];
+      // No class teacher link.
+      if (sql.includes('from sis_class_teachers')) return [];
+      return [];
+    });
+    const { outbox } = makeOutbox();
+    const svc = new StudentProfileService(
+      fake.tenantPrisma as never,
+      makePerms(false) as never, // no stu-002:write
+      outbox as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await expect(svc.getOrCreateProfile(STUDENT_ID, TEACHER_ACTOR)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  /**
+   * R-B2: pending-avatar queue binds school predicate so a reviewer
+   * in school A cannot see pending avatars from school B.
+   */
+  it('R-B2: pending-avatar queue binds sis_students.school_id', async () => {
+    const fake = makeFake(() => []);
+    const { outbox } = makeOutbox();
+    const svc = new StudentProfileService(
+      fake.tenantPrisma as never,
+      makePerms() as never,
+      outbox as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await svc.listPendingAvatars(ADMIN_ACTOR);
+    });
+    const sql = fake.capture[0]!.sql.toLowerCase();
+    expect(sql).toContain('join sis_students s');
+    expect(sql).toContain("avatar_status = 'pending_approval'");
+    expect(sql).toContain('s.school_id = $1::uuid');
+  });
+
+  /**
+   * R-B3: parent-update review lock + UPDATE carry the school predicate.
+   */
+  it('R-B3: parent-update review lock binds school_id', async () => {
+    const fake = makeFake(() => []);
+    const { outbox } = makeOutbox();
+    const svc = new ParentUpdateService(
+      fake.tenantPrisma as never,
+      makePerms() as never,
+      outbox as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await expect(
+        svc.reviewRequest(
+          '019e1500-0000-7556-8c81-aaaaaaaaaaaa',
+          { decision: 'APPROVED' } as never,
+          ADMIN_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    const lockSql = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('from sis_parent_info_update_requests') &&
+        c.sql.toLowerCase().includes('school_id = $2::uuid') &&
+        c.sql.toLowerCase().includes('for update'),
+    );
+    expect(lockSql).toBeDefined();
   });
 });

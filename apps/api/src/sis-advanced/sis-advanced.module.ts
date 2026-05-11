@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '../tenant/tenant.module';
 import { IamModule } from '../iam/iam.module';
 import { KafkaModule } from '../kafka/kafka.module';
+import { OutboxService } from '../kafka/outbox.service';
 import { StudentProfileService } from './student-profile.service';
 import { CustomFieldService } from './custom-field.service';
 import { ParentUpdateService } from './parent-update.service';
@@ -53,6 +54,7 @@ import { SisAdvancedController } from './sis-advanced.controller';
 @Module({
   imports: [TenantModule, IamModule, KafkaModule],
   providers: [
+    OutboxService,
     StudentProfileService,
     CustomFieldService,
     ParentUpdateService,

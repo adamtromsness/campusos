@@ -2,14 +2,13 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   PARENT_UPDATE_TARGETS,
@@ -21,6 +20,10 @@ import {
   type SubmitParentUpdateDto,
   type UpsertAutoApprovalRuleDto,
 } from './dto/sis-advanced.dto';
+import {
+  deterministicParentUpdateReviewedEventId,
+  deterministicParentUpdateSubmittedEventId,
+} from './event-ids';
 
 interface RequestRow {
   id: string;
@@ -48,12 +51,10 @@ interface RuleRow {
 
 @Injectable()
 export class ParentUpdateService {
-  private readonly logger = new Logger(ParentUpdateService.name);
-
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permissions: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   private rowToDto(r: RequestRow): ParentUpdateRequestDto {
@@ -157,102 +158,105 @@ export class ParentUpdateService {
     const status: ParentUpdateStatus = autoApprove ? 'AUTO_APPROVED' : 'PENDING';
     const id = generateId();
 
+    // REVIEW-P2C13 BLOCKING 3 — INSERT + outbox emit land in one tx
+    // so the downstream notification is durable. OutboxPublisherWorker
+    // publishes when the broker recovers; deterministic event id means
+    // a retry lands the same envelope.
     const rows = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      if (autoApprove) {
-        // AUTO_APPROVED: stamp applied_at and (for the demo phase) write
-        // an audit-style trail by storing in the row itself. Real
-        // application of the proposed changes to the target table is
-        // deferred until the matching domain controller wires the
-        // applyChanges path; the contract here is that the request row
-        // is durable + audit-stable.
-        await tx.$executeRawUnsafe(
-          'INSERT INTO sis_parent_info_update_requests ' +
-            '(id, school_id, submitted_by, target_type, target_id, proposed_changes, ' +
-            'change_reason, status, applied_at) ' +
-            "VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::jsonb, $7, 'AUTO_APPROVED', now())",
-          id,
-          tenant.schoolId,
-          actor.personId,
-          dto.targetType,
-          dto.targetId,
-          JSON.stringify(dto.proposedChanges),
-          dto.changeReason ?? null,
-        );
-      } else {
-        await tx.$executeRawUnsafe(
-          'INSERT INTO sis_parent_info_update_requests ' +
-            '(id, school_id, submitted_by, target_type, target_id, proposed_changes, ' +
-            'change_reason, status) ' +
-            "VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::jsonb, $7, 'PENDING')",
-          id,
-          tenant.schoolId,
-          actor.personId,
-          dto.targetType,
-          dto.targetId,
-          JSON.stringify(dto.proposedChanges),
-          dto.changeReason ?? null,
-        );
-      }
-      return tx.$queryRawUnsafe<RequestRow[]>(
+      const insertSql = autoApprove
+        ? 'INSERT INTO sis_parent_info_update_requests ' +
+          '(id, school_id, submitted_by, target_type, target_id, proposed_changes, ' +
+          'change_reason, status, applied_at) ' +
+          "VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::jsonb, $7, 'AUTO_APPROVED', now())"
+        : 'INSERT INTO sis_parent_info_update_requests ' +
+          '(id, school_id, submitted_by, target_type, target_id, proposed_changes, ' +
+          'change_reason, status) ' +
+          "VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::jsonb, $7, 'PENDING')";
+      await tx.$executeRawUnsafe(
+        insertSql,
+        id,
+        tenant.schoolId,
+        actor.personId,
+        dto.targetType,
+        dto.targetId,
+        JSON.stringify(dto.proposedChanges),
+        dto.changeReason ?? null,
+      );
+
+      const after = await tx.$queryRawUnsafe<RequestRow[]>(
         'SELECT id::text, school_id::text, submitted_by::text, target_type, target_id::text, ' +
           'proposed_changes, change_reason, status, reviewed_by::text, reviewed_at::text, ' +
           'reviewer_notes, applied_at::text, created_at::text ' +
-          'FROM sis_parent_info_update_requests WHERE id = $1::uuid',
+          'FROM sis_parent_info_update_requests WHERE id = $1::uuid AND school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
-    });
-    void status;
 
-    // Emit sis.parent_update.submitted for the admin queue notification.
-    this.kafka
-      .emit({
+      await this.outbox.enqueueInTx(tx, {
         topic: 'sis.parent_update.submitted',
         key: id,
+        sourceModule: 'sis-advanced',
+        eventId: deterministicParentUpdateSubmittedEventId(id),
         payload: {
           requestId: id,
           schoolId: tenant.schoolId,
           submittedBy: actor.personId,
           targetType: dto.targetType,
           targetId: dto.targetId,
-          status: rows[0]!.status,
+          status: after[0]!.status,
           autoApproved: autoApprove,
+          sourceRefId: id,
         },
-        sourceModule: 'sis-advanced',
-      })
-      .catch((err) => this.logger.warn('Failed to emit sis.parent_update.submitted', err));
+      });
+
+      return after;
+    });
+    void status;
 
     return this.rowToDto(rows[0]!);
   }
 
   /**
-   * Verify the guardian actor has a link to the supplied target. For
-   * STUDENT_INFO target = sis_students.id; the link is through
-   * sis_student_guardians + sis_guardians.person_id. For GUARDIAN_INFO
-   * target = sis_guardians.id and must match the actor's own person.
-   * EMERGENCY_CONTACT target = sis_emergency_contacts.id; the link
-   * resolves through sis_students.id + sis_student_guardians.
+   * Verify the guardian actor has a link to the supplied target in
+   * the CURRENT tenant's school. REVIEW-P2C13 BLOCKING 3 — every
+   * lookup now joins through sis_students.school_id = tenant.schoolId
+   * so a guardian linked to children across schools cannot submit a
+   * request under the wrong school context.
    */
   private async verifyGuardianTargetLink(
     actor: ResolvedActor,
     targetType: string,
     targetId: string,
   ): Promise<boolean> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       if (targetType === 'STUDENT_INFO') {
         const rows = await client.$queryRawUnsafe<Array<{ ok: number }>>(
           'SELECT 1 AS ok FROM sis_student_guardians sg ' +
             'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
+            'JOIN sis_students s ON s.id = sg.student_id ' +
+            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid ' +
+            'AND s.school_id = $3::uuid LIMIT 1',
           targetId,
           actor.personId,
+          tenant.schoolId,
         );
         return rows.length > 0;
       }
       if (targetType === 'GUARDIAN_INFO') {
+        // Guardian must be linked to at least one student in the
+        // calling tenant's school. Cross-school guardian identities
+        // cannot mutate a "their own" record in a school they have
+        // no children in.
         const rows = await client.$queryRawUnsafe<Array<{ ok: number }>>(
-          'SELECT 1 AS ok FROM sis_guardians WHERE id = $1::uuid AND person_id = $2::uuid LIMIT 1',
+          'SELECT 1 AS ok FROM sis_guardians g ' +
+            'JOIN sis_student_guardians sg ON sg.guardian_id = g.id ' +
+            'JOIN sis_students s ON s.id = sg.student_id ' +
+            'WHERE g.id = $1::uuid AND g.person_id = $2::uuid ' +
+            'AND s.school_id = $3::uuid LIMIT 1',
           targetId,
           actor.personId,
+          tenant.schoolId,
         );
         return rows.length > 0;
       }
@@ -261,9 +265,12 @@ export class ParentUpdateService {
           'SELECT 1 AS ok FROM sis_emergency_contacts ec ' +
             'JOIN sis_student_guardians sg ON sg.student_id = ec.student_id ' +
             'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-            'WHERE ec.id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
+            'JOIN sis_students s ON s.id = ec.student_id ' +
+            'WHERE ec.id = $1::uuid AND g.person_id = $2::uuid ' +
+            'AND s.school_id = $3::uuid LIMIT 1',
           targetId,
           actor.personId,
+          tenant.schoolId,
         );
         return rows.length > 0;
       }
@@ -331,12 +338,18 @@ export class ParentUpdateService {
     if (dto.decision !== 'APPROVED' && dto.decision !== 'REJECTED') {
       throw new BadRequestException('decision must be APPROVED or REJECTED');
     }
+    const tenant = getCurrentTenant();
 
+    // REVIEW-P2C13 BLOCKING 3 — lock + update + reload all carry the
+    // school_id predicate so a School A admin cannot review a School
+    // B request by guessing the UUID. Outbox emit happens inside the
+    // same tenant tx so the downstream notification is durable.
     const rows = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const locked = await tx.$queryRawUnsafe<Array<{ id: string; status: string }>>(
         'SELECT id::text AS id, status FROM sis_parent_info_update_requests ' +
-          'WHERE id = $1::uuid FOR UPDATE',
+          'WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         id,
+        tenant.schoolId,
       );
       if (locked.length === 0) throw new NotFoundException('Parent update request not found');
       if (locked[0]!.status !== 'PENDING') {
@@ -349,34 +362,40 @@ export class ParentUpdateService {
         'UPDATE sis_parent_info_update_requests SET status = $1, reviewed_by = $2::uuid, ' +
           'reviewed_at = now(), reviewer_notes = $3, applied_at = ' +
           appliedAt +
-          ', updated_at = now() WHERE id = $4::uuid',
+          ', updated_at = now() WHERE id = $4::uuid AND school_id = $5::uuid',
         dto.decision,
         actor.personId,
         dto.reviewerNotes ?? null,
         id,
+        tenant.schoolId,
       );
-      return tx.$queryRawUnsafe<RequestRow[]>(
+      const after = await tx.$queryRawUnsafe<RequestRow[]>(
         'SELECT id::text, school_id::text, submitted_by::text, target_type, target_id::text, ' +
           'proposed_changes, change_reason, status, reviewed_by::text, reviewed_at::text, ' +
           'reviewer_notes, applied_at::text, created_at::text ' +
-          'FROM sis_parent_info_update_requests WHERE id = $1::uuid',
+          'FROM sis_parent_info_update_requests WHERE id = $1::uuid AND school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
-    });
 
-    this.kafka
-      .emit({
+      await this.outbox.enqueueInTx(tx, {
         topic: 'sis.parent_update.reviewed',
         key: id,
+        sourceModule: 'sis-advanced',
+        eventId: deterministicParentUpdateReviewedEventId(id),
         payload: {
           requestId: id,
+          schoolId: tenant.schoolId,
           decision: dto.decision,
           reviewedBy: actor.personId,
-          reviewedAt: rows[0]!.reviewed_at,
+          reviewedAt: after[0]!.reviewed_at,
+          reviewerNotes: dto.reviewerNotes ?? null,
+          sourceRefId: id,
         },
-        sourceModule: 'sis-advanced',
-      })
-      .catch((err) => this.logger.warn('Failed to emit sis.parent_update.reviewed', err));
+      });
+
+      return after;
+    });
 
     return this.rowToDto(rows[0]!);
   }

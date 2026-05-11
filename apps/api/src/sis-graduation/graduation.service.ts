@@ -174,27 +174,61 @@ export class GraduationService {
 
   /**
    * Verify the calling actor can read audits for the supplied student.
-   * Admin OR STAFF (broad — service-layer leans on the controller gate +
-   * stu-005:read which is held only by Staff + admin tiers + parents +
-   * students; parents are row-scoped via sis_student_guardians here)
-   * OR STUDENT (own only) OR GUARDIAN (linked children only).
+   *
+   * REVIEW-P2C13 MAJOR 3 — generic STAFF no longer blanket-bypasses
+   * row scope. STAFF must hold stu-005:write or stu-005:admin (the
+   * registrar / counsellor / advisor signal — held in the IAM seed
+   * by Staff alone) OR be an assigned class teacher of the student
+   * (sis_class_teachers + sis_enrollments). GUARDIAN linkage joins
+   * through sis_students.school_id so a parent in school A cannot
+   * read an audit for a child in school B by UUID.
    */
   private async assertCanReadStudent(studentId: string, actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
+    if (actor.personType === 'STAFF') {
+      const tenant = getCurrentTenant();
+      // Registrar / advisor scope — explicit permission check.
+      const advisor = await this.permissions.hasAnyPermissionInTenant(
+        actor.accountId,
+        tenant.schoolId,
+        ['stu-005:write', 'stu-005:admin'],
+      );
+      if (advisor) return;
+      // Teacher of the student via class assignment.
+      if (actor.employeeId) {
+        const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
+          client.$queryRawUnsafe<Array<{ ok: number }>>(
+            'SELECT 1 AS ok FROM sis_class_teachers ct ' +
+              'JOIN sis_enrollments en ON en.class_id = ct.class_id ' +
+              'JOIN sis_classes c ON c.id = ct.class_id ' +
+              'WHERE ct.teacher_employee_id = $1::uuid AND en.student_id = $2::uuid ' +
+              "AND en.status = 'ACTIVE' AND c.school_id = $3::uuid LIMIT 1",
+            actor.employeeId,
+            studentId,
+            tenant.schoolId,
+          ),
+        );
+        if (rows.length > 0) return;
+      }
+      throw new NotFoundException('Student not found');
+    }
     if (actor.personType === 'STUDENT') {
       const ownId = await this.resolveOwnStudentId(actor);
       if (ownId === studentId) return;
       throw new NotFoundException('Student not found');
     }
     if (actor.personType === 'GUARDIAN') {
+      const tenant = getCurrentTenant();
       const linked = await this.tenantPrisma.executeInTenantContext(async (client) =>
         client.$queryRawUnsafe<Array<{ ok: number }>>(
           'SELECT 1 AS ok FROM sis_student_guardians sg ' +
             'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
+            'JOIN sis_students s ON s.id = sg.student_id ' +
+            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid ' +
+            'AND s.school_id = $3::uuid LIMIT 1',
           studentId,
           actor.personId,
+          tenant.schoolId,
         ),
       );
       if (linked.length > 0) return;
@@ -205,11 +239,13 @@ export class GraduationService {
 
   private async resolveOwnStudentId(actor: ResolvedActor): Promise<string | null> {
     if (actor.personType !== 'STUDENT') return null;
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = await client.$queryRawUnsafe<Array<{ id: string }>>(
         'SELECT s.id::text AS id FROM sis_students s ' +
           'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-          'WHERE ps.person_id = $1::uuid LIMIT 1',
+          'WHERE s.school_id = $1::uuid AND ps.person_id = $2::uuid LIMIT 1',
+        tenant.schoolId,
         actor.personId,
       );
       return rows[0]?.id ?? null;

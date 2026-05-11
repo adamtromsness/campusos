@@ -97,6 +97,11 @@ export class TransferService {
     }
   }
 
+  /**
+   * REVIEW-P2C13 BLOCKING 8 — SELECT base now joins sis_students with
+   * an inner join so the school predicate can be pushed down. Every
+   * read endpoint binds `s.school_id = tenant.schoolId`.
+   */
   private buildSelectBase(): string {
     return (
       'SELECT t.id::text, t.student_id::text, ' +
@@ -105,7 +110,7 @@ export class TransferService {
       't.transfer_date::text, t.records_received, t.records_sent, t.records_package_s3_key, ' +
       't.notes, t.recorded_by::text, t.created_at::text ' +
       'FROM sis_transfer_records t ' +
-      'LEFT JOIN sis_students s ON s.id = t.student_id ' +
+      'JOIN sis_students s ON s.id = t.student_id ' +
       'LEFT JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
       'LEFT JOIN platform.iam_person ip ON ip.id = ps.person_id '
     );
@@ -113,10 +118,13 @@ export class TransferService {
 
   async listForStudent(studentId: string, actor: ResolvedActor): Promise<TransferRecordDto[]> {
     await this.assertAdmin(actor);
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<TransferRow[]>(
-        this.buildSelectBase() + 'WHERE t.student_id = $1::uuid ORDER BY t.transfer_date DESC',
+        this.buildSelectBase() +
+          'WHERE t.student_id = $1::uuid AND s.school_id = $2::uuid ORDER BY t.transfer_date DESC',
         studentId,
+        tenant.schoolId,
       ),
     );
     return rows.map((r) => this.rowToDto(r));
@@ -163,10 +171,12 @@ export class TransferService {
 
   async getById(id: string, actor: ResolvedActor): Promise<TransferRecordDto> {
     await this.assertAdmin(actor);
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<TransferRow[]>(
-        this.buildSelectBase() + 'WHERE t.id = $1::uuid LIMIT 1',
+        this.buildSelectBase() + 'WHERE t.id = $1::uuid AND s.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       ),
     );
     if (rows.length === 0) throw new NotFoundException('Transfer record not found');
@@ -207,6 +217,10 @@ export class TransferService {
   ): Promise<TransferRecordDto> {
     await this.assertAdmin(actor);
 
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C13 BLOCKING 8 — lock joins through sis_students with
+    // the school predicate so a registrar in school A cannot mark a
+    // School B transfer record as received/sent by guessing the UUID.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<
         Array<{
@@ -215,9 +229,12 @@ export class TransferService {
           records_sent: boolean;
         }>
       >(
-        'SELECT transfer_direction, records_received, records_sent ' +
-          'FROM sis_transfer_records WHERE id = $1::uuid FOR UPDATE',
+        'SELECT t.transfer_direction, t.records_received, t.records_sent ' +
+          'FROM sis_transfer_records t ' +
+          'JOIN sis_students s ON s.id = t.student_id ' +
+          'WHERE t.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF t',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Transfer record not found');
       const row = rows[0]!;

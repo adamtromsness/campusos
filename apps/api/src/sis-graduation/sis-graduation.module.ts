@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '../tenant/tenant.module';
 import { IamModule } from '../iam/iam.module';
 import { KafkaModule } from '../kafka/kafka.module';
+import { OutboxService } from '../kafka/outbox.service';
 import { GraduationService } from './graduation.service';
 import { GraduationAuditWorker } from './graduation-audit.worker';
 import { GpaService } from './gpa.service';
@@ -41,6 +42,7 @@ import { SisGraduationController } from './sis-graduation.controller';
 @Module({
   imports: [TenantModule, IamModule, KafkaModule],
   providers: [
+    OutboxService,
     GraduationService,
     GraduationAuditWorker,
     GpaService,

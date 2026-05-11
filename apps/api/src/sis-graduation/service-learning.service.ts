@@ -123,20 +123,44 @@ export class ServiceLearningService {
 
   private async resolveOwnStudentId(actor: ResolvedActor): Promise<string | null> {
     if (actor.personType !== 'STUDENT') return null;
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = await client.$queryRawUnsafe<Array<{ id: string }>>(
         'SELECT s.id::text AS id FROM sis_students s ' +
           'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-          'WHERE ps.person_id = $1::uuid LIMIT 1',
+          'WHERE s.school_id = $1::uuid AND ps.person_id = $2::uuid LIMIT 1',
+        tenant.schoolId,
         actor.personId,
       );
       return rows[0]?.id ?? null;
     });
   }
 
+  /**
+   * REVIEW-P2C13 BLOCKING 4 — replace blanket `STAFF` bypass with an
+   * explicit registrar/advisor permission check. Staff must hold
+   * stu-005:write or stu-005:admin (the registrar / counsellor signal
+   * in the IAM seed). Generic staff no longer reach service-learning
+   * surfaces by accident.
+   */
+  private async hasReviewerScope(actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    if (actor.personType !== 'STAFF') return false;
+    const tenant = getCurrentTenant();
+    return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'stu-005:write',
+      'stu-005:admin',
+    ]);
+  }
+
   private async assertCanSubmitForStudent(studentId: string, actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
+    if (actor.personType === 'STAFF') {
+      if (await this.hasReviewerScope(actor)) return;
+      throw new ForbiddenException(
+        'Staff submitting service hours on behalf of a student must hold stu-005:write or stu-005:admin.',
+      );
+    }
     if (actor.personType === 'STUDENT') {
       const ownId = await this.resolveOwnStudentId(actor);
       if (ownId === studentId) return;
@@ -147,20 +171,27 @@ export class ServiceLearningService {
 
   private async assertCanReadStudent(studentId: string, actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
+    if (actor.personType === 'STAFF') {
+      if (await this.hasReviewerScope(actor)) return;
+      throw new NotFoundException('Student not found');
+    }
     if (actor.personType === 'STUDENT') {
       const ownId = await this.resolveOwnStudentId(actor);
       if (ownId === studentId) return;
       throw new NotFoundException('Student not found');
     }
     if (actor.personType === 'GUARDIAN') {
+      const tenant = getCurrentTenant();
       const linked = await this.tenantPrisma.executeInTenantContext(async (client) =>
         client.$queryRawUnsafe<Array<{ ok: number }>>(
           'SELECT 1 AS ok FROM sis_student_guardians sg ' +
             'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
+            'JOIN sis_students s ON s.id = sg.student_id ' +
+            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid ' +
+            'AND s.school_id = $3::uuid LIMIT 1',
           studentId,
           actor.personId,
+          tenant.schoolId,
         ),
       );
       if (linked.length > 0) return;
@@ -270,13 +301,20 @@ export class ServiceLearningService {
     actor: ResolvedActor,
   ): Promise<ServiceLearningHoursDto[]> {
     await this.assertCanReadStudent(studentId, actor);
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C13 BLOCKING 4 — list joins through sis_students.school_id
+    // so even if the row-scope helper short-circuits, the SQL still
+    // refuses foreign-school student UUIDs.
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<HoursRow[]>(
-        'SELECT id::text, student_id::text, organisation_name, activity_description, hours::text, ' +
-          'service_date::text, supervisor_name, supervisor_contact, evidence_s3_key, status, ' +
-          'reviewed_by::text, reviewed_at::text, review_notes, created_at::text ' +
-          'FROM sis_service_learning_hours WHERE student_id = $1::uuid ORDER BY service_date DESC',
+        'SELECT h.id::text, h.student_id::text, h.organisation_name, h.activity_description, h.hours::text, ' +
+          'h.service_date::text, h.supervisor_name, h.supervisor_contact, h.evidence_s3_key, h.status, ' +
+          'h.reviewed_by::text, h.reviewed_at::text, h.review_notes, h.created_at::text ' +
+          'FROM sis_service_learning_hours h ' +
+          'JOIN sis_students s ON s.id = h.student_id ' +
+          'WHERE h.student_id = $1::uuid AND s.school_id = $2::uuid ORDER BY h.service_date DESC',
         studentId,
+        tenant.schoolId,
       ),
     );
     return rows.map((r) => this.hoursRowToDto(r));
@@ -330,10 +368,18 @@ export class ServiceLearningService {
     if (dto.decision !== 'APPROVED' && dto.decision !== 'REJECTED') {
       throw new BadRequestException('decision must be APPROVED or REJECTED');
     }
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C13 BLOCKING 4 — lock + UPDATE + reload all carry the
+    // school predicate through a sis_students JOIN so a School A
+    // reviewer cannot review/approve School B hours by guessing the
+    // hours UUID.
     const rows = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const locked = await tx.$queryRawUnsafe<Array<{ id: string; status: string }>>(
-        'SELECT id::text AS id, status FROM sis_service_learning_hours WHERE id = $1::uuid FOR UPDATE',
+        'SELECT h.id::text AS id, h.status FROM sis_service_learning_hours h ' +
+          'JOIN sis_students s ON s.id = h.student_id ' +
+          'WHERE h.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF h',
         id,
+        tenant.schoolId,
       );
       if (locked.length === 0) throw new NotFoundException('Service learning hours row not found');
       if (locked[0]!.status !== 'PENDING') {
@@ -350,11 +396,14 @@ export class ServiceLearningService {
         id,
       );
       return tx.$queryRawUnsafe<HoursRow[]>(
-        'SELECT id::text, student_id::text, organisation_name, activity_description, hours::text, ' +
-          'service_date::text, supervisor_name, supervisor_contact, evidence_s3_key, status, ' +
-          'reviewed_by::text, reviewed_at::text, review_notes, created_at::text ' +
-          'FROM sis_service_learning_hours WHERE id = $1::uuid',
+        'SELECT h.id::text, h.student_id::text, h.organisation_name, h.activity_description, h.hours::text, ' +
+          'h.service_date::text, h.supervisor_name, h.supervisor_contact, h.evidence_s3_key, h.status, ' +
+          'h.reviewed_by::text, h.reviewed_at::text, h.review_notes, h.created_at::text ' +
+          'FROM sis_service_learning_hours h ' +
+          'JOIN sis_students s ON s.id = h.student_id ' +
+          'WHERE h.id = $1::uuid AND s.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     return this.hoursRowToDto(rows[0]!);

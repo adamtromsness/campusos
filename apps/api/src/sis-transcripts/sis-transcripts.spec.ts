@@ -107,11 +107,43 @@ function makePerms(grant = true) {
   return { hasAnyPermissionInTenant: async () => grant };
 }
 
+/**
+ * REVIEW-P2C13 outbox stub — captures every enqueueInTx so tests can
+ * assert durable emits land with the deterministic event_id.
+ */
+function makeOutbox() {
+  const enqueued: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    eventId?: string;
+    payload: Record<string, unknown>;
+  }> = [];
+  const outbox = {
+    enqueueInTx: async (_tx: unknown, opts: any) => {
+      enqueued.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+      return 'outbox-id';
+    },
+  };
+  return { outbox, enqueued };
+}
+
 describe('SIS Transcripts + Transfers + Lockers — P2-13c', () => {
   // ─── S1 ───
   it('S1: TranscriptService.generate refuses non-staff non-admin', async () => {
     const fake = makeFake();
-    const svc = new TranscriptService(fake.tenantPrisma as never, makePerms(false) as never);
+    const { outbox } = makeOutbox();
+    const svc = new TranscriptService(
+      fake.tenantPrisma as never,
+      makePerms(false) as never,
+      outbox as never,
+    );
     await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
       await expect(
         svc.generate(
@@ -217,7 +249,12 @@ describe('SIS Transcripts + Transfers + Lockers — P2-13c', () => {
       }
       return [];
     });
-    const svc = new TranscriptService(fake.tenantPrisma as never, makePerms() as never);
+    const { outbox } = makeOutbox();
+    const svc = new TranscriptService(
+      fake.tenantPrisma as never,
+      makePerms() as never,
+      outbox as never,
+    );
     await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
       const out = await svc.generate(
         STUDENT_ID,
@@ -233,8 +270,8 @@ describe('SIS Transcripts + Transfers + Lockers — P2-13c', () => {
     });
   });
 
-  // ─── S3 ───
-  it('S3: TranscriptService.submitRequest with fee creates pay_invoice and line_item', async () => {
+  // ─── S3 — REVIEW-P2C13 BLOCKING 7 ───
+  it('S3: TranscriptService.submitRequest with fee emits sis.transcript_request.fee_requested via outbox + writes ZERO pay_* rows', async () => {
     let invoiceInserts = 0;
     let lineItemInserts = 0;
     let requestInserts = 0;
@@ -271,7 +308,7 @@ describe('SIS Transcripts + Transfers + Lockers — P2-13c', () => {
             copies: 2,
             fee_amount: '10.00',
             fee_paid: false,
-            linked_invoice_id: '019e1500-0000-7556-8c81-eeeeeeeeee01',
+            linked_invoice_id: null,
             status: 'SUBMITTED',
             notes: null,
             processed_at: null,
@@ -285,7 +322,12 @@ describe('SIS Transcripts + Transfers + Lockers — P2-13c', () => {
       }
       return [];
     });
-    const svc = new TranscriptService(fake.tenantPrisma as never, makePerms() as never);
+    const { outbox, enqueued } = makeOutbox();
+    const svc = new TranscriptService(
+      fake.tenantPrisma as never,
+      makePerms() as never,
+      outbox as never,
+    );
     await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
       const out = await svc.submitRequest(
         {
@@ -298,17 +340,45 @@ describe('SIS Transcripts + Transfers + Lockers — P2-13c', () => {
         } as never,
         ADMIN_ACTOR,
       );
-      expect(invoiceInserts).toBe(1);
-      expect(lineItemInserts).toBe(1);
+      // SIS no longer writes Payment-module tables directly.
+      expect(invoiceInserts).toBe(0);
+      expect(lineItemInserts).toBe(0);
       expect(requestInserts).toBe(1);
-      expect(out.linkedInvoiceId).toBeTruthy();
+      // Outbox emit fires inside the same tx with deterministic id +
+      // full fee context for the Payments consumer.
+      expect(enqueued.length).toBe(1);
+      expect(enqueued[0]!.topic).toBe('sis.transcript_request.fee_requested');
+      expect(enqueued[0]!.sourceModule).toBe('sis-transcripts');
+      expect(enqueued[0]!.eventId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+      const payload = enqueued[0]!.payload as {
+        requestId: string;
+        familyAccountId: string;
+        feeAmount: number;
+        copies: number;
+        lineTotal: number;
+      };
+      // requestId is generated at runtime; assert shape + non-empty.
+      expect(payload.requestId).toMatch(/^[0-9a-f]{8}-/);
+      expect(payload.familyAccountId).toBe(FAMILY_ACCOUNT_ID);
+      expect(payload.feeAmount).toBe(10);
+      expect(payload.copies).toBe(2);
+      expect(payload.lineTotal).toBe(20);
+      // linked_invoice_id starts NULL — the Payments consumer back-fills.
+      expect(out.linkedInvoiceId).toBeNull();
     });
   });
 
   // ─── S4 ───
   it('S4: TranscriptService.patchStatus rejects REVOKED without revokeReason', async () => {
     const fake = makeFake();
-    const svc = new TranscriptService(fake.tenantPrisma as never, makePerms() as never);
+    const { outbox } = makeOutbox();
+    const svc = new TranscriptService(
+      fake.tenantPrisma as never,
+      makePerms() as never,
+      outbox as never,
+    );
     await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
       await expect(
         svc.patchStatus(
@@ -348,8 +418,8 @@ describe('SIS Transcripts + Transfers + Lockers — P2-13c', () => {
     const fake = makeFake((call) => {
       const sql = call.sql.toLowerCase();
       if (sql.includes('from sis_students') && sql.includes('school_id')) return [{ ok: 1 }];
-      if (sql.includes('select status, school_id') && sql.includes('sis_lockers')) {
-        return [{ status: 'AVAILABLE', school_id: SCHOOL.schoolId }];
+      if (sql.includes('select status from sis_lockers') && sql.includes('school_id')) {
+        return [{ status: 'AVAILABLE' }];
       }
       if (sql.includes('update sis_lockers') && sql.includes("'assigned'")) {
         updateCount += 1;
@@ -568,8 +638,10 @@ describe('SIS Transcripts + Transfers + Lockers — P2-13c', () => {
   it('LockerService.release rejects when locker is not ASSIGNED', async () => {
     const fake = makeFake((call) => {
       const sql = call.sql.toLowerCase();
-      if (sql.includes('select status, school_id') && sql.includes('sis_lockers')) {
-        return [{ status: 'AVAILABLE', school_id: SCHOOL.schoolId }];
+      // REVIEW-P2C13 MAJOR 2 — lock now binds school predicate into
+      // SELECT FOR UPDATE so the matcher must include school_id.
+      if (sql.includes('select status from sis_lockers') && sql.includes('school_id')) {
+        return [{ status: 'AVAILABLE' }];
       }
       return [];
     });
@@ -585,5 +657,163 @@ describe('SIS Transcripts + Transfers + Lockers — P2-13c', () => {
     await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
       await expect(svc.release(LOCKER_ID, ADMIN_ACTOR)).rejects.toBeInstanceOf(NotFoundException);
     });
+  });
+
+  // ─── REVIEW-P2C13 REGRESSION TESTS ───
+
+  /**
+   * R-B6: transcript reads carry s.school_id = $tenant.schoolId on
+   * every code path. Test verifies the SQL string actually contains
+   * the school predicate.
+   */
+  it('R-B6: transcript reads bind sis_students.school_id', async () => {
+    const fake = makeFake(() => []);
+    const { outbox } = makeOutbox();
+    const svc = new TranscriptService(
+      fake.tenantPrisma as never,
+      makePerms() as never,
+      outbox as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await expect(
+        svc.getById('019e1500-0000-7556-8c81-cccccccccc01', ADMIN_ACTOR),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    // The transcripts SELECT must JOIN sis_students with the school
+    // predicate baked in.
+    const transcriptSelect = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('from sis_transcripts t') &&
+        c.sql.toLowerCase().includes('join sis_students s') &&
+        c.sql.toLowerCase().includes('s.school_id = $2::uuid'),
+    );
+    expect(transcriptSelect).toBeDefined();
+  });
+
+  /**
+   * R-B8: transfer reads + locks bind sis_students.school_id.
+   */
+  it('R-B8: transfer reads + locks bind sis_students.school_id', async () => {
+    const fake = makeFake(() => []);
+    const svc = new TransferService(fake.tenantPrisma as never, makePerms() as never);
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await expect(
+        svc.getById('019e1500-0000-7556-8c81-ffffffffff99', ADMIN_ACTOR),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    const transferSelect = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('from sis_transfer_records t') &&
+        c.sql.toLowerCase().includes('join sis_students s') &&
+        c.sql.toLowerCase().includes('s.school_id = $2::uuid'),
+    );
+    expect(transferSelect).toBeDefined();
+  });
+
+  /**
+   * R-B6b: transcript request transitions lock through sis_students
+   * with the school predicate.
+   */
+  it('R-B6b: transcript request status transition lock binds school predicate', async () => {
+    const fake = makeFake(() => []);
+    const { outbox } = makeOutbox();
+    const svc = new TranscriptService(
+      fake.tenantPrisma as never,
+      makePerms() as never,
+      outbox as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await expect(
+        svc.patchRequestStatus(REQUEST_ID, { status: 'PROCESSING' } as never, ADMIN_ACTOR),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    const lockSql = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('from sis_transcript_requests r') &&
+        c.sql.toLowerCase().includes('join sis_students s') &&
+        c.sql.toLowerCase().includes('for update of r'),
+    );
+    expect(lockSql).toBeDefined();
+  });
+
+  /**
+   * R-B6c: transcript status PATCH lock binds school predicate.
+   */
+  it('R-B6c: transcript status PATCH lock binds school predicate', async () => {
+    const fake = makeFake(() => []);
+    const { outbox } = makeOutbox();
+    const svc = new TranscriptService(
+      fake.tenantPrisma as never,
+      makePerms() as never,
+      outbox as never,
+    );
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await expect(
+        svc.patchStatus(
+          '019e1500-0000-7556-8c81-cccccccccc01',
+          { status: 'SENT' } as never,
+          ADMIN_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    const lockSql = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('from sis_transcripts t') &&
+        c.sql.toLowerCase().includes('join sis_students s') &&
+        c.sql.toLowerCase().includes('for update of t'),
+    );
+    expect(lockSql).toBeDefined();
+  });
+
+  /**
+   * R-M2: locker assign lock binds school predicate via FOR UPDATE
+   * with school_id baked into the WHERE clause.
+   */
+  it('R-M2: locker assign lock binds school predicate into SELECT FOR UPDATE', async () => {
+    const fake = makeFake((call) => {
+      const sql = call.sql.toLowerCase();
+      if (sql.includes('from sis_students') && sql.includes('school_id')) return [{ ok: 1 }];
+      return [];
+    });
+    const svc = new LockerService(fake.tenantPrisma as never, makePerms() as never);
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await expect(
+        svc.assign(
+          {
+            lockerId: LOCKER_ID,
+            studentId: STUDENT_ID,
+            academicYear: '2025-2026',
+            combination: '11-22-33',
+          } as never,
+          ADMIN_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    const lockSql = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('select status from sis_lockers') &&
+        c.sql.toLowerCase().includes('id = $1::uuid') &&
+        c.sql.toLowerCase().includes('school_id = $2::uuid') &&
+        c.sql.toLowerCase().includes('for update'),
+    );
+    expect(lockSql).toBeDefined();
+  });
+
+  /**
+   * R-M1: medical exemption reads bind sis_students.school_id.
+   */
+  it('R-M1: medical exemption list binds sis_students.school_id', async () => {
+    const fake = makeFake(() => []);
+    const svc = new MedicalExemptionService(fake.tenantPrisma as never, makePerms() as never);
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await svc.listForStudent(STUDENT_ID, ADMIN_ACTOR);
+    });
+    const listSql = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('from sis_medical_exemption_records e') &&
+        c.sql.toLowerCase().includes('join sis_students s') &&
+        c.sql.toLowerCase().includes('s.school_id = $2::uuid'),
+    );
+    expect(listSql).toBeDefined();
   });
 });

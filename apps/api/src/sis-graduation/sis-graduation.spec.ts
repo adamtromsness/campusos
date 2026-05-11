@@ -109,6 +109,33 @@ function makeFake(responder?: (call: CapturedCall) => unknown) {
   return { capture, client, tenantPrisma };
 }
 
+/**
+ * REVIEW-P2C13 outbox stub — captures every enqueueInTx so tests can
+ * assert durable emits land with the deterministic event_id.
+ */
+function makeOutbox() {
+  const enqueued: Array<{
+    topic: string;
+    sourceModule: string;
+    key: string;
+    eventId?: string;
+    payload: Record<string, unknown>;
+  }> = [];
+  const outbox = {
+    enqueueInTx: async (_tx: unknown, opts: any) => {
+      enqueued.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+      return 'outbox-id';
+    },
+  };
+  return { outbox, enqueued };
+}
+
 function makeKafka() {
   const emits: Array<{
     topic: string;
@@ -237,30 +264,30 @@ describe('SIS Graduation — P2-13b', () => {
       }
       return [];
     });
-    const { kafka, emits } = makeKafka();
+    const { outbox, enqueued } = makeOutbox();
     const gpaSvc = new GpaService(fake.tenantPrisma as never, makePerms() as never);
-    const worker = new GraduationAuditWorker(fake.tenantPrisma as never, kafka as never, gpaSvc);
+    const worker = new GraduationAuditWorker(fake.tenantPrisma as never, outbox as never, gpaSvc);
     const summary = await runWithTenantContext({ tenant: SCHOOL } as never, async () =>
       worker.runForCurrentTenant(),
     );
     expect(summary.studentsEvaluated).toBe(1);
     expect(summary.requirementsEvaluated).toBe(1);
     expect(summary.atRiskSeniors).toBe(1);
-    // Yield to micro-task queue for the emit.
-    await new Promise((r) => setTimeout(r, 0));
-    expect(emits.length).toBe(1);
-    expect(emits[0]!.topic).toBe('sis.graduation.at_risk');
-    expect(emits[0]!.sourceModule).toBe('sis-graduation');
-    const payload = emits[0]!.payload as {
+    // REVIEW-P2C13 BLOCKING 5 — emit lands via OutboxService.enqueueInTx
+    // inside a tenant tx so a Kafka outage cannot lose the at-risk event.
+    expect(enqueued.length).toBe(1);
+    expect(enqueued[0]!.topic).toBe('sis.graduation.at_risk');
+    expect(enqueued[0]!.sourceModule).toBe('sis-graduation');
+    const payload = enqueued[0]!.payload as {
       studentId: string;
       missingRequirements: Array<{ status: string }>;
     };
     expect(payload.studentId).toBe(STUDENT_ID);
     expect(payload.missingRequirements.length).toBe(1);
     expect(payload.missingRequirements[0]!.status).toBe('NOT_MET');
-    // ADR-057 envelope shape — eventId set by the worker
-    expect(emits[0]!.eventId).toBeDefined();
-    expect(emits[0]!.eventId).toMatch(
+    // Deterministic v5-shape event id keyed on (studentId, runId).
+    expect(enqueued[0]!.eventId).toBeDefined();
+    expect(enqueued[0]!.eventId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
   });
@@ -604,5 +631,63 @@ describe('SIS Graduation — P2-13b', () => {
       const codes = Reflect.getMetadata(PERMISSIONS_KEY, fn) as string[];
       expect(codes).toEqual(expected);
     }
+  });
+
+  // ─── REVIEW-P2C13 REGRESSION TESTS ───
+
+  /**
+   * R-B4a: ServiceLearningService.assertCanReadStudent no longer
+   * blanket-bypasses STAFF — staff without stu-005:write/admin is
+   * refused with NotFound.
+   */
+  it('R-B4a: ServiceLearningService refuses STAFF without stu-005:write', async () => {
+    const fake = makeFake();
+    const svc = new ServiceLearningService(fake.tenantPrisma as never, makePerms(false) as never);
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await expect(svc.listForStudent(STUDENT_ID, TEACHER_ACTOR)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  /**
+   * R-B4b: ServiceLearningService.reviewHours lock joins sis_students
+   * with the school predicate.
+   */
+  it('R-B4b: ServiceLearningService.reviewHours lock binds school_id', async () => {
+    const fake = makeFake(() => []);
+    const svc = new ServiceLearningService(fake.tenantPrisma as never, makePerms() as never);
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await expect(
+        svc.reviewHours(
+          '019e1500-0000-7556-8c81-bbbbbbbbbb01',
+          { decision: 'APPROVED' } as never,
+          ADMIN_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    const lockSql = fake.capture.find(
+      (c) =>
+        c.sql.toLowerCase().includes('from sis_service_learning_hours h') &&
+        c.sql.toLowerCase().includes('join sis_students s') &&
+        c.sql.toLowerCase().includes('s.school_id = $2::uuid') &&
+        c.sql.toLowerCase().includes('for update of h'),
+    );
+    expect(lockSql).toBeDefined();
+  });
+
+  /**
+   * R-M3: GraduationService.assertCanReadStudent no longer
+   * blanket-bypasses STAFF. A teacher without stu-005:write and
+   * without an assigned-class link is refused.
+   */
+  it('R-M3: GraduationService refuses generic STAFF without stu-005:write', async () => {
+    const fake = makeFake(() => []);
+    const svc = new GraduationService(fake.tenantPrisma as never, makePerms(false) as never);
+    await runWithTenantContext({ tenant: SCHOOL } as never, async () => {
+      await expect(svc.getAuditForStudent(STUDENT_ID, TEACHER_ACTOR)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
   });
 });

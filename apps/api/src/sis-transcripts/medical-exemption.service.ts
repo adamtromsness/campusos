@@ -121,6 +121,11 @@ export class MedicalExemptionService {
     throw new NotFoundException('Student not found');
   }
 
+  /**
+   * REVIEW-P2C13 MAJOR 1 — SELECT base now joins sis_students with an
+   * inner join. Every read carries `s.school_id = tenant.schoolId`
+   * so cross-school exemption UUIDs collapse to 0 rows.
+   */
   private buildSelectBase(): string {
     return (
       'SELECT e.id::text, e.student_id::text, ' +
@@ -131,7 +136,7 @@ export class MedicalExemptionService {
       'ap.first_name AS approved_by_first_name, ap.last_name AS approved_by_last_name, ' +
       'e.approved_at::text ' +
       'FROM sis_medical_exemption_records e ' +
-      'LEFT JOIN sis_students s ON s.id = e.student_id ' +
+      'JOIN sis_students s ON s.id = e.student_id ' +
       'LEFT JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
       'LEFT JOIN platform.iam_person sip ON sip.id = ps.person_id ' +
       'LEFT JOIN platform.iam_person ap ON ap.id = e.approved_by '
@@ -140,10 +145,14 @@ export class MedicalExemptionService {
 
   async listForStudent(studentId: string, actor: ResolvedActor): Promise<MedicalExemptionDto[]> {
     await this.assertCanReadStudent(studentId, actor);
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<ExemptionRow[]>(
-        this.buildSelectBase() + 'WHERE e.student_id = $1::uuid ORDER BY e.effective_from DESC',
+        this.buildSelectBase() +
+          'WHERE e.student_id = $1::uuid AND s.school_id = $2::uuid ' +
+          'ORDER BY e.effective_from DESC',
         studentId,
+        tenant.schoolId,
       ),
     );
     return rows.map((r) => this.rowToDto(r));
@@ -188,8 +197,9 @@ export class MedicalExemptionService {
     );
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<ExemptionRow[]>(
-        this.buildSelectBase() + 'WHERE e.id = $1::uuid LIMIT 1',
+        this.buildSelectBase() + 'WHERE e.id = $1::uuid AND s.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       ),
     );
     return this.rowToDto(rows[0]!);
@@ -201,21 +211,23 @@ export class MedicalExemptionService {
     actor: ResolvedActor,
   ): Promise<MedicalExemptionDto> {
     await this.assertStaff(actor);
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C13 MAJOR 1 — lock joins sis_students with the school
+      // predicate baked in; a foreign-school exemption UUID returns 0
+      // rows and collapses to 404 don't-leak-existence.
       const rows = await tx.$queryRawUnsafe<
-        Array<{ effective_from: string; effective_to: string | null; school_id: string }>
+        Array<{ effective_from: string; effective_to: string | null }>
       >(
-        'SELECT e.effective_from::text, e.effective_to::text, s.school_id::text AS school_id ' +
-          'FROM sis_medical_exemption_records e JOIN sis_students s ON s.id = e.student_id ' +
-          'WHERE e.id = $1::uuid FOR UPDATE OF e',
+        'SELECT e.effective_from::text, e.effective_to::text ' +
+          'FROM sis_medical_exemption_records e ' +
+          'JOIN sis_students s ON s.id = e.student_id ' +
+          'WHERE e.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF e',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Exemption not found');
       const row = rows[0]!;
-      const tenant = getCurrentTenant();
-      if (row.school_id !== tenant.schoolId) {
-        throw new NotFoundException('Exemption not found');
-      }
       const effFrom = dto.effectiveFrom ?? row.effective_from;
       const effTo =
         dto.effectiveTo === undefined
@@ -252,15 +264,23 @@ export class MedicalExemptionService {
       if (sets.length === 0) return;
       sets.push('updated_at = now()');
       params.push(id);
+      params.push(tenant.schoolId);
+      // Defence-in-depth — UPDATE carries the school predicate via
+      // subselect so even if the locked row pre-check is bypassed by a
+      // future refactor, the final UPDATE still cannot touch a foreign
+      // school's row.
       await tx.$executeRawUnsafe(
-        `UPDATE sis_medical_exemption_records SET ${sets.join(', ')} WHERE id = $${next}::uuid`,
+        `UPDATE sis_medical_exemption_records SET ${sets.join(', ')} ` +
+          `WHERE id = $${next}::uuid ` +
+          `AND student_id IN (SELECT s.id FROM sis_students s WHERE s.school_id = $${next + 1}::uuid)`,
         ...params,
       );
     });
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<ExemptionRow[]>(
-        this.buildSelectBase() + 'WHERE e.id = $1::uuid LIMIT 1',
+        this.buildSelectBase() + 'WHERE e.id = $1::uuid AND s.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       ),
     );
     return this.rowToDto(rows[0]!);
@@ -279,8 +299,16 @@ export class MedicalExemptionService {
     if (rows.length === 0 || rows[0]!.school_id !== tenant.schoolId) {
       throw new NotFoundException('Exemption not found');
     }
+    // REVIEW-P2C13 MAJOR 1 — DELETE carries the school predicate via
+    // subselect so even if the school check above is short-circuited
+    // the SQL still refuses to touch a foreign-school row.
     await this.tenantPrisma.executeInTenantContext(async (client) =>
-      client.$executeRawUnsafe('DELETE FROM sis_medical_exemption_records WHERE id = $1::uuid', id),
+      client.$executeRawUnsafe(
+        'DELETE FROM sis_medical_exemption_records WHERE id = $1::uuid ' +
+          'AND student_id IN (SELECT s.id FROM sis_students s WHERE s.school_id = $2::uuid)',
+        id,
+        tenant.schoolId,
+      ),
     );
   }
 }

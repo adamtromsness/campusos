@@ -215,8 +215,9 @@ export class LockerService {
     }
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<LockerRow[]>(
-        this.buildSelectBase() + 'WHERE l.id = $1::uuid LIMIT 1',
+        this.buildSelectBase() + 'WHERE l.id = $1::uuid AND l.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       ),
     );
     return this.rowToDto(rows[0]!);
@@ -248,15 +249,15 @@ export class LockerService {
     const ciphertext = encryptCombination(combinationPlaintext);
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      const rows = await tx.$queryRawUnsafe<Array<{ status: string; school_id: string }>>(
-        'SELECT status, school_id::text AS school_id FROM sis_lockers WHERE id = $1::uuid FOR UPDATE',
+      // REVIEW-P2C13 MAJOR 2 — lock binds school predicate baked into the
+      // SELECT FOR UPDATE so a foreign-school locker UUID returns 0 rows.
+      const rows = await tx.$queryRawUnsafe<Array<{ status: string }>>(
+        'SELECT status FROM sis_lockers WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         dto.lockerId,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Locker not found');
       const row = rows[0]!;
-      if (row.school_id !== tenant.schoolId) {
-        throw new NotFoundException('Locker not found');
-      }
       if (row.status === 'ASSIGNED') {
         throw new BadRequestException(
           'Locker is already ASSIGNED. Release it first via /sis/lockers/:id/release.',
@@ -269,18 +270,20 @@ export class LockerService {
         "UPDATE sis_lockers SET status = 'ASSIGNED', " +
           'assigned_to_student_id = $1::uuid, assigned_at = current_date, ' +
           'academic_year = $2, combination_encrypted = $3, updated_at = now() ' +
-          'WHERE id = $4::uuid',
+          'WHERE id = $4::uuid AND school_id = $5::uuid',
         dto.studentId,
         dto.academicYear,
         ciphertext,
         dto.lockerId,
+        tenant.schoolId,
       );
     });
 
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<LockerRow[]>(
-        this.buildSelectBase() + 'WHERE l.id = $1::uuid LIMIT 1',
+        this.buildSelectBase() + 'WHERE l.id = $1::uuid AND l.school_id = $2::uuid LIMIT 1',
         dto.lockerId,
+        tenant.schoolId,
       ),
     );
     return { locker: this.rowToDto(rows[0]!), combination: combinationPlaintext };
@@ -290,13 +293,16 @@ export class LockerService {
     await this.assertManager(actor);
     const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      const rows = await tx.$queryRawUnsafe<Array<{ status: string; school_id: string }>>(
-        'SELECT status, school_id::text AS school_id FROM sis_lockers WHERE id = $1::uuid FOR UPDATE',
+      // REVIEW-P2C13 MAJOR 2 — lock now binds school predicate into the
+      // SELECT FOR UPDATE so a foreign-school locker UUID never even
+      // enters the locked-row check.
+      const rows = await tx.$queryRawUnsafe<Array<{ status: string }>>(
+        'SELECT status FROM sis_lockers WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Locker not found');
       const row = rows[0]!;
-      if (row.school_id !== tenant.schoolId) throw new NotFoundException('Locker not found');
       if (row.status !== 'ASSIGNED') {
         throw new BadRequestException(
           `Cannot release a locker in status ${row.status}. Only ASSIGNED lockers can be released.`,
@@ -305,14 +311,17 @@ export class LockerService {
       await tx.$executeRawUnsafe(
         "UPDATE sis_lockers SET status = 'AVAILABLE', " +
           'assigned_to_student_id = NULL, assigned_at = NULL, academic_year = NULL, ' +
-          'combination_encrypted = NULL, updated_at = now() WHERE id = $1::uuid',
+          'combination_encrypted = NULL, updated_at = now() ' +
+          'WHERE id = $1::uuid AND school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<LockerRow[]>(
-        this.buildSelectBase() + 'WHERE l.id = $1::uuid LIMIT 1',
+        this.buildSelectBase() + 'WHERE l.id = $1::uuid AND l.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       ),
     );
     return this.rowToDto(rows[0]!);
@@ -354,27 +363,33 @@ export class LockerService {
     await this.assertManager(actor);
     const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      const rows = await tx.$queryRawUnsafe<Array<{ status: string; school_id: string }>>(
-        'SELECT status, school_id::text AS school_id FROM sis_lockers WHERE id = $1::uuid FOR UPDATE',
+      // REVIEW-P2C13 MAJOR 2 — lock now binds school predicate into the
+      // SELECT FOR UPDATE so a foreign-school locker UUID never even
+      // enters the locked-row check.
+      const rows = await tx.$queryRawUnsafe<Array<{ status: string }>>(
+        'SELECT status FROM sis_lockers WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Locker not found');
       const row = rows[0]!;
-      if (row.school_id !== tenant.schoolId) throw new NotFoundException('Locker not found');
       if (row.status === 'ASSIGNED') {
         throw new BadRequestException('Release the locker before marking it OUT_OF_SERVICE.');
       }
       await tx.$executeRawUnsafe(
         "UPDATE sis_lockers SET status = 'OUT_OF_SERVICE', " +
           'assigned_to_student_id = NULL, assigned_at = NULL, academic_year = NULL, ' +
-          'combination_encrypted = NULL, updated_at = now() WHERE id = $1::uuid',
+          'combination_encrypted = NULL, updated_at = now() ' +
+          'WHERE id = $1::uuid AND school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<LockerRow[]>(
-        this.buildSelectBase() + 'WHERE l.id = $1::uuid LIMIT 1',
+        this.buildSelectBase() + 'WHERE l.id = $1::uuid AND l.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       ),
     );
     return this.rowToDto(rows[0]!);
@@ -384,13 +399,16 @@ export class LockerService {
     await this.assertManager(actor);
     const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      const rows = await tx.$queryRawUnsafe<Array<{ status: string; school_id: string }>>(
-        'SELECT status, school_id::text AS school_id FROM sis_lockers WHERE id = $1::uuid FOR UPDATE',
+      // REVIEW-P2C13 MAJOR 2 — lock now binds school predicate into the
+      // SELECT FOR UPDATE so a foreign-school locker UUID never even
+      // enters the locked-row check.
+      const rows = await tx.$queryRawUnsafe<Array<{ status: string }>>(
+        'SELECT status FROM sis_lockers WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Locker not found');
       const row = rows[0]!;
-      if (row.school_id !== tenant.schoolId) throw new NotFoundException('Locker not found');
       if (row.status === 'ASSIGNED') {
         throw new BadRequestException(
           'Locker is ASSIGNED. Release it via /sis/lockers/:id/release before re-flagging AVAILABLE.',
@@ -399,14 +417,17 @@ export class LockerService {
       await tx.$executeRawUnsafe(
         "UPDATE sis_lockers SET status = 'AVAILABLE', " +
           'assigned_to_student_id = NULL, assigned_at = NULL, academic_year = NULL, ' +
-          'combination_encrypted = NULL, updated_at = now() WHERE id = $1::uuid',
+          'combination_encrypted = NULL, updated_at = now() ' +
+          'WHERE id = $1::uuid AND school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<LockerRow[]>(
-        this.buildSelectBase() + 'WHERE l.id = $1::uuid LIMIT 1',
+        this.buildSelectBase() + 'WHERE l.id = $1::uuid AND l.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       ),
     );
     return this.rowToDto(rows[0]!);

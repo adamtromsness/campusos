@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '../tenant/tenant.module';
 import { IamModule } from '../iam/iam.module';
 import { KafkaModule } from '../kafka/kafka.module';
+import { OutboxService } from '../kafka/outbox.service';
 import { LockerService } from './locker.service';
 import { MedicalExemptionService } from './medical-exemption.service';
 import { ReportingPeriodService } from './reporting-period.service';
@@ -58,6 +59,7 @@ import { TransferService } from './transfer.service';
 @Module({
   imports: [TenantModule, IamModule, KafkaModule],
   providers: [
+    OutboxService,
     TranscriptService,
     TransferService,
     LockerService,

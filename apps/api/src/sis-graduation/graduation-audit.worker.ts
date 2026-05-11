@@ -1,35 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import { GpaService } from './gpa.service';
+import { deterministicAtRiskEventId } from './event-ids';
 
-/**
- * Deterministic event_id for sis.graduation.at_risk — derived from
- * (studentId, runId). Used by the durable emit so a redelivered envelope
- * carries the same id and downstream consumers dedupe naturally.
- */
-export function deterministicAtRiskEventId(studentId: string, runId: string): string {
-  const hash = createHash('sha256')
-    .update(studentId + ':' + runId + ':sis.graduation.at_risk:v1')
-    .digest();
-  hash[6] = (hash[6]! & 0x0f) | 0x50;
-  hash[8] = (hash[8]! & 0x3f) | 0x80;
-  const hex = hash.subarray(0, 16).toString('hex');
-  return (
-    hex.slice(0, 8) +
-    '-' +
-    hex.slice(8, 12) +
-    '-' +
-    hex.slice(12, 16) +
-    '-' +
-    hex.slice(16, 20) +
-    '-' +
-    hex.slice(20, 32)
-  );
-}
+export { deterministicAtRiskEventId };
 
 interface RequirementRow {
   id: string;
@@ -82,7 +59,7 @@ export class GraduationAuditWorker {
 
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly gpa: GpaService,
   ) {}
 
@@ -174,29 +151,38 @@ export class GraduationAuditWorker {
       }
     }
 
-    // Emit at-risk events outside the tenant-context loop so a Kafka hiccup
-    // does not roll back the audit writes.
+    // REVIEW-P2C13 BLOCKING 5 — durable at-risk emit via the platform
+    // outbox. Each emit lands inside a tenant tx that writes the
+    // outbox row + commits, so the OutboxPublisherWorker delivers
+    // when the broker recovers. Deterministic event id keyed on
+    // (studentId, runId) means a redelivery lands the same envelope
+    // and downstream consumers dedup via
+    // platform_event_consumer_idempotency.
+    const evaluatedAt = new Date().toISOString();
     for (const item of atRiskEmits) {
       try {
-        await this.kafka.emit({
-          topic: 'sis.graduation.at_risk',
-          key: item.studentId,
-          eventId: deterministicAtRiskEventId(item.studentId, runId),
-          payload: {
-            studentId: item.studentId,
-            studentName: item.studentName,
-            schoolId: tenant.schoolId,
-            gradeLevel: item.gradeLevel,
-            missingRequirements: item.missing,
-            runId,
-            evaluatedAt: new Date().toISOString(),
-          },
-          sourceModule: 'sis-graduation',
+        await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+          await this.outbox.enqueueInTx(tx, {
+            topic: 'sis.graduation.at_risk',
+            key: item.studentId,
+            sourceModule: 'sis-graduation',
+            eventId: deterministicAtRiskEventId(item.studentId, runId),
+            payload: {
+              studentId: item.studentId,
+              studentName: item.studentName,
+              schoolId: tenant.schoolId,
+              gradeLevel: item.gradeLevel,
+              missingRequirements: item.missing,
+              runId,
+              evaluatedAt,
+              sourceRefId: item.studentId,
+            },
+          });
         });
         summary.emittedAtRiskCount += 1;
       } catch (err) {
         this.logger.warn(
-          'Failed to emit sis.graduation.at_risk for student ' + item.studentId,
+          'Failed to enqueue sis.graduation.at_risk for student ' + item.studentId,
           err,
         );
       }
