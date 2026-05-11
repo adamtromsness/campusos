@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-13: SIS Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.split-card{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:16px 0}
+.split-card h3{font-size:16px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.split-card p{font-size:14px;line-height:1.8;margin:0}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="index.html">Design Hub</a><a href="campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave C &mdash; Operational Depth</div>
+    <h1>P2-13: SIS Advanced</h1>
+    <div class="sub">Student profiles with avatar approval workflow, school-defined custom fields with typed values attached to any SIS entity, graduation requirements with nightly credit audit and at-risk alerting, service learning hours with supervisor verification, GPA calculation configurations with weighted/unweighted/subject-area modes, official transcript generation with course history and credit summaries, student transfer records with records package tracking, locker assignment management, and parent-initiated information update requests with configurable auto-approval. The most-requested SIS features by registrars. Pre-split into 3 sub-cycles.</div>
+    <span class="version">May 2026 &middot; 3 Sub-Cycles &middot; ERD v11 &middot; M20 SIS .1 (24 tables) &middot; STU-001..008 &middot; Phase 2 Cycle 13</span>
+  </div>
+
+  <h2 class="section-heading">Sub-Cycle Structure</h2>
+  <p class="body-text">24 tables split into 3 independently shippable sub-cycles along functional boundaries: student identity + custom fields, graduation + service learning + GPA, and transcripts + transfers + lockers.</p>
+
+  <div class="split-card">
+    <h3>P2-13a &mdash; Student Profiles + Custom Fields + Parent Updates (8 tables)</h3>
+    <p>Student-editable profiles with avatar approval, school-defined custom fields with typed values (TEXT, NUMBER, DATE, ENUM, MULTI_SELECT) attached to students/staff/guardians, and parent-initiated information update requests with configurable auto-approval for low-risk fields.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-13b &mdash; Graduation + Service Learning + GPA (8 tables)</h3>
+    <p>Graduation requirement definitions (credit total, subject credit, specific course, service hours, assessment, minimum GPA), nightly graduation audit worker with per-student requirement-by-requirement status, service learning hours with supervisor verification and grade-level requirements, GPA calculation configurations (weighted, unweighted, subject-area), and course prerequisites.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-13c &mdash; Transcripts + Transfers + Lockers (8 tables)</h3>
+    <p>Official transcript generation with course history, credit summaries, and GPA snapshot, transcript request workflow with fee collection, student transfer records with sending/receiving school tracking and records package management, locker assignment with combination encryption and year-end bulk clear, and advanced reporting period configurations.</p>
+  </div>
+
+  <h2 class="section-heading">P2-13a: Student Profiles + Custom Fields + Parent Updates</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema (8 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>sis_student_profiles</strong> &mdash; <code>student_id UUID FK(sis_students) NOT NULL UNIQUE</code>, <code>bio TEXT</code> (max 500), <code>currently_reading TEXT</code>, <code>favourite_song TEXT</code>, <code>interests TEXT[]</code>, <code>motto TEXT</code> (max 200), <code>avatar_s3_key TEXT</code>, <code>avatar_status TEXT DEFAULT 'PENDING_APPROVAL'</code> 3-value CHECK (PENDING_APPROVAL, APPROVED, REJECTED), <code>avatar_reviewed_by UUID FK</code>, <code>avatar_reviewed_at TIMESTAMPTZ</code>. Avatar requires homeroom teacher approval. Student-owned: only the student can edit bio/interests/motto.</li>
+      <li><strong>sis_custom_field_definitions</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>entity_type TEXT NOT NULL</code> 4-value CHECK (STUDENT, STAFF, GUARDIAN, CLASS), <code>field_name TEXT NOT NULL</code>, <code>field_label TEXT NOT NULL</code>, <code>field_type TEXT NOT NULL</code> 6-value CHECK (TEXT, NUMBER, DATE, BOOLEAN, ENUM, MULTI_SELECT), <code>enum_options TEXT[]</code> (for ENUM/MULTI_SELECT), <code>is_required BOOLEAN DEFAULT false</code>, <code>is_visible_to_parent BOOLEAN DEFAULT false</code>, <code>sort_order INT DEFAULT 0</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, entity_type, field_name). Schools define their own fields without schema changes.</li>
+      <li><strong>sis_custom_field_values</strong> &mdash; <code>definition_id UUID FK NOT NULL</code>, <code>entity_id UUID NOT NULL</code> (the student/staff/guardian/class this value belongs to), <code>value_text TEXT</code>, <code>value_number NUMERIC(12,4)</code>, <code>value_date DATE</code>, <code>value_boolean BOOLEAN</code>, <code>value_enum TEXT</code>, <code>value_multi TEXT[]</code>. UNIQUE(definition_id, entity_id). INDEX(definition_id, entity_id). Only one value_* column populated per row based on field_type.</li>
+      <li><strong>sis_parent_info_update_requests</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>submitted_by UUID FK NOT NULL</code>, <code>target_type TEXT NOT NULL</code> 3-value CHECK (STUDENT_INFO, GUARDIAN_INFO, EMERGENCY_CONTACT), <code>target_id UUID NOT NULL</code>, <code>proposed_changes JSONB NOT NULL</code>, <code>change_reason TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 4-value CHECK (PENDING, APPROVED, REJECTED, AUTO_APPROVED), <code>reviewed_by UUID FK</code>, <code>reviewed_at TIMESTAMPTZ</code>, <code>reviewer_notes TEXT</code>, <code>applied_at TIMESTAMPTZ</code>. INDEX(school_id, status) WHERE status='PENDING'. On APPROVED: apply proposed_changes to target table, stamp applied_at, write audit_log.</li>
+      <li><strong>sis_auto_approval_rules</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>target_type TEXT NOT NULL</code>, <code>field_name TEXT NOT NULL</code>, <code>auto_approve BOOLEAN NOT NULL DEFAULT false</code>. UNIQUE(school_id, target_type, field_name). Low-risk fields (phone, email) can be auto-approved; high-risk (address, emergency contacts) require manual review.</li>
+      <li><strong>sis_student_photos</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>photo_type TEXT NOT NULL</code> 3-value CHECK (OFFICIAL, YEARBOOK, ID_CARD), <code>s3_key TEXT NOT NULL</code>, <code>academic_year TEXT NOT NULL</code>, <code>is_current BOOLEAN DEFAULT true</code>. UNIQUE(student_id, photo_type, academic_year). Official school photo vs student-uploaded avatar (on sis_student_profiles).</li>
+      <li><strong>sis_student_notes</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>author_id UUID FK NOT NULL</code>, <code>note_type TEXT NOT NULL</code> 5-value CHECK (ACADEMIC, BEHAVIOURAL, PASTORAL, ADMINISTRATIVE, CONFIDENTIAL), <code>note_text TEXT NOT NULL</code>, <code>is_visible_to_parent BOOLEAN DEFAULT false</code>, <code>is_confidential BOOLEAN DEFAULT false</code>. INDEX(student_id, note_type, created_at DESC). CONFIDENTIAL notes visible only to author + admin.</li>
+      <li><strong>sis_family_relationships</strong> &mdash; <code>family_id UUID NOT NULL</code>, <code>guardian_a_id UUID FK NOT NULL</code>, <code>guardian_b_id UUID FK NOT NULL</code>, <code>relationship_type TEXT NOT NULL</code> 6-value CHECK (MARRIED, DIVORCED, SEPARATED, COHABITING, STEP_PARENT, OTHER), <code>custody_arrangement TEXT</code> 4-value CHECK (JOINT, SOLE_A, SOLE_B, OTHER) nullable, <code>notes TEXT</code>. UNIQUE(family_id, guardian_a_id, guardian_b_id). CHECK(guardian_a_id != guardian_b_id). Custody arrangement drives which parent sees what data.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 tables. Migration: <code>128_sis_profiles_customfields.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Seed + Services + UI + Tests (P2-13a)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>3 student profiles (1 APPROVED avatar, 1 PENDING, 1 REJECTED). 4 custom field definitions (2 STUDENT: "Shirt Size" ENUM, "Bus Route Preference" TEXT; 1 GUARDIAN: "Employer" TEXT; 1 CLASS: "Room Setup" ENUM). 6 custom field values. 3 parent update requests (1 APPROVED + applied, 1 PENDING, 1 AUTO_APPROVED). 2 auto-approval rules (email=auto, address=manual). 3 student photos (OFFICIAL). 4 student notes (mix of types, 1 CONFIDENTIAL). 1 family relationship (DIVORCED, JOINT custody).</li>
+    </ol>
+    <div class="detail-heading">Services (~22 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>StudentProfileService</strong> &mdash; <code>GET /sis/students/:id/profile</code>, <code>PATCH /sis/students/:id/profile</code> (student-owned: only student edits bio/interests), <code>POST /sis/students/:id/profile/avatar</code> (upload → PENDING_APPROVAL), <code>PATCH /sis/student-profiles/:id/avatar-review</code> (teacher approves/rejects).</li>
+      <li><strong>CustomFieldService</strong> &mdash; <code>GET /sis/custom-fields/:entityType</code>, <code>POST /sis/custom-fields</code> (admin defines), <code>PATCH /sis/custom-fields/:id</code>. <code>GET /sis/custom-field-values/:entityType/:entityId</code>, <code>PUT /sis/custom-field-values</code> (bulk upsert values for an entity). Validates value type matches definition.</li>
+      <li><strong>ParentUpdateService</strong> &mdash; <code>POST /sis/parent-update-requests</code> (parent submits; checks auto-approval rules → AUTO_APPROVED if all fields qualify), <code>GET /sis/parent-update-requests</code> (admin: pending queue; parent: own), <code>PATCH /sis/parent-update-requests/:id</code> (admin approves/rejects → on approve: applies changes + audit_log).</li>
+      <li><strong>StudentNoteService</strong> &mdash; CRUD. CONFIDENTIAL notes filtered by author_id + admin role.</li>
+      <li><strong>FamilyRelationshipService</strong> &mdash; CRUD. Custody arrangement drives parent data visibility scope.</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Student Profile Page</strong> (extends existing student detail) &mdash; student: edit bio, interests, motto, avatar upload. Teacher: avatar approval queue. Custom fields section below standard fields.</li>
+      <li><strong>Custom Field Admin</strong> <code>/sis/admin/custom-fields</code> &mdash; define fields per entity type. Drag-reorder. Preview.</li>
+      <li><strong>Parent Update Queue</strong> <code>/sis/admin/parent-updates</code> &mdash; pending requests with proposed changes diff. Approve/reject. Auto-approval rule configuration.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-13a: 8 tables, ~22 endpoints. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-13b: Graduation + Service Learning + GPA</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Schema (8 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>sis_graduation_requirements</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>requirement_type TEXT NOT NULL</code> 6-value CHECK (CREDIT_TOTAL, SUBJECT_CREDIT, SPECIFIC_COURSE, SERVICE_HOURS, ASSESSMENT, MINIMUM_GPA), <code>subject_area TEXT</code>, <code>credits_required NUMERIC(4,2)</code>, <code>specific_course_id UUID</code>, <code>hours_required INT</code>, <code>assessment_name TEXT</code>, <code>minimum_gpa NUMERIC(3,2)</code>, <code>is_active BOOLEAN DEFAULT true</code>. INDEX(school_id, is_active).</li>
+      <li><strong>sis_student_graduation_audits</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>requirement_id UUID FK NOT NULL</code>, <code>status TEXT NOT NULL</code> 3-value CHECK (MET, IN_PROGRESS, NOT_MET), <code>credits_earned NUMERIC(4,2)</code>, <code>credits_remaining NUMERIC(4,2)</code>, <code>detail TEXT</code>, <code>last_calculated TIMESTAMPTZ NOT NULL</code>. UNIQUE(student_id, requirement_id). Materialised nightly by GraduationAuditWorker. Emits <code>sis.graduation.at_risk</code> when any senior has NOT_MET requirements.</li>
+      <li><strong>sis_service_learning_requirements</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>grade_level TEXT NOT NULL</code>, <code>required_hours INT NOT NULL</code>, <code>deadline_type TEXT NOT NULL</code> 3-value CHECK (END_OF_YEAR, BEFORE_GRADUATION, SPECIFIC_DATE), <code>specific_deadline DATE</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, grade_level).</li>
+      <li><strong>sis_service_learning_hours</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>organisation_name TEXT NOT NULL</code>, <code>activity_description TEXT NOT NULL</code>, <code>hours NUMERIC(5,2) NOT NULL</code>, <code>service_date DATE NOT NULL</code>, <code>supervisor_name TEXT</code>, <code>supervisor_contact TEXT</code>, <code>evidence_s3_key TEXT</code>, <code>status TEXT DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, APPROVED, REJECTED), <code>reviewed_by UUID FK</code>, <code>reviewed_at TIMESTAMPTZ</code>. INDEX(student_id, status).</li>
+      <li><strong>sis_gpa_configurations</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>config_name TEXT NOT NULL</code>, <code>calculation_method TEXT NOT NULL</code> 3-value CHECK (UNWEIGHTED, WEIGHTED, SUBJECT_AREA), <code>scale_type TEXT NOT NULL</code> 2-value CHECK (FOUR_POINT, HUNDRED_POINT), <code>grade_point_mapping JSONB NOT NULL</code> (e.g., {"A+":4.0, "A":4.0, "A-":3.7, "B+":3.3...}), <code>honors_weight_bonus NUMERIC(2,1) DEFAULT 0.5</code>, <code>ap_weight_bonus NUMERIC(2,1) DEFAULT 1.0</code>, <code>is_default BOOLEAN DEFAULT false</code>. UNIQUE(school_id, config_name).</li>
+      <li><strong>sis_student_gpa_snapshots</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>gpa_config_id UUID FK NOT NULL</code>, <code>academic_year_id UUID FK</code>, <code>term_id UUID FK</code>, <code>cumulative_gpa NUMERIC(4,3)</code>, <code>term_gpa NUMERIC(4,3)</code>, <code>total_credits_attempted NUMERIC(5,2)</code>, <code>total_credits_earned NUMERIC(5,2)</code>, <code>class_rank INT</code>, <code>class_size INT</code>, <code>calculated_at TIMESTAMPTZ NOT NULL</code>. UNIQUE(student_id, gpa_config_id, academic_year_id, term_id). Materialised by GPAWorker at end of each term.</li>
+      <li><strong>sis_course_prerequisites</strong> &mdash; <code>course_id UUID FK(sis_courses) NOT NULL</code>, <code>prerequisite_course_id UUID FK(sis_courses) NOT NULL</code>, <code>is_mandatory BOOLEAN DEFAULT true</code>, <code>min_grade TEXT</code>. UNIQUE(course_id, prerequisite_course_id). CHECK(course_id != prerequisite_course_id).</li>
+      <li><strong>sis_grade_scale_entries</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>scale_name TEXT NOT NULL</code>, <code>letter_grade TEXT NOT NULL</code>, <code>min_percentage NUMERIC(5,2)</code>, <code>max_percentage NUMERIC(5,2)</code>, <code>grade_points NUMERIC(3,1)</code>, <code>is_passing BOOLEAN DEFAULT true</code>. UNIQUE(school_id, scale_name, letter_grade). The school's grade-to-percentage mapping.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 tables. Migration: <code>129_sis_graduation_gpa.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed + Services + UI + Tests (P2-13b)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>6 graduation requirements (CREDIT_TOTAL 24 credits, SUBJECT_CREDIT English 4 credits, SPECIFIC_COURSE US History, SERVICE_HOURS 40 hours, ASSESSMENT SAT, MINIMUM_GPA 2.0). 10 graduation audits across 3 students (2 MET, 5 IN_PROGRESS, 3 NOT_MET). 1 service learning requirement (Grade 12, 40 hours). 5 service learning hours (3 APPROVED, 1 PENDING, 1 REJECTED). 2 GPA configs (UNWEIGHTED 4-point, WEIGHTED 4-point with AP/honors bonus). 6 GPA snapshots across 3 students. 3 course prerequisites. 1 grade scale (A+ through F).</li>
+    </ol>
+    <div class="detail-heading">Services (~20 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>GraduationService</strong> &mdash; CRUD for requirements. <code>GET /sis/students/:id/graduation-audit</code> (per-student requirement checklist). GraduationAuditWorker: nightly for all seniors: computes credits earned per subject from cls_grades, checks service hours, checks GPA, upserts sis_student_graduation_audits. Emits <code>sis.graduation.at_risk</code> for students with NOT_MET.</li>
+      <li><strong>ServiceLearningService</strong> &mdash; <code>POST /sis/service-learning</code> (student submits with evidence), <code>GET /sis/students/:id/service-learning</code>, <code>PATCH /sis/service-learning/:id</code> (admin approves/rejects). <code>GET /sis/service-learning/progress</code> (school-wide: hours completed vs required by grade).</li>
+      <li><strong>GPAService</strong> &mdash; CRUD for GPA configs + grade scales. <code>GET /sis/students/:id/gpa</code> (cumulative + term + rank). GPAWorker: end-of-term for all students: computes GPA from cls_grades using configured grade_point_mapping + weight bonuses, ranks within grade level, upserts snapshots.</li>
+      <li><strong>PrerequisiteService</strong> &mdash; CRUD for prerequisites. <code>GET /sis/courses/:id/prerequisites</code>. <code>POST /sis/course-registration/validate</code> (checks student has completed prerequisites with min_grade before allowing enrolment).</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Graduation Tracker</strong> <code>/sis/graduation</code> &mdash; admin: school-wide at-risk list. Student/parent: per-student requirement checklist with MET/IN_PROGRESS/NOT_MET pills + credits remaining.</li>
+      <li><strong>Service Learning</strong> <code>/sis/service-learning</code> &mdash; student: submit hours form. Admin: approval queue. Progress dashboard by grade.</li>
+      <li><strong>GPA Dashboard</strong> (inline on student academic profile) &mdash; cumulative + term GPA chart. Class rank. Weighted vs unweighted comparison.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-13b: 8 tables, ~20 endpoints, 2 workers. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-13c: Transcripts + Transfers + Lockers</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Schema (8 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>sis_transcripts</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>transcript_type TEXT NOT NULL</code> 2-value CHECK (OFFICIAL, UNOFFICIAL), <code>generated_at TIMESTAMPTZ NOT NULL</code>, <code>generated_by UUID FK NOT NULL</code>, <code>gpa_config_id UUID FK NOT NULL</code>, <code>cumulative_gpa_snapshot NUMERIC(4,3)</code>, <code>total_credits NUMERIC(5,2)</code>, <code>class_rank INT</code>, <code>class_size INT</code>, <code>pdf_s3_key TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'GENERATED'</code> 3-value CHECK (GENERATED, SENT, REVOKED). INDEX(student_id, generated_at DESC).</li>
+      <li><strong>sis_transcript_courses</strong> &mdash; <code>transcript_id UUID FK NOT NULL</code>, <code>academic_year TEXT NOT NULL</code>, <code>term TEXT NOT NULL</code>, <code>course_name TEXT NOT NULL</code>, <code>course_code TEXT</code>, <code>credits NUMERIC(3,1)</code>, <code>grade TEXT NOT NULL</code>, <code>grade_points NUMERIC(3,1)</code>, <code>is_honors BOOLEAN DEFAULT false</code>, <code>is_ap BOOLEAN DEFAULT false</code>. INDEX(transcript_id). Snapshot of course history at generation time — frozen, not live-joined.</li>
+      <li><strong>sis_transcript_requests</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>requested_by UUID FK NOT NULL</code>, <code>recipient_name TEXT NOT NULL</code>, <code>recipient_address TEXT</code>, <code>recipient_email TEXT</code>, <code>transcript_type TEXT NOT NULL</code> 2-value CHECK (OFFICIAL, UNOFFICIAL), <code>copies INT NOT NULL DEFAULT 1</code>, <code>fee_amount NUMERIC(6,2)</code>, <code>fee_paid BOOLEAN DEFAULT false</code>, <code>linked_invoice_id UUID</code> (soft to pay_invoices), <code>status TEXT NOT NULL DEFAULT 'SUBMITTED'</code> 5-value CHECK (SUBMITTED, PROCESSING, SENT, PICKED_UP, CANCELLED). INDEX(student_id, status).</li>
+      <li><strong>sis_transfer_records</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>transfer_direction TEXT NOT NULL</code> 2-value CHECK (INCOMING, OUTGOING), <code>other_school_name TEXT NOT NULL</code>, <code>other_school_country TEXT</code>, <code>transfer_date DATE NOT NULL</code>, <code>records_received BOOLEAN DEFAULT false</code>, <code>records_sent BOOLEAN DEFAULT false</code>, <code>records_package_s3_key TEXT</code>, <code>notes TEXT</code>. INDEX(student_id, transfer_date).</li>
+      <li><strong>sis_lockers</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>locker_number TEXT NOT NULL</code>, <code>location_description TEXT</code>, <code>combination_encrypted TEXT</code> (AES-256), <code>status TEXT DEFAULT 'AVAILABLE'</code> 3-value CHECK (AVAILABLE, ASSIGNED, OUT_OF_SERVICE), <code>assigned_to_student_id UUID FK</code>, <code>assigned_at DATE</code>, <code>academic_year TEXT</code>. UNIQUE(school_id, locker_number). INDEX(school_id, status) WHERE status='AVAILABLE'.</li>
+      <li><strong>sis_reporting_periods</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>academic_year_id UUID FK NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>period_type TEXT NOT NULL</code> 4-value CHECK (PROGRESS_REPORT, REPORT_CARD, INTERIM, FINAL), <code>start_date DATE NOT NULL</code>, <code>end_date DATE NOT NULL</code>, <code>grades_due_date DATE NOT NULL</code>, <code>comments_due_date DATE</code>, <code>status TEXT NOT NULL DEFAULT 'UPCOMING'</code> 4-value CHECK (UPCOMING, OPEN, GRADING_CLOSED, PUBLISHED). UNIQUE(school_id, academic_year_id, name).</li>
+      <li><strong>sis_student_awards</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>award_type TEXT NOT NULL</code> 6-value CHECK (HONOR_ROLL, DEANS_LIST, PERFECT_ATTENDANCE, SUBJECT_AWARD, CITIZENSHIP, OTHER), <code>award_name TEXT NOT NULL</code>, <code>academic_year TEXT</code>, <code>term TEXT</code>, <code>awarded_by UUID FK</code>, <code>certificate_s3_key TEXT</code>. INDEX(student_id, academic_year).</li>
+      <li><strong>sis_medical_exemption_records</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>exemption_type TEXT NOT NULL</code> 4-value CHECK (PE, SWIMMING, FIELD_TRIP, OTHER), <code>reason TEXT NOT NULL</code>, <code>doctor_note_s3_key TEXT</code>, <code>effective_from DATE NOT NULL</code>, <code>effective_to DATE</code>, <code>approved_by UUID FK</code>. INDEX(student_id, effective_from).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 tables. Migration: <code>130_sis_transcripts_transfers.sql</code>. Total P2-13 tables: 24.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Seed + Services + UI + Tests (P2-13c)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>2 transcripts (1 OFFICIAL SENT, 1 UNOFFICIAL GENERATED) with 12 transcript courses. 2 transcript requests (1 SENT, 1 SUBMITTED). 2 transfer records (1 INCOMING received, 1 OUTGOING sent). 10 lockers (6 ASSIGNED, 3 AVAILABLE, 1 OUT_OF_SERVICE). 3 reporting periods (1 PUBLISHED, 1 OPEN, 1 UPCOMING). 4 student awards (HONOR_ROLL, PERFECT_ATTENDANCE, SUBJECT_AWARD). 2 medical exemptions (1 current PE, 1 expired).</li>
+    </ol>
+    <div class="detail-heading">Services (~20 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>TranscriptService</strong> &mdash; <code>POST /sis/students/:id/transcripts/generate</code> (snapshots all course grades + GPA + rank into sis_transcript_courses; generates PDF), <code>GET /sis/students/:id/transcripts</code>, <code>POST /sis/transcript-requests</code> (parent/student requests; creates pay_invoice for fee if applicable), <code>PATCH /sis/transcript-requests/:id</code> (process: generate → send).</li>
+      <li><strong>TransferService</strong> &mdash; <code>POST /sis/transfers</code> (record incoming/outgoing), <code>GET /sis/students/:id/transfers</code>, <code>PATCH /sis/transfers/:id</code> (mark records received/sent, upload records package).</li>
+      <li><strong>LockerService</strong> &mdash; <code>GET /sis/lockers</code> (admin: all with status), <code>POST /sis/lockers/assign</code> (assign to student + generate encrypted combination), <code>POST /sis/lockers/:id/release</code>, <code>POST /sis/lockers/bulk-clear</code> (year-end: release all assigned lockers). <code>GET /sis/students/:id/locker</code> (student: own locker + combination decrypted for display).</li>
+      <li><strong>ReportingPeriodService</strong> &mdash; CRUD + status transitions (UPCOMING → OPEN → GRADING_CLOSED → PUBLISHED). <code>GET /sis/reporting-periods/current</code>.</li>
+      <li><strong>StudentAwardService</strong> &mdash; CRUD. <code>GET /sis/students/:id/awards</code>. <code>POST /sis/awards/bulk-honor-roll</code> (auto-generate for students meeting GPA threshold).</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Transcript Manager</strong> <code>/sis/transcripts</code> &mdash; admin: generate for student, request queue, send workflow. Student/parent: request form, download unofficial.</li>
+      <li><strong>Transfer Records</strong> <code>/sis/transfers</code> &mdash; admin: incoming/outgoing tracking with records package management.</li>
+      <li><strong>Locker Manager</strong> <code>/sis/lockers</code> &mdash; admin: locker grid by location, assign/release, year-end bulk clear. Student: own locker + combination.</li>
+      <li><strong>Awards</strong> <code>/sis/awards</code> &mdash; admin: bulk honor roll generation. Student: award history with certificates.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-13c: 8 tables, ~20 endpoints. Create all peer review docs after this sub-cycle. Total P2-13 endpoints: ~62.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist (Full P2-13)</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 24 new tables. Tenant table count: ~614.</li>
+      <li>SIS API: ~62 new endpoints across profiles, custom fields, graduation, GPA, transcripts, transfers, lockers.</li>
+      <li>Student profiles with avatar approval workflow (student-owned).</li>
+      <li>Custom fields: school-defined typed fields on any SIS entity without schema changes.</li>
+      <li>Parent info update requests with configurable auto-approval.</li>
+      <li>Graduation audit: nightly worker + at-risk alerting for seniors with NOT_MET requirements.</li>
+      <li>Service learning hours with supervisor verification.</li>
+      <li>GPA calculation: weighted/unweighted/subject-area with configurable grade point mapping.</li>
+      <li>Official transcript generation with frozen course history snapshot.</li>
+      <li>Locker management with encrypted combinations.</li>
+      <li><code>sis.graduation.at_risk</code> Kafka emit.</li>
+      <li>HANDOFF-P2C13.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 13 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M20 SIS deferred tables, 24 tables). Functions: STU-001..008. Cross-cycle: Cycle 1 sis_students + sis_courses + sis_classes, Cycle 2 cls_grades, Cycle 6 pay_invoices for transcript fees. Pre-split into 3 sub-cycles (P2-13a/b/c).</p>
+  </div>
+</div>
+</body>
+</html>
