@@ -31,6 +31,14 @@ import { RouteGenerationService } from './route-generation.service';
 import { AdhocTripService } from './adhoc-trip.service';
 import { ContractedRouteService } from './contracted-route.service';
 import { RouteGenerationController } from './route-generation.controller';
+// P2-11c — GPS Telemetry + Fleet Dashboard
+import { VehiclePositionService } from './vehicle-position.service';
+import { GeofenceService } from './geofence.service';
+import { ETAService } from './eta.service';
+import { DispatchService } from './dispatch.service';
+import { ParentTrackingService } from './parent-tracking.service';
+import { FleetStatusService } from './fleet-status.service';
+import { GpsFleetController } from './gps-fleet.controller';
 
 /**
  * Transport Module — M61 Transportation (Cycle 19).
@@ -81,8 +89,20 @@ import { RouteGenerationController } from './route-generation.controller';
     RouteGenerationService,
     AdhocTripService,
     ContractedRouteService,
+    // P2-11c
+    VehiclePositionService,
+    GeofenceService,
+    ETAService,
+    DispatchService,
+    ParentTrackingService,
+    FleetStatusService,
   ],
-  controllers: [TransportController, FleetMaintenanceController, RouteGenerationController],
+  controllers: [
+    TransportController,
+    FleetMaintenanceController,
+    RouteGenerationController,
+    GpsFleetController,
+  ],
   exports: [
     RouteService,
     StopService,
@@ -107,6 +127,13 @@ import { RouteGenerationController } from './route-generation.controller';
     RouteGenerationService,
     AdhocTripService,
     ContractedRouteService,
+    // P2-11c
+    VehiclePositionService,
+    GeofenceService,
+    ETAService,
+    DispatchService,
+    ParentTrackingService,
+    FleetStatusService,
   ],
 })
 export class TransportModule {}
