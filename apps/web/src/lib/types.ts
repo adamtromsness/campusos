@@ -11112,3 +11112,318 @@ export interface UpsertCancellationPolicyPayload {
   ratingPenaltyAmount?: number;
   notes?: string;
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 2 Cycle 12 — M101 Events & Ticketing.
+// Atomic ticket sale: UPDATE evt_ticket_tiers SET quantity_sold +=
+// $qty WHERE quantity_sold + $qty <= quantity. 0 rows = 409 Sold Out.
+// ─────────────────────────────────────────────────────────────────
+
+export type EvtEventType =
+  | 'ATHLETIC_GAME'
+  | 'PERFORMANCE'
+  | 'DANCE'
+  | 'FUNDRAISER'
+  | 'GRADUATION'
+  | 'ASSEMBLY'
+  | 'COMMUNITY'
+  | 'OTHER';
+
+export type EvtEventStatus = 'DRAFT' | 'ON_SALE' | 'SOLD_OUT' | 'COMPLETED' | 'CANCELLED';
+export type EvtOrderStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'REFUNDED';
+export type EvtTicketStatus = 'VALID' | 'USED' | 'CANCELLED' | 'REFUNDED';
+export type EvtScanResult = 'VALID' | 'ALREADY_SCANNED' | 'INVALID' | 'EXPIRED';
+export type EvtPassStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+export type EvtCompType =
+  | 'ATHLETE'
+  | 'COACH'
+  | 'OFFICIAL'
+  | 'MEDIA'
+  | 'STAFF'
+  | 'STUDENT'
+  | 'VIP'
+  | 'OTHER';
+export type EvtVolunteerStatus = 'SIGNED_UP' | 'CONFIRMED' | 'CANCELLED';
+
+export interface EvtTierDto {
+  id: string;
+  eventId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  quantitySold: number;
+  remaining: number;
+  saleStartsAt: string | null;
+  saleEndsAt: string | null;
+  isActive: boolean;
+}
+
+export interface EvtEventDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  description: string | null;
+  eventType: EvtEventType;
+  eventDate: string;
+  startTime: string;
+  endTime: string | null;
+  venueId: string | null;
+  venueName: string | null;
+  totalCapacity: number | null;
+  totalTierQuantity: number;
+  linkedGameId: string | null;
+  status: EvtEventStatus;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  tiers?: EvtTierDto[];
+}
+
+export interface EvtTicketDto {
+  id: string;
+  orderId: string;
+  tierId: string;
+  tierName: string | null;
+  holderName: string | null;
+  qrCodeToken: string;
+  status: EvtTicketStatus;
+  scannedAt: string | null;
+}
+
+export interface EvtOrderDto {
+  id: string;
+  eventId: string;
+  eventTitle: string | null;
+  purchaserId: string;
+  purchaserName: string | null;
+  status: EvtOrderStatus;
+  totalAmount: number;
+  stripePaymentIntentId: string | null;
+  expiresAt: string | null;
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  createdAt: string;
+  tickets: EvtTicketDto[];
+}
+
+export interface EvtRefundDto {
+  id: string;
+  orderId: string;
+  refundAmount: number;
+  reason: string;
+  stripeRefundId: string | null;
+  refundedBy: string;
+  refundedAt: string;
+}
+
+export interface EvtSeasonPassDto {
+  id: string;
+  schoolId: string;
+  personId: string;
+  personName: string | null;
+  passType: string;
+  eventsIncluded: string[] | null;
+  price: number;
+  purchasedAt: string | null;
+  stripePaymentIntentId: string | null;
+  status: EvtPassStatus;
+  academicYear: string;
+  notes: string | null;
+}
+
+export interface EvtCompEntryDto {
+  id: string;
+  eventId: string;
+  compType: EvtCompType;
+  personId: string;
+  personName: string | null;
+  notes: string | null;
+  addedBy: string;
+  addedByName: string | null;
+  addedAt: string;
+}
+
+export interface EvtVolunteerDto {
+  id: string;
+  eventId: string;
+  personId: string;
+  personName: string | null;
+  role: string | null;
+  status: EvtVolunteerStatus;
+  checkInAt: string | null;
+  notes: string | null;
+}
+
+export interface EvtGateScanResultDto {
+  scanResult: EvtScanResult;
+  ticketId: string | null;
+  holderName: string | null;
+  tierName: string | null;
+  eventTitle: string | null;
+  scannedAt: string;
+  message: string;
+}
+
+export interface EvtSeasonPassGateResultDto {
+  admitted: boolean;
+  reason: string;
+}
+
+export interface EvtCompCheckResultDto {
+  admitted: boolean;
+  compType: EvtCompType | null;
+  personName: string | null;
+}
+
+// Step 10 — Revenue report
+export interface EvtTierRevenueDto {
+  tierId: string;
+  tierName: string;
+  price: number;
+  quantitySold: number;
+  ticketsScanned: number;
+  grossRevenue: number;
+}
+
+export interface EvtRevenueReportDto {
+  eventId: string;
+  eventTitle: string;
+  eventDate: string;
+  status: EvtEventStatus;
+  grossTicketSales: number;
+  refundsIssued: number;
+  netRevenue: number;
+  estimatedStripeFees: number;
+  ordersConfirmed: number;
+  ordersRefunded: number;
+  totalTicketsSold: number;
+  totalTicketsScanned: number;
+  seasonPassAdmissions: number;
+  compAdmissions: number;
+  tiers: EvtTierRevenueDto[];
+}
+
+export interface EvtRevenueRowDto {
+  eventType: EvtEventType;
+  ordersConfirmed: number;
+  ticketsSold: number;
+  grossRevenue: number;
+  refundsIssued: number;
+  netRevenue: number;
+}
+
+export interface EvtRevenueSummaryDto {
+  schoolId: string;
+  from: string | null;
+  to: string | null;
+  byEventType: EvtRevenueRowDto[];
+  totals: {
+    grossRevenue: number;
+    refundsIssued: number;
+    netRevenue: number;
+    ordersConfirmed: number;
+    ticketsSold: number;
+  };
+}
+
+// Payloads
+export interface CreateEvtEventPayload {
+  title: string;
+  description?: string;
+  eventType: EvtEventType;
+  eventDate: string;
+  startTime: string;
+  endTime?: string;
+  venueId?: string;
+  venueName?: string;
+  totalCapacity?: number;
+  linkedGameId?: string;
+}
+
+export interface UpdateEvtEventPayload {
+  title?: string;
+  description?: string;
+  eventDate?: string;
+  startTime?: string;
+  endTime?: string;
+  venueName?: string;
+  totalCapacity?: number;
+  status?: EvtEventStatus;
+}
+
+export interface CreateEvtTierPayload {
+  name: string;
+  price: number;
+  quantity: number;
+  saleStartsAt?: string;
+  saleEndsAt?: string;
+  isActive?: boolean;
+}
+
+export interface UpdateEvtTierPayload {
+  name?: string;
+  price?: number;
+  quantity?: number;
+  saleStartsAt?: string;
+  saleEndsAt?: string;
+  isActive?: boolean;
+}
+
+export interface EvtPurchaseLine {
+  tierId: string;
+  quantity: number;
+  holderNames?: string[];
+}
+
+export interface EvtPurchasePayload {
+  lines: EvtPurchaseLine[];
+}
+
+export interface EvtRefundPayload {
+  refundAmount: number;
+  reason: string;
+}
+
+export interface EvtScanPayload {
+  qrCodeToken: string;
+  eventId?: string;
+  scanSource?: string;
+}
+
+export interface CreateEvtSeasonPassPayload {
+  personId: string;
+  passType: string;
+  eventsIncluded?: string[];
+  price: number;
+  academicYear: string;
+  notes?: string;
+}
+
+export interface EvtSeasonPassGateCheckPayload {
+  passId: string;
+  eventId: string;
+}
+
+export interface AddEvtCompEntryPayload {
+  compType: EvtCompType;
+  personId: string;
+  notes?: string;
+}
+
+export interface EvtCompCheckPayload {
+  eventId: string;
+  personId: string;
+}
+
+export interface CreateEvtVolunteerPayload {
+  personId: string;
+  role?: string;
+  notes?: string;
+}
+
+export interface UpdateEvtVolunteerPayload {
+  status?: EvtVolunteerStatus;
+  role?: string;
+  checkIn?: boolean;
+}

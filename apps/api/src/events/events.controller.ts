@@ -11,6 +11,7 @@ import {
   SeasonPassService,
   VolunteerService,
 } from './gate.service';
+import { EventRevenueService } from './revenue.service';
 import {
   AddCompEntryDto,
   CancelOrderDto,
@@ -54,6 +55,7 @@ export class EventsController {
     private readonly seasonPasses: SeasonPassService,
     private readonly compList: CompListService,
     private readonly volunteers: VolunteerService,
+    private readonly revenue: EventRevenueService,
     private readonly actors: ActorContextService,
   ) {}
 
@@ -76,6 +78,31 @@ export class EventsController {
   ) {
     const actor = await this.resolveActor(req);
     return this.events.list(actor, { status, eventType, fromDate });
+  }
+
+  // Revenue must be declared BEFORE `events/:id` so the literal path
+  // wins over the dynamic param. NestJS matches routes in declaration
+  // order so `events/revenue/summary` here resolves before `:id`.
+  @Get('events/revenue/summary')
+  @RequirePermission('evt-001:read')
+  @ApiOperation({
+    summary: 'School-wide revenue rollup by event type for the supplied window (default 90 days).',
+  })
+  async revenueSummary(
+    @Req() req: AuthedRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.revenue.summary({ from, to }, await this.resolveActor(req));
+  }
+
+  @Get('events/:id/revenue')
+  @RequirePermission('evt-001:read')
+  @ApiOperation({
+    summary: 'Per-event revenue + attendance report (gross, refunds, Stripe fees, net, by tier).',
+  })
+  async revenueForEvent(@Param('id') id: string, @Req() req: AuthedRequest) {
+    return this.revenue.forEvent(id, await this.resolveActor(req));
   }
 
   @Get('events/:id')

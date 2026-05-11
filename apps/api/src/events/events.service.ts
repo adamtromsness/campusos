@@ -214,8 +214,10 @@ export class EventService {
     await this.assertWriter(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    let athleticEventCreated = false;
+    let compAddedCount = 0;
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      await tx.$executeRawUnsafe(
         `INSERT INTO evt_events
          (id, school_id, title, description, event_type, event_date, start_time, end_time,
           venue_id, venue_name, total_capacity, linked_game_id, status, created_by)
@@ -235,7 +237,111 @@ export class EventService {
         input.linkedGameId ?? null,
         actor.personId,
       );
+
+      // ─── Step 9: Athletic game linking ───
+      // When the event_type is ATHLETIC_GAME AND linked_game_id is
+      // populated, auto-populate the comp list from the game's roster
+      // (ATHLETE), coaching staff (COACH), and assigned officials
+      // (OFFICIAL). Idempotent via the schema-side UNIQUE(event_id,
+      // comp_type, person_id) — re-running the create with the same
+      // (event, game) pair is a no-op on already-present rows.
+      // Athletes resolve through sis_students.platform_student_id →
+      // platform.platform_students.person_id. Coaches use the soft
+      // coach_person_id directly. Officials use the soft FK to
+      // platform.platform_official_profiles which carries person_id.
+      if (input.eventType === 'ATHLETIC_GAME' && input.linkedGameId) {
+        athleticEventCreated = true;
+
+        // Resolve roster_id from ath_games (defensive — the game must
+        // belong to this tenant). On miss we silently skip comp
+        // population so a stale linked_game_id never blocks the create.
+        const gameRows = (await tx.$queryRawUnsafe(
+          `SELECT roster_id::text AS roster_id FROM ath_games WHERE id = $1::uuid LIMIT 1`,
+          input.linkedGameId,
+        )) as Array<{ roster_id: string }>;
+        if (gameRows.length === 1) {
+          const rosterId = gameRows[0]!.roster_id;
+          // ATHLETE — active roster members. Resolve student → iam_person via
+          // sis_students.platform_student_id → platform.platform_students.person_id.
+          const athleteRes = (await tx.$queryRawUnsafe(
+            `INSERT INTO evt_comp_lists (id, event_id, comp_type, person_id, added_by, notes)
+             SELECT gen_random_uuid(), $1::uuid, 'ATHLETE', ps.person_id, $2::uuid,
+                    'Auto-populated from ath_roster_members'
+             FROM ath_roster_members rm
+             JOIN sis_students s ON s.id = rm.student_id
+             JOIN platform.platform_students ps ON ps.id = s.platform_student_id
+             WHERE rm.roster_id = $3::uuid AND rm.removed_at IS NULL
+               AND rm.eligibility_status = 'ELIGIBLE'
+             ON CONFLICT ON CONSTRAINT evt_comp_uq DO NOTHING`,
+            id,
+            actor.personId,
+            rosterId,
+          )) as number;
+          compAddedCount += Number(athleteRes ?? 0);
+
+          // COACH — active coaching assignments. coach_person_id is a
+          // direct soft ref to platform.iam_person per ADR-055.
+          const coachRes = (await tx.$queryRawUnsafe(
+            `INSERT INTO evt_comp_lists (id, event_id, comp_type, person_id, added_by, notes)
+             SELECT gen_random_uuid(), $1::uuid, 'COACH', ca.coach_person_id, $2::uuid,
+                    'Auto-populated from ath_coaching_assignments'
+             FROM ath_coaching_assignments ca
+             WHERE ca.roster_id = $3::uuid AND ca.is_active = true
+             ON CONFLICT ON CONSTRAINT evt_comp_uq DO NOTHING`,
+            id,
+            actor.personId,
+            rosterId,
+          )) as number;
+          compAddedCount += Number(coachRes ?? 0);
+
+          // OFFICIAL — assigned officials for the linked game. Resolve
+          // the official_profile_id through platform.platform_official_profiles
+          // to platform.iam_person via person_id.
+          const officialRes = (await tx.$queryRawUnsafe(
+            `INSERT INTO evt_comp_lists (id, event_id, comp_type, person_id, added_by, notes)
+             SELECT gen_random_uuid(), $1::uuid, 'OFFICIAL', op.person_id, $2::uuid,
+                    'Auto-populated from ath_official_assignments'
+             FROM ath_official_assignments oa
+             JOIN platform.platform_official_profiles op ON op.id = oa.official_profile_id
+             WHERE oa.game_id = $3::uuid
+               AND oa.status IN ('ACCEPTED', 'CONFIRMED', 'COMPLETED')
+             ON CONFLICT ON CONSTRAINT evt_comp_uq DO NOTHING`,
+            id,
+            actor.personId,
+            input.linkedGameId,
+          )) as number;
+          compAddedCount += Number(officialRes ?? 0);
+        } else {
+          this.logger.warn(
+            `[events] linked_game_id=${input.linkedGameId} did not resolve to an ath_games row in school ${tenant.schoolId} — skipping comp auto-populate`,
+          );
+        }
+      }
     });
+
+    // Emit evt.athletic_event.created AFTER tx commits so a Kafka hiccup
+    // cannot roll back the user's create. Cycle 13 athletics module
+    // consumers (or any downstream notification fan-out) can subscribe.
+    if (athleticEventCreated) {
+      try {
+        await this.kafka.emit({
+          topic: 'evt.athletic_event.created',
+          key: id,
+          sourceModule: 'events',
+          payload: {
+            eventId: id,
+            schoolId: tenant.schoolId,
+            linkedGameId: input.linkedGameId,
+            compEntriesAdded: compAddedCount,
+            createdAt: new Date().toISOString(),
+            createdBy: actor.personId,
+          },
+        });
+      } catch (e: unknown) {
+        this.logger.warn(`[events] evt.athletic_event.created emit failed: ${String(e)}`);
+      }
+    }
+
     return this.getById(id, actor);
   }
 

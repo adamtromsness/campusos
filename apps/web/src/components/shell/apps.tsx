@@ -34,6 +34,7 @@ import {
   ShoppingCartIcon,
   SparklesIcon,
   SubstitutesIcon,
+  TicketIcon,
   TrophyIcon,
 } from './icons';
 
@@ -83,7 +84,8 @@ export type AppKey =
   | 'enrolment-tours'
   | 'enrolment-withdrawals'
   | 'payments-advanced'
-  | 'substitutes';
+  | 'substitutes'
+  | 'events';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -843,6 +845,26 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/emergency',
       routePrefix: '/emergency',
       icon: ShieldIcon,
+    });
+  }
+
+  // Phase 2 Cycle 12 — Events & Ticketing. Tile gated on evt-001:read
+  // (held by Parent, Staff, Admin). Persona-aware copy: librarian-like
+  // pattern — Staff/Admin see admin shortcuts (event calendar + gate +
+  // admin); parents see event browse + their tickets.
+  if (hasAnyPermission(user, ['evt-001:read'])) {
+    apps.push({
+      key: 'events',
+      label: 'Events',
+      description:
+        isStaff || isAdmin
+          ? 'Event calendar, ticketing, gate scanner, revenue'
+          : isStudent
+            ? 'Upcoming events and my tickets'
+            : 'Upcoming events, ticket purchase, and my tickets',
+      href: '/events',
+      routePrefix: '/events',
+      icon: TicketIcon,
     });
   }
 

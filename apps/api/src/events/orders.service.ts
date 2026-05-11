@@ -338,18 +338,31 @@ export class OrderService {
         }
       }
 
-      // INSERT order PENDING
+      // INSERT order PENDING. The Stripe PaymentIntent is stubbed in dev
+      // mode — `pi_dev_evt_*` mirrors the Cycle 6 `pi_dev_*` shape from
+      // PaymentService, so the same Stripe wire-up path is reusable
+      // when a real Stripe integration cycle lands. The Cycle 6 dev
+      // stub auto-completes CARD payments at insert time; the Events
+      // module keeps an explicit PENDING phase so the OrderExpiryWorker
+      // sweep + the gate-side confirmation flow can be exercised under
+      // test. Set STRIPE_DEV_AUTO_CONFIRM=true to mirror the Cycle 6
+      // auto-complete behaviour and skip the webhook step entirely.
       const stripeIntentId = `pi_dev_evt_${orderId.replace(/-/g, '').slice(0, 16)}`;
+      const autoConfirm = process.env.STRIPE_DEV_AUTO_CONFIRM === 'true';
       await tx.$executeRawUnsafe(
         `INSERT INTO evt_orders
-         (id, event_id, purchaser_id, status, total_amount, stripe_payment_intent_id, expires_at)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, 'PENDING', $4, $5, $6::timestamptz)`,
+         (id, event_id, purchaser_id, status, total_amount, stripe_payment_intent_id,
+          expires_at, confirmed_at)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6,
+                 $7::timestamptz, $8::timestamptz)`,
         orderId,
         eventId,
         actor.personId,
+        autoConfirm ? 'CONFIRMED' : 'PENDING',
         Number(totalAmount.toFixed(2)),
         stripeIntentId,
-        expiresAt,
+        autoConfirm ? null : expiresAt,
+        autoConfirm ? new Date().toISOString() : null,
       );
 
       // INSERT every ticket

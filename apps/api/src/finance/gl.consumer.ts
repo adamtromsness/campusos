@@ -107,6 +107,28 @@ interface PayrollProcessedPayload {
   paidAt: string;
 }
 
+// P2-12 Step 10 — Events & Ticketing GL integration. On
+// evt.event.completed we materialise the cumulative gross ticket
+// revenue for the event into a balanced journal batch
+// (DR Cash / CR Fee Revenue — account 4100). On evt.refund.issued
+// the refund posts a reversing batch (DR Fee Revenue / CR Cash).
+// Event-level revenue lands once per event-id on completion to keep
+// the chart of accounts clear of per-order noise.
+interface EventCompletedPayload {
+  eventId: string;
+  schoolId: string;
+  completedAt: string;
+  completedBy?: string;
+}
+
+interface EventRefundIssuedPayload {
+  refundId: string;
+  orderId: string;
+  schoolId?: string;
+  refundAmount: number | string;
+  reason: string;
+}
+
 const CONSUMER_GROUP = 'gl-consumer';
 
 @Injectable()
@@ -135,6 +157,13 @@ export class GLConsumer implements OnModuleInit {
         // for totalDeductions. The math balances because
         // grossPay = netPay + totalDeductions by definition.
         prefixedTopic('hr.payroll.processed'),
+        // P2-12 Step 10 — Events & Ticketing GL integration. Revenue
+        // recognises once per event on completion (DR Cash / CR Fee
+        // Revenue 4100) and refunds reverse the cash leg (DR Fee
+        // Revenue / CR Cash). Ticket-by-ticket posting would flood the
+        // ledger; event-level batching keeps the audit reasonable.
+        prefixedTopic('evt.event.completed'),
+        prefixedTopic('evt.refund.issued'),
       ],
       groupId: CONSUMER_GROUP,
       handler: function (msg: ConsumedMessage): Promise<void> {
@@ -142,7 +171,7 @@ export class GLConsumer implements OnModuleInit {
       },
     });
     this.logger.log(
-      `Subscribed to 5 dev.pay.* + 1 dev.hr.payroll.processed topic(s) under group ${CONSUMER_GROUP}`,
+      `Subscribed to 5 dev.pay.* + 1 dev.hr.payroll.processed + 2 dev.evt.* topic(s) under group ${CONSUMER_GROUP}`,
     );
   }
 
@@ -387,6 +416,101 @@ export class GLConsumer implements OnModuleInit {
         });
       }
       entries = payrollEntries;
+    } else if (logical === 'evt.event.completed') {
+      // P2-12 Step 10. Post the cumulative gross sale revenue when an
+      // event is marked COMPLETED. We compute the gross by SUMming
+      // confirmed + refunded order totals minus prior refunds (the net
+      // figure the school actually retains). The
+      // event-completion event carries only the eventId so we look the
+      // totals up at post time. Posts: DR Cash / CR Fee Revenue (4100).
+      const p = event.payload as EventCompletedPayload;
+      const totals = await this.loadEventNetRevenue(p.eventId);
+      if (totals === null) {
+        this.logger.warn(
+          `[${CONSUMER_GROUP}] evt.event.completed: cannot read totals for eventId=${p.eventId.slice(0, 8)} — drop`,
+        );
+        return;
+      }
+      const net = totals.net;
+      if (net <= 0) {
+        this.logger.log(
+          `[${CONSUMER_GROUP}] evt.event.completed: net revenue is $${net.toFixed(2)} — no journal entry posted`,
+        );
+        return;
+      }
+      const feeRevenueAccount = await this.loadFeeRevenueAccount();
+      if (!feeRevenueAccount) {
+        throw new Error(
+          `[${CONSUMER_GROUP}] cannot resolve Fee Revenue account (4100) for tenant ${event.tenant.schoolId} — finance configuration must include Fee Revenue before event completion can post`,
+        );
+      }
+      batchType = 'AUTO_PAYMENT';
+      description = `Event revenue $${net.toFixed(2)} (eventId=${p.eventId.slice(0, 8)})`;
+      referenceType = 'evt_events';
+      referenceId = p.eventId;
+      entries = [
+        {
+          accountId: cashAccount,
+          fundId,
+          debit: net,
+          credit: 0,
+          description: 'Event ticket revenue received',
+          referenceType,
+          referenceId,
+        },
+        {
+          accountId: feeRevenueAccount,
+          fundId,
+          debit: 0,
+          credit: net,
+          description: 'Event ticket revenue recognised',
+          referenceType,
+          referenceId,
+        },
+      ];
+    } else if (logical === 'evt.refund.issued') {
+      // P2-12 Step 10. Reverse the cash leg of the original event
+      // revenue when a refund issues. DR Fee Revenue / CR Cash. Note:
+      // this fires per refund. If the event has not yet been
+      // COMPLETED, the refund still posts (the refund cash leaves the
+      // school before the event-completion journal lands; on
+      // completion the gross/refund math nets correctly).
+      const p = event.payload as EventRefundIssuedPayload;
+      const amt = Number(p.refundAmount);
+      if (!amt || amt <= 0) {
+        this.logger.warn(`[${CONSUMER_GROUP}] evt.refund.issued with non-positive amount — drop`);
+        return;
+      }
+      const feeRevenueAccount = await this.loadFeeRevenueAccount();
+      if (!feeRevenueAccount) {
+        throw new Error(
+          `[${CONSUMER_GROUP}] cannot resolve Fee Revenue account (4100) for tenant ${event.tenant.schoolId} — finance configuration must include Fee Revenue before event refunds can post`,
+        );
+      }
+      batchType = 'AUTO_REFUND';
+      description = `Event refund $${amt.toFixed(2)} (refundId=${p.refundId.slice(0, 8)})`;
+      referenceType = 'evt_refunds';
+      referenceId = p.refundId;
+      entries = [
+        {
+          accountId: feeRevenueAccount,
+          fundId,
+          debit: amt,
+          credit: 0,
+          description: 'Event refund — revenue reversed',
+          referenceType,
+          referenceId,
+        },
+        {
+          accountId: cashAccount,
+          fundId,
+          debit: 0,
+          credit: amt,
+          description: 'Event refund — cash paid out',
+          referenceType,
+          referenceId,
+        },
+      ];
     } else {
       this.logger.debug(`[${CONSUMER_GROUP}] no GL handler for ${logical} — skip`);
       return;
@@ -400,7 +524,12 @@ export class GLConsumer implements OnModuleInit {
         // P2-4c — sourceModule reflects the originating event so the
         // finance audit trail can distinguish payment-driven posts
         // from payroll-driven posts.
-        sourceModule: logical === 'hr.payroll.processed' ? 'payroll' : 'payments',
+        sourceModule:
+          logical === 'hr.payroll.processed'
+            ? 'payroll'
+            : logical.startsWith('evt.')
+              ? 'events'
+              : 'payments',
         accountingPeriodId: '00000000-0000-0000-0000-000000000000', // ignored when periodId omitted
         entries,
         sourceEventId: eventId,
@@ -465,6 +594,54 @@ export class GLConsumer implements OnModuleInit {
     const accrued = byCode.get('2100');
     if (!salaries || !accrued) return null;
     return { salaries: salaries.id, accruedLiabilities: accrued.id };
+  }
+
+  /**
+   * P2-12 Step 10 — Fee Revenue account (4100) lookup for events
+   * revenue recognition. The seeded chart of accounts (Cycle 26
+   * seed-finance.ts) already includes 4100 Fee Revenue under the
+   * GENERAL fund, so a tenant that ran the canonical finance seed has
+   * the row. Returns null on missing config — the consumer THROWs and
+   * the standard retry/DLQ chain catches it (REVIEW-CYCLE26 BLOCKING
+   * 3 pattern).
+   */
+  private async loadFeeRevenueAccount(): Promise<string | null> {
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        `SELECT id::text AS id FROM fin_chart_of_accounts WHERE account_code = '4100' AND is_active = true LIMIT 1`,
+      );
+    })) as Array<{ id: string }>;
+    if (rows.length === 0) return null;
+    return rows[0]!.id;
+  }
+
+  /**
+   * P2-12 Step 10 — net event revenue lookup at completion time.
+   * Returns { gross, refunds, net } where net = gross - refunds.
+   * Gross is the sum of confirmed-and-refunded order totals; refunds
+   * is the sum of evt_refunds.refund_amount for the event. Returns
+   * null when the event does not exist (defensive).
+   */
+  private async loadEventNetRevenue(
+    eventId: string,
+  ): Promise<{ gross: number; refunds: number; net: number } | null> {
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        `SELECT
+           (SELECT COALESCE(SUM(total_amount),0)::numeric
+              FROM evt_orders WHERE event_id = $1::uuid
+                AND status IN ('CONFIRMED','REFUNDED')) AS gross,
+           (SELECT COALESCE(SUM(r.refund_amount),0)::numeric
+              FROM evt_refunds r
+              JOIN evt_orders o ON o.id = r.order_id
+              WHERE o.event_id = $1::uuid) AS refunds`,
+        eventId,
+      );
+    })) as Array<{ gross: string | number; refunds: string | number }>;
+    if (rows.length === 0) return null;
+    const gross = Number(rows[0]!.gross);
+    const refunds = Number(rows[0]!.refunds);
+    return { gross, refunds, net: Number((gross - refunds).toFixed(2)) };
   }
 
   /**

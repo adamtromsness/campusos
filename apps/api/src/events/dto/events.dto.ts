@@ -564,3 +564,55 @@ export interface VolunteerDto {
   checkInAt: string | null;
   notes: string | null;
 }
+
+// ─── Revenue (Step 10) ───
+
+export interface TierRevenueDto {
+  tierId: string;
+  tierName: string;
+  price: number;
+  quantitySold: number;
+  ticketsScanned: number;
+  grossRevenue: number;
+}
+
+export interface RevenueReportDto {
+  eventId: string;
+  eventTitle: string;
+  eventDate: string;
+  status: EventStatus;
+  grossTicketSales: number;
+  refundsIssued: number;
+  netRevenue: number;
+  estimatedStripeFees: number;
+  ordersConfirmed: number;
+  ordersRefunded: number;
+  totalTicketsSold: number;
+  totalTicketsScanned: number;
+  seasonPassAdmissions: number;
+  compAdmissions: number;
+  tiers: TierRevenueDto[];
+}
+
+export interface RevenueRowDto {
+  eventType: EventType;
+  ordersConfirmed: number;
+  ticketsSold: number;
+  grossRevenue: number;
+  refundsIssued: number;
+  netRevenue: number;
+}
+
+export interface RevenueSummaryDto {
+  schoolId: string;
+  from: string | null;
+  to: string | null;
+  byEventType: RevenueRowDto[];
+  totals: {
+    grossRevenue: number;
+    refundsIssued: number;
+    netRevenue: number;
+    ordersConfirmed: number;
+    ticketsSold: number;
+  };
+}

@@ -11,6 +11,7 @@ import {
   VolunteerService,
 } from './gate.service';
 import { OrderExpiryWorker } from './order-expiry.worker';
+import { EventRevenueService } from './revenue.service';
 import { EventsController } from './events.controller';
 
 /**
@@ -64,6 +65,7 @@ import { EventsController } from './events.controller';
     CompListService,
     VolunteerService,
     OrderExpiryWorker,
+    EventRevenueService,
   ],
   controllers: [EventsController],
   exports: [],
