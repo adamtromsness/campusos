@@ -143,6 +143,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'SIS Advanced A — student profiles, custom fields, parent updates (P2-13a)',
     script: 'seed-sis-advanced-a.ts',
   },
+  {
+    label: 'SIS Advanced B — graduation requirements, service learning, GPA (P2-13b)',
+    script: 'seed-sis-graduation.ts',
+  },
 ];
 
 async function main(): Promise<void> {

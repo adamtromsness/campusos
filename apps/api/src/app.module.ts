@@ -61,6 +61,7 @@ import { AppraisalsModule } from './appraisals/appraisals.module';
 import { SubstitutesModule } from './substitutes/substitutes.module';
 import { EventsModule } from './events/events.module';
 import { SisAdvancedModule } from './sis-advanced/sis-advanced.module';
+import { SisGraduationModule } from './sis-graduation/sis-graduation.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -222,6 +223,7 @@ var devOnlyControllers: Type<unknown>[] =
     // rows. Family relationships (DIVORCED / JOINT custody etc.)
     // driving downstream parent data visibility.
     SisAdvancedModule,
+    SisGraduationModule,
   ],
   controllers: devOnlyControllers,
   providers: [

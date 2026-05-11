@@ -243,6 +243,12 @@ async function seedIam() {
         // Service layer narrows write to the homeroom-or-admin
         // path (admins bypass).
         'STU-002': ['read', 'write'],
+        // P2-13b — Graduation Management. Teachers read the
+        // per-student graduation audit + GPA snapshot to advise
+        // students on credit / requirement gaps. Service-layer
+        // row scope binds non-admin teachers to students they
+        // teach.
+        'STU-005': ['read'],
         'TCH-001': ['read', 'write'],
         'TCH-002': ['read', 'write'],
         'TCH-003': ['read', 'write'],
@@ -484,6 +490,11 @@ async function seedIam() {
         // requests for low-risk fields. Service-layer row scope
         // binds parents to children via sis_student_guardians.
         'STU-002': ['read', 'write'],
+        // P2-13b — Graduation Management. Parents read their
+        // children's graduation audit + service hours + GPA
+        // snapshot. Service-layer row scope binds to linked
+        // children via sis_student_guardians.
+        'STU-005': ['read'],
         'TCH-002': ['read'],
         'TCH-003': ['read'],
         'TCH-004': ['read'],
@@ -692,6 +703,12 @@ async function seedIam() {
         // PENDING_APPROVAL). Service-layer row scope binds writes
         // to the calling student's own sis_students row only.
         'STU-002': ['read', 'write'],
+        // P2-13b — Graduation Management. Students read own
+        // graduation audit + own service hours + own GPA snapshot.
+        // Write tier covers submit-service-hours (lands PENDING).
+        // Service-layer row scope binds reads + writes to the
+        // calling student's own sis_students.id only.
+        'STU-005': ['read', 'write'],
         'TCH-001': ['read'],
         'TCH-002': ['read', 'write'],
         'TCH-003': ['read'],
@@ -846,6 +863,14 @@ async function seedIam() {
         // layer narrows confidential note reads + parent-update
         // approval to actor.isSchoolAdmin OR matching tier.
         'STU-002': ['read', 'write'],
+        // P2-13b — Graduation Management. Generic Staff covers
+        // the registrar / counsellor — read for graduation
+        // dashboards + write tier for approving / rejecting
+        // service learning hours (PENDING -> APPROVED / REJECTED).
+        // Service layer narrows requirement + GPA config + grade
+        // scale writes to actor.isSchoolAdmin (stu-005:admin via
+        // everyFunction).
+        'STU-005': ['read', 'write'],
         'ATT-001': ['read'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read', 'write'],
@@ -1318,6 +1343,8 @@ async function seedIam() {
         // P2-5 — VP often handles withdrawal + re-enrolment when EO
         // is unavailable.
         'STU-004': ['read', 'write', 'admin'],
+        // P2-13b — VP is the typical graduation-coordinator stand-in.
+        'STU-005': ['read', 'write', 'admin'],
         'ATT-001': ['read', 'write', 'admin'],
         'ATT-002': ['read', 'write'],
         'ATT-003': ['read', 'write'],
