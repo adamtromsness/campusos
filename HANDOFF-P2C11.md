@@ -1,8 +1,16 @@
 # HANDOFF — Phase 2 Cycle 11 (P2-11 Transportation Advanced)
 
-**Status:** COMPLETE pending peer review — all 6 plan steps shipped across 3
-sub-cycles. The cycle opens **Wave C (Operational Depth)** and is the largest
-Phase 2 cycle by table count.
+**Status:** **COMPLETE + APPROVED** at the closeout commit
+(REVIEW-P2C11-CHATGPT — final verdict, 2026-05-11). Round 1 against `af19bb5`
+returned FAIL with 6 BLOCKING + 2 MAJOR; Round 2 against `17f34a7` returned
+**PASS**. Tagged `p2c11-complete` at `17f34a7` and `p2c11-approved` at the
+closeout commit. **Wave C (Operational Depth) is now open.** See
+`P2C11-REVIEW-NOTES.md` for the Round 1 fix log + Round 2 PASS verdict.
+
+All 6 plan steps shipped across 3 sub-cycles, plus one additive Round 1
+tenant migration (`139_trn_parent_tracking_school_id.sql`) closing
+BLOCKING 4. The cycle opens **Wave C (Operational Depth)** and is the
+largest Phase 2 cycle by table count.
 
 **Cycle totals (final):**
 

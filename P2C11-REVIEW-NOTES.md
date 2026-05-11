@@ -403,3 +403,54 @@ CI parity green: `pnpm format:check` clean, `pnpm lint:logs` 733 files clean,
 api build clean, web build clean, **vitest 618/618 across 29 spec files**
 (+16 pinned regression tests). Awaiting Round 2 verdict before tagging
 `cycle11-complete`.
+
+---
+
+## Round 2 verdict (2026-05-11): PASS
+
+Reviewer verdict against commit `17f34a7`: **PASS**. Every Round 1 BLOCKING and
+MAJOR finding closed. Reviewer cache-busted each affected file in code and
+confirmed every fix matches the commit description. Per-finding verification:
+
+| Prior Finding                                                           | Status    |
+| ----------------------------------------------------------------------- | --------- |
+| Repair service object references were not school-scoped                 | **FIXED** |
+| Driver-hours paths were not school-scoped                               | **FIXED** |
+| Operational/safety events were best-effort after commit                 | **FIXED** |
+| Parent tracking token lifecycle was not school-defensive                | **FIXED** |
+| Route-generation cancellation/candidate paths needed school scope       | **FIXED** |
+| Generic STAFF was transportation administrator                          | **FIXED** |
+| Fleet-status materialiser read related tables without school predicates | **FIXED** |
+| ETA final reload needed defensive school scoping                        | **FIXED** |
+
+### Updated dimension scores
+
+| Dimension             |   Rating |
+| --------------------- | -------: |
+| Fleet Maintenance     | **PASS** |
+| Driver Hours          | **PASS** |
+| Event Durability      | **PASS** |
+| Parent Tracking       | **PASS** |
+| Route Generation      | **PASS** |
+| Permission Model      | **PASS** |
+| Fleet Dashboard / ETA | **PASS** |
+| Test Coverage         | **PASS** |
+
+### Non-blocking carry-overs to Phase 2 pre-pilot backlog
+
+1. **GPS partition maintenance** — the migration ships 118 daily partitions
+   covering 2026-04-14 → 2026-08-10. Before real GPS telemetry volume hits, a
+   rolling-window partition-create + cold-storage retention worker needs to
+   ship. Phase 3 ops work.
+2. **Transportation Coordinator role split** — the cycle now gates on
+   explicit `TRN-*` permission checks instead of `personType === 'STAFF'`.
+   The broader role-split chain (items 9 / 11 / 13 / 14 / 16 / 22 / 25 / 26 /
+   30 / 32 / 33 / 36 in the Phase 2 punch list) introduces a dedicated TC
+   role that holds the `TRN-*` writes alone before pilot. Joins the broader
+   pre-pilot role-model hardening cycle.
+
+### Final verdict
+
+**PASS.** Tagged `p2c11-complete` at `17f34a7` (the Round 1 fix that earned
+PASS) and `p2c11-approved` at the closeout commit. **Wave C (Operational
+Depth) is now open.** Phase 2 Cycle 12 is next.
