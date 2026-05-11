@@ -698,10 +698,10 @@ describe('P2-10a permission gates', () => {
 // ── 12. Controller route metadata — FDS-003 / FDS-004 permissions ────
 
 describe('FoodServiceAdvancedController — @RequirePermission metadata', () => {
-  it('uses fds-003 for recipe routes and fds-004 for inventory/transfer/staff-meal routes', async () => {
+  it('uses fds-003 for recipe routes, fds-004 for inventory/transfer/staff-meal routes, and fds-005 for preorder routes', async () => {
     // Import the controller and inspect the prototype methods for the
     // RequirePermission decorator metadata. The decorator stores its
-    // value on the metadata key 'permission'.
+    // value on the metadata key 'requiredPermissions'.
     const { FoodServiceAdvancedController } = await import('./food-service-advanced.controller');
     const proto = FoodServiceAdvancedController.prototype;
     const methods = Object.getOwnPropertyNames(proto).filter(
@@ -710,8 +710,8 @@ describe('FoodServiceAdvancedController — @RequirePermission metadata', () => 
         typeof (proto as unknown as Record<string, unknown>)[m] === 'function',
     );
     expect(methods.length).toBeGreaterThan(20);
-    // Each method must carry the 'requiredPermissions' metadata
-    // (set by @RequirePermission), with code in fds-003 or fds-004.
+    // P2-10a + P2-10b range: fds-003 / fds-004 / fds-005 covering recipe,
+    // inventory, transfer, staff-meal, and preorder routes.
     for (const m of methods) {
       const perms = Reflect.getMetadata(
         'requiredPermissions',
@@ -720,7 +720,7 @@ describe('FoodServiceAdvancedController — @RequirePermission metadata', () => 
       expect(perms, 'method ' + m + ' missing @RequirePermission').toBeDefined();
       expect(perms!.length).toBeGreaterThan(0);
       for (const p of perms!) {
-        expect(p).toMatch(/^fds-(003|004):(read|write|admin)$/);
+        expect(p).toMatch(/^fds-(003|004|005):(read|write|admin)$/);
       }
     }
   });
@@ -751,5 +751,605 @@ describe('Recipe/Transfer/StaffMeal NotFoundException propagation', () => {
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () => svc.getByEmployee('missing')),
     ).rejects.toThrow(NotFoundException);
+  });
+});
+
+// ─── P2-10b PreorderService specs ────────────────────────────────────
+
+import { ConflictException } from '@nestjs/common';
+import { PreorderService } from './preorder.service';
+
+const GUARDIAN_ACTOR = {
+  accountId: '019e0cf8-aaaa-7000-aaaa-000000000004',
+  personId: '019e0cf8-aaaa-7000-aaaa-000000000040',
+  personType: 'GUARDIAN',
+  isSchoolAdmin: false,
+  employeeId: null,
+} as never;
+
+const STUDENT_OWN_PERSON = '019e0cf8-aaaa-7000-aaaa-000000000030';
+const STUDENT_OWN = {
+  accountId: '019e0cf8-aaaa-7000-aaaa-000000000005',
+  personId: STUDENT_OWN_PERSON,
+  personType: 'STUDENT',
+  isSchoolAdmin: false,
+  employeeId: null,
+} as never;
+
+const OPEN_WINDOW = {
+  id: 'w1',
+  school_id: SCHOOL.schoolId,
+  service_date: new Date('2026-05-20'),
+  meal_type: 'LUNCH',
+  opens_at: new Date(Date.now() - 60 * 60 * 1000),
+  closes_at: new Date(Date.now() + 60 * 60 * 1000),
+};
+const CLOSED_WINDOW = {
+  id: 'w2',
+  school_id: SCHOOL.schoolId,
+  service_date: new Date('2026-05-20'),
+  meal_type: 'LUNCH',
+  opens_at: new Date(Date.now() + 60 * 60 * 1000),
+  closes_at: new Date(Date.now() + 4 * 60 * 60 * 1000),
+};
+
+const MENU_ITEMS_CLEAN = [
+  {
+    id: 'mi1',
+    name: 'Veggie Pasta',
+    allergen_codes: ['WHEAT'],
+    is_active: true,
+    is_preorderable: true,
+  },
+  { id: 'mi2', name: 'Fruit Cup', allergen_codes: [], is_active: true, is_preorderable: true },
+];
+
+const MENU_ITEMS_WITH_PEANUTS = [
+  {
+    id: 'mi3',
+    name: 'Peanut Sauce Noodles',
+    allergen_codes: ['PEANUT'],
+    is_active: true,
+    is_preorderable: true,
+  },
+];
+
+// 14. Allergen cross-check KEYSTONE — CRITICAL severity blocks the order
+describe('PreorderService — allergen cross-check (KEYSTONE)', () => {
+  it('CRITICAL severity match BLOCKS the order with ConflictException', async () => {
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id') && call.sql.includes('LIMIT 1')) {
+        return [OPEN_WINDOW];
+      }
+      if (call.sql.includes('SELECT 1 AS ok FROM sis_student_guardians sg')) {
+        return [{ ok: 1 }]; // guardian linked to student
+      }
+      if (call.sql.includes('FROM fds_menu_items WHERE school_id')) {
+        return MENU_ITEMS_WITH_PEANUTS;
+      }
+      if (call.sql.includes('FROM fds_student_allergen_alerts')) {
+        return [{ allergen_code: 'PEANUT', severity: 'CRITICAL' }];
+      }
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createPreorder(
+          {
+            studentId: 's1',
+            preorderWindowId: 'w1',
+            items: [{ menuItemId: 'mi3', quantity: 1 }],
+          },
+          GUARDIAN_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('WARNING severity match surfaces in warning_allergens but the order persists', async () => {
+    let insertedWarnings: string[] | undefined;
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id') && call.sql.includes('LIMIT 1')) {
+        return [OPEN_WINDOW];
+      }
+      if (call.sql.includes('SELECT 1 AS ok FROM sis_student_guardians sg')) {
+        return [{ ok: 1 }];
+      }
+      if (call.sql.includes('FROM fds_menu_items WHERE school_id')) {
+        return MENU_ITEMS_CLEAN;
+      }
+      if (call.sql.includes('FROM fds_student_allergen_alerts')) {
+        return [{ allergen_code: 'WHEAT', severity: 'WARNING' }];
+      }
+      if (call.sql.includes('INSERT INTO fds_meal_preorders')) {
+        // The warning_allergens column is the 7th positional arg
+        // (id, school_id, student_id, preorder_window_id, ordered_by,
+        // [warning_allergens]).
+        insertedWarnings = call.args[5] as string[];
+      }
+      if (call.sql.includes('SELECT p.id::text AS id, p.school_id::text')) {
+        return [
+          {
+            id: 'p1',
+            school_id: SCHOOL.schoolId,
+            student_id: 's1',
+            preorder_window_id: 'w1',
+            ordered_by: GUARDIAN_ACTOR.accountId,
+            status: 'PENDING',
+            allergen_check_passed: true,
+            blocking_allergens: [],
+            warning_allergens: ['WHEAT'],
+            confirmed_at: null,
+            cancelled_at: null,
+            cancellation_reason: null,
+            notes: null,
+            created_at: new Date(),
+            window_service_date: OPEN_WINDOW.service_date,
+            window_meal_type: OPEN_WINDOW.meal_type,
+            student_name: null,
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    const result = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.createPreorder(
+        {
+          studentId: 's1',
+          preorderWindowId: 'w1',
+          items: [{ menuItemId: 'mi1', quantity: 1 }],
+        },
+        GUARDIAN_ACTOR,
+      ),
+    );
+    expect(insertedWarnings).toEqual(['WHEAT']);
+    expect(result.warningAllergens).toEqual(['WHEAT']);
+    expect(result.allergenCheckPassed).toBe(true);
+  });
+
+  it('no allergen match → order persists with allergen_check_passed=true and empty warning_allergens', async () => {
+    let insertedWarnings: string[] | undefined;
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id') && call.sql.includes('LIMIT 1')) {
+        return [OPEN_WINDOW];
+      }
+      if (call.sql.includes('SELECT 1 AS ok FROM sis_student_guardians sg')) return [{ ok: 1 }];
+      if (call.sql.includes('FROM fds_menu_items WHERE school_id')) return MENU_ITEMS_CLEAN;
+      if (call.sql.includes('FROM fds_student_allergen_alerts')) return [];
+      if (call.sql.includes('INSERT INTO fds_meal_preorders')) {
+        insertedWarnings = call.args[5] as string[];
+      }
+      if (call.sql.includes('SELECT p.id::text AS id, p.school_id::text')) {
+        return [
+          {
+            id: 'p1',
+            school_id: SCHOOL.schoolId,
+            student_id: 's1',
+            preorder_window_id: 'w1',
+            ordered_by: GUARDIAN_ACTOR.accountId,
+            status: 'PENDING',
+            allergen_check_passed: true,
+            blocking_allergens: [],
+            warning_allergens: [],
+            confirmed_at: null,
+            cancelled_at: null,
+            cancellation_reason: null,
+            notes: null,
+            created_at: new Date(),
+            window_service_date: OPEN_WINDOW.service_date,
+            window_meal_type: OPEN_WINDOW.meal_type,
+            student_name: null,
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    const result = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.createPreorder(
+        {
+          studentId: 's1',
+          preorderWindowId: 'w1',
+          items: [{ menuItemId: 'mi1', quantity: 1 }],
+        },
+        GUARDIAN_ACTOR,
+      ),
+    );
+    expect(insertedWarnings).toEqual([]);
+    expect(result.allergenCheckPassed).toBe(true);
+    expect(result.warningAllergens).toEqual([]);
+  });
+});
+
+// 15. Window gate — closed window refuses non-admin orders
+describe('PreorderService — window gate', () => {
+  it('refuses orders against a window that has not yet opened (non-admin)', async () => {
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id')) return [CLOSED_WINDOW];
+      if (call.sql.includes('SELECT 1 AS ok FROM sis_student_guardians sg')) return [{ ok: 1 }];
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createPreorder(
+          {
+            studentId: 's1',
+            preorderWindowId: 'w2',
+            items: [{ menuItemId: 'mi1', quantity: 1 }],
+          },
+          GUARDIAN_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('admin bypasses the window gate', async () => {
+    let insertedSlot = false;
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id')) return [CLOSED_WINDOW];
+      if (call.sql.includes('FROM fds_menu_items WHERE school_id')) return MENU_ITEMS_CLEAN;
+      if (call.sql.includes('FROM fds_student_allergen_alerts')) return [];
+      if (call.sql.includes('INSERT INTO fds_meal_preorders')) insertedSlot = true;
+      if (call.sql.includes('SELECT p.id::text AS id, p.school_id::text')) {
+        return [
+          {
+            id: 'p1',
+            school_id: SCHOOL.schoolId,
+            student_id: 's1',
+            preorder_window_id: 'w2',
+            ordered_by: ADMIN_ACTOR.accountId,
+            status: 'PENDING',
+            allergen_check_passed: true,
+            blocking_allergens: [],
+            warning_allergens: [],
+            confirmed_at: null,
+            cancelled_at: null,
+            cancellation_reason: null,
+            notes: null,
+            created_at: new Date(),
+            window_service_date: CLOSED_WINDOW.service_date,
+            window_meal_type: CLOSED_WINDOW.meal_type,
+            student_name: null,
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.createPreorder(
+        {
+          studentId: 's1',
+          preorderWindowId: 'w2',
+          items: [{ menuItemId: 'mi1', quantity: 1 }],
+        },
+        ADMIN_ACTOR,
+      ),
+    );
+    expect(insertedSlot).toBe(true);
+  });
+});
+
+// 16. Cross-student row-scope — STUDENT cannot order for another student
+describe('PreorderService — student row-scope', () => {
+  it('STUDENT attempting to order for someone other than self is refused 403', async () => {
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id')) return [OPEN_WINDOW];
+      if (call.sql.includes('FROM sis_students s')) return []; // mismatch — student isn't this one
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createPreorder(
+          {
+            studentId: 'someone-else',
+            preorderWindowId: 'w1',
+            items: [{ menuItemId: 'mi1', quantity: 1 }],
+          },
+          STUDENT_OWN,
+        ),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('GUARDIAN attempting to order for non-linked child is refused 403', async () => {
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id')) return [OPEN_WINDOW];
+      if (call.sql.includes('SELECT 1 AS ok FROM sis_student_guardians sg')) return []; // not linked
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createPreorder(
+          {
+            studentId: 'unlinked-child',
+            preorderWindowId: 'w1',
+            items: [{ menuItemId: 'mi1', quantity: 1 }],
+          },
+          GUARDIAN_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+});
+
+// 17. Confirm path refuses CANCELLED + cannot-confirm-when-allergen-check-failed
+describe('PreorderService.confirmPreorder', () => {
+  it('refuses confirming a CANCELLED preorder', async () => {
+    const fake = makeFake((call) => {
+      if (call.sql.includes('SELECT status, allergen_check_passed FROM fds_meal_preorders')) {
+        return [{ status: 'CANCELLED', allergen_check_passed: true }];
+      }
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () => svc.confirmPreorder('p1', ADMIN_ACTOR)),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('refuses confirming when allergen_check_passed=false (defensive)', async () => {
+    const fake = makeFake((call) => {
+      if (call.sql.includes('SELECT status, allergen_check_passed FROM fds_meal_preorders')) {
+        return [{ status: 'PENDING', allergen_check_passed: false }];
+      }
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () => svc.confirmPreorder('p1', ADMIN_ACTOR)),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('non-admin non-staff cannot confirm', async () => {
+    const fake = makeFake(() => []);
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.confirmPreorder('p1', GUARDIAN_ACTOR),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+});
+
+// 18. Window create with reversed window throws 400
+describe('PreorderService.createWindow', () => {
+  it('rejects closesAt <= opensAt', async () => {
+    const fake = makeFake(() => []);
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createWindow(
+          {
+            serviceDate: '2026-06-01',
+            mealType: 'LUNCH',
+            opensAt: '2026-06-01T08:00:00Z',
+            closesAt: '2026-06-01T08:00:00Z',
+          },
+          ADMIN_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('non-admin non-staff cannot create windows', async () => {
+    const fake = makeFake(() => []);
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createWindow(
+          {
+            serviceDate: '2026-06-01',
+            mealType: 'LUNCH',
+            opensAt: '2026-06-01T07:00:00Z',
+            closesAt: '2026-06-01T09:00:00Z',
+          },
+          GUARDIAN_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+});
+
+// 19. Cancel preorder owner / admin / row-scope path
+describe('PreorderService.cancelPreorder', () => {
+  it('admin can cancel any preorder', async () => {
+    let updateRan = false;
+    const fake = makeFake((call) => {
+      if (call.sql.includes('SELECT status, ordered_by::text AS ordered_by')) {
+        return [{ status: 'PENDING', ordered_by: GUARDIAN_ACTOR.accountId, student_id: 's1' }];
+      }
+      if (call.sql.includes('UPDATE fds_meal_preorders SET')) updateRan = true;
+      if (call.sql.includes('SELECT p.id::text AS id, p.school_id::text')) {
+        return [
+          {
+            id: 'p1',
+            school_id: SCHOOL.schoolId,
+            student_id: 's1',
+            preorder_window_id: 'w1',
+            ordered_by: GUARDIAN_ACTOR.accountId,
+            status: 'CANCELLED',
+            allergen_check_passed: true,
+            blocking_allergens: [],
+            warning_allergens: [],
+            confirmed_at: null,
+            cancelled_at: new Date(),
+            cancellation_reason: 'Plans changed',
+            notes: null,
+            created_at: new Date(),
+            window_service_date: OPEN_WINDOW.service_date,
+            window_meal_type: OPEN_WINDOW.meal_type,
+            student_name: null,
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    const result = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.cancelPreorder('p1', { reason: 'Plans changed' }, ADMIN_ACTOR),
+    );
+    expect(updateRan).toBe(true);
+    expect(result.status).toBe('CANCELLED');
+  });
+
+  it('already CANCELLED is a no-op', async () => {
+    let updateRan = false;
+    const fake = makeFake((call) => {
+      if (call.sql.includes('SELECT status, ordered_by::text AS ordered_by')) {
+        return [{ status: 'CANCELLED', ordered_by: GUARDIAN_ACTOR.accountId, student_id: 's1' }];
+      }
+      if (call.sql.includes('UPDATE fds_meal_preorders SET')) updateRan = true;
+      if (call.sql.includes('SELECT p.id::text AS id, p.school_id::text')) {
+        return [
+          {
+            id: 'p1',
+            school_id: SCHOOL.schoolId,
+            student_id: 's1',
+            preorder_window_id: 'w1',
+            ordered_by: GUARDIAN_ACTOR.accountId,
+            status: 'CANCELLED',
+            allergen_check_passed: true,
+            blocking_allergens: [],
+            warning_allergens: [],
+            confirmed_at: null,
+            cancelled_at: new Date(),
+            cancellation_reason: null,
+            notes: null,
+            created_at: new Date(),
+            window_service_date: OPEN_WINDOW.service_date,
+            window_meal_type: OPEN_WINDOW.meal_type,
+            student_name: null,
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.cancelPreorder('p1', {}, ADMIN_ACTOR),
+    );
+    expect(updateRan).toBe(false);
+  });
+});
+
+// 20. Validation — at least 1 item, bogus menu_item_id refused
+describe('PreorderService input validation', () => {
+  it('refuses an empty items array', async () => {
+    const fake = makeFake(() => []);
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createPreorder({ studentId: 's1', preorderWindowId: 'w1', items: [] }, ADMIN_ACTOR),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('refuses a menuItemId that does not match any current-tenant fds_menu_items row', async () => {
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id')) return [OPEN_WINDOW];
+      if (call.sql.includes('FROM fds_menu_items WHERE school_id')) return []; // no match
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createPreorder(
+          {
+            studentId: 's1',
+            preorderWindowId: 'w1',
+            items: [{ menuItemId: 'bogus', quantity: 1 }],
+          },
+          ADMIN_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+});
+
+// 21. Production report regen UPSERT — verify ON CONFLICT path is exercised
+describe('PreorderService.generateProductionReport', () => {
+  it('non-admin non-staff cannot generate the production report', async () => {
+    const fake = makeFake(() => []);
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.generateProductionReport(
+          { serviceDate: '2026-06-01', mealType: 'LUNCH' },
+          GUARDIAN_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('UPSERT uses ON CONFLICT so regeneration replaces in place', async () => {
+    let insertSql: string | undefined;
+    const fake = makeFake((call) => {
+      if (call.sql.includes('SELECT mi.id::text AS menu_item_id, mi.name AS menu_item_name')) {
+        return [
+          {
+            menu_item_id: 'mi1',
+            menu_item_name: 'Veggie Pasta',
+            total_quantity: 3,
+            order_count: 3,
+          },
+        ];
+      }
+      if (call.sql.includes('SELECT UNNEST(mi.allergen_codes) AS allergen')) {
+        return [{ allergen: 'WHEAT', affected_orders: 3 }];
+      }
+      if (
+        call.sql.includes("WHERE p.school_id = $1::uuid AND p.status = 'CONFIRMED'") &&
+        call.sql.includes('COUNT(*)')
+      ) {
+        return [{ n: 3 }];
+      }
+      if (call.sql.includes('INSERT INTO fds_preorder_production_reports')) {
+        insertSql = call.sql;
+      }
+      if (
+        call.sql.includes(
+          'SELECT id::text AS id, school_id::text AS school_id, service_date, meal_type, total_orders',
+        )
+      ) {
+        return [
+          {
+            id: 'rep1',
+            school_id: SCHOOL.schoolId,
+            service_date: new Date('2026-06-01'),
+            meal_type: 'LUNCH',
+            total_orders: 3,
+            total_items: 3,
+            report_data: {
+              itemBreakdown: [
+                {
+                  menuItemId: 'mi1',
+                  menuItemName: 'Veggie Pasta',
+                  totalQuantity: 3,
+                  orderCount: 3,
+                },
+              ],
+              dietaryBreakdown: [{ allergen: 'WHEAT', affectedOrders: 3 }],
+            },
+            generated_by: ADMIN_ACTOR.accountId,
+            generated_at: new Date(),
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never);
+    const result = await runWithTenantContext({ tenant: SCHOOL }, async () =>
+      svc.generateProductionReport({ serviceDate: '2026-06-01', mealType: 'LUNCH' }, ADMIN_ACTOR),
+    );
+    expect(insertSql).toContain('ON CONFLICT (school_id, service_date, meal_type) DO UPDATE');
+    expect(result.totalOrders).toBe(3);
+    expect(result.itemBreakdown[0]!.menuItemName).toBe('Veggie Pasta');
+    expect(result.dietaryBreakdown[0]!.allergen).toBe('WHEAT');
   });
 });

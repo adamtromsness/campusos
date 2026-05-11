@@ -23,6 +23,7 @@ import { RecipeService } from './recipe.service';
 import { InventoryService } from './inventory.service';
 import { TransferService } from './transfer.service';
 import { StaffMealService } from './staff-meal.service';
+import { PreorderService } from './preorder.service';
 import { FoodServiceAdvancedController } from './food-service-advanced.controller';
 
 /**
@@ -71,6 +72,7 @@ import { FoodServiceAdvancedController } from './food-service-advanced.controlle
     InventoryService,
     TransferService,
     StaffMealService,
+    PreorderService,
   ],
   controllers: [FoodServiceController, FoodServiceAdvancedController],
   exports: [
@@ -90,6 +92,7 @@ import { FoodServiceAdvancedController } from './food-service-advanced.controlle
     InventoryService,
     TransferService,
     StaffMealService,
+    PreorderService,
   ],
 })
 export class FoodServiceModule {}

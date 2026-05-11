@@ -475,3 +475,133 @@ export class StaffMealDeductionSummaryRowDto {
   @ApiProperty() chargeCount!: number;
   @ApiProperty() totalAmount!: number;
 }
+
+// ─── P2-10b Pre-order DTOs ──────────────────────────────────────────────
+
+export type PreorderMealType = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK';
+
+export const PREORDER_MEAL_TYPES: PreorderMealType[] = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'];
+
+export type PreorderStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+
+export class CreatePreorderWindowDto {
+  @ApiProperty() @IsString() serviceDate!: string;
+  @ApiProperty({ enum: PREORDER_MEAL_TYPES })
+  @IsIn(PREORDER_MEAL_TYPES)
+  mealType!: PreorderMealType;
+  @ApiProperty() @IsString() opensAt!: string;
+  @ApiProperty() @IsString() closesAt!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
+}
+
+export class UpdatePreorderWindowDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() opensAt?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() closesAt?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
+}
+
+export class PreorderWindowResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() serviceDate!: string;
+  @ApiProperty() mealType!: PreorderMealType;
+  @ApiProperty() opensAt!: string;
+  @ApiProperty() closesAt!: string;
+  @ApiProperty() isOpen!: boolean;
+  @ApiPropertyOptional() notes!: string | null;
+  @ApiProperty() createdBy!: string;
+  @ApiProperty() createdAt!: string;
+}
+
+export class PreorderItemInputDto {
+  @ApiProperty() @IsUUID() menuItemId!: string;
+  @ApiPropertyOptional({ minimum: 1, default: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  quantity?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
+}
+
+export class CreatePreorderDto {
+  @ApiProperty() @IsUUID() studentId!: string;
+  @ApiProperty() @IsUUID() preorderWindowId!: string;
+  @ApiProperty({ type: () => [PreorderItemInputDto] })
+  @IsArray()
+  @ArrayMaxSize(20)
+  @Type(() => PreorderItemInputDto)
+  items!: PreorderItemInputDto[];
+  @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
+}
+
+export class CancelPreorderDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() reason?: string;
+}
+
+export class PreorderItemResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() preorderId!: string;
+  @ApiProperty() menuItemId!: string;
+  @ApiPropertyOptional() menuItemName!: string | null;
+  @ApiPropertyOptional() menuItemAllergens!: string[] | null;
+  @ApiProperty() quantity!: number;
+  @ApiPropertyOptional() notes!: string | null;
+}
+
+export class PreorderResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() studentId!: string;
+  @ApiPropertyOptional() studentName!: string | null;
+  @ApiProperty() preorderWindowId!: string;
+  @ApiProperty() serviceDate!: string;
+  @ApiProperty() mealType!: PreorderMealType;
+  @ApiProperty() orderedBy!: string;
+  @ApiProperty({ enum: ['PENDING', 'CONFIRMED', 'CANCELLED'] })
+  status!: PreorderStatus;
+  @ApiProperty() allergenCheckPassed!: boolean;
+  @ApiProperty({ type: [String] }) blockingAllergens!: string[];
+  @ApiProperty({ type: [String] }) warningAllergens!: string[];
+  @ApiPropertyOptional() confirmedAt!: string | null;
+  @ApiPropertyOptional() cancelledAt!: string | null;
+  @ApiPropertyOptional() cancellationReason!: string | null;
+  @ApiPropertyOptional() notes!: string | null;
+  @ApiProperty({ type: () => [PreorderItemResponseDto] })
+  items!: PreorderItemResponseDto[];
+  @ApiProperty() createdAt!: string;
+}
+
+export class GenerateProductionReportDto {
+  @ApiProperty() @IsString() serviceDate!: string;
+  @ApiProperty({ enum: PREORDER_MEAL_TYPES })
+  @IsIn(PREORDER_MEAL_TYPES)
+  mealType!: PreorderMealType;
+}
+
+export class ProductionReportItemRowDto {
+  @ApiProperty() menuItemId!: string;
+  @ApiPropertyOptional() menuItemName!: string | null;
+  @ApiProperty() totalQuantity!: number;
+  @ApiProperty() orderCount!: number;
+}
+
+export class ProductionReportDietaryRowDto {
+  @ApiProperty() allergen!: string;
+  @ApiProperty() affectedOrders!: number;
+}
+
+export class ProductionReportResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() serviceDate!: string;
+  @ApiProperty() mealType!: PreorderMealType;
+  @ApiProperty() totalOrders!: number;
+  @ApiProperty() totalItems!: number;
+  @ApiProperty({ type: () => [ProductionReportItemRowDto] })
+  itemBreakdown!: ProductionReportItemRowDto[];
+  @ApiProperty({ type: () => [ProductionReportDietaryRowDto] })
+  dietaryBreakdown!: ProductionReportDietaryRowDto[];
+  @ApiProperty() generatedBy!: string;
+  @ApiProperty() generatedAt!: string;
+}

@@ -7,18 +7,27 @@ import { RecipeService } from './recipe.service';
 import { InventoryService } from './inventory.service';
 import { TransferService } from './transfer.service';
 import { StaffMealService } from './staff-meal.service';
+import { PreorderService } from './preorder.service';
 import {
+  CancelPreorderDto,
   ChargeStaffMealDto,
   CreateIngredientDto,
   CreateInventoryGroupDto,
   CreateInventoryItemDto,
+  CreatePreorderDto,
+  CreatePreorderWindowDto,
   CreateRecipeDto,
   CreateStaffMealAccountDto,
   CreateTransferRequestDto,
+  GenerateProductionReportDto,
   InventoryGroupResponseDto,
   InventoryItemResponseDto,
   InventoryLevelResponseDto,
   InventoryTransactionResponseDto,
+  PreorderResponseDto,
+  PreorderStatus,
+  PreorderWindowResponseDto,
+  ProductionReportResponseDto,
   ReceiveInventoryDto,
   RecipeCostResponseDto,
   RecipeResponseDto,
@@ -33,6 +42,7 @@ import {
   UpdateIngredientDto,
   UpdateInventoryGroupDto,
   UpdateInventoryItemDto,
+  UpdatePreorderWindowDto,
   UpdateRecipeDto,
   UpdateStaffMealAccountDto,
   UsageInventoryDto,
@@ -51,6 +61,7 @@ export class FoodServiceAdvancedController {
     private readonly inventory: InventoryService,
     private readonly transfers: TransferService,
     private readonly staffMeals: StaffMealService,
+    private readonly preorders: PreorderService,
     private readonly actors: ActorContextService,
   ) {}
 
@@ -417,5 +428,139 @@ export class FoodServiceAdvancedController {
   })
   async payrollDeductions(): Promise<StaffMealDeductionSummaryRowDto[]> {
     return this.staffMeals.payrollDeductions();
+  }
+
+  // ─── Pre-order windows (P2-10b, FDS-005) ─────────────────────────
+
+  @Get('food-service/preorders/windows')
+  @RequirePermission('fds-005:read')
+  @ApiOperation({
+    summary:
+      'List preorder windows. Pass ?onlyOpen=true to filter to windows currently open at server now().',
+  })
+  async listPreorderWindows(
+    @Query('onlyOpen') onlyOpen?: string,
+  ): Promise<PreorderWindowResponseDto[]> {
+    return this.preorders.listWindows({ onlyOpen: onlyOpen === 'true' });
+  }
+
+  @Get('food-service/preorders/windows/:id')
+  @RequirePermission('fds-005:read')
+  async getPreorderWindow(@Param('id') id: string): Promise<PreorderWindowResponseDto> {
+    return this.preorders.getWindowById(id);
+  }
+
+  @Post('food-service/preorders/windows')
+  @RequirePermission('fds-005:write')
+  async createPreorderWindow(
+    @Body() body: CreatePreorderWindowDto,
+    @Req() req: AuthedRequest,
+  ): Promise<PreorderWindowResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.preorders.createWindow(body, actor);
+  }
+
+  @Patch('food-service/preorders/windows/:id')
+  @RequirePermission('fds-005:write')
+  async patchPreorderWindow(
+    @Param('id') id: string,
+    @Body() body: UpdatePreorderWindowDto,
+    @Req() req: AuthedRequest,
+  ): Promise<PreorderWindowResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.preorders.patchWindow(id, body, actor);
+  }
+
+  // ─── Pre-orders (P2-10b, FDS-005) ────────────────────────────────
+
+  @Get('food-service/preorders')
+  @RequirePermission('fds-005:read')
+  async listPreorders(
+    @Query('windowId') windowId: string | undefined,
+    @Query('status') status: PreorderStatus | undefined,
+    @Req() req: AuthedRequest,
+  ): Promise<PreorderResponseDto[]> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.preorders.listPreorders({ windowId, status }, actor);
+  }
+
+  @Get('food-service/preorders/:id')
+  @RequirePermission('fds-005:read')
+  async getPreorder(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<PreorderResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.preorders.getPreorderById(id, actor);
+  }
+
+  @Post('food-service/preorders')
+  @RequirePermission('fds-005:write')
+  @ApiOperation({
+    summary:
+      'Submit a pre-order. The KEYSTONE: each menu item is cross-checked against fds_student_allergen_alerts. CRITICAL severity matches BLOCK with 422 ConflictException carrying the offending allergen codes. WARNING matches surface in warning_allergens but the order persists.',
+  })
+  async createPreorder(
+    @Body() body: CreatePreorderDto,
+    @Req() req: AuthedRequest,
+  ): Promise<PreorderResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.preorders.createPreorder(body, actor);
+  }
+
+  @Post('food-service/preorders/:id/confirm')
+  @RequirePermission('fds-005:write')
+  @ApiOperation({
+    summary:
+      'Confirm a PENDING preorder. Admin/staff only. The schema status_dates_chk pins confirmed_at + status atomically.',
+  })
+  async confirmPreorder(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<PreorderResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.preorders.confirmPreorder(id, actor);
+  }
+
+  @Post('food-service/preorders/:id/cancel')
+  @RequirePermission('fds-005:write')
+  async cancelPreorder(
+    @Param('id') id: string,
+    @Body() body: CancelPreorderDto,
+    @Req() req: AuthedRequest,
+  ): Promise<PreorderResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.preorders.cancelPreorder(id, body, actor);
+  }
+
+  // ─── Production reports (P2-10b, FDS-005) ─────────────────────────
+
+  @Get('food-service/preorders/production-reports')
+  @RequirePermission('fds-005:read')
+  async listProductionReports(): Promise<ProductionReportResponseDto[]> {
+    return this.preorders.listProductionReports();
+  }
+
+  @Get('food-service/preorders/production-reports/:serviceDate/:mealType')
+  @RequirePermission('fds-005:read')
+  async getProductionReport(
+    @Param('serviceDate') serviceDate: string,
+    @Param('mealType') mealType: string,
+  ): Promise<ProductionReportResponseDto> {
+    return this.preorders.getProductionReport(serviceDate, mealType);
+  }
+
+  @Post('food-service/preorders/production-report')
+  @RequirePermission('fds-005:write')
+  @ApiOperation({
+    summary:
+      'Generate or regenerate the production report. Aggregates every CONFIRMED preorder for (date, mealType) into itemBreakdown + dietaryBreakdown. UNIQUE(school, date, mealType) means regeneration UPDATEs in place.',
+  })
+  async generateProductionReport(
+    @Body() body: GenerateProductionReportDto,
+    @Req() req: AuthedRequest,
+  ): Promise<ProductionReportResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.preorders.generateProductionReport(body, actor);
   }
 }

@@ -626,6 +626,13 @@ async function seedIam() {
         // (food safety / USDA) — those are FSM-only.
         'FDS-001': ['read'],
         'FDS-003': ['read'],
+        // P2-10b — Pre-orders. Parents browse open preorder windows
+        // (FDS-005:read) and submit pre-orders for their children
+        // with allergen cross-check (FDS-005:write). The Step 4
+        // PreorderService assertCanOrderForStudent helper row-scopes
+        // POSTs to own children via sis_student_guardians keyed on
+        // actor.personId.
+        'FDS-005': ['read', 'write'],
         // Cycle 30 — Data Protection. Parents submit Subject Access
         // Requests (DPO-004:read+write) for their children via the
         // self-service portal. Row-scope at SARService binds the
@@ -762,6 +769,12 @@ async function seedIam() {
         // FDS-001:read so the per-item allergen pills surface in the
         // student dashboard.
         'FDS-001': ['read'],
+        // P2-10b — Pre-orders. Students submit pre-orders for
+        // themselves through the parent-active surface (FDS-005:
+        // read+write). PreorderService.assertCanOrderForStudent
+        // row-scopes the POST to the calling student's own
+        // sis_students.id via platform_students.person_id.
+        'FDS-005': ['read', 'write'],
         // Cycle 22 — IT Infrastructure. Students see their own
         // assigned devices (IT-002:read row-scoped at the service
         // layer) and select a device during onboarding via
@@ -1089,6 +1102,13 @@ async function seedIam() {
         'FDS-002': ['read', 'write'],
         'FDS-003': ['read', 'write'],
         'FDS-004': ['read', 'write'],
+        // Cycle 10 P2-10b — Pre-orders + production planning. Staff
+        // covers the FSM persona that creates windows, generates
+        // production reports, and records production records.
+        // FDS-005 belongs to the same role split punch-list as
+        // FDS-001..004; pre-pilot, a dedicated FSM role holds these
+        // codes alone.
+        'FDS-005': ['read', 'write'],
         // Cycle 21 — Facilities Management. Staff covers the
         // Facilities Manager (FM) — the eighth specialist operator
         // persona. Per REVIEW-CYCLE21 BLOCKING 1, the FAC-001 admin
