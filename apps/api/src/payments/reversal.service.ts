@@ -24,7 +24,7 @@ import {
  * publish. Cycle 26 GLConsumer dedupes on event_id.
  */
 export function deterministicReversalEventId(reversalId: string): string {
-  const hash = createHash('sha1')
+  const hash = createHash('sha256')
     .update(reversalId + ':pay.payment.reversed:v1')
     .digest();
   hash[6] = (hash[6]! & 0x0f) | 0x50;

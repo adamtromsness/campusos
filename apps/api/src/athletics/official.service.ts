@@ -17,7 +17,7 @@ import { OutboxService } from '../kafka/outbox.service';
  * official-assignment completion outbox emit.
  */
 export function deterministicAssignmentCompletedEventId(assignmentId: string): string {
-  const hash = createHash('sha1')
+  const hash = createHash('sha256')
     .update(assignmentId + ':ath.official.assignment.completed:v1')
     .digest();
   hash[6] = (hash[6]! & 0x0f) | 0x50;

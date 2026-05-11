@@ -692,7 +692,6 @@ async function execTenant(
   sql: string,
   params: unknown[],
 ): Promise<void> {
-  const fullSql = `SET LOCAL search_path = ${TENANT_SCHEMA}, platform, public; ${sql}`;
   await client.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(`SET LOCAL search_path = ${TENANT_SCHEMA}, platform, public`);
     await tx.$executeRawUnsafe(sql, ...params);

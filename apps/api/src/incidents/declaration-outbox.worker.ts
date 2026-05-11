@@ -43,7 +43,7 @@ import { KafkaProducerService } from '../kafka/kafka-producer.service';
  *
  * Crash recovery: a worker crash between emit success and stamp
  * leaves the column NULL. The next tick re-emits with the same
- * deterministic event_id (sha1(outboxId + ':step') formatted as a
+ * deterministic event_id (sha256(outboxId + ':step') formatted as a
  * v5-shaped UUID) so consumers dedupe via their idempotency table.
  *
  * Stall detection: any unstamped step more than STALL_THRESHOLD_MS
@@ -101,7 +101,7 @@ const SELECT_OUTBOX_PENDING =
  * pattern. Same shape as Cycle 4's `deterministicCoverageEventId`.
  */
 export function deterministicStepEventId(outboxId: string, step: string): string {
-  const hash = createHash('sha1')
+  const hash = createHash('sha256')
     .update(outboxId + ':' + step + ':v1')
     .digest();
   hash[6] = (hash[6]! & 0x0f) | 0x50;

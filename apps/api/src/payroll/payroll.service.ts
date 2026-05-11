@@ -828,7 +828,7 @@ export class PayrollService {
  * and P2C2 deterministicStepEventId.
  */
 export function deterministicPayrollEventId(payrollRecordId: string): string {
-  const hash = createHash('sha1')
+  const hash = createHash('sha256')
     .update(payrollRecordId + ':hr.payroll.processed:v1')
     .digest();
   hash[6] = (hash[6]! & 0x0f) | 0x50;

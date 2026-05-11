@@ -20,7 +20,7 @@ import { OutboxService } from '../kafka/outbox.service';
  * billing consumer's idempotency catches the dup cleanly.
  */
 export function deterministicReplacementChargeEventId(checkoutId: string): string {
-  const hash = createHash('sha1')
+  const hash = createHash('sha256')
     .update(checkoutId + ':ath.equipment.replacement_charge:v1')
     .digest();
   hash[6] = (hash[6]! & 0x0f) | 0x50;

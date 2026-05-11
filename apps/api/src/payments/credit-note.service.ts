@@ -25,7 +25,7 @@ import {
  * downstream GLConsumer's idempotency catches the redelivery cleanly.
  */
 export function deterministicCreditNoteEventId(creditNoteId: string): string {
-  const hash = createHash('sha1')
+  const hash = createHash('sha256')
     .update(creditNoteId + ':pay.credit_note.issued:v1')
     .digest();
   hash[6] = (hash[6]! & 0x0f) | 0x50;

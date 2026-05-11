@@ -21,7 +21,7 @@ import { AssignmentResponseDto, CancelAssignmentDto } from './dto/substitutes.dt
  * the CancellationPolicyWorker's idempotency catches redelivery.
  */
 export function deterministicLateCancellationEventId(assignmentId: string): string {
-  const hash = createHash('sha1')
+  const hash = createHash('sha256')
     .update(assignmentId + ':sub.assignment.late_cancelled:v1')
     .digest();
   hash[6] = (hash[6]! & 0x0f) | 0x50;

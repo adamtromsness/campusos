@@ -29,7 +29,7 @@ import {
 var COVERAGE_NEEDED_SUFFIX = 'hr.leave.coverage_needed.v1';
 
 function deterministicCoverageEventId(inboundEventId: string): string {
-  var hash = createHash('sha1')
+  var hash = createHash('sha256')
     .update(inboundEventId + ':' + COVERAGE_NEEDED_SUFFIX)
     .digest();
   // Format the first 16 bytes as a RFC-4122-shaped UUID with the v5 marker

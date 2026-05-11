@@ -21,7 +21,7 @@ import type { ResolvedActor } from '../iam/actor-context.service';
  * deterministicReversalEventId / deterministicPayrollEventId.
  */
 export function deterministicLowBalanceEventId(accountId: string, alertedAt: string): string {
-  const hash = createHash('sha1')
+  const hash = createHash('sha256')
     .update(accountId + ':' + alertedAt + ':pay.lunch.low_balance:v1')
     .digest();
   hash[6] = (hash[6]! & 0x0f) | 0x50;

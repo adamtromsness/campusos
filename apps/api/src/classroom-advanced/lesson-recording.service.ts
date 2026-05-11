@@ -15,13 +15,13 @@ import {
 /**
  * REVIEW-P2C7 BLOCKING 3 — deterministic event IDs for the durable
  * video pipeline emits. Mirrors the P2-4a payroll, P2-6 credit-note,
- * and P2-6 reversal helpers — sha1(<recordingId>:<topic>:v1) shaped
+ * and P2-6 reversal helpers — sha256(<recordingId>:<topic>:v1) shaped
  * as a v5-style UUID so a redelivery / retry produces the exact same
  * event_id and downstream consumer idempotency catches the dup
  * cleanly.
  */
 function deterministicEventId(recordingId: string, topic: string): string {
-  const hash = createHash('sha1')
+  const hash = createHash('sha256')
     .update(recordingId + ':' + topic + ':v1')
     .digest();
   hash[6] = (hash[6]! & 0x0f) | 0x50;
