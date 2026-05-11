@@ -1,8 +1,24 @@
 # REVIEW-P2C10-CHATGPT — fix log
 
+**Final verdict (Round 3 against `f7e77e2`):** **PASS** — full P2-10 cycle APPROVED.
+**Closeout commit:** this commit — lands the Round 3 cleanup note (confirmPreorder + cancelPreorder UPDATE statements now carry the school predicate post-lock for Phase 2 style consistency; defence-in-depth — the row is already locked by `(id, school_id)` inside the tenant tx).
+**Tags:** `p2c10-complete` at `f7e77e2` (Round 2 fix that earned PASS) + `p2c10-approved` at the closeout commit.
+
+The Round 3 reviewer confirmed every Round 2 finding closed and called out one non-blocking cleanup item: the UPDATE statements inside `confirmPreorder()` and `cancelPreorder()` were running `WHERE id = $1::uuid` after a school-scoped `FOR UPDATE` lock. The row is already locked + verified in the same tenant tx so the practical risk is zero, but the Phase 2 style guide carries the school predicate through every tenant write so a single grep pattern catches the contract across the codebase. Closeout commit threads `tenant.schoolId` into both UPDATEs.
+
+## Round chain summary
+
+| Round | Commit reviewed       | Verdict  | Findings                                                                                                                                                                                                                                              | Fix commit        |
+| ----- | --------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 1     | `a91b192` (P2-10a)    | FAIL     | 4 BLOCKING + 4 MAJOR — recipe ingredient school-scope, inventory level movement school-scope, fds.inventory.low non-durable, generic STAFF = full FSM authority, staff-meal patch by-id only. MAJORs 6/7/8 carried to Phase 2 punch list.             | `730b2b3`         |
+| 2     | `9ca4aa5` + `730b2b3` | FAIL     | P2-10a fixes confirmed PASS. 3 new BLOCKING in P2-10b PreorderService — student/guardian validation not school-scoped, FSM admin on-behalf doesn't validate studentId in tenant, PreorderService still uses `personType === 'STAFF'` for admin paths. | `f7e77e2`         |
+| 3     | `f7e77e2`             | **PASS** | Every Round 2 finding closed. One non-blocking cleanup carry-forward (confirmPreorder + cancelPreorder UPDATE school-predicate consistency). Final gate decision.                                                                                     | _closeout commit_ |
+
+---
+
 **Round 2 verdict (`9ca4aa5` + `730b2b3`):** FAIL — 3 new BLOCKING in `PreorderService` (P2-10a fixes confirmed PASS but the same broad-STAFF + cross-school patterns hadn't propagated to P2-10b).
-**Round 2 fix commit:** this commit.
-**Round 3 verdict:** pending.
+**Round 2 fix commit:** `f7e77e2`.
+**Round 3 verdict:** PASS at top of this file.
 
 The reviewer ran the gate against the full P2-10 cycle this round. P2-10a fixes at `730b2b3` PASS. P2-10b (`9ca4aa5`) `PreorderService` surfaces 3 new BLOCKINGs: (1) student/guardian validation not school-scoped, (2) FSM admin on-behalf doesn't validate student in current tenant, (3) PreorderService still uses `personType === 'STAFF'` for window CRUD / confirm / cancel / generate-report / visibility / window-gate bypass. The Round 2 fix commit lands all 3 BLOCKINGs + 7 new pinned regression tests so the contracts cannot regress.
 

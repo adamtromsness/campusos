@@ -554,9 +554,17 @@ export class PreorderService {
           'Preorder cannot be confirmed because allergen_check_passed is false. Cancel and resubmit without the blocking items.',
         );
       }
+      // REVIEW-P2C10 ROUND 3 PASS closeout — defence-in-depth: the
+      // FOR UPDATE lock above already pins the row by (id, school_id)
+      // and the entire flow runs inside one tenant tx, so this UPDATE
+      // can only touch that row. We still carry the school predicate
+      // through the UPDATE itself to match the Phase 2 style guide
+      // and keep a single grep pattern for "every tenant write
+      // includes school_id".
       await tx.$executeRawUnsafe(
-        "UPDATE fds_meal_preorders SET status = 'CONFIRMED', confirmed_at = now(), updated_at = now() WHERE id = $1::uuid",
+        "UPDATE fds_meal_preorders SET status = 'CONFIRMED', confirmed_at = now(), updated_at = now() WHERE id = $1::uuid AND school_id = $2::uuid",
         id,
+        tenant.schoolId,
       );
     });
     return this.getPreorderById(id, actor);
@@ -591,14 +599,20 @@ export class PreorderService {
         await this.assertCanOrderForStudent(row.student_id, actor);
       }
       if (row.status === 'CANCELLED') return;
+      // REVIEW-P2C10 ROUND 3 PASS closeout — same defence-in-depth as
+      // confirmPreorder. The FOR UPDATE lock above pins the row by
+      // (id, school_id); the UPDATE carries the school predicate too
+      // so the Phase 2 "every tenant write includes school_id" style
+      // holds across the codebase.
       await tx.$executeRawUnsafe(
         "UPDATE fds_meal_preorders SET status = 'CANCELLED', cancelled_at = now(), cancellation_reason = $1, " +
           'confirmed_at = CASE WHEN status = ' +
           "'CONFIRMED'" +
           ' THEN confirmed_at ELSE NULL END, ' +
-          'updated_at = now() WHERE id = $2::uuid',
+          'updated_at = now() WHERE id = $2::uuid AND school_id = $3::uuid',
         input.reason ?? null,
         id,
+        tenant.schoolId,
       );
     });
     return this.getPreorderById(id, actor);

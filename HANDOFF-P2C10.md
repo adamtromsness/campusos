@@ -1,6 +1,6 @@
 # HANDOFF — Phase 2 Cycle 10 (P2-10 Food Service Advanced)
 
-**Status:** P2-10 COMPLETE pending peer review. Wave B (Pilot Enhancement) closes here. Both sub-cycles a + b shipped in two commits. CI green: format:check + lint:logs (707 files) + api build + web build + vitest 507/507. Awaiting `REVIEW-P2C10-CHATGPT.md` Round 1 verdict before tagging `p2c10-complete`.
+**Status:** **COMPLETE + APPROVED.** Wave B (Pilot Enhancement) closes here. Three review rounds against the full P2-10 cycle: Round 1 (P2-10a `a91b192`) FAIL with 4 BLOCKING + 4 MAJOR → fix `730b2b3`; Round 2 (`9ca4aa5` + `730b2b3`) FAIL with 3 new BLOCKING in PreorderService → fix `f7e77e2`; Round 3 (`f7e77e2`) **PASS** with one non-blocking cleanup carry-forward (confirmPreorder + cancelPreorder UPDATE school-predicate consistency). Tagged `p2c10-complete` at `f7e77e2` (the Round 2 fix that earned Round 3 PASS) and `p2c10-approved` at the closeout commit that lands the Round 3 cleanup. **Final CI parity green**: format:check + lint:logs (708 files) + api build + web build + vitest **525/525 across 26 spec files** (Round 0 baseline 507 + 18 P2-10b tests, then +11 Round 1 + 7 Round 2 + 0 Round 3 closeout — the school-predicate UPDATE is a 2-line code change carrying the same regression coverage from Round 2).
 
 ## Plan reference
 
