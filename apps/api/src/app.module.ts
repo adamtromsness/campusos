@@ -60,6 +60,7 @@ import { TrainingModule } from './training/training.module';
 import { AppraisalsModule } from './appraisals/appraisals.module';
 import { SubstitutesModule } from './substitutes/substitutes.module';
 import { EventsModule } from './events/events.module';
+import { SisAdvancedModule } from './sis-advanced/sis-advanced.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -210,6 +211,17 @@ var devOnlyControllers: Type<unknown>[] =
     // sign-up, refunds with Stripe stub + GL revenue emit on event
     // completion.
     EventsModule,
+    // Phase 2 Cycle 13 sub-cycle a — M20 SIS Advanced. Student profiles
+    // with avatar approval (student-owned bio + interests + avatar
+    // upload, homeroom-teacher review keystone). School-defined typed
+    // custom fields attached to any SIS entity (STUDENT / STAFF /
+    // GUARDIAN / CLASS) without schema changes. Parent-initiated info
+    // update requests with configurable auto-approval against low-risk
+    // fields. Student notes extended with ADMINISTRATIVE and
+    // CONFIDENTIAL types — service-layer row scope on CONFIDENTIAL
+    // rows. Family relationships (DIVORCED / JOINT custody etc.)
+    // driving downstream parent data visibility.
+    SisAdvancedModule,
   ],
   controllers: devOnlyControllers,
   providers: [

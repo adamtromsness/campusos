@@ -237,6 +237,12 @@ async function seedIam() {
         'ATT-004': ['read'],
         'ATT-005': ['read', 'write'],
         'STU-001': ['read'],
+        // P2-13a — Student Profile Customisation. Teachers review
+        // student avatar uploads via the PENDING_APPROVAL queue
+        // and approve / reject from the homeroom dashboard.
+        // Service layer narrows write to the homeroom-or-admin
+        // path (admins bypass).
+        'STU-002': ['read', 'write'],
         'TCH-001': ['read', 'write'],
         'TCH-002': ['read', 'write'],
         'TCH-003': ['read', 'write'],
@@ -473,6 +479,11 @@ async function seedIam() {
         'ATT-001': ['read'],
         'ATT-004': ['read', 'write'],
         'STU-001': ['read'],
+        // P2-13a — Student Profile Customisation. Parents read
+        // their children's profile + submit parent_info_update
+        // requests for low-risk fields. Service-layer row scope
+        // binds parents to children via sis_student_guardians.
+        'STU-002': ['read', 'write'],
         'TCH-002': ['read'],
         'TCH-003': ['read'],
         'TCH-004': ['read'],
@@ -676,6 +687,11 @@ async function seedIam() {
         // teacher-only via att-005:write.
         'ATT-005': ['read'],
         'STU-001': ['read'],
+        // P2-13a — Student Profile Customisation. Students edit
+        // their own bio + interests + motto + upload avatar (lands
+        // PENDING_APPROVAL). Service-layer row scope binds writes
+        // to the calling student's own sis_students row only.
+        'STU-002': ['read', 'write'],
         'TCH-001': ['read'],
         'TCH-002': ['read', 'write'],
         'TCH-003': ['read'],
@@ -823,6 +839,13 @@ async function seedIam() {
       roleName: 'Staff',
       perms: {
         'STU-001': ['read'],
+        // P2-13a — Student Profile Customisation. Generic Staff
+        // covers VP / counsellor / admin assistant — they need
+        // read for the school directory and write to author
+        // student notes + manage custom field values. Service
+        // layer narrows confidential note reads + parent-update
+        // approval to actor.isSchoolAdmin OR matching tier.
+        'STU-002': ['read', 'write'],
         'ATT-001': ['read'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read', 'write'],

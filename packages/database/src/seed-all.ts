@@ -139,6 +139,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Events & Ticketing — events, tiers, orders, tickets, scans, season passes (P2-12)',
     script: 'seed-events.ts',
   },
+  {
+    label: 'SIS Advanced A — student profiles, custom fields, parent updates (P2-13a)',
+    script: 'seed-sis-advanced-a.ts',
+  },
 ];
 
 async function main(): Promise<void> {
