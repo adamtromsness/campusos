@@ -19,6 +19,11 @@ import {
 } from './dietary-eligibility.service';
 import { AllergyAlertConsumer } from './allergy-alert.consumer';
 import { FoodServiceController } from './food-service.controller';
+import { RecipeService } from './recipe.service';
+import { InventoryService } from './inventory.service';
+import { TransferService } from './transfer.service';
+import { StaffMealService } from './staff-meal.service';
+import { FoodServiceAdvancedController } from './food-service-advanced.controller';
 
 /**
  * Food Service Module — M63 Food Service (Cycle 20).
@@ -62,8 +67,12 @@ import { FoodServiceController } from './food-service.controller';
     TemperatureLogService,
     ProductionRecordService,
     AllergyAlertConsumer,
+    RecipeService,
+    InventoryService,
+    TransferService,
+    StaffMealService,
   ],
-  controllers: [FoodServiceController],
+  controllers: [FoodServiceController, FoodServiceAdvancedController],
   exports: [
     MenuCycleService,
     MenuItemService,
@@ -77,6 +86,10 @@ import { FoodServiceController } from './food-service.controller';
     EligibilityService,
     TemperatureLogService,
     ProductionRecordService,
+    RecipeService,
+    InventoryService,
+    TransferService,
+    StaffMealService,
   ],
 })
 export class FoodServiceModule {}

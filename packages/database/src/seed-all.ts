@@ -115,6 +115,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Athletics Advanced — streaming, officials, recruiting (P2-8b)',
     script: 'seed-athletics-advanced-b.ts',
   },
+  {
+    label: 'Food Service Advanced — recipes, inventory, transfers, staff meals (P2-10a)',
+    script: 'seed-food-service-advanced.ts',
+  },
 ];
 
 async function main(): Promise<void> {
