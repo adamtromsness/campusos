@@ -8,7 +8,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import {
@@ -135,7 +135,7 @@ function rowToRewardDto(r: RewardRow): BehaviourRewardResponseDto {
 export class PositiveBehaviourService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly permissions: PermissionCheckService,
   ) {}
 
@@ -154,6 +154,90 @@ export class PositiveBehaviourService {
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
       'beh-001:admin',
     ]);
+  }
+
+  /**
+   * REVIEW-P2C14 BLOCKING 3 — actor-aware row scope for the positive-points
+   * balance/history read. Throws ForbiddenException if the caller is not
+   * authorised to view this student's ledger.
+   */
+  private async assertCanReadBalance(studentId: string, actor: ResolvedActor): Promise<void> {
+    const tenant = getCurrentTenant();
+    // Admin / beh-001:admin holder — any student in school.
+    if (actor.isSchoolAdmin) return;
+    const hasAdmin = await this.permissions.hasAnyPermissionInTenant(
+      actor.accountId,
+      tenant.schoolId,
+      ['beh-001:admin'],
+    );
+    if (hasAdmin) return;
+
+    if (actor.personType === 'STUDENT') {
+      // Student can only view own balance — resolve own sis_students.id
+      // via platform_students.person_id chain and compare.
+      const own = await this.tenantPrisma.executeInTenantContext(async (client) => {
+        const rows = (await client.$queryRawUnsafe(
+          'SELECT s.id::text AS id FROM sis_students s ' +
+            'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            'WHERE s.school_id = $1::uuid AND ps.person_id = $2::uuid LIMIT 1',
+          tenant.schoolId,
+          actor.personId,
+        )) as Array<{ id: string }>;
+        return rows[0]?.id ?? null;
+      });
+      if (!own || own !== studentId) {
+        throw new ForbiddenException('Students can only view their own positive-points balance');
+      }
+      return;
+    }
+
+    if (actor.personType === 'GUARDIAN') {
+      // Guardian can only view linked children — sis_student_guardians
+      // joined to sis_guardians keyed on actor.personId.
+      const linked = await this.tenantPrisma.executeInTenantContext(async (client) => {
+        const rows = (await client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM sis_student_guardians sg ' +
+            'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+            'WHERE g.person_id = $1::uuid AND sg.student_id = $2::uuid LIMIT 1',
+          actor.personId,
+          studentId,
+        )) as Array<{ ok: number }>;
+        return rows.length > 0;
+      });
+      if (!linked) {
+        throw new ForbiddenException(
+          'Guardians can only view positive-points balances for their own children',
+        );
+      }
+      return;
+    }
+
+    if (actor.personType === 'STAFF' && actor.employeeId) {
+      // Teacher / non-admin staff — only students enrolled in classes
+      // they currently teach (sis_class_teachers + ACTIVE sis_enrollments).
+      const allowed = await this.tenantPrisma.executeInTenantContext(async (client) => {
+        const rows = (await client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM sis_enrollments e ' +
+            'JOIN sis_class_teachers ct ON ct.class_id = e.class_id ' +
+            "WHERE e.status = 'ACTIVE' " +
+            '  AND ct.teacher_employee_id = $1::uuid ' +
+            '  AND e.student_id = $2::uuid LIMIT 1',
+          actor.employeeId,
+          studentId,
+        )) as Array<{ ok: number }>;
+        return rows.length > 0;
+      });
+      if (!allowed) {
+        throw new ForbiddenException(
+          'Teachers can only view positive-points balances for students in their classes',
+        );
+      }
+      return;
+    }
+
+    throw new ForbiddenException(
+      'This actor type cannot view positive-points balances for other students',
+    );
   }
 
   /**
@@ -199,11 +283,13 @@ export class PositiveBehaviourService {
         input.points,
         input.reason,
       );
-    });
-
-    // Best-effort Kafka emit (parent notification is non-safety-critical).
-    try {
-      await this.kafka.emit({
+      // REVIEW-P2C14 MAJOR 5 — durable outbox emit inside the same tenant
+      // tx as the AWARD INSERT. Previously best-effort kafka.emit() could
+      // drop the event on broker outage even though the ledger row landed.
+      // Outbox row commits with the tx; the OutboxPublisherWorker delivers
+      // on broker recovery. Cycle 3 NotificationConsumer fans out the
+      // parent IN_APP notification downstream of the outbox publication.
+      await this.outbox.enqueueInTx(tx, {
         topic: 'beh.positive_points.awarded',
         key: id,
         payload: {
@@ -219,9 +305,7 @@ export class PositiveBehaviourService {
         sourceModule: 'behaviour-advanced',
         eventId: deterministicPositivePointsAwardedEventId(id),
       });
-    } catch {
-      // Best-effort — Kafka outage does not roll back the award.
-    }
+    });
 
     return this.getTransactionById(id);
   }
@@ -239,12 +323,25 @@ export class PositiveBehaviourService {
   }
 
   /**
-   * Compute student balance + history. Student row scope — students
-   * only see their own balance; teachers + admins can read any student
-   * (gated at the controller layer).
+   * Compute student balance + history. Actor-aware row scope per
+   * REVIEW-P2C14 BLOCKING 3:
+   *   - School admin / `beh-001:admin` holder: any student in school.
+   *   - Teacher (STAFF with employeeId): only students they teach via
+   *     sis_class_teachers + sis_enrollments (ACTIVE).
+   *   - Student (STUDENT): only own balance, resolved via the
+   *     platform_students.person_id chain.
+   *   - Guardian (GUARDIAN): only linked children via
+   *     sis_student_guardians.
+   *   - Everyone else: 403.
+   * Without this gate, any actor with beh-001:read could enumerate the
+   * positive-points ledger of any student in the school.
    */
-  async getStudentBalance(studentId: string): Promise<PointsBalanceResponseDto> {
+  async getStudentBalance(
+    studentId: string,
+    actor: ResolvedActor,
+  ): Promise<PointsBalanceResponseDto> {
     const tenant = getCurrentTenant();
+    await this.assertCanReadBalance(studentId, actor);
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const totals = (await client.$queryRawUnsafe(
         'SELECT ' +
@@ -473,11 +570,14 @@ export class PositiveBehaviourService {
         rewardId,
       );
 
-      // Decrement quantity_available if set
+      // Decrement quantity_available if set. REVIEW-P2C14 MAJOR 7 — carry
+      // school_id predicate for consistency with the rest of the redemption
+      // tx; the prior FOR UPDATE lock already verified school ownership.
       if (r.quantity_available !== null) {
         await tx.$executeRawUnsafe(
           'UPDATE sis_behaviour_rewards SET quantity_available = quantity_available - 1, updated_at = now() ' +
-            'WHERE id = $1::uuid',
+            'WHERE school_id = $1::uuid AND id = $2::uuid',
+          tenant.schoolId,
           rewardId,
         );
       }

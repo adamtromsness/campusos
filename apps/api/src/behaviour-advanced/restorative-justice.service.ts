@@ -210,9 +210,16 @@ export class RestorativeJusticeService {
       const first = rows[0];
       if (!first) throw new NotFoundException('RJ conference not found');
       const conf = rowToConfDto(first);
+      // REVIEW-P2C14 BLOCKING 1 — defence-in-depth school-scope on inlined
+      // actions JOIN. The outer SELECT already validated the conference
+      // belongs to this school; this extra predicate guards against a
+      // future refactor that loses the parent gate.
       const actionRows = (await client.$queryRawUnsafe(
         SELECT_ACTION_BASE +
-          'WHERE a.conference_id = $1::uuid ORDER BY a.due_date ASC, a.created_at ASC',
+          'JOIN sis_restorative_justice_conferences cs ON cs.id = a.conference_id ' +
+          'WHERE cs.school_id = $1::uuid AND a.conference_id = $2::uuid ' +
+          'ORDER BY a.due_date ASC, a.created_at ASC',
+        tenant.schoolId,
         id,
       )) as ActionRow[];
       conf.actions = actionRows.map(rowToActionDto);
@@ -437,9 +444,14 @@ export class RestorativeJusticeService {
   }
 
   private async getActionById(id: string): Promise<RjActionResponseDto> {
+    // REVIEW-P2C14 BLOCKING 1 — school-scope action reload through parent conference.
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
-        SELECT_ACTION_BASE + 'WHERE a.id = $1::uuid LIMIT 1',
+        SELECT_ACTION_BASE +
+          'JOIN sis_restorative_justice_conferences cs ON cs.id = a.conference_id ' +
+          'WHERE cs.school_id = $1::uuid AND a.id = $2::uuid LIMIT 1',
+        tenant.schoolId,
         id,
       )) as ActionRow[];
       const first = rows[0];
@@ -489,34 +501,44 @@ export class RestorativeJusticeService {
       const confId = actionRow.conference_id;
 
       // Flip action to COMPLETED with timestamp + verifier — schema
-      // completed_chk requires all 3 together
+      // completed_chk requires all 3 together. REVIEW-P2C14 MAJOR 6 —
+      // school-scope the UPDATE through the parent conference JOIN.
       await tx.$executeRawUnsafe(
-        'UPDATE sis_rj_agreement_actions SET status = $1, completed_at = now(), ' +
+        'UPDATE sis_rj_agreement_actions a SET status = $1, completed_at = now(), ' +
           'verified_by = $2::uuid, evidence_notes = COALESCE($3, evidence_notes), ' +
-          'updated_at = now() WHERE id = $4::uuid',
+          'updated_at = now() ' +
+          'FROM sis_restorative_justice_conferences c ' +
+          'WHERE c.id = a.conference_id AND c.school_id = $4::uuid AND a.id = $5::uuid',
         'COMPLETED',
         verifierId,
         input.evidenceNotes ?? null,
+        tenant.schoolId,
         actionId,
       );
 
-      // Check if ALL actions for this conference are now COMPLETED
+      // Check if ALL actions for this conference are now COMPLETED. Scope
+      // via parent conference school_id for defence in depth.
       const counts = (await tx.$queryRawUnsafe(
         'SELECT ' +
-          "  COUNT(*) FILTER (WHERE status = 'COMPLETED')::int AS done, " +
+          "  COUNT(*) FILTER (WHERE a.status = 'COMPLETED')::int AS done, " +
           '  COUNT(*)::int AS total ' +
-          'FROM sis_rj_agreement_actions WHERE conference_id = $1::uuid',
+          'FROM sis_rj_agreement_actions a ' +
+          'JOIN sis_restorative_justice_conferences c ON c.id = a.conference_id ' +
+          'WHERE c.school_id = $1::uuid AND a.conference_id = $2::uuid',
+        tenant.schoolId,
         confId,
       )) as Array<{ done: number; total: number }>;
 
       let resolved = false;
       const countRow = counts[0];
       if (countRow && countRow.total > 0 && countRow.done === countRow.total) {
-        // Auto-transition conference to RESOLVED_SUCCESSFULLY
+        // Auto-transition conference to RESOLVED_SUCCESSFULLY. REVIEW-P2C14
+        // MAJOR 6 — carry school predicate through the lock + UPDATE.
         const confRows = (await tx.$queryRawUnsafe(
           'SELECT offender_student_id::text AS offender_student_id, ' +
             'harmed_party_ids, status FROM sis_restorative_justice_conferences ' +
-            'WHERE id = $1::uuid FOR UPDATE',
+            'WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
+          tenant.schoolId,
           confId,
         )) as Array<{
           offender_student_id: string;
@@ -528,7 +550,8 @@ export class RestorativeJusticeService {
           await tx.$executeRawUnsafe(
             'UPDATE sis_restorative_justice_conferences SET ' +
               "status = 'RESOLVED_SUCCESSFULLY', resolution_date = now(), updated_at = now() " +
-              'WHERE id = $1::uuid',
+              'WHERE school_id = $1::uuid AND id = $2::uuid',
+            tenant.schoolId,
             confId,
           );
           resolved = true;
@@ -560,10 +583,17 @@ export class RestorativeJusticeService {
   }
 
   async listActionsForConference(conferenceId: string): Promise<RjActionResponseDto[]> {
+    // REVIEW-P2C14 BLOCKING 1 — school-scope action listing through parent
+    // conference ownership. Without this join a School A reader who knows a
+    // School B conference UUID could enumerate its agreement actions.
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
         SELECT_ACTION_BASE +
-          'WHERE a.conference_id = $1::uuid ORDER BY a.due_date ASC, a.created_at ASC',
+          'JOIN sis_restorative_justice_conferences cs ON cs.id = a.conference_id ' +
+          'WHERE cs.school_id = $1::uuid AND a.conference_id = $2::uuid ' +
+          'ORDER BY a.due_date ASC, a.created_at ASC',
+        tenant.schoolId,
         conferenceId,
       )) as ActionRow[];
       return rows.map(rowToActionDto);

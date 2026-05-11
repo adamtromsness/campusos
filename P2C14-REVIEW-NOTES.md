@@ -24,10 +24,11 @@ Peer-review scaffold for the post-cycle architecture review. Plan at `docs/campu
 ### A) Restorative-justice agreement follow-through
 
 The keystone is `RestorativeJusticeService.completeAction()`. It runs entirely inside one `executeInTenantTransaction`:
+
 1. SELECT FOR UPDATE on the action + parent conference row.
 2. Refuse if status is already COMPLETED.
 3. UPDATE action to status=COMPLETED with `completed_at + verified_by` populated together (multi-column `completed_chk` requires both).
-4. COUNT * FILTER (status=COMPLETED) AS done, COUNT * AS total under the same lock.
+4. COUNT _ FILTER (status=COMPLETED) AS done, COUNT _ AS total under the same lock.
 5. If `done === total > 0`, SELECT FOR UPDATE on the parent conference; if its status is not already terminal, UPDATE to RESOLVED_SUCCESSFULLY with `resolution_date = now()` (multi-column `resolved_chk` requires both for terminal states).
 6. `outbox.enqueueInTx(tx, ...)` writes the durable outbox row inside the same tx with a deterministic v5-shape event_id.
 
@@ -36,11 +37,13 @@ The keystone is `RestorativeJusticeService.completeAction()`. It runs entirely i
 ### B) Positive-points + rewards economics
 
 Ledger model: `points > 0` always at the schema level; `transaction_type` flips direction. Balance is computed at read time:
+
 ```
 balance = SUM(points WHERE transaction_type='AWARD') - SUM(points WHERE transaction_type='REDEMPTION')
 ```
 
 Redemption flow (in one tenant tx):
+
 1. SELECT FOR UPDATE on the reward row (locks the catalogue entry to serialise concurrent redeems).
 2. Validate `is_active=true` AND (`quantity_available IS NULL OR quantity_available > 0`).
 3. Validate student is in this school.
@@ -54,6 +57,7 @@ Redemption flow (in one tenant tx):
 ### C) Peer mediation trained-mediator validation
 
 Schema enforces:
+
 - `party_a_student_id ≠ party_b_student_id` (parties_chk)
 - `mediator_student_id ∉ {party_a, party_b}` (mediator_chk)
 - `is_mediator_trained BOOLEAN DEFAULT true`
@@ -67,6 +71,7 @@ Service layer additionally validates all 3 students belong to the calling tenant
 No new table. Extends Cycle 11 `svc_bip_teacher_feedback` (schema unchanged) with three new endpoints. The partial UNIQUE `(plan_id, teacher_id) WHERE submitted_at IS NULL` from Cycle 11 catches double-requests. The service layer reuses the multi-column `effectiveness_chk` from Cycle 11's schema.
 
 Submit path:
+
 1. SELECT FOR UPDATE on the row.
 2. Refuse if `submitted_at` is already populated.
 3. Row-scope: non-counsellor non-admin actor must match `teacher_id = actor.employeeId`.

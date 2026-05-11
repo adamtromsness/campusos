@@ -140,9 +140,15 @@ export class BipFeedbackService {
   }
 
   async listForPlan(planId: string): Promise<BipFeedbackResponseDto[]> {
+    // REVIEW-P2C14 BLOCKING 2 — school-scope through parent BIP plan.
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
-        SELECT_BASE + 'WHERE f.plan_id = $1::uuid ORDER BY f.requested_at DESC',
+        SELECT_BASE +
+          'JOIN svc_behavior_plans bp ON bp.id = f.plan_id ' +
+          'WHERE bp.school_id = $1::uuid AND f.plan_id = $2::uuid ' +
+          'ORDER BY f.requested_at DESC',
+        tenant.schoolId,
         planId,
       )) as FeedbackRow[];
       return rows.map(rowToDto);
@@ -162,21 +168,29 @@ export class BipFeedbackService {
       throw new BadRequestException('Caller has no hr_employees row in this school.');
     }
 
+    const tenant = getCurrentTenant();
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        // REVIEW-P2C14 BLOCKING 2 — school-scope both plan AND teacher
+        // through current-school predicates so a counsellor in School A
+        // cannot request feedback for a School B plan/teacher.
         const plan = (await tx.$queryRawUnsafe(
-          'SELECT id FROM svc_behavior_plans WHERE id = $1::uuid',
+          'SELECT id FROM svc_behavior_plans WHERE school_id = $1::uuid AND id = $2::uuid',
+          tenant.schoolId,
           planId,
         )) as Array<{ id: string }>;
         if (plan.length === 0) throw new NotFoundException('BIP plan not found');
 
         const teacher = (await tx.$queryRawUnsafe(
-          'SELECT id FROM hr_employees WHERE id = $1::uuid',
+          'SELECT id FROM hr_employees WHERE school_id = $1::uuid AND id = $2::uuid',
+          tenant.schoolId,
           input.teacherEmployeeId,
         )) as Array<{ id: string }>;
         if (teacher.length === 0) {
-          throw new BadRequestException('teacherEmployeeId does not match an employee');
+          throw new BadRequestException(
+            'teacherEmployeeId does not match an employee in this school',
+          );
         }
 
         await tx.$executeRawUnsafe(
@@ -205,11 +219,18 @@ export class BipFeedbackService {
     input: SubmitBipFeedbackDto,
     actor: ResolvedActor,
   ): Promise<BipFeedbackResponseDto> {
+    const tenant = getCurrentTenant();
     const teacherEmpId = actor.employeeId;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C14 BLOCKING 2 — school-scope the row lock through parent BIP
+      // plan so a teacher who knows a foreign-school feedback UUID cannot
+      // submit against it. The JOIN ON bp.id = f.plan_id is the gate.
       const row = (await tx.$queryRawUnsafe(
-        'SELECT teacher_id::text AS teacher_id, submitted_at FROM svc_bip_teacher_feedback ' +
-          'WHERE id = $1::uuid FOR UPDATE',
+        'SELECT f.teacher_id::text AS teacher_id, f.submitted_at ' +
+          'FROM svc_bip_teacher_feedback f ' +
+          'JOIN svc_behavior_plans bp ON bp.id = f.plan_id ' +
+          'WHERE bp.school_id = $1::uuid AND f.id = $2::uuid FOR UPDATE OF f',
+        tenant.schoolId,
         id,
       )) as Array<{ teacher_id: string | null; submitted_at: string | null }>;
       const r = row[0];
@@ -243,9 +264,14 @@ export class BipFeedbackService {
   }
 
   async getById(id: string): Promise<BipFeedbackResponseDto> {
+    // REVIEW-P2C14 BLOCKING 2 — school-scope reload through parent BIP plan.
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
-        SELECT_BASE + 'WHERE f.id = $1::uuid LIMIT 1',
+        SELECT_BASE +
+          'JOIN svc_behavior_plans bp ON bp.id = f.plan_id ' +
+          'WHERE bp.school_id = $1::uuid AND f.id = $2::uuid LIMIT 1',
+        tenant.schoolId,
         id,
       )) as FeedbackRow[];
       const first = rows[0];

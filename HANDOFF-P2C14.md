@@ -1,6 +1,62 @@
 # HANDOFF — Phase 2 Cycle 14 (P2-14: Behaviour Advanced)
 
-**Status: COMPLETE pending peer review (2026-05-11).** Single session. All 8 implementation steps + Step 9 CI parity + Step 10 docs + Step 11 commit shipped. Plan at `docs/campusos-p2c14-behaviour-advanced.html`.
+**Status: REVIEW-P2C14 ROUND 1 FIXES APPLIED (2026-05-11).** Round 1 against commit `3333e2e` returned **FAIL** with 4 BLOCKING + 1 MAJOR + 2 hardening items. All 4 BLOCKING + all 3 actionable MAJORs landed in the closeout fix commit with **14 new pinned regression tests** + the existing 21 P2-14 tests rewired to the new outbox + JOIN-shape contracts. Suite **744/744 passing** across 34 spec files (709 → 730 → 744 across Round 0 + Round 1). Plan at `docs/campusos-p2c14-behaviour-advanced.html`.
+
+## REVIEW-P2C14 Round 1 fix log
+
+**BLOCKING 1 — RJ action list + reload school-scope.** Both `listActionsForConference()` and the private `getActionById()` previously filtered by `conference_id` / `id` only. Now both JOIN `sis_restorative_justice_conferences cs ON cs.id = a.conference_id` with `cs.school_id = $tenant.schoolId` predicate. The same fix lands on the inlined `actionRows` query inside `getConferenceById` for defence-in-depth. A School A user with `beh-001:read` who knows a School B conference UUID can no longer enumerate its agreement actions. Live regression `R-B1` + `R-B1b` pin the SQL shape.
+
+**BLOCKING 2 — BIP feedback school-scope.** All four BIP feedback paths in `BipFeedbackService` now school-scope through `svc_behavior_plans.school_id`:
+
+- `listForPlan` JOINs `svc_behavior_plans bp` with `bp.school_id = $1::uuid` predicate.
+- `requestFeedback` validates plan AND teacher with current-school predicates (`svc_behavior_plans WHERE school_id = $1::uuid AND id = $2::uuid` + `hr_employees WHERE school_id = $1::uuid AND id = $2::uuid`).
+- `submit` lock JOINs `svc_behavior_plans bp` with `bp.school_id = $1::uuid` + `FOR UPDATE OF f`.
+- `getById` reload JOINs `svc_behavior_plans bp` with the same scope.
+
+A counsellor in School A can no longer request feedback for a School B BIP plan/teacher, nor can a teacher submit/read a cross-school feedback row by UUID. Live regression `R-B2a` / `R-B2b` / `R-B2c` pin all three SQL shapes.
+
+**BLOCKING 3 — Positive points balance actor-scope.** `PositiveBehaviourService.getStudentBalance(studentId, actor)` now takes an actor and applies row-scope per persona:
+
+- School admin / `beh-001:admin` holder: any student in school.
+- STUDENT actor: only own balance, resolved via `sis_students JOIN platform.platform_students ON ps.person_id = actor.personId AND s.school_id = $tenant`.
+- GUARDIAN actor: only linked children via `sis_student_guardians + sis_guardians g.person_id = actor.personId`.
+- STAFF actor (teacher) with `employeeId`: only students enrolled in classes they teach via `sis_class_teachers + sis_enrollments WHERE status='ACTIVE'`.
+- Anyone else: 403.
+
+Controller now resolves the actor and passes it through. Without this gate, any `beh-001:read` holder could enumerate the positive-points ledger of any student in school. Live regression `R-B3a` through `R-B3e` pin all 5 persona branches.
+
+**BLOCKING 4 — OverdueActionWorker school predicate.** Sweep UPDATE now JOINs through the parent conference with `c.school_id = $1::uuid` predicate:
+
+```sql
+UPDATE sis_rj_agreement_actions a SET status = 'OVERDUE', updated_at = now()
+FROM sis_restorative_justice_conferences c
+WHERE c.id = a.conference_id
+  AND c.school_id = $1::uuid
+  AND a.status = 'PENDING'
+  AND a.due_date < CURRENT_DATE
+RETURNING a.id::text, a.conference_id::text
+```
+
+The per-school worker loop passes `school.id` as `$2`. Live regression `R-B4` reads the worker source verbatim and asserts the JOIN + predicate land in the exact arg position expected.
+
+**MAJOR 5 — `beh.positive_points.awarded` outbox migration.** Migrated from best-effort `KafkaProducerService.emit()` to durable `OutboxService.enqueueInTx()` inside the same tenant tx as the AWARD INSERT. The outbox row commits with the parent tx; the `OutboxPublisherWorker` delivers on broker recovery. Deterministic event_id via `deterministicPositivePointsAwardedEventId(transactionId)` survives retry / republish. `PositiveBehaviourService` constructor flipped from `KafkaProducerService` to `OutboxService`. Live regression `R-M5` proves the enqueue lands inside the tenant tx callback (verifies via a fake-tx instrumented to detect when enqueue is called with the same tx object the INSERT received).
+
+**MAJOR 6 — RJ auto-resolution UPDATE school predicates.** Both UPDATE statements inside `completeAction()` now carry `school_id` predicates:
+
+- Action UPDATE rewritten with a `FROM sis_restorative_justice_conferences c WHERE c.id = a.conference_id AND c.school_id = $4::uuid AND a.id = $5::uuid` shape.
+- Conference RESOLVED UPDATE rewritten to `WHERE school_id = $1::uuid AND id = $2::uuid`.
+
+The action-counts query was also rewritten to JOIN through the parent conference with `c.school_id = $1::uuid` predicate. Live regression `R-M6` pins both UPDATE shapes.
+
+**MAJOR 7 — Reward quantity decrement school predicate.** `UPDATE sis_behaviour_rewards SET quantity_available = quantity_available - 1` now carries `WHERE school_id = $1::uuid AND id = $2::uuid` for consistency with the rest of the redemption tx. The prior FOR UPDATE lock on the reward already verified school ownership; this is defence-in-depth. Live regression `R-M7` pins the SQL shape + arg ordering.
+
+**Test coverage**: 21 → **35 pinned regression tests** (+14: R-B1, R-B1b, R-B2a, R-B2b, R-B2c, R-B3a, R-B3b, R-B3c, R-B3d, R-B3e, R-B4, R-M5, R-M6, R-M7) across the same single spec file. Existing tests updated where service constructors changed (`makeKafka()` → `makeOutbox()` for positive-points tests; SQL responder matchers for the new JOIN shapes). Full suite **744/744** across 34 spec files.
+
+**CI parity green**: format:check + lint:logs (787 files clean) + API build clean + web build clean (4 P2-14 routes still ship) + vitest 744/744.
+
+Awaiting Round 2 verdict before tagging `p2c14-complete`.
+
+---
 
 ## Summary
 
@@ -24,6 +80,7 @@ Tenant base table count: **794 → 799** (one fresh provision of `tenant_demo` n
 Controller path `/api/v1/behaviour/*` (consolidated):
 
 **Restorative Justice (8 endpoints)** — gated on `beh-001:read` + `beh-001:write`:
+
 - `GET /rj-conferences` + `GET /rj-conferences/:id` (admin/staff)
 - `POST /rj-conferences` (counsellor/admin)
 - `PATCH /rj-conferences/:id` (lifecycle transitions)
@@ -32,12 +89,14 @@ Controller path `/api/v1/behaviour/*` (consolidated):
 - `PATCH /rj-actions/:id/complete` — **auto-resolution keystone**: when every action lands COMPLETED, the service flips the conference to RESOLVED_SUCCESSFULLY inside the same tenant tx + emits `beh.rj_conference.resolved` via durable outbox.
 
 **Peer Mediation (5 endpoints)** — `beh-001:read` + `beh-001:write`:
+
 - `GET /peer-mediations` (status filter) + `GET /peer-mediations/:id`
 - `POST /peer-mediations` (teacher referral)
 - `PATCH /peer-mediations/:id` (counsellor/admin scheduling + resolution)
 - `GET /peer-mediators` (trained mediator directory)
 
 **Positive Behaviour (6 endpoints)**:
+
 - `POST /positive-points` (`beh-001:write`) — emits `beh.positive_points.awarded`.
 - `GET /positive-points/:studentId` (`beh-001:read`)
 - `GET /rewards` (`beh-001:read`)
@@ -46,10 +105,12 @@ Controller path `/api/v1/behaviour/*` (consolidated):
 - `POST /rewards/:id/redeem` (`beh-001:read`) — students can redeem own; admin can redeem on behalf. **Locked-row tx** validates balance ≥ points_cost AND decrements quantity_available atomically.
 
 **Category Config (2 endpoints)**:
+
 - `GET /positive-categories` (`beh-001:read`) — falls back to default Respect/Responsibility/Leadership when no config.
 - `PATCH /positive-categories` (`beh-001:admin`) — backed by tenant-scoped `school_config` JSONB. (The plan referenced `platform_tenant_configs` which does not exist; tenant `school_config` is the canonical key/value JSONB home from Cycle 0.)
 
 **BIP Teacher Feedback (3 endpoints, no new table — reuses Cycle 11 svc_bip_teacher_feedback)**:
+
 - `GET /bip/:planId/feedback` (`beh-002:read`)
 - `POST /bip/:planId/request-feedback` (`beh-002:write`) — counsellor requests; partial UNIQUE on `(plan_id, teacher_id) WHERE submitted_at IS NULL` rejects double-requests.
 - `PATCH /bip-feedback/:id` (`beh-002:read` + service-layer row-scope on `teacher_id`) — teacher submits.
@@ -62,10 +123,12 @@ Controller path `/api/v1/behaviour/*` (consolidated):
 ## Worker
 
 **OverdueActionWorker** (`overdue-action.worker.ts`) — periodic sweep every 6 hours (configurable via `BEH_OVERDUE_SWEEP_INTERVAL_MS`). Walks every active school via `platform.schools` + `executeInExplicitSchema` and runs:
+
 ```
 UPDATE sis_rj_agreement_actions SET status='OVERDUE', updated_at=now()
 WHERE status='PENDING' AND due_date < CURRENT_DATE
 ```
+
 Uses the partial INDEX `(due_date, status) WHERE status='PENDING'` from migration 145 as the hot path. Best-effort: a per-tenant error is logged + skipped without aborting the remaining tenants. Returns `{tenantsScanned, rowsFlipped}` per run. Notification fan-out to the facilitator is the Cycle 14 NotificationConsumer wiring item (Phase 2 punch list).
 
 ## Seed (seed-behaviour-advanced.ts)
@@ -82,6 +145,7 @@ Idempotent, gated on `sis_restorative_justice_conferences` row count for the dem
 ## Tests (21 new pinned regression tests)
 
 `apps/api/src/behaviour-advanced/behaviour-advanced.spec.ts` — 21 tests covering:
+
 - S1: deterministic event-id helpers v5-shape + topic-uniqueness
 - S2-S7: RestorativeJusticeService authority, validation, auto-resolution, illegal-transition rejection
 - S8-S10: PeerMediationService service-layer CHECK shadowing + teacher referral happy path

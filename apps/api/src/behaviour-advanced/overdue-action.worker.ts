@@ -72,11 +72,21 @@ export class OverdueActionWorker implements OnModuleInit, OnModuleDestroy {
         const flipped = await this.tenantPrisma.executeInExplicitSchema(
           school.schemaName,
           async (client) => {
+            // REVIEW-P2C14 BLOCKING 4 — school-scope the sweep through the
+            // parent conference. Without this predicate, a per-school worker
+            // pass would flip every PENDING row in the tenant schema even
+            // though the loop iterates per school. Belt-and-braces against
+            // future shared-schema rearrangements.
             const rows = (await client.$queryRawUnsafe(
-              'UPDATE sis_rj_agreement_actions SET status = $1, updated_at = now() ' +
-                'WHERE status = $2 AND due_date < CURRENT_DATE ' +
-                'RETURNING id::text AS id, conference_id::text AS conference_id',
+              'UPDATE sis_rj_agreement_actions a SET status = $1, updated_at = now() ' +
+                'FROM sis_restorative_justice_conferences c ' +
+                'WHERE c.id = a.conference_id ' +
+                '  AND c.school_id = $2::uuid ' +
+                '  AND a.status = $3 ' +
+                '  AND a.due_date < CURRENT_DATE ' +
+                'RETURNING a.id::text AS id, a.conference_id::text AS conference_id',
               'OVERDUE',
+              school.id,
               'PENDING',
             )) as Array<{ id: string; conference_id: string }>;
             return rows.length;

@@ -201,10 +201,16 @@ export class BehaviourAdvancedController {
 
   @Get('positive-points/:studentId')
   @RequirePermission('beh-001:read')
+  @ApiOperation({
+    summary:
+      'Read a student point balance + history. Actor-aware row scope: admin all, teacher own-class students, student self, guardian linked children. Anyone else: 403.',
+  })
   async getStudentBalance(
     @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Req() req: AuthedRequest,
   ): Promise<PointsBalanceResponseDto> {
-    return this.positive.getStudentBalance(studentId);
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.positive.getStudentBalance(studentId, actor);
   }
 
   @Get('rewards')
