@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-11: Transportation Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.split-card{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:16px 0}
+.split-card h3{font-size:16px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.split-card p{font-size:14px;line-height:1.8;margin:0}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="index.html">Design Hub</a><a href="campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave C &mdash; Operational Depth</div>
+    <h1>P2-11: Transportation<br>Advanced</h1>
+    <div class="sub">Deep fleet maintenance with repair tracking, parts inventory, and component lifecycle management, fuel logging with efficiency computation, driver hours regulatory compliance with configurable weekly limits, route generation pipeline with constraint profiles and candidate review workflow, GPS vehicle position telemetry for live tracking, and the materialised fleet status dashboard. The most infrastructure-heavy .1 cycle. Opens Wave C.</div>
+    <span class="version">May 2026 &middot; 3 Sub-Cycles &middot; ERD v11 &middot; M61 Transportation .1 (22 tables) &middot; TRN-001..005 &middot; Phase 2 Cycle 11 &middot; Opens Wave C</span>
+  </div>
+
+  <h2 class="section-heading">Sub-Cycle Structure</h2>
+  <p class="body-text">22 tables is the third-largest cycle in Phase 2. Split into 3 independently shippable sub-cycles: fleet maintenance (the garage), route optimisation (the planning office), and live operations (the dispatch centre). Peer review after all 3 complete.</p>
+
+  <div class="split-card">
+    <h3>P2-11a &mdash; Fleet Maintenance + Fuel + Driver Hours (8 tables)</h3>
+    <p>Vehicle repairs with vendor tracking + warranty claims, parts inventory with reorder alerting, vehicle component lifecycle (tyres, brakes, batteries) with expected-life tracking, fuel logging with efficiency computation, driver hours regulatory compliance with configurable weekly limits and approaching-limit alerts. No external service dependencies.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-11b &mdash; Route Generation Pipeline (7 tables)</h3>
+    <p>School-level constraint profiles (max ride time, max stops, walkable radius, arrival buffer), generation requests with full/term/date-range scoping, candidate routes with constraint violation reporting, candidate stops with student assignments, TC review workflow (approve/reject/modify → activate as live trn_routes), ad-hoc trip requests, and contracted route tracking. Requires Scheduling Solver extracted service (stub if not deployed).</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-11c &mdash; GPS Telemetry + Fleet Dashboard (7 tables)</h3>
+    <p>Real-time vehicle position telemetry (TimescaleDB hypertable or RANGE partitioned by timestamp), geofence definitions for schools + stops + zones with enter/exit event logging, ETA computation from position + route, parent live-tracking view, transport dispatch event log, and the materialised rpt_fleet_status dashboard. Requires Transport Dispatch extracted service (stub if not deployed).</p>
+  </div>
+
+  <h2 class="section-heading">P2-11a: Fleet Maintenance + Fuel + Driver Hours</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema (8 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>trn_vehicle_repairs</strong> &mdash; <code>vehicle_id UUID FK(trn_vehicles) NOT NULL</code>, <code>repair_date DATE NOT NULL</code>, <code>mileage_at_repair INT NOT NULL</code>, <code>problem_description TEXT NOT NULL</code>, <code>work_performed TEXT NOT NULL</code>, <code>parts_used JSONB</code>, <code>labour_hours NUMERIC(5,2)</code>, <code>total_cost NUMERIC(10,2) NOT NULL</code>, <code>performed_by_type TEXT NOT NULL</code> 2-value CHECK (INTERNAL, EXTERNAL_VENDOR), <code>vendor_account_id UUID</code> (soft to platform_vendor_accounts), <code>warranty_claim BOOLEAN DEFAULT false</code>, <code>invoice_s3_key TEXT</code>. INDEX(vehicle_id, repair_date DESC).</li>
+      <li><strong>trn_parts_inventory</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>part_name TEXT NOT NULL</code>, <code>part_number TEXT</code>, <code>quantity_on_hand INT DEFAULT 0</code>, <code>min_stock_level INT DEFAULT 0</code>, <code>unit_cost NUMERIC(8,2)</code>, <code>supplier TEXT</code>, <code>last_restocked_at DATE</code>. INDEX(school_id, quantity_on_hand) WHERE quantity_on_hand &le; min_stock_level. Emits <code>trn.parts.low</code> when below min_stock_level.</li>
+      <li><strong>trn_vehicle_components</strong> &mdash; <code>vehicle_id UUID FK NOT NULL</code>, <code>component_type TEXT NOT NULL</code> 9-value CHECK (TYRE, BRAKE, BATTERY, BELT, HOSE, ALTERNATOR, STARTER, TRANSMISSION, OTHER), <code>installed_date DATE NOT NULL</code>, <code>installed_mileage INT NOT NULL</code>, <code>expected_life_miles INT</code>, <code>expected_life_months INT</code>, <code>warranty_provider TEXT</code>, <code>warranty_expiry_date DATE</code>, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, REPLACED, FAILED). INDEX(vehicle_id, status) WHERE status='ACTIVE'. Alert: when current_mileage - installed_mileage approaches expected_life_miles.</li>
+      <li><strong>trn_vehicle_fuel_logs</strong> &mdash; <code>vehicle_id UUID FK NOT NULL</code>, <code>logged_by UUID FK NOT NULL</code>, <code>log_date DATE NOT NULL</code>, <code>odometer_reading NUMERIC(9,1) NOT NULL</code>, <code>fuel_quantity NUMERIC(7,2) NOT NULL</code>, <code>fuel_cost NUMERIC(8,2)</code>, <code>fuel_type TEXT NOT NULL</code> 5-value CHECK (DIESEL, PETROL, ELECTRIC, HYBRID, LPG), <code>refuel_location TEXT</code>. INDEX(vehicle_id, log_date DESC). Fuel efficiency computed: (current_odometer - previous_odometer) / fuel_quantity.</li>
+      <li><strong>trn_driver_hours_logs</strong> &mdash; <code>driver_id UUID FK(hr_employees) NOT NULL</code>, <code>run_id UUID FK(trn_route_run_logs)</code> nullable, <code>log_date DATE NOT NULL</code>, <code>duty_start_at TIMESTAMPTZ NOT NULL</code>, <code>duty_end_at TIMESTAMPTZ</code>, <code>driving_minutes INT</code>, <code>break_minutes INT NOT NULL DEFAULT 0</code>, <code>cumulative_weekly_minutes INT</code> (computed on duty_end_at). INDEX(driver_id, log_date DESC). Alert: when cumulative_weekly_minutes approaches jurisdiction-specific limit (configurable).</li>
+      <li><strong>trn_driver_hours_limits</strong> &mdash; <code>school_id UUID NOT NULL UNIQUE</code>, <code>weekly_driving_limit_minutes INT NOT NULL DEFAULT 2880</code> (48 hours default &mdash; EU Working Time Directive), <code>daily_driving_limit_minutes INT NOT NULL DEFAULT 600</code> (10 hours), <code>mandatory_break_after_minutes INT NOT NULL DEFAULT 270</code> (4.5 hours → 45 min break), <code>jurisdiction TEXT NOT NULL DEFAULT 'US_FEDERAL'</code>. Configurable per school based on local regulations.</li>
+      <li><strong>trn_repair_categories</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>is_safety_critical BOOLEAN DEFAULT false</code> (safety-critical repairs block vehicle dispatch until resolved). UNIQUE(school_id, name).</li>
+      <li><strong>trn_vehicle_lifecycle</strong> &mdash; <code>vehicle_id UUID FK NOT NULL UNIQUE</code>, <code>purchase_date DATE</code>, <code>purchase_price NUMERIC(10,2)</code>, <code>expected_life_years INT</code>, <code>expected_life_miles INT</code>, <code>depreciation_method TEXT DEFAULT 'STRAIGHT_LINE'</code> 2-value CHECK (STRAIGHT_LINE, DECLINING_BALANCE), <code>current_book_value NUMERIC(10,2)</code>, <code>disposal_date DATE</code>, <code>disposal_value NUMERIC(10,2)</code>, <code>disposal_method TEXT</code> 4-value CHECK (SOLD, SCRAPPED, TRADED_IN, DONATED) nullable. Fleet replacement planning data.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 tables. Migration: <code>123_trn_fleet_maintenance.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Seed + Services + UI + Tests (P2-11a)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>5 repairs (3 INTERNAL, 2 EXTERNAL_VENDOR with warranty claim). 8 parts (2 below min_stock_level). 6 components across 2 vehicles (1 approaching expected life). 10 fuel logs across 3 vehicles. 5 driver hours logs (1 approaching weekly limit). 1 driver hours limit config. 3 repair categories (1 safety-critical). 2 vehicle lifecycle records.</li>
+    </ol>
+    <div class="detail-heading">Services (~24 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>RepairService</strong> &mdash; CRUD for repairs + categories. <code>GET /transport/vehicles/:id/repairs</code> (history), <code>POST /transport/vehicles/:id/repairs</code> (log repair; if safety-critical category → vehicle status = OUT_OF_SERVICE until repair COMPLETED). <code>GET /transport/repairs/outstanding</code> (vehicles with open safety-critical repairs).</li>
+      <li><strong>PartsService</strong> &mdash; CRUD for parts inventory. <code>GET /transport/parts/low-stock</code> (below min_stock_level). <code>POST /transport/parts/:id/restock</code>. Emits <code>trn.parts.low</code>.</li>
+      <li><strong>ComponentService</strong> &mdash; <code>GET /transport/vehicles/:id/components</code> (active components with remaining life estimate), <code>POST /transport/vehicles/:id/components</code> (install), <code>PATCH /transport/components/:id</code> (replace/fail). <code>GET /transport/components/approaching-end-of-life</code>.</li>
+      <li><strong>FuelLogService</strong> &mdash; <code>POST /transport/vehicles/:id/fuel</code>, <code>GET /transport/vehicles/:id/fuel</code> (history + efficiency chart), <code>GET /transport/fuel/fleet-summary</code> (cost per vehicle per month).</li>
+      <li><strong>DriverHoursService</strong> &mdash; <code>POST /transport/drivers/:id/hours</code> (log duty), <code>GET /transport/drivers/:id/hours</code> (weekly summary with remaining vs limit), <code>GET /transport/drivers/approaching-limit</code> (drivers within 90% of weekly limit). <code>GET/PATCH /transport/driver-hours-limits</code>. Emits <code>trn.driver.hours_approaching_limit</code>.</li>
+      <li><strong>VehicleLifecycleService</strong> &mdash; <code>GET /transport/vehicles/:id/lifecycle</code>, <code>PATCH /transport/vehicles/:id/lifecycle</code>, <code>GET /transport/fleet/replacement-planning</code> (vehicles approaching end of expected life).</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Fleet Maintenance Dashboard</strong> <code>/transport/maintenance</code> &mdash; vehicle list with maintenance status pills. Per-vehicle: repair history, component status, fuel efficiency chart. Safety-critical repairs highlighted. Parts inventory with low-stock alerts.</li>
+      <li><strong>Driver Hours Tracker</strong> <code>/transport/driver-hours</code> &mdash; driver list with weekly hours progress bars. Approaching-limit warnings. Duty log entry form.</li>
+      <li><strong>Fleet Replacement Planner</strong> <code>/transport/fleet/lifecycle</code> &mdash; vehicles sorted by remaining life. Book value vs age chart. Disposal recording.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-11a: 8 tables, ~24 endpoints. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-11b: Route Generation Pipeline</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Schema (7 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>trn_route_constraints</strong> &mdash; <code>school_id UUID FK NOT NULL</code>, <code>constraint_name TEXT NOT NULL</code>, <code>max_ride_time_minutes INT NOT NULL DEFAULT 45</code>, <code>max_route_mileage NUMERIC(7,2)</code>, <code>max_students_per_vehicle INT</code>, <code>required_arrival_buffer_minutes INT NOT NULL DEFAULT 10</code>, <code>max_stops_per_route INT</code>, <code>walkable_radius_metres INT NOT NULL DEFAULT 400</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, constraint_name).</li>
+      <li><strong>trn_generation_requests</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>requested_by UUID FK NOT NULL</code>, <code>request_type TEXT NOT NULL</code> 4-value CHECK (FULL_YEAR, TERM, DATE_RANGE, SINGLE_DATE), <code>academic_year_id UUID FK</code>, <code>term_id UUID FK</code>, <code>date_from DATE</code>, <code>date_to DATE</code>, <code>constraint_id UUID FK(trn_route_constraints) NOT NULL</code>, <code>directions TEXT NOT NULL DEFAULT 'BOTH'</code> 3-value CHECK (AM_ONLY, PM_ONLY, BOTH), <code>status TEXT NOT NULL DEFAULT 'QUEUED'</code> 5-value CHECK (QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED), <code>optimiser_run_id TEXT</code>, <code>routes_generated INT</code>, <code>students_covered INT</code>, <code>students_uncovered INT</code>, <code>error_message TEXT</code>, <code>queued_at TIMESTAMPTZ NOT NULL</code>, <code>started_at TIMESTAMPTZ</code>, <code>completed_at TIMESTAMPTZ</code>. INDEX(school_id, status). Emits <code>trn.generation.completed</code>.</li>
+      <li><strong>trn_generation_candidates</strong> &mdash; <code>request_id UUID FK NOT NULL</code>, <code>candidate_name TEXT NOT NULL</code>, <code>direction TEXT NOT NULL</code> 2-value CHECK (AM, PM), <code>vehicle_type_required TEXT NOT NULL</code> 3-value CHECK (BUS, MINIBUS, VAN), <code>total_students INT NOT NULL</code>, <code>total_stops INT NOT NULL</code>, <code>estimated_route_mileage NUMERIC(7,2) NOT NULL</code>, <code>estimated_duration_minutes INT NOT NULL</code>, <code>max_student_ride_time_minutes INT NOT NULL</code>, <code>all_constraints_satisfied BOOLEAN NOT NULL</code>, <code>constraint_violations JSONB</code>, <code>review_status TEXT NOT NULL DEFAULT 'PENDING'</code> 4-value CHECK (PENDING, APPROVED, REJECTED, MODIFIED), <code>reviewed_by UUID FK</code>, <code>reviewed_at TIMESTAMPTZ</code>, <code>approved_route_id UUID FK(trn_routes)</code>. INDEX(request_id, review_status).</li>
+      <li><strong>trn_generation_candidate_stops</strong> &mdash; <code>candidate_id UUID FK NOT NULL</code>, <code>stop_name TEXT NOT NULL</code>, <code>latitude NUMERIC(9,6) NOT NULL</code>, <code>longitude NUMERIC(9,6) NOT NULL</code>, <code>sequence_order INT NOT NULL</code>, <code>scheduled_time TIME</code>, <code>student_ids UUID[] NOT NULL</code>, <code>student_count INT NOT NULL</code>. INDEX(candidate_id, sequence_order).</li>
+      <li><strong>trn_adhoc_trip_requests</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>requested_by UUID FK NOT NULL</code>, <code>trip_purpose TEXT NOT NULL</code> 5-value CHECK (FIELD_TRIP, ATHLETIC_EVENT, SPECIAL_EVENT, MEDICAL_TRANSPORT, OTHER), <code>trip_date DATE NOT NULL</code>, <code>departure_time TIME</code>, <code>return_time TIME</code>, <code>pickup_location TEXT NOT NULL</code>, <code>destination TEXT NOT NULL</code>, <code>estimated_passengers INT NOT NULL</code>, <code>special_requirements TEXT</code>, <code>linked_event_id UUID</code> (soft to evt_events or ath_games), <code>assigned_vehicle_id UUID FK(trn_vehicles)</code>, <code>assigned_driver_id UUID FK(hr_employees)</code>, <code>status TEXT NOT NULL DEFAULT 'REQUESTED'</code> 5-value CHECK (REQUESTED, APPROVED, SCHEDULED, COMPLETED, CANCELLED), <code>linked_approval_id UUID FK(wsk_approval_requests)</code>. INDEX(school_id, trip_date, status).</li>
+      <li><strong>trn_contracted_routes</strong> &mdash; <code>route_id UUID FK(trn_routes) NOT NULL UNIQUE</code>, <code>contractor_id UUID</code> (soft to platform_vendor_accounts), <code>contract_reference TEXT</code>, <code>contract_start_date DATE NOT NULL</code>, <code>contract_end_date DATE NOT NULL</code>, <code>daily_rate NUMERIC(8,2)</code>, <code>payment_frequency TEXT DEFAULT 'MONTHLY'</code> 3-value CHECK (WEEKLY, MONTHLY, TERM), <code>performance_rating NUMERIC(2,1)</code>. For routes operated by third-party bus companies.</li>
+      <li><strong>trn_route_change_requests</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>student_id UUID FK NOT NULL</code>, <code>submitted_by UUID FK NOT NULL</code>, <code>change_date DATE NOT NULL</code>, <code>change_type TEXT NOT NULL</code> 3-value CHECK (DIFFERENT_STOP, NO_BUS, DIFFERENT_ROUTE), <code>requested_stop_id UUID FK</code>, <code>requested_route_id UUID FK</code>, <code>reason TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, APPROVED, REJECTED), <code>reviewed_by UUID FK</code>, <code>reviewed_at TIMESTAMPTZ</code>. INDEX(school_id, status) WHERE status='PENDING'. On APPROVED: creates one-day override in trn_student_assignments.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 7 tables. Migration: <code>124_trn_route_generation.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed + Services + UI + Tests (P2-11b)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>1 constraint profile ("2026 Standard"). 1 generation request (COMPLETED, 3 candidates generated, 20 students covered, 2 uncovered). 3 candidates (1 APPROVED → linked to active trn_route, 1 REJECTED, 1 PENDING). 12 candidate stops across the 3 candidates. 1 ad-hoc trip (SCHEDULED, athletic event). 1 contracted route. 2 route change requests (1 APPROVED, 1 PENDING).</li>
+    </ol>
+    <div class="detail-heading">Services (~20 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>RouteConstraintService</strong> &mdash; CRUD for constraint profiles. <code>GET /transport/route-constraints</code>, <code>POST /transport/route-constraints</code>.</li>
+      <li><strong>RouteGenerationService</strong> &mdash; <code>POST /transport/route-generation</code> (queue generation request with constraint profile; RouteGenerationWorker calls Scheduling Solver extracted service &mdash; stub if not deployed; on COMPLETED: creates candidate routes + stops; emits <code>trn.generation.completed</code>), <code>GET /transport/route-generation/:id</code> (with candidates inlined), <code>POST /transport/route-generation/candidates/:id/approve</code> (creates active trn_routes + trn_stops from candidate), <code>POST /transport/route-generation/candidates/:id/reject</code>.</li>
+      <li><strong>AdhocTripService</strong> &mdash; <code>POST /transport/adhoc-trips</code> (request via wsk_approval_requests), <code>GET /transport/adhoc-trips</code>, <code>PATCH /transport/adhoc-trips/:id</code> (assign vehicle + driver, schedule).</li>
+      <li><strong>ContractedRouteService</strong> &mdash; <code>GET /transport/contracted-routes</code>, <code>POST /transport/contracted-routes</code>, <code>PATCH /transport/contracted-routes/:id</code>.</li>
+      <li><strong>RouteChangeRequestService</strong> &mdash; <code>POST /transport/route-changes</code> (parent submits), <code>GET /transport/route-changes</code> (TC: pending queue), <code>PATCH /transport/route-changes/:id</code> (approve/reject; on approve: one-day assignment override).</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Route Generation Wizard</strong> <code>/transport/route-generation</code> &mdash; TC: select constraint profile → scope (year/term/dates) → generate. Review candidates on map with stops + student assignments + constraint violations. Approve/reject/modify per candidate.</li>
+      <li><strong>Ad-Hoc Trips</strong> <code>/transport/adhoc-trips</code> &mdash; request form (purpose, date, passengers, destination). Approval workflow. Vehicle + driver assignment.</li>
+      <li><strong>Route Changes</strong> <code>/transport/route-changes</code> &mdash; parent: request form. TC: pending queue with approve/reject.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-11b: 7 tables, ~20 endpoints, 1 worker. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-11c: GPS Telemetry + Fleet Dashboard</h2>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">External Service Dependencies</div>
+    <p style="font-size:14px;line-height:1.8;">P2-11c requires the <strong>Transport Dispatch</strong> extracted service for GPS position ingestion and ETA computation. If not deployed, the schema + service layer can still be built with manual position entry and stubbed ETA computation. The vehicle_positions table is designed for high-frequency writes (every 10-30 seconds per vehicle) &mdash; use TimescaleDB hypertable or RANGE partition by timestamp.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Schema (7 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>trn_vehicle_positions</strong> &mdash; <code>vehicle_id UUID NOT NULL</code>, <code>latitude NUMERIC(9,6) NOT NULL</code>, <code>longitude NUMERIC(9,6) NOT NULL</code>, <code>speed_kmh NUMERIC(5,1)</code>, <code>heading NUMERIC(5,1)</code>, <code>recorded_at TIMESTAMPTZ NOT NULL</code>, <code>source TEXT DEFAULT 'GPS'</code> 3-value CHECK (GPS, MANUAL, SIMULATED). <strong>RANGE partition by recorded_at DAILY.</strong> 7-day hot retention, 90-day cold. High-frequency insert &mdash; no UPDATE, no DELETE. INDEX(vehicle_id, recorded_at DESC). This is the highest-volume table in the entire ERD.</li>
+      <li><strong>trn_geofences</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>geofence_type TEXT NOT NULL</code> 4-value CHECK (SCHOOL, STOP, SPEED_ZONE, RESTRICTED_AREA), <code>boundary JSONB NOT NULL</code> (GeoJSON polygon or circle: {type: "circle", center: {lat, lng}, radius_metres} or {type: "polygon", coordinates: [[lat,lng],...]}), <code>speed_limit_kmh INT</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name).</li>
+      <li><strong>trn_geofence_events</strong> &mdash; <code>geofence_id UUID FK NOT NULL</code>, <code>vehicle_id UUID NOT NULL</code>, <code>event_type TEXT NOT NULL</code> 2-value CHECK (ENTER, EXIT), <code>recorded_at TIMESTAMPTZ NOT NULL</code>, <code>speed_at_event NUMERIC(5,1)</code>. RANGE partition by recorded_at DAILY. Emits <code>trn.geofence.entered</code> + <code>trn.geofence.exited</code> (parent notification when bus enters school zone).</li>
+      <li><strong>trn_vehicle_eta</strong> &mdash; <code>vehicle_id UUID NOT NULL</code>, <code>stop_id UUID FK(trn_stops) NOT NULL</code>, <code>eta TIMESTAMPTZ NOT NULL</code>, <code>computed_at TIMESTAMPTZ NOT NULL</code>, <code>confidence TEXT DEFAULT 'HIGH'</code> 3-value CHECK (HIGH, MEDIUM, LOW). UNIQUE(vehicle_id, stop_id). Upserted every position update. Parent-facing: "Your child's bus is 8 minutes away."</li>
+      <li><strong>trn_dispatch_events</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>vehicle_id UUID</code>, <code>route_id UUID FK</code>, <code>driver_id UUID FK</code>, <code>event_type TEXT NOT NULL</code> 8-value CHECK (ROUTE_STARTED, ROUTE_COMPLETED, DELAY_REPORTED, BREAKDOWN_REPORTED, STUDENT_NO_SHOW, EMERGENCY_STOP, DETOUR, DRIVER_SWAP), <code>event_data JSONB</code>, <code>recorded_at TIMESTAMPTZ NOT NULL</code>, <code>recorded_by UUID FK</code>. INDEX(school_id, recorded_at DESC). Real-time dispatch operations log.</li>
+      <li><strong>trn_parent_tracking_tokens</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>route_id UUID FK NOT NULL</code>, <code>token TEXT NOT NULL UNIQUE</code>, <code>expires_at TIMESTAMPTZ NOT NULL</code>, <code>is_active BOOLEAN DEFAULT true</code>. INDEX(token) WHERE is_active=true. Parents access live tracking via a unique token link &mdash; no authentication required, but token-scoped to show only their child's bus position.</li>
+      <li><strong>rpt_fleet_status</strong> &mdash; <code>vehicle_id UUID FK NOT NULL UNIQUE</code>, <code>school_id UUID NOT NULL</code>, <code>vehicle_registration TEXT NOT NULL</code>, <code>vehicle_status TEXT NOT NULL</code>, <code>days_until_insurance_expiry INT</code>, <code>days_until_registration_expiry INT</code>, <code>days_until_mot_expiry INT</code>, <code>days_until_licence_expiry INT</code>, <code>maintenance_overdue BOOLEAN NOT NULL DEFAULT false</code>, <code>last_incident_date DATE</code>, <code>total_incidents_this_year INT NOT NULL DEFAULT 0</code>, <code>current_route_assignment TEXT</code>, <code>last_position_at TIMESTAMPTZ</code>, <code>fuel_efficiency_last_month NUMERIC(5,2)</code>. Materialised nightly by FleetStatusWorker. INDEX(school_id, maintenance_overdue).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 7 tables. Migration: <code>125_trn_gps_fleet.sql</code>. Total P2-11 tables: 22.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Seed + Services + UI + Tests (P2-11c)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>50 vehicle positions across 3 vehicles (simulated GPS trail). 3 geofences (1 SCHOOL, 1 STOP, 1 SPEED_ZONE). 5 geofence events. 3 ETA records. 8 dispatch events (ROUTE_STARTED, DELAY_REPORTED, ROUTE_COMPLETED, etc.). 2 parent tracking tokens. 3 fleet status rows (1 maintenance_overdue, 1 insurance expiring in 10 days).</li>
+    </ol>
+    <div class="detail-heading">Services (~18 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>VehiclePositionService</strong> &mdash; <code>POST /transport/vehicles/:id/position</code> (ingest from GPS device or Transport Dispatch service; high-frequency), <code>GET /transport/vehicles/:id/position/latest</code>, <code>GET /transport/vehicles/:id/position/history</code> (date range).</li>
+      <li><strong>GeofenceService</strong> &mdash; CRUD for geofences. <code>GET /transport/geofences</code>. GeofenceWorker: on each position update, checks all active geofences; on boundary cross → creates trn_geofence_events + emits Kafka events.</li>
+      <li><strong>ETAService</strong> &mdash; <code>GET /transport/routes/:id/eta</code> (all stop ETAs for a route), <code>GET /transport/stops/:id/eta</code> (single stop ETA). Computed from latest vehicle position + route geometry + historical speed.</li>
+      <li><strong>DispatchService</strong> &mdash; <code>POST /transport/dispatch/events</code> (driver/dispatcher logs event), <code>GET /transport/dispatch/events</code> (today's dispatch log).</li>
+      <li><strong>ParentTrackingService</strong> &mdash; <code>GET /transport/tracking/:token</code> (parent: bus position + ETA for their child's stop &mdash; unauthenticated, token-scoped). <code>POST /transport/tracking/tokens</code> (system generates on route assignment).</li>
+      <li><strong>FleetStatusWorker</strong> &mdash; Nightly: materialises rpt_fleet_status from trn_vehicles + trn_vehicle_documents + trn_vehicle_maintenance + trn_vehicle_fuel_logs + trn_vehicle_positions. <code>GET /transport/fleet/status</code> (TC dashboard).</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Live Tracking Map</strong> <code>/transport/tracking</code> &mdash; TC: all vehicles on map with real-time positions. Click vehicle → route overlay + stop ETAs + dispatch events. Geofence visualization.</li>
+      <li><strong>Parent Tracking View</strong> <code>/transport/tracking/:token</code> &mdash; parent: single bus on map with ETA countdown to their child's stop. No authentication required.</li>
+      <li><strong>Fleet Status Dashboard</strong> <code>/transport/fleet</code> &mdash; TC: vehicle grid with status pills (active/maintenance/expired docs). Maintenance overdue, insurance expiring, fuel efficiency trends. One-stop fleet health view.</li>
+      <li><strong>Dispatch Console</strong> <code>/transport/dispatch</code> &mdash; TC: today's routes with status (started/delayed/completed). Event log feed. Breakdown/emergency response actions.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-11c: 7 tables, ~18 endpoints, 2 workers, 2 Kafka emits. Create all peer review docs after this sub-cycle. Total P2-11 endpoints: ~62.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist (Full P2-11)</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 22 new tables. Tenant table count: ~590.</li>
+      <li>Transportation API: ~62 new endpoints across fleet, route generation, GPS, dispatch.</li>
+      <li>Fleet maintenance: repairs with safety-critical blocking, parts inventory, component lifecycle.</li>
+      <li>Fuel logging with efficiency computation.</li>
+      <li>Driver hours regulatory compliance with configurable limits + approaching-limit alerts.</li>
+      <li>Route generation pipeline: constraints → request → candidates → TC review → activate.</li>
+      <li>Ad-hoc trip requests with approval workflow.</li>
+      <li>GPS vehicle positions (RANGE partitioned daily, high-frequency insert).</li>
+      <li>Geofence enter/exit events with parent notification.</li>
+      <li>ETA computation per stop with parent-facing tracking view.</li>
+      <li>Materialised rpt_fleet_status dashboard.</li>
+      <li><code>trn.generation.completed</code> + <code>trn.parts.low</code> + <code>trn.driver.hours_approaching_limit</code> + <code>trn.geofence.entered/exited</code> Kafka emits.</li>
+      <li>HANDOFF-P2C11.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave C open.</strong></li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 11 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M61 Transportation deferred tables). Functions: TRN-001..005. Cross-cycle: Cycle 19 trn_vehicles + trn_routes + trn_stops + trn_route_run_logs, Cycle 7 wsk_approval_requests for ad-hoc trips. Requires: Scheduling Solver (route generation), Transport Dispatch (GPS telemetry) &mdash; stub both if not deployed. Opens Wave C.</p>
+  </div>
+</div>
+</body>
+</html>
