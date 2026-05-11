@@ -127,6 +127,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Transportation Advanced — fleet maintenance, fuel, driver hours (P2-11a)',
     script: 'seed-transport-advanced.ts',
   },
+  {
+    label: 'Transportation Advanced — route generation, ad-hoc trips, contracted routes (P2-11b)',
+    script: 'seed-transport-advanced-b.ts',
+  },
 ];
 
 async function main(): Promise<void> {

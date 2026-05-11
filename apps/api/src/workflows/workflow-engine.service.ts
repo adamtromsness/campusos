@@ -840,6 +840,11 @@ const ALLOWED_REFERENCE_TABLES = new Set<string>([
   'hr_leave_requests',
   'sis_absence_requests',
   'sis_child_link_requests',
+  // P2-11b — Transportation ad-hoc trip requests route through the
+  // workflow engine so the TC approval chain follows the same
+  // wsk_workflow_templates + wsk_approval_steps pattern as leave +
+  // absence + child-link requests.
+  'trn_adhoc_trip_requests',
 ]);
 
 function assertReferenceTableAllowed(table: string): void {

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '../tenant/tenant.module';
 import { IamModule } from '../iam/iam.module';
 import { KafkaModule } from '../kafka/kafka.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 import { RouteService } from './route.service';
 import { StopService } from './stop.service';
 import { AssignmentService } from './assignment.service';
@@ -24,6 +25,12 @@ import { FuelLogService } from './fuel-log.service';
 import { DriverHoursService } from './driver-hours.service';
 import { VehicleLifecycleService } from './vehicle-lifecycle.service';
 import { FleetMaintenanceController } from './fleet-maintenance.controller';
+// P2-11b — Route Generation Pipeline + Ad-Hoc Trips + Contracted Routes
+import { RouteConstraintService } from './route-constraint.service';
+import { RouteGenerationService } from './route-generation.service';
+import { AdhocTripService } from './adhoc-trip.service';
+import { ContractedRouteService } from './contracted-route.service';
+import { RouteGenerationController } from './route-generation.controller';
 
 /**
  * Transport Module — M61 Transportation (Cycle 19).
@@ -47,7 +54,7 @@ import { FleetMaintenanceController } from './fleet-maintenance.controller';
  *      a trn_ridership_records row in one tenant tx.
  */
 @Module({
-  imports: [TenantModule, IamModule, KafkaModule],
+  imports: [TenantModule, IamModule, KafkaModule, WorkflowsModule],
   providers: [
     RouteChangeLogService,
     RouteService,
@@ -69,8 +76,13 @@ import { FleetMaintenanceController } from './fleet-maintenance.controller';
     FuelLogService,
     DriverHoursService,
     VehicleLifecycleService,
+    // P2-11b
+    RouteConstraintService,
+    RouteGenerationService,
+    AdhocTripService,
+    ContractedRouteService,
   ],
-  controllers: [TransportController, FleetMaintenanceController],
+  controllers: [TransportController, FleetMaintenanceController, RouteGenerationController],
   exports: [
     RouteService,
     StopService,
@@ -90,6 +102,11 @@ import { FleetMaintenanceController } from './fleet-maintenance.controller';
     FuelLogService,
     DriverHoursService,
     VehicleLifecycleService,
+    // P2-11b
+    RouteConstraintService,
+    RouteGenerationService,
+    AdhocTripService,
+    ContractedRouteService,
   ],
 })
 export class TransportModule {}
