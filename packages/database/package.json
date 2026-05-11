@@ -72,6 +72,7 @@
     "seed:events": "tsx src/seed-events.ts",
     "seed:sis-advanced-a": "tsx src/seed-sis-advanced-a.ts",
     "seed:sis-graduation": "tsx src/seed-sis-graduation.ts",
+    "seed:sis-advanced-c": "tsx src/seed-sis-advanced-c.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

@@ -62,6 +62,7 @@ import { SubstitutesModule } from './substitutes/substitutes.module';
 import { EventsModule } from './events/events.module';
 import { SisAdvancedModule } from './sis-advanced/sis-advanced.module';
 import { SisGraduationModule } from './sis-graduation/sis-graduation.module';
+import { SisTranscriptsModule } from './sis-transcripts/sis-transcripts.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -224,6 +225,13 @@ var devOnlyControllers: Type<unknown>[] =
     // driving downstream parent data visibility.
     SisAdvancedModule,
     SisGraduationModule,
+    // P2-13c — Transcripts (frozen course snapshot at generation
+    // time — never live-joined to cls_grades), transfer records,
+    // locker management with AES-256-GCM encrypted combinations and
+    // year-end bulk-clear, reporting periods with strict UPCOMING ->
+    // OPEN -> GRADING_CLOSED -> PUBLISHED transition graph, student
+    // awards including bulk-honor-roll, medical exemption records.
+    SisTranscriptsModule,
   ],
   controllers: devOnlyControllers,
   providers: [

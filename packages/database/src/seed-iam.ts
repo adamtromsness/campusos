@@ -249,6 +249,11 @@ async function seedIam() {
         // row scope binds non-admin teachers to students they
         // teach.
         'STU-005': ['read'],
+        // P2-13c — Locker Management. Teachers read to see which
+        // locker a student is assigned but do not write — locker
+        // assignment + bulk-clear are staff / admin authority via
+        // the Staff grant block.
+        'STU-007': ['read'],
         'TCH-001': ['read', 'write'],
         'TCH-002': ['read', 'write'],
         'TCH-003': ['read', 'write'],
@@ -495,6 +500,12 @@ async function seedIam() {
         // snapshot. Service-layer row scope binds to linked
         // children via sis_student_guardians.
         'STU-005': ['read'],
+        // P2-13c — Locker Management. Parents read own child's
+        // locker via the row-scoped getStudentLocker endpoint —
+        // returns the decrypted combination for the assigned
+        // student. Service-layer row scope binds parents to
+        // children via sis_student_guardians.
+        'STU-007': ['read'],
         'TCH-002': ['read'],
         'TCH-003': ['read'],
         'TCH-004': ['read'],
@@ -709,6 +720,10 @@ async function seedIam() {
         // Service-layer row scope binds reads + writes to the
         // calling student's own sis_students.id only.
         'STU-005': ['read', 'write'],
+        // P2-13c — Locker Management. Students read own locker via
+        // the row-scoped getStudentLocker endpoint — returns the
+        // decrypted combination only to the locker's owner.
+        'STU-007': ['read'],
         'TCH-001': ['read'],
         'TCH-002': ['read', 'write'],
         'TCH-003': ['read'],
@@ -871,6 +886,11 @@ async function seedIam() {
         // scale writes to actor.isSchoolAdmin (stu-005:admin via
         // everyFunction).
         'STU-005': ['read', 'write'],
+        // P2-13c — Locker Management. Staff covers the registrar
+        // / dean of students — read + write covers create-locker,
+        // assign, release, mark out-of-service. Bulk-clear is
+        // stu-007:admin via everyFunction.
+        'STU-007': ['read', 'write'],
         'ATT-001': ['read'],
         'COM-001': ['read', 'write'],
         'COM-002': ['read', 'write'],
