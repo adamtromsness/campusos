@@ -457,6 +457,14 @@ async function seedIam() {
         'IT-002': ['read', 'write'],
         'IT-003': ['read', 'write'],
         'IT-004': ['read'],
+        // P2-12 — Events & Ticketing. Teachers view the public events
+        // calendar and may purchase tickets (EVT-001:read covers
+        // catalogue browsing + the buy flow). Tier creation + comp
+        // lists + revenue reports stay admin-only via everyFunction.
+        // The Step 5 GateScanService gates POST /events/gate/scan on
+        // evt-001:write held by Staff — teachers without that grant
+        // cannot operate the gate scanner.
+        'EVT-001': ['read'],
       },
     },
     {
@@ -641,6 +649,20 @@ async function seedIam() {
         // platform_students.data_subject_is_self=true and SARService
         // refuses parent-submitted requests after the flip.
         'DPO-004': ['read', 'write'],
+        // P2-12 — Events & Ticketing. Parents browse upcoming events
+        // and purchase tickets for themselves + their children
+        // (EVT-001:read+write). EVT-001:write covers POST /events/:id/purchase
+        // which creates the order, fires the atomic ticket sale, and
+        // creates Stripe PaymentIntents — the row-scope at OrderService
+        // binds non-admin readers to purchaser_id = actor.personId so
+        // a parent only sees their own orders + tickets. Comp list +
+        // tier admin + revenue stay admin-only via everyFunction.
+        'EVT-001': ['read', 'write'],
+        // ATH-010 (Athletic Ticketing) covers the athletic-event ticket
+        // flow specifically when the event_type=ATHLETIC_GAME. Parents
+        // need this for season-pass and athletic-game ticket UX even
+        // though the underlying tables are the same evt_* surface.
+        'ATH-010': ['read', 'write'],
       },
     },
     {
@@ -789,6 +811,12 @@ async function seedIam() {
         // permitted to submit. Mirrors the Cycle 11.1 student-input
         // surface convention.
         'DPO-004': ['read', 'write'],
+        // P2-12 — Events & Ticketing. Students browse upcoming events
+        // (EVT-001:read). Students may not purchase tickets directly
+        // from the parent surface — parents place orders on their
+        // behalf — but read access is required for the public event
+        // calendar render at /events.
+        'EVT-001': ['read'],
       },
     },
     {
@@ -1230,6 +1258,17 @@ async function seedIam() {
         'DPO-003': ['read', 'write'],
         'DPO-004': ['read', 'write'],
         'DPO-005': ['read', 'write'],
+        // P2-12 — Events & Ticketing. Staff (covers event organisers,
+        // gate volunteers, athletic admin assistants) get EVT-001 plus
+        // ATH-010 read+write — create events, configure tiers,
+        // manage comp lists, run the gate scanner, process refunds.
+        // School Admin / Platform Admin pick up the admin tier (delete
+        // events, void refunds, override capacity caps) via
+        // everyFunction. Joins the broader role-split chain — a
+        // dedicated Events Manager role should hold the EVT-001 +
+        // ATH-010 codes alone before pilot.
+        'EVT-001': ['read', 'write'],
+        'ATH-010': ['read', 'write'],
       },
     },
 
@@ -1332,7 +1371,9 @@ async function seedIam() {
       },
     },
 
-    // Athletic Director — sports programmes + clearances.
+    // Athletic Director — sports programmes + clearances. P2-12
+    // adds ATH-010 (Athletic Ticketing) at admin tier so the AD owns
+    // the ticketing config for ATHLETIC_GAME events.
     {
       roleName: 'Athletic Director',
       perms: {
@@ -1341,6 +1382,8 @@ async function seedIam() {
         'ATH-003': ['read', 'write', 'admin'],
         'ATH-004': ['read', 'write', 'admin'],
         'ATH-005': ['read', 'write', 'admin'],
+        'ATH-010': ['read', 'write', 'admin'],
+        'EVT-001': ['read', 'write'],
         'STU-001': ['read'],
         'COM-001': ['read', 'write'],
       },

@@ -135,6 +135,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Transportation Advanced — GPS telemetry, geofences, fleet dashboard (P2-11c)',
     script: 'seed-transport-advanced-c.ts',
   },
+  {
+    label: 'Events & Ticketing — events, tiers, orders, tickets, scans, season passes (P2-12)',
+    script: 'seed-events.ts',
+  },
 ];
 
 async function main(): Promise<void> {

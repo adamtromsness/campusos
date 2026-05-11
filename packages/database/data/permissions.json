@@ -231,6 +231,11 @@
       "group": "Data Protection & Compliance"
     },
     {
+      "code": "EVT-001",
+      "name": "School Events & Ticketing",
+      "group": "Events & Ticketing"
+    },
+    {
       "code": "FAC-001",
       "name": "Maintenance Tickets",
       "group": "Facilities & Maintenance"

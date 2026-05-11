@@ -59,6 +59,7 @@ import { RecruitmentModule } from './recruitment/recruitment.module';
 import { TrainingModule } from './training/training.module';
 import { AppraisalsModule } from './appraisals/appraisals.module';
 import { SubstitutesModule } from './substitutes/substitutes.module';
+import { EventsModule } from './events/events.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -200,6 +201,15 @@ var devOnlyControllers: Type<unknown>[] =
     // outbox emits) and P2-9b (assignments lifecycle + ratings + session
     // notes + pay rate computation + cancellation policy worker).
     SubstitutesModule,
+    // Phase 2 Cycle 12 — M101 Events & Ticketing. Atomic ticket sales
+    // (UPDATE WHERE quantity_sold + qty <= quantity, never SELECT-
+    // then-UPDATE), atomic gate scanning (UPDATE WHERE
+    // qr_code_token AND status='VALID'), pending-order expiry sweep
+    // with tier quantity_sold rollback, season passes with events-
+    // included gate check, comp lists by type, event volunteer
+    // sign-up, refunds with Stripe stub + GL revenue emit on event
+    // completion.
+    EventsModule,
   ],
   controllers: devOnlyControllers,
   providers: [

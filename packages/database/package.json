@@ -69,6 +69,7 @@
     "seed:substitutes": "tsx src/seed-substitutes.ts",
     "seed:food-service-advanced": "tsx src/seed-food-service-advanced.ts",
     "seed:food-service-advanced-b": "tsx src/seed-food-service-advanced-b.ts",
+    "seed:events": "tsx src/seed-events.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",
