@@ -114,10 +114,13 @@ const REQUEST_TRANSITIONS: Record<TranscriptRequestStatus, TranscriptRequestStat
  * IMMUTABLE — a re-grade downstream creates a NEW transcript with fresh
  * rows. The existing rows are never live-joined to cls_grades.
  *
- * `submitRequest()` for a SUBMITTED request creates a matching pay_invoice
- * when fee_amount is set so the family pays through the standard Cycle 6
- * billing flow. linked_invoice_id is stamped on the request inside the
- * same tx as the request INSERT.
+ * `submitRequest()` for a SUBMITTED request enqueues a durable
+ * `sis.transcript_request.fee_requested` outbox event (per REVIEW-P2C13
+ * BLOCKING 7 — SIS no longer writes pay_invoices / pay_invoice_line_items
+ * directly across the module boundary) when fee_amount is set. The Payments
+ * module's TranscriptFeeConsumer materialises the invoice + line items and
+ * back-fills linked_invoice_id via its own emit. SIS validates the family
+ * account exists in the current school before enqueuing.
  *
  * Row scope:
  *   - Admin / Staff with stu-005:write — read + write any transcript and request.
