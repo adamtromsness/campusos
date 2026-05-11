@@ -1,10 +1,20 @@
 # Phase 2 Cycle 12 — Events & Ticketing (M101)
 
-**Status:** COMPLETE pending peer review (2026-05-11).
+**Status:** COMPLETE + APPROVED at the closeout commit (Round 2 PASS, 2026-05-11).
 **Wave:** C (Operational Depth).
 **Plan:** `docs/campusos-p2c12-events-ticketing.html`.
-**Sub-cycles:** P2-12a (schema + seed + backend services) shipped at `52e3d5a`;
-P2-12b (UI + tests + Stripe + athletic linking + revenue + GL) shipped in this commit.
+**Sub-cycles:**
+
+- P2-12a (schema + seed + backend services) at `52e3d5a`
+- P2-12b (UI + tests + Stripe stub + athletic linking + revenue + GL) at `6c12e25`
+- Round 1 fix (5 BLOCKING + 2 actionable MAJORs, 15 new regression tests) at `fe2660b` — tagged `p2c12-complete`
+- Closeout (this commit) — tagged `p2c12-approved`
+
+**Round 2 verdict:** PASS. Every prior blocker FIXED in code; every dimension at PASS
+(Event Durability / Stripe Dev Auto-Confirm / Athletic Game Linking / Season Pass Gate /
+Comp List Validation / Major Hardening Items / Test Coverage). One non-blocking carry-over
+to Phase 2 / pre-pilot: partial-refund operational state model — recommendation-class polish
+requiring product alignment on `PARTIALLY_REFUNDED` / per-ticket refund selection / fee-only refunds.
 
 ---
 

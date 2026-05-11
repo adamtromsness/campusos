@@ -580,3 +580,28 @@ gate check now does an extra round-trip.
 - `pnpm --filter @campusos/api test` ✓ 647/647
 
 Awaiting Round 2 verdict before tagging `p2c12-complete`.
+
+---
+
+## Round 2 verdict — PASS (2026-05-11)
+
+Reviewer confirmed all 5 BLOCKING + the 2 actionable MAJORs (1 + 2) are fixed in code on Round 2 against `fe2660b`. Every prior blocker FIXED; every dimension at PASS:
+
+| Dimension               |  Round 1 |  Round 2 |
+| ----------------------- | -------: | -------: |
+| Event Durability        | BLOCKING | **PASS** |
+| Stripe Dev Auto-Confirm | BLOCKING | **PASS** |
+| Athletic Game Linking   | BLOCKING | **PASS** |
+| Season Pass Gate        | BLOCKING | **PASS** |
+| Comp List Validation    | BLOCKING | **PASS** |
+| Major Hardening Items   |    MAJOR | **PASS** |
+| Test Coverage           |    MAJOR | **PASS** |
+
+**Phase 2 punch list carry-over** (per Round 2 reviewer's gate decision): partial-refund operational state model — `PARTIALLY_REFUNDED` / per-ticket refund selection / fee-only refunds. Recommendation-class polish requiring product alignment.
+
+**Tags:**
+
+- `p2c12-complete` at `fe2660b` (the Round 1 fix that earned PASS)
+- `p2c12-approved` at the closeout commit
+
+**P2-12 Events & Ticketing ships clean. Wave C cycle 2 closes here.**
