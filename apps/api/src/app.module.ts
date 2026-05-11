@@ -25,6 +25,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { DisciplineModule } from './discipline/discipline.module';
 import { BehaviorPlansModule } from './behavior-plans/behavior-plans.module';
+import { BehaviourAdvancedModule } from './behaviour-advanced/behaviour-advanced.module';
 import { HealthRecordsModule } from './health/health-records.module';
 import { CounsellingModule } from './counselling/counselling.module';
 import { WellbeingModule } from './wellbeing/wellbeing.module';
@@ -119,6 +120,7 @@ var devOnlyControllers: Type<unknown>[] =
     TicketsModule,
     DisciplineModule,
     BehaviorPlansModule,
+    BehaviourAdvancedModule,
     HealthRecordsModule,
     CounsellingModule,
     WellbeingModule,

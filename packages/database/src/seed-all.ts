@@ -151,6 +151,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'SIS Advanced C — transcripts, transfers, lockers, reporting periods (P2-13c)',
     script: 'seed-sis-advanced-c.ts',
   },
+  {
+    label: 'Behaviour Advanced — RJ conferences + peer mediation + positive points (P2-14)',
+    script: 'seed-behaviour-advanced.ts',
+  },
 ];
 
 async function main(): Promise<void> {
