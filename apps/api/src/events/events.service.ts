@@ -9,9 +9,13 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import {
+  deterministicAthleticEventCreatedEventId,
+  deterministicEventCompletedEventId,
+} from './event-ids';
 import type {
   CreateEventDto,
   CreateTierDto,
@@ -69,7 +73,7 @@ export class EventService {
 
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly permissions: PermissionCheckService,
   ) {}
 
@@ -198,13 +202,26 @@ export class EventService {
     return this.rowToDto(event, tiers);
   }
 
+  /**
+   * REVIEW-P2C12 ROUND 1 MAJOR 2 — loadTiers now JOINs through
+   * evt_events with the school predicate so a foreign-school event id
+   * cannot leak tier rows. The public TierService.listForEvent path
+   * goes through this method directly and inherits the predicate.
+   */
   async loadTiers(eventId: string): Promise<TierDto[]> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT id::text AS id, event_id::text AS event_id, name, price, quantity, quantity_sold,
-                sale_starts_at::text AS sale_starts_at, sale_ends_at::text AS sale_ends_at, is_active
-         FROM evt_ticket_tiers WHERE event_id = $1::uuid ORDER BY created_at ASC`,
+        `SELECT t.id::text AS id, t.event_id::text AS event_id, t.name, t.price,
+                t.quantity, t.quantity_sold,
+                t.sale_starts_at::text AS sale_starts_at,
+                t.sale_ends_at::text AS sale_ends_at, t.is_active
+         FROM evt_ticket_tiers t
+         JOIN evt_events e ON e.id = t.event_id
+         WHERE t.event_id = $1::uuid AND e.school_id = $2::uuid
+         ORDER BY t.created_at ASC`,
         eventId,
+        tenant.schoolId,
       );
     })) as TierRow[];
     return rows.map((r) => this.tierRowToDto(r));
@@ -239,95 +256,132 @@ export class EventService {
       );
 
       // ─── Step 9: Athletic game linking ───
-      // When the event_type is ATHLETIC_GAME AND linked_game_id is
-      // populated, auto-populate the comp list from the game's roster
-      // (ATHLETE), coaching staff (COACH), and assigned officials
-      // (OFFICIAL). Idempotent via the schema-side UNIQUE(event_id,
-      // comp_type, person_id) — re-running the create with the same
-      // (event, game) pair is a no-op on already-present rows.
+      // REVIEW-P2C12 ROUND 1 BLOCKING 3 — every athletic lookup is now
+      // school-scoped. The linked game must resolve through
+      // ath_games → ath_rosters → ath_seasons → ath_programmes.school_id
+      // matching the current tenant before any comp population happens.
+      // The 3 INSERT…SELECT fan-outs carry the same school-safe join
+      // chain so a foreign-school game can never seed comp entries
+      // into the current school's event. A School A admin who plants a
+      // School B `ath_games.id` now sees zero comp rows added and a
+      // WARN log line — the event itself still creates (DRAFT, no
+      // tickets yet) so the operator can correct the linkedGameId or
+      // unlink the game.
+      //
       // Athletes resolve through sis_students.platform_student_id →
       // platform.platform_students.person_id. Coaches use the soft
       // coach_person_id directly. Officials use the soft FK to
-      // platform.platform_official_profiles which carries person_id.
+      // platform.platform_official_profiles via the assignment row.
       if (input.eventType === 'ATHLETIC_GAME' && input.linkedGameId) {
         athleticEventCreated = true;
 
-        // Resolve roster_id from ath_games (defensive — the game must
-        // belong to this tenant). On miss we silently skip comp
-        // population so a stale linked_game_id never blocks the create.
+        // Resolve roster_id from ath_games — the JOIN through
+        // ath_rosters → ath_seasons → ath_programmes pins the row to
+        // the current school. On miss we WARN and skip comp
+        // population so a stale or foreign-school linked_game_id
+        // does not block the create.
         const gameRows = (await tx.$queryRawUnsafe(
-          `SELECT roster_id::text AS roster_id FROM ath_games WHERE id = $1::uuid LIMIT 1`,
+          `SELECT g.roster_id::text AS roster_id
+           FROM ath_games g
+           JOIN ath_rosters ar ON ar.id = g.roster_id
+           JOIN ath_seasons sn ON sn.id = ar.season_id
+           JOIN ath_programmes pr ON pr.id = sn.programme_id
+           WHERE g.id = $1::uuid AND pr.school_id = $2::uuid
+           LIMIT 1`,
           input.linkedGameId,
+          tenant.schoolId,
         )) as Array<{ roster_id: string }>;
         if (gameRows.length === 1) {
           const rosterId = gameRows[0]!.roster_id;
-          // ATHLETE — active roster members. Resolve student → iam_person via
-          // sis_students.platform_student_id → platform.platform_students.person_id.
+          // ATHLETE — active roster members. JOIN through ath_rosters
+          // and sis_students.school_id (sis_students carries
+          // school_id directly) so the comp row can never reference a
+          // foreign-school student.
           const athleteRes = (await tx.$queryRawUnsafe(
             `INSERT INTO evt_comp_lists (id, event_id, comp_type, person_id, added_by, notes)
              SELECT gen_random_uuid(), $1::uuid, 'ATHLETE', ps.person_id, $2::uuid,
                     'Auto-populated from ath_roster_members'
              FROM ath_roster_members rm
-             JOIN sis_students s ON s.id = rm.student_id
+             JOIN ath_rosters ar2 ON ar2.id = rm.roster_id
+             JOIN ath_seasons sn2 ON sn2.id = ar2.season_id
+             JOIN ath_programmes pr2 ON pr2.id = sn2.programme_id
+             JOIN sis_students s ON s.id = rm.student_id AND s.school_id = $4::uuid
              JOIN platform.platform_students ps ON ps.id = s.platform_student_id
              WHERE rm.roster_id = $3::uuid AND rm.removed_at IS NULL
                AND rm.eligibility_status = 'ELIGIBLE'
+               AND pr2.school_id = $4::uuid
              ON CONFLICT ON CONSTRAINT evt_comp_uq DO NOTHING`,
             id,
             actor.personId,
             rosterId,
+            tenant.schoolId,
           )) as number;
           compAddedCount += Number(athleteRes ?? 0);
 
-          // COACH — active coaching assignments. coach_person_id is a
-          // direct soft ref to platform.iam_person per ADR-055.
+          // COACH — active coaching assignments. JOIN through the
+          // roster → season → programme chain so the school_id
+          // predicate filters the rows even though
+          // ath_coaching_assignments has no direct school_id column.
           const coachRes = (await tx.$queryRawUnsafe(
             `INSERT INTO evt_comp_lists (id, event_id, comp_type, person_id, added_by, notes)
              SELECT gen_random_uuid(), $1::uuid, 'COACH', ca.coach_person_id, $2::uuid,
                     'Auto-populated from ath_coaching_assignments'
              FROM ath_coaching_assignments ca
+             JOIN ath_rosters ar3 ON ar3.id = ca.roster_id
+             JOIN ath_seasons sn3 ON sn3.id = ar3.season_id
+             JOIN ath_programmes pr3 ON pr3.id = sn3.programme_id
              WHERE ca.roster_id = $3::uuid AND ca.is_active = true
+               AND pr3.school_id = $4::uuid
              ON CONFLICT ON CONSTRAINT evt_comp_uq DO NOTHING`,
             id,
             actor.personId,
             rosterId,
+            tenant.schoolId,
           )) as number;
           compAddedCount += Number(coachRes ?? 0);
 
-          // OFFICIAL — assigned officials for the linked game. Resolve
-          // the official_profile_id through platform.platform_official_profiles
-          // to platform.iam_person via person_id.
+          // OFFICIAL — assigned officials for the linked game. JOIN
+          // through ath_games + the roster → season → programme chain
+          // so the OFFICIAL comp row can never seed from a
+          // foreign-school official assignment.
           const officialRes = (await tx.$queryRawUnsafe(
             `INSERT INTO evt_comp_lists (id, event_id, comp_type, person_id, added_by, notes)
              SELECT gen_random_uuid(), $1::uuid, 'OFFICIAL', op.person_id, $2::uuid,
                     'Auto-populated from ath_official_assignments'
              FROM ath_official_assignments oa
+             JOIN ath_games g2 ON g2.id = oa.game_id
+             JOIN ath_rosters ar4 ON ar4.id = g2.roster_id
+             JOIN ath_seasons sn4 ON sn4.id = ar4.season_id
+             JOIN ath_programmes pr4 ON pr4.id = sn4.programme_id
              JOIN platform.platform_official_profiles op ON op.id = oa.official_profile_id
              WHERE oa.game_id = $3::uuid
                AND oa.status IN ('ACCEPTED', 'CONFIRMED', 'COMPLETED')
+               AND pr4.school_id = $4::uuid
              ON CONFLICT ON CONSTRAINT evt_comp_uq DO NOTHING`,
             id,
             actor.personId,
             input.linkedGameId,
+            tenant.schoolId,
           )) as number;
           compAddedCount += Number(officialRes ?? 0);
         } else {
           this.logger.warn(
-            `[events] linked_game_id=${input.linkedGameId} did not resolve to an ath_games row in school ${tenant.schoolId} — skipping comp auto-populate`,
+            `[events] linked_game_id=${input.linkedGameId} did not resolve to an ath_games row in school ${tenant.schoolId} (or belongs to another school) — skipping comp auto-populate`,
           );
         }
-      }
-    });
 
-    // Emit evt.athletic_event.created AFTER tx commits so a Kafka hiccup
-    // cannot roll back the user's create. Cycle 13 athletics module
-    // consumers (or any downstream notification fan-out) can subscribe.
-    if (athleticEventCreated) {
-      try {
-        await this.kafka.emit({
+        // REVIEW-P2C12 ROUND 1 BLOCKING 1 — evt.athletic_event.created
+        // is durable. Enqueue inside the create tx so a Kafka outage
+        // cannot drop the event awareness signal. We emit on every
+        // athletic event create regardless of whether the linked game
+        // resolved, because downstream consumers can choose to skip on
+        // compEntriesAdded=0 — the awareness signal itself stays
+        // durable.
+        await this.outbox.enqueueInTx(tx, {
           topic: 'evt.athletic_event.created',
           key: id,
           sourceModule: 'events',
+          eventId: deterministicAthleticEventCreatedEventId(id),
           payload: {
             eventId: id,
             schoolId: tenant.schoolId,
@@ -337,10 +391,11 @@ export class EventService {
             createdBy: actor.personId,
           },
         });
-      } catch (e: unknown) {
-        this.logger.warn(`[events] evt.athletic_event.created emit failed: ${String(e)}`);
       }
-    }
+    });
+    // athleticEventCreated tracking is no longer used since the
+    // outbox enqueue is the durable signal. Suppress unused-var.
+    void athleticEventCreated;
 
     return this.getById(id, actor);
   }
@@ -436,9 +491,15 @@ export class EventService {
         eventId,
       )) as Array<{ n: number }>;
       if (Number(remainingRows[0]!.n) === 0) {
+        // REVIEW-P2C12 ROUND 1 MAJOR 1 — carry the school predicate
+        // through the UPDATE as well as the lock, matching the Phase 2
+        // hardening convention. The lock above already pins the row to
+        // (id, school_id) so this is defence-in-depth.
         await tx.$executeRawUnsafe(
-          `UPDATE evt_events SET status = 'SOLD_OUT', updated_at = now() WHERE id = $1::uuid`,
+          `UPDATE evt_events SET status = 'SOLD_OUT', updated_at = now()
+           WHERE id = $1::uuid AND school_id = $2::uuid`,
           eventId,
+          tenant.schoolId,
         );
         this.logger.log(`[events] event ${eventId} auto-flipped ON_SALE -> SOLD_OUT`);
       }
@@ -448,7 +509,12 @@ export class EventService {
   async complete(id: string, actor: ResolvedActor): Promise<EventDto> {
     await this.assertWriter(actor);
     const tenant = getCurrentTenant();
-    let completedAt: string | null = null;
+    // REVIEW-P2C12 ROUND 1 BLOCKING 1 — evt.event.completed is now
+    // durable. Enqueue the outbox row INSIDE the same tenant tx as the
+    // status flip; the OutboxPublisherWorker handles the wire publish.
+    // The deterministic event id keys on the event id so a redelivered
+    // event silently dedups on the consumer side (GLConsumer dedups
+    // via fin_journal_batches.source_event_id UNIQUE).
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = (await tx.$queryRawUnsafe(
         `UPDATE evt_events SET status = 'COMPLETED', updated_at = now()
@@ -463,27 +529,20 @@ export class EventService {
           'Event cannot be completed — must be ON_SALE or SOLD_OUT, and must belong to this school.',
         );
       }
-      completedAt = rows[0]!.updated_at;
+      const completedAt = rows[0]!.updated_at;
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'evt.event.completed',
+        key: id,
+        sourceModule: 'events',
+        eventId: deterministicEventCompletedEventId(id),
+        payload: {
+          eventId: id,
+          schoolId: tenant.schoolId,
+          completedAt,
+          completedBy: actor.personId,
+        },
+      });
     });
-
-    if (completedAt !== null) {
-      const finalCompletedAt: string = completedAt;
-      try {
-        await this.kafka.emit({
-          topic: 'evt.event.completed',
-          key: id,
-          sourceModule: 'events',
-          payload: {
-            eventId: id,
-            schoolId: tenant.schoolId,
-            completedAt: finalCompletedAt,
-            completedBy: actor.personId,
-          },
-        });
-      } catch (e: unknown) {
-        this.logger.warn(`[events] evt.event.completed emit failed: ${String(e)}`);
-      }
-    }
     return this.getById(id, actor);
   }
 }

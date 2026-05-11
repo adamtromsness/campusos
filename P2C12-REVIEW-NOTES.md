@@ -413,3 +413,170 @@ NOTHING`, order confirm is idempotent on already-CONFIRMED.
 - **Test coverage on the atomic paths** — S1 verifies the single SQL
   string, S2 emulates concurrency, S3 verifies the schema CHECK
   translation, S5 verifies the gate scan idempotency.
+
+---
+
+## REVIEW-P2C12 Round 1 fix log (2026-05-11)
+
+Round 1 against `cycle12-complete` at `6c12e25` returned **FAIL** with
+5 BLOCKING + 3 MAJOR. The fix commit lands all 5 BLOCKING + 2
+actionable MAJORs with 15 new pinned regression tests.
+
+### Verification trail
+
+| Reviewer finding                                                         | Status   | Fix landed                                                                                                                                                                                                                     | Test                              |
+| ------------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- |
+| BLOCKING 1 — 4 emit topics best-effort after commit                      | ✅ FIXED | All 4 emits moved to `OutboxService.enqueueInTx` inside the originating tenant tx; 4 deterministic event-id helpers added in `apps/api/src/events/event-ids.ts` (SHA-256 → v5-shaped UUID)                                     | R-B1a, R-B1b, R-B1c, R-B1d, R-B1e |
+| BLOCKING 2 — `STRIPE_DEV_AUTO_CONFIRM=true` skips evt.order.confirmed    | ✅ FIXED | `OrderService.purchase` now enqueues `evt.order.confirmed` outbox row inside the purchase tx when `autoConfirm=true`; payload carries `autoConfirmed: true` for downstream awareness                                           | R-B2                              |
+| BLOCKING 3 — Athletic game linking not school-scoped                     | ✅ FIXED | `linked_game_id` lookup JOINs through `ath_games → ath_rosters → ath_seasons → ath_programmes.school_id = $tenant.schoolId`; the 3 INSERT…SELECT fan-outs carry the same join chain via `pr2`/`pr3`/`pr4` aliases              | R-B3a, R-B3b                      |
+| BLOCKING 4 — Season pass gate admits any event when events_included NULL | ✅ FIXED | `SeasonPassService.gateCheck` JOINs `evt_events` with `school_id` + status filter; events_included NULL path now validates academic-year window AND pass-type → event-type coverage via tightened heuristic                    | R-B4a, R-B4b, R-B4c, R-B4d        |
+| BLOCKING 5 — Comp list accepts arbitrary personId                        | ✅ FIXED | New `CompListService.assertCompPersonAffiliated` validator per compType — STUDENT/ATHLETE via sis_students; STAFF/COACH via hr_employees; OFFICIAL via platform.platform_official_profiles; MEDIA/VIP/OTHER via UNION of all 3 | R-B5a, R-B5b, R-B5c, R-B5d        |
+| MAJOR 1 — maybeAutoFlipSoldOut UPDATE id-only                            | ✅ FIXED | UPDATE now `WHERE id = $1::uuid AND school_id = $2::uuid` as defence-in-depth alongside the row lock                                                                                                                           | R-M1                              |
+| MAJOR 2 — loadTiers not school-scoped                                    | ✅ FIXED | `loadTiers(eventId)` JOINs `evt_events` with `school_id = $tenant.schoolId`                                                                                                                                                    | R-M2                              |
+| MAJOR 3 — Partial refund operational state                               | DEFERRED | Carried to Phase 2 punch list — requires product alignment on `PARTIALLY_REFUNDED` / per-ticket refund selection / fee-only refunds                                                                                            | n/a                               |
+
+### Detail per fix
+
+**BLOCKING 1 — Durable outbox** (`apps/api/src/events/event-ids.ts`,
+`events.service.ts`, `orders.service.ts`):
+
+- `OrderService` constructor: `kafka: KafkaProducerService` →
+  `outbox: OutboxService`. The `evt.order.confirmed` emit in
+  `OrderService.confirm` moved from a post-commit `try/catch` block to
+  `await this.outbox.enqueueInTx(tx, { … eventId: deterministicOrderConfirmedEventId(orderId) … })`
+  inside the tx that flips status to CONFIRMED.
+- `RefundService` constructor: `kafka` → `outbox`. The `evt.refund.issued`
+  emit moved inside the existing tx that writes the refund row + flips
+  tickets to REFUNDED + decrements tier counters.
+- `EventService` constructor: `kafka` → `outbox`. The `evt.event.completed`
+  emit moved inside the tx that flips event to COMPLETED.
+- `EventService.create` athletic branch: `evt.athletic_event.created`
+  outbox row enqueued inside the create tx (right after the 3 INSERT…SELECT
+  comp population statements). Emits on every athletic event create
+  regardless of whether the linked game resolved, so the awareness
+  signal stays durable even when `compEntriesAdded=0`.
+- Removed the unused `KafkaProducerService` import + `Logger` fields
+  that the new outbox path no longer needs.
+
+**BLOCKING 2 — STRIPE_DEV_AUTO_CONFIRM emits** (`orders.service.ts`):
+
+The auto-confirm fast-path in `OrderService.purchase` now mirrors the
+explicit `confirm()` path's outbox enqueue. Payload carries
+`autoConfirmed: true` so downstream consumers can distinguish the
+dev/CAT auto-flow from the production webhook flow if needed (default
+behaviour: both treated identically).
+
+**BLOCKING 3 — Athletic linking school-scoped** (`events.service.ts`):
+
+The Round 0 implementation did `SELECT roster_id FROM ath_games WHERE
+id = $1::uuid` and then ran 3 INSERT…SELECTs with no school filter on
+any of them. The Round 1 implementation:
+
+- `linked_game_id` lookup: `JOIN ath_rosters → ath_seasons →
+ath_programmes` with `pr.school_id = $tenant.schoolId`.
+- ATHLETE INSERT: same chain via `pr2` alias, plus `sis_students.school_id
+= $tenant.schoolId` as a redundant student-leg gate.
+- COACH INSERT: same chain via `pr3` alias.
+- OFFICIAL INSERT: JOINs through `ath_games g2 → ath_rosters ar4 →
+ath_seasons sn4 → ath_programmes pr4` so the official assignment is
+  also pinned to the current school's game (not just any game with the
+  same id).
+- The error message on miss now reads "…did not resolve to an
+  ath_games row in school <schoolId> (or belongs to another school)"
+  so an operator looking at the logs can distinguish the typo case from
+  the cross-school attempt.
+
+**BLOCKING 4 — Season pass gate validation** (`gate.service.ts`):
+
+Three-phase validation in `SeasonPassService.gateCheck`:
+
+1. Pass row exists in current school with status='ACTIVE'.
+2. Target event row exists in current school with status IN
+   ('ON_SALE','SOLD_OUT','COMPLETED'). Deny with "Event not found in
+   this school" if missing.
+3. Coverage policy: explicit list → must contain eventId; events_included
+   IS NULL → academic-year window + pass-type heuristic. The
+   `passCovers(event_type)` heuristic returns:
+   - ATHLETIC / SPORTS → ATHLETIC_GAME only
+   - THEATRE / PERFORMANCE / ARTS → PERFORMANCE only
+   - DANCE → DANCE only
+   - FUNDRAISER → FUNDRAISER only
+   - "ALL EVENTS" / "ALL ACCESS" / "EVERY EVENT" → universal
+   - Otherwise literal-match against canonical event_type token
+
+A bare "ALL" no longer matches anything — too ambiguous to risk
+cross-category admission.
+
+**BLOCKING 5 — Comp person validation** (`gate.service.ts`):
+
+New private `assertCompPersonAffiliated(client, personId, compType,
+schoolId)` helper called from `CompListService.add` before the INSERT.
+Per comp_type:
+
+- STUDENT, ATHLETE: SELECT through `sis_students` JOIN
+  `platform.platform_students` filtered by `school_id = $tenant.schoolId
+AND person_id = $personId`. 0 rows → 400.
+- STAFF, COACH: SELECT `hr_employees WHERE person_id = $personId AND
+school_id = $tenant.schoolId`. 0 rows → 400.
+- OFFICIAL: SELECT `platform.platform_official_profiles WHERE
+person_id = $personId`. Platform-tier records are cross-school by
+  design per ADR-063; the event-ownership predicate is the school-side
+  gate (we already validated the event belongs to this school).
+- MEDIA, VIP, OTHER: SELECT through a UNION of `hr_employees`,
+  `sis_students JOIN platform_students`, and `sis_guardians`, all
+  filtered by `school_id = $tenant.schoolId AND person_id = $personId`.
+  0 rows → 400.
+
+All four error paths throw `BadRequestException` with a comp-type-specific
+message so the school admin sees a clear cause.
+
+**MAJOR 1 — sold_out UPDATE school predicate** (`events.service.ts`):
+
+```sql
+UPDATE evt_events SET status = 'SOLD_OUT', updated_at = now()
+WHERE id = $1::uuid AND school_id = $2::uuid
+```
+
+**MAJOR 2 — loadTiers school-scoped** (`events.service.ts`):
+
+```sql
+SELECT … FROM evt_ticket_tiers t
+JOIN evt_events e ON e.id = t.event_id
+WHERE t.event_id = $1::uuid AND e.school_id = $2::uuid
+ORDER BY t.created_at ASC
+```
+
+### Test additions
+
+15 new vitest cases across 2 new describe blocks in
+`apps/api/src/events/events.spec.ts`:
+
+- `describe('REVIEW-P2C12 ROUND 1 — BLOCKING regressions')` (13 tests)
+- `describe('REVIEW-P2C12 ROUND 1 — MAJOR regressions')` (2 tests)
+
+Existing S1–S10 + Bonus tests (15 cases) rewritten to use the new
+`makeOutbox()` stub instead of the deprecated `makeKafka()` so the
+durable contract is enforced across the entire suite. S6 (season pass
+gate) additionally mocks the new `evt_events` school lookup since the
+gate check now does an extra round-trip.
+
+**Test suite totals: vitest 632 → 647 across 30 spec files.**
+
+### Phase 2 punch list carry-over
+
+- MAJOR 3 (partial refund operational state) — needs product alignment
+  on `PARTIALLY_REFUNDED` vs per-ticket refund selection vs fee-only
+  refunds. Today's behaviour is the simplest acceptable one: cumulative
+  refund reaching the total flips order + tickets to REFUNDED;
+  partial refunds leave them as CONFIRMED. Future cycle resolves the
+  model.
+
+### CI parity
+
+- `pnpm format:check` ✓ clean
+- `pnpm lint:logs` ✓ 743 files clean
+- `pnpm --filter @campusos/api build` ✓ clean
+- `pnpm --filter @campusos/web build` ✓ clean (no web changes)
+- `pnpm --filter @campusos/api test` ✓ 647/647
+
+Awaiting Round 2 verdict before tagging `p2c12-complete`.

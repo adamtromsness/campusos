@@ -4,16 +4,16 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { EventService } from './events.service';
+import { deterministicOrderConfirmedEventId, deterministicRefundIssuedEventId } from './event-ids';
 import type {
   CancelOrderDto,
   ConfirmOrderDto,
@@ -68,11 +68,9 @@ const QR_TOKEN_BYTES = 24; // 48 hex chars
 
 @Injectable()
 export class OrderService {
-  private readonly logger = new Logger(OrderService.name);
-
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly permissions: PermissionCheckService,
     private readonly events: EventService,
   ) {}
@@ -349,6 +347,7 @@ export class OrderService {
       // auto-complete behaviour and skip the webhook step entirely.
       const stripeIntentId = `pi_dev_evt_${orderId.replace(/-/g, '').slice(0, 16)}`;
       const autoConfirm = process.env.STRIPE_DEV_AUTO_CONFIRM === 'true';
+      const confirmedAt = autoConfirm ? new Date().toISOString() : null;
       await tx.$executeRawUnsafe(
         `INSERT INTO evt_orders
          (id, event_id, purchaser_id, status, total_amount, stripe_payment_intent_id,
@@ -362,8 +361,33 @@ export class OrderService {
         Number(totalAmount.toFixed(2)),
         stripeIntentId,
         autoConfirm ? null : expiresAt,
-        autoConfirm ? new Date().toISOString() : null,
+        confirmedAt,
       );
+
+      // REVIEW-P2C12 ROUND 1 BLOCKING 2 — STRIPE_DEV_AUTO_CONFIRM=true
+      // lands the order CONFIRMED at insert time. The original
+      // implementation never emitted evt.order.confirmed in that path,
+      // so downstream consumers (notifications, future fulfilment) saw
+      // a split-brain between webhook + dev-auto paths. Enqueue the
+      // same outbox event the explicit confirm path uses, INSIDE the
+      // purchase tx so the durability contract matches everywhere.
+      if (autoConfirm) {
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'evt.order.confirmed',
+          key: orderId,
+          sourceModule: 'events',
+          eventId: deterministicOrderConfirmedEventId(orderId),
+          payload: {
+            orderId,
+            eventId,
+            schoolId: tenant.schoolId,
+            purchaserId: actor.personId,
+            totalAmount: Number(totalAmount.toFixed(2)),
+            confirmedAt,
+            autoConfirmed: true,
+          },
+        });
+      }
 
       // INSERT every ticket
       for (const t of ticketsToCreate) {
@@ -389,8 +413,7 @@ export class OrderService {
    */
   async confirm(id: string, input: ConfirmOrderDto, actor: ResolvedActor): Promise<OrderDto> {
     const tenant = getCurrentTenant();
-    let emitNeeded = false;
-    let total = 0;
+    let confirmedNow = false;
     let eventId = '';
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
@@ -426,39 +449,44 @@ export class OrderService {
           `Order cannot be confirmed — current status is ${order.status}.`,
         );
       }
-      await tx.$executeRawUnsafe(
+      const updatedRows = (await tx.$queryRawUnsafe(
         `UPDATE evt_orders
          SET status = 'CONFIRMED', confirmed_at = now(), updated_at = now(),
              stripe_payment_intent_id = COALESCE($2, stripe_payment_intent_id),
              expires_at = NULL
-         WHERE id = $1::uuid`,
+         WHERE id = $1::uuid
+         RETURNING confirmed_at::text AS confirmed_at`,
         id,
         input.stripePaymentIntentId ?? null,
-      );
-      emitNeeded = true;
-      total = Number(order.total_amount);
+      )) as Array<{ confirmed_at: string }>;
+
+      // REVIEW-P2C12 ROUND 1 BLOCKING 1 — durable evt.order.confirmed
+      // via OutboxService.enqueueInTx INSIDE the same tx as the
+      // status flip. Best-effort post-commit Kafka could drop the
+      // event under broker outage, but the outbox row commits with
+      // the parent tx and OutboxPublisherWorker drains it durably.
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'evt.order.confirmed',
+        key: id,
+        sourceModule: 'events',
+        eventId: deterministicOrderConfirmedEventId(id),
+        payload: {
+          orderId: id,
+          eventId: order.event_id,
+          schoolId: tenant.schoolId,
+          purchaserId: order.purchaser_id,
+          totalAmount: Number(order.total_amount),
+          confirmedAt: updatedRows[0]?.confirmed_at ?? new Date().toISOString(),
+        },
+      });
+      confirmedNow = true;
       eventId = order.event_id;
     });
 
-    if (emitNeeded) {
-      try {
-        await this.kafka.emit({
-          topic: 'evt.order.confirmed',
-          key: id,
-          sourceModule: 'events',
-          payload: {
-            orderId: id,
-            eventId,
-            schoolId: tenant.schoolId,
-            purchaserId: actor.personId,
-            totalAmount: total,
-            confirmedAt: new Date().toISOString(),
-          },
-        });
-      } catch (e: unknown) {
-        this.logger.warn(`[events] evt.order.confirmed emit failed: ${String(e)}`);
-      }
-      // Recheck SOLD_OUT auto-flip
+    if (confirmedNow) {
+      // Recheck SOLD_OUT auto-flip outside the tx (independent tenant
+      // tx with its own lock); the outbox emit guarantee is satisfied
+      // by the enqueue above.
       await this.events.maybeAutoFlipSoldOut(eventId);
     }
     return this.getById(id, actor);
@@ -536,11 +564,9 @@ export class OrderService {
 
 @Injectable()
 export class RefundService {
-  private readonly logger = new Logger(RefundService.name);
-
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly permissions: PermissionCheckService,
   ) {}
 
@@ -702,13 +728,21 @@ export class RefundService {
           input.reason,
         );
       }
-    });
 
-    try {
-      await this.kafka.emit({
+      // REVIEW-P2C12 ROUND 1 BLOCKING 1 — evt.refund.issued is
+      // durable via OutboxService.enqueueInTx INSIDE the same tenant
+      // tx as the refund + ticket flip + tier decrement. The previous
+      // best-effort post-commit emit could drop the GL signal under
+      // broker outage; now a Kafka hiccup leaves the outbox row
+      // pending and the OutboxPublisherWorker retries on the next
+      // poll. Deterministic event_id keys on refundId so a retry
+      // dedups cleanly through the GLConsumer's
+      // fin_journal_batches.source_event_id UNIQUE constraint.
+      await this.outbox.enqueueInTx(tx, {
         topic: 'evt.refund.issued',
         key: refundId,
         sourceModule: 'events',
+        eventId: deterministicRefundIssuedEventId(refundId),
         payload: {
           refundId,
           orderId,
@@ -720,9 +754,7 @@ export class RefundService {
           refundedAt: new Date().toISOString(),
         },
       });
-    } catch (e: unknown) {
-      this.logger.warn(`[events] evt.refund.issued emit failed: ${String(e)}`);
-    }
+    });
 
     const list = await this.listForOrder(orderId, actor);
     const refund = list.find((r) => r.id === refundId);

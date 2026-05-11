@@ -330,10 +330,26 @@ export class SeasonPassService {
   }
 
   /**
-   * Gate check at the venue: pass must be ACTIVE plus
-   * (events_included IS NULL OR contains eventId). Logs nothing
-   * here — the GateScanService is the gate-audit owner. Returns
-   * { admitted, reason } so the gate UI can render a clear message.
+   * Gate check at the venue: pass must be ACTIVE plus the target
+   * event must (a) belong to the current school, (b) be in a live
+   * status (ON_SALE/SOLD_OUT/COMPLETED), and (c) either appear in
+   * the pass's events_included array OR match the pass's coverage
+   * policy when events_included IS NULL (school-wide pass for the
+   * matching academic year; PERFORMANCE/ATHLETIC/etc passes implicitly
+   * cover their corresponding event_type for the year).
+   *
+   * REVIEW-P2C12 ROUND 1 BLOCKING 4 — the previous implementation
+   * admitted any eventId when events_included IS NULL, which meant a
+   * School A scanner could submit a foreign-school event UUID with a
+   * valid School A pass and get admit=true. We now JOIN evt_events
+   * with the tenant school predicate so a foreign or non-existent
+   * eventId always denies. The academic-year overlap is enforced by
+   * comparing the event_date year to the pass.academic_year window
+   * (a "2025-2026" pass admits events 2025-08-01 → 2026-07-31).
+   *
+   * The GateScanService remains the gate-audit owner — this method
+   * returns { admitted, reason } only and does not write a scan row
+   * itself.
    */
   async gateCheck(
     input: SeasonPassGateCheckDto,
@@ -343,24 +359,116 @@ export class SeasonPassService {
       throw new ForbiddenException('Season pass gate check requires evt-001:write or admin scope.');
     }
     const tenant = getCurrentTenant();
-    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+    const passRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT status, events_included::text[] AS events_included
+        `SELECT status, events_included::text[] AS events_included,
+                pass_type, academic_year
          FROM evt_season_passes WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
         input.passId,
         tenant.schoolId,
       );
-    })) as Array<{ status: string; events_included: string[] | null }>;
-    if (rows.length === 0) {
+    })) as Array<{
+      status: string;
+      events_included: string[] | null;
+      pass_type: string;
+      academic_year: string;
+    }>;
+    if (passRows.length === 0) {
       return { admitted: false, reason: 'Pass not found' };
     }
-    const pass = rows[0]!;
+    const pass = passRows[0]!;
     if (pass.status !== 'ACTIVE') {
       return { admitted: false, reason: `Pass status is ${pass.status}` };
     }
+
+    // REVIEW-P2C12 ROUND 1 BLOCKING 4 — validate the target event is
+    // in the current school. School A scanner cannot admit a pass
+    // against a School B event UUID. The status filter also gates out
+    // DRAFT / CANCELLED events from admission attempts.
+    const eventRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        `SELECT id::text AS id, event_type, event_date::text AS event_date, status
+         FROM evt_events
+         WHERE id = $1::uuid AND school_id = $2::uuid
+           AND status IN ('ON_SALE', 'SOLD_OUT', 'COMPLETED')
+         LIMIT 1`,
+        input.eventId,
+        tenant.schoolId,
+      );
+    })) as Array<{ id: string; event_type: string; event_date: string; status: string }>;
+    if (eventRows.length === 0) {
+      return { admitted: false, reason: 'Event not found in this school' };
+    }
+    const event = eventRows[0]!;
+
+    // Explicit list: must include the event id.
     if (pass.events_included && pass.events_included.length > 0) {
       if (!pass.events_included.includes(input.eventId)) {
         return { admitted: false, reason: 'This event is not in the pass coverage list' };
+      }
+    } else {
+      // events_included IS NULL — pass covers all events of its
+      // pass_type for the academic year. Validate the event_date
+      // falls inside the pass's academic_year window (e.g.
+      // 2025-2026 → 2025-08-01 to 2026-07-31).
+      const yearMatch = /^(\d{4})-(\d{4})$/.exec(pass.academic_year);
+      if (!yearMatch) {
+        return {
+          admitted: false,
+          reason: `Pass academic_year shape "${pass.academic_year}" is malformed`,
+        };
+      }
+      const yearStart = `${yearMatch[1]}-08-01`;
+      const yearEnd = `${yearMatch[2]}-07-31`;
+      if (event.event_date < yearStart || event.event_date > yearEnd) {
+        return {
+          admitted: false,
+          reason: `Event date ${event.event_date} falls outside the ${pass.academic_year} pass window`,
+        };
+      }
+
+      // pass_type → event_type coverage. The pass_type is free-text
+      // so the matching is heuristic — strings containing 'ATHLETIC'
+      // or 'SPORTS' admit ATHLETIC_GAME; 'THEATRE' or 'PERFORMANCE'
+      // admit PERFORMANCE; 'ALL' admits any event_type. Unknown
+      // pass_type values restrict to the literal match (uppercase
+      // form against event_type). Schools can author custom
+      // pass_types and they default to deny-unless-matching-name.
+      const passTypeUpper = pass.pass_type.toUpperCase();
+      const passCovers = (eventType: string): boolean => {
+        // Sport-specific qualifier wins first so "All Sports" / "All
+        // Athletic Events" pins to ATHLETIC_GAME, not to every type.
+        if (passTypeUpper.includes('ATHLETIC') || passTypeUpper.includes('SPORTS')) {
+          return eventType === 'ATHLETIC_GAME';
+        }
+        if (
+          passTypeUpper.includes('THEATRE') ||
+          passTypeUpper.includes('PERFORMANCE') ||
+          passTypeUpper.includes('ARTS')
+        ) {
+          return eventType === 'PERFORMANCE';
+        }
+        if (passTypeUpper.includes('DANCE')) return eventType === 'DANCE';
+        if (passTypeUpper.includes('FUNDRAISER')) return eventType === 'FUNDRAISER';
+        // Universal coverage only when the pass_type explicitly says
+        // "ALL EVENTS" / "ALL ACCESS" / "EVERY EVENT". A bare "ALL"
+        // matches nothing — too ambiguous to admit cross-category.
+        if (
+          passTypeUpper.includes('ALL EVENTS') ||
+          passTypeUpper.includes('ALL ACCESS') ||
+          passTypeUpper.includes('EVERY EVENT')
+        ) {
+          return true;
+        }
+        // Literal match against the canonical event_type token.
+        if (passTypeUpper === eventType) return true;
+        return false;
+      };
+      if (!passCovers(event.event_type)) {
+        return {
+          admitted: false,
+          reason: `Pass type "${pass.pass_type}" does not cover ${event.event_type} events`,
+        };
       }
     }
     return { admitted: true, reason: 'Admit' };
@@ -422,6 +530,103 @@ export class CompListService {
     return rows.map((r) => this.rowToDto(r));
   }
 
+  /**
+   * REVIEW-P2C12 ROUND 1 BLOCKING 5 — validate the supplied
+   * personId is affiliated with the current school per the requested
+   * comp_type. Without this an admin could pass any platform.iam_person
+   * UUID and insert a foreign-school person onto the comp list — the
+   * migration COMMENT promised request-path validation but the
+   * service did not perform it.
+   *
+   * Resolution rules:
+   *   - STUDENT / ATHLETE → sis_students.platform_student_id →
+   *                        platform.platform_students.person_id =
+   *                        input.personId AND sis_students.school_id =
+   *                        $tenant.schoolId
+   *   - STAFF / COACH    → hr_employees.person_id = input.personId
+   *                        AND hr_employees.school_id =
+   *                        $tenant.schoolId
+   *   - OFFICIAL         → platform.platform_official_profiles.person_id =
+   *                        input.personId (platform-tier records are
+   *                        cross-school by design per ADR-063; the
+   *                        comp entry's event ownership predicate is
+   *                        the school-side gate)
+   *   - MEDIA / VIP /
+   *     OTHER            → require ANY current-tenant projection
+   *                        (sis_students OR sis_guardians OR
+   *                        hr_employees) so a comp pass for an external
+   *                        guest at least has a tenant footprint
+   *
+   * Throws BadRequestException on miss with a friendly message.
+   */
+  private async assertCompPersonAffiliated(
+    client: { $queryRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown> },
+    personId: string,
+    compType: CompType,
+    schoolId: string,
+  ): Promise<void> {
+    let rows: Array<{ ok: number }>;
+    if (compType === 'STUDENT' || compType === 'ATHLETE') {
+      rows = (await client.$queryRawUnsafe(
+        `SELECT 1 AS ok FROM sis_students s
+         JOIN platform.platform_students ps ON ps.id = s.platform_student_id
+         WHERE ps.person_id = $1::uuid AND s.school_id = $2::uuid LIMIT 1`,
+        personId,
+        schoolId,
+      )) as Array<{ ok: number }>;
+      if (rows.length === 0) {
+        throw new BadRequestException(
+          `personId does not match a ${compType.toLowerCase()} enrolled at this school`,
+        );
+      }
+      return;
+    }
+    if (compType === 'STAFF' || compType === 'COACH') {
+      rows = (await client.$queryRawUnsafe(
+        `SELECT 1 AS ok FROM hr_employees
+         WHERE person_id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
+        personId,
+        schoolId,
+      )) as Array<{ ok: number }>;
+      if (rows.length === 0) {
+        throw new BadRequestException(`personId does not match an employee of this school`);
+      }
+      return;
+    }
+    if (compType === 'OFFICIAL') {
+      rows = (await client.$queryRawUnsafe(
+        `SELECT 1 AS ok FROM platform.platform_official_profiles
+         WHERE person_id = $1::uuid LIMIT 1`,
+        personId,
+      )) as Array<{ ok: number }>;
+      if (rows.length === 0) {
+        throw new BadRequestException(`personId does not match a platform official profile`);
+      }
+      return;
+    }
+    // MEDIA / VIP / OTHER — require ANY current-tenant footprint so
+    // an external guest still has to be reachable through this school.
+    rows = (await client.$queryRawUnsafe(
+      `SELECT 1 AS ok FROM (
+         SELECT person_id::text AS person_id, school_id::text AS school_id FROM hr_employees
+         UNION ALL
+         SELECT ps.person_id::text AS person_id, s.school_id::text AS school_id
+           FROM sis_students s
+           JOIN platform.platform_students ps ON ps.id = s.platform_student_id
+         UNION ALL
+         SELECT person_id::text AS person_id, school_id::text AS school_id FROM sis_guardians
+       ) p
+       WHERE p.person_id = $1::uuid AND p.school_id = $2::uuid LIMIT 1`,
+      personId,
+      schoolId,
+    )) as Array<{ ok: number }>;
+    if (rows.length === 0) {
+      throw new BadRequestException(
+        `personId is not affiliated with this school (must have a sis_students, sis_guardians, or hr_employees projection)`,
+      );
+    }
+  }
+
   async add(eventId: string, input: AddCompEntryDto, actor: ResolvedActor): Promise<CompEntryDto> {
     await this.assertWriter(actor);
     const tenant = getCurrentTenant();
@@ -435,6 +640,18 @@ export class CompListService {
           tenant.schoolId,
         )) as Array<{ id: string }>;
         if (eventRows.length === 0) throw new NotFoundException('Event not found');
+
+        // REVIEW-P2C12 ROUND 1 BLOCKING 5 — validate the supplied
+        // personId against the current tenant's affiliated population
+        // per the comp_type. School A admin cannot drop a School B
+        // person onto a School A event's comp list.
+        await this.assertCompPersonAffiliated(
+          client,
+          input.personId,
+          input.compType,
+          tenant.schoolId,
+        );
+
         await client.$executeRawUnsafe(
           `INSERT INTO evt_comp_lists (id, event_id, comp_type, person_id, notes, added_by)
            VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6::uuid)`,
