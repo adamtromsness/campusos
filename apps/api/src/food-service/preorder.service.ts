@@ -8,6 +8,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
+import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
   CancelPreorderDto,
@@ -71,15 +72,39 @@ import { isUniqueViolation } from './food-service.errors';
  */
 @Injectable()
 export class PreorderService {
-  constructor(private readonly tenantPrisma: TenantPrismaService) {}
+  constructor(
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly permCheck: PermissionCheckService,
+  ) {}
 
   // ─── Window management ──────────────────────────────────────────────
 
-  private assertCanManageWindows(actor: ResolvedActor): void {
-    if (actor.isSchoolAdmin) return;
-    if (actor.personType === 'STAFF') return;
+  /**
+   * REVIEW-P2C10 ROUND 2 BLOCKING 3 — every FSM admin operation
+   * in PreorderService (window CRUD, confirm, generate production
+   * report, list-all visibility, window-gate bypass, cancel admin
+   * override, on-behalf ordering) now gates on FDS-006:write
+   * instead of the broad `personType === 'STAFF'` shortcut. Matches
+   * the P2-10a fix that the same review surfaced for recipe /
+   * inventory / transfer / staff-meal.
+   *
+   * Returns true when the actor holds FSM admin authority OR is the
+   * school admin. Cached per request via the IAM cache so the cost
+   * of this check on the hot pre-order path is a single in-memory
+   * lookup, not a fresh DB read.
+   */
+  private async isFsmAdmin(actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    const tenant = getCurrentTenant();
+    return this.permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'fds-006:write',
+    ]);
+  }
+
+  private async assertCanManageWindows(actor: ResolvedActor): Promise<void> {
+    if (await this.isFsmAdmin(actor)) return;
     throw new ForbiddenException(
-      'Only school admins or food service staff can manage preorder windows',
+      'Only school admins or Food Service administrators (FDS-006:write) can manage preorder windows',
     );
   }
 
@@ -120,7 +145,7 @@ export class PreorderService {
     input: CreatePreorderWindowDto,
     actor: ResolvedActor,
   ): Promise<PreorderWindowResponseDto> {
-    this.assertCanManageWindows(actor);
+    await this.assertCanManageWindows(actor);
     const opens = new Date(input.opensAt);
     const closes = new Date(input.closesAt);
     if (Number.isNaN(opens.getTime()) || Number.isNaN(closes.getTime())) {
@@ -162,7 +187,7 @@ export class PreorderService {
     input: UpdatePreorderWindowDto,
     actor: ResolvedActor,
   ): Promise<PreorderWindowResponseDto> {
-    this.assertCanManageWindows(actor);
+    await this.assertCanManageWindows(actor);
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.opensAt !== undefined) {
@@ -201,22 +226,39 @@ export class PreorderService {
   // ─── Pre-order CRUD with allergen cross-check ──────────────────────
 
   /**
-   * Visibility row-scope. admins/STAFF see all; STUDENT sees own;
-   * GUARDIAN sees own children. Mirrors AllergenAlertService.
+   * Visibility row-scope. FSM admin (school admin OR FDS-006:write)
+   * sees all; STUDENT sees own preorders; GUARDIAN sees own
+   * children's preorders. Mirrors AllergenAlertService.
+   *
+   * REVIEW-P2C10 ROUND 2 BLOCKING 1 — STUDENT branch JOIN adds
+   * `s.school_id = $tenant.schoolId`. GUARDIAN branch sub-query JOIN
+   * adds `JOIN sis_students s ON s.id = sg.student_id AND
+   * s.school_id = $tenant.schoolId`. A guardian linked to children
+   * across multiple schools (Cycle 6.1 / parent polish path) cannot
+   * see another school's preorders here even though the linkage row
+   * exists in the platform schema.
+   *
+   * REVIEW-P2C10 ROUND 2 BLOCKING 3 — admin-all bypass routes through
+   * `isFsmAdmin` instead of accepting any STAFF persona.
    */
   private async buildVisibilityFilter(
     actor: ResolvedActor,
   ): Promise<{ where: string; params: unknown[] }> {
-    if (actor.isSchoolAdmin || actor.personType === 'STAFF') {
+    if (await this.isFsmAdmin(actor)) {
       return { where: '', params: [] };
     }
+    const tenant = getCurrentTenant();
     if (actor.personType === 'STUDENT') {
-      // Resolve the actor's own sis_students.id and bind to it.
+      // Resolve the actor's own sis_students.id WITHIN this tenant
+      // and bind to it. The s.school_id predicate prevents a
+      // cross-school identity sharing the same iam_person from
+      // resolving to a foreign-school student row.
       const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe(
           'SELECT s.id::text AS id FROM sis_students s ' +
             'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-            'WHERE ps.person_id = $1::uuid LIMIT 1',
+            'WHERE s.school_id = $1::uuid AND ps.person_id = $2::uuid LIMIT 1',
+          tenant.schoolId,
           actor.personId,
         );
       })) as Array<{ id: string }>;
@@ -228,8 +270,9 @@ export class PreorderService {
         where:
           'AND p.student_id IN (SELECT sg.student_id FROM sis_student_guardians sg ' +
           'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+          'JOIN sis_students s ON s.id = sg.student_id AND s.school_id = $::uuid ' +
           'WHERE g.person_id = $::uuid)',
-        params: [actor.personId],
+        params: [tenant.schoolId, actor.personId],
       };
     }
     return { where: 'AND false', params: [] };
@@ -354,8 +397,11 @@ export class PreorderService {
     if (windowRows.length === 0) throw new NotFoundException('Preorder window not found');
     const win = windowRows[0]!;
     const now = Date.now();
-    const isAdmin = actor.isSchoolAdmin || actor.personType === 'STAFF';
-    if (!isAdmin && (now < win.opens_at.getTime() || now > win.closes_at.getTime())) {
+    // REVIEW-P2C10 ROUND 2 BLOCKING 3 — window-gate bypass now routes
+    // through isFsmAdmin so a generic STAFF actor without FDS-006
+    // cannot submit preorders against a closed window.
+    const isFsmAdmin = await this.isFsmAdmin(actor);
+    if (!isFsmAdmin && (now < win.opens_at.getTime() || now > win.closes_at.getTime())) {
       throw new BadRequestException(
         'Preorder window is not currently open. opensAt=' +
           win.opens_at.toISOString() +
@@ -365,8 +411,11 @@ export class PreorderService {
     }
 
     // Student row-scope: STUDENT can only order for self; GUARDIAN
-    // can only order for own children; admins/staff can order on
-    // behalf of any current-tenant student.
+    // can only order for own children; FSM admin can order on
+    // behalf of any current-tenant student. REVIEW-P2C10 ROUND 2
+    // BLOCKING 2 — even the admin/FSM on-behalf path validates
+    // that the studentId resolves to a CURRENT-TENANT sis_students
+    // row before the insert.
     await this.assertCanOrderForStudent(input.studentId, actor);
 
     // Resolve menu items + allergens
@@ -481,8 +530,11 @@ export class PreorderService {
    * CONFIRMED inside a locked tx.
    */
   async confirmPreorder(id: string, actor: ResolvedActor): Promise<PreorderResponseDto> {
-    if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
-      throw new ForbiddenException('Only admins or staff can confirm preorders');
+    // REVIEW-P2C10 ROUND 2 BLOCKING 3 — FSM admin gate via FDS-006.
+    if (!(await this.isFsmAdmin(actor))) {
+      throw new ForbiddenException(
+        'Only school admins or Food Service administrators (FDS-006:write) can confirm preorders',
+      );
     }
     const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
@@ -529,10 +581,13 @@ export class PreorderService {
       )) as Array<{ status: string; ordered_by: string; student_id: string }>;
       if (rows.length === 0) throw new NotFoundException('Preorder not found');
       const row = rows[0]!;
-      const isAdmin = actor.isSchoolAdmin || actor.personType === 'STAFF';
-      if (!isAdmin && row.ordered_by !== actor.accountId) {
+      // REVIEW-P2C10 ROUND 2 BLOCKING 3 — admin override path uses
+      // FDS-006 FSM admin scope, not blanket STAFF persona.
+      const isFsmAdmin = await this.isFsmAdmin(actor);
+      if (!isFsmAdmin && row.ordered_by !== actor.accountId) {
         // Allow guardians/students who can see the order to cancel
-        // their own. Re-use the visibility check.
+        // their own. Re-use the visibility check (which also
+        // school-scopes the student lookup post Round 2 BLOCKING 1).
         await this.assertCanOrderForStudent(row.student_id, actor);
       }
       if (row.status === 'CANCELLED') return;
@@ -562,9 +617,10 @@ export class PreorderService {
     input: GenerateProductionReportDto,
     actor: ResolvedActor,
   ): Promise<ProductionReportResponseDto> {
-    if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
+    // REVIEW-P2C10 ROUND 2 BLOCKING 3 — FSM admin gate via FDS-006.
+    if (!(await this.isFsmAdmin(actor))) {
       throw new ForbiddenException(
-        'Only school admins or food service staff can generate production reports',
+        'Only school admins or Food Service administrators (FDS-006:write) can generate production reports',
       );
     }
     const tenant = getCurrentTenant();
@@ -746,19 +802,52 @@ export class PreorderService {
 
   /**
    * Verify the actor may order a meal on behalf of the given student.
-   * admins / FSM staff bypass; students may only order for themselves;
-   * guardians may only order for own children. Refusals are 403 to
-   * make the contract explicit (in contrast to the row-scope reads
-   * which collapse to 404 to avoid leaking existence).
+   *
+   * REVIEW-P2C10 ROUND 2 BLOCKING 1 — STUDENT branch JOIN adds
+   * `s.school_id = $tenant.schoolId` so a STUDENT whose iam_person
+   * is also enrolled at another school cannot order a meal under
+   * THIS tenant's window against a foreign-school student row.
+   * GUARDIAN branch adds `JOIN sis_students s ON s.id = sg.student_id
+   * AND s.school_id = $tenant.schoolId` so a guardian linked to
+   * children across multiple schools cannot order for a foreign-
+   * school child through this tenant's API.
+   *
+   * REVIEW-P2C10 ROUND 2 BLOCKING 2 — FSM admin path no longer
+   * blanket-bypasses; it validates that the supplied `studentId`
+   * resolves to a current-tenant `sis_students` row before the
+   * INSERT lands. A foreign-school student UUID returns 400 from
+   * the admin path so the preorder cannot land with
+   * `school_id = $A` + `student_id = $B`.
+   *
+   * Refusals are 403 (or 400 on the admin path) to make the
+   * contract explicit. Row-scope reads collapse to 404
+   * elsewhere — this is the write contract.
    */
   private async assertCanOrderForStudent(studentId: string, actor: ResolvedActor): Promise<void> {
-    if (actor.isSchoolAdmin || actor.personType === 'STAFF') return;
+    const tenant = getCurrentTenant();
+    if (await this.isFsmAdmin(actor)) {
+      // FSM admin on-behalf path. Validate the student belongs to
+      // the current school so the INSERT below cannot mis-stamp
+      // school_id against a foreign-school student.
+      const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM sis_students WHERE school_id = $1::uuid AND id = $2::uuid LIMIT 1',
+          tenant.schoolId,
+          studentId,
+        );
+      })) as Array<{ ok: number }>;
+      if (rows.length === 0) {
+        throw new BadRequestException('studentId does not match a student in this school');
+      }
+      return;
+    }
     if (actor.personType === 'STUDENT') {
       const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe(
           'SELECT 1 AS ok FROM sis_students s ' +
             'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-            'WHERE s.id = $1::uuid AND ps.person_id = $2::uuid LIMIT 1',
+            'WHERE s.school_id = $1::uuid AND s.id = $2::uuid AND ps.person_id = $3::uuid LIMIT 1',
+          tenant.schoolId,
           studentId,
           actor.personId,
         );
@@ -773,7 +862,9 @@ export class PreorderService {
         return client.$queryRawUnsafe(
           'SELECT 1 AS ok FROM sis_student_guardians sg ' +
             'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
+            'JOIN sis_students s ON s.id = sg.student_id AND s.school_id = $1::uuid ' +
+            'WHERE sg.student_id = $2::uuid AND g.person_id = $3::uuid LIMIT 1',
+          tenant.schoolId,
           studentId,
           actor.personId,
         );

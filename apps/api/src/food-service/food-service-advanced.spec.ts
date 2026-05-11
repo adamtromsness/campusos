@@ -929,7 +929,14 @@ describe('PreorderService — allergen cross-check (KEYSTONE)', () => {
       }
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    // REVIEW-P2C10 ROUND 2 BLOCKING 3 — GUARDIAN does NOT hold
+    // fds-006:write, so the FSM admin path is not taken. The
+    // GUARDIAN branch runs the linked-child check and proceeds
+    // to the allergen cross-check.
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.createPreorder(
@@ -990,7 +997,10 @@ describe('PreorderService — allergen cross-check (KEYSTONE)', () => {
       }
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     const result = await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.createPreorder(
         {
@@ -1043,7 +1053,10 @@ describe('PreorderService — allergen cross-check (KEYSTONE)', () => {
       }
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     const result = await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.createPreorder(
         {
@@ -1068,7 +1081,7 @@ describe('PreorderService — window gate', () => {
       if (call.sql.includes('SELECT 1 AS ok FROM sis_student_guardians sg')) return [{ ok: 1 }];
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.createPreorder(
@@ -1087,6 +1100,15 @@ describe('PreorderService — window gate', () => {
     let insertedSlot = false;
     const fake = makeFake((call) => {
       if (call.sql.includes('FROM fds_preorder_windows WHERE id')) return [CLOSED_WINDOW];
+      // REVIEW-P2C10 ROUND 2 BLOCKING 2 — even the admin path
+      // validates the studentId against the current tenant. The
+      // mock returns a row so the validation passes.
+      if (
+        call.sql.includes('SELECT 1 AS ok FROM sis_students WHERE school_id') &&
+        call.sql.includes('AND id =')
+      ) {
+        return [{ ok: 1 }];
+      }
       if (call.sql.includes('FROM fds_menu_items WHERE school_id')) return MENU_ITEMS_CLEAN;
       if (call.sql.includes('FROM fds_student_allergen_alerts')) return [];
       if (call.sql.includes('INSERT INTO fds_meal_preorders')) insertedSlot = true;
@@ -1115,7 +1137,7 @@ describe('PreorderService — window gate', () => {
       }
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(fake.tenantPrisma as never, makePermCheck() as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.createPreorder(
         {
@@ -1138,7 +1160,12 @@ describe('PreorderService — student row-scope', () => {
       if (call.sql.includes('FROM sis_students s')) return []; // mismatch — student isn't this one
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    // REVIEW-P2C10 ROUND 2 BLOCKING 3 — STUDENT does not hold
+    // fds-006:write, so the FSM admin path is not taken.
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.createPreorder(
@@ -1159,7 +1186,10 @@ describe('PreorderService — student row-scope', () => {
       if (call.sql.includes('SELECT 1 AS ok FROM sis_student_guardians sg')) return []; // not linked
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.createPreorder(
@@ -1184,7 +1214,7 @@ describe('PreorderService.confirmPreorder', () => {
       }
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () => svc.confirmPreorder('p1', ADMIN_ACTOR)),
     ).rejects.toThrow(BadRequestException);
@@ -1197,15 +1227,20 @@ describe('PreorderService.confirmPreorder', () => {
       }
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () => svc.confirmPreorder('p1', ADMIN_ACTOR)),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('non-admin non-staff cannot confirm', async () => {
+    // REVIEW-P2C10 ROUND 2 BLOCKING 3 — guardian without fds-006:write
+    // is rejected at the FSM admin gate.
     const fake = makeFake(() => []);
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.confirmPreorder('p1', GUARDIAN_ACTOR),
@@ -1218,7 +1253,7 @@ describe('PreorderService.confirmPreorder', () => {
 describe('PreorderService.createWindow', () => {
   it('rejects closesAt <= opensAt', async () => {
     const fake = makeFake(() => []);
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.createWindow(
@@ -1235,8 +1270,13 @@ describe('PreorderService.createWindow', () => {
   });
 
   it('non-admin non-staff cannot create windows', async () => {
+    // REVIEW-P2C10 ROUND 2 BLOCKING 3 — guardian without fds-006:write
+    // is rejected at the FSM admin gate.
     const fake = makeFake(() => []);
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.createWindow(
@@ -1287,7 +1327,7 @@ describe('PreorderService.cancelPreorder', () => {
       }
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(fake.tenantPrisma as never, makePermCheck() as never);
     const result = await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.cancelPreorder('p1', { reason: 'Plans changed' }, ADMIN_ACTOR),
     );
@@ -1327,7 +1367,7 @@ describe('PreorderService.cancelPreorder', () => {
       }
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(fake.tenantPrisma as never, makePermCheck() as never);
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.cancelPreorder('p1', {}, ADMIN_ACTOR),
     );
@@ -1339,7 +1379,7 @@ describe('PreorderService.cancelPreorder', () => {
 describe('PreorderService input validation', () => {
   it('refuses an empty items array', async () => {
     const fake = makeFake(() => []);
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.createPreorder({ studentId: 's1', preorderWindowId: 'w1', items: [] }, ADMIN_ACTOR),
@@ -1353,7 +1393,7 @@ describe('PreorderService input validation', () => {
       if (call.sql.includes('FROM fds_menu_items WHERE school_id')) return []; // no match
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(fake.tenantPrisma as never, makePermCheck() as never);
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.createPreorder(
@@ -1372,8 +1412,13 @@ describe('PreorderService input validation', () => {
 // 21. Production report regen UPSERT — verify ON CONFLICT path is exercised
 describe('PreorderService.generateProductionReport', () => {
   it('non-admin non-staff cannot generate the production report', async () => {
+    // REVIEW-P2C10 ROUND 2 BLOCKING 3 — guardian without fds-006:write
+    // is rejected at the FSM admin gate.
     const fake = makeFake(() => []);
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
     await expect(
       runWithTenantContext({ tenant: SCHOOL }, async () =>
         svc.generateProductionReport(
@@ -1440,7 +1485,7 @@ describe('PreorderService.generateProductionReport', () => {
       }
       return [];
     });
-    const svc = new PreorderService(fake.tenantPrisma as never);
+    const svc = new PreorderService(fake.tenantPrisma as never, makePermCheck() as never);
     const result = await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.generateProductionReport({ serviceDate: '2026-06-01', mealType: 'LUNCH' }, ADMIN_ACTOR),
     );
@@ -1762,5 +1807,232 @@ describe('REVIEW-P2-10a ROUND 1 — MAJOR 5 staff meal patch school-scope', () =
     const updateSql = capturedSql.find((s) => s.includes('UPDATE fds_staff_meal_accounts SET'));
     expect(updateSql).toBeDefined();
     expect(updateSql).toMatch(/AND school_id = \$\d+::uuid/);
+  });
+});
+
+// ─── REVIEW-P2C10 ROUND 2 fixes ──────────────────────────────────────
+
+describe('REVIEW-P2C10 ROUND 2 — BLOCKING 1 student/guardian school-scope', () => {
+  it('STUDENT branch query includes s.school_id = $tenant.schoolId predicate', async () => {
+    const capturedSql: string[] = [];
+    const fake = makeFake((call) => {
+      capturedSql.push(call.sql);
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id')) {
+        return [
+          {
+            id: 'w1',
+            school_id: SCHOOL.schoolId,
+            service_date: new Date('2026-05-20'),
+            meal_type: 'LUNCH',
+            opens_at: new Date(Date.now() - 60 * 60 * 1000),
+            closes_at: new Date(Date.now() + 60 * 60 * 1000),
+          },
+        ];
+      }
+      // No matching student row → STUDENT path 403s.
+      return [];
+    });
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createPreorder(
+          {
+            studentId: 'cross-school-student',
+            preorderWindowId: 'w1',
+            items: [{ menuItemId: 'mi1', quantity: 1 }],
+          },
+          STUDENT_OWN,
+        ),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+    // Assert the STUDENT branch SQL actually contains the new
+    // s.school_id = $1::uuid + s.id = $2::uuid + ps.person_id = $3::uuid shape.
+    const studentSql = capturedSql.find(
+      (s) => s.includes('FROM sis_students s') && s.includes('JOIN platform.platform_students ps'),
+    );
+    expect(studentSql).toBeDefined();
+    expect(studentSql).toContain('s.school_id = $1::uuid');
+    expect(studentSql).toContain('s.id = $2::uuid');
+    expect(studentSql).toContain('ps.person_id = $3::uuid');
+  });
+
+  it('GUARDIAN branch sub-query JOINs sis_students with s.school_id = $tenant.schoolId', async () => {
+    const capturedSql: string[] = [];
+    const fake = makeFake((call) => {
+      capturedSql.push(call.sql);
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id')) {
+        return [
+          {
+            id: 'w1',
+            school_id: SCHOOL.schoolId,
+            service_date: new Date('2026-05-20'),
+            meal_type: 'LUNCH',
+            opens_at: new Date(Date.now() - 60 * 60 * 1000),
+            closes_at: new Date(Date.now() + 60 * 60 * 1000),
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createPreorder(
+          {
+            studentId: 'cross-school-child',
+            preorderWindowId: 'w1',
+            items: [{ menuItemId: 'mi1', quantity: 1 }],
+          },
+          GUARDIAN_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+    const guardianSql = capturedSql.find(
+      (s) =>
+        s.includes('SELECT 1 AS ok FROM sis_student_guardians sg') &&
+        s.includes('JOIN sis_guardians g'),
+    );
+    expect(guardianSql).toBeDefined();
+    expect(guardianSql).toContain('JOIN sis_students s ON s.id = sg.student_id');
+    expect(guardianSql).toContain('s.school_id = $1::uuid');
+    expect(guardianSql).toContain('sg.student_id = $2::uuid');
+    expect(guardianSql).toContain('g.person_id = $3::uuid');
+  });
+});
+
+describe('REVIEW-P2C10 ROUND 2 — BLOCKING 2 FSM admin on-behalf validates studentId in current tenant', () => {
+  it('FSM admin with cross-school studentId is refused with 400, not silently inserted', async () => {
+    const capturedSql: string[] = [];
+    const fake = makeFake((call) => {
+      capturedSql.push(call.sql);
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id')) {
+        return [
+          {
+            id: 'w1',
+            school_id: SCHOOL.schoolId,
+            service_date: new Date('2026-05-20'),
+            meal_type: 'LUNCH',
+            opens_at: new Date(Date.now() - 60 * 60 * 1000),
+            closes_at: new Date(Date.now() + 60 * 60 * 1000),
+          },
+        ];
+      }
+      // The new admin-path validation query returns no row → cross-school
+      // studentId is rejected.
+      if (
+        call.sql.includes('SELECT 1 AS ok FROM sis_students WHERE school_id') &&
+        call.sql.includes('AND id =')
+      ) {
+        return [];
+      }
+      return [];
+    });
+    const svc = new PreorderService(fake.tenantPrisma as never, makePermCheck() as never);
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createPreorder(
+          {
+            studentId: '019e0cf8-bbbb-7000-bbbb-deadbeef0000',
+            preorderWindowId: 'w1',
+            items: [{ menuItemId: 'mi1', quantity: 1 }],
+          },
+          ADMIN_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(BadRequestException);
+    // Defence-in-depth — INSERT did NOT fire.
+    const inserts = capturedSql.filter((s) => s.startsWith('INSERT INTO fds_meal_preorders'));
+    expect(inserts).toEqual([]);
+  });
+});
+
+describe('REVIEW-P2C10 ROUND 2 — BLOCKING 3 STAFF without FDS-006 refused on every admin op', () => {
+  it('STAFF without fds-006:write cannot create preorder windows', async () => {
+    const fake = makeFake(() => []);
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createWindow(
+          {
+            serviceDate: '2026-06-01',
+            mealType: 'LUNCH',
+            opensAt: '2026-06-01T07:00:00Z',
+            closesAt: '2026-06-01T09:00:00Z',
+          },
+          STAFF_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('STAFF without fds-006:write cannot confirm preorders', async () => {
+    const fake = makeFake(() => []);
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () => svc.confirmPreorder('p1', STAFF_ACTOR)),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('STAFF without fds-006:write cannot generate production reports', async () => {
+    const fake = makeFake(() => []);
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.generateProductionReport({ serviceDate: '2026-06-01', mealType: 'LUNCH' }, STAFF_ACTOR),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('STAFF without fds-006:write cannot submit on-behalf orders bypassing the window gate', async () => {
+    // STAFF with allow=false has neither isSchoolAdmin nor FDS-006:write.
+    // The window gate bypass NO LONGER fires for them. A closed window
+    // is rejected with 400.
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM fds_preorder_windows WHERE id')) {
+        return [
+          {
+            id: 'w-closed',
+            school_id: SCHOOL.schoolId,
+            service_date: new Date('2026-05-20'),
+            meal_type: 'LUNCH',
+            // window not yet open
+            opens_at: new Date(Date.now() + 60 * 60 * 1000),
+            closes_at: new Date(Date.now() + 4 * 60 * 60 * 1000),
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new PreorderService(
+      fake.tenantPrisma as never,
+      makePermCheck({ allow: false }) as never,
+    );
+    await expect(
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.createPreorder(
+          {
+            studentId: 's1',
+            preorderWindowId: 'w-closed',
+            items: [{ menuItemId: 'mi1', quantity: 1 }],
+          },
+          STAFF_ACTOR,
+        ),
+      ),
+    ).rejects.toThrow(BadRequestException);
   });
 });
