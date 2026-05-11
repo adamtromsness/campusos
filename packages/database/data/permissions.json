@@ -696,6 +696,11 @@
       "group": "Sub Marketplace"
     },
     {
+      "code": "SUB-002",
+      "name": "Substitute Marketplace Administration",
+      "group": "Sub Marketplace"
+    },
+    {
       "code": "STR-001",
       "name": "Store Management",
       "group": "School Store"

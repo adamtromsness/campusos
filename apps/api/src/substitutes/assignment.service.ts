@@ -109,7 +109,7 @@ export class AssignmentService {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'sch-004:write',
+      'sub-002:write',
     ]);
   }
 
@@ -279,9 +279,19 @@ export class AssignmentService {
         id,
       );
 
-      // Re-open the parent job so admin can re-post if needed
+      // REVIEW-P2C9 MAJOR 6: the parent job flips to UNFILLED (not
+      // CANCELLED) so the vacancy is visible again — admin can re-post
+      // it or escalate it to the marketplace tier. The previous code
+      // wrote CANCELLED which retired the entire job; the inline
+      // comment said "re-open" but the SQL contradicted it. UNFILLED is
+      // accepted by the sub_job_postings status_chk and matches the
+      // product expectation that a substitute's cancel returns the
+      // vacancy to the admin's queue.
       await tx.$executeRawUnsafe(
-        `UPDATE sub_job_postings SET status = 'CANCELLED', cancelled_at = now(), updated_at = now()
+        `UPDATE sub_job_postings
+         SET status = 'UNFILLED',
+             filled_at = NULL,
+             updated_at = now()
          WHERE id IN (SELECT job_id FROM sub_assignments WHERE id = $1::uuid)`,
         id,
       );

@@ -37,7 +37,7 @@ const SELECT_NOTE_BASE = `
  * caps each assignment at one note.
  *
  * Visibility:
- *   - Admin (sch-004:write) sees all notes for own school.
+ *   - Admin (sub-002:write) sees all notes for own school.
  *   - Substitute who wrote it sees their own.
  *   - Returning teacher (the absent_teacher_id on the parent job) sees the
  *     note when is_visible_to_teacher = true.
@@ -58,7 +58,7 @@ export class SessionNoteService {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'sch-004:write',
+      'sub-002:write',
     ]);
   }
 
@@ -143,6 +143,18 @@ export class SessionNoteService {
       if (!isAdmin && subProfileId !== asg.substitute_id) {
         throw new ForbiddenException(
           'Only the assigned substitute (or an admin) can write the handover note.',
+        );
+      }
+
+      // REVIEW-P2C9 MAJOR 5: the handover note belongs to the post-checkout
+      // step in the lifecycle. Substitutes cannot write a note immediately
+      // after confirmation. Admin override is allowed for unusual cases
+      // (substitute forgot to write a note before leaving, etc.).
+      if (!isAdmin && asg.status !== 'CHECKED_OUT') {
+        throw new ConflictException(
+          'Handover notes can only be written after check-out. The assignment is currently ' +
+            asg.status +
+            '.',
         );
       }
 

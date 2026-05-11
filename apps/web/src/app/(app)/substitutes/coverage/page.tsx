@@ -362,16 +362,15 @@ function JobRow({
               Check out
             </button>
           )}
-          {isAdmin &&
-            (assignment.status === 'CONFIRMED' || assignment.status === 'CHECKED_IN') && (
-              <button
-                type="button"
-                onClick={() => onCancelAssignment(assignment)}
-                className="text-xs font-medium text-rose-600 hover:text-rose-700"
-              >
-                Cancel
-              </button>
-            )}
+          {isAdmin && (assignment.status === 'CONFIRMED' || assignment.status === 'CHECKED_IN') && (
+            <button
+              type="button"
+              onClick={() => onCancelAssignment(assignment)}
+              className="text-xs font-medium text-rose-600 hover:text-rose-700"
+            >
+              Cancel
+            </button>
+          )}
           {assignment.status === 'CHECKED_OUT' && (
             <Link
               href={`/substitutes/ratings?assignmentId=${assignment.id}`}

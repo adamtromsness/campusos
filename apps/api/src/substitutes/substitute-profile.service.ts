@@ -33,17 +33,22 @@ export class SubstituteProfileService {
   ) {}
 
   /**
-   * SubMarketplace admin scope — admin OR holds sch-004:write OR sub-001:write
-   * at the current tenant scope. Used for admin-side reads (other substitutes'
-   * profiles, full credential history). Substitutes themselves only see their
-   * own profile via the row-scope below.
+   * SubMarketplace admin scope — admin OR holds sub-002:write at the
+   * current tenant scope. Used for admin-side reads (other substitutes'
+   * profiles, full credential history). Substitutes themselves only see
+   * their own profile via the row-scope below.
+   *
+   * REVIEW-P2C9 BLOCKING 1: this was previously
+   * `sch-004:write OR sub-001:write`, both of which generic Staff holds
+   * as part of self-service / coverage-read. Marketplace administration
+   * now requires the dedicated SUB-002 code, held only by School Admin /
+   * Platform Admin via everyFunction until a Sub Coordinator role lands.
    */
   async hasMarketplaceScope(actor: ResolvedActor): Promise<boolean> {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'sch-004:write',
-      'sub-001:write',
+      'sub-002:write',
     ]);
   }
 

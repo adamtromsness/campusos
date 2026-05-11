@@ -61,7 +61,7 @@ export class CancellationPolicyService {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'sch-004:write',
+      'sub-002:write',
     ]);
   }
 

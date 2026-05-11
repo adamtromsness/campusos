@@ -20,7 +20,7 @@ import { AvailabilityResponseDto, CreateAvailabilityDto } from './dto/substitute
  * check time.
  *
  * Self-service: substitute writes rows for own profile only. Admin
- * (sch-004:write) can write on behalf via a substituteId param.
+ * (sub-002:write) can write on behalf via a substituteId param.
  */
 @Injectable()
 export class SubstituteAvailabilityService {

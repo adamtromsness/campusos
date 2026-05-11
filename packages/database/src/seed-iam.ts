@@ -828,17 +828,22 @@ async function seedIam() {
         // Cycle 5 — coverage read so VPs and counsellors who fill in as
         // substitutes can see their assignments, room booking read+write
         // so non-teaching staff can book the hall, library, etc.
-        // P2-9 — Sub Marketplace step 4. Staff covers the Sub Marketplace
-        // operator persona (admin assistant or scheduling coordinator) who
-        // posts jobs, manages the school pool, configures pay rates, and
-        // sees coverage status. The dedicated Sub Coordinator role split
-        // is a Wave 2 Phase 2 punch list item joining Counsellor / Nurse /
-        // Librarian / AD splits before pilot. SUB-001 is granted to Staff
-        // for the same reason — the substitute self-service surface (own
-        // profile, availability, accept jobs, write notes, rate schools)
-        // currently runs through Staff persona until a dedicated
-        // Substitute role is added.
-        'SCH-004': ['read', 'write'],
+        // REVIEW-P2C9 BLOCKING 1 — Substitute Marketplace admin
+        // authority is SPLIT from Substitute Self-Service.
+        //   SUB-001 (self-service) — own profile, availability, prefs,
+        //     accept jobs, write own session notes, rate schools.
+        //   SUB-002 (marketplace administration) — search/list ALL
+        //     substitute profiles, manage school pool, post jobs,
+        //     manage pay rates, set cancellation policy, admin
+        //     coverage boards.
+        // Generic Staff keeps SUB-001:read+write because the same
+        // person may be a VP who also subs occasionally — but NEVER
+        // gets SUB-002, and NEVER gets SCH-004:write (substitute
+        // coverage management is now a SUB-002 surface, not the broad
+        // sch-004:write everyone-who-reads-a-calendar permission).
+        // Dedicated Substitute role + dedicated Sub Coordinator role
+        // remain Wave 2 Phase 2 punch list items.
+        'SCH-004': ['read'],
         'SCH-005': ['read', 'write'],
         'SUB-001': ['read', 'write'],
         // Cycle 4 HR — staff who aren't teachers (counsellor, vp,

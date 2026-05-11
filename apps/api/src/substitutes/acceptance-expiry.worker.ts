@@ -109,11 +109,23 @@ export class AcceptanceExpiryWorker implements OnModuleInit, OnApplicationShutdo
     try {
       await runWithTenantContextAsync({ tenant }, async () => {
         const flipped = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+          // REVIEW-P2C9 BLOCKING 3: school-scope the expiry sweep.
+          // The worker iterates platform.schools and enters each tenant
+          // context, but the tenant schema may host multiple schools
+          // (multi-school tenant pool — REVIEW-CYCLE7 ROUND 3). Without
+          // a j.school_id = $1 predicate, School A's tick would expire
+          // School B's pending notifications. We join through the parent
+          // sub_job_postings row to scope the UPDATE to this school.
           const result = (await tx.$queryRawUnsafe(
-            `UPDATE sub_job_notifications
+            `UPDATE sub_job_notifications n
              SET response = 'EXPIRED', responded_at = now(), updated_at = now()
-             WHERE response = 'PENDING' AND acceptance_window_expires_at <= now()
-             RETURNING id`,
+             FROM sub_job_postings j
+             WHERE n.job_id = j.id
+               AND j.school_id = $1::uuid
+               AND n.response = 'PENDING'
+               AND n.acceptance_window_expires_at <= now()
+             RETURNING n.id`,
+            tenant.schoolId,
           )) as Array<{ id: string }>;
           return result.length;
         });

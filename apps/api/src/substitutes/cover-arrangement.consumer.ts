@@ -85,6 +85,23 @@ export class CoverArrangementConsumer implements OnModuleInit {
       );
       return;
     }
+    // REVIEW-P2C9 BLOCKING 4: validate the event's payload schoolId
+    // matches the tenant the consumer is processing under, so a
+    // misrouted event cannot cross-pollute the wrong tenant's
+    // coverage rows.
+    if (event.tenant?.schoolId && p.schoolId !== event.tenant.schoolId) {
+      this.logger.warn(
+        '[' +
+          CONSUMER_GROUP +
+          '] dropping cross-tenant event (payload.schoolId=' +
+          p.schoolId +
+          ' tenant.schoolId=' +
+          event.tenant.schoolId +
+          ') eventId=' +
+          event.eventId,
+      );
+      return;
+    }
     const self = this;
     await processWithIdempotency(
       CONSUMER_GROUP,
@@ -105,18 +122,30 @@ export class CoverArrangementConsumer implements OnModuleInit {
       // For every sub_job_classes row on this job, find a matching
       // sch_coverage_requests row (same timetable_slot + same coverage_date
       // computed from the parent job's job_date) and flip OPEN -> CANCELLED.
+      //
+      // REVIEW-P2C9 BLOCKING 4: every JOIN partner carries an explicit
+      // j.school_id / cr.school_id = $1::uuid predicate, so even if a
+      // foreign-school sub_job_classes row leaked into this tenant
+      // schema (from prior buggy posting paths, or future cross-school
+      // backfill), the UPDATE refuses to mutate coverage rows outside
+      // the event's school. payload.schoolId === event.tenantId is
+      // already enforced upstream in handle().
       const result = (await tx.$queryRawUnsafe(
         `UPDATE sch_coverage_requests cr
          SET status = 'CANCELLED', updated_at = now(),
              notes = COALESCE(notes, '') || $1
          FROM sub_job_classes c
-         JOIN sub_job_postings j ON j.id = c.job_id
-         WHERE c.job_id = $2::uuid
+         JOIN sub_job_postings j
+           ON j.id = c.job_id
+          AND j.school_id = $2::uuid
+         WHERE c.job_id = $3::uuid
+           AND cr.school_id = $2::uuid
            AND cr.timetable_slot_id = c.timetable_slot_id
            AND cr.coverage_date = j.job_date
            AND cr.status = 'OPEN'
          RETURNING cr.id::text AS id`,
         '\n[Cover arrangement linked to marketplace substitute assignment ' + p.assignmentId + ']',
+        p.schoolId,
         p.jobId,
       )) as Array<{ id: string }>;
       return result.length;

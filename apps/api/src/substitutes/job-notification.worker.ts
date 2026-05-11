@@ -122,14 +122,18 @@ export class JobNotificationWorker implements OnModuleInit, OnApplicationShutdow
   private async tickForTenant(tenant: TenantInfo): Promise<void> {
     try {
       await runWithTenantContextAsync({ tenant }, async () => {
-        // Find jobs ripe for marketplace escalation
+        // Find jobs ripe for marketplace escalation.
+        // REVIEW-P2C9 BLOCKING 3: scope by tenant.schoolId so a worker
+        // pass for School A cannot escalate School B's jobs in a
+        // multi-school tenant pool.
         const ripeJobs = await this.tenantPrisma.executeInTenantContext(async (client) => {
           return (await client.$queryRawUnsafe(
             `SELECT id::text AS id, school_id::text AS school_id,
                     grade_level, subject, job_date::text AS job_date,
                     acceptance_window_minutes
              FROM sub_job_postings j
-             WHERE escalate_to_marketplace_at IS NOT NULL
+             WHERE j.school_id = $1::uuid
+               AND escalate_to_marketplace_at IS NOT NULL
                AND escalate_to_marketplace_at <= now()
                AND status = 'OPEN'
                AND notification_tier = 'POOL'
@@ -138,6 +142,7 @@ export class JobNotificationWorker implements OnModuleInit, OnApplicationShutdow
                  WHERE n.job_id = j.id AND n.response = 'ACCEPTED'
                )
              LIMIT 25`,
+            tenant.schoolId,
           )) as Array<{
             id: string;
             school_id: string;
@@ -220,10 +225,13 @@ export class JobNotificationWorker implements OnModuleInit, OnApplicationShutdow
     if (candidates.length === 0) {
       // No candidates — still flip the tier so we don't keep re-polling.
       await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        // REVIEW-P2C9 BLOCKING 3: school-scope the tier flip (defence
+        // in depth — the ripe-job SELECT already scoped to school).
         await tx.$executeRawUnsafe(
           `UPDATE sub_job_postings
            SET notification_tier = 'MARKETPLACE', updated_at = now()
-           WHERE id = $1::uuid`,
+           WHERE school_id = $1::uuid AND id = $2::uuid`,
+          tenant.schoolId,
           job.id,
         );
       });
@@ -257,11 +265,13 @@ export class JobNotificationWorker implements OnModuleInit, OnApplicationShutdow
         if (result.length > 0) insertedCount++;
       }
 
-      // Flip tier on the job
+      // Flip tier on the job.
+      // REVIEW-P2C9 BLOCKING 3: school-scope the tier flip.
       await tx.$executeRawUnsafe(
         `UPDATE sub_job_postings
          SET notification_tier = 'MARKETPLACE', updated_at = now()
-         WHERE id = $1::uuid`,
+         WHERE school_id = $1::uuid AND id = $2::uuid`,
+        tenant.schoolId,
         job.id,
       );
 

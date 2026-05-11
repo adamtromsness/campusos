@@ -46,7 +46,9 @@ const SELECT_JOB_BASE = `
          TO_CHAR(j.filled_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS filled_at,
          TO_CHAR(j.created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS created_at
   FROM sub_job_postings j
-  LEFT JOIN hr_employees e ON e.id = j.absent_teacher_id
+  LEFT JOIN hr_employees e
+    ON e.id = j.absent_teacher_id
+   AND e.school_id = j.school_id
   LEFT JOIN platform.iam_person ip ON ip.id = e.person_id
 `;
 
@@ -71,7 +73,7 @@ export class JobPostingService {
     if (actor.isSchoolAdmin) return true;
     const tenant = getCurrentTenant();
     return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-      'sch-004:write',
+      'sub-002:write',
     ]);
   }
 
@@ -150,9 +152,13 @@ export class JobPostingService {
     const escalateAt = new Date(Date.now() + acceptanceMins * 60 * 1000);
 
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Validate absent teacher exists in this tenant
+      // REVIEW-P2C9 BLOCKING 2: validate the absent teacher belongs to
+      // THIS school. The previous id-only check let a multi-school
+      // tenant pool post a sub job using a foreign-school teacher UUID,
+      // which would then poison fan-out + downstream coverage linkage.
       const teacher = (await tx.$queryRawUnsafe(
-        'SELECT id FROM hr_employees WHERE id = $1::uuid LIMIT 1',
+        'SELECT id FROM hr_employees WHERE school_id = $1::uuid AND id = $2::uuid LIMIT 1',
+        tenant.schoolId,
         input.absentTeacherId,
       )) as Array<{ id: string }>;
       if (teacher.length === 0) {
@@ -185,13 +191,18 @@ export class JobPostingService {
       // Snapshot any timetable slots
       if (input.timetableSlotIds && input.timetableSlotIds.length > 0) {
         for (const slotId of input.timetableSlotIds) {
+          // REVIEW-P2C9 BLOCKING 2: school-scope the slot lookup so a
+          // foreign-school slot UUID cannot be snapshotted onto a
+          // current-school job. sch_timetable_slots carries school_id
+          // directly per Cycle 5 migration 016, so we predicate on it.
           const slot = (await tx.$queryRawUnsafe(
             `SELECT s.id, c.section_code, r.name AS room_name, p.name AS period_name
              FROM sch_timetable_slots s
              LEFT JOIN sis_classes c ON c.id = s.class_id
              LEFT JOIN sch_rooms r ON r.id = s.room_id
              LEFT JOIN sch_periods p ON p.id = s.period_id
-             WHERE s.id = $1::uuid LIMIT 1`,
+             WHERE s.school_id = $1::uuid AND s.id = $2::uuid LIMIT 1`,
+            tenant.schoolId,
             slotId,
           )) as Array<{
             id: string;
