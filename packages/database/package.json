@@ -38,6 +38,7 @@
     "seed:clubs": "tsx src/seed-clubs.ts",
     "seed:groups": "tsx src/seed-groups.ts",
     "seed:transport": "tsx src/seed-transport.ts",
+    "seed:transport-advanced": "tsx src/seed-transport-advanced.ts",
     "seed:food-service": "tsx src/seed-food-service.ts",
     "seed:facilities": "tsx src/seed-facilities.ts",
     "seed:it": "tsx src/seed-it.ts",

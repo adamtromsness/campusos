@@ -123,6 +123,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Food Service Advanced — preorders, production reports (P2-10b)',
     script: 'seed-food-service-advanced-b.ts',
   },
+  {
+    label: 'Transportation Advanced — fleet maintenance, fuel, driver hours (P2-11a)',
+    script: 'seed-transport-advanced.ts',
+  },
 ];
 
 async function main(): Promise<void> {

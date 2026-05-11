@@ -16,6 +16,14 @@ import { RunLogService } from './run-log.service';
 import { NoShowService } from './no-show.service';
 import { DelayReportService } from './delay-report.service';
 import { TransportController } from './transport.controller';
+// P2-11a — Fleet Maintenance + Fuel + Driver Hours
+import { RepairService } from './repair.service';
+import { PartsService } from './parts.service';
+import { ComponentService } from './component.service';
+import { FuelLogService } from './fuel-log.service';
+import { DriverHoursService } from './driver-hours.service';
+import { VehicleLifecycleService } from './vehicle-lifecycle.service';
+import { FleetMaintenanceController } from './fleet-maintenance.controller';
 
 /**
  * Transport Module — M61 Transportation (Cycle 19).
@@ -54,8 +62,15 @@ import { TransportController } from './transport.controller';
     RunLogService,
     NoShowService,
     DelayReportService,
+    // P2-11a
+    RepairService,
+    PartsService,
+    ComponentService,
+    FuelLogService,
+    DriverHoursService,
+    VehicleLifecycleService,
   ],
-  controllers: [TransportController],
+  controllers: [TransportController, FleetMaintenanceController],
   exports: [
     RouteService,
     StopService,
@@ -68,6 +83,13 @@ import { TransportController } from './transport.controller';
     RunLogService,
     NoShowService,
     DelayReportService,
+    // P2-11a
+    RepairService,
+    PartsService,
+    ComponentService,
+    FuelLogService,
+    DriverHoursService,
+    VehicleLifecycleService,
   ],
 })
 export class TransportModule {}
