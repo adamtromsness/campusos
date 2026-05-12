@@ -61,13 +61,38 @@ The 6 dimensions to score for this cycle:
    - sub_assignment_id soft FK to P2-9 sub_assignments documented as
      soft (informational link)?
 
-## Round 1 Verdict — TBD
+## Final Verdict — APPROVED at the closeout commit (2026-05-12)
 
-Awaiting reviewer verdict. The cycle ships clean from the build side:
+Round 2 against `260e3d6` returned **PASS** across all 8 dimensions.
+The reviewer's per-finding verification table marks every prior
+blocker FIXED and confirmed every dimension score at PASS.
 
-- 25-assertion live smoke green on tenant_demo.
+| Dimension           |    Final |
+| ------------------- | -------: |
+| Event Durability    | **PASS** |
+| Schedule Generation | **PASS** |
+| Co-Teaching         | **PASS** |
+| Exam Scheduling     | **PASS** |
+| Pull-Out            | **PASS** |
+| Cover Arrangements  | **PASS** |
+| Subject Choices     | **PASS** |
+| Test Coverage       | **PASS** |
+
+Tagged `p2c17-complete` at `260e3d6` and `p2c17-approved` at the
+closeout commit. Three non-blocking follow-ups (cover coordinator
+role split / pull-out repremark endpoint / exam room
+auto-conflict-check) correctly carried to Phase 2 punch list per
+the reviewer's gate decision — recommendation-class polish, not
+gate blockers.
+
+**Wave C (Operational Depth) closes here.**
+
+Round 1 build-side green markers preserved below for review trail:
+
+- 25-assertion live smoke green on `tenant_demo`.
 - All 26 P2-17b routes registered on boot.
-- 783/783 tests passing.
+- 783/783 tests passing (Round 1 build state) → **810/810** after the
+  Round 1 fix commit.
 - Format + lint + API + web build all clean.
 
 ## Round 1 fix evidence (when applicable)

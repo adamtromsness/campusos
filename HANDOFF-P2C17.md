@@ -1,14 +1,29 @@
 # HANDOFF — Phase 2 Cycle 17 (Scheduling Advanced)
 
-**Status:** REVIEW-P2C17 Round 1 fixes applied at the closeout commit
-(2026-05-12). Round 1 reviewer flagged 6 BLOCKING + 4 MAJOR against
-`0406694` + `c4d13f1`; the closeout commit lands all 6 BLOCKINGs + 1
-MAJOR (raw STAFF bypass replaced with explicit `sch-001:admin` perm
-via `PermissionCheckService`) plus 27 new pinned regression tests so
-the contracts cannot regress. 3 MAJORs carried as recommendation-class
-Phase 2 follow-ups. CI parity green at 810/810 tests across 38 spec
-files. Wave C (Operational Depth) closes here. Awaiting Round 2
-verdict before tagging `p2c17-complete`.
+**Status: COMPLETE + APPROVED (Round 2 PASS, 2026-05-12).** Round 1
+against `0406694` + `c4d13f1` returned FAIL with 6 BLOCKING + 4 MAJOR;
+Round 2 against `260e3d6` returned PASS — reviewer confirmed every
+prior blocker FIXED and every dimension score (Event Durability /
+Schedule Generation / Co-Teaching / Exam Scheduling / Pull-Out / Cover
+Arrangements / Subject Choices / Test Coverage) at PASS. Tagged
+`p2c17-complete` at `260e3d6` (the Round 1 fix that earned Round 2
+PASS) and `p2c17-approved` at the closeout commit. **Wave C
+(Operational Depth) closes here.** Three non-blocking carry-overs to
+Phase 2 / pre-pilot per the Round 2 reviewer's gate decision:
+
+1. Dedicated cover coordinator role split — joins the broader Wave-2
+   Phase 2 role-split chain. Today the service gates writes on
+   `actor.isSchoolAdmin` mirroring Cycle 5 CoverageService.
+2. `POST /scheduling/pull-outs/:id/repremark` for cadence-change
+   repremarking — operators currently DELETE + re-create.
+3. Auto-call `findRoomConflicts` on `POST /scheduling/exams/:id/rooms`
+   so the safe-by-default workflow surfaces conflicts immediately.
+
+Wave C ships clean. The platform now carries the complete
+operational-depth surface across Cycles 11 + 12 + 13 + 14 + 15 + 17
+(Cycle 16 bundled into P2-4) — transportation, events + ticketing,
+SIS advanced, behaviour advanced, analytics read models, scheduling
+advanced.
 
 ## Round 1 fix log (REVIEW-P2C17, 2026-05-12)
 
