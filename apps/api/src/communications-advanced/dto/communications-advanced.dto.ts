@@ -440,6 +440,249 @@ export class BroadcastDeliveryEventDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) bounced?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) unsubscribed?: number;
 }
+// ─── P2-19b: Moderation + Push Campaigns + Appeals ────────────────
+
+export type ModerationScope = 'PLATFORM' | 'DISTRICT' | 'BUILDING';
+export const MODERATION_SCOPES: ModerationScope[] = ['PLATFORM', 'DISTRICT', 'BUILDING'];
+
+export type KeywordAction = 'BLOCK' | 'FLAG_FOR_REVIEW' | 'ESCALATE_TO_COUNSELLOR';
+export const KEYWORD_ACTIONS: KeywordAction[] = [
+  'BLOCK',
+  'FLAG_FOR_REVIEW',
+  'ESCALATE_TO_COUNSELLOR',
+];
+
+export type ActionTaken =
+  | 'BLOCKED'
+  | 'FLAGGED_FOR_REVIEW'
+  | 'ESCALATED_TO_COUNSELLOR'
+  | 'AUTO_APPROVED';
+export const ACTIONS_TAKEN: ActionTaken[] = [
+  'BLOCKED',
+  'FLAGGED_FOR_REVIEW',
+  'ESCALATED_TO_COUNSELLOR',
+  'AUTO_APPROVED',
+];
+
+export type ReviewStatus = 'PENDING' | 'RELEASED' | 'CONFIRMED_BLOCK' | 'ESCALATED';
+export const REVIEW_STATUSES: ReviewStatus[] = [
+  'PENDING',
+  'RELEASED',
+  'CONFIRMED_BLOCK',
+  'ESCALATED',
+];
+
+export type AppealStatus = 'SUBMITTED' | 'UPHELD' | 'OVERTURNED';
+export const APPEAL_STATUSES: AppealStatus[] = ['SUBMITTED', 'UPHELD', 'OVERTURNED'];
+
+export type PushCampaignStatus = 'DRAFT' | 'SCHEDULED' | 'SENT' | 'CANCELLED';
+export const PUSH_CAMPAIGN_STATUSES: PushCampaignStatus[] = [
+  'DRAFT',
+  'SCHEDULED',
+  'SENT',
+  'CANCELLED',
+];
+
+export type DevicePlatform = 'IOS' | 'ANDROID' | 'WEB';
+export const DEVICE_PLATFORMS: DevicePlatform[] = ['IOS', 'ANDROID', 'WEB'];
+
+export class CreateModerationRuleDto {
+  @ApiProperty({ enum: MODERATION_SCOPES }) @IsIn(MODERATION_SCOPES) scope!: ModerationScope;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() schoolId?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() scopeId?: string | null;
+  @ApiProperty() @IsString() @MinLength(1) @MaxLength(200) name!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) description?: string;
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  keywords!: string[];
+  @ApiProperty({ enum: KEYWORD_ACTIONS })
+  @IsIn(KEYWORD_ACTIONS)
+  keywordAction!: KeywordAction;
+  @ApiPropertyOptional() @IsOptional() aiSensitivityThreshold?: number | null;
+  @ApiPropertyOptional() @IsOptional() @IsObject() escalationRules?: Record<string, unknown>;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
+export class UpdateModerationRuleDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) name?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) description?: string;
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  keywords?: string[];
+  @ApiPropertyOptional({ enum: KEYWORD_ACTIONS })
+  @IsOptional()
+  @IsIn(KEYWORD_ACTIONS)
+  keywordAction?: KeywordAction;
+  @ApiPropertyOptional() @IsOptional() aiSensitivityThreshold?: number | null;
+  @ApiPropertyOptional() @IsOptional() @IsObject() escalationRules?: Record<string, unknown>;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
+export class ModerationRuleDto {
+  @ApiProperty() id!: string;
+  @ApiPropertyOptional() schoolId!: string | null;
+  @ApiProperty({ enum: MODERATION_SCOPES }) scope!: ModerationScope;
+  @ApiPropertyOptional() scopeId!: string | null;
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional() description!: string | null;
+  @ApiProperty({ type: [String] }) keywords!: string[];
+  @ApiProperty({ enum: KEYWORD_ACTIONS }) keywordAction!: KeywordAction;
+  @ApiPropertyOptional() aiSensitivityThreshold!: number | null;
+  @ApiProperty() escalationRules!: Record<string, unknown>;
+  @ApiProperty() isActive!: boolean;
+  @ApiPropertyOptional() createdBy!: string | null;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+}
+
+export class ModerationActionDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() messageId!: string;
+  @ApiProperty() messageCreatedAt!: string;
+  @ApiProperty() ruleId!: string;
+  @ApiProperty({ enum: ACTIONS_TAKEN }) actionTaken!: ActionTaken;
+  @ApiProperty({ type: [String] }) matchedKeywords!: string[];
+  @ApiPropertyOptional() aiSensitivityScore!: number | null;
+  @ApiProperty({ enum: REVIEW_STATUSES }) reviewStatus!: ReviewStatus;
+  @ApiPropertyOptional() reviewedBy!: string | null;
+  @ApiPropertyOptional() reviewedAt!: string | null;
+  @ApiPropertyOptional() reviewerNotes!: string | null;
+  @ApiProperty() createdAt!: string;
+}
+
+export class PatchModerationActionDto {
+  @ApiProperty({ enum: ['RELEASED', 'CONFIRMED_BLOCK', 'ESCALATED'] as ReviewStatus[] })
+  @IsIn(['RELEASED', 'CONFIRMED_BLOCK', 'ESCALATED'])
+  reviewStatus!: 'RELEASED' | 'CONFIRMED_BLOCK' | 'ESCALATED';
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) reviewerNotes?: string;
+}
+
+export class CreateAppealDto {
+  @ApiProperty() @IsString() @MinLength(1) @MaxLength(4000) appealReason!: string;
+}
+
+export class PatchAppealDto {
+  @ApiProperty({ enum: ['UPHELD', 'OVERTURNED'] as AppealStatus[] })
+  @IsIn(['UPHELD', 'OVERTURNED'])
+  status!: 'UPHELD' | 'OVERTURNED';
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) reviewerNotes?: string;
+}
+
+export class AppealDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() actionId!: string;
+  @ApiProperty() actionCreatedAt!: string;
+  @ApiProperty() appealedBy!: string;
+  @ApiProperty() appealReason!: string;
+  @ApiProperty({ enum: APPEAL_STATUSES }) status!: AppealStatus;
+  @ApiPropertyOptional() reviewedBy!: string | null;
+  @ApiPropertyOptional() reviewedAt!: string | null;
+  @ApiPropertyOptional() reviewerNotes!: string | null;
+  @ApiProperty() createdAt!: string;
+}
+
+export class AiAnalyzeRequestDto {
+  @ApiProperty() @IsUUID() messageId!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() text?: string;
+}
+
+export class AiModerationResultDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() messageId!: string;
+  @ApiProperty() messageCreatedAt!: string;
+  @ApiProperty() sensitivityScore!: number;
+  @ApiProperty() categoriesDetected!: Record<string, number>;
+  @ApiPropertyOptional() modelVersion!: string | null;
+  @ApiProperty() computedAt!: string;
+  @ApiProperty() cached!: boolean;
+}
+
+export class CreatePushCampaignDto {
+  @ApiProperty() @IsString() @MinLength(1) @MaxLength(200) title!: string;
+  @ApiProperty() @IsString() @MinLength(1) @MaxLength(4000) body!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) deepLinkUrl?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) imageS3Key?: string;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() audienceSegmentId?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() scheduledAt?: string | null;
+}
+
+export class UpdatePushCampaignDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) title?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(4000) body?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) deepLinkUrl?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) imageS3Key?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() audienceSegmentId?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() scheduledAt?: string | null;
+  @ApiPropertyOptional({ enum: ['DRAFT', 'SCHEDULED', 'CANCELLED'] })
+  @IsOptional()
+  @IsIn(['DRAFT', 'SCHEDULED', 'CANCELLED'])
+  status?: 'DRAFT' | 'SCHEDULED' | 'CANCELLED';
+}
+
+export class PushCampaignDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty() body!: string;
+  @ApiPropertyOptional() deepLinkUrl!: string | null;
+  @ApiPropertyOptional() imageS3Key!: string | null;
+  @ApiPropertyOptional() audienceSegmentId!: string | null;
+  @ApiPropertyOptional() scheduledAt!: string | null;
+  @ApiPropertyOptional() sentAt!: string | null;
+  @ApiProperty({ enum: PUSH_CAMPAIGN_STATUSES }) status!: PushCampaignStatus;
+  @ApiProperty() createdBy!: string;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+}
+
+export class PushAnalyticsDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() campaignId!: string;
+  @ApiProperty() totalTargeted!: number;
+  @ApiProperty() totalDelivered!: number;
+  @ApiProperty() totalOpened!: number;
+  @ApiProperty() totalClicked!: number;
+  @ApiPropertyOptional() deliveryRate!: number | null;
+  @ApiPropertyOptional() openRate!: number | null;
+  @ApiPropertyOptional() clickRate!: number | null;
+  @ApiPropertyOptional() lastUpdatedAt!: string | null;
+}
+
+export class RegisterPushDeviceDto {
+  @ApiProperty() @IsString() @MinLength(1) @MaxLength(500) deviceToken!: string;
+  @ApiProperty({ enum: DEVICE_PLATFORMS }) @IsIn(DEVICE_PLATFORMS) platform!: DevicePlatform;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) deviceName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(64) appVersion?: string;
+}
+
+export class PushDeviceTokenDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() userId!: string;
+  @ApiProperty() deviceToken!: string;
+  @ApiProperty({ enum: DEVICE_PLATFORMS }) platform!: DevicePlatform;
+  @ApiPropertyOptional() deviceName!: string | null;
+  @ApiPropertyOptional() appVersion!: string | null;
+  @ApiProperty() isActive!: boolean;
+  @ApiProperty() registeredAt!: string;
+  @ApiPropertyOptional() lastUsedAt!: string | null;
+}
+
+/**
+ * Worker / webhook contract for the PushAnalyticsWorker. Pinned here
+ * so the consumer spec asserts the inbound shape.
+ */
+export class PushDeliveryEventDto {
+  @ApiProperty() @IsUUID() campaignId!: string;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) delivered?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) opened?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) clicked?: number;
+}
+
 // Suppress import-unused on the symbols that read as unused — they're
 // load-bearing for class-transformer + class-validator metadata.
 void ArrayMaxSize;

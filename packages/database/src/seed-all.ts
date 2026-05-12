@@ -184,6 +184,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Communications Advanced — translations + templates + broadcast segments (P2-19a)',
     script: 'seed-communications-advanced.ts',
   },
+  {
+    label: 'Moderation + Push Campaigns — three-tier rules + appeals + push (P2-19b)',
+    script: 'seed-moderation-push.ts',
+  },
 ];
 
 async function main(): Promise<void> {

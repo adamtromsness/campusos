@@ -81,6 +81,7 @@
     "seed:scheduling-advanced": "tsx src/seed-scheduling-advanced.ts",
     "seed:scheduling-advanced-b": "tsx src/seed-scheduling-advanced-b.ts",
     "seed:communications-advanced": "tsx src/seed-communications-advanced.ts",
+    "seed:moderation-push": "tsx src/seed-moderation-push.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",
