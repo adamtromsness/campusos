@@ -85,7 +85,7 @@ export default function AnalyticsLandingPage() {
         </section>
       )}
 
-      <section className="mb-8 flex flex-wrap gap-2 text-sm">
+      <section className="mb-4 flex flex-wrap gap-2 text-sm">
         <NavChip href="/analytics/attendance" label="Attendance" />
         <NavChip href="/analytics/academics" label="Academics" />
         <NavChip href="/analytics/classes" label="Class performance" />
@@ -101,6 +101,43 @@ export default function AnalyticsLandingPage() {
         {isManager && <NavChip href="/analytics/scheduled-reports" label="Scheduled reports" />}
         {isManager && <NavChip href="/analytics/state-reports" label="State reports" />}
         {isDistrict && <NavChip href="/analytics/district" label="District" />}
+      </section>
+
+      {/* P2-15 Read-Model Hubs */}
+      <section className="mb-8 grid gap-4 sm:grid-cols-2">
+        <Link
+          href="/analytics/operations"
+          className="rounded-card border border-gray-200 bg-white p-5 shadow-sm transition hover:border-campus-400 hover:shadow-md"
+        >
+          <div className="text-xs font-semibold uppercase tracking-wide text-campus-700">
+            Operations
+          </div>
+          <div className="mt-1 text-lg font-semibold text-gray-900">P2-15a Read Models</div>
+          <div className="mt-2 text-sm text-gray-600">
+            Procurement &middot; Store sales &middot; Meal counts &middot; NSLP &middot; Ridership
+            &middot; Facilities condition + KPI &middot; Tech fleet &middot; Library circulation.
+          </div>
+          <div className="mt-3 inline-flex text-sm font-medium text-campus-700">
+            Open operations dashboard →
+          </div>
+        </Link>
+        <Link
+          href="/analytics/engagement"
+          className="rounded-card border border-gray-200 bg-white p-5 shadow-sm transition hover:border-campus-400 hover:shadow-md"
+        >
+          <div className="text-xs font-semibold uppercase tracking-wide text-campus-700">
+            Engagement &amp; performance
+          </div>
+          <div className="mt-1 text-lg font-semibold text-gray-900">P2-15b Read Models</div>
+          <div className="mt-2 text-sm text-gray-600">
+            Enrolment funnel &middot; Athletics season &middot; Officials &middot; Game results
+            &middot; Groups &middot; Publications &middot; Clubs &middot; Communications &middot;
+            Wellbeing trends (aggregate).
+          </div>
+          <div className="mt-3 inline-flex text-sm font-medium text-campus-700">
+            Open engagement dashboard →
+          </div>
+        </Link>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">

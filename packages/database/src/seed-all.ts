@@ -76,6 +76,11 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Analytics Operations — P2-15a read models (procurement/store/fds/trn/fac/tech/lib)',
     script: 'seed-analytics-operations.ts',
   },
+  {
+    label:
+      'Analytics Engagement — P2-15b read models (enr/ath/officials/grp/pub/clubs/comms/wellbeing)',
+    script: 'seed-analytics-engagement.ts',
+  },
   { label: 'DPO — governance + compliance', script: 'seed-dpo.ts' },
   { label: 'Visitors — kiosk, banned persons, muster (P2C1)', script: 'seed-visitors.ts' },
   {

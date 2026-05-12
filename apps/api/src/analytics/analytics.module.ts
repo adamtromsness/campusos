@@ -32,6 +32,18 @@ import {
 } from './operations/operations-workers.service';
 import { OperationsReadService } from './operations/operations-read.service';
 import { OperationsAnalyticsController } from './operations/operations-analytics.controller';
+import {
+  AthleticsReadModelWorker,
+  ClubsReadModelWorker,
+  CommsReadModelWorker,
+  EnrolmentReadModelWorker,
+  GroupsReadModelWorker,
+  OfficialsReadModelWorker,
+  PublicationsReadModelWorker,
+  WellbeingReadModelWorker,
+} from './engagement/engagement-workers.service';
+import { EngagementReadService } from './engagement/engagement-read.service';
+import { EngagementAnalyticsController } from './engagement/engagement-analytics.controller';
 
 /**
  * Analytics Module — M110 Analytics & Reporting (Cycle 29).
@@ -81,7 +93,17 @@ import { OperationsAnalyticsController } from './operations/operations-analytics
     ITReadModelWorker,
     LibraryReadModelWorker,
     OperationsReadService,
+    // P2-15b Engagement + Performance Read Models — 8 workers (7 live + 1 weekly batch), 1 read service.
+    EnrolmentReadModelWorker,
+    AthleticsReadModelWorker,
+    OfficialsReadModelWorker,
+    GroupsReadModelWorker,
+    PublicationsReadModelWorker,
+    ClubsReadModelWorker,
+    CommsReadModelWorker,
+    WellbeingReadModelWorker,
+    EngagementReadService,
   ],
-  controllers: [AnalyticsController, OperationsAnalyticsController],
+  controllers: [AnalyticsController, OperationsAnalyticsController, EngagementAnalyticsController],
 })
 export class AnalyticsModule {}
