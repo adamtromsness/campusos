@@ -47,16 +47,31 @@ interface CapturedCall {
 }
 
 function makeFake(handler?: (call: CapturedCall) => unknown) {
+  // capture only the rpt_* read-model UPSERTs the assertions exercise.
+  // rpt_event_contributions claim INSERTs (REVIEW-P2C15 R1 BLOCKING 1) are
+  // infrastructure and are tracked separately on `contributions` so the
+  // positional expectations against the read-model UPSERT keep working.
   const capture: CapturedCall[] = [];
+  const contributions: CapturedCall[] = [];
+  const record = (call: CapturedCall): void => {
+    if (call.sql.includes('rpt_event_contributions')) {
+      contributions.push(call);
+    } else {
+      capture.push(call);
+    }
+  };
   const client = {
     $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
       const call: CapturedCall = { sql, args };
-      capture.push(call);
+      record(call);
       return handler?.(call) ?? [];
     },
     $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
       const call: CapturedCall = { sql, args };
-      capture.push(call);
+      record(call);
+      // The contribution-ledger INSERT returns the affected-row count.
+      // For tests we always return 1 so the claim "succeeds" and the
+      // worker proceeds with the read-model UPSERT.
       return handler?.(call) ?? 1;
     },
   };
@@ -64,7 +79,7 @@ function makeFake(handler?: (call: CapturedCall) => unknown) {
     executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
     executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
   };
-  return { capture, tenantPrisma };
+  return { capture, contributions, tenantPrisma };
 }
 
 function makeCheckpointStub() {

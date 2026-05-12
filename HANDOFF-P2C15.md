@@ -1,5 +1,64 @@
 # HANDOFF — Phase 2 Cycle 15 (Analytics Read Models)
 
+**REVIEW-P2C15 Round 1 (against `2a3e835` + `a669917`) returned FAIL with
+3 BLOCKING + 3 MAJOR. The Round 1 fix commit lands all 3 BLOCKINGs + the
+1 actionable MAJOR (M4 source-event wiring checklist carried to the
+Phase 2 punch list) + 5 new pinned regression tests so the contracts
+cannot regress.**
+
+**BLOCKING fixes**:
+
+1. **Crash/redelivery idempotency for additive UPSERTs** — every P2-15
+   worker now wraps its read-model UPSERT in a tenant tx with an inner
+   contribution-ledger claim (`rpt_event_contributions` migration 148,
+   UNIQUE(consumer_group, source_event_id, target_table)). The
+   contribution INSERT runs `ON CONFLICT DO NOTHING` first; if 0 rows
+   are inserted (event already applied), the worker skips the UPSERT.
+   Both rows commit together or neither does — crash after the
+   read-model UPDATE but before the outer claim now leaves the
+   contribution row uncommitted, so redelivery cleanly re-applies
+   without double-counting. The outer `processWithIdempotency` claim
+   stays as outer defence-in-depth. Athletics + Food Service workers
+   record one contribution row per target table (they write to two
+   tables per event).
+
+2. **Batch materialisers school-scoped** —
+   `FacilitiesReadModelWorker.materialiseKpi(schoolId, period)` source
+   aggregate now adds `WHERE school_id = $2::uuid` to the `fac_work_orders`
+   scan. `OfficialsReadModelWorker.materialise(schoolId, period)` JOINs
+   through `ath_official_assignments → ath_games → ath_rosters →
+ath_seasons → ath_programmes` and adds `WHERE pr.school_id = $2::uuid`
+   (the lineage Cycle 13 documents). Also fixed an unrelated column-rename
+   bug — the aggregate referenced `AVG(stipend)` but the actual column on
+   `ath_official_assignments` is `fee`.
+
+3. **Envelope/payload tenant-school validation** — new
+   `assertPayloadSchoolMatchesEnvelope()` helper (in
+   `operations-worker-base.ts`) compares `payload.schoolId` against
+   `event.tenant.schoolId`. Every worker calls it before any
+   contribution-ledger claim or UPSERT. Mismatched events are dropped
+   with a WARN log and never reach the database. Synthetic test envelopes
+   without a `schoolId` proceed unconditionally for back-compat.
+
+**Schema change**: migration `148_rpt_event_contributions.sql` lands the
+new tenant table. Migration is additive only.
+
+**Test coverage**: vitest 772 → **777 across 36 spec files** (+5 pinned
+regression tests in a dedicated `describe('REVIEW-P2C15 R1 BLOCKING')`
+block — redelivery same-event no-op, two-target-table contribution
+fan-out, OfficialsReadModelWorker school-scoped aggregate SQL shape,
+EnrolmentReadModelWorker school-mismatch drop, WellbeingReadModelWorker
+school-mismatch drop). The two existing spec helper `makeFake` functions
+in `operations-workers.spec.ts` and `engagement-workers.spec.ts` were
+updated to capture rpt_event_contributions INSERTs onto a separate
+`contributions` array so the prior positional expectations against the
+read-model UPSERT call still pass.
+
+**CI parity green**: format:check + lint:logs (796 files clean) + API
+build clean + web build clean + vitest 777/777.
+
+---
+
 **Scope.** P2-15 ships M110 Analytics .1 — 18 domain-specific materialised
 read models wired to live Kafka consumers, replacing the nightly batch
 materialisation from Cycle 29 for every operational + engagement domain.

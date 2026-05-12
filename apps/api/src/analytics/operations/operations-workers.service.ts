@@ -5,7 +5,12 @@ import { IdempotencyService } from '../../kafka/idempotency.service';
 import { prefixedTopic } from '../../kafka/event-envelope';
 import { TenantPrismaService } from '../../tenant/tenant-prisma.service';
 import { CheckpointService } from '../workers.service';
-import { dispatchOperationsEvent, monthAnchor } from './operations-worker-base';
+import {
+  assertPayloadSchoolMatchesEnvelope,
+  claimReadModelContribution,
+  dispatchOperationsEvent,
+  monthAnchor,
+} from './operations-worker-base';
 import type { UnwrappedEvent } from '../../notifications/consumers/notification-consumer-base';
 
 /* =========================================================================
@@ -109,6 +114,17 @@ export class ProcurementReadModelWorker implements OnModuleInit {
       );
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        ProcurementReadModelWorker.CONSUMER_GROUP,
+        event.topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const period = isReceipt
       ? monthAnchor((p as ReceiptCompletedPayload).completedAt)
       : monthAnchor((p as PoIssuedPayload).issuedAt);
@@ -117,8 +133,15 @@ export class ProcurementReadModelWorker implements OnModuleInit {
     const leadTime = isReceipt ? Number((p as ReceiptCompletedPayload).leadTimeDays ?? 0) : null;
     const totalPosDelta = isReceipt ? 0 : 1;
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        ProcurementReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_procurement_summary',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_procurement_summary
           (id, school_id, period, department, vendor_id, total_pos, total_spend, avg_lead_time_days, generated_at)
          VALUES ($1::uuid, $2::uuid, $3::date, $4, $5::uuid, $6, $7::numeric, $8::numeric, now())
@@ -209,13 +232,31 @@ export class StoreReadModelWorker implements OnModuleInit {
       );
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        StoreReadModelWorker.CONSUMER_GROUP,
+        event.topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const period = monthAnchor(p.completedAt);
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        StoreReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_store_sales',
+      );
+      if (!claimed) return;
       for (const item of p.items) {
         const revenue = Number(item.revenue ?? 0);
         const cogs = Number(item.costOfGoods ?? 0);
         const margin = revenue > 0 ? (revenue - cogs) / revenue : null;
-        await client.$executeRawUnsafe(
+        await tx.$executeRawUnsafe(
           `INSERT INTO rpt_store_sales
             (id, school_id, period, product_id, units_sold, revenue, cost_of_goods, profit_margin, generated_at)
            VALUES ($1::uuid, $2::uuid, $3::date, $4::uuid, $5, $6::numeric, $7::numeric, $8::numeric, now())
@@ -306,6 +347,17 @@ export class FoodServiceReadModelWorker implements OnModuleInit {
       );
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        FoodServiceReadModelWorker.CONSUMER_GROUP,
+        event.topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const isWaste = p.wasted === true;
     const free = !isWaste && p.eligibilityCategory === 'FREE' ? 1 : 0;
     const reduced = !isWaste && p.eligibilityCategory === 'REDUCED' ? 1 : 0;
@@ -315,50 +367,66 @@ export class FoodServiceReadModelWorker implements OnModuleInit {
     const monthYear = monthAnchor(p.serviceDate);
     const reimb = Number(p.reimbursementEstimate ?? 0);
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      // Per-day meal counts
-      await client.$executeRawUnsafe(
-        `INSERT INTO rpt_fds_meal_counts
-          (id, school_id, service_date, meal_type, total_served, free_count, reduced_count, paid_count, waste_count, generated_at)
-         VALUES ($1::uuid, $2::uuid, $3::date, $4, $5, $6, $7, $8, $9, now())
-         ON CONFLICT (school_id, service_date, meal_type) DO UPDATE
-           SET total_served = rpt_fds_meal_counts.total_served + EXCLUDED.total_served,
-               free_count = rpt_fds_meal_counts.free_count + EXCLUDED.free_count,
-               reduced_count = rpt_fds_meal_counts.reduced_count + EXCLUDED.reduced_count,
-               paid_count = rpt_fds_meal_counts.paid_count + EXCLUDED.paid_count,
-               waste_count = rpt_fds_meal_counts.waste_count + EXCLUDED.waste_count,
-               generated_at = now()`,
-        generateId(),
-        p.schoolId,
-        p.serviceDate,
-        p.mealType,
-        total,
-        free,
-        reduced,
-        paid,
-        waste,
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // Per-day meal counts — claim contribution for this target table first
+      const mealClaimed = await claimReadModelContribution(
+        tx,
+        FoodServiceReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_fds_meal_counts',
       );
-
-      // Monthly NSLP summary
-      if (!isWaste) {
-        await client.$executeRawUnsafe(
-          `INSERT INTO rpt_fds_nslp_summary
-            (id, school_id, month_year, free_meals, reduced_meals, paid_meals, total_reimbursement_estimate, generated_at)
-           VALUES ($1::uuid, $2::uuid, $3::date, $4, $5, $6, $7::numeric, now())
-           ON CONFLICT (school_id, month_year) DO UPDATE
-             SET free_meals = rpt_fds_nslp_summary.free_meals + EXCLUDED.free_meals,
-                 reduced_meals = rpt_fds_nslp_summary.reduced_meals + EXCLUDED.reduced_meals,
-                 paid_meals = rpt_fds_nslp_summary.paid_meals + EXCLUDED.paid_meals,
-                 total_reimbursement_estimate = rpt_fds_nslp_summary.total_reimbursement_estimate + EXCLUDED.total_reimbursement_estimate,
+      if (mealClaimed) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO rpt_fds_meal_counts
+            (id, school_id, service_date, meal_type, total_served, free_count, reduced_count, paid_count, waste_count, generated_at)
+           VALUES ($1::uuid, $2::uuid, $3::date, $4, $5, $6, $7, $8, $9, now())
+           ON CONFLICT (school_id, service_date, meal_type) DO UPDATE
+             SET total_served = rpt_fds_meal_counts.total_served + EXCLUDED.total_served,
+                 free_count = rpt_fds_meal_counts.free_count + EXCLUDED.free_count,
+                 reduced_count = rpt_fds_meal_counts.reduced_count + EXCLUDED.reduced_count,
+                 paid_count = rpt_fds_meal_counts.paid_count + EXCLUDED.paid_count,
+                 waste_count = rpt_fds_meal_counts.waste_count + EXCLUDED.waste_count,
                  generated_at = now()`,
           generateId(),
           p.schoolId,
-          monthYear,
+          p.serviceDate,
+          p.mealType,
+          total,
           free,
           reduced,
           paid,
-          reimb.toFixed(2),
+          waste,
         );
+      }
+
+      // Monthly NSLP summary — separate contribution row per target table
+      if (!isWaste) {
+        const nslpClaimed = await claimReadModelContribution(
+          tx,
+          FoodServiceReadModelWorker.CONSUMER_GROUP,
+          event.eventId,
+          'rpt_fds_nslp_summary',
+        );
+        if (nslpClaimed) {
+          await tx.$executeRawUnsafe(
+            `INSERT INTO rpt_fds_nslp_summary
+              (id, school_id, month_year, free_meals, reduced_meals, paid_meals, total_reimbursement_estimate, generated_at)
+             VALUES ($1::uuid, $2::uuid, $3::date, $4, $5, $6, $7::numeric, now())
+             ON CONFLICT (school_id, month_year) DO UPDATE
+               SET free_meals = rpt_fds_nslp_summary.free_meals + EXCLUDED.free_meals,
+                   reduced_meals = rpt_fds_nslp_summary.reduced_meals + EXCLUDED.reduced_meals,
+                   paid_meals = rpt_fds_nslp_summary.paid_meals + EXCLUDED.paid_meals,
+                   total_reimbursement_estimate = rpt_fds_nslp_summary.total_reimbursement_estimate + EXCLUDED.total_reimbursement_estimate,
+                   generated_at = now()`,
+            generateId(),
+            p.schoolId,
+            monthYear,
+            free,
+            reduced,
+            paid,
+            reimb.toFixed(2),
+          );
+        }
       }
     });
   }
@@ -426,13 +494,31 @@ export class TransportReadModelWorker implements OnModuleInit {
       );
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        TransportReadModelWorker.CONSUMER_GROUP,
+        event.topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const period = monthAnchor(p.completedAt);
     const ridersDelta = Math.max(0, Number(p.riderCount ?? 0));
     const durationDelta = Math.max(0, Number(p.durationMinutes ?? 0));
     const onTimeDelta = p.onTime ? 1 : 0;
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        TransportReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_trn_ridership_summary',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_trn_ridership_summary
           (id, school_id, route_id, period, total_runs, total_riders, avg_riders_per_run, on_time_rate, avg_duration_minutes, generated_at)
          VALUES ($1::uuid, $2::uuid, $3::uuid, $4::date, 1, $5, $6::numeric, $7::numeric, $8::numeric, now())
@@ -543,9 +629,27 @@ export class FacilitiesReadModelWorker implements OnModuleInit {
       this.logger.warn('[' + FacilitiesReadModelWorker.CONSUMER_GROUP + '] missing fields — drop');
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        FacilitiesReadModelWorker.CONSUMER_GROUP,
+        event.topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const score = Math.min(10, Math.max(0, Number(p.conditionScore ?? 0)));
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        FacilitiesReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_facilities_condition',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_facilities_condition
           (id, school_id, building_id, space_id, last_inspection_date, condition_score, open_work_orders, overdue_work_orders, generated_at)
          VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::date, $6::numeric, 0, 0, now())
@@ -569,12 +673,30 @@ export class FacilitiesReadModelWorker implements OnModuleInit {
       this.logger.warn('[' + FacilitiesReadModelWorker.CONSUMER_GROUP + '] missing fields — drop');
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        FacilitiesReadModelWorker.CONSUMER_GROUP,
+        event.topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     // For COMPLETED work orders, the row may have had an open WO counted upstream
     // and the consumer here decrements when status flips COMPLETED. For demo we
     // simply ensure a row exists. Real implementation would also consume
     // fac.work_order.created to bump open_work_orders.
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        FacilitiesReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_facilities_condition',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_facilities_condition
           (id, school_id, building_id, space_id, condition_score, open_work_orders, overdue_work_orders, generated_at)
          VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, NULL, 0, 0, now())
@@ -610,12 +732,17 @@ export class FacilitiesReadModelWorker implements OnModuleInit {
     let rowsWritten = 0;
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
+        // REVIEW-P2C15 R1 BLOCKING 2 — school-scope the source aggregate so
+        // cross-school work orders in a multi-school tenant cannot pollute the
+        // current school's KPI row.
         `SELECT COUNT(*)::int AS total_work_orders,
                 COUNT(*) FILTER (WHERE status = 'COMPLETED' AND completed_at IS NOT NULL)::int AS completed_on_time,
                 AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 86400)::numeric AS avg_resolution_days
          FROM fac_work_orders
-         WHERE created_at >= $1::date AND created_at < ($1::date + INTERVAL '1 month')`,
+         WHERE school_id = $2::uuid
+           AND created_at >= $1::date AND created_at < ($1::date + INTERVAL '1 month')`,
         anchor,
+        schoolId,
       )) as Array<{
         total_work_orders: number;
         completed_on_time: number;
@@ -718,6 +845,17 @@ export class ITReadModelWorker implements OnModuleInit {
       this.logger.warn('[' + ITReadModelWorker.CONSUMER_GROUP + '] missing fields — drop');
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        ITReadModelWorker.CONSUMER_GROUP,
+        topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     let totalDelta = 0;
     let activeDelta = 0;
     let repairDelta = 0;
@@ -739,8 +877,15 @@ export class ITReadModelWorker implements OnModuleInit {
 
     const ageMonths = Number(p.ageMonths ?? 0);
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        ITReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_tech_fleet_status',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_tech_fleet_status
           (id, school_id, device_type, total_devices, active, in_repair, decommissioned, avg_age_months, incident_rate, generated_at)
          VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::numeric, 0::numeric, now())
@@ -858,6 +1003,17 @@ export class LibraryReadModelWorker implements OnModuleInit {
       );
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        LibraryReadModelWorker.CONSUMER_GROUP,
+        event.topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const period = monthAnchor(
       isReturn ? (p as ReturnCompletedPayload).returnedAt : (p as CheckoutCreatedPayload).createdAt,
     );
@@ -869,8 +1025,15 @@ export class LibraryReadModelWorker implements OnModuleInit {
       ? Number((p as ReturnCompletedPayload).loanDurationDays ?? 0)
       : null;
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        LibraryReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_lib_circulation_summary',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_lib_circulation_summary
           (id, school_id, period, total_checkouts, total_returns, overdue_count, popular_titles, avg_loan_duration_days, generated_at)
          VALUES ($1::uuid, $2::uuid, $3::date, $4, $5, $6, $7::jsonb, $8::numeric, now())

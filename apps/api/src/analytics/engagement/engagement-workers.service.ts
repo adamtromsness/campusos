@@ -5,7 +5,12 @@ import { IdempotencyService } from '../../kafka/idempotency.service';
 import { prefixedTopic } from '../../kafka/event-envelope';
 import { TenantPrismaService } from '../../tenant/tenant-prisma.service';
 import { CheckpointService } from '../workers.service';
-import { dispatchOperationsEvent, monthAnchor } from '../operations/operations-worker-base';
+import {
+  assertPayloadSchoolMatchesEnvelope,
+  claimReadModelContribution,
+  dispatchOperationsEvent,
+  monthAnchor,
+} from '../operations/operations-worker-base';
 import type { UnwrappedEvent } from '../../notifications/consumers/notification-consumer-base';
 
 /* =========================================================================
@@ -149,6 +154,17 @@ export class EnrolmentReadModelWorker implements OnModuleInit {
       this.logger.warn('[' + EnrolmentReadModelWorker.CONSUMER_GROUP + '] missing schoolId — drop');
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        schoolId,
+        EnrolmentReadModelWorker.CONSUMER_GROUP,
+        topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const academicYear =
       (typeof p.academicYearName === 'string' && p.academicYearName) ||
       (typeof p.academicYear === 'string' && p.academicYear) ||
@@ -172,8 +188,15 @@ export class EnrolmentReadModelWorker implements OnModuleInit {
     } else if (topic.endsWith('enr.student.enrolled')) enrolledDelta = 1;
     else if (topic.endsWith('enr.tour.booked')) toursDelta = 1;
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        EnrolmentReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_enr_funnel_summary',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_enr_funnel_summary
           (id, school_id, academic_year, applications_received, tours_booked, offers_made,
            offers_accepted, enrolled, waitlisted, conversion_rate, generated_at)
@@ -275,6 +298,17 @@ export class AthleticsReadModelWorker implements OnModuleInit {
       );
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        AthleticsReadModelWorker.CONSUMER_GROUP,
+        event.topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const winDelta = p.result === 'WIN' ? 1 : 0;
     const lossDelta = p.result === 'LOSS' ? 1 : 0;
     const drawDelta = p.result === 'DRAW' ? 1 : 0;
@@ -282,61 +316,77 @@ export class AthleticsReadModelWorker implements OnModuleInit {
     const rosterSize = Number(p.rosterSize ?? 0);
     const leaders = JSON.stringify(p.statisticalLeaders ?? []);
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // 2a. Per-game grain → rpt_game_results
-      await client.$executeRawUnsafe(
-        `INSERT INTO rpt_game_results
-          (id, school_id, game_id, sport, home_score, away_score, result, season_id, statistical_leaders, generated_at)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8::uuid, $9::jsonb, now())
-         ON CONFLICT (school_id, game_id) DO UPDATE
-           SET sport = EXCLUDED.sport,
-               home_score = EXCLUDED.home_score,
-               away_score = EXCLUDED.away_score,
-               result = EXCLUDED.result,
-               season_id = EXCLUDED.season_id,
-               statistical_leaders = EXCLUDED.statistical_leaders,
-               generated_at = now()`,
-        generateId(),
-        p.schoolId,
-        p.gameId,
-        p.sport,
-        p.homeScore,
-        p.awayScore,
-        p.result,
-        p.seasonId,
-        leaders,
+      const gameClaimed = await claimReadModelContribution(
+        tx,
+        AthleticsReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_game_results',
       );
+      if (gameClaimed) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO rpt_game_results
+            (id, school_id, game_id, sport, home_score, away_score, result, season_id, statistical_leaders, generated_at)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8::uuid, $9::jsonb, now())
+           ON CONFLICT (school_id, game_id) DO UPDATE
+             SET sport = EXCLUDED.sport,
+                 home_score = EXCLUDED.home_score,
+                 away_score = EXCLUDED.away_score,
+                 result = EXCLUDED.result,
+                 season_id = EXCLUDED.season_id,
+                 statistical_leaders = EXCLUDED.statistical_leaders,
+                 generated_at = now()`,
+          generateId(),
+          p.schoolId,
+          p.gameId,
+          p.sport,
+          p.homeScore,
+          p.awayScore,
+          p.result,
+          p.seasonId,
+          leaders,
+        );
+      }
 
       // 2b. Per-(school, season, programme) rollup → rpt_ath_season_summary
-      await client.$executeRawUnsafe(
-        `INSERT INTO rpt_ath_season_summary
-          (id, school_id, season_id, programme_id, games_played, wins, losses, draws,
-           win_rate, total_roster_size, injury_count, generated_at)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 1, $5, $6, $7, NULL, $8, $9, now())
-         ON CONFLICT (school_id, season_id, programme_id) DO UPDATE
-           SET games_played = rpt_ath_season_summary.games_played + 1,
-               wins = rpt_ath_season_summary.wins + EXCLUDED.wins,
-               losses = rpt_ath_season_summary.losses + EXCLUDED.losses,
-               draws = rpt_ath_season_summary.draws + EXCLUDED.draws,
-               win_rate = CASE
-                 WHEN (rpt_ath_season_summary.games_played + 1) > 0
-                 THEN ((rpt_ath_season_summary.wins + EXCLUDED.wins)::numeric
-                       / (rpt_ath_season_summary.games_played + 1))
-                 ELSE NULL
-               END,
-               total_roster_size = GREATEST(rpt_ath_season_summary.total_roster_size, EXCLUDED.total_roster_size),
-               injury_count = rpt_ath_season_summary.injury_count + EXCLUDED.injury_count,
-               generated_at = now()`,
-        generateId(),
-        p.schoolId,
-        p.seasonId,
-        p.programmeId,
-        winDelta,
-        lossDelta,
-        drawDelta,
-        rosterSize,
-        injuries,
+      const seasonClaimed = await claimReadModelContribution(
+        tx,
+        AthleticsReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_ath_season_summary',
       );
+      if (seasonClaimed) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO rpt_ath_season_summary
+            (id, school_id, season_id, programme_id, games_played, wins, losses, draws,
+             win_rate, total_roster_size, injury_count, generated_at)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 1, $5, $6, $7, NULL, $8, $9, now())
+           ON CONFLICT (school_id, season_id, programme_id) DO UPDATE
+             SET games_played = rpt_ath_season_summary.games_played + 1,
+                 wins = rpt_ath_season_summary.wins + EXCLUDED.wins,
+                 losses = rpt_ath_season_summary.losses + EXCLUDED.losses,
+                 draws = rpt_ath_season_summary.draws + EXCLUDED.draws,
+                 win_rate = CASE
+                   WHEN (rpt_ath_season_summary.games_played + 1) > 0
+                   THEN ((rpt_ath_season_summary.wins + EXCLUDED.wins)::numeric
+                         / (rpt_ath_season_summary.games_played + 1))
+                   ELSE NULL
+                 END,
+                 total_roster_size = GREATEST(rpt_ath_season_summary.total_roster_size, EXCLUDED.total_roster_size),
+                 injury_count = rpt_ath_season_summary.injury_count + EXCLUDED.injury_count,
+                 generated_at = now()`,
+          generateId(),
+          p.schoolId,
+          p.seasonId,
+          p.programmeId,
+          winDelta,
+          lossDelta,
+          drawDelta,
+          rosterSize,
+          injuries,
+        );
+      }
     });
   }
 }
@@ -394,12 +444,29 @@ export class OfficialsReadModelWorker {
       }
 
       const rows = (await client.$queryRawUnsafe(
+        // REVIEW-P2C15 R1 BLOCKING 2 — school-scope the source aggregate so
+        // cross-school assignments in a multi-school tenant cannot pollute the
+        // current school's marketplace row. ath_official_assignments has no
+        // direct school_id column; the chain is
+        //   ath_official_assignments.game_id
+        //     → ath_games.roster_id → ath_rosters.season_id
+        //       → ath_seasons.programme_id → ath_programmes.school_id
+        // Cycle 13 documented this lineage.
+        //
+        // Also fixed: the prior SQL referenced AVG(stipend) but the actual
+        // column on ath_official_assignments is `fee`.
         `SELECT COUNT(*)::int AS total_assignments,
-                COUNT(*) FILTER (WHERE status = 'CONFIRMED')::int AS filled,
-                AVG(stipend)::numeric AS avg_cost_per_game
-         FROM ath_official_assignments
-         WHERE created_at >= $1::date AND created_at < ($1::date + INTERVAL '7 days')`,
+                COUNT(*) FILTER (WHERE oa.status = 'CONFIRMED')::int AS filled,
+                AVG(oa.fee)::numeric AS avg_cost_per_game
+         FROM ath_official_assignments oa
+         JOIN ath_games g ON g.id = oa.game_id
+         JOIN ath_rosters r ON r.id = g.roster_id
+         JOIN ath_seasons s ON s.id = r.season_id
+         JOIN ath_programmes pr ON pr.id = s.programme_id
+         WHERE pr.school_id = $2::uuid
+           AND oa.created_at >= $1::date AND oa.created_at < ($1::date + INTERVAL '7 days')`,
         period,
+        schoolId,
       )) as Array<{
         total_assignments: number;
         filled: number;
@@ -499,6 +566,17 @@ export class GroupsReadModelWorker implements OnModuleInit {
       this.logger.warn('[' + GroupsReadModelWorker.CONSUMER_GROUP + '] missing fields — drop');
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        GroupsReadModelWorker.CONSUMER_GROUP,
+        topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const period = monthAnchor(p.occurredAt);
     let postsDelta = 0;
     let commentsDelta = 0;
@@ -507,8 +585,15 @@ export class GroupsReadModelWorker implements OnModuleInit {
     else if (topic.endsWith('grp.comment.created')) commentsDelta = 1;
     else if (topic.endsWith('grp.member.joined')) memberDelta = 1;
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        GroupsReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_grp_engagement_summary',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_grp_engagement_summary
           (id, school_id, group_id, period, total_members, active_members,
            posts_count, comments_count, engagement_rate, generated_at)
@@ -601,13 +686,31 @@ export class PublicationsReadModelWorker implements OnModuleInit {
       );
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        PublicationsReadModelWorker.CONSUMER_GROUP,
+        event.topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const period = monthAnchor(p.publishedAt);
     const ttp = Number(p.timeToPublishDays ?? 0);
     const views = Math.max(0, Number(p.views ?? 0));
     const downloads = Math.max(0, Number(p.downloads ?? 0));
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        PublicationsReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_pub_distribution_summary',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_pub_distribution_summary
           (id, school_id, period, publications_count, total_views, total_downloads,
            avg_time_to_publish_days, generated_at)
@@ -696,13 +799,31 @@ export class ClubsReadModelWorker implements OnModuleInit {
       this.logger.warn('[' + ClubsReadModelWorker.CONSUMER_GROUP + '] missing fields — drop');
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        ClubsReadModelWorker.CONSUMER_GROUP,
+        event.topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const attendees = Math.max(0, Number(p.attendees ?? 0));
     const registered = Math.max(0, Number(p.totalRegistered ?? attendees));
     const attRate = registered > 0 ? Math.min(attendees / registered, 1).toFixed(4) : null;
     const budget = Number(p.budgetSpent ?? 0);
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        ClubsReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_ext_service_summary',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_ext_service_summary
           (id, school_id, academic_year, club_id, total_members, attendance_rate,
            events_held, budget_spent, generated_at)
@@ -789,6 +910,17 @@ export class CommsReadModelWorker implements OnModuleInit {
       this.logger.warn('[' + CommsReadModelWorker.CONSUMER_GROUP + '] missing fields — drop');
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        CommsReadModelWorker.CONSUMER_GROUP,
+        topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const period = monthAnchor(p.sentAt);
     const isBroadcast = topic.endsWith('msg.broadcast.sent');
     const messagesDelta = isBroadcast ? 0 : 1;
@@ -800,8 +932,15 @@ export class CommsReadModelWorker implements OnModuleInit {
         ? null
         : Math.max(0, Number(p.responseTimeHours));
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        CommsReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_msg_communication_metrics',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_msg_communication_metrics
           (id, school_id, period, messages_sent, broadcasts_sent, delivery_rate,
            read_rate, avg_response_time_hours, generated_at)
@@ -919,6 +1058,17 @@ export class WellbeingReadModelWorker implements OnModuleInit {
       this.logger.warn('[' + WellbeingReadModelWorker.CONSUMER_GROUP + '] missing fields — drop');
       return;
     }
+    if (
+      !assertPayloadSchoolMatchesEnvelope(
+        event,
+        p.schoolId,
+        WellbeingReadModelWorker.CONSUMER_GROUP,
+        event.topic,
+        this.logger,
+      )
+    ) {
+      return;
+    }
     const period = monthAnchor(p.submittedAt);
     const score =
       p.numericResponse === null || p.numericResponse === undefined
@@ -933,8 +1083,15 @@ export class WellbeingReadModelWorker implements OnModuleInit {
         (p.questionType === 'SCALE_1_10' && score <= 2));
     const belowThresholdDelta = isSafetyLow ? 1 : 0;
 
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const claimed = await claimReadModelContribution(
+        tx,
+        WellbeingReadModelWorker.CONSUMER_GROUP,
+        event.eventId,
+        'rpt_wellbeing_domain_trends',
+      );
+      if (!claimed) return;
+      await tx.$executeRawUnsafe(
         `INSERT INTO rpt_wellbeing_domain_trends
           (id, school_id, period, grade_level, domain, avg_score, response_count, below_threshold_count, generated_at)
          VALUES ($1::uuid, $2::uuid, $3::date, $4, $5, $6::numeric, 1, $7, now())

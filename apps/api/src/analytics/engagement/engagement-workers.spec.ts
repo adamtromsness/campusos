@@ -44,16 +44,28 @@ interface CapturedCall {
 }
 
 function makeFake(handler?: (call: CapturedCall) => unknown) {
+  // capture only the rpt_* read-model UPSERTs the assertions exercise.
+  // rpt_event_contributions claim INSERTs (REVIEW-P2C15 R1 BLOCKING 1) are
+  // infrastructure and are tracked separately on `contributions` so the
+  // positional expectations against the read-model UPSERT keep working.
   const capture: CapturedCall[] = [];
+  const contributions: CapturedCall[] = [];
+  const record = (call: CapturedCall): void => {
+    if (call.sql.includes('rpt_event_contributions')) {
+      contributions.push(call);
+    } else {
+      capture.push(call);
+    }
+  };
   const client = {
     $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
       const call: CapturedCall = { sql, args };
-      capture.push(call);
+      record(call);
       return handler?.(call) ?? [];
     },
     $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
       const call: CapturedCall = { sql, args };
-      capture.push(call);
+      record(call);
       return handler?.(call) ?? 1;
     },
   };
@@ -61,7 +73,7 @@ function makeFake(handler?: (call: CapturedCall) => unknown) {
     executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
     executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
   };
-  return { capture, tenantPrisma };
+  return { capture, contributions, tenantPrisma };
 }
 
 function makeCheckpointStub() {
@@ -429,6 +441,212 @@ describe('WellbeingReadModelWorker — PRIVACY KEYSTONE', () => {
         'dev.svc.wellbeing.response.submitted',
       ),
     );
+    expect(capture.length).toBe(0);
+  });
+});
+
+/* =====================================================================
+ * REVIEW-P2C15 R1 REGRESSION TESTS
+ *
+ * Pin the three blockers raised in the Round 1 review against
+ * `2a3e835` + `a669917`:
+ *
+ *   BLOCKING 1 — additive UPSERTs are not idempotent under crash/redelivery
+ *               without a per-source-event contribution ledger.
+ *   BLOCKING 2 — batch materialisers were not school-scoped while writing
+ *               per-school rows.
+ *   BLOCKING 3 — workers trusted payload.schoolId without validating against
+ *               the event envelope / current tenant school.
+ * ===================================================================== */
+
+describe('REVIEW-P2C15 R1 BLOCKING 1 — redelivery after partial failure', () => {
+  it('second delivery of the same event_id is a no-op (claim hit) — counters do NOT double', async () => {
+    // Simulate "contribution row already exists" by returning 0 from the
+    // claim INSERT. The worker must skip the read-model UPSERT.
+    const calls: CapturedCall[] = [];
+    const contributions: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        const call: CapturedCall = { sql, args };
+        if (sql.includes('rpt_event_contributions')) contributions.push(call);
+        else calls.push(call);
+        return [];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        const call: CapturedCall = { sql, args };
+        if (sql.includes('rpt_event_contributions')) {
+          contributions.push(call);
+          // 0 rows affected = ON CONFLICT DO NOTHING already had a row
+          return 0;
+        }
+        calls.push(call);
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const { checkpoints } = makeCheckpointStub();
+    const worker = new EnrolmentReadModelWorker(
+      {} as never,
+      {} as never,
+      tenantPrisma as never,
+      checkpoints as never,
+    );
+    await worker.upsert(
+      unwrappedEvent(
+        {
+          applicationId: 'app-1',
+          schoolId: SCHOOL.schoolId,
+          academicYearName: '2026-2027',
+          submittedAt: '2026-04-15',
+        },
+        'dev.enr.application.submitted',
+        'evt-dup',
+      ),
+      'dev.enr.application.submitted',
+    );
+    // Claim INSERT was attempted exactly once.
+    expect(contributions.length).toBe(1);
+    expect(contributions[0]!.sql).toContain('rpt_event_contributions');
+    // Read-model UPSERT was SKIPPED because the claim returned 0 rows.
+    expect(calls.length).toBe(0);
+  });
+
+  it('first delivery applies the UPSERT and writes one contribution row per target', async () => {
+    const { capture, contributions, tenantPrisma } = makeFake();
+    const { checkpoints } = makeCheckpointStub();
+    const worker = new AthleticsReadModelWorker(
+      {} as never,
+      {} as never,
+      tenantPrisma as never,
+      checkpoints as never,
+    );
+    await worker.upsert(
+      unwrappedEvent(
+        {
+          gameId: 'g-rep',
+          schoolId: SCHOOL.schoolId,
+          seasonId: 'aaaaaaaa-aaaa-7000-8000-000000000111',
+          programmeId: 'bbbbbbbb-bbbb-7000-8000-000000000111',
+          sport: 'BASKETBALL',
+          homeScore: 80,
+          awayScore: 70,
+          result: 'WIN',
+          completedAt: '2026-04-15',
+        },
+        'dev.ath.game.completed',
+        'evt-ath-1',
+      ),
+    );
+    // 2 read-model UPSERTs (rpt_game_results + rpt_ath_season_summary)
+    expect(capture.length).toBe(2);
+    // 2 contribution claims — one per target table
+    expect(contributions.length).toBe(2);
+    expect(contributions[0]!.sql).toContain('rpt_event_contributions');
+    expect(contributions[1]!.sql).toContain('rpt_event_contributions');
+    // Both contributions reference the SAME source_event_id but DIFFERENT target_table
+    expect(contributions[0]!.args[1]).toBe('evt-ath-1');
+    expect(contributions[1]!.args[1]).toBe('evt-ath-1');
+    expect(contributions[0]!.args[2]).toBe('rpt_game_results');
+    expect(contributions[1]!.args[2]).toBe('rpt_ath_season_summary');
+  });
+});
+
+describe('REVIEW-P2C15 R1 BLOCKING 2 — batch materialisers school-scoped', () => {
+  it('OfficialsReadModelWorker.materialise() JOINs through ath_programmes.school_id', async () => {
+    const calls: CapturedCall[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args });
+        // First call is the existence probe — return one row so the worker
+        // takes the real-aggregate branch.
+        if (sql.includes('information_schema.tables')) return [{ ok: 1 }];
+        return [{ total_assignments: 0, filled: 0, avg_cost_per_game: null }];
+      },
+      $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        calls.push({ sql, args });
+        return 1;
+      },
+    };
+    const tenantPrisma = {
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const { checkpoints } = makeCheckpointStub();
+    const worker = new OfficialsReadModelWorker(tenantPrisma as never, checkpoints as never);
+    await worker.materialise(SCHOOL.schoolId, '2026-04-06');
+
+    // Find the aggregate SELECT
+    const aggSelect = calls.find(
+      (c) =>
+        c.sql.includes('FROM ath_official_assignments') && c.sql.includes('JOIN ath_programmes'),
+    );
+    expect(aggSelect).toBeTruthy();
+    // It JOINs to ath_programmes.school_id and binds the schoolId
+    expect(aggSelect!.sql).toContain('pr.school_id = $2::uuid');
+    expect(aggSelect!.args).toEqual(['2026-04-06', SCHOOL.schoolId]);
+    // Also: the worker uses oa.fee (not oa.stipend — column rename bug fix)
+    expect(aggSelect!.sql).toContain('AVG(oa.fee)');
+    expect(aggSelect!.sql).not.toContain('AVG(stipend)');
+  });
+});
+
+describe('REVIEW-P2C15 R1 BLOCKING 3 — payload schoolId must match envelope tenant.schoolId', () => {
+  it('drops procurement event when payload.schoolId disagrees with envelope', async () => {
+    const { capture, contributions, tenantPrisma } = makeFake();
+    const { checkpoints } = makeCheckpointStub();
+    const worker = new EnrolmentReadModelWorker(
+      {} as never,
+      {} as never,
+      tenantPrisma as never,
+      checkpoints as never,
+    );
+    await worker.upsert(
+      unwrappedEvent(
+        {
+          applicationId: 'app-bad',
+          // School B in the payload, School A in the envelope
+          schoolId: '019eeeee-eeee-7000-8000-bbbbbbbbbbbb',
+          academicYearName: '2026-2027',
+          submittedAt: '2026-04-15',
+        },
+        'dev.enr.application.submitted',
+        'evt-mismatch',
+      ),
+      'dev.enr.application.submitted',
+    );
+    // NO contribution claim, NO read-model UPSERT — event is dropped
+    expect(contributions.length).toBe(0);
+    expect(capture.length).toBe(0);
+  });
+
+  it('drops wellbeing event when payload.schoolId disagrees with envelope', async () => {
+    const { capture, contributions, tenantPrisma } = makeFake();
+    const { checkpoints } = makeCheckpointStub();
+    const worker = new WellbeingReadModelWorker(
+      {} as never,
+      {} as never,
+      tenantPrisma as never,
+      checkpoints as never,
+    );
+    await worker.upsert(
+      unwrappedEvent(
+        {
+          responseId: 'r-bad',
+          schoolId: '019eeeee-eeee-7000-8000-bbbbbbbbbbbb',
+          gradeLevel: '5',
+          domain: 'SAFETY' as const,
+          numericResponse: 1,
+          questionType: 'SCALE_1_5' as const,
+          submittedAt: '2026-04-15',
+        },
+        'dev.svc.wellbeing.response.submitted',
+        'evt-wb-mismatch',
+      ),
+    );
+    expect(contributions.length).toBe(0);
     expect(capture.length).toBe(0);
   });
 });

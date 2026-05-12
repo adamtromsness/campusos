@@ -7,10 +7,101 @@ weekly batch + 1 nightly batch), ~18 read endpoints, 2 dashboard hubs.
 Commits to review:
 
 - P2-15a Operations Read Models — `2a3e835`
-- P2-15b Engagement + Performance + Dashboard + Peer Review Docs — this commit
+- P2-15b Engagement + Performance + Dashboard + Peer Review Docs — `a669917`
+- REVIEW-P2C15 Round 1 fixes — this commit
 
 Plan: `docs/campusos-p2c15-analytics-readmodels.html`
 Handoff: `HANDOFF-P2C15.md`
+
+## Round 1 Review Outcome
+
+**Verdict: FAIL → fixes applied → awaiting Round 2.**
+
+Round 1 reviewer surfaced 3 BLOCKING + 3 MAJOR. The Round 1 fix commit
+addresses all 3 BLOCKINGs and triages the MAJORs.
+
+| Finding                                              | Status                                                                                                    |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| BLOCKING 1 — additive UPSERT not idempotent on crash | **FIXED** — `rpt_event_contributions` tenant ledger + in-tx claim helper; every worker uses it.           |
+| BLOCKING 2 — batch materialisers cross-school        | **FIXED** — `materialiseKpi` adds `school_id = $2::uuid`; `materialise` JOINs `ath_programmes.school_id`. |
+| BLOCKING 3 — payload.schoolId vs envelope unchecked  | **FIXED** — `assertPayloadSchoolMatchesEnvelope` called from every live worker before UPSERT.             |
+| MAJOR 4 — source event wiring incomplete             | Carried as Phase 2 punch list (per-topic emit verification chase).                                        |
+| MAJOR 5 — read-replica routing comment-only          | Carried — swap to `executeOnReplica` once helper lands (Cycle 32).                                        |
+| MAJOR 6 — `rpt-002:read` broad role assignment       | Carried — confirm role distribution before broad enablement.                                              |
+
+### Fix evidence
+
+```bash
+# 1. Every read-model worker calls claimReadModelContribution inside a
+#    tenant tx — covered by the new regression test
+#    "second delivery of the same event_id is a no-op (claim hit)".
+grep -c "claimReadModelContribution" apps/api/src/analytics/engagement/engagement-workers.service.ts
+# → 9 (one per write-path; Athletics has two: rpt_game_results + rpt_ath_season_summary)
+grep -c "claimReadModelContribution" apps/api/src/analytics/operations/operations-workers.service.ts
+# → 10 (FoodService has two: rpt_fds_meal_counts + rpt_fds_nslp_summary; Facilities has two)
+
+# 2. Batch materialisers school-scoped.
+grep -A1 "FROM fac_work_orders" apps/api/src/analytics/operations/operations-workers.service.ts
+# → WHERE school_id = $2::uuid AND created_at >= ...
+grep "pr.school_id" apps/api/src/analytics/engagement/engagement-workers.service.ts
+# → WHERE pr.school_id = $2::uuid
+
+# 3. Envelope/payload validation.
+grep -c "assertPayloadSchoolMatchesEnvelope" apps/api/src/analytics/engagement/engagement-workers.service.ts
+# → 8 (one per live worker; OfficialsReadModelWorker is weekly batch — schoolId from cron caller)
+grep -c "assertPayloadSchoolMatchesEnvelope" apps/api/src/analytics/operations/operations-workers.service.ts
+# → 8 (Facilities has two: upsertInspection + upsertWorkOrder)
+
+# 4. Privacy keystone preserved.
+docker exec campusos-postgres psql -U campusos -d campusos_dev -t -c "
+  SELECT count(*) FROM information_schema.columns
+  WHERE table_schema='tenant_demo' AND table_name='rpt_wellbeing_domain_trends'
+    AND column_name='student_id';"
+# → 0
+```
+
+### Round 1 regression tests
+
+5 new pinned tests in `engagement-workers.spec.ts` across three describe blocks:
+
+- **BLOCKING 1** — `redelivery after partial failure`:
+  - second delivery of same event_id is a no-op (claim hit) — counters do NOT double
+  - first delivery applies UPSERT and writes one contribution row per target table (Athletics writes 2 contributions, one per target)
+- **BLOCKING 2** — `batch materialisers school-scoped`:
+  - `OfficialsReadModelWorker.materialise()` JOINs through `ath_programmes.school_id`, binds the schoolId arg, uses `AVG(oa.fee)` (not legacy `stipend`)
+- **BLOCKING 3** — `payload schoolId must match envelope`:
+  - drops Enrolment event when `payload.schoolId` disagrees with envelope
+  - drops Wellbeing event when `payload.schoolId` disagrees with envelope
+
+Vitest: 772 → **777 passing across 36 spec files** (+5 R1 regressions).
+
+### Worker idempotency contract (post-fix)
+
+Each P2-15 read-model worker now follows this contract on every event:
+
+1. Unwrap the ADR-057 envelope (`unwrapEnvelope`).
+2. Validate payload shape + required fields → drop with WARN on miss.
+3. **B3 — envelope/payload validation**: call
+   `assertPayloadSchoolMatchesEnvelope(event, payload.schoolId, group, topic, logger)`.
+   Mismatch → WARN + drop, no DB writes.
+4. Open `executeInTenantTransaction(async (tx) => { … })`.
+5. **B1 — contribution claim**: call `claimReadModelContribution(tx, group, eventId, target)`.
+   ON CONFLICT DO NOTHING → if 0 rows inserted, the event was already
+   applied (crash-after-update redelivery) → return without UPSERT.
+6. If claim succeeded → apply the additive `INSERT ... ON CONFLICT DO UPDATE`
+   against the read-model target.
+7. Commit the tx (both rows together or neither).
+8. After tx commits, `processWithIdempotency` records the outer claim in
+   `platform.platform_event_consumer_idempotency` (defence-in-depth — most
+   Kafka redeliveries are caught here before the handler even runs).
+
+Workers that write to two target tables (AthleticsReadModelWorker writes
+both rpt_game_results + rpt_ath_season_summary; FoodServiceReadModelWorker
+writes both rpt_fds_meal_counts + rpt_fds_nslp_summary) record one
+contribution row per target, so partial application is impossible — if the
+tx commits, both targets land; if it aborts, neither does.
+
+---
 
 ## Consumer-to-table mapping (single-writer audit)
 
