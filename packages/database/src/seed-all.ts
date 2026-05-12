@@ -188,6 +188,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Moderation + Push Campaigns — three-tier rules + appeals + push (P2-19b)',
     script: 'seed-moderation-push.ts',
   },
+  {
+    label: 'Community Exchange — profiles + listings + transactions + ratings (P2-21c)',
+    script: 'seed-community.ts',
+  },
 ];
 
 async function main(): Promise<void> {

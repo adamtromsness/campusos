@@ -67,6 +67,7 @@ import { SisTranscriptsModule } from './sis-transcripts/sis-transcripts.module';
 import { CommunicationsAdvancedModule } from './communications-advanced/communications-advanced.module';
 import { CrmModule } from './crm/crm.module';
 import { OpsModule } from './ops/ops.module';
+import { CommunityModule } from './community/community.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -264,6 +265,14 @@ var devOnlyControllers: Type<unknown>[] =
     // ops.tenant_access.granted on grant. TenantAccessExpiryWorker
     // sweeps expired grants every 5 min.
     OpsModule,
+    // Phase 2 Cycle 21 sub-cycle c — Community Exchange (M90+). Cross-
+    // school marketplace + community profiles + ratings + unified
+    // tsvector full-text search. Tenant-scoped (regular guard chain).
+    // 8 platform tables, 6 services + 1 controller + 2 Kafka consumers
+    // + ~22 endpoints. Parents are blocked from listing creation at
+    // the service layer per ADR-073. Emits mkt.listing.published +
+    // mkt.transaction.completed.
+    CommunityModule,
   ],
   controllers: devOnlyControllers,
   providers: [

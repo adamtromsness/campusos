@@ -482,6 +482,17 @@ async function seedIam() {
         // evt-001:write held by Staff — teachers without that grant
         // cannot operate the gate scanner.
         'EVT-001': ['read'],
+        // P2-21c — Community Exchange. Teachers create + manage
+        // marketplace listings (MKT-001:read+write — the
+        // assertCanCreateListing helper allows STAFF personType to
+        // POST; parents + students are refused there). Teachers can
+        // browse + purchase + manage their own profile + rate
+        // listings + manage watch lists.
+        'MKT-001': ['read', 'write'],
+        'MKT-002': ['read', 'write'],
+        'MKT-005': ['read', 'write'],
+        'MKT-006': ['read', 'write'],
+        'MKT-007': ['read', 'write'],
       },
     },
     {
@@ -696,6 +707,20 @@ async function seedIam() {
         // need this for season-pass and athletic-game ticket UX even
         // though the underlying tables are the same evt_* surface.
         'ATH-010': ['read', 'write'],
+        // P2-21c — Community Exchange (Marketplace). Parents browse
+        // listings, view community profiles, can purchase items, and
+        // can submit ratings. MKT-001:write is INTENTIONALLY OMITTED
+        // for the Parent role per ADR-073 — parents cannot create
+        // listings, only school staff can; MarketplaceListingService
+        // enforces this at the service layer via the personType gate.
+        // Parents do get MKT-002:write (purchasing), MKT-005:read +
+        // write (own profile editing), MKT-006:read + write (rating
+        // listings + transactions), MKT-007 deliberately omitted
+        // (watch lists are school-scoped — admins create them).
+        'MKT-001': ['read'],
+        'MKT-002': ['read', 'write'],
+        'MKT-005': ['read', 'write'],
+        'MKT-006': ['read', 'write'],
       },
     },
     {
@@ -865,6 +890,16 @@ async function seedIam() {
         // behalf — but read access is required for the public event
         // calendar render at /events.
         'EVT-001': ['read'],
+        // P2-21c — Community Exchange. Students browse the marketplace
+        // (MKT-001:read) and view their own profile (MKT-005:read).
+        // Students cannot create listings (no MKT-001:write — same
+        // service-layer enforcement as parents) and cannot purchase
+        // directly (no MKT-002 — purchases route through the parent
+        // or school staff per ADR-073). Profile editing is allowed
+        // (MKT-005:write) so a student can manage their own bio +
+        // privacy toggle.
+        'MKT-001': ['read'],
+        'MKT-005': ['read', 'write'],
       },
     },
     {
@@ -1348,6 +1383,18 @@ async function seedIam() {
         // ATH-010 codes alone before pilot.
         'EVT-001': ['read', 'write'],
         'ATH-010': ['read', 'write'],
+        // P2-21c — Community Exchange. Staff (generic — covers VP,
+        // counsellor, librarian, principal stand-in for the demo)
+        // get full Community Exchange access. School Admin /
+        // Platform Admin get the admin tier (MKT-008 revenue +
+        // MKT-009 moderation + MKT-010 analytics) via everyFunction
+        // — Staff does NOT receive those admin codes here.
+        'MKT-001': ['read', 'write'],
+        'MKT-002': ['read', 'write'],
+        'MKT-003': ['read', 'write'],
+        'MKT-005': ['read', 'write'],
+        'MKT-006': ['read', 'write'],
+        'MKT-007': ['read', 'write'],
       },
     },
 
