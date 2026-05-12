@@ -160,13 +160,16 @@ export class BroadcastSegmentService {
         }
         throw err;
       }
+      // REVIEW-P2C19 MAJOR 3: reload carries school_id predicate as
+      // belt-and-braces alongside the INSERT's tenant scoping.
       const rows = await tx.$queryRawUnsafe<SegmentRow[]>(
         'SELECT id::text AS id, school_id::text AS school_id, name, description, ' +
           'segment_type, filter_criteria, estimated_recipients, is_active, ' +
           'created_by::text AS created_by, created_at::text AS created_at, ' +
           'updated_at::text AS updated_at ' +
-          'FROM msg_broadcast_segments WHERE id = $1::uuid LIMIT 1',
+          'FROM msg_broadcast_segments WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       );
       return rowToDto(rows[0]!);
     });
@@ -205,12 +208,16 @@ export class BroadcastSegmentService {
       if (input.isActive !== undefined) set('is_active', input.isActive);
       sets.push('updated_at = now()');
 
+      // REVIEW-P2C19 MAJOR 3: UPDATE carries school_id predicate too.
       params.push(id);
+      params.push(tenant.schoolId);
       try {
         await tx.$executeRawUnsafe(
           'UPDATE msg_broadcast_segments SET ' +
             sets.join(', ') +
             ' WHERE id = $' +
+            (params.length - 1) +
+            '::uuid AND school_id = $' +
             params.length +
             '::uuid',
           ...params,
@@ -231,8 +238,9 @@ export class BroadcastSegmentService {
           'segment_type, filter_criteria, estimated_recipients, is_active, ' +
           'created_by::text AS created_by, created_at::text AS created_at, ' +
           'updated_at::text AS updated_at ' +
-          'FROM msg_broadcast_segments WHERE id = $1::uuid LIMIT 1',
+          'FROM msg_broadcast_segments WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       );
       return rowToDto(rows[0]!);
     });
@@ -256,13 +264,15 @@ export class BroadcastSegmentService {
       },
     );
     // Cache the count on the segment row for the preview path.
+    // REVIEW-P2C19 MAJOR 3: cache-update carries school_id predicate.
     const total = accountIds.length;
     await this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
       await client.$executeRawUnsafe(
         'UPDATE msg_broadcast_segments SET estimated_recipients = $2, updated_at = now() ' +
-          'WHERE id = $1::uuid',
+          'WHERE id = $1::uuid AND school_id = $3::uuid',
         id,
         total,
+        tenant.schoolId,
       );
     });
     return {
@@ -411,11 +421,34 @@ export class BroadcastSegmentService {
             'CUSTOM segment requires filter_criteria.custom_user_ids (UUID[])',
           );
         }
-        // Validate every id exists in platform_users to drop bogus
-        // entries gracefully.
+        // REVIEW-P2C19 BLOCKING 3: every custom user id must have a
+        // current-school projection in sis_students (via
+        // platform_students.person_id), sis_guardians.person_id, OR
+        // hr_employees.person_id. Existence in platform.platform_users
+        // alone is not enough — that allows a School A admin to seed
+        // School B users into a custom segment and broadcast to them.
+        // The UNION of the three projections is the current-school
+        // affiliation gate; bogus or cross-school ids fall out of the
+        // result set silently.
+        const tenant = getCurrentTenant();
         const rows = await client.$queryRawUnsafe<Array<{ account_id: string }>>(
-          'SELECT id::text AS account_id FROM platform.platform_users WHERE id = ANY($1::uuid[])',
+          'SELECT DISTINCT pu.id::text AS account_id ' +
+            'FROM platform.platform_users pu ' +
+            'JOIN platform.iam_person ip ON ip.id = pu.person_id ' +
+            'WHERE pu.id = ANY($1::uuid[]) ' +
+            '  AND ( ' +
+            '    EXISTS ( ' +
+            '      SELECT 1 FROM sis_students s ' +
+            '      JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            '      WHERE s.school_id = $2::uuid AND ps.person_id = ip.id' +
+            '    ) OR EXISTS ( ' +
+            '      SELECT 1 FROM sis_guardians g WHERE g.school_id = $2::uuid AND g.person_id = ip.id' +
+            '    ) OR EXISTS ( ' +
+            '      SELECT 1 FROM hr_employees e WHERE e.school_id = $2::uuid AND e.person_id = ip.id' +
+            '    ) ' +
+            '  )',
           userIds as string[],
+          tenant.schoolId,
         );
         return rows.map((r) => r.account_id);
       }

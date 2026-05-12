@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
+import type { ResolvedActor } from '../iam/actor-context.service';
 import { AiInferenceService } from './ai-inference.service';
 import { TranslateRequestDto, TranslationDto } from './dto/communications-advanced.dto';
 
@@ -80,11 +81,22 @@ export class TranslationService {
   /**
    * Translate (or return cached translation for) a (message, target_language)
    * pair. Returns `cached: true` when the row was already in the table.
+   *
+   * REVIEW-P2C19 BLOCKING 1: when `actor` is supplied (controller path)
+   * the caller must be a participant in the message's thread, the
+   * sender, or a school admin. Auto-translate worker passes null actor.
    */
-  async translate(input: TranslateRequestDto, requestedBy: string | null): Promise<TranslationDto> {
+  async translate(
+    input: TranslateRequestDto,
+    requestedBy: string | null,
+    actor: ResolvedActor | null = null,
+  ): Promise<TranslationDto> {
     const targetLanguage = (input.targetLanguage ?? '').trim().toLowerCase();
     if (!targetLanguage) {
       throw new BadRequestException('targetLanguage must contain non-whitespace characters');
+    }
+    if (actor !== null) {
+      await this.assertMessageVisible(input.messageId, actor);
     }
 
     return this.tenantPrisma.executeInTenantTransaction(async (tx: PrismaClient) => {
@@ -181,8 +193,13 @@ export class TranslationService {
   }
 
   /** List all cached translations for a message — used by the UI to
-   *  surface "available languages" toggles. */
-  async listForMessage(messageId: string): Promise<TranslationDto[]> {
+   *  surface "available languages" toggles.
+   *
+   *  REVIEW-P2C19 BLOCKING 1: enforces the same message visibility
+   *  check as translate() so a caller cannot enumerate translations
+   *  for a message they cannot read. */
+  async listForMessage(messageId: string, actor: ResolvedActor): Promise<TranslationDto[]> {
+    await this.assertMessageVisible(messageId, actor);
     return this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
       const rows = await client.$queryRawUnsafe<TranslationRow[]>(
         'SELECT id::text AS id, message_id::text AS message_id, ' +
@@ -193,6 +210,49 @@ export class TranslationService {
         messageId,
       );
       return rows.map((r) => rowToDto(r, true));
+    });
+  }
+
+  /**
+   * REVIEW-P2C19 BLOCKING 1 — message visibility gate.
+   *
+   * The caller can access a translation iff they can read the source
+   * message. Reading happens through the messaging-module ownership
+   * path:
+   *   - school admin (actor.isSchoolAdmin) sees every message in the
+   *     calling tenant;
+   *   - sender (msg_messages.sender_id = actor.accountId);
+   *   - or active participant in the thread
+   *     (msg_thread_participants.platform_user_id = actor.accountId
+   *      AND left_at IS NULL).
+   *
+   * A miss collapses to 404 NotFoundException — don't-leak-existence.
+   *
+   * Note: msg_messages is RANGE-partitioned by created_at — the
+   * lookup joins by id alone and Postgres pruning still kicks in via
+   * the partition routing layer because we don't need a date range.
+   */
+  private async assertMessageVisible(messageId: string, actor: ResolvedActor): Promise<void> {
+    return this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
+      const rows = await client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM msg_messages m ' +
+          'WHERE m.id = $1::uuid AND (' +
+          '  $2::boolean = true ' +
+          '  OR m.sender_id = $3::uuid ' +
+          '  OR EXISTS (' +
+          '    SELECT 1 FROM msg_thread_participants p ' +
+          '    WHERE p.thread_id = m.thread_id ' +
+          '      AND p.platform_user_id = $3::uuid ' +
+          '      AND p.left_at IS NULL' +
+          '  )' +
+          ') LIMIT 1',
+        messageId,
+        actor.isSchoolAdmin,
+        actor.accountId,
+      );
+      if (rows.length === 0) {
+        throw new NotFoundException('Message not found');
+      }
     });
   }
 }

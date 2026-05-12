@@ -179,6 +179,13 @@ export class PushCampaignService {
       throw new ForbiddenException('Only admins can create push campaigns');
     }
     const tenant = getCurrentTenant();
+    // REVIEW-P2C19 MAJOR 2: audienceSegmentId must belong to the
+    // current tenant. Without this check a School A admin could
+    // create a campaign that references a School B segment whose
+    // resolve() returns School B users.
+    if (input.audienceSegmentId) {
+      await this.assertSegmentInCurrentSchool(input.audienceSegmentId, tenant.schoolId);
+    }
     const id = generateId();
     return this.tenantPrisma.executeInTenantTransaction(async (tx: PrismaClient) => {
       // Default status: DRAFT when no scheduled_at; SCHEDULED when caller
@@ -218,6 +225,12 @@ export class PushCampaignService {
       throw new ForbiddenException('Only admins can edit push campaigns');
     }
     const tenant = getCurrentTenant();
+    // REVIEW-P2C19 MAJOR 2: audienceSegmentId on patch must belong to
+    // current tenant. The validation runs before the FOR UPDATE so a
+    // bogus / cross-tenant id surfaces 400 before any lock.
+    if (input.audienceSegmentId) {
+      await this.assertSegmentInCurrentSchool(input.audienceSegmentId, tenant.schoolId);
+    }
     return this.tenantPrisma.executeInTenantTransaction(async (tx: PrismaClient) => {
       const existing = await tx.$queryRawUnsafe<CampaignRow[]>(
         this.selectCampaignBase() + 'WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
@@ -284,18 +297,28 @@ export class PushCampaignService {
     campaignId: string,
     audienceSize: number,
   ): Promise<PushCampaignDto | null> {
+    // REVIEW-P2C19 BLOCKING 4: school-scope the worker dispatch. The
+    // worker iterates active tenants and resets the search_path for
+    // each one, but a SCHEDULED row keyed by id alone could
+    // theoretically belong to a different tenant within the same
+    // schema. Adding school_id to the lock keeps the dispatch within
+    // the current tenant boundary.
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (tx: PrismaClient) => {
       const rows = await tx.$queryRawUnsafe<CampaignRow[]>(
-        this.selectCampaignBase() + 'WHERE id = $1::uuid FOR UPDATE',
+        this.selectCampaignBase() + 'WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         campaignId,
+        tenant.schoolId,
       );
       if (rows.length === 0) return null;
       const row = rows[0]!;
       if (row.status !== 'SCHEDULED') return null;
       await tx.$executeRawUnsafe(
-        'UPDATE msg_push_campaigns SET status = $2, sent_at = now(), updated_at = now() WHERE id = $1::uuid',
+        'UPDATE msg_push_campaigns SET status = $2, sent_at = now(), updated_at = now() ' +
+          'WHERE id = $1::uuid AND school_id = $3::uuid',
         campaignId,
         'SENT',
+        tenant.schoolId,
       );
       const analyticsId = generateId();
       await tx.$executeRawUnsafe(
@@ -309,8 +332,9 @@ export class PushCampaignService {
         audienceSize,
       );
       const refreshed = await tx.$queryRawUnsafe<CampaignRow[]>(
-        this.selectCampaignBase() + 'WHERE id = $1::uuid LIMIT 1',
+        this.selectCampaignBase() + 'WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         campaignId,
+        tenant.schoolId,
       );
       return campaignRowToDto(refreshed[0]!);
     });
@@ -318,14 +342,20 @@ export class PushCampaignService {
 
   /**
    * Worker poll: rows ripe for dispatch (status=SCHEDULED AND
-   * scheduled_at <= now()). The PushCampaignWorker iterates the
-   * returned rows and calls dispatchScheduled per row.
+   * scheduled_at <= now()) for the current tenant. The PushCampaignWorker
+   * iterates the returned rows and calls dispatchScheduled per row.
+   *
+   * REVIEW-P2C19 BLOCKING 4: scope by tenant.schoolId so a worker
+   * pass for School A never picks up School B's scheduled campaigns.
    */
   async findRipe(limit = 25): Promise<PushCampaignDto[]> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
       const rows = await client.$queryRawUnsafe<CampaignRow[]>(
         this.selectCampaignBase() +
-          "WHERE status = 'SCHEDULED' AND scheduled_at <= now() ORDER BY scheduled_at LIMIT $1",
+          "WHERE school_id = $1::uuid AND status = 'SCHEDULED' AND scheduled_at <= now() " +
+          'ORDER BY scheduled_at LIMIT $2',
+        tenant.schoolId,
         limit,
       );
       return rows.map(campaignRowToDto);
@@ -347,11 +377,28 @@ export class PushCampaignService {
 
   /**
    * Used by PushAnalyticsWorker on every push delivery callback.
-   * UPSERT semantics: a duplicate webhook lands as an update —
-   * delivered/opened/clicked counters bump, and the rates recompute.
-   * Idempotent at the consumer-group claim layer.
+   * Additive update — delivered/opened/clicked counters bump and the
+   * rates recompute.
+   *
+   * REVIEW-P2C19 BLOCKING 5: crash-safe under redelivery. The
+   * additive update writes a contribution-ledger row in the same
+   * tenant tx, keyed by UNIQUE(consumer_group, source_event_id,
+   * campaign_id). A redelivered event raises 23505 on the second pass
+   * and the additive bump is skipped — we return the current
+   * analytics row instead of double-counting. The
+   * processWithIdempotency claim outside this method is the outer
+   * layer; the ledger is the schema-side guarantee that survives a
+   * crash between this method completing and the claim landing.
+   *
+   * `sourceEventId` and `consumerGroup` are optional only for the
+   * direct admin-trigger path (no consumer context). The
+   * PushAnalyticsConsumer always supplies both.
    */
-  async recordDelivery(event: PushDeliveryEventDto): Promise<PushAnalyticsDto> {
+  async recordDelivery(
+    event: PushDeliveryEventDto,
+    consumerGroup: string | null = null,
+    sourceEventId: string | null = null,
+  ): Promise<PushAnalyticsDto> {
     return this.tenantPrisma.executeInTenantTransaction(async (tx: PrismaClient) => {
       const existing = await tx.$queryRawUnsafe<AnalyticsRow[]>(
         this.selectAnalyticsBase() + 'WHERE campaign_id = $1::uuid FOR UPDATE',
@@ -362,6 +409,36 @@ export class PushCampaignService {
           'Analytics row not found — call dispatchScheduled before recording deliveries',
         );
       }
+
+      // REVIEW-P2C19 BLOCKING 5 contribution ledger claim. We claim the
+      // (group, event, campaign) tuple BEFORE the additive bump so a
+      // 23505 short-circuits the work. The claim row records the per-
+      // event deltas for audit + replay.
+      if (consumerGroup && sourceEventId) {
+        try {
+          await tx.$executeRawUnsafe(
+            'INSERT INTO msg_push_analytics_contributions ' +
+              '(id, consumer_group, source_event_id, campaign_id, ' +
+              ' delivered_delta, opened_delta, clicked_delta) ' +
+              'VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5, $6, $7)',
+            generateId(),
+            consumerGroup,
+            sourceEventId,
+            event.campaignId,
+            event.delivered ?? 0,
+            event.opened ?? 0,
+            event.clicked ?? 0,
+          );
+        } catch (err) {
+          if (isUniqueViolation(err)) {
+            // Already claimed — skip the additive bump and return the
+            // current analytics row. This is the crash-safe path.
+            return analyticsRowToDto(existing[0]!);
+          }
+          throw err;
+        }
+      }
+
       const row = existing[0]!;
       const total = row.total_targeted;
       const delivered = row.total_delivered + (event.delivered ?? 0);
@@ -477,18 +554,42 @@ export class PushCampaignService {
   }
 
   /**
-   * Resolve the audience for a campaign. Reads active device tokens
-   * for every user the segment includes. Today only the school-wide
-   * (audience_segment_id NULL) path is implemented — the segment-
-   * scoped path is forwarded to the BroadcastSegmentService in a
-   * future cycle.
+   * Resolve the audience size for a campaign.
+   *
+   * REVIEW-P2C19 BLOCKING 4: the school-wide path counts only device
+   * tokens belonging to users with a current-school projection in
+   * sis_students (via platform_students.person_id), sis_guardians, or
+   * hr_employees. Counting every active token in the tenant schema is
+   * wrong in a future shared-tenant model and is materially wrong any
+   * time the schema holds historical/orphaned tokens — total_targeted
+   * has to reflect the real audience for the rate divisors to make
+   * sense.
+   *
+   * The segment-scoped path is forwarded to BroadcastSegmentService
+   * in a future cycle.
    */
   async resolveAudienceSize(campaignId: string): Promise<number> {
     const campaign = await this.getById(campaignId);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
       if (campaign.audienceSegmentId === null) {
         const rows = await client.$queryRawUnsafe<Array<{ count: string }>>(
-          'SELECT COUNT(*)::text AS count FROM msg_push_device_tokens WHERE is_active = true',
+          'SELECT COUNT(DISTINCT t.id)::text AS count ' +
+            'FROM msg_push_device_tokens t ' +
+            'JOIN platform.platform_users pu ON pu.id = t.user_id ' +
+            'JOIN platform.iam_person ip ON ip.id = pu.person_id ' +
+            'WHERE t.is_active = true AND ( ' +
+            '  EXISTS ( ' +
+            '    SELECT 1 FROM sis_students s ' +
+            '    JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            '    WHERE s.school_id = $1::uuid AND ps.person_id = ip.id' +
+            '  ) OR EXISTS ( ' +
+            '    SELECT 1 FROM sis_guardians g WHERE g.school_id = $1::uuid AND g.person_id = ip.id' +
+            '  ) OR EXISTS ( ' +
+            '    SELECT 1 FROM hr_employees e WHERE e.school_id = $1::uuid AND e.person_id = ip.id' +
+            '  ) ' +
+            ')',
+          tenant.schoolId,
         );
         return Number(rows[0]!.count);
       }
@@ -501,6 +602,27 @@ export class PushCampaignService {
   }
 
   // ── Internals ────────────────────────────────────────────────
+
+  /**
+   * REVIEW-P2C19 MAJOR 2 — validates that the supplied segment id
+   * belongs to the calling tenant school. The 400 carries the offending
+   * id for client debugging.
+   */
+  private async assertSegmentInCurrentSchool(segmentId: string, schoolId: string): Promise<void> {
+    return this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
+      const rows = await client.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM msg_broadcast_segments ' +
+          'WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        segmentId,
+        schoolId,
+      );
+      if (rows.length === 0) {
+        throw new BadRequestException(
+          'audienceSegmentId does not match a broadcast segment in this school: ' + segmentId,
+        );
+      }
+    });
+  }
 
   private selectCampaignBase(): string {
     return (

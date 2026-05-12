@@ -145,14 +145,21 @@ export class CommunicationsAdvancedController {
     @Body() body: TranslateRequestDto,
   ): Promise<TranslationDto> {
     const actor = await this.resolveActor(req);
-    return this.translations.translate(body, actor.accountId);
+    return this.translations.translate(body, actor.accountId, actor);
   }
 
   @Get('communications/translations/:messageId')
   @RequirePermission('com-001:read')
-  @ApiOperation({ summary: 'List every cached translation for a message.' })
-  async listTranslations(@Param('messageId') messageId: string): Promise<TranslationDto[]> {
-    return this.translations.listForMessage(messageId);
+  @ApiOperation({
+    summary:
+      'List every cached translation for a message. Caller must be a thread participant, the sender, or a school admin.',
+  })
+  async listTranslations(
+    @Req() req: AuthedRequest,
+    @Param('messageId') messageId: string,
+  ): Promise<TranslationDto[]> {
+    const actor = await this.resolveActor(req);
+    return this.translations.listForMessage(messageId, actor);
   }
 
   // ── Language preferences ────────────────────────────────────

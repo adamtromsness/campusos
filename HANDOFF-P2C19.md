@@ -1,9 +1,45 @@
 # HANDOFF — Phase 2 Cycle 19 (P2-19): Communications Advanced
 
-**Status:** P2-19a + P2-19b complete pending peer review.
+**Status:** P2-19a + P2-19b complete with REVIEW-P2C19 Round 1 fixes applied. Awaiting Round 2 verdict.
 **Plan:** `docs/campusos-p2c19-communications-advanced.html`
 **Review scaffold:** `P2C19-REVIEW-NOTES.md`
 **Dates:** 2026-05-12
+
+## REVIEW-P2C19 Round 1 fix log
+
+Round 1 against `6e08571` + `c2d9f68` returned **FAIL** with 6 BLOCKING + 2 actionable MAJOR. All 8 fixes landed in this commit + new migration `155_msg_event_contributions.sql` + 19 pinned regression tests in `apps/api/src/communications-advanced/communications-advanced-review-p2c19.spec.ts`.
+
+**BLOCKING fixes:**
+
+1. **Translation message visibility** — `TranslationService.translate()` and `listForMessage()` now take an actor and run a sender / thread-participant / school-admin EXISTS probe against `msg_messages` + `msg_thread_participants` before reading the body or returning cached translations. The auto-translate worker path passes `null` actor and bypasses the check. The controller threads `actor` through. Cross-thread translation reads collapse to 404 don't-leak-existence.
+
+2. **Moderation rule + action + appeal current-school scope** — `ModerationService.listRules` / `getRule` / `loadRule` / `patchRule` now filter `scope='PLATFORM' OR school_id = tenant.schoolId`. `listQueue` / `getAction` / `patchAction` / `loadActionInTx` add an EXISTS clause through `msg_moderation_rules` so cross-school action UUIDs return 404. `AppealService.list` / `getById` / `patch` chain the EXISTS through `msg_moderation_actions → msg_moderation_rules` so cross-school appeals return 404 too.
+
+3. **CUSTOM segment current-school affiliation** — `BroadcastSegmentService.resolveAccountIds` CUSTOM branch now JOINs through `platform.iam_person` + (`sis_students` via `platform_students.person_id` OR `sis_guardians.person_id` OR `hr_employees.person_id`) with `school_id = $tenant`. Bogus / cross-school platform_users ids fall out silently.
+
+4. **Push campaign worker school-scope** — `PushCampaignService.findRipe()` adds `school_id = $tenant`. `dispatchScheduled()` adds the school predicate to both the FOR UPDATE lock and the UPDATE. `resolveAudienceSize()` no longer counts every active device token in the tenant — it joins through `platform_users → iam_person` and the three current-school projections (student, guardian, employee) so total_targeted reflects the real audience.
+
+5. **Push analytics contribution ledger** — new tenant table `msg_push_analytics_contributions(consumer_group, source_event_id, campaign_id)` UNIQUE. `PushCampaignService.recordDelivery()` now takes `(consumerGroup, sourceEventId)` and INSERTs the contribution row in the same tx as the additive bump. A 23505 on the ledger short-circuits the additive update so a redelivered event after a crash before the idempotency claim returns the current analytics row instead of double-counting. `PushAnalyticsConsumer` passes `CONSUMER_GROUP + event.eventId`.
+
+6. **Moderation action contribution ledger** — new tenant table `msg_moderation_contributions(consumer_group, source_event_id, message_id, action_id, action_created_at)` UNIQUE. `ModerationService.recordAction()` takes `(consumerGroup, sourceEventId)` and INSERTs the claim row before the action INSERT. A 23505 on the ledger re-reads the existing action row from the ledger's `(action_id, action_created_at)` columns and returns it — a redelivered moderation event after a crash inserts at most one `msg_moderation_actions` row. `ModerationConsumer` passes `CONSUMER_GROUP + event.eventId`.
+
+**MAJOR fixes:**
+
+7. **Push campaign audienceSegmentId same-school validation** — `PushCampaignService.create()` and `patch()` validate the supplied `audienceSegmentId` against `msg_broadcast_segments.school_id = tenant.schoolId` before storing. A cross-school segment id returns 400 with the offending UUID inlined.
+
+8. **Template + segment reload SQL school predicates** — `TemplateService.create()` / `patch()` reload SELECT + UPDATE statements now carry `school_id = $tenant` predicate alongside the existing FOR UPDATE lock. `BroadcastSegmentService.create()` / `patch()` + the `resolve()` cache UPDATE same treatment. Mirrors the broader Phase 2 convention that every tenant write carries `school_id`.
+
+**Carry-overs (acknowledged, not fixed in this round):**
+
+- MAJOR 1 — broadcast analytics is not school-defensive around `broadcastId`. No production producer for `msg.broadcast.delivered` exists yet so the path is exercise-cold; before the future broadcast wiring lands the analytics reads/writes must add a school_id column or validate the broadcast row through its owning communications/broadcast table. Tracked on the Phase 2 punch list.
+
+**Migration:** `155_msg_event_contributions.sql` adds the two contribution-ledger tables (`msg_moderation_contributions`, `msg_push_analytics_contributions`). Splitter-safe additive. Both `tenant_demo` and `tenant_test` provisioned cleanly.
+
+**Test coverage:** vitest 905 → **924** (+19 new pinned regression tests across 7 describe blocks pinning each BLOCKING fix + MAJOR 2: translation visibility refusal + sender-allowed + listForMessage refusal + visibility probe SQL shape; moderation rule listRules SQL shape + getRule 404 + listQueue EXISTS clause + appeal list join shape + getById 404; CUSTOM segment SQL shape; push worker findRipe school predicate + dispatchScheduled school predicate + resolveAudienceSize join shape; push analytics ledger INSERT + 23505 skip-additive; moderation action ledger INSERT + 23505 re-read; push campaign create with cross-school segmentId 400 + same-school accepted).
+
+**CI parity green at the fix commit:** format:check + lint:logs (850 files clean) + API build clean + web build clean + vitest **924/924** across 44 spec files.
+
+See `P2C19-REVIEW-NOTES.md` "REVIEW-P2C19 Round 1 verification trail" for the per-fix evidence table.
 
 ## Scope
 

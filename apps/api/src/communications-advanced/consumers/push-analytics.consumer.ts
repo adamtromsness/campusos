@@ -69,12 +69,21 @@ export class PushAnalyticsConsumer implements OnModuleInit {
       this.idempotency,
       this.logger,
       async () => {
-        await this.campaigns.recordDelivery({
-          campaignId: event!.payload.campaignId,
-          delivered: event!.payload.delivered,
-          opened: event!.payload.opened,
-          clicked: event!.payload.clicked,
-        });
+        await this.campaigns.recordDelivery(
+          {
+            campaignId: event!.payload.campaignId,
+            delivered: event!.payload.delivered,
+            opened: event!.payload.opened,
+            clicked: event!.payload.clicked,
+          },
+          // REVIEW-P2C19 BLOCKING 5: pass the consumer group + event id
+          // so the contribution-ledger claim survives a crash between
+          // the additive bump and the idempotency claim. A redelivered
+          // event raises 23505 on the ledger and the service skips the
+          // additive bump.
+          CONSUMER_GROUP,
+          event!.eventId,
+        );
       },
     );
   }

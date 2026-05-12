@@ -249,13 +249,18 @@ export class TemplateService {
         }
         throw err;
       }
+      // REVIEW-P2C19 MAJOR 3: reload carries school_id predicate as
+      // belt-and-braces — the INSERT above was scoped to the calling
+      // tenant via tenant.schoolId, but reload-by-id alone would still
+      // accept a row from another tenant if the UUID collided.
       const rows = await tx.$queryRawUnsafe<TemplateRow[]>(
         'SELECT id::text AS id, school_id::text AS school_id, name, category, ' +
           'subject_template, body_template, variables, allowed_roles, is_active, ' +
           'created_by::text AS created_by, created_at::text AS created_at, ' +
           'updated_at::text AS updated_at ' +
-          'FROM msg_templates WHERE id = $1::uuid LIMIT 1',
+          'FROM msg_templates WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       );
       return rowToDto(rows[0]!);
     });
@@ -293,12 +298,19 @@ export class TemplateService {
       if (input.isActive !== undefined) set('is_active', input.isActive);
       sets.push('updated_at = now()');
 
+      // REVIEW-P2C19 MAJOR 3: UPDATE carries school_id predicate too,
+      // not just the FOR UPDATE lock above. Mirrors the wider Phase 2
+      // pattern of carrying school_id through every tenant write
+      // statement defensively.
       params.push(id);
+      params.push(tenant.schoolId);
       try {
         await tx.$executeRawUnsafe(
           'UPDATE msg_templates SET ' +
             sets.join(', ') +
             ' WHERE id = $' +
+            (params.length - 1) +
+            '::uuid AND school_id = $' +
             params.length +
             '::uuid',
           ...params,
@@ -318,8 +330,9 @@ export class TemplateService {
           'subject_template, body_template, variables, allowed_roles, is_active, ' +
           'created_by::text AS created_by, created_at::text AS created_at, ' +
           'updated_at::text AS updated_at ' +
-          'FROM msg_templates WHERE id = $1::uuid LIMIT 1',
+          'FROM msg_templates WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       );
       return rowToDto(rows[0]!);
     });

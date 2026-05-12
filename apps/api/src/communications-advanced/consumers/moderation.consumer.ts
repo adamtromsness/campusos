@@ -83,11 +83,11 @@ export class ModerationConsumer implements OnModuleInit {
       event as UnwrappedEvent<unknown>,
       this.idempotency,
       this.logger,
-      async () => this.moderate(event!.payload),
+      async () => this.moderate(event!.payload, event!.eventId),
     );
   }
 
-  private async moderate(p: MessagePostedPayload): Promise<void> {
+  private async moderate(p: MessagePostedPayload, sourceEventId: string): Promise<void> {
     // Step 1: compute the AI sensitivity score once via the cache.
     // The cache means a redelivered event reads the cached row rather
     // than re-calling the AI Inference service.
@@ -122,6 +122,13 @@ export class ModerationConsumer implements OnModuleInit {
       messageId: p.messageId,
       messageCreatedAt: p.postedAt,
       decision,
+      // REVIEW-P2C19 BLOCKING 6: pass the consumer group + event id
+      // so the contribution-ledger claim survives a crash between the
+      // action INSERT and the idempotency claim landing. A redelivered
+      // event hits 23505 on the ledger and the service re-reads the
+      // existing action row.
+      consumerGroup: CONSUMER_GROUP,
+      sourceEventId,
     });
 
     this.logger.log(

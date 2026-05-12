@@ -141,16 +141,30 @@ export class ModerationService {
 
   // ── Rules ────────────────────────────────────────────────────
 
+  /**
+   * REVIEW-P2C19 BLOCKING 2: list scopes to `scope='PLATFORM' OR
+   * school_id = tenant.schoolId`. A school admin cannot list moderation
+   * rules from another tenant school.
+   */
   async listRules(includeInactive: boolean): Promise<ModerationRuleDto[]> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
-      const filter = includeInactive ? '' : 'WHERE is_active = true ';
+      const activeFilter = includeInactive ? '' : ' AND is_active = true';
       const rows = await client.$queryRawUnsafe<ModerationRuleRow[]>(
-        this.selectRuleBase() + filter + 'ORDER BY scope, created_at DESC',
+        this.selectRuleBase() +
+          "WHERE (scope = 'PLATFORM' OR school_id = $1::uuid)" +
+          activeFilter +
+          ' ORDER BY scope, created_at DESC',
+        tenant.schoolId,
       );
       return rows.map(ruleRowToDto);
     });
   }
 
+  /**
+   * REVIEW-P2C19 BLOCKING 2: loadRule school-scope. A cross-school
+   * rule UUID collapses to 404 don't-leak-existence.
+   */
   async getRule(id: string): Promise<ModerationRuleDto> {
     return ruleRowToDto(await this.loadRule(id));
   }
@@ -209,10 +223,15 @@ export class ModerationService {
     input: UpdateModerationRuleDto,
     actor: ResolvedActor,
   ): Promise<ModerationRuleDto> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (tx: PrismaClient) => {
+      // REVIEW-P2C19 BLOCKING 2: school-scope the FOR UPDATE lock so
+      // a cross-school rule UUID collapses to 404 before any write.
       const existing = await tx.$queryRawUnsafe<ModerationRuleRow[]>(
-        this.selectRuleBase() + 'WHERE id = $1::uuid FOR UPDATE',
+        this.selectRuleBase() +
+          "WHERE id = $1::uuid AND (scope = 'PLATFORM' OR school_id = $2::uuid) FOR UPDATE",
         id,
+        tenant.schoolId,
       );
       if (existing.length === 0) {
         throw new NotFoundException('Moderation rule not found');
@@ -233,7 +252,7 @@ export class ModerationService {
           'escalation_rules = COALESCE($7::jsonb, escalation_rules), ' +
           'is_active = COALESCE($8, is_active), ' +
           'updated_at = now() ' +
-          'WHERE id = $1::uuid',
+          "WHERE id = $1::uuid AND (scope = 'PLATFORM' OR school_id = $9::uuid)",
         id,
         input.name ?? null,
         input.description ?? null,
@@ -242,10 +261,13 @@ export class ModerationService {
         input.aiSensitivityThreshold ?? null,
         input.escalationRules ? JSON.stringify(input.escalationRules) : null,
         input.isActive ?? null,
+        tenant.schoolId,
       );
       const refreshed = await tx.$queryRawUnsafe<ModerationRuleRow[]>(
-        this.selectRuleBase() + 'WHERE id = $1::uuid',
+        this.selectRuleBase() +
+          "WHERE id = $1::uuid AND (scope = 'PLATFORM' OR school_id = $2::uuid)",
         id,
+        tenant.schoolId,
       );
       return ruleRowToDto(refreshed[0]!);
     });
@@ -312,26 +334,94 @@ export class ModerationService {
 
   /**
    * Record the moderation action for a message. Called by the
-   * ModerationWorker after resolveDecision returns. Idempotent on
-   * (message_id, rule_id, created_at::date) at the application layer
-   * — the worker's claim-after-success in processWithIdempotency is
-   * the authoritative dedup; this method is a no-op if the (message,
-   * rule) pair already has a row for today.
+   * ModerationWorker after resolveDecision returns.
+   *
+   * REVIEW-P2C19 BLOCKING 6: crash-safe under redelivery. The
+   * INSERT writes a contribution-ledger row in the same tenant tx,
+   * keyed by UNIQUE(consumer_group, source_event_id, message_id). A
+   * redelivered event raises 23505 on the second pass and the
+   * service skips the INSERT — we re-read the existing action row
+   * and return it. The processWithIdempotency claim outside this
+   * method is the outer layer; the ledger is the schema-side
+   * guarantee that survives a crash between the action INSERT and
+   * the claim landing.
+   *
+   * `sourceEventId` and `consumerGroup` are optional only for the
+   * direct admin-trigger path (no consumer context). The
+   * ModerationConsumer always supplies both.
    */
   async recordAction(input: {
     messageId: string;
     messageCreatedAt: string;
     decision: ModerationDecision;
+    consumerGroup?: string;
+    sourceEventId?: string;
   }): Promise<ModerationActionDto> {
-    const id = generateId();
+    const newId = generateId();
     return this.tenantPrisma.executeInTenantTransaction(async (tx: PrismaClient) => {
+      // REVIEW-P2C19 BLOCKING 6 contribution ledger claim. We claim
+      // (group, event, message) BEFORE the action INSERT so a 23505
+      // short-circuits the work. On the duplicate path we re-read the
+      // existing action row from the ledger's record of the original
+      // action_id and return it.
+      let actionId: string = newId;
+      let actionCreatedAt: string | null = null;
+      if (input.consumerGroup && input.sourceEventId) {
+        try {
+          await tx.$executeRawUnsafe(
+            'INSERT INTO msg_moderation_contributions ' +
+              '(id, consumer_group, source_event_id, message_id, ' +
+              ' action_id, action_created_at) ' +
+              'VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5::uuid, now())',
+            generateId(),
+            input.consumerGroup,
+            input.sourceEventId,
+            input.messageId,
+            newId,
+          );
+        } catch (err) {
+          if (isUniqueViolation(err)) {
+            // Already claimed — re-read the original action and return.
+            const claimed = await tx.$queryRawUnsafe<
+              Array<{ action_id: string; action_created_at: string }>
+            >(
+              'SELECT action_id::text AS action_id, action_created_at::text AS action_created_at ' +
+                'FROM msg_moderation_contributions ' +
+                'WHERE consumer_group = $1 AND source_event_id = $2::uuid AND message_id = $3::uuid ' +
+                'LIMIT 1',
+              input.consumerGroup,
+              input.sourceEventId,
+              input.messageId,
+            );
+            if (claimed.length === 0) {
+              throw new Error('Contribution claim lost — race indicator');
+            }
+            actionId = claimed[0]!.action_id;
+            actionCreatedAt = claimed[0]!.action_created_at;
+            const existing = await tx.$queryRawUnsafe<ModerationActionRow[]>(
+              this.selectActionBase() +
+                'WHERE id = $1::uuid AND created_at = $2::timestamptz LIMIT 1',
+              actionId,
+              actionCreatedAt,
+            );
+            if (existing.length > 0) return actionRowToDto(existing[0]!);
+            // Ledger row exists but the action INSERT didn't land (the
+            // tx that owned the original claim aborted). Fall through
+            // and INSERT the action under the recorded action_id so
+            // ledger ↔ action stays consistent.
+          } else {
+            throw err;
+          }
+        }
+      }
+
       await tx.$executeRawUnsafe(
         'INSERT INTO msg_moderation_actions ' +
           '(id, message_id, message_created_at, rule_id, action_taken, ' +
           ' matched_keywords, ai_sensitivity_score, review_status) ' +
           'VALUES ($1::uuid, $2::uuid, $3::timestamptz, $4::uuid, $5, ' +
           ' $6::text[], $7, $8)',
-        id,
+        actionId,
         input.messageId,
         input.messageCreatedAt,
         input.decision.ruleId,
@@ -343,7 +433,7 @@ export class ModerationService {
       );
       const rows = await tx.$queryRawUnsafe<ModerationActionRow[]>(
         this.selectActionBase() + 'WHERE id = $1::uuid LIMIT 1',
-        id,
+        actionId,
       );
       return actionRowToDto(rows[0]!);
     });
@@ -351,16 +441,26 @@ export class ModerationService {
 
   // ── Admin queue ──────────────────────────────────────────────
 
+  /**
+   * REVIEW-P2C19 BLOCKING 2: list queue filters via EXISTS on
+   * msg_moderation_rules so an admin sees only actions whose rule is
+   * either PLATFORM-tier OR belongs to the calling tenant school.
+   */
   async listQueue(args: {
     reviewStatus?: ReviewStatus;
     limit?: number;
   }): Promise<ModerationActionDto[]> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
       const reviewStatus = args.reviewStatus ?? 'PENDING';
       const limit = Math.min(Math.max(args.limit ?? 50, 1), 200);
       const rows = await client.$queryRawUnsafe<ModerationActionRow[]>(
-        this.selectActionBase() + 'WHERE review_status = $1 ORDER BY created_at DESC LIMIT $2',
+        this.selectActionBase() +
+          'WHERE review_status = $1 ' +
+          this.ruleScopeExistsClause('$2') +
+          ' ORDER BY created_at DESC LIMIT $3',
         reviewStatus,
+        tenant.schoolId,
         limit,
       );
       return rows.map(actionRowToDto);
@@ -368,10 +468,15 @@ export class ModerationService {
   }
 
   async getAction(id: string): Promise<ModerationActionDto> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
       const rows = await client.$queryRawUnsafe<ModerationActionRow[]>(
-        this.selectActionBase() + 'WHERE id = $1::uuid LIMIT 1',
+        this.selectActionBase() +
+          'WHERE id = $1::uuid ' +
+          this.ruleScopeExistsClause('$2') +
+          ' LIMIT 1',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Moderation action not found');
       return actionRowToDto(rows[0]!);
@@ -383,10 +488,15 @@ export class ModerationService {
     input: PatchModerationActionDto,
     actor: ResolvedActor,
   ): Promise<ModerationActionDto> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (tx: PrismaClient) => {
       const existing = await tx.$queryRawUnsafe<ModerationActionRow[]>(
-        this.selectActionBase() + 'WHERE id = $1::uuid FOR UPDATE',
+        this.selectActionBase() +
+          'WHERE id = $1::uuid ' +
+          this.ruleScopeExistsClause('$2') +
+          ' FOR UPDATE',
         id,
+        tenant.schoolId,
       );
       if (existing.length === 0) throw new NotFoundException('Moderation action not found');
       const row = existing[0]!;
@@ -447,15 +557,45 @@ export class ModerationService {
     return actionRowToDto(rows[0]!);
   }
 
+  /**
+   * REVIEW-P2C19 BLOCKING 2: AppealService callers receive only rows
+   * whose parent rule is PLATFORM-tier or belongs to the calling
+   * tenant school. A cross-school action UUID returns null and the
+   * appeal endpoints collapse to 404 don't-leak-existence.
+   */
   async loadActionInTx(tx: PrismaClient, actionId: string): Promise<ModerationActionRow | null> {
+    const tenant = getCurrentTenant();
     const rows = await tx.$queryRawUnsafe<ModerationActionRow[]>(
-      this.selectActionBase() + 'WHERE id = $1::uuid LIMIT 1',
+      this.selectActionBase() +
+        'WHERE id = $1::uuid ' +
+        this.ruleScopeExistsClause('$2') +
+        ' LIMIT 1',
       actionId,
+      tenant.schoolId,
     );
     return rows.length > 0 ? rows[0]! : null;
   }
 
   // ── Internals ────────────────────────────────────────────────
+
+  /**
+   * REVIEW-P2C19 BLOCKING 2 — EXISTS clause that joins back through
+   * msg_moderation_rules to filter actions/appeals by rule school
+   * affiliation. The placeholder argument lets callers thread their
+   * tenant.schoolId at whatever positional argument the rest of the
+   * statement reserves.
+   */
+  private ruleScopeExistsClause(schoolArgPlaceholder: string): string {
+    return (
+      'AND EXISTS (' +
+      ' SELECT 1 FROM msg_moderation_rules r' +
+      ' WHERE r.id = msg_moderation_actions.rule_id' +
+      "  AND (r.scope = 'PLATFORM' OR r.school_id = " +
+      schoolArgPlaceholder +
+      '::uuid)' +
+      ') '
+    );
+  }
 
   private selectRuleBase(): string {
     return (
@@ -481,10 +621,15 @@ export class ModerationService {
   }
 
   private async loadRule(id: string): Promise<ModerationRuleRow> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
+      // REVIEW-P2C19 BLOCKING 2: only return the row when it belongs
+      // to PLATFORM tier OR the calling tenant school.
       const rows = await client.$queryRawUnsafe<ModerationRuleRow[]>(
-        this.selectRuleBase() + 'WHERE id = $1::uuid LIMIT 1',
+        this.selectRuleBase() +
+          "WHERE id = $1::uuid AND (scope = 'PLATFORM' OR school_id = $2::uuid) LIMIT 1",
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Moderation rule not found');
       return rows[0]!;

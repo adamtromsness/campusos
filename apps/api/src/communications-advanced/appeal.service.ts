@@ -8,6 +8,7 @@ import {
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
+import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { ModerationService, isUniqueViolation } from './moderation.service';
 import {
@@ -76,13 +77,24 @@ export class AppealService {
     private readonly moderation: ModerationService,
   ) {}
 
+  /**
+   * REVIEW-P2C19 BLOCKING 2: list/get/patch each apply the same EXISTS
+   * scope filter through msg_moderation_actions → msg_moderation_rules
+   * so an admin sees only appeals whose parent action's rule is
+   * PLATFORM-tier OR belongs to the calling tenant school.
+   */
   async list(args: { status?: AppealStatus; limit?: number }): Promise<AppealDto[]> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
       const status = args.status ?? 'SUBMITTED';
       const limit = Math.min(Math.max(args.limit ?? 50, 1), 200);
       const rows = await client.$queryRawUnsafe<AppealRow[]>(
-        this.selectBase() + 'WHERE status = $1 ORDER BY created_at DESC LIMIT $2',
+        this.selectBase() +
+          'WHERE status = $1 ' +
+          this.actionScopeExistsClause('$2') +
+          ' ORDER BY created_at DESC LIMIT $3',
         status,
+        tenant.schoolId,
         limit,
       );
       return rows.map(rowToDto);
@@ -90,10 +102,15 @@ export class AppealService {
   }
 
   async getById(id: string): Promise<AppealDto> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client: PrismaClient) => {
       const rows = await client.$queryRawUnsafe<AppealRow[]>(
-        this.selectBase() + 'WHERE id = $1::uuid LIMIT 1',
+        this.selectBase() +
+          'WHERE id = $1::uuid ' +
+          this.actionScopeExistsClause('$2') +
+          ' LIMIT 1',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Appeal not found');
       return rowToDto(rows[0]!);
@@ -162,10 +179,15 @@ export class AppealService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can review appeals');
     }
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (tx: PrismaClient) => {
       const existing = await tx.$queryRawUnsafe<AppealRow[]>(
-        this.selectBase() + 'WHERE id = $1::uuid FOR UPDATE',
+        this.selectBase() +
+          'WHERE id = $1::uuid ' +
+          this.actionScopeExistsClause('$2') +
+          ' FOR UPDATE',
         id,
+        tenant.schoolId,
       );
       if (existing.length === 0) throw new NotFoundException('Appeal not found');
       const row = existing[0]!;
@@ -218,6 +240,24 @@ export class AppealService {
       'reviewed_by::text AS reviewed_by, reviewed_at::text AS reviewed_at, ' +
       'reviewer_notes, created_at::text AS created_at ' +
       'FROM msg_moderation_appeals '
+    );
+  }
+
+  /**
+   * REVIEW-P2C19 BLOCKING 2 — EXISTS clause through msg_moderation_actions
+   * → msg_moderation_rules that scopes appeals to PLATFORM-tier rules
+   * OR rules owned by the calling tenant school.
+   */
+  private actionScopeExistsClause(schoolArgPlaceholder: string): string {
+    return (
+      'AND EXISTS (' +
+      ' SELECT 1 FROM msg_moderation_actions a' +
+      ' JOIN msg_moderation_rules r ON r.id = a.rule_id' +
+      ' WHERE a.id = msg_moderation_appeals.action_id' +
+      "  AND (r.scope = 'PLATFORM' OR r.school_id = " +
+      schoolArgPlaceholder +
+      '::uuid)' +
+      ') '
     );
   }
 }
