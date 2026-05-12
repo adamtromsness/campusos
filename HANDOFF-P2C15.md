@@ -1,5 +1,19 @@
 # HANDOFF — Phase 2 Cycle 15 (Analytics Read Models)
 
+**REVIEW-P2C15 — COMPLETE + APPROVED at the closeout commit (2026-05-12).**
+Round 1 against `2a3e835` + `a669917` returned FAIL with 3 BLOCKING + 3
+MAJOR. Round 2 against `c957639` returned PASS across all 6 dimensions
+(Crash/Redelivery Idempotency / Multi-Target Worker Safety / Batch
+Materialiser School Scope / Payload-Envelope Isolation / Test Coverage /
+Carried MAJORs). Tagged `p2c15-complete` at `c957639` and
+`p2c15-approved` at the closeout commit. The 3 MAJORs (source-event
+emit wiring, read-replica routing swap, `rpt-002:read` role audit) are
+on the Phase 2 punch list per the reviewer's gate decision.
+
+The Round 1 fix log is preserved below for the review trail.
+
+---
+
 **REVIEW-P2C15 Round 1 (against `2a3e835` + `a669917`) returned FAIL with
 3 BLOCKING + 3 MAJOR. The Round 1 fix commit lands all 3 BLOCKINGs + the
 1 actionable MAJOR (M4 source-event wiring checklist carried to the
