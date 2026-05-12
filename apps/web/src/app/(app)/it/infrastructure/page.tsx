@@ -2,8 +2,15 @@
 
 import { useState } from 'react';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useToast } from '@/components/ui/Toast';
+import { hasAnyPermission, useAuthStore } from '@/lib/auth-store';
 import { useItInfrastructure } from '@/hooks/use-it';
+import {
+  useItInfrastructureWarrantyExpiring,
+  useMarkItInfrastructureChecked,
+} from '@/hooks/use-it-advanced';
 import { IT_INFRA_LABELS, formatItDate } from '@/lib/it-format';
+import { warrantyExpiryTone } from '@/lib/it-advanced-format';
 import type { ItInfraItemType } from '@/lib/types';
 
 const TYPES: ItInfraItemType[] = [
@@ -19,8 +26,22 @@ const TYPES: ItInfraItemType[] = [
 ];
 
 export default function InfrastructurePage() {
+  const user = useAuthStore((s) => s.user);
+  const canWrite = hasAnyPermission(user, ['it-007:write']);
   const [filter, setFilter] = useState<ItInfraItemType | undefined>(undefined);
   const items = useItInfrastructure({ itemType: filter });
+  const warranty = useItInfrastructureWarrantyExpiring(30);
+  const markChecked = useMarkItInfrastructureChecked();
+  const { toast } = useToast();
+
+  const run = async (id: string, itemName: string) => {
+    try {
+      await markChecked.mutateAsync(id);
+      toast(`${itemName} marked as checked.`, 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not mark checked', 'error');
+    }
+  };
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-6">
@@ -28,6 +49,35 @@ export default function InfrastructurePage() {
         title="Infrastructure"
         description="Network gear, servers, UPS, and other building IT items"
       />
+
+      {(warranty.data?.length ?? 0) > 0 ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
+          <h2 className="text-sm font-semibold text-amber-900">
+            Warranty expiring in 30 days ({warranty.data?.length})
+          </h2>
+          <ul className="mt-2 space-y-1">
+            {warranty.data?.map((w) => (
+              <li key={w.id} className="flex items-center justify-between text-xs">
+                <span>
+                  <strong>{w.itemName}</strong>{' '}
+                  <span className="text-gray-500">
+                    · {w.itemType} · {w.location}
+                  </span>
+                </span>
+                <span
+                  className={`rounded px-2 py-0.5 text-xs ${warrantyExpiryTone(w.daysUntilExpiry)}`}
+                >
+                  {formatItDate(w.warrantyExpiry)} ·{' '}
+                  {w.daysUntilExpiry < 0
+                    ? `${Math.abs(w.daysUntilExpiry)}d overdue`
+                    : `${w.daysUntilExpiry}d left`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -66,6 +116,7 @@ export default function InfrastructurePage() {
               <th className="p-3">Make / Model</th>
               <th className="p-3">Warranty</th>
               <th className="p-3">Status</th>
+              <th className="p-3" />
             </tr>
           </thead>
           <tbody>
@@ -88,17 +139,30 @@ export default function InfrastructurePage() {
                     className={`rounded px-2 py-0.5 text-xs ${
                       i.status === 'ACTIVE'
                         ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-gray-100 text-gray-600'
+                        : i.status === 'MAINTENANCE'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-gray-100 text-gray-600'
                     }`}
                   >
                     {i.status}
                   </span>
                 </td>
+                <td className="p-3 text-right">
+                  {canWrite ? (
+                    <button
+                      type="button"
+                      onClick={() => run(i.id, i.itemName)}
+                      className="text-xs font-medium text-campus-700 hover:underline"
+                    >
+                      Mark checked
+                    </button>
+                  ) : null}
+                </td>
               </tr>
             ))}
             {!items.isLoading && (items.data?.length ?? 0) === 0 ? (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-sm text-gray-500">
+                <td colSpan={8} className="p-6 text-center text-sm text-gray-500">
                   No infrastructure items.
                 </td>
               </tr>

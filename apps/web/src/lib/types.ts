@@ -7215,6 +7215,321 @@ export interface ItApproveSelectionPayload {
 }
 
 // ──────────────────────────────────────────────────────────────
+// P2-20 — IT Advanced (M62 .1)
+// ──────────────────────────────────────────────────────────────
+
+export type ItRemoteActionType =
+  | 'LOCK'
+  | 'WIPE'
+  | 'RESTART'
+  | 'LOCATE'
+  | 'UNENROLL'
+  | 'ENABLE_LOST_MODE'
+  | 'DISABLE_LOST_MODE';
+
+export type ItRemoteActionStatus = 'PENDING' | 'SENT' | 'COMPLETED' | 'FAILED';
+
+export interface ItRemoteActionDto {
+  id: string;
+  assetId: string;
+  assetTag: string;
+  actionType: ItRemoteActionType;
+  initiatedBy: string;
+  initiatedByName: string | null;
+  initiatedAt: string;
+  justification: string;
+  mdmCommandRef: string | null;
+  status: ItRemoteActionStatus;
+  completedAt: string | null;
+  failureReason: string | null;
+}
+
+export interface ItCreateRemoteActionPayload {
+  actionType: ItRemoteActionType;
+  justification: string;
+  mdmCommandRef?: string;
+}
+
+export interface ItUpdateRemoteActionStatusPayload {
+  status: ItRemoteActionStatus;
+  mdmCommandRef?: string;
+  failureReason?: string;
+}
+
+export interface ItLicenceRenewalDto {
+  id: string;
+  licenceId: string;
+  softwareName: string;
+  previousExpiryDate: string;
+  newExpiryDate: string;
+  renewalCost: number | null;
+  renewedBy: string;
+  renewedByName: string | null;
+  renewedAt: string;
+  notes: string | null;
+}
+
+export interface ItCreateLicenceRenewalPayload {
+  newExpiryDate: string;
+  renewalCost?: number;
+  notes?: string;
+}
+
+export interface ItDeviceUsageDto {
+  id: string;
+  assetId: string;
+  assetTag: string;
+  summaryDate: string;
+  screenTimeMinutes: number | null;
+  appsUsed: string[];
+  flaggedActivity: boolean;
+  summarySource: string | null;
+}
+
+export interface ItCreateDeviceUsagePayload {
+  summaryDate: string;
+  screenTimeMinutes?: number;
+  appsUsed?: string[];
+  flaggedActivity?: boolean;
+  summarySource?: string;
+}
+
+export type ItInventoryAuditStatus = 'IN_PROGRESS' | 'COMPLETED';
+export type ItInventoryConditionObserved = 'EXCELLENT' | 'GOOD' | 'FAIR' | 'DAMAGED';
+
+export interface ItInventoryAuditDto {
+  id: string;
+  schoolId: string;
+  auditName: string;
+  building: string | null;
+  conductedBy: string;
+  conductedByName: string | null;
+  auditDate: string;
+  totalAssetsExpected: number;
+  totalAssetsFound: number;
+  totalAssetsMissing: number;
+  totalAssetsUnrecorded: number;
+  auditNotes: string | null;
+  status: ItInventoryAuditStatus;
+  completedAt: string | null;
+}
+
+export interface ItInventoryAuditItemDto {
+  id: string;
+  auditId: string;
+  assetId: string | null;
+  assetTag: string;
+  found: boolean;
+  conditionObserved: ItInventoryConditionObserved | null;
+  locationObserved: string | null;
+  discrepancyNotes: string | null;
+  scannedAt: string;
+}
+
+export interface ItInventoryAuditReportDto {
+  audit: ItInventoryAuditDto;
+  missingAssets: Array<{
+    assetId: string;
+    assetTag: string;
+    lastKnownLocation: string | null;
+  }>;
+  unrecordedAssets: Array<{
+    assetTag: string;
+    locationObserved: string | null;
+    notes: string | null;
+  }>;
+  conditionChanges: Array<{
+    assetId: string;
+    assetTag: string;
+    conditionObserved: string;
+  }>;
+  itemCount: number;
+}
+
+export interface ItCreateInventoryAuditPayload {
+  auditName: string;
+  building?: string;
+  auditDate?: string;
+}
+
+export interface ItScanAuditItemPayload {
+  assetTag: string;
+  found: boolean;
+  conditionObserved?: ItInventoryConditionObserved;
+  locationObserved?: string;
+  discrepancyNotes?: string;
+}
+
+export type ItPhoneExtensionType = 'DESK' | 'CLASSROOM' | 'OFFICE' | 'COMMON_AREA' | 'FAX';
+
+export interface ItPhoneExtensionDto {
+  id: string;
+  schoolId: string;
+  extensionNumber: string;
+  assignedTo: string | null;
+  assignedToName: string | null;
+  displayName: string | null;
+  location: string | null;
+  department: string | null;
+  extensionType: ItPhoneExtensionType;
+  isActive: boolean;
+  notes: string | null;
+}
+
+export interface ItCreatePhoneExtensionPayload {
+  extensionNumber: string;
+  extensionType: ItPhoneExtensionType;
+  assignedTo?: string;
+  displayName?: string;
+  location?: string;
+  department?: string;
+  notes?: string;
+}
+
+export interface ItUpdatePhoneExtensionPayload {
+  extensionNumber?: string;
+  extensionType?: ItPhoneExtensionType;
+  displayName?: string;
+  location?: string;
+  department?: string;
+  notes?: string;
+  isActive?: boolean;
+}
+
+export interface ItAssignPhoneExtensionPayload {
+  assignedTo: string;
+}
+
+export type ItConfigDocCategory =
+  | 'NETWORK_TOPOLOGY'
+  | 'SERVER_CONFIG'
+  | 'WIFI'
+  | 'VOIP'
+  | 'FIREWALL'
+  | 'BACKUP'
+  | 'OTHER';
+
+export interface ItConfigDocDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  category: ItConfigDocCategory;
+  contentMarkdown: string;
+  version: number;
+  diagramS3Key: string | null;
+  lastUpdatedBy: string;
+  lastUpdatedByName: string | null;
+  lastUpdatedAt: string;
+}
+
+export interface ItCreateConfigDocPayload {
+  title: string;
+  category: ItConfigDocCategory;
+  contentMarkdown: string;
+  diagramS3Key?: string;
+}
+
+export interface ItUpdateConfigDocPayload {
+  title?: string;
+  category?: ItConfigDocCategory;
+  contentMarkdown?: string;
+  diagramS3Key?: string;
+}
+
+export type ItMonitoringCheckType = 'HTTP' | 'PING' | 'TCP' | 'MANUAL';
+export type ItMonitoringLastStatus = 'HEALTHY' | 'DEGRADED' | 'DOWN' | 'UNKNOWN';
+export type ItMonitoringAlertType = 'DOWN' | 'DEGRADED' | 'RECOVERED';
+export type ItMonitoringResultStatus = 'HEALTHY' | 'DEGRADED' | 'DOWN';
+
+export interface ItMonitoringCheckDto {
+  id: string;
+  schoolId: string;
+  systemName: string;
+  checkUrl: string | null;
+  checkType: ItMonitoringCheckType;
+  intervalMinutes: number;
+  expectedStatusCode: number | null;
+  timeoutSeconds: number;
+  consecutiveFailuresToAlert: number;
+  isActive: boolean;
+  lastStatus: ItMonitoringLastStatus | null;
+  lastCheckedAt: string | null;
+  consecutiveFailures: number;
+  activeAlertCount: number;
+}
+
+export interface ItCreateMonitoringCheckPayload {
+  systemName: string;
+  checkUrl?: string;
+  checkType: ItMonitoringCheckType;
+  intervalMinutes?: number;
+  expectedStatusCode?: number;
+  timeoutSeconds?: number;
+  consecutiveFailuresToAlert?: number;
+}
+
+export interface ItUpdateMonitoringCheckPayload {
+  systemName?: string;
+  checkUrl?: string;
+  checkType?: ItMonitoringCheckType;
+  intervalMinutes?: number;
+  expectedStatusCode?: number;
+  timeoutSeconds?: number;
+  consecutiveFailuresToAlert?: number;
+  isActive?: boolean;
+}
+
+export interface ItRecordCheckResultPayload {
+  status: ItMonitoringResultStatus;
+  responseTimeMs?: number;
+  statusCode?: number;
+  errorMessage?: string;
+}
+
+export interface ItMonitoringAlertDto {
+  id: string;
+  checkId: string;
+  systemName: string;
+  alertType: ItMonitoringAlertType;
+  detectedAt: string;
+  resolvedAt: string | null;
+  responseTimeMs: number | null;
+  statusCode: number | null;
+  errorMessage: string | null;
+  acknowledgedBy: string | null;
+  acknowledgedByName: string | null;
+  acknowledgedAt: string | null;
+  notes: string | null;
+}
+
+export interface ItAcknowledgeAlertPayload {
+  notes?: string;
+}
+
+export interface ItInfrastructureWarrantyDto {
+  id: string;
+  itemName: string;
+  itemType: string;
+  location: string;
+  warrantyExpiry: string;
+  daysUntilExpiry: number;
+}
+
+export interface ItPatchInfrastructureItemPayload {
+  itemName?: string;
+  location?: string;
+  ipAddress?: string;
+  macAddress?: string;
+  make?: string;
+  model?: string;
+  serialNumber?: string;
+  purchaseDate?: string;
+  warrantyExpiry?: string;
+  status?: 'ACTIVE' | 'MAINTENANCE' | 'DECOMMISSIONED';
+  notes?: string;
+}
+
+// ──────────────────────────────────────────────────────────────
 // Cycle 23 — Curriculum & Standards (M25)
 // ──────────────────────────────────────────────────────────────
 

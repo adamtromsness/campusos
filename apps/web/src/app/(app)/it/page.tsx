@@ -10,15 +10,26 @@ import {
   useItProcurement,
   useMyItAssignments,
 } from '@/hooks/use-it';
+import {
+  useItFlaggedDeviceUsage,
+  useItInfrastructureWarrantyExpiring,
+  useItInventoryAudits,
+  useItMonitoringAlerts,
+} from '@/hooks/use-it-advanced';
 import { IT_ASSET_STATUS_PILL, IT_ASSET_STATUS_LABELS } from '@/lib/it-format';
+import { formatItDate, formatItRelative } from '@/lib/it-advanced-format';
 
 /**
  * /it — IT landing page.
  *
  * Persona-aware:
- *   - Staff (IT admin): 4-stat panel + quick links to manage
- *     assets / licences / vault / MDM / infrastructure /
- *     procurement / device options.
+ *   - Staff (IT admin): stat panel + quick links to manage assets,
+ *     licences, vault, MDM, infrastructure, procurement, device
+ *     options, plus the P2-20 IT Advanced surfaces — remote actions
+ *     (via device detail), inventory audits, VOIP directory, IT
+ *     documentation, uptime monitoring. Flagged device usage and
+ *     active monitoring alerts surface at the top of the page so
+ *     IT admins see them first.
  *   - Student / Teacher / Parent: own currently-assigned device
  *     plus a link to the parent-active device-selection flow
  *     under /it/my-device.
@@ -36,6 +47,10 @@ export default function ItHomePage() {
   const licences = useItLicences();
   const alerts = useItMdmAlerts(true);
   const procurement = useItProcurement({});
+  const flaggedUsage = useItFlaggedDeviceUsage(isStaff || isAdmin);
+  const monitoringAlerts = useItMonitoringAlerts(true);
+  const audits = useItInventoryAudits();
+  const warranty = useItInfrastructureWarrantyExpiring(30);
 
   if (isStaff || isAdmin) {
     const totalAssets = assets.data?.length ?? 0;
@@ -43,10 +58,75 @@ export default function ItHomePage() {
     const licenceCount = licences.data?.length ?? 0;
     const alertCount = alerts.data?.filter((a) => !a.isResolved).length ?? 0;
     const orderedCount = procurement.data?.filter((p) => p.status === 'ORDERED').length ?? 0;
+    const flaggedCount = flaggedUsage.data?.length ?? 0;
+    const monitoringDownCount = monitoringAlerts.data?.length ?? 0;
+    const inProgressAudits = audits.data?.filter((a) => a.status === 'IN_PROGRESS').length ?? 0;
+    const warrantyExpiringSoon = warranty.data?.length ?? 0;
 
     return (
       <div className="mx-auto max-w-6xl space-y-6 p-6">
         <PageHeader title="IT Infrastructure" description="Asset fleet, licences, vault, MDM" />
+
+        {flaggedCount > 0 || monitoringDownCount > 0 ? (
+          <div className="space-y-3">
+            {monitoringDownCount > 0 ? (
+              <div className="rounded-md border border-rose-300 bg-rose-50 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-rose-900">
+                    🚨 {monitoringDownCount} active monitoring alert
+                    {monitoringDownCount === 1 ? '' : 's'}
+                  </p>
+                  <Link
+                    href="/it/monitoring"
+                    className="text-xs font-medium text-rose-700 hover:underline"
+                  >
+                    Review →
+                  </Link>
+                </div>
+                <ul className="mt-2 space-y-1 text-xs text-rose-800">
+                  {monitoringAlerts.data?.slice(0, 3).map((a) => (
+                    <li key={a.id}>
+                      <strong>{a.systemName}</strong> — {a.alertType} ·{' '}
+                      {formatItRelative(a.detectedAt)}
+                    </li>
+                  ))}
+                  {monitoringDownCount > 3 ? (
+                    <li className="text-xs text-rose-700">+ {monitoringDownCount - 3} more</li>
+                  ) : null}
+                </ul>
+              </div>
+            ) : null}
+            {flaggedCount > 0 ? (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-amber-900">
+                    ⚠️ {flaggedCount} device{flaggedCount === 1 ? '' : 's'} with flagged activity
+                  </p>
+                </div>
+                <ul className="mt-2 space-y-1 text-xs text-amber-800">
+                  {flaggedUsage.data?.slice(0, 5).map((u) => (
+                    <li key={u.id} className="flex items-center justify-between">
+                      <span>
+                        <Link
+                          href={`/it/assets/${u.assetId}`}
+                          className="font-mono font-semibold hover:underline"
+                        >
+                          {u.assetTag}
+                        </Link>{' '}
+                        — {formatItDate(u.summaryDate)}
+                        {u.appsUsed.length > 0 ? ` · ${u.appsUsed.join(', ')}` : ''}
+                      </span>
+                    </li>
+                  ))}
+                  {flaggedCount > 5 ? (
+                    <li className="text-xs text-amber-700">+ {flaggedCount - 5} more</li>
+                  ) : null}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Assets" value={totalAssets} />
           <Stat
@@ -66,9 +146,25 @@ export default function ItHomePage() {
           <NavTile href="/it/licences" label="Licences" sub={`${licenceCount} software`} />
           <NavTile href="/it/vault" label="Credential Vault" sub="Tiered access" />
           <NavTile href="/it/mdm" label="MDM" sub={`${alertCount} alerts`} />
-          <NavTile href="/it/infrastructure" label="Infrastructure" sub="Network gear" />
+          <NavTile
+            href="/it/infrastructure"
+            label="Infrastructure"
+            sub={`${warrantyExpiringSoon} expiring`}
+          />
           <NavTile href="/it/procurement" label="Procurement" sub={`${orderedCount} ordered`} />
           <NavTile href="/it/device-options" label="Device options" sub="Onboarding catalogue" />
+          <NavTile
+            href="/it/inventory-audits"
+            label="Inventory audits"
+            sub={`${inProgressAudits} in progress`}
+          />
+          <NavTile href="/it/phone-extensions" label="VOIP directory" sub="Phone extensions" />
+          <NavTile href="/it/documentation" label="IT documentation" sub="Versioned" />
+          <NavTile
+            href="/it/monitoring"
+            label="Uptime monitoring"
+            sub={`${monitoringDownCount} active alerts`}
+          />
         </nav>
       </div>
     );
