@@ -1178,3 +1178,583 @@ export class DeviceSelectionDto {
   assetTag!: string | null;
   notes!: string | null;
 }
+
+// ════════════════════════════════════════════════════════════
+//  P2-20a — IT Advanced DTOs
+// ════════════════════════════════════════════════════════════
+
+export type RemoteActionType =
+  | 'LOCK'
+  | 'WIPE'
+  | 'RESTART'
+  | 'LOCATE'
+  | 'UNENROLL'
+  | 'ENABLE_LOST_MODE'
+  | 'DISABLE_LOST_MODE';
+
+export type RemoteActionStatus = 'PENDING' | 'SENT' | 'COMPLETED' | 'FAILED';
+
+export class CreateRemoteActionDto {
+  @ApiProperty()
+  @IsIn(['LOCK', 'WIPE', 'RESTART', 'LOCATE', 'UNENROLL', 'ENABLE_LOST_MODE', 'DISABLE_LOST_MODE'])
+  actionType!: RemoteActionType;
+
+  @ApiProperty({
+    description: 'Mandatory justification (minimum 20 characters trimmed). IMMUTABLE audit field.',
+  })
+  @IsString()
+  @Length(20, 2000)
+  justification!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  mdmCommandRef?: string;
+}
+
+export class UpdateRemoteActionStatusDto {
+  @ApiProperty()
+  @IsIn(['PENDING', 'SENT', 'COMPLETED', 'FAILED'])
+  status!: RemoteActionStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  mdmCommandRef?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  failureReason?: string;
+}
+
+export class RemoteActionDto {
+  id!: string;
+  assetId!: string;
+  assetTag!: string;
+  actionType!: RemoteActionType;
+  initiatedBy!: string;
+  initiatedByName!: string | null;
+  initiatedAt!: string;
+  justification!: string;
+  mdmCommandRef!: string | null;
+  status!: RemoteActionStatus;
+  completedAt!: string | null;
+  failureReason!: string | null;
+}
+
+export class CreateLicenceRenewalDto {
+  @ApiProperty()
+  @IsDateString()
+  newExpiryDate!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  renewalCost?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class LicenceRenewalDto {
+  id!: string;
+  licenceId!: string;
+  softwareName!: string;
+  previousExpiryDate!: string;
+  newExpiryDate!: string;
+  renewalCost!: number | null;
+  renewedBy!: string;
+  renewedByName!: string | null;
+  renewedAt!: string;
+  notes!: string | null;
+}
+
+export class CreateDeviceUsageDto {
+  @ApiProperty()
+  @IsDateString()
+  summaryDate!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  screenTimeMinutes?: number;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  appsUsed?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  flaggedActivity?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  summarySource?: string;
+}
+
+export class DeviceUsageDto {
+  id!: string;
+  assetId!: string;
+  assetTag!: string;
+  summaryDate!: string;
+  screenTimeMinutes!: number | null;
+  appsUsed!: string[];
+  flaggedActivity!: boolean;
+  summarySource!: string | null;
+}
+
+export class CreateInventoryAuditDto {
+  @ApiProperty()
+  @IsString()
+  auditName!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  building?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  auditDate?: string;
+}
+
+export class ScanAuditItemDto {
+  @ApiProperty()
+  @IsString()
+  assetTag!: string;
+
+  @ApiProperty()
+  @IsBoolean()
+  found!: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsIn(['EXCELLENT', 'GOOD', 'FAIR', 'DAMAGED'])
+  conditionObserved?: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'DAMAGED';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  locationObserved?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  discrepancyNotes?: string;
+}
+
+export class InventoryAuditDto {
+  id!: string;
+  schoolId!: string;
+  auditName!: string;
+  building!: string | null;
+  conductedBy!: string;
+  conductedByName!: string | null;
+  auditDate!: string;
+  totalAssetsExpected!: number;
+  totalAssetsFound!: number;
+  totalAssetsMissing!: number;
+  totalAssetsUnrecorded!: number;
+  auditNotes!: string | null;
+  status!: 'IN_PROGRESS' | 'COMPLETED';
+  completedAt!: string | null;
+}
+
+export class InventoryAuditItemDto {
+  id!: string;
+  auditId!: string;
+  assetId!: string | null;
+  assetTag!: string;
+  found!: boolean;
+  conditionObserved!: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'DAMAGED' | null;
+  locationObserved!: string | null;
+  discrepancyNotes!: string | null;
+  scannedAt!: string;
+}
+
+export class InventoryAuditReportDto {
+  audit!: InventoryAuditDto;
+  missingAssets!: Array<{ assetId: string; assetTag: string; lastKnownLocation: string | null }>;
+  unrecordedAssets!: Array<{
+    assetTag: string;
+    locationObserved: string | null;
+    notes: string | null;
+  }>;
+  conditionChanges!: Array<{ assetId: string; assetTag: string; conditionObserved: string }>;
+  itemCount!: number;
+}
+
+// ── VOIP + Documentation + Monitoring + Infrastructure ──
+
+export type PhoneExtensionType = 'DESK' | 'CLASSROOM' | 'OFFICE' | 'COMMON_AREA' | 'FAX';
+
+export class CreatePhoneExtensionDto {
+  @ApiProperty()
+  @IsString()
+  extensionNumber!: string;
+
+  @ApiProperty()
+  @IsIn(['DESK', 'CLASSROOM', 'OFFICE', 'COMMON_AREA', 'FAX'])
+  extensionType!: PhoneExtensionType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  assignedTo?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class UpdatePhoneExtensionDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  extensionNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsIn(['DESK', 'CLASSROOM', 'OFFICE', 'COMMON_AREA', 'FAX'])
+  extensionType?: PhoneExtensionType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class AssignPhoneExtensionDto {
+  @ApiProperty()
+  @IsUUID()
+  assignedTo!: string;
+}
+
+export class PhoneExtensionDto {
+  id!: string;
+  schoolId!: string;
+  extensionNumber!: string;
+  assignedTo!: string | null;
+  assignedToName!: string | null;
+  displayName!: string | null;
+  location!: string | null;
+  department!: string | null;
+  extensionType!: PhoneExtensionType;
+  isActive!: boolean;
+  notes!: string | null;
+}
+
+export type ConfigDocCategory =
+  | 'NETWORK_TOPOLOGY'
+  | 'SERVER_CONFIG'
+  | 'WIFI'
+  | 'VOIP'
+  | 'FIREWALL'
+  | 'BACKUP'
+  | 'OTHER';
+
+export class CreateConfigDocDto {
+  @ApiProperty()
+  @IsString()
+  title!: string;
+
+  @ApiProperty()
+  @IsIn(['NETWORK_TOPOLOGY', 'SERVER_CONFIG', 'WIFI', 'VOIP', 'FIREWALL', 'BACKUP', 'OTHER'])
+  category!: ConfigDocCategory;
+
+  @ApiProperty()
+  @IsString()
+  contentMarkdown!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  diagramS3Key?: string;
+}
+
+export class UpdateConfigDocDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsIn(['NETWORK_TOPOLOGY', 'SERVER_CONFIG', 'WIFI', 'VOIP', 'FIREWALL', 'BACKUP', 'OTHER'])
+  category?: ConfigDocCategory;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  contentMarkdown?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  diagramS3Key?: string;
+}
+
+export class ConfigDocDto {
+  id!: string;
+  schoolId!: string;
+  title!: string;
+  category!: ConfigDocCategory;
+  contentMarkdown!: string;
+  version!: number;
+  diagramS3Key!: string | null;
+  lastUpdatedBy!: string;
+  lastUpdatedByName!: string | null;
+  lastUpdatedAt!: string;
+}
+
+export type MonitoringCheckType = 'HTTP' | 'PING' | 'TCP' | 'MANUAL';
+export type MonitoringLastStatus = 'HEALTHY' | 'DEGRADED' | 'DOWN' | 'UNKNOWN';
+export type MonitoringAlertType = 'DOWN' | 'DEGRADED' | 'RECOVERED';
+
+export class CreateMonitoringCheckDto {
+  @ApiProperty()
+  @IsString()
+  systemName!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  checkUrl?: string;
+
+  @ApiProperty()
+  @IsIn(['HTTP', 'PING', 'TCP', 'MANUAL'])
+  checkType!: MonitoringCheckType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  intervalMinutes?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  expectedStatusCode?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  timeoutSeconds?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  consecutiveFailuresToAlert?: number;
+}
+
+export class UpdateMonitoringCheckDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  systemName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  checkUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsIn(['HTTP', 'PING', 'TCP', 'MANUAL'])
+  checkType?: MonitoringCheckType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  intervalMinutes?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  expectedStatusCode?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  timeoutSeconds?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  consecutiveFailuresToAlert?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class RecordCheckResultDto {
+  @ApiProperty()
+  @IsIn(['HEALTHY', 'DEGRADED', 'DOWN'])
+  status!: 'HEALTHY' | 'DEGRADED' | 'DOWN';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  responseTimeMs?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  statusCode?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  errorMessage?: string;
+}
+
+export class AcknowledgeAlertDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class MonitoringCheckDto {
+  id!: string;
+  schoolId!: string;
+  systemName!: string;
+  checkUrl!: string | null;
+  checkType!: MonitoringCheckType;
+  intervalMinutes!: number;
+  expectedStatusCode!: number | null;
+  timeoutSeconds!: number;
+  consecutiveFailuresToAlert!: number;
+  isActive!: boolean;
+  lastStatus!: MonitoringLastStatus | null;
+  lastCheckedAt!: string | null;
+  consecutiveFailures!: number;
+  activeAlertCount!: number;
+}
+
+export class MonitoringAlertDto {
+  id!: string;
+  checkId!: string;
+  systemName!: string;
+  alertType!: MonitoringAlertType;
+  detectedAt!: string;
+  resolvedAt!: string | null;
+  responseTimeMs!: number | null;
+  statusCode!: number | null;
+  errorMessage!: string | null;
+  acknowledgedBy!: string | null;
+  acknowledgedByName!: string | null;
+  acknowledgedAt!: string | null;
+  notes!: string | null;
+}
+
+export class PatchInfrastructureItemDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  itemName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  ipAddress?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  macAddress?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  make?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  serialNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  purchaseDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  warrantyExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsIn(['ACTIVE', 'MAINTENANCE', 'DECOMMISSIONED'])
+  status?: 'ACTIVE' | 'MAINTENANCE' | 'DECOMMISSIONED';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}

@@ -1250,6 +1250,17 @@ async function seedIam() {
         'IT-004': ['read', 'write'],
         'IT-005': ['read', 'write'],
         'IT-006': ['read', 'write'],
+        // P2-20 — IT Advanced. Staff (IT admin stand-in) extends to
+        // the three remaining IT catalogue codes: IT-007 (Network &
+        // Security) gates VOIP extensions + infrastructure registry
+        // mutations; IT-008 (Content Filtering) reserved for future
+        // content-filter work; IT-009 (Configuration Documentation)
+        // gates the versioned IT documentation surface. Joins the
+        // role-split work in the Phase 2 punch list — a dedicated IT
+        // admin role holds IT-001..009 alone before pilot.
+        'IT-007': ['read', 'write'],
+        'IT-008': ['read'],
+        'IT-009': ['read', 'write'],
         // Cycle 26 — Finance & Accounting. Staff covers the CFO /
         // Business Manager — the tenth specialist operator persona.
         // FIN-005..008 are NEW catalogue codes (see permissions.json
@@ -1536,6 +1547,13 @@ async function seedIam() {
         'IT-004': ['read', 'write', 'admin'],
         'IT-005': ['read', 'write', 'admin'],
         'IT-006': ['read', 'write', 'admin'],
+        // P2-20 — IT Advanced. IT Administrator specialist role holds
+        // IT-007 / IT-008 / IT-009 at admin tier so remote actions,
+        // VOIP catalogue management, and config documentation versioning
+        // all land cleanly under the dedicated specialist persona.
+        'IT-007': ['read', 'write', 'admin'],
+        'IT-008': ['read', 'write', 'admin'],
+        'IT-009': ['read', 'write', 'admin'],
         'COM-001': ['read', 'write'],
       },
     },

@@ -17,31 +17,49 @@ import {
   MdmService,
   ProcurementService,
 } from './mdm.service';
+import {
+  DeviceUsageService,
+  InventoryAuditService,
+  LicenceRenewalService,
+  RemoteActionService,
+} from './remote-actions.service';
+import {
+  ConfigDocumentationService,
+  InfrastructureExtensionService,
+  MonitoringService,
+  PhoneExtensionService,
+} from './voip-monitoring.service';
 import { ItController } from './it.controller';
+import { ItAdvancedController } from './it-advanced.controller';
 
 /**
- * IT Infrastructure Module — M62 (Cycle 22).
+ * IT Infrastructure Module — M62 (Cycle 22) + M62.1 (P2-20a).
  *
- * 12 services + 1 controller + ~38 endpoints + 1 Kafka emit topic
- * (tech.licence.near_capacity).
+ * Cycle 22 surface (kept): 12 services + ItController + ~38 endpoints +
+ * tech.licence.near_capacity emit. Two structural keystones: encrypted
+ * credential vault per ADR-065 and licence seat-utilisation auto-emit.
  *
- * Two structural keystones:
- *   1. Encrypted Credential Vault (ADR-065). AES-256-GCM via Node
- *      crypto. Tiered access (STANDARD / ELEVATED / CRITICAL).
- *      CredentialVaultService.getByIdWithPassword refuses to
- *      decrypt when actor tier < credential tier. Every
- *      successful read writes a VIEW row to
- *      tech_credential_access_log inside the same tenant tx.
- *   2. Software licence seat-utilisation auto-emit. The
- *      LicenceService.assignSeat path locks the parent licence
- *      FOR UPDATE, validates seat capacity, INSERTs the
- *      assignment, bumps used_seats, then emits
- *      tech.licence.near_capacity AFTER the tx commits when
- *      utilisation crosses 80%.
- *
- * Device Selection (ADR-066) closes the Wave-4 onboarding loop —
- * students self-select during enrolment, parents select on behalf
- * of their own children, IT staff approve and provision.
+ * P2-20a additions:
+ *   - RemoteActionService — IMMUTABLE remote MDM actions with
+ *     mandatory >=20 character justification. WIPE + COMPLETED
+ *     atomically flips tech_assets.status to AVAILABLE inside the
+ *     same tenant tx. Emits tech.remote_action.issued.
+ *   - InventoryAuditService — formal physical inventory audit
+ *     lifecycle with per-asset scan, completion totals, and
+ *     discrepancy reporting.
+ *   - LicenceRenewalService — renewal ledger that atomically
+ *     updates tech_software_licences.expiry_date inside one tenant
+ *     tx.
+ *   - DeviceUsageService — per-(asset, date) usage rollup with
+ *     flagged_activity emit (tech.usage.flagged).
+ *   - PhoneExtensionService — VOIP extension directory.
+ *   - ConfigDocumentationService — versioned IT documentation with
+ *     atomic version increment.
+ *   - MonitoringService — uptime monitoring with consecutive-failure
+ *     alerting (tech.monitoring.alert).
+ *   - InfrastructureExtensionService — extension on the Cycle 22
+ *     InfrastructureService for last_checked_at and warranty
+ *     lookahead.
  */
 @Module({
   imports: [TenantModule, IamModule, KafkaModule],
@@ -58,8 +76,16 @@ import { ItController } from './it.controller';
     InfrastructureService,
     ProcurementService,
     DeviceSelectionService,
+    RemoteActionService,
+    InventoryAuditService,
+    LicenceRenewalService,
+    DeviceUsageService,
+    PhoneExtensionService,
+    ConfigDocumentationService,
+    MonitoringService,
+    InfrastructureExtensionService,
   ],
-  controllers: [ItController],
+  controllers: [ItController, ItAdvancedController],
   exports: [
     AssetCategoryService,
     AssetService,
@@ -73,6 +99,14 @@ import { ItController } from './it.controller';
     InfrastructureService,
     ProcurementService,
     DeviceSelectionService,
+    RemoteActionService,
+    InventoryAuditService,
+    LicenceRenewalService,
+    DeviceUsageService,
+    PhoneExtensionService,
+    ConfigDocumentationService,
+    MonitoringService,
+    InfrastructureExtensionService,
   ],
 })
 export class ItModule {}
