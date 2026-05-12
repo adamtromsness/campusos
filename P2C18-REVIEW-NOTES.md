@@ -6,13 +6,36 @@
 **Previous cycle:** P2-17 (REVIEW-P2C17 — Round 2 PASS).
 **Wave:** Opens Wave D (Module Completion).
 
-## Round 1 verdict
+## Final verdict — Round 2 PASS
 
 REVIEW-P2C18-CHATGPT Round 1 against `c739ad8` + `e1307e6` returned
-**FAIL** with 6 BLOCKING + 2 MAJOR. Round 1 fix commit lands all 6
-BLOCKING + 17 pinned regression tests + retains MAJORs on the Phase 2
-punch list. See `HANDOFF-P2C18.md` "REVIEW-P2C18 Round 1 fix log"
-section for the per-fix verification trail.
+**FAIL** with 6 BLOCKING + 2 MAJOR. Round 2 against the Round 1 fix
+commit `c99ea93` returned **PASS** — every prior BLOCKING verified
+FIXED, every dimension at PASS (Event Durability / Cleaning Issue
+Ticket Consumer / Cleaning Routes / Zone Inspections / Assets /
+Energy / Test Coverage).
+
+Tagged `p2c18-complete` at `c99ea93` (the Round 1 fix commit that
+earned PASS) and `p2c18-approved` at the closeout commit.
+
+Two non-blocking carry-overs to Phase 2 / pre-pilot per the Round 2
+reviewer's gate decision:
+
+1. **Facilities Manager role split** — FAC-001..005 currently granted
+   to the generic Staff role; joins the broader role-split chain
+   (Counsellor / Nurse / FSM / Librarian / AD / TC) for a dedicated
+   FM role before pilot.
+2. **TicketsModule-owned cleaning-issue consumer** — the cross-module
+   write is defended end-to-end by the Round 1 guards
+   (envelope-vs-payload validation + school-scoped category lookup +
+   school-scoped admin requester fallback + envelope-id on INSERT),
+   but the correct long-term architectural shape is a Tickets-owned
+   consumer (or a `tsk_auto_task_rules` row driving the Cycle 7
+   TaskWorker with a Tickets-owned action). Recommendation-class
+   polish.
+
+See `HANDOFF-P2C18.md` "REVIEW-P2C18 Round 1 fix log" section for
+the per-fix verification trail.
 
 | #     | Finding                                                            | Severity | Verdict (Round 1)                   | Verification                                                                                                                                                                                                         |
 | ----- | ------------------------------------------------------------------ | -------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

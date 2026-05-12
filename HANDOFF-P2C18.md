@@ -1,6 +1,8 @@
 # P2-18 Facilities Advanced — Handoff
 
-**Status:** REVIEW-P2C18 ROUND 1 fixes applied (2026-05-12). Awaiting Round 2 verdict. Opens Wave D (Module Completion).
+**Status:** COMPLETE + APPROVED at the closeout commit (REVIEW-P2C18-CHATGPT — final verdict, 2026-05-12). Round 1 verdict against `c739ad8` + `e1307e6` was FAIL with 6 BLOCKING + 2 MAJOR; Round 2 verdict against `c99ea93` is PASS. Tagged `p2c18-complete` at `c99ea93` and `p2c18-approved` at the closeout commit. **Wave D (Module Completion) opens with this approval.**
+
+Two non-blocking carry-overs to Phase 2 / pre-pilot per the Round 2 reviewer's gate decision: Facilities Manager role split (FAC-001..005 currently granted to generic Staff; joins the broader role-split chain) and TicketsModule-owned cleaning-issue consumer move (the cross-module write is defended end-to-end by the Round 1 guards; moving the code into Tickets is recommendation-class polish).
 
 ## REVIEW-P2C18 Round 1 fix log (2026-05-12)
 
