@@ -168,6 +168,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Scheduling Advanced — rotation cycles + schedule generation + subject choices (P2-17a)',
     script: 'seed-scheduling-advanced.ts',
   },
+  {
+    label: 'Scheduling Advanced — exams + co-teaching + pull-out + cross-school + cover (P2-17b)',
+    script: 'seed-scheduling-advanced-b.ts',
+  },
 ];
 
 async function main(): Promise<void> {

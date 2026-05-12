@@ -77,6 +77,7 @@
     "seed:sis-advanced-c": "tsx src/seed-sis-advanced-c.ts",
     "seed:behaviour-advanced": "tsx src/seed-behaviour-advanced.ts",
     "seed:scheduling-advanced": "tsx src/seed-scheduling-advanced.ts",
+    "seed:scheduling-advanced-b": "tsx src/seed-scheduling-advanced-b.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

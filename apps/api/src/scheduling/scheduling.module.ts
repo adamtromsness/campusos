@@ -17,6 +17,11 @@ import { CoverageConsumer } from './coverage.consumer';
 import { RotationService } from './rotation.service';
 import { SubjectChoiceService } from './subject-choice.service';
 import { ScheduleGenerationService } from './schedule-generation.service';
+import { ExamSchedulingService } from './exam-scheduling.service';
+import { CoTeachingService } from './coteaching.service';
+import { PullOutService } from './pull-out.service';
+import { CrossSchoolStaffService } from './cross-school-staff.service';
+import { CoverArrangementService } from './cover-arrangement.service';
 import { BellScheduleController } from './bell-schedule.controller';
 import { TimetableController } from './timetable.controller';
 import { RoomController } from './room.controller';
@@ -36,6 +41,13 @@ import {
   SchedulingGenerateController,
   SchedulingRequestController,
 } from './schedule-generation.controller';
+import {
+  CoTeachingController,
+  CoverArrangementController,
+  CrossSchoolStaffController,
+  ExamSchedulingController,
+  PullOutController,
+} from './scheduling-advanced-b.controller';
 
 /**
  * Scheduling Module — M22 Academic Scheduling (Cycle 5 Steps 5 + 6).
@@ -91,6 +103,11 @@ import {
     RotationService,
     SubjectChoiceService,
     ScheduleGenerationService,
+    ExamSchedulingService,
+    CoTeachingService,
+    PullOutService,
+    CrossSchoolStaffService,
+    CoverArrangementService,
   ],
   controllers: [
     BellScheduleController,
@@ -108,6 +125,11 @@ import {
     SchedulingRequestController,
     SchedulingGenerateController,
     SchedulingCandidateController,
+    ExamSchedulingController,
+    CoTeachingController,
+    PullOutController,
+    CrossSchoolStaffController,
+    CoverArrangementController,
   ],
   exports: [
     BellScheduleService,
@@ -123,6 +145,11 @@ import {
     RotationService,
     SubjectChoiceService,
     ScheduleGenerationService,
+    ExamSchedulingService,
+    CoTeachingService,
+    PullOutService,
+    CrossSchoolStaffService,
+    CoverArrangementService,
   ],
 })
 export class SchedulingModule {}
