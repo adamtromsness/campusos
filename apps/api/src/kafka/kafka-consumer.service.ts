@@ -12,6 +12,7 @@ import { unprefixTopic } from './event-envelope';
 export interface ConsumedMessage {
   topic: string;
   partition: number;
+  offset?: string;
   key: string | null;
   headers: Record<string, string>;
   payload: unknown;
@@ -229,6 +230,10 @@ export class KafkaConsumerService implements OnModuleInit, OnApplicationShutdown
             topic: params.topic,
             partition: params.partition,
             key: params.message.key ? params.message.key.toString('utf8') : null,
+            offset:
+              params.message.offset !== undefined && params.message.offset !== null
+                ? String(params.message.offset)
+                : undefined,
             headers: headers,
             payload: payload,
             timestamp: params.message.timestamp,

@@ -72,6 +72,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
   { label: 'Procurement — requisitions, POs, vendors', script: 'seed-procurement.ts' },
   { label: 'Store — products, orders, inventory', script: 'seed-store.ts' },
   { label: 'Analytics — read models', script: 'seed-analytics.ts' },
+  {
+    label: 'Analytics Operations — P2-15a read models (procurement/store/fds/trn/fac/tech/lib)',
+    script: 'seed-analytics-operations.ts',
+  },
   { label: 'DPO — governance + compliance', script: 'seed-dpo.ts' },
   { label: 'Visitors — kiosk, banned persons, muster (P2C1)', script: 'seed-visitors.ts' },
   {

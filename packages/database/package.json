@@ -51,6 +51,7 @@
     "seed:procurement": "tsx src/seed-procurement.ts",
     "seed:store": "tsx src/seed-store.ts",
     "seed:analytics": "tsx src/seed-analytics.ts",
+    "seed:analytics-operations": "tsx src/seed-analytics-operations.ts",
     "seed:dpo": "tsx src/seed-dpo.ts",
     "seed:visitors": "tsx src/seed-visitors.ts",
     "seed:incident": "tsx src/seed-incident.ts",

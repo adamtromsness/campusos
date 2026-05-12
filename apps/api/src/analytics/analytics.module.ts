@@ -21,6 +21,17 @@ import {
   ReportRunService,
   ScheduledReportWorker,
 } from './reports.service';
+import {
+  FacilitiesReadModelWorker,
+  FoodServiceReadModelWorker,
+  ITReadModelWorker,
+  LibraryReadModelWorker,
+  ProcurementReadModelWorker,
+  StoreReadModelWorker,
+  TransportReadModelWorker,
+} from './operations/operations-workers.service';
+import { OperationsReadService } from './operations/operations-read.service';
+import { OperationsAnalyticsController } from './operations/operations-analytics.controller';
 
 /**
  * Analytics Module — M110 Analytics & Reporting (Cycle 29).
@@ -61,7 +72,16 @@ import {
     ReportDefinitionService,
     ReportRunService,
     ScheduledReportWorker,
+    // P2-15a Operations Read Models — 7 workers, 9 Kafka consumers, 1 read service.
+    ProcurementReadModelWorker,
+    StoreReadModelWorker,
+    FoodServiceReadModelWorker,
+    TransportReadModelWorker,
+    FacilitiesReadModelWorker,
+    ITReadModelWorker,
+    LibraryReadModelWorker,
+    OperationsReadService,
   ],
-  controllers: [AnalyticsController],
+  controllers: [AnalyticsController, OperationsAnalyticsController],
 })
 export class AnalyticsModule {}
