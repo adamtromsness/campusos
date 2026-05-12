@@ -182,6 +182,41 @@ export class CoverArrangementService {
   ): Promise<CoverArrangementResponseDto> {
     this.assertCoverScope(actor);
     const tenant = getCurrentTenant();
+
+    // REVIEW-P2C17 BLOCKING 6 — validate the absent + covering teachers
+    // and any linked sub_assignment all belong to the current school
+    // BEFORE inserting the arrangement. sub_assignments has no direct
+    // school_id column; school ownership is reached through
+    // sub_job_postings.school_id (Cycle P2-9).
+    await this.tenantPrisma.executeInTenantContext(async (client) => {
+      const refs = await client.$queryRawUnsafe<
+        Array<{ absent_ok: boolean; covering_ok: boolean; sub_ok: boolean }>
+      >(
+        'SELECT ' +
+          '(EXISTS (SELECT 1 FROM hr_employees WHERE id = $1::uuid AND school_id = $4::uuid)) AS absent_ok, ' +
+          '($2::uuid IS NULL OR EXISTS (SELECT 1 FROM hr_employees WHERE id = $2::uuid AND school_id = $4::uuid)) AS covering_ok, ' +
+          '($3::uuid IS NULL OR EXISTS (SELECT 1 FROM sub_assignments sa JOIN sub_job_postings jp ON jp.id = sa.job_id WHERE sa.id = $3::uuid AND jp.school_id = $4::uuid)) AS sub_ok',
+        body.absentTeacherId,
+        body.coveringTeacherId ?? null,
+        body.subAssignmentId ?? null,
+        tenant.schoolId,
+      );
+      const r = refs[0]!;
+      if (!r.absent_ok) {
+        throw new BadRequestException('absentTeacherId does not match an employee in this school.');
+      }
+      if (!r.covering_ok) {
+        throw new BadRequestException(
+          'coveringTeacherId does not match an employee in this school.',
+        );
+      }
+      if (!r.sub_ok) {
+        throw new BadRequestException(
+          'subAssignmentId does not match a sub assignment in this school.',
+        );
+      }
+    });
+
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
@@ -239,6 +274,49 @@ export class CoverArrangementService {
   ): Promise<CoverArrangementClassResponseDto> {
     this.assertCoverScope(actor);
     await this.assertArrangementExists(arrangementId);
+
+    // REVIEW-P2C17 BLOCKING 6 — validate every child reference
+    // belongs to the current school.
+    const tenant = getCurrentTenant();
+    await this.tenantPrisma.executeInTenantContext(async (client) => {
+      const refs = await client.$queryRawUnsafe<
+        Array<{
+          class_ok: boolean;
+          slot_ok: boolean;
+          room_ok: boolean;
+          teacher_ok: boolean;
+        }>
+      >(
+        'SELECT ' +
+          '(EXISTS (SELECT 1 FROM sis_classes WHERE id = $1::uuid AND school_id = $5::uuid)) AS class_ok, ' +
+          '(EXISTS (SELECT 1 FROM sch_timetable_slots WHERE id = $2::uuid AND school_id = $5::uuid)) AS slot_ok, ' +
+          '($3::uuid IS NULL OR EXISTS (SELECT 1 FROM sch_rooms WHERE id = $3::uuid AND school_id = $5::uuid)) AS room_ok, ' +
+          '($4::uuid IS NULL OR EXISTS (SELECT 1 FROM hr_employees WHERE id = $4::uuid AND school_id = $5::uuid)) AS teacher_ok',
+        body.affectedClassId,
+        body.affectedSlotId,
+        body.destinationRoomId ?? null,
+        body.supervisingTeacherId ?? null,
+        tenant.schoolId,
+      );
+      const r = refs[0]!;
+      if (!r.class_ok) {
+        throw new BadRequestException('affectedClassId does not match a class in this school.');
+      }
+      if (!r.slot_ok) {
+        throw new BadRequestException(
+          'affectedSlotId does not match a timetable slot in this school.',
+        );
+      }
+      if (!r.room_ok) {
+        throw new BadRequestException('destinationRoomId does not match a room in this school.');
+      }
+      if (!r.teacher_ok) {
+        throw new BadRequestException(
+          'supervisingTeacherId does not match an employee in this school.',
+        );
+      }
+    });
+
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -263,10 +341,20 @@ export class CoverArrangementService {
       }
       throw e;
     }
+    // REVIEW-P2C17 BLOCKING 6 — reload joins through the parent
+    // arrangement school predicate so foreign-school child rows can
+    // never surface even by direct ID.
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = await client.$queryRawUnsafe<ClassRow[]>(
-        SELECT_CLASS_BASE + 'WHERE id = $1::uuid',
+        'SELECT cc.id::text AS id, cc.arrangement_id::text AS arrangement_id, ' +
+          'cc.affected_class_id::text AS affected_class_id, cc.affected_slot_id::text AS affected_slot_id, ' +
+          'cc.disposition, cc.destination_room_id::text AS destination_room_id, ' +
+          'cc.supervising_teacher_id::text AS supervising_teacher_id, cc.notes ' +
+          'FROM sch_cover_arrangement_classes cc ' +
+          'JOIN sch_cover_arrangements a ON a.id = cc.arrangement_id ' +
+          'WHERE cc.id = $1::uuid AND a.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
       return classRowToDto(rows[0]!, []);
     });
@@ -279,6 +367,72 @@ export class CoverArrangementService {
   ): Promise<CoverSplitStudentResponseDto[]> {
     this.assertCoverScope(actor);
     await this.assertArrangementClassExists(arrangementClassId);
+
+    // REVIEW-P2C17 BLOCKING 6 — validate every student id + optional
+    // room id + supervising teacher id belongs to the current school
+    // BEFORE inserting. A School A coordinator who supplies a School
+    // B student UUID now gets 400 here.
+    const tenant = getCurrentTenant();
+    const studentIds = body.students.map((s) => s.studentId);
+    const roomIds = body.students
+      .map((s) => s.destinationRoomId)
+      .filter((x): x is string => x !== undefined);
+    const teacherIds = body.students
+      .map((s) => s.supervisingTeacherId)
+      .filter((x): x is string => x !== undefined);
+
+    await this.tenantPrisma.executeInTenantContext(async (client) => {
+      // Students.
+      if (studentIds.length > 0) {
+        const studentRows = await client.$queryRawUnsafe<Array<{ id: string }>>(
+          "SELECT id::text AS id FROM sis_students WHERE school_id = $1::uuid AND id = ANY(string_to_array($2, ',')::uuid[])",
+          tenant.schoolId,
+          studentIds.join(','),
+        );
+        const knownStudents = new Set(studentRows.map((r) => r.id));
+        for (const sid of studentIds) {
+          if (!knownStudents.has(sid)) {
+            throw new BadRequestException(
+              'students[].studentId ' + sid + ' does not match a student in this school.',
+            );
+          }
+        }
+      }
+      // Rooms (optional per row).
+      if (roomIds.length > 0) {
+        const roomRows = await client.$queryRawUnsafe<Array<{ id: string }>>(
+          "SELECT id::text AS id FROM sch_rooms WHERE school_id = $1::uuid AND id = ANY(string_to_array($2, ',')::uuid[])",
+          tenant.schoolId,
+          roomIds.join(','),
+        );
+        const knownRooms = new Set(roomRows.map((r) => r.id));
+        for (const rid of roomIds) {
+          if (!knownRooms.has(rid)) {
+            throw new BadRequestException(
+              'students[].destinationRoomId ' + rid + ' does not match a room in this school.',
+            );
+          }
+        }
+      }
+      // Supervising teachers (optional per row).
+      if (teacherIds.length > 0) {
+        const teacherRows = await client.$queryRawUnsafe<Array<{ id: string }>>(
+          "SELECT id::text AS id FROM hr_employees WHERE school_id = $1::uuid AND id = ANY(string_to_array($2, ',')::uuid[])",
+          tenant.schoolId,
+          teacherIds.join(','),
+        );
+        const knownTeachers = new Set(teacherRows.map((r) => r.id));
+        for (const tid of teacherIds) {
+          if (!knownTeachers.has(tid)) {
+            throw new BadRequestException(
+              'students[].supervisingTeacherId ' +
+                tid +
+                ' does not match an employee in this school.',
+            );
+          }
+        }
+      }
+    });
 
     const inserted: CoverSplitStudentResponseDto[] = [];
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
@@ -305,9 +459,20 @@ export class CoverArrangementService {
           }
           throw e;
         }
+        // REVIEW-P2C17 BLOCKING 6 — reload joins through parent
+        // arrangement_class -> arrangement -> school so foreign-school
+        // rows cannot leak even by direct ID.
         const rows = await tx.$queryRawUnsafe<SplitRow[]>(
-          SELECT_SPLIT_BASE + 'WHERE id = $1::uuid',
+          'SELECT ss.id::text AS id, ss.arrangement_class_id::text AS arrangement_class_id, ' +
+            'ss.student_id::text AS student_id, ss.destination_class_label, ' +
+            'ss.destination_room_id::text AS destination_room_id, ' +
+            'ss.supervising_teacher_id::text AS supervising_teacher_id, ss.notes ' +
+            'FROM sch_cover_split_students ss ' +
+            'JOIN sch_cover_arrangement_classes cc ON cc.id = ss.arrangement_class_id ' +
+            'JOIN sch_cover_arrangements a ON a.id = cc.arrangement_id ' +
+            'WHERE ss.id = $1::uuid AND a.school_id = $2::uuid',
           id,
+          tenant.schoolId,
         );
         inserted.push(splitRowToDto(rows[0]!));
       }

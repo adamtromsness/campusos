@@ -9,8 +9,12 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import {
+  deterministicGenerationCompletedEventId,
+  deterministicTimetableUpdatedEventId,
+} from './event-ids';
 import {
   ActivateCandidateResponseDto,
   ActivationLogResponseDto,
@@ -241,7 +245,7 @@ export class ScheduleGenerationService {
 
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   private assertAdmin(actor: ResolvedActor): void {
@@ -508,24 +512,30 @@ export class ScheduleGenerationService {
         candidatesGenerated,
         requestId,
       );
+
+      // REVIEW-P2C17 BLOCKING 1 — emit via the platform outbox INSIDE
+      // the same tx that flipped the request to COMPLETED. A broker
+      // outage now leaves the row in the outbox; the
+      // OutboxPublisherWorker drains on recovery. Deterministic
+      // event_id keyed on requestId so retries dedup cleanly.
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'sch.generation.completed',
+        key: requestId,
+        sourceModule: 'scheduling',
+        eventId: deterministicGenerationCompletedEventId(requestId),
+        payload: {
+          requestId,
+          schoolId: tenant.schoolId,
+          solverAlgorithm: algorithm,
+          sectionCount,
+          candidatesGenerated,
+          candidateIds: [candAId, candBId].filter((id) => id !== ''),
+          requestedBy: actor.accountId,
+          sourceRefId: requestId,
+        },
+      });
     });
 
-    // Emit OUTSIDE the tx so a broker hiccup can't roll the user's
-    // submission back.
-    void this.kafka.emit({
-      topic: 'sch.generation.completed',
-      key: requestId,
-      sourceModule: 'scheduling',
-      payload: {
-        requestId,
-        schoolId: tenant.schoolId,
-        solverAlgorithm: algorithm,
-        sectionCount,
-        candidatesGenerated,
-        candidateIds: [candAId, candBId].filter((id) => id !== ''),
-        requestedBy: actor.accountId,
-      },
-    });
     this.logger.log(
       '[schedule-generation] request ' +
         requestId +
@@ -536,11 +546,27 @@ export class ScheduleGenerationService {
     );
   }
 
+  /**
+   * REVIEW-P2C17 BLOCKING 2 — candidate reads must join through
+   * sch_scheduling_requests so the parent request's school_id gates
+   * access. A School A admin who knows a School B candidate UUID now
+   * collapses to 404 don't-leak-existence.
+   */
   async getCandidate(id: string): Promise<SchedulingCandidateResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<CandidateRow[]>(
-        SELECT_CANDIDATE_BASE + 'WHERE id = $1::uuid',
+        'SELECT c.id::text AS id, c.request_id::text AS request_id, c.candidate_name, c.solver_seed, ' +
+          'c.total_slots, c.total_clashes, c.all_constraints_satisfied, c.constraint_violations, ' +
+          'c.soft_constraint_score::text AS soft_constraint_score, c.review_status, ' +
+          'c.reviewed_by::text AS reviewed_by, ' +
+          'TO_CHAR(c.reviewed_at, \'YYYY-MM-DD"T"HH24:MI:SS.US"Z"\') AS reviewed_at, ' +
+          'c.review_notes ' +
+          'FROM sch_scheduling_candidates c ' +
+          'JOIN sch_scheduling_requests r ON r.id = c.request_id ' +
+          'WHERE c.id = $1::uuid AND r.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     if (rows.length === 0) throw new NotFoundException('Candidate not found');
@@ -548,10 +574,19 @@ export class ScheduleGenerationService {
   }
 
   async listCandidateSlots(candidateId: string): Promise<CandidateSlotResponseDto[]> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<CandidateSlotRow[]>(
-        SELECT_SLOT_BASE + 'WHERE candidate_id = $1::uuid ORDER BY day_of_week, rotation_day',
+        'SELECT s.id::text AS id, s.candidate_id::text AS candidate_id, s.class_id::text AS class_id, ' +
+          's.teacher_id::text AS teacher_id, s.room_id::text AS room_id, s.period_id::text AS period_id, ' +
+          's.day_of_week, s.rotation_day, s.has_clash, s.clash_description ' +
+          'FROM sch_scheduling_candidate_slots s ' +
+          'JOIN sch_scheduling_candidates c ON c.id = s.candidate_id ' +
+          'JOIN sch_scheduling_requests r ON r.id = c.request_id ' +
+          'WHERE s.candidate_id = $1::uuid AND r.school_id = $2::uuid ' +
+          'ORDER BY s.day_of_week, s.rotation_day',
         candidateId,
+        tenant.schoolId,
       );
     });
     return rows.map(slotRowToDto);
@@ -586,10 +621,17 @@ export class ScheduleGenerationService {
     reviewNotes: string | undefined,
     actor: ResolvedActor,
   ): Promise<SchedulingCandidateResponseDto> {
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C17 BLOCKING 2 — lock the candidate row via JOIN to
+      // the parent request with school_id = tenant.schoolId so a
+      // School A admin cannot transition a School B candidate by UUID.
       const rows = await tx.$queryRawUnsafe<Array<{ id: string; review_status: string }>>(
-        'SELECT id::text AS id, review_status FROM sch_scheduling_candidates WHERE id = $1::uuid FOR UPDATE',
+        'SELECT c.id::text AS id, c.review_status FROM sch_scheduling_candidates c ' +
+          'JOIN sch_scheduling_requests r ON r.id = c.request_id ' +
+          'WHERE c.id = $1::uuid AND r.school_id = $2::uuid FOR UPDATE OF c',
         candidateId,
+        tenant.schoolId,
       );
       if (rows.length === 0) throw new NotFoundException('Candidate not found');
       if (rows[0]!.review_status !== 'PENDING' && rows[0]!.review_status !== 'MODIFIED') {
@@ -622,12 +664,21 @@ export class ScheduleGenerationService {
     actor: ResolvedActor,
   ): Promise<CandidateSlotResponseDto> {
     this.assertAdmin(actor);
+    const tenant = getCurrentTenant();
     let updated = 0;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C17 BLOCKING 2 — lock the slot row via JOIN to the
+      // parent candidate + request with school_id = tenant.schoolId so
+      // a School A admin cannot resolve a clash on a School B slot.
       const owned = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-        'SELECT id::text AS id FROM sch_scheduling_candidate_slots WHERE id = $1::uuid AND candidate_id = $2::uuid FOR UPDATE',
+        'SELECT s.id::text AS id FROM sch_scheduling_candidate_slots s ' +
+          'JOIN sch_scheduling_candidates c ON c.id = s.candidate_id ' +
+          'JOIN sch_scheduling_requests r ON r.id = c.request_id ' +
+          'WHERE s.id = $1::uuid AND s.candidate_id = $2::uuid AND r.school_id = $3::uuid ' +
+          'FOR UPDATE OF s',
         body.slotId,
         candidateId,
+        tenant.schoolId,
       );
       if (owned.length === 0) {
         throw new NotFoundException('Slot not found on this candidate');
@@ -654,8 +705,15 @@ export class ScheduleGenerationService {
     if (updated === 0) throw new NotFoundException('Slot not updated');
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<CandidateSlotRow[]>(
-        SELECT_SLOT_BASE + 'WHERE id = $1::uuid',
+        'SELECT s.id::text AS id, s.candidate_id::text AS candidate_id, s.class_id::text AS class_id, ' +
+          's.teacher_id::text AS teacher_id, s.room_id::text AS room_id, s.period_id::text AS period_id, ' +
+          's.day_of_week, s.rotation_day, s.has_clash, s.clash_description ' +
+          'FROM sch_scheduling_candidate_slots s ' +
+          'JOIN sch_scheduling_candidates c ON c.id = s.candidate_id ' +
+          'JOIN sch_scheduling_requests r ON r.id = c.request_id ' +
+          'WHERE s.id = $1::uuid AND r.school_id = $2::uuid',
         body.slotId,
+        tenant.schoolId,
       );
     });
     return slotRowToDto(rows[0]!);
@@ -679,11 +737,18 @@ export class ScheduleGenerationService {
     let activationLogId = '';
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C17 BLOCKING 2 — lock the candidate row via JOIN to
+      // the parent request with school_id = tenant.schoolId so the
+      // School A admin cannot activate a School B candidate.
       const candRows = await tx.$queryRawUnsafe<
         Array<{ id: string; review_status: string; total_clashes: number }>
       >(
-        'SELECT id::text AS id, review_status, total_clashes FROM sch_scheduling_candidates WHERE id = $1::uuid FOR UPDATE',
+        'SELECT c.id::text AS id, c.review_status, c.total_clashes ' +
+          'FROM sch_scheduling_candidates c ' +
+          'JOIN sch_scheduling_requests r ON r.id = c.request_id ' +
+          'WHERE c.id = $1::uuid AND r.school_id = $2::uuid FOR UPDATE OF c',
         candidateId,
+        tenant.schoolId,
       );
       if (candRows.length === 0) throw new NotFoundException('Candidate not found');
       const cand = candRows[0]!;
@@ -737,6 +802,54 @@ export class ScheduleGenerationService {
           slotsSkipped++;
           continue;
         }
+
+        // REVIEW-P2C17 BLOCKING 2 — validate that every referenced
+        // object belongs to the current school BEFORE inserting the
+        // timetable slot. A candidate's slot can in theory carry IDs
+        // from anywhere (the slot table itself is tenant-local, but
+        // we still defence-in-depth: the candidate UUIDs could have
+        // been written by a buggy/older solver). Skip any slot whose
+        // class / period / room / teacher do not belong to this
+        // tenant's school. teacher_id is nullable; only validate when
+        // present.
+        const refCheck = await tx.$queryRawUnsafe<
+          Array<{
+            class_ok: boolean;
+            period_ok: boolean;
+            room_ok: boolean;
+            teacher_ok: boolean;
+          }>
+        >(
+          'SELECT ' +
+            '(EXISTS (SELECT 1 FROM sis_classes WHERE id = $1::uuid AND school_id = $5::uuid)) AS class_ok, ' +
+            '(EXISTS (SELECT 1 FROM sch_periods p JOIN sch_bell_schedules bs ON bs.id = p.bell_schedule_id WHERE p.id = $2::uuid AND bs.school_id = $5::uuid)) AS period_ok, ' +
+            '(EXISTS (SELECT 1 FROM sch_rooms WHERE id = $3::uuid AND school_id = $5::uuid)) AS room_ok, ' +
+            '($4::uuid IS NULL OR EXISTS (SELECT 1 FROM hr_employees WHERE id = $4::uuid AND school_id = $5::uuid)) AS teacher_ok',
+          s.class_id,
+          s.period_id,
+          s.room_id,
+          s.teacher_id,
+          tenant.schoolId,
+        );
+        const refs = refCheck[0]!;
+        if (!refs.class_ok || !refs.period_ok || !refs.room_ok || !refs.teacher_ok) {
+          this.logger.warn(
+            '[schedule-generation] candidate slot ' +
+              s.id +
+              ' references foreign-school object(s) (class_ok=' +
+              refs.class_ok +
+              ' period_ok=' +
+              refs.period_ok +
+              ' room_ok=' +
+              refs.room_ok +
+              ' teacher_ok=' +
+              refs.teacher_ok +
+              ') — skipping promotion.',
+          );
+          slotsSkipped++;
+          continue;
+        }
+
         const sp = 'sp_activate_' + idx;
         await tx.$executeRawUnsafe('SAVEPOINT ' + sp);
         try {
@@ -798,23 +911,30 @@ export class ScheduleGenerationService {
               ' skipped (placeholder slots or conflicts).'
           : null,
       );
+
+      // REVIEW-P2C17 BLOCKING 1 — emit via the platform outbox INSIDE
+      // the same tx that promoted the slots + wrote the activation
+      // log. A broker outage now leaves the row in the outbox;
+      // OutboxPublisherWorker drains on recovery. Deterministic
+      // event_id keyed on activationLogId so retries dedup cleanly.
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'sch.timetable.updated',
+        key: candidateId,
+        sourceModule: 'scheduling',
+        eventId: deterministicTimetableUpdatedEventId(activationLogId),
+        payload: {
+          candidateId,
+          schoolId: tenant.schoolId,
+          slotsPromoted,
+          slotsSkipped,
+          activationLogId,
+          activatedBy: actor.accountId,
+          action: 'candidate_activated',
+          sourceRefId: activationLogId,
+        },
+      });
     });
 
-    // Emit OUTSIDE the tx — sch.timetable.updated per activation.
-    void this.kafka.emit({
-      topic: 'sch.timetable.updated',
-      key: candidateId,
-      sourceModule: 'scheduling',
-      payload: {
-        candidateId,
-        schoolId: tenant.schoolId,
-        slotsPromoted,
-        slotsSkipped,
-        activationLogId,
-        activatedBy: actor.accountId,
-        action: 'candidate_activated',
-      },
-    });
     this.logger.log(
       '[schedule-generation] activated candidate ' +
         candidateId +
@@ -834,12 +954,21 @@ export class ScheduleGenerationService {
   }
 
   async listActivationLogs(candidateId: string): Promise<ActivationLogResponseDto[]> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C17 BLOCKING 2 — JOIN through candidate + request so
+      // a School A admin cannot read School B activation logs by
+      // candidate UUID.
       return client.$queryRawUnsafe<ActivationLogRow[]>(
-        'SELECT id::text AS id, candidate_id::text AS candidate_id, slots_promoted, slots_skipped, ' +
-          'activated_by::text AS activated_by, TO_CHAR(activated_at, \'YYYY-MM-DD"T"HH24:MI:SS.US"Z"\') AS activated_at, notes ' +
-          'FROM sch_scheduling_activation_log WHERE candidate_id = $1::uuid ORDER BY activated_at DESC',
+        'SELECT l.id::text AS id, l.candidate_id::text AS candidate_id, l.slots_promoted, l.slots_skipped, ' +
+          'l.activated_by::text AS activated_by, TO_CHAR(l.activated_at, \'YYYY-MM-DD"T"HH24:MI:SS.US"Z"\') AS activated_at, l.notes ' +
+          'FROM sch_scheduling_activation_log l ' +
+          'JOIN sch_scheduling_candidates c ON c.id = l.candidate_id ' +
+          'JOIN sch_scheduling_requests r ON r.id = c.request_id ' +
+          'WHERE l.candidate_id = $1::uuid AND r.school_id = $2::uuid ' +
+          'ORDER BY l.activated_at DESC',
         candidateId,
+        tenant.schoolId,
       );
     });
     return rows.map(logRowToDto);

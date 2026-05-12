@@ -1,7 +1,98 @@
 # HANDOFF — Phase 2 Cycle 17 (Scheduling Advanced)
 
-**Status: COMPLETE pending peer review. Wave C (Operational Depth)
-closes here.**
+**Status:** REVIEW-P2C17 Round 1 fixes applied at the closeout commit
+(2026-05-12). Round 1 reviewer flagged 6 BLOCKING + 4 MAJOR against
+`0406694` + `c4d13f1`; the closeout commit lands all 6 BLOCKINGs + 1
+MAJOR (raw STAFF bypass replaced with explicit `sch-001:admin` perm
+via `PermissionCheckService`) plus 27 new pinned regression tests so
+the contracts cannot regress. 3 MAJORs carried as recommendation-class
+Phase 2 follow-ups. CI parity green at 810/810 tests across 38 spec
+files. Wave C (Operational Depth) closes here. Awaiting Round 2
+verdict before tagging `p2c17-complete`.
+
+## Round 1 fix log (REVIEW-P2C17, 2026-05-12)
+
+All 6 BLOCKINGs landed with regression tests:
+
+- **BLOCKING 1 — Event durability.** `sch.generation.completed` +
+  `sch.timetable.updated` moved to `OutboxService.enqueueInTx` INSIDE
+  the triggering transaction. Deterministic event IDs via new
+  `apps/api/src/scheduling/event-ids.ts` helpers
+  (`deterministicGenerationCompletedEventId(requestId)` +
+  `deterministicTimetableUpdatedEventId(activationLogId)`). The
+  `ScheduleGenerationService` constructor swaps `KafkaProducerService`
+  for `OutboxService`. A broker outage now leaves the outbox row in
+  place and `OutboxPublisherWorker` drains on recovery.
+- **BLOCKING 2 — Candidate/activation school-scoping.** Every
+  candidate / candidate_slot / activation read + write path joins
+  through `sch_scheduling_requests r` and filters
+  `r.school_id = $tenant.schoolId`. The activation INSERT into
+  `sch_timetable_slots` validates `class_id` / `period_id` / `room_id`
+  / `teacher_id` belong to the current school via inline EXISTS
+  clauses BEFORE the INSERT — foreign-school references skip with
+  WARN + bump `slots_skipped`.
+- **BLOCKING 3 — Co-teaching school-scoping.** Every CoTeachingService
+  read/write joins through `sch_timetable_slots s ON s.id =
+ca.timetable_slot_id` filtered on `s.school_id`. `create()`
+  validates slot + both teachers (`hr_employees.school_id`) BEFORE
+  insert. `patch()`/`remove()` call `getById()` first so foreign-school
+  arrangements 404 don't-leak-existence. `hasActiveCoTeachingFor`
+  carries the same school-scope guard.
+- **BLOCKING 4 — Exam children validate ownership.** 3 new private
+  helpers `assertRoomBelongsToSchool` / `assertStudentBelongsToSchool`
+  / `assertEmployeeBelongsToSchool` called before INSERT in
+  `addRoom`, `assignSeat`, `assignInvigilator`. Accommodation lookup
+  now school-scopes through `sis_student_active_accommodations.school_id`.
+  `findRoomConflicts` session lookup adds school predicate. Every
+  child reload joins through `sch_exam_sessions` for the parent
+  session school scope.
+- **BLOCKING 5 — Pull-out scoping.** `create()` validates studentId
+  - regularSlotId + interventionProvider against current school
+    via inline EXISTS clauses BEFORE INSERT. `premarkAttendance` joins
+    intervention + slot on shared `school_id`. Attendance UPDATE adds
+    a JOIN against `sis_students stu` filtered on `stu.school_id` for
+    defence-in-depth. `patch()` UPDATE carries `school_id` predicate.
+- **BLOCKING 6 — Cover arrangement children scoping.** `create()`
+  validates absent + covering teachers + sub_assignment (joined
+  through `sub_job_postings.school_id`) BEFORE insert. `addClass()`
+  validates affected class + slot + destination room + supervising
+  teacher. `addSplitStudents()` batch-validates students + optional
+  destination rooms + supervising teachers via
+  `ANY(string_to_array(...)::uuid[])`. Child reloads join through
+  `sch_cover_arrangements a` so foreign-school rows can never
+  surface.
+- **BLOCKING 7 (was MAJOR) — Subject choice STAFF bypass +
+  cross-school leak.** `SubjectChoiceService` constructor injects
+  `PermissionCheckService`. New `hasSchedulingAdminScope(actor)`
+  helper replaces `personType === 'STAFF'` everywhere — admin is
+  explicit `sch-001:admin` via
+  `permissionCheck.hasAnyPermissionInTenant`. `SELECT_CHOICE_BASE`
+  JOINs `sis_students stu` so every list query filters
+  `stu.school_id`. `resolveOwnStudentId` +
+  `resolveGuardianStudentIds` school-scope through
+  `sis_students.school_id`. `submit()` validates body.studentId
+  against current school. `demand()` joins through students for
+  school-scope + requires sch-001:admin.
+
+**MAJORs carried to Phase 2 follow-up list** (recommendation-class):
+
+1. Cover coordinator dedicated role split (joins the Wave-2 Phase 2
+   role-split chain). Today the service gates writes on
+   `actor.isSchoolAdmin`, mirroring Cycle 5 CoverageService.
+2. `POST /scheduling/pull-outs/:id/repremark` for cadence-change
+   repremarking — operators currently DELETE + re-create.
+3. Auto-call findRoomConflicts on `POST /scheduling/exams/:id/rooms`
+   so the safe-by-default workflow surfaces conflicts immediately.
+
+**Test coverage:** vitest 783 → **810 passing across 38 spec files**
+(+27 pinned regression tests in `scheduling-p2c17-review.spec.ts`
+across 7 REVIEW-P2C17 describe blocks). See `P2C17-REVIEW-NOTES.md`
+for the per-fix verification trail.
+
+---
+
+**Original status (pre-Round-1):** COMPLETE pending peer review. Wave C
+(Operational Depth) closes here.
 
 Cycle 17 ships the **M22 Scheduling Advanced surface — 20 new tenant
 `sch_*` base tables across 2 migrations (`149` + `150`) + 1 ALTER on

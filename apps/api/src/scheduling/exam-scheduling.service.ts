@@ -254,6 +254,8 @@ export class ExamSchedulingService {
   ): Promise<ExamRoomResponseDto> {
     this.assertAdmin(actor);
     await this.assertSessionExists(sessionId);
+    // REVIEW-P2C17 BLOCKING 4 — validate room belongs to current school.
+    await this.assertRoomBelongsToSchool(body.roomId);
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -274,11 +276,19 @@ export class ExamSchedulingService {
       }
       throw e;
     }
+    // REVIEW-P2C17 BLOCKING 4 — reload joins through the parent
+    // session school predicate so foreign-school child rows can never
+    // surface even by direct ID.
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = await client.$queryRawUnsafe<RoomRow[]>(
-        'SELECT id::text AS id, session_id::text AS session_id, room_id::text AS room_id, capacity, is_main_room, notes ' +
-          'FROM sch_exam_session_rooms WHERE id = $1::uuid',
+        'SELECT r.id::text AS id, r.session_id::text AS session_id, r.room_id::text AS room_id, ' +
+          'r.capacity, r.is_main_room, r.notes ' +
+          'FROM sch_exam_session_rooms r ' +
+          'JOIN sch_exam_sessions es ON es.id = r.session_id ' +
+          'WHERE r.id = $1::uuid AND es.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
       return roomRowToDto(rows[0]!);
     });
@@ -298,10 +308,15 @@ export class ExamSchedulingService {
    *      tstzrange in the exam window.
    */
   async findRoomConflicts(sessionId: string): Promise<ExamRoomConflictDto[]> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C17 BLOCKING 4 — school-scope the session lookup so
+      // the conflict endpoint can never run against a foreign-school
+      // session UUID. 404 don't-leak-existence on miss.
       const sessions = await client.$queryRawUnsafe<SessionRow[]>(
-        SELECT_SESSION + 'WHERE id = $1::uuid',
+        SELECT_SESSION + 'WHERE id = $1::uuid AND school_id = $2::uuid',
         sessionId,
+        tenant.schoolId,
       );
       if (sessions.length === 0) throw new NotFoundException('Exam session not found');
       const session = sessions[0]!;
@@ -381,25 +396,38 @@ export class ExamSchedulingService {
   ): Promise<ExamSeatingResponseDto> {
     this.assertAdmin(actor);
     await this.assertSessionExists(sessionId);
+    // REVIEW-P2C17 BLOCKING 4 — validate the student + room belong to
+    // the current school BEFORE inserting. A School A admin who
+    // supplies a School B student UUID or room UUID gets 400 here.
+    await this.assertStudentBelongsToSchool(body.studentId);
+    await this.assertRoomBelongsToSchool(body.roomId);
+
     const id = generateId();
 
-    // Resolve accommodations for the student.
+    // Resolve accommodations for the student — school-scope through
+    // sis_student_active_accommodations.school_id (the ADR-030 read
+    // model carries school_id) so accommodation flags can never leak
+    // across schools.
+    const tenant = getCurrentTenant();
     const session = await this.tenantPrisma.executeInTenantContext(async (client) => {
       const sessions = await client.$queryRawUnsafe<SessionRow[]>(
-        SELECT_SESSION + 'WHERE id = $1::uuid',
+        SELECT_SESSION + 'WHERE id = $1::uuid AND school_id = $2::uuid',
         sessionId,
+        tenant.schoolId,
       );
       return sessions[0]!;
     });
 
     const accommodations = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<AccommodationRow[]>(
-        'SELECT accommodation_type FROM sis_student_active_accommodations WHERE student_id = $1::uuid ' +
+        'SELECT accommodation_type FROM sis_student_active_accommodations ' +
+          'WHERE student_id = $1::uuid AND school_id = $3::uuid ' +
           'AND (effective_from IS NULL OR effective_from <= $2::date) ' +
           'AND (effective_to IS NULL OR effective_to >= $2::date) ' +
           "AND applies_to IN ('ALL_ASSESSMENTS', 'SPECIFIC')",
         body.studentId,
         session.exam_date,
+        tenant.schoolId,
       );
     });
 
@@ -452,10 +480,13 @@ export class ExamSchedulingService {
 
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = await client.$queryRawUnsafe<SeatingRow[]>(
-        'SELECT id::text AS id, session_id::text AS session_id, student_id::text AS student_id, ' +
-          'room_id::text AS room_id, seat_number, extra_time_minutes, separate_room, reader_required, scribe_required ' +
-          'FROM sch_exam_seatings WHERE id = $1::uuid',
+        'SELECT sx.id::text AS id, sx.session_id::text AS session_id, sx.student_id::text AS student_id, ' +
+          'sx.room_id::text AS room_id, sx.seat_number, sx.extra_time_minutes, sx.separate_room, sx.reader_required, sx.scribe_required ' +
+          'FROM sch_exam_seatings sx ' +
+          'JOIN sch_exam_sessions es ON es.id = sx.session_id ' +
+          'WHERE sx.id = $1::uuid AND es.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
       return seatingRowToDto(rows[0]!);
     });
@@ -468,6 +499,10 @@ export class ExamSchedulingService {
   ): Promise<ExamInvigilatorResponseDto> {
     this.assertAdmin(actor);
     await this.assertSessionExists(sessionId);
+    // REVIEW-P2C17 BLOCKING 4 — validate room + invigilator belong to
+    // the current school.
+    await this.assertRoomBelongsToSchool(body.roomId);
+    await this.assertEmployeeBelongsToSchool(body.invigilatorId);
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -489,12 +524,16 @@ export class ExamSchedulingService {
       }
       throw e;
     }
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = await client.$queryRawUnsafe<InvigilatorRow[]>(
-        'SELECT id::text AS id, session_id::text AS session_id, room_id::text AS room_id, ' +
-          'invigilator_id::text AS invigilator_id, is_lead ' +
-          'FROM sch_exam_invigilator_assignments WHERE id = $1::uuid',
+        'SELECT ia.id::text AS id, ia.session_id::text AS session_id, ia.room_id::text AS room_id, ' +
+          'ia.invigilator_id::text AS invigilator_id, ia.is_lead ' +
+          'FROM sch_exam_invigilator_assignments ia ' +
+          'JOIN sch_exam_sessions es ON es.id = ia.session_id ' +
+          'WHERE ia.id = $1::uuid AND es.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
       return invigilatorRowToDto(rows[0]!);
     });
@@ -510,5 +549,53 @@ export class ExamSchedulingService {
       );
     });
     if (rows.length === 0) throw new NotFoundException('Exam session not found');
+  }
+
+  /**
+   * REVIEW-P2C17 BLOCKING 4 — validate the supplied roomId belongs to
+   * the current school. 400 BadRequest on miss. Mirrors the same shape
+   * Cycle 6.1 ProfileService.assertTargetInCurrentTenant uses for
+   * platform-tier identifiers.
+   */
+  private async assertRoomBelongsToSchool(roomId: string): Promise<void> {
+    const tenant = getCurrentTenant();
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id::text AS id FROM sch_rooms WHERE id = $1::uuid AND school_id = $2::uuid',
+        roomId,
+        tenant.schoolId,
+      );
+    });
+    if (rows.length === 0) {
+      throw new BadRequestException('roomId does not match a room in this school.');
+    }
+  }
+
+  private async assertStudentBelongsToSchool(studentId: string): Promise<void> {
+    const tenant = getCurrentTenant();
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id::text AS id FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid',
+        studentId,
+        tenant.schoolId,
+      );
+    });
+    if (rows.length === 0) {
+      throw new BadRequestException('studentId does not match a student in this school.');
+    }
+  }
+
+  private async assertEmployeeBelongsToSchool(employeeId: string): Promise<void> {
+    const tenant = getCurrentTenant();
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe<{ id: string }[]>(
+        'SELECT id::text AS id FROM hr_employees WHERE id = $1::uuid AND school_id = $2::uuid',
+        employeeId,
+        tenant.schoolId,
+      );
+    });
+    if (rows.length === 0) {
+      throw new BadRequestException('invigilatorId does not match an employee in this school.');
+    }
   }
 }

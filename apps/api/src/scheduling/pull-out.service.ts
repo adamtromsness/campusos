@@ -130,6 +130,40 @@ export class PullOutService {
       );
     }
     const tenant = getCurrentTenant();
+
+    // REVIEW-P2C17 BLOCKING 5 — validate every soft-FK reference
+    // against current school BEFORE inserting. A School A admin
+    // supplying a School B studentId / regularSlotId / provider gets
+    // 400 here before any pre-marking touches sis_attendance_records.
+    await this.tenantPrisma.executeInTenantContext(async (client) => {
+      const refs = await client.$queryRawUnsafe<
+        Array<{ student_ok: boolean; slot_ok: boolean; provider_ok: boolean }>
+      >(
+        'SELECT ' +
+          '(EXISTS (SELECT 1 FROM sis_students WHERE id = $1::uuid AND school_id = $4::uuid)) AS student_ok, ' +
+          '(EXISTS (SELECT 1 FROM sch_timetable_slots WHERE id = $2::uuid AND school_id = $4::uuid)) AS slot_ok, ' +
+          '($3::uuid IS NULL OR EXISTS (SELECT 1 FROM hr_employees WHERE id = $3::uuid AND school_id = $4::uuid)) AS provider_ok',
+        body.studentId,
+        body.regularSlotId,
+        body.interventionProvider ?? null,
+        tenant.schoolId,
+      );
+      const r = refs[0]!;
+      if (!r.student_ok) {
+        throw new BadRequestException('studentId does not match a student in this school.');
+      }
+      if (!r.slot_ok) {
+        throw new BadRequestException(
+          'regularSlotId does not match a timetable slot in this school.',
+        );
+      }
+      if (!r.provider_ok) {
+        throw new BadRequestException(
+          'interventionProvider does not match an employee in this school.',
+        );
+      }
+    });
+
     const id = generateId();
     const daysParam = body.daysOfWeek ? body.daysOfWeek.join(',') : null;
 
@@ -207,11 +241,23 @@ export class PullOutService {
       i += 1;
     }
     if (sets.length === 0) return this.getById(id);
+    // REVIEW-P2C17 BLOCKING 5 — confirm school ownership before
+    // mutating. getById throws 404 don't-leak-existence if the
+    // intervention belongs to a foreign school.
+    await this.getById(id);
     sets.push('updated_at = now()');
+    const tenant = getCurrentTenant();
     args.push(id);
+    args.push(tenant.schoolId);
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
-        'UPDATE sch_pull_out_interventions SET ' + sets.join(', ') + ' WHERE id = $' + i + '::uuid',
+        'UPDATE sch_pull_out_interventions SET ' +
+          sets.join(', ') +
+          ' WHERE id = $' +
+          i +
+          '::uuid AND school_id = $' +
+          (i + 1) +
+          '::uuid',
         ...args,
       );
     });
@@ -232,8 +278,12 @@ export class PullOutService {
    * row from its default (PRESENT) to PULL_OUT.
    */
   private async premarkAttendance(interventionId: string): Promise<number> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
-      // Resolve the intervention shape.
+      // REVIEW-P2C17 BLOCKING 5 — resolve the intervention shape only
+      // when the intervention + its slot both belong to the current
+      // school. Defence-in-depth against any path that somehow lands
+      // an intervention with a foreign-school slot.
       const rows = await client.$queryRawUnsafe<
         {
           student_id: string;
@@ -251,8 +301,9 @@ export class PullOutService {
           'i.frequency, i.days_of_week, s.period_id::text AS period_id ' +
           'FROM sch_pull_out_interventions i ' +
           'JOIN sch_timetable_slots s ON s.id = i.regular_slot_id ' +
-          'WHERE i.id = $1::uuid',
+          'WHERE i.id = $1::uuid AND i.school_id = $2::uuid AND s.school_id = $2::uuid',
         interventionId,
+        tenant.schoolId,
       );
       if (rows.length === 0) return 0;
       const inter = rows[0]!;
@@ -301,27 +352,40 @@ export class PullOutService {
 
       // Look up class_id from the slot — sis_attendance_records is
       // partitioned by (school_year, class_id) so we need it on the
-      // WHERE for partition pruning.
+      // WHERE for partition pruning. REVIEW-P2C17 BLOCKING 5 —
+      // school-scope this slot lookup too.
       const slotInfo = await client.$queryRawUnsafe<{ class_id: string | null }[]>(
-        'SELECT class_id::text AS class_id FROM sch_timetable_slots WHERE id = $1::uuid',
+        'SELECT class_id::text AS class_id FROM sch_timetable_slots ' +
+          'WHERE id = $1::uuid AND school_id = $2::uuid',
         inter.regular_slot_id,
+        tenant.schoolId,
       );
       const classId = slotInfo[0]?.class_id;
       if (!classId) return 0;
 
-      // UPDATE existing attendance rows for the (student class date)
-      // tuples. Idempotent — re-running over PULL_OUT rows is a no-op.
+      // REVIEW-P2C17 BLOCKING 5 — UPDATE existing attendance rows for
+      // the (student class date) tuples ONLY when the student is in
+      // the current school. The JOIN against sis_students is the
+      // schema-side guard so an attendance row whose student_id ended
+      // up cross-school (impossible today since attendance partitioning
+      // keys on class_id which itself school-scopes through sis_classes,
+      // but the defence-in-depth check makes the contract explicit).
+      // Idempotent — re-running over PULL_OUT rows is a no-op via the
+      // status<>'PULL_OUT' guard.
       const result = await client.$executeRawUnsafe(
-        'UPDATE sis_attendance_records SET status = $1, evidence_source = $2, marked_at = now() ' +
-          'WHERE class_id = $3::uuid AND student_id = $4::uuid ' +
-          'AND date = ANY(string_to_array($5, $6)::date[]) ' +
-          "AND status <> 'PULL_OUT'",
+        'UPDATE sis_attendance_records ar SET status = $1, evidence_source = $2, marked_at = now() ' +
+          'FROM sis_students stu ' +
+          'WHERE ar.class_id = $3::uuid AND ar.student_id = $4::uuid ' +
+          'AND ar.date = ANY(string_to_array($5, $6)::date[]) ' +
+          "AND ar.status <> 'PULL_OUT' " +
+          'AND stu.id = ar.student_id AND stu.school_id = $7::uuid',
         'PULL_OUT',
         'SYSTEM_INFERRED',
         classId,
         inter.student_id,
         targetDates.join(','),
         ',',
+        tenant.schoolId,
       );
       return Number(result);
     });
