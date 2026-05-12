@@ -32,3 +32,25 @@ export function deterministicRouteStopIssueNotedEventId(stopCompletionId: string
     .digest();
   return toV5Shape(h);
 }
+
+/**
+ * Deterministic event-id helper for the P2-18b fire-drill compliance
+ * Kafka emit `fac.fire_drill.overdue`.
+ *
+ * Keys on the (buildingId, computed_at_iso_date) pair so multiple
+ * compliance scans on the same day produce the same envelope and
+ * downstream consumer idempotency catches redelivery cleanly. Multiple
+ * scans across days emit fresh envelopes (the alert is intentionally
+ * re-fireable until the school logs a drill). Mirrors the SHA-256
+ * first-16-bytes-shaped-as-v5 pattern from Cycles 11 + 12 + P2-12 +
+ * P2-14 + the P2-18a route-stop helper above.
+ */
+export function deterministicFireDrillOverdueEventId(
+  buildingId: string,
+  computedAtIsoDate: string,
+): string {
+  const h = createHash('sha256')
+    .update(buildingId + ':' + computedAtIsoDate + ':fac.fire_drill.overdue:v1')
+    .digest();
+  return toV5Shape(h);
+}

@@ -44,6 +44,7 @@
     "seed:food-service": "tsx src/seed-food-service.ts",
     "seed:facilities": "tsx src/seed-facilities.ts",
     "seed:facilities-advanced-a": "tsx src/seed-facilities-advanced-a.ts",
+    "seed:facilities-advanced-b": "tsx src/seed-facilities-advanced-b.ts",
     "seed:it": "tsx src/seed-it.ts",
     "seed:curriculum": "tsx src/seed-curriculum.ts",
     "seed:portfolio": "tsx src/seed-portfolio.ts",

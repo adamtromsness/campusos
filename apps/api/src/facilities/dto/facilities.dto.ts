@@ -1445,3 +1445,760 @@ export class WorkOrderCostSummaryResponseDto {
   @ApiPropertyOptional() labourCost!: number | null;
   @ApiProperty() grandTotal!: number;
 }
+
+// ── P2-18b — Fire Drills + Assets + Energy + Utilisation + Sustainability ──
+
+export type AssetStatus = 'ACTIVE' | 'UNDER_MAINTENANCE' | 'DECOMMISSIONED';
+export const ASSET_STATUSES: AssetStatus[] = ['ACTIVE', 'UNDER_MAINTENANCE', 'DECOMMISSIONED'];
+
+export type ReplacementPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export const REPLACEMENT_PRIORITIES: ReplacementPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+
+export type MaintenanceType = 'SCHEDULED' | 'CORRECTIVE' | 'EMERGENCY' | 'INSPECTION';
+export const MAINTENANCE_TYPES: MaintenanceType[] = [
+  'SCHEDULED',
+  'CORRECTIVE',
+  'EMERGENCY',
+  'INSPECTION',
+];
+
+export type DisposalMethod = 'AUCTION' | 'DONATION' | 'SKIP' | 'TRADE_IN' | 'SCRAP' | 'TRANSFER';
+export const DISPOSAL_METHODS: DisposalMethod[] = [
+  'AUCTION',
+  'DONATION',
+  'SKIP',
+  'TRADE_IN',
+  'SCRAP',
+  'TRANSFER',
+];
+
+export type UtilityType = 'ELECTRICITY' | 'GAS' | 'WATER' | 'HEATING_OIL' | 'SOLAR';
+export const UTILITY_TYPES: UtilityType[] = ['ELECTRICITY', 'GAS', 'WATER', 'HEATING_OIL', 'SOLAR'];
+
+export type EnergyTargetPeriod = 'MONTHLY' | 'ANNUAL';
+export const ENERGY_TARGET_PERIODS: EnergyTargetPeriod[] = ['MONTHLY', 'ANNUAL'];
+
+export type SustainabilityCategory = 'ENERGY' | 'WATER' | 'WASTE' | 'TRANSPORT' | 'BIODIVERSITY';
+export const SUSTAINABILITY_CATEGORIES: SustainabilityCategory[] = [
+  'ENERGY',
+  'WATER',
+  'WASTE',
+  'TRANSPORT',
+  'BIODIVERSITY',
+];
+
+export type SustainabilityStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+export const SUSTAINABILITY_STATUSES: SustainabilityStatus[] = ['ACTIVE', 'COMPLETED', 'CANCELLED'];
+
+export type SpaceUtilSource = 'MANUAL' | 'ATTENDANCE' | 'BOOKING' | 'SENSOR';
+export const SPACE_UTIL_SOURCES: SpaceUtilSource[] = ['MANUAL', 'ATTENDANCE', 'BOOKING', 'SENSOR'];
+
+// ── Fire Drills ──
+
+export class CreateFireDrillDto {
+  @ApiProperty()
+  @IsUUID()
+  buildingId!: string;
+
+  @ApiProperty()
+  @IsISO8601()
+  drillDate!: string;
+
+  @ApiProperty({ description: 'HH:MM 24-hour wall time' })
+  @IsString()
+  drillTime!: string;
+
+  @ApiProperty({ minimum: 0 })
+  @IsInt()
+  @Min(0)
+  durationSeconds!: number;
+
+  @ApiProperty({ minimum: 0 })
+  @IsInt()
+  @Min(0)
+  totalOccupants!: number;
+
+  @ApiProperty({ minimum: 0 })
+  @IsInt()
+  @Min(0)
+  evacuationTimeSeconds!: number;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  targetEvacuationSeconds?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  issuesNoted?: string;
+}
+
+export class FireDrillResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() buildingId!: string;
+  @ApiPropertyOptional() buildingName!: string | null;
+  @ApiProperty() drillDate!: string;
+  @ApiProperty() drillTime!: string;
+  @ApiProperty() durationSeconds!: number;
+  @ApiProperty() totalOccupants!: number;
+  @ApiProperty() evacuationTimeSeconds!: number;
+  @ApiPropertyOptional() targetEvacuationSeconds!: number | null;
+  @ApiPropertyOptional() metTarget!: boolean | null;
+  @ApiPropertyOptional() issuesNoted!: string | null;
+  @ApiProperty() conductedBy!: string;
+  @ApiPropertyOptional() conductedByName!: string | null;
+}
+
+export class FireDrillComplianceRowDto {
+  @ApiProperty() buildingId!: string;
+  @ApiProperty() buildingName!: string;
+  @ApiPropertyOptional() lastDrillDate!: string | null;
+  @ApiPropertyOptional() daysSinceLastDrill!: number | null;
+  @ApiProperty() isOverdue!: boolean;
+}
+
+// ── Asset Categories ──
+
+export class CreateAssetCategoryDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 100)
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  depreciationYears?: number;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maintenanceIntervalMonths?: number;
+}
+
+export class UpdateAssetCategoryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  depreciationYears?: number;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maintenanceIntervalMonths?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class AssetCategoryResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional() description!: string | null;
+  @ApiPropertyOptional() depreciationYears!: number | null;
+  @ApiPropertyOptional() maintenanceIntervalMonths!: number | null;
+  @ApiProperty() isActive!: boolean;
+}
+
+// ── Assets ──
+
+export class CreateAssetDto {
+  @ApiProperty()
+  @IsUUID()
+  categoryId!: string;
+
+  @ApiProperty()
+  @IsUUID()
+  buildingId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  spaceId?: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(1, 200)
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  make?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  serialNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  installDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  warrantyExpiry?: string;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  expectedLifespanYears?: number;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  replacementCostEstimate?: number;
+
+  @ApiPropertyOptional({ enum: REPLACEMENT_PRIORITIES })
+  @IsOptional()
+  @IsIn(REPLACEMENT_PRIORITIES)
+  replacementPriority?: ReplacementPriority;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class UpdateAssetDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  make?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  serialNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  installDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  warrantyExpiry?: string;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  expectedLifespanYears?: number;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  replacementCostEstimate?: number;
+
+  @ApiPropertyOptional({ enum: REPLACEMENT_PRIORITIES })
+  @IsOptional()
+  @IsIn(REPLACEMENT_PRIORITIES)
+  replacementPriority?: ReplacementPriority;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  spaceId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class AssetResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() categoryId!: string;
+  @ApiPropertyOptional() categoryName!: string | null;
+  @ApiProperty() buildingId!: string;
+  @ApiPropertyOptional() buildingName!: string | null;
+  @ApiPropertyOptional() spaceId!: string | null;
+  @ApiPropertyOptional() spaceName!: string | null;
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional() make!: string | null;
+  @ApiPropertyOptional() model!: string | null;
+  @ApiPropertyOptional() serialNumber!: string | null;
+  @ApiPropertyOptional() installDate!: string | null;
+  @ApiPropertyOptional() warrantyExpiry!: string | null;
+  @ApiPropertyOptional() expectedLifespanYears!: number | null;
+  @ApiPropertyOptional() replacementCostEstimate!: number | null;
+  @ApiPropertyOptional() replacementPriority!: ReplacementPriority | null;
+  @ApiProperty() status!: AssetStatus;
+  @ApiPropertyOptional() notes!: string | null;
+  @ApiPropertyOptional() decommissionedAt!: string | null;
+  @ApiPropertyOptional() decommissionedBy!: string | null;
+}
+
+export class CreateAssetMaintenanceDto {
+  @ApiProperty({ enum: MAINTENANCE_TYPES })
+  @IsIn(MAINTENANCE_TYPES)
+  maintenanceType!: MaintenanceType;
+
+  @ApiProperty()
+  @IsISO8601()
+  performedDate!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(1, 200)
+  performedBy!: string;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  cost?: number;
+
+  @ApiProperty()
+  @IsString()
+  @Length(1, 2000)
+  description!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  nextMaintenanceDate?: string;
+}
+
+export class AssetMaintenanceResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() assetId!: string;
+  @ApiProperty() maintenanceType!: MaintenanceType;
+  @ApiProperty() performedDate!: string;
+  @ApiProperty() performedBy!: string;
+  @ApiPropertyOptional() cost!: number | null;
+  @ApiProperty() description!: string;
+  @ApiPropertyOptional() nextMaintenanceDate!: string | null;
+  @ApiProperty() createdBy!: string;
+  @ApiPropertyOptional() createdByName!: string | null;
+}
+
+export class MaintenanceOverdueRowDto {
+  @ApiProperty() assetId!: string;
+  @ApiProperty() assetName!: string;
+  @ApiPropertyOptional() categoryName!: string | null;
+  @ApiPropertyOptional() buildingName!: string | null;
+  @ApiProperty() nextMaintenanceDate!: string;
+  @ApiProperty() daysOverdue!: number;
+}
+
+export class ReplacementPlanningRowDto {
+  @ApiProperty() assetId!: string;
+  @ApiProperty() assetName!: string;
+  @ApiPropertyOptional() categoryName!: string | null;
+  @ApiPropertyOptional() installDate!: string | null;
+  @ApiPropertyOptional() expectedLifespanYears!: number | null;
+  @ApiPropertyOptional() projectedEndOfLife!: string | null;
+  @ApiPropertyOptional() yearsRemaining!: number | null;
+  @ApiPropertyOptional() replacementCostEstimate!: number | null;
+  @ApiPropertyOptional() replacementPriority!: ReplacementPriority | null;
+}
+
+export class DecommissionAssetDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class DisposeAssetDto {
+  @ApiProperty({ enum: DISPOSAL_METHODS })
+  @IsIn(DISPOSAL_METHODS)
+  disposalMethod!: DisposalMethod;
+
+  @ApiProperty()
+  @IsISO8601()
+  disposalDate!: string;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  valueRecovered?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  recipientName?: string;
+
+  @ApiProperty()
+  @IsUUID()
+  authorisedById!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class AssetDisposalResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() assetId!: string;
+  @ApiPropertyOptional() assetName!: string | null;
+  @ApiProperty() disposalMethod!: DisposalMethod;
+  @ApiProperty() disposalDate!: string;
+  @ApiPropertyOptional() valueRecovered!: number | null;
+  @ApiPropertyOptional() recipientName!: string | null;
+  @ApiProperty() disposedBy!: string;
+  @ApiPropertyOptional() disposedByName!: string | null;
+  @ApiProperty() authorisedBy!: string;
+  @ApiPropertyOptional() authorisedByName!: string | null;
+  @ApiPropertyOptional() notes!: string | null;
+}
+
+// ── Energy ──
+
+export class CreateUtilityMeterDto {
+  @ApiProperty()
+  @IsUUID()
+  buildingId!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(1, 100)
+  meterName!: string;
+
+  @ApiProperty({ enum: UTILITY_TYPES })
+  @IsIn(UTILITY_TYPES)
+  utilityType!: UtilityType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  meterReference?: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(1, 30)
+  unit!: string;
+}
+
+export class UpdateUtilityMeterDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  meterName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  meterReference?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 30)
+  unit?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UtilityMeterResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() buildingId!: string;
+  @ApiPropertyOptional() buildingName!: string | null;
+  @ApiProperty() meterName!: string;
+  @ApiProperty() utilityType!: UtilityType;
+  @ApiPropertyOptional() meterReference!: string | null;
+  @ApiProperty() unit!: string;
+  @ApiProperty() isActive!: boolean;
+}
+
+export class CreateEnergyReadingDto {
+  @ApiProperty()
+  @IsUUID()
+  meterId!: string;
+
+  @ApiProperty()
+  @IsISO8601()
+  readingDate!: string;
+
+  @ApiProperty({ minimum: 0 })
+  @IsNumber()
+  @Min(0)
+  readingValue!: number;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  costEstimate?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class EnergyReadingResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() meterId!: string;
+  @ApiPropertyOptional() meterName!: string | null;
+  @ApiPropertyOptional() utilityType!: UtilityType | null;
+  @ApiPropertyOptional() unit!: string | null;
+  @ApiProperty() readingDate!: string;
+  @ApiProperty() readingValue!: number;
+  @ApiPropertyOptional() consumption!: number | null;
+  @ApiPropertyOptional() costEstimate!: number | null;
+  @ApiProperty() recordedBy!: string;
+  @ApiPropertyOptional() recordedByName!: string | null;
+  @ApiPropertyOptional() notes!: string | null;
+}
+
+export class CreateEnergyTargetDto {
+  @ApiProperty({ enum: UTILITY_TYPES })
+  @IsIn(UTILITY_TYPES)
+  utilityType!: UtilityType;
+
+  @ApiProperty({ enum: ENERGY_TARGET_PERIODS })
+  @IsIn(ENERGY_TARGET_PERIODS)
+  targetPeriod!: EnergyTargetPeriod;
+
+  @ApiProperty({ minimum: 0.01 })
+  @IsNumber()
+  @Min(0.01)
+  targetValue!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  academicYear?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class EnergyTargetResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() utilityType!: UtilityType;
+  @ApiProperty() targetPeriod!: EnergyTargetPeriod;
+  @ApiProperty() targetValue!: number;
+  @ApiPropertyOptional() academicYear!: string | null;
+  @ApiPropertyOptional() notes!: string | null;
+}
+
+export class EnergyTrendPointDto {
+  @ApiProperty() readingDate!: string;
+  @ApiProperty() readingValue!: number;
+  @ApiPropertyOptional() consumption!: number | null;
+  @ApiPropertyOptional() costEstimate!: number | null;
+}
+
+export class EnergyTrendResponseDto {
+  @ApiProperty() meterId!: string;
+  @ApiProperty() meterName!: string;
+  @ApiProperty() utilityType!: UtilityType;
+  @ApiProperty() unit!: string;
+  @ApiProperty({ type: [EnergyTrendPointDto] })
+  points!: EnergyTrendPointDto[];
+  @ApiProperty() totalConsumption!: number;
+  @ApiProperty() totalCost!: number;
+}
+
+export class EnergySummaryRowDto {
+  @ApiProperty() utilityType!: UtilityType;
+  @ApiProperty() actualConsumption!: number;
+  @ApiPropertyOptional() targetValue!: number | null;
+  @ApiPropertyOptional() variancePercent!: number | null;
+  @ApiProperty() unit!: string;
+}
+
+// ── Space Utilisation ──
+
+export class CreateSpaceUtilisationDto {
+  @ApiProperty()
+  @IsUUID()
+  spaceId!: string;
+
+  @ApiProperty()
+  @IsISO8601()
+  recordDate!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  periodId?: string;
+
+  @ApiProperty({ minimum: 0 })
+  @IsInt()
+  @Min(0)
+  occupancyCount!: number;
+
+  @ApiProperty({ minimum: 0 })
+  @IsInt()
+  @Min(0)
+  capacity!: number;
+
+  @ApiPropertyOptional({ enum: SPACE_UTIL_SOURCES })
+  @IsOptional()
+  @IsIn(SPACE_UTIL_SOURCES)
+  source?: SpaceUtilSource;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class SpaceUtilisationResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() spaceId!: string;
+  @ApiPropertyOptional() spaceName!: string | null;
+  @ApiProperty() recordDate!: string;
+  @ApiPropertyOptional() periodId!: string | null;
+  @ApiProperty() occupancyCount!: number;
+  @ApiProperty() capacity!: number;
+  @ApiPropertyOptional() utilisationRate!: number | null;
+  @ApiProperty() source!: SpaceUtilSource;
+  @ApiPropertyOptional() notes!: string | null;
+}
+
+export class UnderusedSpaceRowDto {
+  @ApiProperty() spaceId!: string;
+  @ApiProperty() spaceName!: string;
+  @ApiProperty() averageUtilisationRate!: number;
+  @ApiProperty() recordCount!: number;
+  @ApiProperty() averageOccupancy!: number;
+  @ApiProperty() averageCapacity!: number;
+}
+
+// ── Sustainability ──
+
+export class CreateSustainabilityInitiativeDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 200)
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({ enum: SUSTAINABILITY_CATEGORIES })
+  @IsIn(SUSTAINABILITY_CATEGORIES)
+  category!: SustainabilityCategory;
+
+  @ApiProperty()
+  @IsISO8601()
+  startDate!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  targetCompletionDate?: string;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  targetReductionPercent?: number;
+}
+
+export class UpdateSustainabilityInitiativeDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ enum: SUSTAINABILITY_STATUSES })
+  @IsOptional()
+  @IsIn(SUSTAINABILITY_STATUSES)
+  status?: SustainabilityStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  outcomeNotes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  targetCompletionDate?: string;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  targetReductionPercent?: number;
+}
+
+export class SustainabilityInitiativeResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional() description!: string | null;
+  @ApiProperty() category!: SustainabilityCategory;
+  @ApiProperty() startDate!: string;
+  @ApiPropertyOptional() targetCompletionDate!: string | null;
+  @ApiPropertyOptional() targetReductionPercent!: number | null;
+  @ApiProperty() status!: SustainabilityStatus;
+  @ApiPropertyOptional() outcomeNotes!: string | null;
+  @ApiProperty() createdBy!: string;
+  @ApiPropertyOptional() createdByName!: string | null;
+}

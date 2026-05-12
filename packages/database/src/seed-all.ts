@@ -68,6 +68,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Facilities Advanced (P2-18a) — cleaning routes, stocktakes, work order depth',
     script: 'seed-facilities-advanced-a.ts',
   },
+  {
+    label: 'Facilities Advanced (P2-18b) — fire drills, assets, energy, space utilisation',
+    script: 'seed-facilities-advanced-b.ts',
+  },
   { label: 'IT — devices, licences, vault', script: 'seed-it.ts' },
   { label: 'Curriculum + standards', script: 'seed-curriculum.ts' },
   { label: 'Portfolio — student-owned achievements', script: 'seed-portfolio.ts' },
