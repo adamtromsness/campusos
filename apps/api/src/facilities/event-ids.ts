@@ -54,3 +54,17 @@ export function deterministicFireDrillOverdueEventId(
     .digest();
   return toV5Shape(h);
 }
+
+/**
+ * Deterministic event-id helper for the `fac.work_order.created` emit
+ * from `ZoneInspectionService.create` on FAIL inspections (REVIEW-P2C18
+ * BLOCKING 1 — migrating to outbox).
+ *
+ * Keys on the work order id so retries land the same envelope.
+ */
+export function deterministicWorkOrderCreatedEventId(workOrderId: string): string {
+  const h = createHash('sha256')
+    .update(workOrderId + ':fac.work_order.created:v1')
+    .digest();
+  return toV5Shape(h);
+}

@@ -1,10 +1,29 @@
 # P2-18 Facilities Advanced — Peer Review Scaffold
 
-**Target SHA:** the closeout commit of P2-18b.
+**Target SHA:** Round 1 closeout commit (REVIEW-P2C18 Round 2 input).
 **Plan:** `docs/campusos-p2c18-facilities-advanced.html`
 **Handoff:** `HANDOFF-P2C18.md`
 **Previous cycle:** P2-17 (REVIEW-P2C17 — Round 2 PASS).
 **Wave:** Opens Wave D (Module Completion).
+
+## Round 1 verdict
+
+REVIEW-P2C18-CHATGPT Round 1 against `c739ad8` + `e1307e6` returned
+**FAIL** with 6 BLOCKING + 2 MAJOR. Round 1 fix commit lands all 6
+BLOCKING + 17 pinned regression tests + retains MAJORs on the Phase 2
+punch list. See `HANDOFF-P2C18.md` "REVIEW-P2C18 Round 1 fix log"
+section for the per-fix verification trail.
+
+| #     | Finding                                                            | Severity | Verdict (Round 1)                   | Verification                                                                                                                                                                                                         |
+| ----- | ------------------------------------------------------------------ | -------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | 3 emits best-effort after commit                                   | BLOCKING | **FIXED**                           | All three flipped to `OutboxService.enqueueInTx` INSIDE the triggering tx. Deterministic event_ids per helper. Tests R-B1a–d.                                                                                        |
+| 2     | CleaningIssueTicketConsumer trusts payload + writes Tickets tables | BLOCKING | **FIXED with documented exception** | Envelope-vs-payload validation + school-scoped category lookup + school-scoped admin requester fallback + envelope-id on INSERT. Architectural move into TicketsModule carried to Phase 2 punch list. Tests R-B2a–d. |
+| 3     | Cleaning route helpers ID-only                                     | BLOCKING | **FIXED**                           | school_id predicates added to getRouteById, patchRoute, listStops, replaceStops lock, listStopCompletions. Tests R-B3a–d.                                                                                            |
+| 4     | Zone inspection getById not school-scoped                          | BLOCKING | **FIXED**                           | JOIN now carries `z.school_id = $2::uuid`. Test R-B4a.                                                                                                                                                               |
+| 5     | Asset spaceId ID-only on create + missing on patch                 | BLOCKING | **FIXED**                           | Create + patch both run `fac_spaces JOIN fac_buildings ON school_id + asset.buildingId` validation before INSERT/UPDATE. Tests R-B5a–b.                                                                              |
+| 6     | Energy getReading not school-scoped                                | BLOCKING | **FIXED**                           | JOIN through fac_utility_meters with `m.school_id = $2::uuid`. Test R-B6a.                                                                                                                                           |
+| MAJ-1 | Facilities Manager role split                                      | MAJOR    | **CARRIED**                         | Phase 2 / pre-pilot punch list — joins broader role-split chain.                                                                                                                                                     |
+| MAJ-2 | Buildings/spaces helpers inherited ID-only paths                   | MAJOR    | **CARRIED**                         | Pre-dates P2-18; on the hardening punch list.                                                                                                                                                                        |
 
 This file scaffolds the per-finding triage table for the
 REVIEW-P2C18-CHATGPT review across BOTH sub-cycles. The reviewer

@@ -269,8 +269,19 @@ export class EnergyService {
   }
 
   async getReading(id: string): Promise<EnergyReadingResponseDto> {
+    // REVIEW-P2C18 BLOCKING 6 — school-scope the reading fetch via
+    // fac_utility_meters.school_id. A School A energy reader with a
+    // School B reading UUID now collapses to 404 don't-leak-existence
+    // rather than reading the foreign-school row.
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(READING_SELECT + 'WHERE r.id = $1::uuid LIMIT 1', id);
+      return client.$queryRawUnsafe(
+        READING_SELECT +
+          'JOIN fac_utility_meters m ON m.id = r.meter_id ' +
+          'WHERE r.id = $1::uuid AND m.school_id = $2::uuid LIMIT 1',
+        id,
+        tenant.schoolId,
+      );
     })) as ReadingRow[];
     if (rows.length === 0) throw new NotFoundException('Energy reading not found');
     return readingRowToDto(rows[0]!);

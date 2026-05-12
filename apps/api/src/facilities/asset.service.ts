@@ -262,12 +262,20 @@ export class AssetService {
         throw new BadRequestException('buildingId does not match a building in this school');
       }
       if (input.spaceId) {
+        // REVIEW-P2C18 BLOCKING 5 — validate the supplied spaceId
+        // belongs to a building in the current school AND that the
+        // building matches the asset's buildingId. fac_spaces has no
+        // school_id column directly so we walk through fac_buildings.
         const sp = (await tx.$queryRawUnsafe(
-          'SELECT 1 AS ok FROM fac_spaces WHERE id = $1::uuid LIMIT 1',
+          'SELECT 1 AS ok FROM fac_spaces s ' +
+            'JOIN fac_buildings b ON b.id = s.building_id ' +
+            'WHERE s.id = $1::uuid AND b.school_id = $2::uuid AND b.id = $3::uuid LIMIT 1',
           input.spaceId,
+          tenant.schoolId,
+          input.buildingId,
         )) as Array<{ ok: number }>;
         if (sp.length === 0) {
-          throw new BadRequestException('spaceId does not match a space in this school');
+          throw new BadRequestException('spaceId does not match a space in this school + building');
         }
       }
 
@@ -312,6 +320,38 @@ export class AssetService {
   ): Promise<AssetResponseDto> {
     await assertCanManage(actor, this.permCheck);
     const tenant = getCurrentTenant();
+
+    // REVIEW-P2C18 BLOCKING 5 — when a new spaceId is supplied, validate
+    // it belongs to a building in the current school AND that building
+    // matches the asset's existing buildingId. Walks fac_spaces →
+    // fac_buildings.school_id.
+    if (input.spaceId !== undefined && input.spaceId !== null) {
+      const existing = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT building_id::text AS building_id FROM fac_assets ' +
+            'WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+          id,
+          tenant.schoolId,
+        );
+      })) as Array<{ building_id: string }>;
+      if (existing.length === 0) throw new NotFoundException('Asset not found in this school');
+      const sp = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM fac_spaces s ' +
+            'JOIN fac_buildings b ON b.id = s.building_id ' +
+            'WHERE s.id = $1::uuid AND b.school_id = $2::uuid AND b.id = $3::uuid LIMIT 1',
+          input.spaceId,
+          tenant.schoolId,
+          existing[0]!.building_id,
+        );
+      })) as Array<{ ok: number }>;
+      if (sp.length === 0) {
+        throw new BadRequestException(
+          "spaceId does not match a space in this school + the asset's building",
+        );
+      }
+    }
+
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.name !== undefined) {

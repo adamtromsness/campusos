@@ -133,25 +133,50 @@ function makeKafka() {
     eventId?: string;
     payload: Record<string, unknown>;
   }> = [];
-  return {
-    emits,
-    kafka: {
-      emit: async (opts: {
+  // REVIEW-P2C18 BLOCKING 1 — Cleaning + Zone services now take an
+  // OutboxService (not KafkaProducerService). The shared stub returns
+  // both the legacy `kafka.emit` shape (left in place for any
+  // unmigrated path) and an `outbox.enqueueInTx` that pushes onto the
+  // same emits array so existing assertions keep matching.
+  const stub = {
+    emit: async (opts: {
+      topic: string;
+      key: string;
+      sourceModule: string;
+      eventId?: string;
+      payload: Record<string, unknown>;
+    }) => {
+      emits.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+    },
+    enqueueInTx: async (
+      _tx: unknown,
+      opts: {
         topic: string;
         key: string;
         sourceModule: string;
         eventId?: string;
         payload: Record<string, unknown>;
-      }) => {
-        emits.push({
-          topic: opts.topic,
-          sourceModule: opts.sourceModule,
-          key: opts.key,
-          eventId: opts.eventId,
-          payload: opts.payload,
-        });
       },
+    ) => {
+      emits.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+      return 'outbox-id';
     },
+  };
+  return {
+    emits,
+    kafka: stub,
   };
 }
 

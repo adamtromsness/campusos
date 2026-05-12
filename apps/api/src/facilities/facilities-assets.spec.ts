@@ -123,25 +123,49 @@ function makeKafka() {
     eventId?: string;
     payload: Record<string, unknown>;
   }> = [];
-  return {
-    emits,
-    kafka: {
-      emit: async (opts: {
+  // REVIEW-P2C18 BLOCKING 1 — FireDrillService now takes an OutboxService
+  // (not KafkaProducerService). The shared stub provides both
+  // `emit` (legacy) and `enqueueInTx` (current) and routes both onto
+  // the same emits array so the assertions in S3 keep matching.
+  const stub = {
+    emit: async (opts: {
+      topic: string;
+      key: string;
+      sourceModule: string;
+      eventId?: string;
+      payload: Record<string, unknown>;
+    }) => {
+      emits.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+    },
+    enqueueInTx: async (
+      _tx: unknown,
+      opts: {
         topic: string;
         key: string;
         sourceModule: string;
         eventId?: string;
         payload: Record<string, unknown>;
-      }) => {
-        emits.push({
-          topic: opts.topic,
-          sourceModule: opts.sourceModule,
-          key: opts.key,
-          eventId: opts.eventId,
-          payload: opts.payload,
-        });
       },
+    ) => {
+      emits.push({
+        topic: opts.topic,
+        sourceModule: opts.sourceModule,
+        key: opts.key,
+        eventId: opts.eventId,
+        payload: opts.payload,
+      });
+      return 'outbox-id';
     },
+  };
+  return {
+    emits,
+    kafka: stub,
   };
 }
 

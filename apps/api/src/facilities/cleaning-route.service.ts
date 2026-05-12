@@ -10,7 +10,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import { assertCanManage, assertEmployeeInCurrentTenant } from './buildings.service';
 import { deterministicRouteStopIssueNotedEventId } from './event-ids';
 import {
@@ -39,21 +39,29 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 /**
- * CleaningRouteService — P2-18a Step 2.
+ * CleaningRouteService — P2-18a Step 2 (REVIEW-P2C18 BLOCKING 1 update).
  *
  * CRUD for cleaning routes + ordered stops, assignment scheduling, and
  * the route-completion / stop-completion runtime. The keystone is the
- * issues_noted → fac.route_stop.issue_noted Kafka emit which downstream
+ * issues_noted → fac.route_stop.issue_noted emit which downstream
  * triggers the CleaningIssueTicketConsumer to create a tkt_tickets row
  * for follow-up — fulfilling the plan's "Task Worker creates tkt_ticket"
  * contract via the standard "domain emits, consumer materialises"
  * pattern established in Cycles 9 + 10 + 11.
+ *
+ * REVIEW-P2C18 BLOCKING 1 — the issue_noted emit lives on the platform
+ * outbox via OutboxService.enqueueInTx INSIDE the same tenant tx as the
+ * stop_completion UPDATE. A broker outage no longer drops the
+ * downstream ticket-materialisation step; the OutboxPublisherWorker
+ * drains on recovery. Deterministic event_id keyed on the
+ * stop_completion id so retries land the same envelope and the
+ * consumer's claim-after-success idempotency catches redelivery cleanly.
  */
 @Injectable()
 export class CleaningRouteService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly permCheck: PermissionCheckService,
   ) {}
 
@@ -102,13 +110,18 @@ export class CleaningRouteService {
   }
 
   async getRouteById(id: string): Promise<CleaningRouteResponseDto> {
+    // REVIEW-P2C18 BLOCKING 3 — school-scope the route fetch. A School A
+    // actor with a School B route UUID now collapses to 404 don't-leak-
+    // existence rather than reading the foreign-school row.
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT r.id::text AS id, r.school_id::text AS school_id, r.name, r.shift, ' +
           'r.zone_id::text AS zone_id, r.estimated_duration_minutes, r.is_active, ' +
           '(SELECT z.name FROM fac_zones z WHERE z.id = r.zone_id) AS zone_name ' +
-          'FROM fac_cleaning_routes r WHERE r.id = $1::uuid LIMIT 1',
+          'FROM fac_cleaning_routes r WHERE r.id = $1::uuid AND r.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       );
     })) as Array<{
       id: string;
@@ -197,13 +210,20 @@ export class CleaningRouteService {
     }
     if (sets.length === 0) return this.getRouteById(id);
     sets.push('updated_at = now()');
-    params.push(id);
+    // REVIEW-P2C18 BLOCKING 3 — school-scope the UPDATE. A School A
+    // facilities admin with a School B route UUID no longer mutates the
+    // foreign-school row. WHERE matches on (id, school_id) — zero-row
+    // RETURNING is the 404 signal.
+    const tenant = getCurrentTenant();
+    params.push(id, tenant.schoolId);
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
         const result = (await client.$queryRawUnsafe(
           'UPDATE fac_cleaning_routes SET ' +
             sets.join(', ') +
             ' WHERE id = $' +
+            (params.length - 1) +
+            '::uuid AND school_id = $' +
             params.length +
             '::uuid RETURNING id',
           ...params,
@@ -222,13 +242,20 @@ export class CleaningRouteService {
   }
 
   async listStops(routeId: string): Promise<CleaningRouteStopResponseDto[]> {
+    // REVIEW-P2C18 BLOCKING 3 — JOIN the parent route filtered on
+    // school_id so a leaked routeId from another school returns []
+    // (and the caller's getRouteById has already returned 404 by then).
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT s.id::text AS id, s.route_id::text AS route_id, s.space_id::text AS space_id, ' +
           's.stop_order, s.estimated_minutes, s.cleaning_tasks, ' +
           '(SELECT sp.name FROM fac_spaces sp WHERE sp.id = s.space_id) AS space_name ' +
-          'FROM fac_cleaning_route_stops s WHERE s.route_id = $1::uuid ORDER BY s.stop_order',
+          'FROM fac_cleaning_route_stops s ' +
+          'JOIN fac_cleaning_routes r ON r.id = s.route_id ' +
+          'WHERE s.route_id = $1::uuid AND r.school_id = $2::uuid ORDER BY s.stop_order',
         routeId,
+        tenant.schoolId,
       );
     })) as Array<{
       id: string;
@@ -278,11 +305,14 @@ export class CleaningRouteService {
       }
       spaces.add(s.spaceId);
     }
+    const tenantRs = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Confirm the parent route exists in this tenant before clobbering.
+      // REVIEW-P2C18 BLOCKING 3 — school-scope the lock. Confirm the
+      // parent route exists in THIS tenant before clobbering its stops.
       const route = (await tx.$queryRawUnsafe(
-        'SELECT id FROM fac_cleaning_routes WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id FROM fac_cleaning_routes WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         routeId,
+        tenantRs.schoolId,
       )) as Array<{ id: string }>;
       if (route.length === 0) throw new NotFoundException('Cleaning route not found');
       await tx.$executeRawUnsafe(
@@ -564,13 +594,6 @@ export class CleaningRouteService {
     }
 
     let scIdRow: string | null = null;
-    let emitContext: {
-      stopCompletionId: string;
-      routeId: string;
-      stopId: string;
-      spaceId: string;
-      issuesNoted: string;
-    } | null = null;
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // Lock parent completion + verify it belongs to this tenant.
@@ -678,49 +701,36 @@ export class CleaningRouteService {
         );
       }
 
-      // Stage Kafka emit context — fire AFTER tx commits.
+      // REVIEW-P2C18 BLOCKING 1 — enqueue the durable issue_noted event
+      // INSIDE the tenant tx via OutboxService.enqueueInTx. The outbox
+      // row commits with the parent UPDATE so a broker outage no longer
+      // drops the downstream ticket-materialisation. Deterministic
+      // event_id keyed on the stop_completion id so the publisher's
+      // claim-after-success idempotency catches redelivery cleanly.
       if (
         input.issuesNoted !== undefined &&
         input.issuesNoted !== null &&
         input.issuesNoted.trim().length > 0
       ) {
-        emitContext = {
-          stopCompletionId: row.id,
-          routeId: parent.route_id,
-          stopId: row.stop_id,
-          spaceId: row.space_id,
-          issuesNoted: input.issuesNoted,
-        };
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'fac.route_stop.issue_noted',
+          key: row.id,
+          sourceModule: 'facilities',
+          eventId: deterministicRouteStopIssueNotedEventId(row.id),
+          payload: {
+            sourceRefId: row.id,
+            stopCompletionId: row.id,
+            completionId: completionId,
+            routeId: parent.route_id,
+            stopId: row.stop_id,
+            spaceId: row.space_id,
+            issuesNoted: input.issuesNoted,
+            reportedByAccountId: actor.accountId,
+            schoolId: tenant.schoolId,
+          },
+        });
       }
     });
-
-    if (emitContext) {
-      // Cast through unknown so TS recognises the post-tx assignment.
-      const ctx = emitContext as unknown as {
-        stopCompletionId: string;
-        routeId: string;
-        stopId: string;
-        spaceId: string;
-        issuesNoted: string;
-      };
-      await this.kafka.emit({
-        topic: 'fac.route_stop.issue_noted',
-        key: ctx.stopCompletionId,
-        sourceModule: 'facilities',
-        eventId: deterministicRouteStopIssueNotedEventId(ctx.stopCompletionId),
-        payload: {
-          sourceRefId: ctx.stopCompletionId,
-          stopCompletionId: ctx.stopCompletionId,
-          completionId: completionId,
-          routeId: ctx.routeId,
-          stopId: ctx.stopId,
-          spaceId: ctx.spaceId,
-          issuesNoted: ctx.issuesNoted,
-          reportedByAccountId: actor.accountId,
-          schoolId: tenant.schoolId,
-        },
-      });
-    }
 
     if (!scIdRow) throw new NotFoundException('Stop completion row not found');
     const stopCompletions = await this.listStopCompletions(completionId);
@@ -730,14 +740,21 @@ export class CleaningRouteService {
   }
 
   private async listStopCompletions(completionId: string): Promise<StopCompletionResponseDto[]> {
+    // REVIEW-P2C18 BLOCKING 3 — JOIN through fac_cleaning_route_completions
+    // and fac_cleaning_routes filtered on school_id so a leaked completionId
+    // from another school returns [].
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT sc.id::text AS id, sc.completion_id::text AS completion_id, sc.stop_id::text AS stop_id, ' +
           'sc.status, sc.completed_at, sc.skip_reason, sc.tasks_completed, sc.photo_s3_keys, sc.issues_noted ' +
           'FROM fac_cleaning_route_stop_completions sc ' +
           'JOIN fac_cleaning_route_stops s ON s.id = sc.stop_id ' +
-          'WHERE sc.completion_id = $1::uuid ORDER BY s.stop_order',
+          'JOIN fac_cleaning_route_completions c ON c.id = sc.completion_id ' +
+          'JOIN fac_cleaning_routes r ON r.id = c.route_id ' +
+          'WHERE sc.completion_id = $1::uuid AND r.school_id = $2::uuid ORDER BY s.stop_order',
         completionId,
+        tenant.schoolId,
       );
     })) as Array<{
       id: string;

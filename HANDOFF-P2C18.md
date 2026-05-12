@@ -1,6 +1,150 @@
 # P2-18 Facilities Advanced — Handoff
 
-**Status:** COMPLETE pending peer review (2026-05-12). Opens Wave D (Module Completion).
+**Status:** REVIEW-P2C18 ROUND 1 fixes applied (2026-05-12). Awaiting Round 2 verdict. Opens Wave D (Module Completion).
+
+## REVIEW-P2C18 Round 1 fix log (2026-05-12)
+
+Round 1 against `c739ad8` + `e1307e6` returned **FAIL** with 6 BLOCKING
+items and 2 MAJOR items. The Round 1 fix commit lands all 6 BLOCKING
+plus 17 new regression tests in
+`apps/api/src/facilities/facilities-p2c18-review.spec.ts`. MAJORs (FM
+role split, TicketsModule-owned consumer move) carried as Phase 2 /
+pre-pilot punch list items per the reviewer's gate decision.
+
+### BLOCKING 1 — Durable outbox for 3 facilities emits
+
+All three facilities emits flipped from best-effort
+`KafkaProducerService.emit()` to durable
+`OutboxService.enqueueInTx(tx, ...)` INSIDE the triggering tenant tx:
+
+- `fac.route_stop.issue_noted` — `CleaningRouteService.patchStopCompletion`.
+  The outbox row commits with the stop_completion UPDATE so a broker
+  outage no longer drops the downstream ticket materialisation.
+  Deterministic event_id from
+  `deterministicRouteStopIssueNotedEventId(stopCompletionId)`.
+- `fac.work_order.created` — `ZoneInspectionService.create` on FAIL
+  inspections. The outbox row commits with the work order + inspection
+  INSERT pair. New helper
+  `deterministicWorkOrderCreatedEventId(workOrderId)` keys on the work
+  order id so retries land the same envelope.
+- `fac.fire_drill.overdue` — `FireDrillService.compliance`. The
+  dashboard scan now runs inside `executeInTenantTransaction` and
+  enqueues a per-overdue-building row inside the same tx. Deterministic
+  event_id from
+  `deterministicFireDrillOverdueEventId(buildingId, today_iso)` so two
+  scans on the same day land the same envelope; a fresh-day scan emits
+  a fresh envelope so the alert can repeat each day until a drill is
+  logged.
+
+Constructor signatures on `CleaningRouteService`, `ZoneInspectionService`,
+and `FireDrillService` swap `KafkaProducerService` → `OutboxService`.
+
+### BLOCKING 2 — CleaningIssueTicketConsumer cross-module hardening
+
+The consumer stays in `apps/api/src/facilities/` for this cycle —
+moving the materialisation into a Tickets-owned consumer is the
+correct long-term shape but the refactor is a Phase 2 architectural
+change. The class-level comment now documents the cross-module write
+as a **formal exception** with three Round 1 guards:
+
+1. **Envelope-vs-payload tenant validation** in `handle()` — drops the
+   event when `payload.schoolId !== event.tenant.schoolId` with a WARN
+   log and claims the idempotency record so the bad envelope can't
+   loop forever on redelivery.
+2. **School-scoped category lookup** — `SELECT id FROM tkt_categories
+WHERE school_id = $1::uuid AND is_active = true AND name ILIKE
+'%facilit%' OR '%custodial%' OR ...` — the envelope tenant id is
+   the first parameter so only categories in the right tenant match.
+3. **School-scoped requester fallback** — the school admin lookup
+   JOINs `iam_scope sc + iam_scope_type st` requiring
+   `st.code = 'SCHOOL'` AND `sc.entity_id = $envelopeSchoolId`.
+   PLATFORM-scope admins are intentionally excluded — they're not the
+   right requester for an auto-ticket scoped to a single school.
+
+The ticket INSERT uses `envelopeSchoolId` (the authoritative source)
+as the `school_id` binding, not the potentially-attacker-controlled
+`payload.schoolId`.
+
+### BLOCKING 3 — Cleaning route helpers school-scoped
+
+- `getRouteById(id)` adds `AND r.school_id = $2::uuid`.
+- `patchRoute(id, ...)` UPDATE adds `AND school_id = $N::uuid` with
+  `RETURNING id` — zero-row RETURNING is the 404 signal.
+- `listStops(routeId)` JOINs `fac_cleaning_routes r` filtered on
+  `r.school_id`.
+- `replaceStops(routeId, ...)` route-row lock now adds
+  `AND school_id = $2::uuid FOR UPDATE`.
+- `listStopCompletions(completionId)` JOINs the parent completion +
+  route filtered on `r.school_id`.
+
+A School A actor with a School B route/completion UUID now collapses
+to 404 or empty-list, rather than reading or mutating the foreign-
+school row.
+
+### BLOCKING 4 — Zone inspection `getById` school-scoped
+
+`ZoneInspectionService.getById` JOIN clause adds `AND z.school_id =
+$2::uuid` so a School A reader with a School B inspection UUID
+collapses to 404 don't-leak-existence.
+
+### BLOCKING 5 — Asset `spaceId` validated through current-school building
+
+- `AssetService.createAsset` validates the supplied `spaceId` via
+  `fac_spaces s JOIN fac_buildings b ON b.id = s.building_id WHERE
+s.id = $1 AND b.school_id = $2 AND b.id = $3` (asset's building) so
+  cross-school spaces are refused with a 400 before INSERT.
+- `AssetService.patchAsset` reads the asset's existing `building_id`
+  inside the patch, then runs the same JOIN against the new `spaceId`
+  before performing the UPDATE.
+
+### BLOCKING 6 — Energy reading `getReading` school-scoped
+
+`EnergyService.getReading` JOINs `fac_utility_meters m ON m.id =
+r.meter_id` filtered on `m.school_id = $2::uuid` so a School A reader
+with a School B reading UUID collapses to 404 don't-leak-existence.
+
+### Test coverage
+
+vitest 848 → **865 passing across 41 spec files**:
+
+- 17 new regression tests in
+  `apps/api/src/facilities/facilities-p2c18-review.spec.ts` across 6
+  REVIEW-P2C18 ROUND 1 describe blocks (R-B1a–d for the outbox emits +
+  deterministic event_ids + on-PASS-doesn't-emit; R-B2a–d for the
+  CleaningIssueTicketConsumer envelope/category/admin/INSERT guards;
+  R-B3a–d for the four cleaning-route helpers; R-B4 zone inspection
+  JOIN; R-B5a–b asset spaceId on create + patch; R-B6 energy reading
+  JOIN).
+- Existing `facilities-advanced.spec.ts` + `facilities-assets.spec.ts`
+  test stubs extended with a unified `kafka` stub exposing both `emit`
+  (legacy) and `enqueueInTx` (current) so the existing assertions on
+  the keystone topics keep matching after the outbox migration.
+
+### CI parity at the Round 1 closeout
+
+- `pnpm format:check` clean.
+- `pnpm lint:logs` clean (829 files).
+- `pnpm --filter @campusos/api build` clean.
+- `pnpm --filter @campusos/web build` clean (265 routes).
+- `pnpm --filter @campusos/api test` — **865/865 passing across 41
+  spec files**.
+
+No schema migrations in Round 1 — every fix is service-layer +
+consumer-layer + the new `deterministicWorkOrderCreatedEventId`
+helper added to `apps/api/src/facilities/event-ids.ts`.
+
+### Carried to Phase 2 / pre-pilot punch list
+
+- **Facilities Manager role split** — FAC-001..005 currently granted
+  to generic Staff role; joins the broader Counsellor / Nurse / FSM /
+  Librarian / AD role-split work before pilot.
+- **TicketsModule-owned cleaning-issue consumer** — the cross-module
+  write is now defended end-to-end by the Round 1 guards, but the
+  correct long-term architectural shape is a Tickets-owned consumer
+  (or a `tsk_auto_task_rules` row driving the Cycle 7 TaskWorker with
+  a Tickets-owned action). Recommendation-class polish.
+
+---
 
 **Plan:** `docs/campusos-p2c18-facilities-advanced.html`
 **Review scaffold:** `P2C18-REVIEW-NOTES.md`

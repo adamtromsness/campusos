@@ -4,7 +4,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import { assertCanManage } from './buildings.service';
 import { deterministicFireDrillOverdueEventId } from './event-ids';
 import {
@@ -33,7 +33,7 @@ import {
 export class FireDrillService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly permCheck: PermissionCheckService,
   ) {}
 
@@ -130,12 +130,23 @@ export class FireDrillService {
   /**
    * Compliance dashboard — 90-day rule. For every building in the
    * current school, return whether a drill landed in the trailing
-   * 90 days. Overdue rows emit fac.fire_drill.overdue.
+   * 90 days. Overdue rows enqueue fac.fire_drill.overdue durably.
+   *
+   * REVIEW-P2C18 BLOCKING 1 — the compliance scan now runs inside a
+   * tenant tx and per-overdue-building outbox rows commit with the
+   * scan. Deterministic event_id per (buildingId, today_iso) so two
+   * scans on the same day land the same envelope and the consumer's
+   * claim-after-success idempotency catches the second one cleanly.
+   * A new (building, day) overdue scan emits a fresh envelope so the
+   * notification fan-out can repeat each day until a drill is logged.
    */
   async compliance(): Promise<FireDrillComplianceRowDto[]> {
     const tenant = getCurrentTenant();
-    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
+    const todayIso = new Date().toISOString().slice(0, 10);
+    let result: FireDrillComplianceRowDto[] = [];
+
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const rows = (await tx.$queryRawUnsafe(
         'SELECT b.id::text AS building_id, b.name AS building_name, ' +
           '  latest.last_drill_date::text AS last_drill_date, ' +
           '  CASE WHEN latest.last_drill_date IS NULL THEN NULL ' +
@@ -149,46 +160,44 @@ export class FireDrillService {
           'WHERE b.school_id = $1::uuid AND b.is_active = true ' +
           'ORDER BY is_overdue DESC, b.name',
         tenant.schoolId,
-      );
-    })) as Array<{
-      building_id: string;
-      building_name: string;
-      last_drill_date: string | null;
-      days_since_last_drill: number | null;
-      is_overdue: boolean;
-    }>;
+      )) as Array<{
+        building_id: string;
+        building_name: string;
+        last_drill_date: string | null;
+        days_since_last_drill: number | null;
+        is_overdue: boolean;
+      }>;
 
-    const result = rows.map<FireDrillComplianceRowDto>((r) => ({
-      buildingId: r.building_id,
-      buildingName: r.building_name,
-      lastDrillDate: r.last_drill_date,
-      daysSinceLastDrill: r.days_since_last_drill,
-      isOverdue: r.is_overdue,
-    }));
+      result = rows.map<FireDrillComplianceRowDto>((r) => ({
+        buildingId: r.building_id,
+        buildingName: r.building_name,
+        lastDrillDate: r.last_drill_date,
+        daysSinceLastDrill: r.days_since_last_drill,
+        isOverdue: r.is_overdue,
+      }));
 
-    // Emit one fac.fire_drill.overdue per overdue building. Deterministic
-    // event_id per (building, today) so multiple compliance scans on the
-    // same day land the same envelope and downstream consumer
-    // idempotency catches redelivery cleanly. Best-effort emit — the
-    // dashboard read does not depend on the broker.
-    const todayIso = new Date().toISOString().slice(0, 10);
-    for (const row of result) {
-      if (!row.isOverdue) continue;
-      void this.kafka.emit({
-        topic: 'fac.fire_drill.overdue',
-        key: row.buildingId,
-        sourceModule: 'facilities',
-        eventId: deterministicFireDrillOverdueEventId(row.buildingId, todayIso),
-        payload: {
-          schoolId: tenant.schoolId,
-          buildingId: row.buildingId,
-          buildingName: row.buildingName,
-          lastDrillDate: row.lastDrillDate,
-          daysSinceLastDrill: row.daysSinceLastDrill,
-          computedAt: new Date().toISOString(),
-        },
-      });
-    }
+      // Durably enqueue an overdue envelope per overdue building. The
+      // outbox row commits with the (read-only-by-shape) scan. The
+      // OutboxPublisherWorker drains on broker recovery.
+      for (const row of result) {
+        if (!row.isOverdue) continue;
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'fac.fire_drill.overdue',
+          key: row.buildingId,
+          sourceModule: 'facilities',
+          eventId: deterministicFireDrillOverdueEventId(row.buildingId, todayIso),
+          payload: {
+            schoolId: tenant.schoolId,
+            buildingId: row.buildingId,
+            buildingName: row.buildingName,
+            lastDrillDate: row.lastDrillDate,
+            daysSinceLastDrill: row.daysSinceLastDrill,
+            computedAt: new Date().toISOString(),
+          },
+        });
+      }
+    });
+
     return result;
   }
 }

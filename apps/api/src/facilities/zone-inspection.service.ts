@@ -4,8 +4,9 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import { assertCanManage } from './buildings.service';
+import { deterministicWorkOrderCreatedEventId } from './event-ids';
 import {
   CreateZoneInspectionDto,
   ZoneInspectionRating,
@@ -30,7 +31,7 @@ import {
 export class ZoneInspectionService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly permCheck: PermissionCheckService,
   ) {}
 
@@ -73,10 +74,18 @@ export class ZoneInspectionService {
   }
 
   async getById(id: string): Promise<ZoneInspectionResponseDto> {
+    // REVIEW-P2C18 BLOCKING 4 — school-scope the inspection fetch via
+    // fac_zones.school_id. A School A facilities reader with a School B
+    // inspection UUID now collapses to 404 don't-leak-existence rather
+    // than reading the foreign-school row.
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        INSP_SELECT + 'JOIN fac_zones z ON z.id = i.zone_id WHERE i.id = $1::uuid LIMIT 1',
+        INSP_SELECT +
+          'JOIN fac_zones z ON z.id = i.zone_id ' +
+          'WHERE i.id = $1::uuid AND z.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       );
     })) as InspRow[];
     if (rows.length === 0) throw new NotFoundException('Zone inspection not found');
@@ -109,6 +118,13 @@ export class ZoneInspectionService {
       // On FAIL: auto-create the follow-up work order FIRST, capture its
       // id, then INSERT the inspection with follow_up_work_order_id
       // populated so the audit chain is atomic.
+      //
+      // REVIEW-P2C18 BLOCKING 1 — enqueue the durable
+      // fac.work_order.created emit INSIDE this tenant tx via
+      // OutboxService.enqueueInTx. The outbox row commits with the
+      // work order + inspection INSERTs so a broker outage no longer
+      // drops the downstream FM notification. Deterministic event_id
+      // keyed on the work_order id so retries land the same envelope.
       if (input.overallRating === 'FAIL') {
         workOrderId = generateId();
         const noteSuffix = input.notes ? ' Notes: ' + input.notes : '';
@@ -120,6 +136,21 @@ export class ZoneInspectionService {
           'Auto-created from FAILED zone inspection on ' + zone[0]!.name + '.' + noteSuffix,
           actor.personId,
         );
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'fac.work_order.created',
+          key: workOrderId,
+          sourceModule: 'facilities',
+          eventId: deterministicWorkOrderCreatedEventId(workOrderId),
+          payload: {
+            workOrderId: workOrderId,
+            sourceRefId: workOrderId,
+            schoolId: tenant.schoolId,
+            workOrderType: 'DEEP_CLEAN',
+            priority: 'HIGH',
+            status: 'OPEN',
+            originZoneInspectionId: inspectionId,
+          },
+        });
       }
 
       const followUpRequired = input.followUpRequired === true || input.overallRating === 'FAIL';
@@ -139,23 +170,10 @@ export class ZoneInspectionService {
       );
     });
 
-    // Emit AFTER tx commits so a broker hiccup cannot roll back the
-    // inspection + auto-work-order pair.
-    if (workOrderId) {
-      void this.kafka.emit({
-        topic: 'fac.work_order.created',
-        key: workOrderId,
-        sourceModule: 'facilities',
-        payload: {
-          workOrderId: workOrderId,
-          sourceRefId: workOrderId,
-          workOrderType: 'DEEP_CLEAN',
-          priority: 'HIGH',
-          status: 'OPEN',
-          originZoneInspectionId: inspectionId,
-        },
-      });
-    }
+    // REVIEW-P2C18 BLOCKING 1 — emit is now enqueued INSIDE the tenant
+    // tx above via OutboxService.enqueueInTx so a broker hiccup can no
+    // longer cause the inspection + auto-work-order + downstream
+    // notification trio to drift apart.
 
     return this.getById(inspectionId);
   }
