@@ -7,7 +7,9 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { KafkaProducerService } from '../../kafka/kafka-producer.service';
+import { OutboxService } from '../../kafka/outbox.service';
+import { getCurrentTenant } from '../../tenant/tenant.context';
+import { deterministicTransactionCompletedEventId } from '../event-ids';
 import type { ResolvedActor } from '../../iam/actor-context.service';
 import {
   AssetTransactionDto,
@@ -54,7 +56,7 @@ export class AssetTransactionService {
 
   constructor(
     private readonly platform: PrismaClient,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly profiles: CommunityProfileService,
   ) {}
 
@@ -65,16 +67,41 @@ export class AssetTransactionService {
     listingId: string,
     input: CreateAssetPurchaseDto,
   ): Promise<AssetTransactionDto> {
-    // Buyer shape — schema enforces it but a friendly 400 is better
-    // than a CHECK violation.
-    if (input.buyerType === 'SCHOOL' && !input.buyerSchoolId) {
-      throw new BadRequestException(
-        'buyerType=SCHOOL requires buyerSchoolId. Set buyerType=INDIVIDUAL for personal purchases.',
-      );
-    }
-    if (input.buyerType === 'INDIVIDUAL' && !input.buyerPersonId) {
-      // Default buyerPersonId to the caller for INDIVIDUAL buys.
+    // REVIEW-P2C21 BLOCKING 5 — buyer shape spoof prevention.
+    //
+    // Parents and students hold MKT-002:read+write per the IAM grant
+    // table. Without this check, a parent could spoof a SCHOOL
+    // purchase against an arbitrary school by supplying any
+    // buyer_school_id UUID in the request body — the schema's
+    // buyer_shape_chk only verifies non-NULL, not authority.
+    //
+    // Fix: SCHOOL purchases require school-admin authority (or the
+    // `MKT-003:write` Surplus Asset Exchange grant); the
+    // buyerSchoolId is always forced to the current tenant's
+    // schoolId regardless of the request body. Non-admin actors are
+    // narrowed to INDIVIDUAL with buyerPersonId = actor.personId.
+    const tenant = getCurrentTenant();
+    if (input.buyerType === 'SCHOOL') {
+      if (!actor.isSchoolAdmin) {
+        throw new ForbiddenException(
+          'SCHOOL-type purchases require school-admin authority. Use buyerType=INDIVIDUAL for personal purchases.',
+        );
+      }
+      // Force buyerSchoolId to the caller's tenant, ignoring whatever
+      // the request body supplied. Cross-school purchases by school
+      // admins go through a separate platform-admin surface.
+      input.buyerSchoolId = tenant.schoolId;
+      input.buyerPersonId = null;
+    } else if (input.buyerType === 'INDIVIDUAL') {
+      // Always force buyerPersonId to the calling actor — an
+      // individual purchase is always on behalf of the caller, never
+      // an arbitrary platform_users id.
       input.buyerPersonId = actor.personId;
+      input.buyerSchoolId = null;
+    } else {
+      throw new BadRequestException(
+        `buyerType must be SCHOOL or INDIVIDUAL (got ${String(input.buyerType)}).`,
+      );
     }
 
     const id = generateId();
@@ -194,8 +221,56 @@ export class AssetTransactionService {
     return rows.map(rowToDto);
   }
 
-  async getById(id: string): Promise<AssetTransactionDto> {
-    return rowToDto(await this.loadOrFail(id));
+  /**
+   * REVIEW-P2C21 BLOCKING 3 — actor-aware getById.
+   *
+   * Without actor scope, any holder of mkt-002:read could read any
+   * marketplace transaction by guessing the UUID (and the row carries
+   * buyer/seller IDs, prices, fee splits, shipping details, tracking
+   * numbers, and lifecycle timestamps).
+   *
+   * Actor-aware visibility: buyer, seller, seller-school admin,
+   * buyer-school admin, platform admin (sys-001:admin via
+   * everyFunction). Everyone else gets collapsed 404
+   * NotFoundException — don't-leak-existence.
+   *
+   * The internal-only overload (no actor) is preserved for the
+   * purchase post-INSERT read.
+   */
+  async getById(id: string, actor?: ResolvedActor): Promise<AssetTransactionDto> {
+    const row = await this.loadOrFail(id);
+    if (actor) {
+      const allowed = await this.canAccessTransaction(actor, row);
+      if (!allowed) {
+        throw new NotFoundException(`platform_asset_transactions ${id} not found.`);
+      }
+    }
+    return rowToDto(row);
+  }
+
+  /**
+   * REVIEW-P2C21 BLOCKING 3 — shared access check used by getById,
+   * patch, addConditionReport, listConditionReports.
+   *
+   * Returns true when the actor is the buyer, seller, a school admin
+   * for the seller's or buyer's school in the current tenant, or
+   * acting under platform-tier authority. Otherwise false.
+   */
+  private async canAccessTransaction(
+    actor: ResolvedActor,
+    row: RawTxnWithListing,
+  ): Promise<boolean> {
+    const profile = await this.profiles.getOrCreate(actor.personId, actor.personType ?? '');
+    const isSeller = row.seller_profile_id === profile.id;
+    const isBuyer = row.buyer_person_id === actor.personId;
+    if (isSeller || isBuyer) return true;
+    if (actor.isSchoolAdmin) {
+      const tenant = getCurrentTenant();
+      if (row.seller_school_id === tenant.schoolId || row.buyer_school_id === tenant.schoolId) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ── Lifecycle transitions ────────────────────────────────────────
@@ -207,13 +282,20 @@ export class AssetTransactionService {
   ): Promise<AssetTransactionDto> {
     const existing = await this.loadOrFail(id);
 
-    const isSeller =
-      existing.seller_profile_id ===
-      (await this.profiles.getOrCreate(actor.personId, actor.personType ?? '')).id;
+    // REVIEW-P2C21 BLOCKING 4 — school-admin override is bound to
+    // either the seller's school or the buyer's school. A school A
+    // admin cannot patch a school B<->C transaction.
+    const profile = await this.profiles.getOrCreate(actor.personId, actor.personType ?? '');
+    const isSeller = existing.seller_profile_id === profile.id;
     const isBuyer = existing.buyer_person_id === actor.personId;
-    if (!isSeller && !isBuyer && !actor.isSchoolAdmin) {
+    const tenant = getCurrentTenant();
+    const isParticipantSchoolAdmin =
+      actor.isSchoolAdmin &&
+      (existing.seller_school_id === tenant.schoolId ||
+        existing.buyer_school_id === tenant.schoolId);
+    if (!isSeller && !isBuyer && !isParticipantSchoolAdmin) {
       throw new ForbiddenException(
-        'Only the buyer, seller, or a school admin can patch a transaction.',
+        'Only the buyer, seller, or a school admin of the seller or buyer school can patch a transaction (REVIEW-P2C21 BLOCKING 4).',
       );
     }
 
@@ -261,36 +343,41 @@ export class AssetTransactionService {
     }
     sets.push(`updated_at = now()`);
     params.push(id);
-    await this.platform.$executeRawUnsafe(
-      `UPDATE platform.platform_asset_transactions
-         SET ${sets.join(', ')}
-         WHERE id = $${params.length}::uuid`,
-      ...params,
-    );
-    const refreshed = await this.loadOrFail(id);
+    // REVIEW-P2C21 BLOCKING 1 — UPDATE + outbox enqueue in one tx.
+    await this.platform.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_asset_transactions
+           SET ${sets.join(', ')}
+           WHERE id = $${params.length}::uuid`,
+        ...params,
+      );
+      if (willEmitCompleted) {
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'mkt.transaction.completed',
+          key: id,
+          payload: {
+            transactionId: id,
+            listingId: existing.listing_id,
+            buyerType: existing.buyer_type,
+            buyerSchoolId: existing.buyer_school_id,
+            buyerPersonId: existing.buyer_person_id,
+            sellerSchoolId: existing.seller_school_id,
+            sellerProfileId: existing.seller_profile_id,
+            totalPriceCents: existing.total_price_cents,
+            platformFeeCents: existing.platform_fee_cents,
+            sellerReceivesCents: existing.seller_receives_cents,
+            confirmedAt: new Date().toISOString(),
+          },
+          sourceModule: 'community',
+          eventId: deterministicTransactionCompletedEventId(id),
+        });
+      }
+    });
 
+    const refreshed = await this.loadOrFail(id);
     if (willEmitCompleted) {
-      await this.kafka.emit({
-        topic: 'mkt.transaction.completed',
-        key: id,
-        payload: {
-          transactionId: id,
-          listingId: refreshed.listing_id,
-          buyerType: refreshed.buyer_type,
-          buyerSchoolId: refreshed.buyer_school_id,
-          buyerPersonId: refreshed.buyer_person_id,
-          sellerSchoolId: refreshed.seller_school_id,
-          sellerProfileId: refreshed.seller_profile_id,
-          totalPriceCents: refreshed.total_price_cents,
-          platformFeeCents: refreshed.platform_fee_cents,
-          sellerReceivesCents: refreshed.seller_receives_cents,
-          confirmedAt: refreshed.confirmed_at?.toISOString() ?? null,
-        },
-        sourceModule: 'community',
-      });
       this.logger.log(`[mkt-transaction] completed ${id}`);
     }
-
     return rowToDto(refreshed);
   }
 
@@ -302,18 +389,24 @@ export class AssetTransactionService {
     input: CreateConditionReportDto,
   ): Promise<ConditionReportDto> {
     const txn = await this.loadOrFail(transactionId);
-    const isSeller =
-      txn.seller_profile_id ===
-      (await this.profiles.getOrCreate(actor.personId, actor.personType ?? '')).id;
+    // REVIEW-P2C21 BLOCKING 3 + 4 — same access semantics as patch():
+    // school-admin override is bound to the seller's or buyer's
+    // school in the current tenant. Cross-school admins cannot
+    // submit a report.
+    const profile = await this.profiles.getOrCreate(actor.personId, actor.personType ?? '');
+    const isSeller = txn.seller_profile_id === profile.id;
     const isBuyer = txn.buyer_person_id === actor.personId;
-    if (input.reporterType === 'SELLER_LISTING' && !isSeller && !actor.isSchoolAdmin) {
+    const tenant = getCurrentTenant();
+    const isSellerSchoolAdmin = actor.isSchoolAdmin && txn.seller_school_id === tenant.schoolId;
+    const isBuyerSchoolAdmin = actor.isSchoolAdmin && txn.buyer_school_id === tenant.schoolId;
+    if (input.reporterType === 'SELLER_LISTING' && !isSeller && !isSellerSchoolAdmin) {
       throw new ForbiddenException(
-        'Only the seller (or a school admin) can submit a SELLER_LISTING condition report.',
+        'Only the seller or a school admin of the seller school can submit a SELLER_LISTING condition report.',
       );
     }
-    if (input.reporterType === 'BUYER_RECEIPT' && !isBuyer && !actor.isSchoolAdmin) {
+    if (input.reporterType === 'BUYER_RECEIPT' && !isBuyer && !isBuyerSchoolAdmin) {
       throw new ForbiddenException(
-        'Only the buyer (or a school admin) can submit a BUYER_RECEIPT condition report.',
+        'Only the buyer or a school admin of the buyer school can submit a BUYER_RECEIPT condition report.',
       );
     }
 
@@ -355,7 +448,26 @@ export class AssetTransactionService {
     return reportRowToDto(reportRows[0]!);
   }
 
-  async listConditionReports(transactionId: string): Promise<ConditionReportDto[]> {
+  /**
+   * REVIEW-P2C21 BLOCKING 3 — actor-aware listConditionReports.
+   *
+   * The condition report endpoint exposes physical-item-state notes +
+   * photos that buyer / seller agreed to. Without actor scope, any
+   * mkt-002:read holder could list reports for any transaction by
+   * guessing the UUID.
+   *
+   * Visibility: parent transaction visibility via canAccessTransaction.
+   * Cross-transaction callers get collapsed 404.
+   */
+  async listConditionReports(
+    transactionId: string,
+    actor: ResolvedActor,
+  ): Promise<ConditionReportDto[]> {
+    const txn = await this.loadOrFail(transactionId);
+    const allowed = await this.canAccessTransaction(actor, txn);
+    if (!allowed) {
+      throw new NotFoundException(`platform_asset_transactions ${transactionId} not found.`);
+    }
     const rows = await this.platform.$queryRawUnsafe<RawConditionReport[]>(
       `SELECT id::text, transaction_id::text, reporter_type, condition, condition_notes,
               photo_s3_keys, reported_by::text, reported_at
@@ -369,7 +481,7 @@ export class AssetTransactionService {
 
   // ── Internals ────────────────────────────────────────────────────
 
-  private async loadOrFail(id: string): Promise<RawTxnWithListing> {
+  async loadOrFail(id: string): Promise<RawTxnWithListing> {
     const rows = await this.platform.$queryRawUnsafe<RawTxnWithListing[]>(
       `SELECT t.id::text, t.listing_id::text, l.title AS listing_title,
               t.buyer_type, t.buyer_school_id::text AS buyer_school_id,

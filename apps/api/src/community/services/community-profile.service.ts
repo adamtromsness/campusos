@@ -49,8 +49,25 @@ export class CommunityProfileService {
     return rows.map(rowToDto);
   }
 
-  async getById(id: string): Promise<CommunityProfileDto> {
-    return rowToDto(await this.loadOrFail(id));
+  /**
+   * REVIEW-P2C21 BLOCKING 7 — actor-aware getById that respects is_public.
+   *
+   * Without this, any actor with mkt-005:read could read a private
+   * profile by UUID despite the OpenAPI summary claiming privacy
+   * behavior. Now:
+   *   - owner can always read own profile (regardless of is_public)
+   *   - any other reader sees is_public=true profiles
+   *   - private profiles by other people collapse to 404
+   *     don't-leak-existence
+   *   - the actorless overload is preserved for internal callers
+   *     (e.g. SearchIndexConsumer, MarketplaceListingService.create)
+   */
+  async getById(id: string, actor?: { personId: string }): Promise<CommunityProfileDto> {
+    const row = await this.loadOrFail(id);
+    if (actor && !row.is_public && row.person_id !== actor.personId) {
+      throw new NotFoundException(`platform_community_profiles ${id} not found.`);
+    }
+    return rowToDto(row);
   }
 
   async getByPersonId(personId: string): Promise<CommunityProfileDto | null> {

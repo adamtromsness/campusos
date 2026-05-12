@@ -35,8 +35,14 @@ export class WatchListService {
     return rows.map(rowToDto);
   }
 
-  async getById(id: string): Promise<WatchListDto> {
-    return rowToDto(await this.loadOrFail(id));
+  /**
+   * REVIEW-P2C21 BLOCKING 6 — school-scope on getById.
+   *
+   * Cross-school readers cannot pull another school's watch-list by
+   * UUID. Collapsed 404 don't-leak-existence.
+   */
+  async getById(id: string, schoolId: string): Promise<WatchListDto> {
+    return rowToDto(await this.loadOrFail(id, schoolId));
   }
 
   async create(
@@ -58,26 +64,40 @@ export class WatchListService {
       input.conditionMin ?? null,
       actor.personId,
     );
-    return this.getById(id);
+    return this.getById(id, schoolId);
   }
 
-  async fulfill(id: string): Promise<WatchListDto> {
-    const existing = await this.loadOrFail(id);
+  /**
+   * REVIEW-P2C21 BLOCKING 6 — school-scope on fulfill.
+   *
+   * The UPDATE WHERE clause carries school_id so a cross-school caller
+   * cannot mutate another school's watch list even if they know the
+   * UUID. loadOrFail short-circuits to 404 before we get here, but
+   * the UPDATE adds defence-in-depth.
+   */
+  async fulfill(id: string, schoolId: string): Promise<WatchListDto> {
+    const existing = await this.loadOrFail(id, schoolId);
     if (existing.status === 'FULFILLED') return rowToDto(existing);
     await this.platform.$executeRawUnsafe(
       `UPDATE platform.platform_marketplace_watch_lists
          SET status = 'FULFILLED', fulfilled_at = now(), updated_at = now()
-         WHERE id = $1::uuid`,
+         WHERE id = $1::uuid AND school_id = $2::uuid`,
       id,
+      schoolId,
     );
-    return this.getById(id);
+    return this.getById(id, schoolId);
   }
 
-  async remove(id: string): Promise<void> {
-    await this.loadOrFail(id);
+  /**
+   * REVIEW-P2C21 BLOCKING 6 — school-scope on remove.
+   */
+  async remove(id: string, schoolId: string): Promise<void> {
+    await this.loadOrFail(id, schoolId);
     await this.platform.$executeRawUnsafe(
-      `DELETE FROM platform.platform_marketplace_watch_lists WHERE id = $1::uuid`,
+      `DELETE FROM platform.platform_marketplace_watch_lists
+         WHERE id = $1::uuid AND school_id = $2::uuid`,
       id,
+      schoolId,
     );
   }
 
@@ -152,14 +172,21 @@ export class WatchListService {
 
   // ── Internals ────────────────────────────────────────────────────
 
-  private async loadOrFail(id: string): Promise<RawWatchList> {
+  /**
+   * REVIEW-P2C21 BLOCKING 6 — school-scoped row loader.
+   *
+   * Cross-school UUID guesses collapse to 404 don't-leak-existence
+   * before any UPDATE/DELETE/READ.
+   */
+  private async loadOrFail(id: string, schoolId: string): Promise<RawWatchList> {
     const rows = await this.platform.$queryRawUnsafe<RawWatchList[]>(
       `SELECT id::text, school_id::text, target_listing_type, search_keywords,
               max_price_cents, condition_min, status, created_by::text,
               fulfilled_at, created_at, updated_at
          FROM platform.platform_marketplace_watch_lists
-         WHERE id = $1::uuid`,
+         WHERE id = $1::uuid AND school_id = $2::uuid`,
       id,
+      schoolId,
     );
     if (rows.length === 0) {
       throw new NotFoundException(`platform_marketplace_watch_lists ${id} not found.`);

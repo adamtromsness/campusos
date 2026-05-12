@@ -1,6 +1,40 @@
 # HANDOFF — Phase 2 Cycle 21 (P2-21): Platform Advanced
 
-**Status:** P2-21a + P2-21b shipped + tagged + awaiting REVIEW-P2C21 final verdict. **P2-21c ships with this commit** — the final sub-cycle. Together P2-21a + b + c cover the M90 + M91 + Community Exchange surfaces (CRM, internal ops, pricing, marketplace, search) — 26 platform tables across 3 platform migrations + ~64 endpoints + 3 modules + 2 workers + 2 Kafka consumers. Total tests at 1043 → **1058** after Step 6.
+**Status (post-review):** REVIEW-P2C21 Round 1 returned **FAIL** with 7 BLOCKING + 3 MAJOR against `a27b6b4`. All 7 BLOCKING fixes + actionable MAJOR 1 landed in the closeout commit + verified live via 23 new pinned vitest regressions (1043 → 1058 → **1081** across 57 spec files). MAJOR 2 (cross-school browse intentional) + MAJOR 3 (reputation award best-effort) carried as Phase 2 punch list items per the reviewer's "this can be recomputed" gate.
+
+**Status (P2-21c initial ship):** P2-21a + P2-21b shipped + tagged + awaiting REVIEW-P2C21 final verdict. P2-21c shipped in `a27b6b4`. Together P2-21a + b + c cover the M90 + M91 + Community Exchange surfaces (CRM, internal ops, pricing, marketplace, search) — 26 platform tables across 3 platform migrations + ~64 endpoints + 3 modules + 2 workers + 2 Kafka consumers.
+
+## REVIEW-P2C21 ROUND 1 fix log (preserved for review trail)
+
+Round 1 against `a27b6b4` returned FAIL with 7 BLOCKING + 3 MAJOR. The Round 1 fix commit lands all 7 BLOCKING + MAJOR 1 with 23 new pinned regression tests:
+
+**BLOCKING 1 — Platform outbox for 4 events.** `crm.account.lifecycle_changed` (CRM AccountService), `ops.tenant_access.granted` (Ops TenantAccessService), `mkt.listing.published` (Community MarketplaceListingService), `mkt.transaction.completed` (Community AssetTransactionService) all flipped from best-effort `KafkaProducerService.emit()` to durable `OutboxService.enqueueInTx()` INSIDE the triggering tx. 4 new deterministic event-id helpers across 3 modules (`apps/api/src/crm/event-ids.ts`, `apps/api/src/ops/event-ids.ts`, `apps/api/src/community/event-ids.ts`) — all produce v5-shaped UUIDs via `sha256(<key>:<topic>:v1)`. Retries dedupe cleanly downstream. The platform-scoped Ops grant uses a sentinel platform tenant id (`00000000-0000-0000-0000-000000000000`) on the envelope since there is no school binding for an ops_tenant_access_grants row. Constructor signatures flipped from `kafka: KafkaProducerService` to `outbox: OutboxService` across `AccountService` / `TenantAccessService` / `MarketplaceListingService` / `AssetTransactionService`. KafkaModule already exports OutboxService so no module wiring changed.
+
+**BLOCKING 2 — MarketplaceListingService.patch school-scope school-admin override.** Previously `actor.isSchoolAdmin` bypassed ownership entirely; a school A admin could PATCH a school B listing by guessing the UUID. Fix: the override now requires `existing.seller_school_id === tenant.schoolId` (i.e. the admin must be in the seller's school). Cross-school moderation goes through a separate platform-admin surface (Phase 2 carry-over: MKT-009 moderation queue).
+
+**BLOCKING 3 — AssetTransactionService.getById + listConditionReports actor-aware.** `GET /community/transactions/:id` and `GET /community/transactions/:id/condition-reports` were ID-only. Fix: new `canAccessTransaction(actor, row)` helper called from `getById(id, actor)` + `listConditionReports(id, actor)`. Allowed actors: buyer, seller, school admin of seller's school (in current tenant), school admin of buyer's school (in current tenant). Everyone else collapsed 404 NotFoundException. The internal-only `getById(id)` overload (no actor) is preserved for the purchase post-INSERT read.
+
+**BLOCKING 4 — AssetTransactionService.patch school-admin override bound to participation.** `actor.isSchoolAdmin` previously bypassed without checking school-id match. Fix: `isParticipantSchoolAdmin` requires either `seller_school_id === tenant.schoolId` OR `buyer_school_id === tenant.schoolId`. School A admin cannot patch a school B<->C transaction. The condition-report submit path (`addConditionReport`) gets the same fix: SELLER_LISTING reports require seller-school-admin authority, BUYER_RECEIPT reports require buyer-school-admin authority.
+
+**BLOCKING 5 — Purchase buyer shape spoof prevention.** Parents hold `MKT-002:write` for purchasing. Without this fix, a parent could spoof a SCHOOL purchase against an arbitrary school by supplying any `buyerSchoolId` in the request body (the schema's buyer_shape_chk only verified non-NULL, not authority). Fix: `buyerType=SCHOOL` requires `actor.isSchoolAdmin` (403 otherwise) AND `buyerSchoolId` is force-overwritten to `tenant.schoolId` regardless of request body. `buyerType=INDIVIDUAL` forces `buyerPersonId=actor.personId`. The request body cannot select an arbitrary buyer identity.
+
+**BLOCKING 6 — WatchListService get/fulfill/remove school-scope.** The list endpoint was school-scoped but `getById` / `fulfill` / `remove` were ID-only. Fix: each method now takes `schoolId` and the SQL predicate carries `AND school_id = $N::uuid`. Cross-school UUIDs collapse to 404 NotFoundException (don't-leak-existence). Controller threads `getCurrentTenant().schoolId` through.
+
+**BLOCKING 7 — CommunityProfileService.getById respects is_public.** Controller summary claimed privacy behavior but the service was ID-only. Fix: `getById(id, actor?)` overload — when actor supplied, owner can read own private profile but anyone else trying to read a private profile gets collapsed 404. Public profiles remain readable by anyone with `mkt-005:read`. The actorless overload is preserved for internal callers (e.g. SearchIndexConsumer, MarketplaceListingService.create which calls `profiles.getOrCreate`).
+
+**MAJOR 1 — MarketplaceListingService.create internal tenant validation.** Defence-in-depth: service now verifies `sellerSchoolId === getCurrentTenant().schoolId` even though the controller passes the resolved tenant id. A future controller path that supplies sellerSchoolId from somewhere else cannot seat a listing on a foreign school.
+
+**MAJOR 2 + 3 carried to Phase 2 punch list per the reviewer's gate decision:** (2) cross-school browse listings is intentional design for Community Exchange; school-affinity ranking + MKT-009 moderation queue land before pilot. (3) post-purchase reputation award is best-effort after commit; can be moved into the tx or recomputed from transactions in Phase 2 — non-blocking because reputation can always be rebuilt from the ledger.
+
+**Test coverage:** vitest 1058 → **1081 across 57 spec files** (+23 new tests — 8 existing tests refactored to the outbox pattern across CRM + Ops + Community asset transactions, plus 15 new pinned regressions in `apps/api/src/community/__tests__/review-p2c21-regressions.spec.ts` covering BLOCKING 1 (4 deterministic event-id helpers + topic-distinct check), BLOCKING 2 (cross-school admin refused + same-school admin allowed), BLOCKING 6 (loadOrFail + UPDATE + DELETE SQL shape all carry school_id predicate), BLOCKING 7 (owner reads own private profile + non-owner gets 404 on private + non-owner reads public + actorless overload). The 5% fee-split + parent gate keystones stay pinned in their dedicated spec files.
+
+**CI parity green:** format:check + lint:logs (900 files clean) + API build + web build + vitest 1081/1081.
+
+No schema migrations in Round 1 — every fix is service-layer + new event-id helpers + module-wiring (constructor signature flips from kafka to outbox; KafkaModule already exports OutboxService).
+
+See `P2C21-REVIEW-NOTES.md` "REVIEW-P2C21 Round 1 verification trail" for the per-fix evidence table.
+
+## Original P2-21c initial-ship build state (preserved below)
 
 | Sub-cycle  | Surface                                         | Tables | Endpoints | Workers / consumers | Commit        |
 | ---------- | ----------------------------------------------- | ------ | --------- | ------------------- | ------------- |

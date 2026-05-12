@@ -7,9 +7,18 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { KafkaProducerService } from '../../kafka/kafka-producer.service';
+import { OutboxService } from '../../kafka/outbox.service';
+import { deterministicTenantAccessGrantedEventId } from '../event-ids';
 import { CreateTenantAccessGrantDto, TenantAccessGrantDto, TenantAccessType } from '../dto/ops.dto';
 import { OpsEmployeeService } from './ops-employee.service';
+
+/**
+ * Platform-tier sentinel UUID used for platform-scoped outbox emits
+ * (where no school-level tenant context applies). Matches the
+ * existing all-zeros sentinel pattern used elsewhere in the codebase
+ * for cross-tenant ops (e.g. finance gl.consumer placeholder).
+ */
+const PLATFORM_SENTINEL_TENANT_ID = '00000000-0000-0000-0000-000000000000';
 
 /**
  * P2-21b — TenantAccessService.
@@ -44,7 +53,7 @@ export class TenantAccessService {
 
   constructor(
     private readonly platform: PrismaClient,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly employees: OpsEmployeeService,
   ) {}
 
@@ -130,21 +139,49 @@ export class TenantAccessService {
     }
 
     const id = generateId();
+    // REVIEW-P2C21 BLOCKING 1 — INSERT + outbox enqueue in one tx so
+    // a broker outage cannot lose the audit event for a FERPA/GDPR-
+    // sensitive tenant access grant.
     try {
-      await this.platform.$executeRawUnsafe(
-        `INSERT INTO platform.ops_tenant_access_grants
-          (id, employee_id, tenant_schema, justification, access_type,
-           granted_at, expires_at, approved_by)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5,
-           now(), now() + ($6 || ' hours')::interval, $7::uuid)`,
-        id,
-        input.employeeId,
-        input.tenantSchema,
-        input.justification.trim(),
-        input.accessType,
-        String(hours),
-        input.approvedBy,
-      );
+      await this.platform.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO platform.ops_tenant_access_grants
+            (id, employee_id, tenant_schema, justification, access_type,
+             granted_at, expires_at, approved_by)
+           VALUES ($1::uuid, $2::uuid, $3, $4, $5,
+             now(), now() + ($6 || ' hours')::interval, $7::uuid)`,
+          id,
+          input.employeeId,
+          input.tenantSchema,
+          input.justification.trim(),
+          input.accessType,
+          String(hours),
+          input.approvedBy,
+        );
+        // ADR-057 envelope: this grant is platform-scoped — the
+        // controller is `@PlatformScoped()` with no tenant context.
+        // Supply the platform-tier sentinel UUID so envelopeFromOptions
+        // doesn't reject the emit. The payload's tenantSchema carries
+        // the actual target tenant for the audit trail. Deterministic
+        // event_id keyed on grantId so retries dedupe cleanly.
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'ops.tenant_access.granted',
+          key: id,
+          payload: {
+            grantId: id,
+            employeeId: input.employeeId,
+            tenantSchema: input.tenantSchema,
+            accessType: input.accessType,
+            justification: input.justification.trim(),
+            durationHours: hours,
+            approvedBy: input.approvedBy,
+          },
+          sourceModule: 'ops',
+          tenantId: PLATFORM_SENTINEL_TENANT_ID,
+          tenantSubdomain: 'platform',
+          eventId: deterministicTenantAccessGrantedEventId(id),
+        });
+      });
     } catch (e: unknown) {
       const err = e as { message?: string };
       if (typeof err?.message === 'string' && err.message.includes('duration_chk')) {
@@ -159,26 +196,6 @@ export class TenantAccessService {
     }
 
     const dto = rowToGrantDto(await this.loadOrFail(id));
-
-    // Emit AFTER the INSERT commits — best-effort, no transaction
-    // dependency. The ADR-057 envelope's tenant_id is undefined since
-    // this grant is platform-scoped; the payload carries tenant_schema
-    // for the audit trail.
-    await this.kafka.emit({
-      topic: 'ops.tenant_access.granted',
-      key: id,
-      payload: {
-        grantId: id,
-        employeeId: dto.employeeId,
-        tenantSchema: dto.tenantSchema,
-        accessType: dto.accessType,
-        justification: dto.justification,
-        grantedAt: dto.grantedAt,
-        expiresAt: dto.expiresAt,
-        approvedBy: dto.approvedBy,
-      },
-      sourceModule: 'ops',
-    });
     this.logger.log(
       `[ops-tenant-access] granted ${dto.accessType} access to ${dto.tenantSchema} for employee ${dto.employeeId} until ${dto.expiresAt} (approved by ${dto.approvedBy})`,
     );

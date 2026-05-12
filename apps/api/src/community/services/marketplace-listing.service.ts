@@ -7,7 +7,9 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { KafkaProducerService } from '../../kafka/kafka-producer.service';
+import { OutboxService } from '../../kafka/outbox.service';
+import { getCurrentTenant } from '../../tenant/tenant.context';
+import { deterministicListingPublishedEventId } from '../event-ids';
 import type { ResolvedActor } from '../../iam/actor-context.service';
 import {
   CreateMarketplaceListingDto,
@@ -45,7 +47,7 @@ export class MarketplaceListingService {
 
   constructor(
     private readonly platform: PrismaClient,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly profiles: CommunityProfileService,
   ) {}
 
@@ -147,6 +149,18 @@ export class MarketplaceListingService {
     input: CreateMarketplaceListingDto,
   ): Promise<MarketplaceListingDto> {
     this.assertCanCreateListing(actor);
+    // REVIEW-P2C21 MAJOR 1 — defence-in-depth: even if a future controller
+    // path supplies sellerSchoolId from somewhere other than getCurrentTenant,
+    // the service refuses to seat a listing on a school other than the
+    // caller's tenant. Only platform admins (no tenant context) might
+    // legitimately bypass; they go through a separate moderation surface
+    // when it ships.
+    const tenant = getCurrentTenant();
+    if (sellerSchoolId !== tenant.schoolId) {
+      throw new ForbiddenException(
+        "Listings must be created for the caller's tenant school (REVIEW-P2C21 MAJOR 1).",
+      );
+    }
     const profile = await this.profiles.getOrCreate(
       actor.personId,
       actor.personType ?? 'Community member',
@@ -190,9 +204,17 @@ export class MarketplaceListingService {
     const isOwner =
       existing.seller_profile_id ===
       (await this.profiles.getOrCreate(actor.personId, actor.personType ?? '')).id;
-    if (!isOwner && !actor.isSchoolAdmin) {
+    // REVIEW-P2C21 BLOCKING 2 — school-admin override is bound to the
+    // SELLER's school. A school A admin cannot edit a school B listing
+    // even if they hold sch-001:admin at SCHOOL scope. Cross-school
+    // moderation goes through a separate platform-admin surface
+    // (deferred to MKT-009 moderation, see HANDOFF P2-21c carry-over 7).
+    const tenant = getCurrentTenant();
+    const isSellerSchoolAdmin =
+      actor.isSchoolAdmin && existing.seller_school_id === tenant.schoolId;
+    if (!isOwner && !isSellerSchoolAdmin) {
       throw new ForbiddenException(
-        'Only the listing seller or a school admin can edit a marketplace listing.',
+        "Only the listing seller or a school admin of the seller's school can edit a marketplace listing (REVIEW-P2C21 BLOCKING 2).",
       );
     }
 
@@ -281,37 +303,71 @@ export class MarketplaceListingService {
     sets.push(`updated_at = now()`);
     params.push(id);
 
-    await this.platform.$executeRawUnsafe(
-      `UPDATE platform.platform_marketplace_listings
-         SET ${sets.join(', ')}
-         WHERE id = $${params.length}::uuid`,
-      ...params,
-    );
+    // REVIEW-P2C21 BLOCKING 1 — UPDATE + outbox enqueue in one
+    // $transaction so a broker outage cannot lose the publish event.
+    // The WatchListMatchConsumer + SearchIndexConsumer both depend on
+    // this event; if Kafka is down at flip-time, the outbox row
+    // commits with the UPDATE and the OutboxPublisherWorker drains
+    // on recovery.
+    await this.platform.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.platform_marketplace_listings
+           SET ${sets.join(', ')}
+           WHERE id = $${params.length}::uuid`,
+        ...params,
+      );
+      if (willPublish) {
+        // Re-read inside the tx to capture the post-UPDATE state.
+        const fresh = await tx.$queryRawUnsafe<
+          Array<{
+            id: string;
+            listing_type: string;
+            title: string;
+            description: string;
+            seller_school_id: string;
+            seller_profile_id: string;
+            price_cents: number | null;
+            condition: string | null;
+            category: string | null;
+            tags: string[] | null;
+            published_at: Date | null;
+          }>
+        >(
+          `SELECT id::text, listing_type, title, description,
+                  seller_school_id::text AS seller_school_id,
+                  seller_profile_id::text AS seller_profile_id,
+                  price_cents, condition, category, tags, published_at
+             FROM platform.platform_marketplace_listings
+             WHERE id = $1::uuid`,
+          id,
+        );
+        const r = fresh[0]!;
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'mkt.listing.published',
+          key: id,
+          payload: {
+            listingId: id,
+            listingType: r.listing_type,
+            title: r.title,
+            description: r.description,
+            sellerSchoolId: r.seller_school_id,
+            sellerProfileId: r.seller_profile_id,
+            priceCents: r.price_cents,
+            condition: r.condition,
+            category: r.category,
+            tags: r.tags ?? [],
+            publishedAt: r.published_at?.toISOString() ?? null,
+          },
+          sourceModule: 'community',
+          eventId: deterministicListingPublishedEventId(id),
+        });
+      }
+    });
 
     const refreshed = await this.loadWithRollups(id);
-
     if (willPublish) {
-      await this.kafka.emit({
-        topic: 'mkt.listing.published',
-        key: id,
-        payload: {
-          listingId: id,
-          listingType: refreshed.listing_type,
-          title: refreshed.title,
-          description: refreshed.description,
-          sellerSchoolId: refreshed.seller_school_id,
-          sellerProfileId: refreshed.seller_profile_id,
-          priceCents: refreshed.price_cents,
-          condition: refreshed.condition,
-          category: refreshed.category,
-          tags: refreshed.tags ?? [],
-          publishedAt: refreshed.published_at?.toISOString() ?? null,
-        },
-        sourceModule: 'community',
-      });
       this.logger.log(`[mkt-listing] published ${id} (${refreshed.listing_type})`);
     }
-
     return rowToDto(refreshed);
   }
 

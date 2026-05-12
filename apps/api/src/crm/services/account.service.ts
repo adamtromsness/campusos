@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { KafkaProducerService } from '../../kafka/kafka-producer.service';
+import { OutboxService } from '../../kafka/outbox.service';
+import { deterministicAccountLifecycleEventId } from '../event-ids';
 import {
   AccountDto,
   AccountStatus,
@@ -32,7 +33,13 @@ import {
  *   any > SUSPENDED           administrative (kept simple — admin can flip)
  *   SUSPENDED > previous      not modeled here; admin restores by PATCHing
  *
- * Emits crm.account.lifecycle_changed (best-effort) when status flips.
+ * Emits crm.account.lifecycle_changed via the DURABLE PLATFORM OUTBOX
+ * (REVIEW-P2C21 BLOCKING 1) when status flips. The outbox row commits
+ * with the same Prisma $transaction as the status UPDATE so a broker
+ * outage cannot drop the event. The OutboxPublisherWorker drains on
+ * recovery. Deterministic event_id keyed on (accountId, toStatus)
+ * makes retries dedupe cleanly downstream.
+ *
  * The tenant_id on the envelope is set from the account's school_id
  * when bound to a school (the common case); accounts bound only to an
  * organisation skip the emit since there is no tenant_id to carry per
@@ -44,7 +51,7 @@ export class AccountService {
 
   constructor(
     private readonly platform: PrismaClient,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   // ── Reads ─────────────────────────────────────────────────────────
@@ -244,13 +251,16 @@ export class AccountService {
       }
     }
 
-    await this.platform.$executeRawUnsafe(
-      `UPDATE platform.crm_accounts SET status = $1, updated_at = now() WHERE id = $2::uuid`,
-      target,
-      id,
-    );
-
-    await this.emitLifecycleEvent(id, current, target, row.school_id);
+    // REVIEW-P2C21 BLOCKING 1 — UPDATE + outbox enqueue in one tx so
+    // a broker outage cannot lose the lifecycle event.
+    await this.platform.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.crm_accounts SET status = $1, updated_at = now() WHERE id = $2::uuid`,
+        target,
+        id,
+      );
+      await this.enqueueLifecycleEvent(tx, id, current, target, row.school_id);
+    });
     return this.getById(id);
   }
 
@@ -263,11 +273,14 @@ export class AccountService {
   async autoFlipOnOnboardingComplete(accountId: string): Promise<void> {
     const row = await this.loadOrFail(accountId);
     if (row.status !== 'ONBOARDING') return;
-    await this.platform.$executeRawUnsafe(
-      `UPDATE platform.crm_accounts SET status = 'ACTIVE', go_live_date = COALESCE(go_live_date, CURRENT_DATE), updated_at = now() WHERE id = $1::uuid`,
-      accountId,
-    );
-    await this.emitLifecycleEvent(accountId, 'ONBOARDING', 'ACTIVE', row.school_id);
+    // REVIEW-P2C21 BLOCKING 1 — UPDATE + outbox enqueue in one tx.
+    await this.platform.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `UPDATE platform.crm_accounts SET status = 'ACTIVE', go_live_date = COALESCE(go_live_date, CURRENT_DATE), updated_at = now() WHERE id = $1::uuid`,
+        accountId,
+      );
+      await this.enqueueLifecycleEvent(tx, accountId, 'ONBOARDING', 'ACTIVE', row.school_id);
+    });
     this.logger.log(
       `[crm-account] auto-transitioned ${accountId} ONBOARDING > ACTIVE on checklist completion`,
     );
@@ -291,7 +304,14 @@ export class AccountService {
     return rows[0]!;
   }
 
-  private async emitLifecycleEvent(
+  /**
+   * REVIEW-P2C21 BLOCKING 1 — enqueue the lifecycle event onto the
+   * platform outbox INSIDE the caller's tx. Deterministic event_id
+   * keyed on (accountId, toStatus) so retries land the same envelope
+   * and the consumer-side claim catches duplicate delivery.
+   */
+  private async enqueueLifecycleEvent(
+    tx: { $executeRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown> },
     accountId: string,
     fromStatus: AccountStatus,
     toStatus: AccountStatus,
@@ -304,7 +324,7 @@ export class AccountService {
       );
       return;
     }
-    await this.kafka.emit({
+    await this.outbox.enqueueInTx(tx, {
       topic: 'crm.account.lifecycle_changed',
       key: accountId,
       payload: {
@@ -316,6 +336,7 @@ export class AccountService {
       },
       sourceModule: 'crm',
       tenantId: schoolId,
+      eventId: deterministicAccountLifecycleEventId(accountId, toStatus),
     });
   }
 }

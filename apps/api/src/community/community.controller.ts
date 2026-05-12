@@ -108,9 +108,12 @@ export class CommunityController {
 
   @Get('profiles/:id')
   @RequirePermission('mkt-005:read')
-  @ApiOperation({ summary: 'Get a community profile by id (respects is_public for non-owners).' })
-  async getProfile(@Param('id') id: string) {
-    return this.profiles.getById(id);
+  @ApiOperation({
+    summary:
+      "Get a community profile by id. Private profiles (is_public=false) are visible only to the owner — non-owners see 404 don't-leak-existence (REVIEW-P2C21 BLOCKING 7).",
+  })
+  async getProfile(@Req() req: AuthedRequest, @Param('id') id: string) {
+    return this.profiles.getById(id, { personId: req.user.personId });
   }
 
   // ── Marketplace listings ─────────────────────────────────────────
@@ -191,9 +194,13 @@ export class CommunityController {
 
   @Get('transactions/:id')
   @RequirePermission('mkt-002:read')
-  @ApiOperation({ summary: 'Get a single transaction by id.' })
-  getTransaction(@Param('id') id: string) {
-    return this.transactions.getById(id);
+  @ApiOperation({
+    summary:
+      'Get a transaction by id. Actor-scoped: buyer, seller, seller-school admin, or buyer-school admin only — everyone else 404 (REVIEW-P2C21 BLOCKING 3).',
+  })
+  async getTransaction(@Req() req: AuthedRequest, @Param('id') id: string) {
+    const actor = await this.actorContext.resolveActor(req.user.sub, req.user.personId);
+    return this.transactions.getById(id, actor);
   }
 
   @Post('marketplace/:listingId/purchase')
@@ -242,9 +249,13 @@ export class CommunityController {
 
   @Get('transactions/:id/condition-reports')
   @RequirePermission('mkt-002:read')
-  @ApiOperation({ summary: 'List condition reports for a transaction.' })
-  listConditionReports(@Param('id') id: string) {
-    return this.transactions.listConditionReports(id);
+  @ApiOperation({
+    summary:
+      'List condition reports for a transaction. Actor-scoped — same visibility as the parent transaction (REVIEW-P2C21 BLOCKING 3).',
+  })
+  async listConditionReports(@Req() req: AuthedRequest, @Param('id') id: string) {
+    const actor = await this.actorContext.resolveActor(req.user.sub, req.user.personId);
+    return this.transactions.listConditionReports(id, actor);
   }
 
   // ── Watch lists ──────────────────────────────────────────────────
@@ -259,9 +270,13 @@ export class CommunityController {
 
   @Get('watch-lists/:id')
   @RequirePermission('mkt-007:read')
-  @ApiOperation({ summary: 'Get a single watch list.' })
+  @ApiOperation({
+    summary:
+      'Get a single watch list. School-scoped — cross-school UUIDs collapse to 404 (REVIEW-P2C21 BLOCKING 6).',
+  })
   getWatchList(@Param('id') id: string) {
-    return this.watchLists.getById(id);
+    const tenant = getCurrentTenant();
+    return this.watchLists.getById(id, tenant.schoolId);
   }
 
   @Post('watch-lists')
@@ -275,17 +290,23 @@ export class CommunityController {
 
   @Post('watch-lists/:id/fulfill')
   @RequirePermission('mkt-007:write')
-  @ApiOperation({ summary: 'Mark a watch list FULFILLED.' })
+  @ApiOperation({
+    summary: 'Mark a watch list FULFILLED. School-scoped (REVIEW-P2C21 BLOCKING 6).',
+  })
   fulfillWatchList(@Param('id') id: string) {
-    return this.watchLists.fulfill(id);
+    const tenant = getCurrentTenant();
+    return this.watchLists.fulfill(id, tenant.schoolId);
   }
 
   @Post('watch-lists/:id/delete')
   @HttpCode(204)
   @RequirePermission('mkt-007:write')
-  @ApiOperation({ summary: 'Delete a watch list.' })
+  @ApiOperation({
+    summary: 'Delete a watch list. School-scoped (REVIEW-P2C21 BLOCKING 6).',
+  })
   async removeWatchList(@Param('id') id: string): Promise<void> {
-    await this.watchLists.remove(id);
+    const tenant = getCurrentTenant();
+    await this.watchLists.remove(id, tenant.schoolId);
   }
 
   // ── Ratings ──────────────────────────────────────────────────────
