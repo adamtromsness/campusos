@@ -180,6 +180,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Scheduling Advanced — exams + co-teaching + pull-out + cross-school + cover (P2-17b)',
     script: 'seed-scheduling-advanced-b.ts',
   },
+  {
+    label: 'Communications Advanced — translations + templates + broadcast segments (P2-19a)',
+    script: 'seed-communications-advanced.ts',
+  },
 ];
 
 async function main(): Promise<void> {

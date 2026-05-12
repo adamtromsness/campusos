@@ -64,6 +64,7 @@ import { EventsModule } from './events/events.module';
 import { SisAdvancedModule } from './sis-advanced/sis-advanced.module';
 import { SisGraduationModule } from './sis-graduation/sis-graduation.module';
 import { SisTranscriptsModule } from './sis-transcripts/sis-transcripts.module';
+import { CommunicationsAdvancedModule } from './communications-advanced/communications-advanced.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -234,6 +235,16 @@ var devOnlyControllers: Type<unknown>[] =
     // OPEN -> GRADING_CLOSED -> PUBLISHED transition graph, student
     // awards including bulk-honor-roll, medical exemption records.
     SisTranscriptsModule,
+    // P2-19a — Communications Advanced (translation + templates +
+    // broadcast analytics). Cached AI translation keyed on
+    // UNIQUE(message_id, target_language), reusable templates with
+    // render-time required-variable validation, broadcast segments
+    // with 6-type resolution, and per-(broadcast, segment) delivery
+    // funnel analytics. Two Kafka consumers: TranslationConsumer on
+    // msg.message.posted (auto-translate for recipients with
+    // auto_translate_incoming=true) and BroadcastAnalyticsConsumer
+    // on msg.broadcast.delivered.
+    CommunicationsAdvancedModule,
   ],
   controllers: devOnlyControllers,
   providers: [
