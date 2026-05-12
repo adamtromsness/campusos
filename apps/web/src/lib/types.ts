@@ -11427,3 +11427,171 @@ export interface UpdateEvtVolunteerPayload {
   role?: string;
   checkIn?: boolean;
 }
+
+// ── P2-18a: Facilities Advanced ──
+
+export type CleaningRouteShift = 'MORNING' | 'AFTERNOON' | 'EVENING' | 'OVERNIGHT';
+export type CleaningCompletionStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'PARTIAL';
+export type CleaningStopCompletionStatus = 'PENDING' | 'COMPLETED' | 'SKIPPED';
+export type ZoneInspectionRating = 'PASS' | 'NEEDS_IMPROVEMENT' | 'FAIL';
+export type SupplyTransactionType = 'RECEIPT' | 'USAGE' | 'ADJUSTMENT' | 'TRANSFER' | 'WRITE_OFF';
+export type StocktakeStatus = 'IN_PROGRESS' | 'COMPLETED';
+export type WorkOrderAttachmentType =
+  | 'PHOTO_BEFORE'
+  | 'PHOTO_AFTER'
+  | 'QUOTE'
+  | 'INVOICE'
+  | 'REPORT'
+  | 'OTHER';
+
+export interface CleaningRouteStopDto {
+  id: string;
+  routeId: string;
+  spaceId: string;
+  spaceName: string | null;
+  stopOrder: number;
+  estimatedMinutes: number | null;
+  cleaningTasks: string[];
+}
+
+export interface CleaningRouteDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  shift: CleaningRouteShift;
+  zoneId: string | null;
+  zoneName: string | null;
+  estimatedDurationMinutes: number | null;
+  isActive: boolean;
+  stops: CleaningRouteStopDto[];
+}
+
+export interface RouteAssignmentDto {
+  id: string;
+  routeId: string;
+  employeeId: string;
+  employeeName: string | null;
+  assignmentDate: string | null;
+  isRecurring: boolean;
+  recurrenceDays: number[] | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  assignedBy: string;
+  notes: string | null;
+}
+
+export interface StopCompletionDto {
+  id: string;
+  completionId: string;
+  stopId: string;
+  status: CleaningStopCompletionStatus;
+  completedAt: string | null;
+  skipReason: string | null;
+  tasksCompleted: string[];
+  photoS3Keys: string[];
+  issuesNoted: string | null;
+}
+
+export interface CleaningCompletionDto {
+  id: string;
+  routeId: string;
+  routeName: string | null;
+  assignmentId: string;
+  employeeId: string;
+  employeeName: string | null;
+  completionDate: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  overallStatus: CleaningCompletionStatus;
+  notes: string | null;
+  stopCompletions: StopCompletionDto[];
+}
+
+export interface ZoneInspectionDto {
+  id: string;
+  zoneId: string;
+  zoneName: string | null;
+  inspectorId: string;
+  inspectorName: string | null;
+  inspectionDate: string;
+  overallRating: ZoneInspectionRating;
+  notes: string | null;
+  followUpRequired: boolean;
+  followUpWorkOrderId: string | null;
+}
+
+export interface SupplyTransactionDto {
+  id: string;
+  buildingId: string;
+  inventoryId: string;
+  itemName: string | null;
+  transactionType: SupplyTransactionType;
+  quantityDelta: number;
+  performedBy: string;
+  performedByName: string | null;
+  transactionAt: string;
+  referenceId: string | null;
+  notes: string | null;
+}
+
+export interface StocktakeItemDto {
+  id: string;
+  stocktakeId: string;
+  inventoryId: string;
+  itemName: string | null;
+  expectedQuantity: number;
+  actualQuantity: number;
+  discrepancy: number;
+  discrepancyNotes: string | null;
+}
+
+export interface StocktakeDto {
+  id: string;
+  schoolId: string;
+  buildingId: string;
+  buildingName: string | null;
+  conductedBy: string;
+  conductedByName: string | null;
+  stocktakeDate: string;
+  status: StocktakeStatus;
+  completedAt: string | null;
+  notes: string | null;
+  items: StocktakeItemDto[];
+}
+
+export interface CompleteStocktakeResponseDto {
+  stocktake: StocktakeDto;
+  adjustmentsCreated: number;
+}
+
+export interface WorkOrderAttachmentDto {
+  id: string;
+  workOrderId: string;
+  s3Key: string;
+  filename: string;
+  attachmentType: WorkOrderAttachmentType;
+  fileSizeBytes: number | null;
+  uploadedBy: string;
+  uploadedByName: string | null;
+  uploadedAt: string;
+}
+
+export interface WorkOrderPartDto {
+  id: string;
+  workOrderId: string;
+  partName: string;
+  quantity: number;
+  unit: string | null;
+  unitCost: number | null;
+  totalCost: number | null;
+  supplier: string | null;
+  notes: string | null;
+}
+
+export interface WorkOrderCostSummaryDto {
+  workOrderId: string;
+  partsTotal: number;
+  partsLineCount: number;
+  labourCost: number | null;
+  grandTotal: number;
+}

@@ -917,3 +917,531 @@ export class SupplyResponseDto {
   @ApiPropertyOptional() lastRestockedAt!: string | null;
   @ApiProperty() belowThreshold!: boolean;
 }
+
+// ── P2-18a: Cleaning Routes + Supply Audit + Work Order Depth ──
+
+export type CleaningRouteShift = 'MORNING' | 'AFTERNOON' | 'EVENING' | 'OVERNIGHT';
+export const CLEANING_ROUTE_SHIFTS: CleaningRouteShift[] = [
+  'MORNING',
+  'AFTERNOON',
+  'EVENING',
+  'OVERNIGHT',
+];
+
+export type CleaningCompletionStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'PARTIAL';
+export const CLEANING_COMPLETION_STATUSES: CleaningCompletionStatus[] = [
+  'NOT_STARTED',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'PARTIAL',
+];
+
+export type CleaningStopCompletionStatus = 'PENDING' | 'COMPLETED' | 'SKIPPED';
+export const CLEANING_STOP_COMPLETION_STATUSES: CleaningStopCompletionStatus[] = [
+  'PENDING',
+  'COMPLETED',
+  'SKIPPED',
+];
+
+export type ZoneInspectionRating = 'PASS' | 'NEEDS_IMPROVEMENT' | 'FAIL';
+export const ZONE_INSPECTION_RATINGS: ZoneInspectionRating[] = [
+  'PASS',
+  'NEEDS_IMPROVEMENT',
+  'FAIL',
+];
+
+export type SupplyTransactionType = 'RECEIPT' | 'USAGE' | 'ADJUSTMENT' | 'TRANSFER' | 'WRITE_OFF';
+export const SUPPLY_TRANSACTION_TYPES: SupplyTransactionType[] = [
+  'RECEIPT',
+  'USAGE',
+  'ADJUSTMENT',
+  'TRANSFER',
+  'WRITE_OFF',
+];
+
+export type StocktakeStatus = 'IN_PROGRESS' | 'COMPLETED';
+export const STOCKTAKE_STATUSES: StocktakeStatus[] = ['IN_PROGRESS', 'COMPLETED'];
+
+export type WorkOrderAttachmentType =
+  | 'PHOTO_BEFORE'
+  | 'PHOTO_AFTER'
+  | 'QUOTE'
+  | 'INVOICE'
+  | 'REPORT'
+  | 'OTHER';
+export const WORK_ORDER_ATTACHMENT_TYPES: WorkOrderAttachmentType[] = [
+  'PHOTO_BEFORE',
+  'PHOTO_AFTER',
+  'QUOTE',
+  'INVOICE',
+  'REPORT',
+  'OTHER',
+];
+
+// Cleaning routes — request DTOs
+export class CreateCleaningRouteDto {
+  @ApiProperty()
+  @IsString()
+  @Length(2, 200)
+  name!: string;
+
+  @ApiProperty({ enum: CLEANING_ROUTE_SHIFTS })
+  @IsIn(CLEANING_ROUTE_SHIFTS)
+  shift!: CleaningRouteShift;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  zoneId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  estimatedDurationMinutes?: number;
+}
+
+export class UpdateCleaningRouteDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(2, 200)
+  name?: string;
+
+  @ApiPropertyOptional({ enum: CLEANING_ROUTE_SHIFTS })
+  @IsOptional()
+  @IsIn(CLEANING_ROUTE_SHIFTS)
+  shift?: CleaningRouteShift;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  zoneId?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  estimatedDurationMinutes?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class CreateRouteStopDto {
+  @ApiProperty()
+  @IsUUID()
+  spaceId!: string;
+
+  @ApiProperty()
+  @IsInt()
+  @Min(1)
+  stopOrder!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  estimatedMinutes?: number;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  cleaningTasks?: string[];
+}
+
+export class UpdateRouteStopsDto {
+  @ApiProperty({ type: [CreateRouteStopDto] })
+  @IsArray()
+  stops!: CreateRouteStopDto[];
+}
+
+export class CreateRouteAssignmentDto {
+  @ApiProperty()
+  @IsUUID()
+  employeeId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  assignmentDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isRecurring?: boolean;
+
+  @ApiPropertyOptional({ type: [Number] })
+  @IsOptional()
+  @IsArray()
+  recurrenceDays?: number[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  effectiveFrom?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  effectiveTo?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class StartRouteCompletionDto {
+  @ApiProperty()
+  @IsUUID()
+  routeId!: string;
+
+  @ApiProperty()
+  @IsUUID()
+  assignmentId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  completionDate?: string;
+}
+
+export class UpdateStopCompletionDto {
+  @ApiPropertyOptional({ enum: CLEANING_STOP_COMPLETION_STATUSES })
+  @IsOptional()
+  @IsIn(CLEANING_STOP_COMPLETION_STATUSES)
+  status?: CleaningStopCompletionStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  skipReason?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tasksCompleted?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  photoS3Keys?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  issuesNoted?: string;
+}
+
+// Cleaning routes — response DTOs
+export class CleaningRouteStopResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() routeId!: string;
+  @ApiProperty() spaceId!: string;
+  @ApiPropertyOptional() spaceName!: string | null;
+  @ApiProperty() stopOrder!: number;
+  @ApiPropertyOptional() estimatedMinutes!: number | null;
+  @ApiProperty({ type: [String] }) cleaningTasks!: string[];
+}
+
+export class CleaningRouteResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() shift!: CleaningRouteShift;
+  @ApiPropertyOptional() zoneId!: string | null;
+  @ApiPropertyOptional() zoneName!: string | null;
+  @ApiPropertyOptional() estimatedDurationMinutes!: number | null;
+  @ApiProperty() isActive!: boolean;
+  @ApiProperty({ type: [CleaningRouteStopResponseDto] })
+  stops!: CleaningRouteStopResponseDto[];
+}
+
+export class RouteAssignmentResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() routeId!: string;
+  @ApiProperty() employeeId!: string;
+  @ApiPropertyOptional() employeeName!: string | null;
+  @ApiPropertyOptional() assignmentDate!: string | null;
+  @ApiProperty() isRecurring!: boolean;
+  @ApiPropertyOptional({ type: [Number] }) recurrenceDays!: number[] | null;
+  @ApiPropertyOptional() effectiveFrom!: string | null;
+  @ApiPropertyOptional() effectiveTo!: string | null;
+  @ApiProperty() assignedBy!: string;
+  @ApiPropertyOptional() notes!: string | null;
+}
+
+export class StopCompletionResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() completionId!: string;
+  @ApiProperty() stopId!: string;
+  @ApiProperty() status!: CleaningStopCompletionStatus;
+  @ApiPropertyOptional() completedAt!: string | null;
+  @ApiPropertyOptional() skipReason!: string | null;
+  @ApiProperty({ type: [String] }) tasksCompleted!: string[];
+  @ApiProperty({ type: [String] }) photoS3Keys!: string[];
+  @ApiPropertyOptional() issuesNoted!: string | null;
+}
+
+export class CleaningCompletionResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() routeId!: string;
+  @ApiPropertyOptional() routeName!: string | null;
+  @ApiProperty() assignmentId!: string;
+  @ApiProperty() employeeId!: string;
+  @ApiPropertyOptional() employeeName!: string | null;
+  @ApiProperty() completionDate!: string;
+  @ApiPropertyOptional() startedAt!: string | null;
+  @ApiPropertyOptional() completedAt!: string | null;
+  @ApiProperty() overallStatus!: CleaningCompletionStatus;
+  @ApiPropertyOptional() notes!: string | null;
+  @ApiProperty({ type: [StopCompletionResponseDto] })
+  stopCompletions!: StopCompletionResponseDto[];
+}
+
+// Zone inspections
+export class CreateZoneInspectionDto {
+  @ApiProperty()
+  @IsUUID()
+  zoneId!: string;
+
+  @ApiProperty()
+  @IsISO8601()
+  inspectionDate!: string;
+
+  @ApiProperty({ enum: ZONE_INSPECTION_RATINGS })
+  @IsIn(ZONE_INSPECTION_RATINGS)
+  overallRating!: ZoneInspectionRating;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  followUpRequired?: boolean;
+}
+
+export class ZoneInspectionResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() zoneId!: string;
+  @ApiPropertyOptional() zoneName!: string | null;
+  @ApiProperty() inspectorId!: string;
+  @ApiPropertyOptional() inspectorName!: string | null;
+  @ApiProperty() inspectionDate!: string;
+  @ApiProperty() overallRating!: ZoneInspectionRating;
+  @ApiPropertyOptional() notes!: string | null;
+  @ApiProperty() followUpRequired!: boolean;
+  @ApiPropertyOptional() followUpWorkOrderId!: string | null;
+}
+
+// Supply transactions + stocktakes
+export class CreateSupplyTransactionDto {
+  @ApiProperty()
+  @IsUUID()
+  buildingId!: string;
+
+  @ApiProperty()
+  @IsUUID()
+  inventoryId!: string;
+
+  @ApiProperty({ enum: SUPPLY_TRANSACTION_TYPES })
+  @IsIn(SUPPLY_TRANSACTION_TYPES)
+  transactionType!: SupplyTransactionType;
+
+  @ApiProperty({ description: 'Signed delta — positive for inflow, negative for outflow' })
+  @IsNumber()
+  quantityDelta!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  referenceId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class SupplyTransactionResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() buildingId!: string;
+  @ApiProperty() inventoryId!: string;
+  @ApiPropertyOptional() itemName!: string | null;
+  @ApiProperty() transactionType!: SupplyTransactionType;
+  @ApiProperty() quantityDelta!: number;
+  @ApiProperty() performedBy!: string;
+  @ApiPropertyOptional() performedByName!: string | null;
+  @ApiProperty() transactionAt!: string;
+  @ApiPropertyOptional() referenceId!: string | null;
+  @ApiPropertyOptional() notes!: string | null;
+}
+
+export class CreateStocktakeDto {
+  @ApiProperty()
+  @IsUUID()
+  buildingId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsISO8601()
+  stocktakeDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class RecordStocktakeItemDto {
+  @ApiProperty()
+  @IsUUID()
+  inventoryId!: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  expectedQuantity!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  actualQuantity!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  discrepancyNotes?: string;
+}
+
+export class StocktakeItemResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() stocktakeId!: string;
+  @ApiProperty() inventoryId!: string;
+  @ApiPropertyOptional() itemName!: string | null;
+  @ApiProperty() expectedQuantity!: number;
+  @ApiProperty() actualQuantity!: number;
+  @ApiProperty() discrepancy!: number;
+  @ApiPropertyOptional() discrepancyNotes!: string | null;
+}
+
+export class StocktakeResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() schoolId!: string;
+  @ApiProperty() buildingId!: string;
+  @ApiPropertyOptional() buildingName!: string | null;
+  @ApiProperty() conductedBy!: string;
+  @ApiPropertyOptional() conductedByName!: string | null;
+  @ApiProperty() stocktakeDate!: string;
+  @ApiProperty() status!: StocktakeStatus;
+  @ApiPropertyOptional() completedAt!: string | null;
+  @ApiPropertyOptional() notes!: string | null;
+  @ApiProperty({ type: [StocktakeItemResponseDto] })
+  items!: StocktakeItemResponseDto[];
+}
+
+export class CompleteStocktakeResponseDto {
+  @ApiProperty() stocktake!: StocktakeResponseDto;
+  @ApiProperty() adjustmentsCreated!: number;
+}
+
+// Work order depth
+export class CreateWorkOrderAttachmentDto {
+  @ApiProperty()
+  @IsString()
+  s3Key!: string;
+
+  @ApiProperty()
+  @IsString()
+  filename!: string;
+
+  @ApiPropertyOptional({ enum: WORK_ORDER_ATTACHMENT_TYPES })
+  @IsOptional()
+  @IsIn(WORK_ORDER_ATTACHMENT_TYPES)
+  attachmentType?: WorkOrderAttachmentType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  fileSizeBytes?: number;
+}
+
+export class WorkOrderAttachmentResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() workOrderId!: string;
+  @ApiProperty() s3Key!: string;
+  @ApiProperty() filename!: string;
+  @ApiProperty() attachmentType!: WorkOrderAttachmentType;
+  @ApiPropertyOptional() fileSizeBytes!: number | null;
+  @ApiProperty() uploadedBy!: string;
+  @ApiPropertyOptional() uploadedByName!: string | null;
+  @ApiProperty() uploadedAt!: string;
+}
+
+export class CreateWorkOrderPartDto {
+  @ApiProperty()
+  @IsString()
+  partName!: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0.01)
+  quantity!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  unitCost?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  totalCost?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  supplier?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class WorkOrderPartResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() workOrderId!: string;
+  @ApiProperty() partName!: string;
+  @ApiProperty() quantity!: number;
+  @ApiPropertyOptional() unit!: string | null;
+  @ApiPropertyOptional() unitCost!: number | null;
+  @ApiPropertyOptional() totalCost!: number | null;
+  @ApiPropertyOptional() supplier!: string | null;
+  @ApiPropertyOptional() notes!: string | null;
+}
+
+export class WorkOrderCostSummaryResponseDto {
+  @ApiProperty() workOrderId!: string;
+  @ApiProperty() partsTotal!: number;
+  @ApiProperty() partsLineCount!: number;
+  @ApiPropertyOptional() labourCost!: number | null;
+  @ApiProperty() grandTotal!: number;
+}

@@ -64,6 +64,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
   { label: 'Transport — routes, buses, ridership', script: 'seed-transport.ts' },
   { label: 'Food service — menus, POS, allergens', script: 'seed-food-service.ts' },
   { label: 'Facilities — buildings, work orders', script: 'seed-facilities.ts' },
+  {
+    label: 'Facilities Advanced (P2-18a) — cleaning routes, stocktakes, work order depth',
+    script: 'seed-facilities-advanced-a.ts',
+  },
   { label: 'IT — devices, licences, vault', script: 'seed-it.ts' },
   { label: 'Curriculum + standards', script: 'seed-curriculum.ts' },
   { label: 'Portfolio — student-owned achievements', script: 'seed-portfolio.ts' },

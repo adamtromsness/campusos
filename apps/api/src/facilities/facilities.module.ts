@@ -14,34 +14,42 @@ import {
   ViolationService,
   ZoneService,
 } from './inspections.service';
+import { CleaningRouteService } from './cleaning-route.service';
+import { ZoneInspectionService } from './zone-inspection.service';
+import { SupplyAuditService } from './supply-audit.service';
+import { WorkOrderDepthService } from './work-order-depth.service';
+import { CleaningIssueTicketConsumer } from './cleaning-issue-ticket.consumer';
 import { FacilitiesController } from './facilities.controller';
+import { FacilitiesAdvancedController } from './facilities-advanced.controller';
 
 /**
- * Facilities Module — M65 Facilities Management (Cycle 21).
+ * Facilities Module — M65 Facilities Management.
  *
- * 11 services + 1 controller + ~38 endpoints + 5 Kafka emit topics
- * (fac.work_order.created, fac.maintenance_task.overdue,
+ * Cycle 21 surface (11 services + 1 controller + ~38 endpoints + 5
+ * Kafka emit topics — fac.work_order.created, fac.maintenance_task.overdue,
  * fac.inspection.failed, fac.inspection_violation.overdue,
  * fac.supply.reorder_needed).
  *
- * Three structural keystones:
- *   1. EXCLUDE gist booking conflict detection. fac_space_bookings
- *      carries an EXCLUDE USING gist (space_id WITH =,
- *      tstzrange(starts_at, ends_at) WITH &&) WHERE status='CONFIRMED'
- *      that prevents overlapping CONFIRMED bookings at the schema
- *      level. BookingService translates SQLSTATE 23P01 into a 409
- *      Conflict.
- *   2. Immutable work order activity timeline. fac_work_order_activity
- *      is append-only via WorkOrderService.recordActivityInTx — every
- *      state transition, reassignment, and comment writes a row in
- *      the same tenant tx as the corresponding mutation. No UPDATE
- *      and no DELETE methods exposed.
- *   3. PM checklist FAIL auto-creates follow-up work order.
- *      MaintenanceTaskService.submitResults inserts a follow-up
- *      fac_work_orders row with priority=MEDIUM whenever a result
- *      lands with passed=false, all inside one tenant tx so the
- *      checklist record stays immutable while the corrective work
- *      flows through the standard work order lifecycle.
+ * P2-18a additions:
+ *   - 4 new services (CleaningRouteService + ZoneInspectionService +
+ *     SupplyAuditService + WorkOrderDepthService),
+ *   - 1 new controller (FacilitiesAdvancedController, ~24 endpoints),
+ *   - 1 new Kafka consumer (CleaningIssueTicketConsumer subscribes to
+ *     fac.route_stop.issue_noted and materialises a tkt_tickets row),
+ *   - 1 new Kafka emit topic (fac.route_stop.issue_noted) plus a
+ *     fac.work_order.created emit fan-out from ZoneInspectionService
+ *     on FAIL inspections (re-uses the Cycle 21 topic).
+ *
+ * Three keystones in P2-18a:
+ *   1. Cleaning route stop completion with issues_noted → emit
+ *      fac.route_stop.issue_noted → CleaningIssueTicketConsumer →
+ *      tkt_tickets row materialised in the helpdesk queue.
+ *   2. Zone inspection on FAIL → auto-create fac_work_orders row in
+ *      the same tenant tx as the inspection insert.
+ *   3. Stocktake completion → walk every (expected != actual) item +
+ *      create ADJUSTMENT fac_supply_transactions row per discrepancy +
+ *      update fac_supply_inventory.current_quantity to actual figure,
+ *      all in one tenant tx.
  */
 @Module({
   imports: [TenantModule, IamModule, KafkaModule],
@@ -57,8 +65,13 @@ import { FacilitiesController } from './facilities.controller';
     ViolationService,
     ZoneService,
     SupplyService,
+    CleaningRouteService,
+    ZoneInspectionService,
+    SupplyAuditService,
+    WorkOrderDepthService,
+    CleaningIssueTicketConsumer,
   ],
-  controllers: [FacilitiesController],
+  controllers: [FacilitiesController, FacilitiesAdvancedController],
   exports: [
     BuildingService,
     SpaceService,
@@ -71,6 +84,10 @@ import { FacilitiesController } from './facilities.controller';
     ViolationService,
     ZoneService,
     SupplyService,
+    CleaningRouteService,
+    ZoneInspectionService,
+    SupplyAuditService,
+    WorkOrderDepthService,
   ],
 })
 export class FacilitiesModule {}
