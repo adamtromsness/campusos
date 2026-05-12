@@ -164,6 +164,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Behaviour Advanced — RJ conferences + peer mediation + positive points (P2-14)',
     script: 'seed-behaviour-advanced.ts',
   },
+  {
+    label: 'Scheduling Advanced — rotation cycles + schedule generation + subject choices (P2-17a)',
+    script: 'seed-scheduling-advanced.ts',
+  },
 ];
 
 async function main(): Promise<void> {

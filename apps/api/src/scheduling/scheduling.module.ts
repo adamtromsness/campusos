@@ -14,6 +14,9 @@ import { DayOverrideService } from './day-override.service';
 import { CoverageService } from './coverage.service';
 import { SubstitutionService } from './substitution.service';
 import { CoverageConsumer } from './coverage.consumer';
+import { RotationService } from './rotation.service';
+import { SubjectChoiceService } from './subject-choice.service';
+import { ScheduleGenerationService } from './schedule-generation.service';
 import { BellScheduleController } from './bell-schedule.controller';
 import { TimetableController } from './timetable.controller';
 import { RoomController } from './room.controller';
@@ -22,6 +25,17 @@ import { RoomChangeRequestController } from './room-change-request.controller';
 import { CalendarController } from './calendar.controller';
 import { CoverageController } from './coverage.controller';
 import { SubstitutionController } from './substitution.controller';
+import { RotationController } from './rotation.controller';
+import {
+  SubjectChoiceController,
+  SubjectChoiceWindowController,
+} from './subject-choice.controller';
+import {
+  SchedulingCandidateController,
+  SchedulingConstraintsController,
+  SchedulingGenerateController,
+  SchedulingRequestController,
+} from './schedule-generation.controller';
 
 /**
  * Scheduling Module — M22 Academic Scheduling (Cycle 5 Steps 5 + 6).
@@ -74,6 +88,9 @@ import { SubstitutionController } from './substitution.controller';
     CoverageService,
     SubstitutionService,
     CoverageConsumer,
+    RotationService,
+    SubjectChoiceService,
+    ScheduleGenerationService,
   ],
   controllers: [
     BellScheduleController,
@@ -84,6 +101,13 @@ import { SubstitutionController } from './substitution.controller';
     CalendarController,
     CoverageController,
     SubstitutionController,
+    RotationController,
+    SubjectChoiceController,
+    SubjectChoiceWindowController,
+    SchedulingConstraintsController,
+    SchedulingRequestController,
+    SchedulingGenerateController,
+    SchedulingCandidateController,
   ],
   exports: [
     BellScheduleService,
@@ -96,6 +120,9 @@ import { SubstitutionController } from './substitution.controller';
     DayOverrideService,
     CoverageService,
     SubstitutionService,
+    RotationService,
+    SubjectChoiceService,
+    ScheduleGenerationService,
   ],
 })
 export class SchedulingModule {}
