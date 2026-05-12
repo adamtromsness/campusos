@@ -84,6 +84,7 @@
     "seed:moderation-push": "tsx src/seed-moderation-push.ts",
     "seed:it-advanced": "tsx src/seed-it-advanced.ts",
     "seed:crm": "tsx src/seed-crm.ts",
+    "seed:ops": "tsx src/seed-ops.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",

@@ -156,6 +156,15 @@ export class TenantResolverMiddleware implements NestMiddleware {
       // P2-21a CrmModule — internal-only customer management for
       // CampusOS-the-company. Platform-scoped (no tenant context).
       '/api/v1/internal/crm',
+      // P2-21b OpsModule — internal ops + pricing for CampusOS-the-
+      // company. Platform-scoped (no tenant context).
+      '/api/v1/internal/ops',
+      '/api/v1/internal/employees',
+      '/api/v1/internal/permissions',
+      '/api/v1/internal/account-assignments',
+      '/api/v1/internal/tenant-access',
+      '/api/v1/internal/tickets',
+      '/api/v1/internal/pricing',
     ];
 
     for (var i = 0; i < exemptPrefixes.length; i++) {

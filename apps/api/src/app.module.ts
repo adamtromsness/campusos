@@ -66,6 +66,7 @@ import { SisGraduationModule } from './sis-graduation/sis-graduation.module';
 import { SisTranscriptsModule } from './sis-transcripts/sis-transcripts.module';
 import { CommunicationsAdvancedModule } from './communications-advanced/communications-advanced.module';
 import { CrmModule } from './crm/crm.module';
+import { OpsModule } from './ops/ops.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -253,6 +254,16 @@ var devOnlyControllers: Type<unknown>[] =
     // scope. 9 platform tables (crm_accounts ... crm_invoices), 5
     // services, ~22 endpoints, 1 weekly health-score worker.
     CrmModule,
+    // Phase 2 Cycle 21 sub-cycle b — M91 Internal Ops + Platform
+    // Pricing. CampusOS-the-company employee management, FERPA/GDPR-
+    // audited tenant access grants with hard 4-hour maximum +
+    // mandatory >=20-char justification, internal cross-team
+    // tickets, pricing bands + history + support tier definitions.
+    // Platform-scoped (no tenant header). 9 platform tables, 5
+    // services + 1 controller + 1 worker + ~20 endpoints. Emits
+    // ops.tenant_access.granted on grant. TenantAccessExpiryWorker
+    // sweeps expired grants every 5 min.
+    OpsModule,
   ],
   controllers: devOnlyControllers,
   providers: [
