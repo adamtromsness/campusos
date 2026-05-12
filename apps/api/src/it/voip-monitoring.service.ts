@@ -9,7 +9,8 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
+import { deterministicMonitoringAlertEventId } from './event-ids';
 import type {
   AcknowledgeAlertDto,
   AssignPhoneExtensionDto,
@@ -516,7 +517,7 @@ export class MonitoringService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permCheck: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   private async assertItAdmin(actor: ResolvedActor): Promise<void> {
@@ -719,6 +720,11 @@ export class MonitoringService {
     };
     const emit: AlertEmission[] = [];
 
+    // REVIEW-P2C20 ROUND 1 BLOCKING 2 — tech.monitoring.alert is now
+    // durable via OutboxService.enqueueInTx INSIDE the same tenant tx
+    // as the alert INSERT. A Kafka outage can no longer drop the
+    // operational alert. Deterministic event_id keys on the alert row
+    // id so consumer-side idempotency catches retries cleanly.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const locked = (await tx.$queryRawUnsafe(
         'SELECT id::text AS id, system_name, consecutive_failures, consecutive_failures_to_alert, last_status FROM tech_monitoring_checks WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
@@ -754,6 +760,40 @@ export class MonitoringService {
         check.consecutive_failures < check.consecutive_failures_to_alert &&
         (newStatus === 'DOWN' || newStatus === 'DEGRADED');
 
+      const enqueueAlert = async (
+        alertId: string,
+        alertType: 'DOWN' | 'DEGRADED' | 'RECOVERED',
+        responseTimeMs: number | null,
+        statusCode: number | null,
+        errorMessage: string | null,
+      ): Promise<void> => {
+        emit.push({
+          alertId,
+          alertType,
+          systemName: check.system_name,
+          responseTimeMs,
+          statusCode,
+          errorMessage,
+        });
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'tech.monitoring.alert',
+          key: alertId,
+          sourceModule: 'it',
+          eventId: deterministicMonitoringAlertEventId(alertId),
+          payload: {
+            alertId,
+            checkId,
+            schoolId: tenant.schoolId,
+            systemName: check.system_name,
+            alertType,
+            responseTimeMs,
+            statusCode,
+            errorMessage,
+            sourceRefId: alertId,
+          },
+        });
+      };
+
       if (crossedThreshold) {
         const alertId = generateId();
         await tx.$executeRawUnsafe(
@@ -766,14 +806,13 @@ export class MonitoringService {
           dto.statusCode ?? null,
           dto.errorMessage ?? null,
         );
-        emit.push({
+        await enqueueAlert(
           alertId,
-          alertType: newStatus,
-          systemName: check.system_name,
-          responseTimeMs: dto.responseTimeMs ?? null,
-          statusCode: dto.statusCode ?? null,
-          errorMessage: dto.errorMessage ?? null,
-        });
+          newStatus,
+          dto.responseTimeMs ?? null,
+          dto.statusCode ?? null,
+          dto.errorMessage ?? null,
+        );
       }
 
       // Recovery — when status HEALTHY and there is an unresolved
@@ -798,36 +837,22 @@ export class MonitoringService {
             dto.responseTimeMs ?? null,
             dto.statusCode ?? null,
           );
-          emit.push({
-            alertId: recoveredId,
-            alertType: 'RECOVERED',
-            systemName: check.system_name,
-            responseTimeMs: dto.responseTimeMs ?? null,
-            statusCode: dto.statusCode ?? null,
-            errorMessage: null,
-          });
+          await enqueueAlert(
+            recoveredId,
+            'RECOVERED',
+            dto.responseTimeMs ?? null,
+            dto.statusCode ?? null,
+            null,
+          );
         }
       }
     });
 
-    for (const e of emit) {
-      await this.kafka.emit({
-        topic: 'tech.monitoring.alert',
-        key: e.alertId,
-        sourceModule: 'it',
-        payload: {
-          alertId: e.alertId,
-          checkId,
-          schoolId: tenant.schoolId,
-          systemName: e.systemName,
-          alertType: e.alertType,
-          responseTimeMs: e.responseTimeMs,
-          statusCode: e.statusCode,
-          errorMessage: e.errorMessage,
-          sourceRefId: e.alertId,
-        },
-      });
-    }
+    // `emit` is retained on the call so existing call sites that
+    // inspected the emit array still observe the alerts that fired
+    // inside the locked tx. The durable outbox row is the authoritative
+    // record — the array is now a return-value diagnostic only.
+    void emit;
 
     return this.getCheckById(checkId, actor);
   }
@@ -854,6 +879,10 @@ export class MonitoringService {
   ): Promise<MonitoringAlertDto> {
     await this.assertItAdmin(actor);
     const tenant = getCurrentTenant();
+    // REVIEW-P2C20 ROUND 1 BLOCKING 4 — both the UPDATE and the post-
+    // acknowledge reload now carry the school predicate via the join
+    // through tech_monitoring_checks. Defence-in-depth alongside the
+    // existing scoped lock.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const locked = (await tx.$queryRawUnsafe(
         'SELECT a.id::text AS id, a.acknowledged_at FROM tech_monitoring_alerts a JOIN tech_monitoring_checks c ON c.id = a.check_id WHERE a.id = $1::uuid AND c.school_id = $2::uuid FOR UPDATE OF a',
@@ -865,14 +894,20 @@ export class MonitoringService {
         throw new BadRequestException('Alert is already acknowledged');
       }
       await tx.$executeRawUnsafe(
-        'UPDATE tech_monitoring_alerts SET acknowledged_by = $1::uuid, acknowledged_at = now(), notes = COALESCE($2, notes) WHERE id = $3::uuid',
+        'UPDATE tech_monitoring_alerts a SET acknowledged_by = $1::uuid, acknowledged_at = now(), notes = COALESCE($2, notes) ' +
+          'FROM tech_monitoring_checks c WHERE a.check_id = c.id AND a.id = $3::uuid AND c.school_id = $4::uuid',
         actor.personId,
         dto.notes ?? null,
         id,
+        tenant.schoolId,
       );
     });
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(ALERT_SELECT_BASE + ' WHERE a.id = $1::uuid LIMIT 1', id);
+      return client.$queryRawUnsafe(
+        ALERT_SELECT_BASE + ' WHERE a.id = $1::uuid AND c.school_id = $2::uuid LIMIT 1',
+        id,
+        tenant.schoolId,
+      );
     })) as AlertRow[];
     if (rows.length === 0) throw new NotFoundException('Alert not found after acknowledge');
     return this.alertRowToDto(rows[0]!);

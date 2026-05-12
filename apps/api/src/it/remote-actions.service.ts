@@ -9,7 +9,11 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
+import {
+  deterministicRemoteActionIssuedEventId,
+  deterministicUsageFlaggedEventId,
+} from './event-ids';
 import type {
   CreateDeviceUsageDto,
   CreateInventoryAuditDto,
@@ -74,7 +78,7 @@ export class RemoteActionService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permCheck: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   private async assertItAdmin(actor: ResolvedActor): Promise<void> {
@@ -111,10 +115,13 @@ export class RemoteActionService {
 
   async listForAsset(assetId: string, actor: ResolvedActor): Promise<RemoteActionDto[]> {
     await this.assertItAdmin(actor);
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        SELECT_BASE + ' WHERE r.asset_id = $1::uuid ORDER BY r.initiated_at DESC',
+        SELECT_BASE +
+          ' WHERE r.asset_id = $1::uuid AND a.school_id = $2::uuid ORDER BY r.initiated_at DESC',
         assetId,
+        tenant.schoolId,
       );
     })) as RemoteActionRow[];
     return rows.map((r) => this.rowToDto(r));
@@ -122,8 +129,13 @@ export class RemoteActionService {
 
   async getById(id: string, actor: ResolvedActor): Promise<RemoteActionDto> {
     await this.assertItAdmin(actor);
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_BASE + ' WHERE r.id = $1::uuid LIMIT 1', id);
+      return client.$queryRawUnsafe(
+        SELECT_BASE + ' WHERE r.id = $1::uuid AND a.school_id = $2::uuid LIMIT 1',
+        id,
+        tenant.schoolId,
+      );
     })) as RemoteActionRow[];
     if (rows.length === 0) throw new NotFoundException('Remote action not found');
     return this.rowToDto(rows[0]!);
@@ -153,10 +165,20 @@ export class RemoteActionService {
     }
     const tenant = getCurrentTenant();
     const id = generateId();
-    const assetRow = (await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    // REVIEW-P2C20 ROUND 1 BLOCKING 1 — every remote-action path is
+    // school-scoped through tech_assets.school_id so a foreign-tenant
+    // asset UUID cannot land a remote MDM command on a School B device.
+    //
+    // REVIEW-P2C20 ROUND 1 BLOCKING 2 — tech.remote_action.issued is
+    // now durable via OutboxService.enqueueInTx INSIDE the same tenant
+    // tx as the INSERT. The future MDM provider dispatcher consumes
+    // the outbox row; a Kafka outage can no longer leave an audit row
+    // without its downstream MDM command.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const exists = (await tx.$queryRawUnsafe(
-        'SELECT id::text AS id, asset_tag FROM tech_assets WHERE id = $1::uuid LIMIT 1',
+        'SELECT id::text AS id, asset_tag FROM tech_assets WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         assetId,
+        tenant.schoolId,
       )) as Array<{ id: string; asset_tag: string }>;
       if (exists.length === 0) {
         throw new NotFoundException('Asset not found');
@@ -171,27 +193,24 @@ export class RemoteActionService {
         trimmed,
         dto.mdmCommandRef ?? null,
       );
-      return exists[0]!;
-    })) as { id: string; asset_tag: string };
-
-    // Emit AFTER tx commits — best-effort. The audit row is the
-    // canonical record; the emit is for downstream MDM dispatch.
-    await this.kafka.emit({
-      topic: 'tech.remote_action.issued',
-      key: id,
-      sourceModule: 'it',
-      payload: {
-        actionId: id,
-        assetId,
-        assetTag: assetRow.asset_tag,
-        schoolId: tenant.schoolId,
-        actionType: dto.actionType,
-        initiatedBy: actor.personId,
-        initiatedByAccountId: actor.accountId,
-        justification: trimmed,
-        mdmCommandRef: dto.mdmCommandRef ?? null,
-        sourceRefId: id,
-      },
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'tech.remote_action.issued',
+        key: id,
+        sourceModule: 'it',
+        eventId: deterministicRemoteActionIssuedEventId(id),
+        payload: {
+          actionId: id,
+          assetId,
+          assetTag: exists[0]!.asset_tag,
+          schoolId: tenant.schoolId,
+          actionType: dto.actionType,
+          initiatedBy: actor.personId,
+          initiatedByAccountId: actor.accountId,
+          justification: trimmed,
+          mdmCommandRef: dto.mdmCommandRef ?? null,
+          sourceRefId: id,
+        },
+      });
     });
 
     return this.getById(id, actor);
@@ -230,10 +249,19 @@ export class RemoteActionService {
       }
     }
 
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C20 ROUND 1 BLOCKING 1 — lock the remote action only
+      // when it belongs to a tech_assets row in the calling tenant.
+      // School A cannot mutate School B's action lifecycle (including
+      // the WIPE-completion asset reset) by guessing the action UUID.
       const locked = (await tx.$queryRawUnsafe(
-        'SELECT id::text AS id, asset_id::text AS asset_id, action_type, status FROM tech_remote_actions WHERE id = $1::uuid FOR UPDATE',
+        'SELECT r.id::text AS id, r.asset_id::text AS asset_id, r.action_type, r.status ' +
+          'FROM tech_remote_actions r ' +
+          'JOIN tech_assets a ON a.id = r.asset_id ' +
+          'WHERE r.id = $1::uuid AND a.school_id = $2::uuid FOR UPDATE OF r',
         id,
+        tenant.schoolId,
       )) as Array<{ id: string; asset_id: string; action_type: string; status: string }>;
       if (locked.length === 0) {
         throw new NotFoundException('Remote action not found');
@@ -261,11 +289,14 @@ export class RemoteActionService {
 
       // WIPE + COMPLETED keystone — auto-reset the asset to AVAILABLE
       // inside the same tx so the invariant cannot be violated by a
-      // Kafka outage or a crash between two statements.
+      // Kafka outage or a crash between two statements. The UPDATE
+      // carries `school_id = $tenant` as defence-in-depth, matching
+      // every other tenant write across Phase 2.
       if (row.action_type === 'WIPE' && dto.status === 'COMPLETED') {
         await tx.$executeRawUnsafe(
-          "UPDATE tech_assets SET status = 'AVAILABLE', updated_at = now() WHERE id = $1::uuid",
+          "UPDATE tech_assets SET status = 'AVAILABLE', updated_at = now() WHERE id = $1::uuid AND school_id = $2::uuid",
           row.asset_id,
+          tenant.schoolId,
         );
       }
     });
@@ -481,9 +512,17 @@ export class InventoryAuditService {
         throw err;
       }
 
+      // REVIEW-P2C20 ROUND 1 MAJOR 3 — reload joins the parent audit
+      // on school_id so leaked item UUIDs cannot surface a foreign
+      // row. The audit was already locked above by (id, school_id);
+      // this is defence-in-depth.
       const reloaded = (await tx.$queryRawUnsafe(
-        'SELECT id::text AS id, audit_id::text AS audit_id, asset_id::text AS asset_id, asset_tag, found, condition_observed, location_observed, discrepancy_notes, scanned_at::text AS scanned_at FROM tech_inventory_audit_items WHERE id = $1::uuid LIMIT 1',
+        'SELECT i.id::text AS id, i.audit_id::text AS audit_id, i.asset_id::text AS asset_id, i.asset_tag, i.found, i.condition_observed, i.location_observed, i.discrepancy_notes, i.scanned_at::text AS scanned_at ' +
+          'FROM tech_inventory_audit_items i ' +
+          'JOIN tech_inventory_audits au ON au.id = i.audit_id ' +
+          'WHERE i.id = $1::uuid AND au.school_id = $2::uuid LIMIT 1',
         itemId,
+        tenant.schoolId,
       )) as Array<{
         id: string;
         audit_id: string;
@@ -523,10 +562,17 @@ export class InventoryAuditService {
 
   async listItems(auditId: string, actor: ResolvedActor): Promise<InventoryAuditItemDto[]> {
     await this.getById(auditId, actor);
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C20 ROUND 1 MAJOR 3 — defence-in-depth join through
+    // the parent audit's school_id even though getById already passes.
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        'SELECT id::text AS id, audit_id::text AS audit_id, asset_id::text AS asset_id, asset_tag, found, condition_observed, location_observed, discrepancy_notes, scanned_at::text AS scanned_at FROM tech_inventory_audit_items WHERE audit_id = $1::uuid ORDER BY scanned_at',
+        'SELECT i.id::text AS id, i.audit_id::text AS audit_id, i.asset_id::text AS asset_id, i.asset_tag, i.found, i.condition_observed, i.location_observed, i.discrepancy_notes, i.scanned_at::text AS scanned_at ' +
+          'FROM tech_inventory_audit_items i ' +
+          'JOIN tech_inventory_audits au ON au.id = i.audit_id ' +
+          'WHERE i.audit_id = $1::uuid AND au.school_id = $2::uuid ORDER BY i.scanned_at',
         auditId,
+        tenant.schoolId,
       );
     })) as Array<{
       id: string;
@@ -810,15 +856,26 @@ export class LicenceRenewalService {
         actor.personId,
         dto.notes ?? null,
       );
+      // REVIEW-P2C20 ROUND 1 MAJOR 2 — carry the school predicate
+      // through the post-lock UPDATE for defence-in-depth, matching
+      // the Phase 2 "every write carries school_id" convention.
       await tx.$executeRawUnsafe(
-        'UPDATE tech_software_licences SET expiry_date = $1::date, updated_at = now() WHERE id = $2::uuid',
+        'UPDATE tech_software_licences SET expiry_date = $1::date, updated_at = now() ' +
+          'WHERE id = $2::uuid AND school_id = $3::uuid',
         dto.newExpiryDate,
         licenceId,
+        tenant.schoolId,
       );
     });
 
+    // Reload joins through tech_software_licences with the school
+    // predicate so a leaked renewal id cannot surface a foreign row.
     const created = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(RENEWAL_SELECT_BASE + ' WHERE r.id = $1::uuid LIMIT 1', id);
+      return client.$queryRawUnsafe(
+        RENEWAL_SELECT_BASE + ' WHERE r.id = $1::uuid AND l.school_id = $2::uuid LIMIT 1',
+        id,
+        tenant.schoolId,
+      );
     })) as RenewalRow[];
     if (created.length === 0) throw new NotFoundException('Renewal not found after create');
     return this.rowToDto(created[0]!);
@@ -866,7 +923,7 @@ export class DeviceUsageService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permCheck: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   private async assertItAdmin(actor: ResolvedActor): Promise<void> {
@@ -900,10 +957,16 @@ export class DeviceUsageService {
 
   async listForAsset(assetId: string, actor: ResolvedActor): Promise<DeviceUsageDto[]> {
     await this.assertItAdmin(actor);
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C20 ROUND 1 BLOCKING 3 — usage reads carry the school
+    // predicate through the joined tech_assets row so a foreign-school
+    // asset UUID cannot leak app-usage / screen-time data.
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        USAGE_SELECT_BASE + ' WHERE u.asset_id = $1::uuid ORDER BY u.summary_date DESC LIMIT 90',
+        USAGE_SELECT_BASE +
+          ' WHERE u.asset_id = $1::uuid AND a.school_id = $2::uuid ORDER BY u.summary_date DESC LIMIT 90',
         assetId,
+        tenant.schoolId,
       );
     })) as UsageRow[];
     return rows.map((r) => this.rowToDto(r));
@@ -939,7 +1002,12 @@ export class DeviceUsageService {
     await this.assertItAdmin(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
-    const assetTag = (await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    // REVIEW-P2C20 ROUND 1 BLOCKING 2 — tech.usage.flagged now writes
+    // to the durable outbox INSIDE the same tenant tx as the usage
+    // INSERT so the IT-admin notification consumer can never be
+    // skipped by a Kafka outage. Deterministic event_id keys on the
+    // usage row id so retries dedup cleanly.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const asset = (await tx.$queryRawUnsafe(
         'SELECT id::text AS id, asset_tag FROM tech_assets WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         assetId,
@@ -966,31 +1034,38 @@ export class DeviceUsageService {
         dto.summarySource ?? null,
         actor.personId,
       );
-      return asset[0]!.asset_tag;
-    })) as string;
 
-    if (dto.flaggedActivity === true) {
-      await this.kafka.emit({
-        topic: 'tech.usage.flagged',
-        key: id,
-        sourceModule: 'it',
-        payload: {
-          usageId: id,
-          assetId,
-          assetTag,
-          schoolId: tenant.schoolId,
-          summaryDate: dto.summaryDate,
-          screenTimeMinutes: dto.screenTimeMinutes ?? null,
-          appsUsed: dto.appsUsed ?? [],
-          summarySource: dto.summarySource ?? null,
-          recordedBy: actor.personId,
-          sourceRefId: id,
-        },
-      });
-    }
+      if (dto.flaggedActivity === true) {
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'tech.usage.flagged',
+          key: id,
+          sourceModule: 'it',
+          eventId: deterministicUsageFlaggedEventId(id),
+          payload: {
+            usageId: id,
+            assetId,
+            assetTag: asset[0]!.asset_tag,
+            schoolId: tenant.schoolId,
+            summaryDate: dto.summaryDate,
+            screenTimeMinutes: dto.screenTimeMinutes ?? null,
+            appsUsed: dto.appsUsed ?? [],
+            summarySource: dto.summarySource ?? null,
+            recordedBy: actor.personId,
+            sourceRefId: id,
+          },
+        });
+      }
+    });
 
+    // REVIEW-P2C20 ROUND 1 BLOCKING 3 — reload through the joined
+    // tech_assets row with the school predicate so a leaked usage UUID
+    // cannot surface a foreign-tenant row.
     const reloaded = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(USAGE_SELECT_BASE + ' WHERE u.id = $1::uuid LIMIT 1', id);
+      return client.$queryRawUnsafe(
+        USAGE_SELECT_BASE + ' WHERE u.id = $1::uuid AND a.school_id = $2::uuid LIMIT 1',
+        id,
+        tenant.schoolId,
+      );
     })) as UsageRow[];
     if (reloaded.length === 0) throw new NotFoundException('Usage summary not found after record');
     return this.rowToDto(reloaded[0]!);

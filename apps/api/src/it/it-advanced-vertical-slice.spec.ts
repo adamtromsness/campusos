@@ -93,24 +93,46 @@ function makePermCheck(answers: { admin?: boolean; staff?: boolean }) {
 }
 
 function makeKafka() {
+  // After REVIEW-P2C20 ROUND 1 BLOCKING 2 the services use
+  // OutboxService.enqueueInTx() instead of KafkaProducerService.emit().
+  // The mock surfaces both shapes so older tests continue to assert on
+  // the `emitted` array unchanged.
   const emitted: Array<{
     topic: string;
     sourceModule: string;
     payload: Record<string, unknown>;
+    eventId?: string;
   }> = [];
+  const record = (opts: {
+    topic: string;
+    sourceModule: string;
+    payload: Record<string, unknown>;
+    eventId?: string;
+  }) => {
+    emitted.push({
+      topic: opts.topic,
+      sourceModule: opts.sourceModule,
+      payload: opts.payload,
+      eventId: opts.eventId,
+    });
+  };
   const kafka = {
     emit: async (opts: {
       topic: string;
       key: string;
       sourceModule: string;
       payload: Record<string, unknown>;
-    }) => {
-      emitted.push({
-        topic: opts.topic,
-        sourceModule: opts.sourceModule,
-        payload: opts.payload,
-      });
-    },
+    }) => record(opts),
+    enqueueInTx: async (
+      _tx: unknown,
+      opts: {
+        topic: string;
+        key: string;
+        sourceModule: string;
+        payload: Record<string, unknown>;
+        eventId?: string;
+      },
+    ) => record(opts),
   };
   return { kafka, emitted };
 }
@@ -196,7 +218,11 @@ describe('P2-20b vertical slice — Scenario 1: Remote action IMMUTABLE', () => 
 describe('P2-20b vertical slice — Scenario 2: WIPE auto-reset to AVAILABLE', () => {
   it('marking a WIPE COMPLETED flips parent tech_assets.status atomically', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('FROM tech_remote_actions WHERE id = $1::uuid FOR UPDATE')) {
+      if (
+        call.sql.includes('FROM tech_remote_actions r') &&
+        call.sql.includes('JOIN tech_assets a ON a.id = r.asset_id') &&
+        call.sql.includes('FOR UPDATE OF r')
+      ) {
         return [
           {
             id: '019e1111-1111-7000-8000-000000000001',
@@ -251,7 +277,11 @@ describe('P2-20b vertical slice — Scenario 2: WIPE auto-reset to AVAILABLE', (
 
   it('non-WIPE COMPLETED does NOT flip tech_assets.status', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('FROM tech_remote_actions WHERE id = $1::uuid FOR UPDATE')) {
+      if (
+        call.sql.includes('FROM tech_remote_actions r') &&
+        call.sql.includes('JOIN tech_assets a ON a.id = r.asset_id') &&
+        call.sql.includes('FOR UPDATE OF r')
+      ) {
         return [
           {
             id: '019e1111-1111-7000-8000-000000000002',
@@ -332,11 +362,13 @@ describe('P2-20b vertical slice — Scenario 3: Inventory audit lifecycle', () =
         return [{ id: '019e1000-0000-7000-8000-' + String(scanCount).padStart(12, '0') }];
       }
       if (call.sql.startsWith('INSERT INTO tech_inventory_audit_items')) return 1;
-      // scan() reload — fetch the freshly inserted audit item row
+      // scan() reload — fetch the freshly inserted audit item row.
+      // After REVIEW-P2C20 ROUND 1 MAJOR 3 the SQL joins through
+      // tech_inventory_audits with the school predicate.
       if (
-        call.sql.includes('FROM tech_inventory_audit_items WHERE id = $1::uuid LIMIT 1') ||
-        (call.sql.includes('FROM tech_inventory_audit_items') &&
-          call.sql.includes('WHERE id = $1::uuid'))
+        call.sql.includes('FROM tech_inventory_audit_items i') &&
+        call.sql.includes('JOIN tech_inventory_audits au ON au.id = i.audit_id') &&
+        call.sql.includes('WHERE i.id = $1::uuid')
       ) {
         scanCount += 1;
         const assetId =

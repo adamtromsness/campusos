@@ -85,26 +85,53 @@ function makePermCheck(returnTrue: boolean) {
 }
 
 function makeKafka() {
+  // P2-20a unit tests originally exercised KafkaProducerService.emit().
+  // After REVIEW-P2C20 ROUND 1 BLOCKING 2 the services use
+  // OutboxService.enqueueInTx() instead. We keep the helper name +
+  // `emitted` accumulator shape so existing assertions continue to read
+  // payload / topic / sourceModule unchanged. The mock now exposes both
+  // the legacy `emit()` (called by no remaining production path but
+  // retained for backwards compatibility with hand-spun smoke tests) and
+  // the new `enqueueInTx(tx, opts)` shape OutboxService presents.
   const emitted: Array<{
     topic: string;
     key: string;
     sourceModule: string;
     payload: Record<string, unknown>;
+    eventId?: string;
   }> = [];
+  const record = (opts: {
+    topic: string;
+    key: string;
+    sourceModule: string;
+    payload: Record<string, unknown>;
+    eventId?: string;
+  }) => {
+    emitted.push({
+      topic: opts.topic,
+      key: opts.key,
+      sourceModule: opts.sourceModule,
+      payload: opts.payload,
+      eventId: opts.eventId,
+    });
+  };
   const kafka = {
     emit: async (opts: {
       topic: string;
       key: string;
       sourceModule: string;
       payload: Record<string, unknown>;
-    }) => {
-      emitted.push({
-        topic: opts.topic,
-        key: opts.key,
-        sourceModule: opts.sourceModule,
-        payload: opts.payload,
-      });
-    },
+    }) => record(opts),
+    enqueueInTx: async (
+      _tx: unknown,
+      opts: {
+        topic: string;
+        key: string;
+        sourceModule: string;
+        payload: Record<string, unknown>;
+        eventId?: string;
+      },
+    ) => record(opts),
   };
   return { kafka, emitted };
 }
@@ -188,7 +215,11 @@ describe('RemoteActionService — IMMUTABLE remote MDM actions', () => {
 
   it('updateStatus() on WIPE + COMPLETED issues UPDATE on tech_assets to AVAILABLE in the same tx', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('FROM tech_remote_actions WHERE id = $1::uuid FOR UPDATE')) {
+      if (
+        call.sql.includes('FROM tech_remote_actions r') &&
+        call.sql.includes('JOIN tech_assets a ON a.id = r.asset_id') &&
+        call.sql.includes('FOR UPDATE OF r')
+      ) {
         return [
           {
             id: '019e1111-1111-7000-8000-000000000001',
@@ -247,7 +278,11 @@ describe('RemoteActionService — IMMUTABLE remote MDM actions', () => {
 
   it('updateStatus() refuses to mutate a terminal-state remote action', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('FROM tech_remote_actions WHERE id = $1::uuid FOR UPDATE')) {
+      if (
+        call.sql.includes('FROM tech_remote_actions r') &&
+        call.sql.includes('JOIN tech_assets a ON a.id = r.asset_id') &&
+        call.sql.includes('FOR UPDATE OF r')
+      ) {
         return [
           {
             id: '019e1111-1111-7000-8000-000000000001',

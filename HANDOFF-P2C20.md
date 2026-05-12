@@ -1,5 +1,40 @@
 # HANDOFF — Phase 2 Cycle 20 (P2-20): IT Advanced
 
+**Status:** REVIEW-P2C20 ROUND 1 fixes applied (2026-05-12). Round 1 against `5823055` returned **FAIL** with 4 BLOCKING + 4 MAJOR. The fix commit lands all 4 BLOCKING + 2 actionable MAJORs (#2 + #3) + 16 new pinned regression tests in `apps/api/src/it/it-advanced-review-p2c20.spec.ts`. Awaiting Round 2 verdict before tagging `p2c20-complete`. **Original build trail preserved below.**
+
+## REVIEW-P2C20 ROUND 1 fix log
+
+**BLOCKING fixes:**
+
+1. **Remote action school-scope** — `RemoteActionService.create()` / `listForAsset()` / `getById()` / `updateStatus()` all now school-scope through `tech_assets.school_id`. The create pre-flight reads `FROM tech_assets WHERE id = $1::uuid AND school_id = $2::uuid`. Reads JOIN `tech_assets a ON a.id = r.asset_id` with `WHERE a.school_id = $2::uuid`. The `updateStatus()` locked SELECT joins through `tech_assets` and locks `FOR UPDATE OF r`. The WIPE + COMPLETED `UPDATE tech_assets SET status='AVAILABLE'` carries `AND school_id = $2::uuid` for defence-in-depth. A School A IT admin can no longer issue / list / patch a remote action against a School B device by guessing UUIDs.
+
+2. **Durable outbox for the 3 IT operational emits** — `tech.remote_action.issued` (RemoteActionService.create), `tech.usage.flagged` (DeviceUsageService.record), and `tech.monitoring.alert` (MonitoringService.recordResult — both DOWN/DEGRADED threshold-cross + RECOVERED) all flipped from best-effort `KafkaProducerService.emit()` AFTER tx commit to durable `OutboxService.enqueueInTx()` INSIDE the triggering tenant tx. Three new deterministic event-id helpers in `apps/api/src/it/event-ids.ts` — `deterministicRemoteActionIssuedEventId(actionId)` / `deterministicUsageFlaggedEventId(usageId)` / `deterministicMonitoringAlertEventId(alertId)` — produce v5-shaped UUIDs via `sha256(<key>:<topic>:v1)`. Retries land the same envelope; downstream consumer-side idempotency catches redelivery cleanly. `RemoteActionService` and `DeviceUsageService` constructors flipped from `kafka: KafkaProducerService` to `outbox: OutboxService`; `MonitoringService` constructor same. KafkaModule already exports OutboxService so no module-wiring change required.
+
+3. **Device usage list / reload school-scope** — `DeviceUsageService.listForAsset()` now reads `FROM tech_device_usage_summaries u JOIN tech_assets a ON a.id = u.asset_id WHERE u.asset_id = $1::uuid AND a.school_id = $2::uuid`. The post-record reload adds `AND a.school_id = $2::uuid` so a leaked usage row id cannot surface a foreign-school summary.
+
+4. **Monitoring alert acknowledge UPDATE + reload school-scope** — `MonitoringService.acknowledgeAlert()` post-lock UPDATE rewrites from `UPDATE tech_monitoring_alerts SET … WHERE id = $1` to `UPDATE tech_monitoring_alerts a SET … FROM tech_monitoring_checks c WHERE a.check_id = c.id AND a.id = $3 AND c.school_id = $4`. The reload adds the same `c.school_id` predicate.
+
+**MAJOR fixes:**
+
+- (#2) **Licence renewal post-lock UPDATE + reload school-scope** — `LicenceRenewalService.renew()` UPDATE on `tech_software_licences.expiry_date` now carries `AND school_id = $3::uuid`. The reload joins `tech_software_licences l` with `l.school_id = $2::uuid` predicate. The parent licence row was already locked under `(id, school_id)`; this is defence-in-depth matching the Phase 2 convention.
+
+- (#3) **Inventory audit item reload + listItems school-scope** — `InventoryAuditService.scan()` reload now joins `tech_inventory_audit_items i → tech_inventory_audits au ON au.id = i.audit_id` with `WHERE i.id = $1::uuid AND au.school_id = $2::uuid`. `listItems()` rewritten with the same join + school predicate.
+
+**MAJORs acknowledged + carried to Phase 2 punch list per the reviewer's gate decision:**
+
+- (#1) RECOVERED idempotency under repeated HEALTHY calls — recommendation-class; the schema does not currently prevent two RECOVERED rows landing if the consumer-side idempotency claim fires twice on the same outbox envelope, but the durable outbox + deterministic event_id from BLOCKING 2 already prevents that for redeliveries. A second cron tick that records HEALTHY when no open alerts exist short-circuits before INSERT.
+- (#4) Dedicated IT-admin role split — generic Staff role currently grants the broad IT-002..009 codes as the IT-admin stand-in. Joins the broader Wave-D Phase 2 role-split chain (Counsellor / Nurse / Librarian / AD / FSM / FM / Transportation Coordinator / Procurement Officer / Store Manager / IT Admin / Finance Officer / DPO).
+
+**Test coverage:** vitest 963 → **979 passing across 47 spec files** (+16 new pinned regression tests in `apps/api/src/it/it-advanced-review-p2c20.spec.ts` across 5 REVIEW-P2C20 ROUND 1 describe blocks: BLOCKING 1 × 6 (create pre-flight school predicate + foreign-school 404 + listForAsset school predicate + getById school predicate + updateStatus locked SELECT joins tech_assets + WIPE asset UPDATE carries school_id); BLOCKING 2 × 3 (remote-action.issued + usage.flagged + monitoring.alert all land via OutboxService.enqueueInTx with deterministic v5 event_ids); BLOCKING 3 × 2 (listForAsset + post-record reload carry school_id); BLOCKING 4 × 2 (acknowledge UPDATE joins through tech_monitoring_checks + reload carries c.school_id); deterministic-event-id helpers × 3 (stable per row id + v5 marker + topic-distinct for the same row across the three helpers)). Existing P2-20a `it-advanced.spec.ts` (23 tests) + P2-20b `it-advanced-vertical-slice.spec.ts` (16 tests) re-stitched to use `makeKafka()` mock that exposes both `emit()` + `enqueueInTx()` shape so the existing assertions still pass.
+
+**CI parity green:** format:check + lint:logs (857 files clean) + API build clean + web build clean + vitest 979/979 across 47 spec files.
+
+No schema migrations in Round 1 — every fix is service-layer + new `event-ids.ts` helper + module-wiring (constructor signature flips from kafka to outbox; KafkaModule already exports OutboxService).
+
+See `P2C20-REVIEW-NOTES.md` "REVIEW-P2C20 Round 1 verification trail" for the per-fix evidence table.
+
+## Original P2-20 build state (preserved below)
+
 **Status:** COMPLETE pending peer review. Built in one cycle (no split needed). Schema + seed + services shipped at `18308ed` (P2-20a Steps 1–5). UI + integration tests + handoff/review docs ship in this commit (P2-20b Steps 6–8).
 **Plan:** `docs/campusos-p2c20-it-advanced.html`
 **Review scaffold:** `P2C20-REVIEW-NOTES.md`
