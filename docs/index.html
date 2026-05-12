@@ -114,11 +114,11 @@ a.card{text-decoration:none;color:inherit}
   <h1>Design Hub</h1>
   <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38+ modules, 76 ADRs. Phase 1 complete (8 waves, 34 cycles). Phase 2 in progress (4 waves, 30 cycles).</p>
   <div class="stats-row">
-    <div class="stat"><span class="num">646</span><span class="label">Tables Built</span></div>
-    <div class="stat"><span class="num">~1,518</span><span class="label">Endpoints</span></div>
-    <div class="stat"><span class="num">410+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">666</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">~1,564</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">425+</span><span class="label">UI Pages</span></div>
     <div class="stat"><span class="num">40</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">49</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">50</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -135,35 +135,35 @@ a.card{text-decoration:none;color:inherit}
 <div id="overview" class="tab-content active">
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Phase 1 + Waves A/B + P2-11 through P2-15 Complete &mdash; 49 Cycles</h4>
-      <p>646 tables (77%), ~1,518 endpoints, 410+ pages. 18 analytics read models wired to live Kafka consumers. Wave C closing.</p>
+      <h4>Phase 1 + Waves A/B/C Complete &mdash; 50 Cycles</h4>
+      <p>666 tables (79%), ~1,564 endpoints, 425+ pages. Rotation calendars, schedule generation, exam scheduling, co-teaching, pull-outs, complex cover all live. Three waves remain in Wave D.</p>
     </div>
     <div class="status-card sc-blue">
-      <h4>P2-17: Scheduling Advanced &mdash; Next</h4>
-      <p>Rotation calendars, constraint-solver generation, exams, co-teaching, pull-outs, cross-school staff, complex cover. 20 tables split into 2 sub-cycles. Closes Wave C.</p>
+      <h4>P2-18: Facilities Advanced &mdash; Next</h4>
+      <p>Cleaning routes, supply audit, fire drills, asset lifecycle, energy tracking, space utilisation. 21 tables split into 2 sub-cycles. Opens Wave D.</p>
     </div>
     <div class="status-card sc-amber">
-      <h4>Phase 2: 14 Cycles, 194 Tables Remaining</h4>
-      <p>Wave C closing. Then Completion (D). <a href="campusos-phase2-build-plan.html" style="color:var(--accent);font-weight:600;">Full plan &rarr;</a></p>
+      <h4>Phase 2: 13 Cycles, 174 Tables Remaining</h4>
+      <p>Wave D (Module Completion) starting. <a href="campusos-phase2-build-plan.html" style="color:var(--accent);font-weight:600;">Full plan &rarr;</a></p>
     </div>
   </div>
 
   <h2 class="sec">Build Progress</h2>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Tables Built</span><span>646 / 840 (77%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:77%"></div></div>
+    <div class="progress-label"><span>Tables Built</span><span>666 / 840 (79%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:79%"></div></div>
   </div>
   <div class="progress-wrap">
     <div class="progress-label"><span>Phase 1 Cycles</span><span>34 / 34 (100% &mdash; Complete)</span></div>
     <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Phase 2 Cycles</span><span>15 / 30 (Wave C closing)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:50%"></div></div>
+    <div class="progress-label"><span>Phase 2 Cycles</span><span>16 / 30 (Wave D starting)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:53%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>8 of 8 Phase 1 + 2 of 4 Phase 2</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:83%"></div></div>
+    <div class="progress-label"><span>Waves Complete</span><span>8 of 8 Phase 1 + 3 of 4 Phase 2</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:92%"></div></div>
   </div>
 
   <h2 class="sec">What is CampusOS?</h2>
@@ -450,11 +450,11 @@ a.card{text-decoration:none;color:inherit}
     </div>
   </div>
 
-  <!-- P2 WAVE C — IN PROGRESS -->
-  <div class="wave w-amber open">
+  <!-- P2 WAVE C — COMPLETE -->
+  <div class="wave w-green">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>P2 Wave C &mdash; Operational Depth</h3>
-      <span class="wave-meta">7 cycles &middot; 105 tables &middot; IN PROGRESS</span>
+      <span class="wave-meta">7 cycles &middot; 105 tables &middot; COMPLETE</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
@@ -464,19 +464,19 @@ a.card{text-decoration:none;color:inherit}
       <div class="cycle-row"><span class="cycle-num">P2-14</span><span class="cycle-title">Behaviour Advanced (9.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">5 tables</span><span class="cycle-links"><a href="campusos-p2c14-behaviour-advanced.html" class="cl-plan">Plan</a> <a href="p2c14-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-15</span><span class="cycle-title">Analytics Read Models (29.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">18 tables</span><span class="cycle-links"><a href="campusos-p2c15-analytics-readmodels.html" class="cl-plan">Plan</a> <a href="p2c15-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-16</span><span class="cycle-title">HR Appraisals (M87) <span class="pill pill-gray">Bundled into P2-4</span></span><span class="cycle-tables">0 tables</span><span class="cycle-links"></span></div>
-      <div class="cycle-row"><span class="cycle-num">P2-17</span><span class="cycle-title">Scheduling Advanced (5.1) <span class="pill pill-blue">Next</span></span><span class="cycle-tables">20 tables (2 sub-cycles)</span><span class="cycle-links"><a href="campusos-p2c17-scheduling-advanced.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-17</span><span class="cycle-title">Scheduling Advanced (5.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">20 tables</span><span class="cycle-links"><a href="campusos-p2c17-scheduling-advanced.html" class="cl-plan">Plan</a> <a href="p2c17-cat-script.md" class="cl-cat">CAT</a></span></div>
     </div>
   </div>
 
-  <!-- P2 WAVE D — UPCOMING -->
-  <div class="wave w-gray open">
+  <!-- P2 WAVE D — IN PROGRESS -->
+  <div class="wave w-amber open">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>P2 Wave D &mdash; Module Completion</h3>
-      <span class="wave-meta">13 cycles &middot; 172 tables &middot; Product maturity</span>
+      <span class="wave-meta">13 cycles &middot; 172 tables &middot; IN PROGRESS</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
-      <div class="cycle-row"><span class="cycle-num">P2-18</span><span class="cycle-title">Facilities Advanced (21.1)</span><span class="cycle-tables">21 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-18</span><span class="cycle-title">Facilities Advanced (21.1) <span class="pill pill-blue">Next</span></span><span class="cycle-tables">21 tables (2 sub-cycles)</span><span class="cycle-links"><a href="campusos-p2c18-facilities-advanced.html" class="cl-plan">Plan</a></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-19</span><span class="cycle-title">Communications Advanced (14.1)</span><span class="cycle-tables">13 tables</span><span class="cycle-links"></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-20</span><span class="cycle-title">IT Advanced (22.1)</span><span class="cycle-tables">10 tables</span><span class="cycle-links"></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-21</span><span class="cycle-title">Platform Advanced (0.1)</span><span class="cycle-tables">26 tables</span><span class="cycle-links"></span></div>
@@ -497,6 +497,13 @@ a.card{text-decoration:none;color:inherit}
 <div id="buildlog" class="tab-content">
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry">
+    <h4>P2-17: Scheduling Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">20 tables &middot; ~46 endpoints &middot; 2 sub-cycles &middot; 2 workers &middot; Closes Wave C</div>
+    <div class="log-desc">P2-17a: rotation calendars (A/B week + multi-day cycle), constraint-solver schedule generation with CP-SAT/heuristic selection (ADR-060), student subject choice collection, candidate review with clash highlighting + promotion lifecycle, room change requests. P2-17b: exam scheduling with room junction + seating + accommodation enforcement, co-teaching with 5 models + EXCLUSION relaxation, pull-out interventions with attendance pre-marking, cross-school staff with person-level double-booking prevention, complex cover arrangements with class splits.</div>
+    <div class="log-links"><a href="campusos-p2c17-scheduling-advanced.html">Plan</a> <a href="p2c17-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>P2-15: Analytics Read Models <span class="pill pill-green">Approved</span></h4>
@@ -838,6 +845,7 @@ a.card{text-decoration:none;color:inherit}
     <a href="p2c13-cat-script.md" class="card"><h4>P2-13 CAT</h4><div class="desc">Student profile + avatar approval, custom fields typed validation, parent update auto-approval, graduation audit + at-risk alert, service learning + verification, GPA weighted/unweighted, prerequisite validation, transcript snapshot freeze, locker combination encryption.</div><div class="meta">12 scenarios</div></a>
     <a href="p2c14-cat-script.md" class="card"><h4>P2-14 CAT</h4><div class="desc">RJ conference lifecycle + auto-resolution, overdue agreement action detection, peer mediation CHECK constraints, positive points award + redemption balance validation, reward quantity decrement, BIP teacher feedback request + submission.</div><div class="meta">6 scenarios</div></a>
     <a href="p2c15-cat-script.md" class="card"><h4>P2-15 CAT</h4><div class="desc">Worker idempotency (replay same event → same result), single-writer enforcement, read replica routing, wellbeing trends no-attribution, consumer checkpoint management, rebuild procedure validation, nightly vs live consumer.</div><div class="meta">8 scenarios</div></a>
+    <a href="p2c17-cat-script.md" class="card"><h4>P2-17 CAT</h4><div class="desc">Rotation calendar mapping, solver algorithm selection (CP-SAT vs heuristic), candidate clash detection + promotion blocking, exam accommodation auto-population, co-teaching EXCLUSION relaxation, pull-out PULL_OUT attendance pre-mark, cross-school person-level double-booking, cover split student assignment.</div><div class="meta">10 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 1 Punch List Status</h2>
