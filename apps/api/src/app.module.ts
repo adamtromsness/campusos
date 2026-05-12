@@ -65,6 +65,7 @@ import { SisAdvancedModule } from './sis-advanced/sis-advanced.module';
 import { SisGraduationModule } from './sis-graduation/sis-graduation.module';
 import { SisTranscriptsModule } from './sis-transcripts/sis-transcripts.module';
 import { CommunicationsAdvancedModule } from './communications-advanced/communications-advanced.module';
+import { CrmModule } from './crm/crm.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -245,6 +246,13 @@ var devOnlyControllers: Type<unknown>[] =
     // auto_translate_incoming=true) and BroadcastAnalyticsConsumer
     // on msg.broadcast.delivered.
     CommunicationsAdvancedModule,
+    // Phase 2 Cycle 21 sub-cycle a — M90 CRM. Internal-only customer-
+    // management surface for CampusOS-the-company. Platform-scoped:
+    // routes under /api/v1/internal/crm/* skip the tenant subdomain
+    // requirement and resolve permissions against the PLATFORM IAM
+    // scope. 9 platform tables (crm_accounts ... crm_invoices), 5
+    // services, ~22 endpoints, 1 weekly health-score worker.
+    CrmModule,
   ],
   controllers: devOnlyControllers,
   providers: [

@@ -153,6 +153,9 @@ export class TenantResolverMiddleware implements NestMiddleware {
       // dashboard reads cross-tenant operational state.
       '/api/v1/admin/platform',
       '/api/v1/admin/dlq',
+      // P2-21a CrmModule — internal-only customer management for
+      // CampusOS-the-company. Platform-scoped (no tenant context).
+      '/api/v1/internal/crm',
     ];
 
     for (var i = 0; i < exemptPrefixes.length; i++) {
