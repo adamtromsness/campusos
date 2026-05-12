@@ -283,6 +283,14 @@ async function seedIam() {
         // contributors. Distribution (PUB-003) is admin-only.
         'PUB-001': ['read', 'write'],
         'PUB-002': ['read', 'write'],
+        // P2-22 — Alumni (Wave D). Teachers read the alumni directory
+        // (opted-in profiles only at the service layer) so they can
+        // identify former students as guest speakers / mentors.
+        // Service-layer RLS enforces own-row-only write semantics —
+        // teachers cannot edit alumni profiles unless they are the
+        // alumnus themselves; campaign / news / event management
+        // is gated on Staff or admin scope at the service layer.
+        'PUB-004': ['read'],
         // Cycle 27 — Procurement. Teachers submit requisitions
         // for classroom supplies / technology / consumables.
         // Row scope at the Step 5 RequisitionService binds
@@ -540,6 +548,13 @@ async function seedIam() {
         // editions and manage subscriptions on the my-subscriptions
         // surface.
         'PUB-001': ['read'],
+        // P2-22 — Alumni. Parents who are themselves alumni of this
+        // school browse the directory (opted-in profiles) + alumni
+        // news feed. Mutation is gated by service-layer row-scope on
+        // own alm_alumni_profile (parents who never attended this
+        // school find their profile lookup empty and writes return
+        // 404 don't-leak-existence).
+        'PUB-004': ['read'],
         // Cycle 28 — School Store. Parents browse the STUDENT store
         // catalogue, see their child's order history, AND approve /
         // decline pending student orders via the PARENT APPROVAL
@@ -775,6 +790,14 @@ async function seedIam() {
         // require editor approval per ADR-035.
         'PUB-001': ['read'],
         'PUB-002': ['read', 'write'],
+        // P2-22 — Alumni. Students who graduate (P2-13 graduation
+        // audit COMPLETED) become alumni and self-maintain their
+        // profile + tags. PUB-004:write at the role tier is broad —
+        // the Step 5 service layer enforces RLS so a current student
+        // (never registered as an alumnus) cannot write to anyone
+        // else's profile, and the row-scope returns own row only on
+        // GET /alumni/profiles/:id.
+        'PUB-004': ['read', 'write'],
         // Cycle 28 — School Store. Students browse the STUDENT
         // catalogue (STR-001:read) AND place orders (STR-002:write —
         // every student order auto-creates a PENDING str_order_approvals
@@ -1050,6 +1073,12 @@ async function seedIam() {
         'PUB-001': ['read', 'write'],
         'PUB-002': ['read', 'write'],
         'PUB-003': ['read', 'write'],
+        // P2-22 — Alumni. Staff covers the alumni office operator
+        // who manages campaigns, sends outreach, posts news, plans
+        // events, and curates reunion groups. PUB-004:read+write at
+        // role tier; School Admin / Platform Admin pick up the admin
+        // tier through everyFunction for configuration surfaces.
+        'PUB-004': ['read', 'write'],
         // Profile & Household mini-cycle — every persona self-services
         // their own profile (covers VP, counsellor, admin assistant).
         'USR-001': ['read', 'write'],

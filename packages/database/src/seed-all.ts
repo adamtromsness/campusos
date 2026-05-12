@@ -192,6 +192,10 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Community Exchange — profiles + listings + transactions + ratings (P2-21c)',
     script: 'seed-community.ts',
   },
+  {
+    label: 'Alumni — profiles + tags + campaigns + donations + news + reunions + events (P2-22a)',
+    script: 'seed-alumni.ts',
+  },
 ];
 
 async function main(): Promise<void> {

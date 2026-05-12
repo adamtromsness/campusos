@@ -68,6 +68,7 @@ import { CommunicationsAdvancedModule } from './communications-advanced/communic
 import { CrmModule } from './crm/crm.module';
 import { OpsModule } from './ops/ops.module';
 import { CommunityModule } from './community/community.module';
+import { AlumniModule } from './alumni/alumni.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -273,6 +274,17 @@ var devOnlyControllers: Type<unknown>[] =
     // the service layer per ADR-073. Emits mkt.listing.published +
     // mkt.transaction.completed.
     CommunityModule,
+    // Phase 2 Cycle 22 — M102 Alumni (Wave D Module Completion).
+    // Self-maintained alumni profiles (ADR-019, ADR-055 identity)
+    // with opt-in directory + tag segmentation. Multi-currency
+    // fundraising campaigns with Redis-cached raised totals (TTL
+    // 5min). Campaign recipient outreach funnel (PENDING -> SENT ->
+    // OPENED -> RESPONDED -> DONATED). Alumni news feed, reunion
+    // groups, alumni events with optional P2-12 Events linkage —
+    // evt_event_id is a DISPLAY-ONLY soft reference with graceful
+    // fallback to rsvp_url. 8 services, 1 controller, ~28 endpoints,
+    // 2 Kafka emits (alm.campaign.activated, alm.donation.received).
+    AlumniModule,
   ],
   controllers: devOnlyControllers,
   providers: [

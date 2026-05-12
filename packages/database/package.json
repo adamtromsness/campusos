@@ -86,6 +86,7 @@
     "seed:crm": "tsx src/seed-crm.ts",
     "seed:ops": "tsx src/seed-ops.ts",
     "seed:community": "tsx src/seed-community.ts",
+    "seed:alumni": "tsx src/seed-alumni.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",
