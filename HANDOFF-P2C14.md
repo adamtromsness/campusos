@@ -1,6 +1,6 @@
 # HANDOFF — Phase 2 Cycle 14 (P2-14: Behaviour Advanced)
 
-**Status: REVIEW-P2C14 ROUND 1 FIXES APPLIED (2026-05-11).** Round 1 against commit `3333e2e` returned **FAIL** with 4 BLOCKING + 1 MAJOR + 2 hardening items. All 4 BLOCKING + all 3 actionable MAJORs landed in the closeout fix commit with **14 new pinned regression tests** + the existing 21 P2-14 tests rewired to the new outbox + JOIN-shape contracts. Suite **744/744 passing** across 34 spec files (709 → 730 → 744 across Round 0 + Round 1). Plan at `docs/campusos-p2c14-behaviour-advanced.html`.
+**Status: COMPLETE + APPROVED at the closeout commit (REVIEW-P2C14-CHATGPT — final verdict, 2026-05-11).** Round 1 against `3333e2e` returned **FAIL** with 4 BLOCKING + 1 MAJOR + 2 hardening items; Round 2 against `9541222` returned **PASS** — reviewer confirmed every dimension at PASS (Restorative Justice / BIP Feedback / Positive Behaviour / Worker Safety / Event Durability / Test Coverage). All prior blockers FIXED. Tagged `p2c14-complete` at `9541222` (the Round 1 fix commit that earned PASS) and `p2c14-approved` at the closeout commit. **Wave C cycle 4 ships clean — 5 tenant tables, ~20 endpoints, 2 Kafka emits, 1 worker, 4 web routes, 35 pinned regression tests.** Plan at `docs/campusos-p2c14-behaviour-advanced.html`.
 
 ## REVIEW-P2C14 Round 1 fix log
 
