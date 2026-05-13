@@ -930,6 +930,23 @@ export class CreateReadingListDto {
   @IsUUID()
   targetClassId?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'P2-25a — Free-form grade label for list_type=YEAR_GROUP. Optional for other list types.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  targetGradeLevel?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'P2-25a — Soft UUID ref to cur_units(id). Populated when list_type=CURRICULUM_UNIT to link the list to a specific curriculum unit.',
+  })
+  @IsOptional()
+  @IsUUID()
+  curriculumUnitId?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
@@ -958,6 +975,17 @@ export class UpdateReadingListDto {
   @IsOptional()
   @IsUUID()
   targetClassId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  targetGradeLevel?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  curriculumUnitId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -1051,6 +1079,10 @@ export class ReadingListResponseDto {
   createdByName!: string | null;
   @ApiPropertyOptional()
   targetClassId!: string | null;
+  @ApiPropertyOptional()
+  targetGradeLevel!: string | null;
+  @ApiPropertyOptional()
+  curriculumUnitId!: string | null;
   @ApiPropertyOptional()
   academicYearId!: string | null;
   @ApiProperty()

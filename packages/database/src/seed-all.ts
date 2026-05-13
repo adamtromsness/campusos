@@ -206,6 +206,11 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
       'Parent Engagement — conference events + slots + bookings + engagement scores + parent survey (P2-24a)',
     script: 'seed-engagement.ts',
   },
+  {
+    label:
+      'Library Advanced — reading lists + class sets + recommendations + ILL + catalogue import (P2-25a)',
+    script: 'seed-library-advanced.ts',
+  },
 ];
 
 async function main(): Promise<void> {

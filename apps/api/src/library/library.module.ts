@@ -22,6 +22,17 @@ import { ReadingListService } from './reading-list.service';
 import { ReadingListController } from './reading-list.controller';
 import { ReviewService } from './review.service';
 import { ReviewController } from './review.controller';
+// P2-25a — Library Advanced
+import { ClassSetService } from './class-set.service';
+import { ClassSetController } from './class-set.controller';
+import { ClassSetOverdueWorker } from './class-set-overdue.worker';
+import { RecommendationService } from './recommendation.service';
+import { RecommendationController } from './recommendation.controller';
+import { InterlibraryLoanService } from './interlibrary-loan.service';
+import { InterlibraryLoanController } from './interlibrary-loan.controller';
+import { CatalogueImportService } from './catalogue-import.service';
+import { CatalogueImportController } from './catalogue-import.controller';
+import { CatalogueImportWorker } from './catalogue-import.worker';
 
 /**
  * Library Module — Cycle 12 Step 5.
@@ -80,6 +91,13 @@ import { ReviewController } from './review.controller';
     ReadingLogService,
     ReadingListService,
     ReviewService,
+    // P2-25a — Library Advanced
+    ClassSetService,
+    ClassSetOverdueWorker,
+    RecommendationService,
+    InterlibraryLoanService,
+    CatalogueImportService,
+    CatalogueImportWorker,
   ],
   controllers: [
     LocationController,
@@ -92,6 +110,11 @@ import { ReviewController } from './review.controller';
     ReadingLogController,
     ReadingListController,
     ReviewController,
+    // P2-25a — Library Advanced
+    ClassSetController,
+    RecommendationController,
+    InterlibraryLoanController,
+    CatalogueImportController,
   ],
   exports: [
     LocationService,
@@ -104,6 +127,10 @@ import { ReviewController } from './review.controller';
     ReadingLogService,
     ReadingListService,
     ReviewService,
+    ClassSetService,
+    RecommendationService,
+    InterlibraryLoanService,
+    CatalogueImportService,
   ],
 })
 export class LibraryModule {}

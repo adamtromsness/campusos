@@ -42,15 +42,23 @@ export class ReadingListController {
   @RequirePermission('lib-003:read')
   @ApiOperation({
     summary:
-      'List reading lists. Published lists are visible to everyone with lib-003:read; unpublished lists (drafts) are visible only to writers (librarian / teacher / admin) when ?includeUnpublished=true is supplied.',
+      'List reading lists. Published lists are visible to everyone with lib-003:read; unpublished lists (drafts) are visible only to writers (librarian / teacher / admin) when ?includeUnpublished=true is supplied. P2-25a — filters by listType, targetGradeLevel, curriculumUnitId.',
   })
   async list(
     @Query('includeUnpublished') includeUnpublishedRaw: string | undefined,
+    @Query('listType') listType: string | undefined,
+    @Query('targetGradeLevel') targetGradeLevel: string | undefined,
+    @Query('curriculumUnitId') curriculumUnitId: string | undefined,
     @Req() req: AuthedRequest,
   ): Promise<ReadingListResponseDto[]> {
     const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     const includeUnpublished = includeUnpublishedRaw === 'true';
-    return this.lists.list(actor, { includeUnpublished });
+    return this.lists.list(actor, {
+      includeUnpublished,
+      listType,
+      targetGradeLevel,
+      curriculumUnitId,
+    });
   }
 
   @Get('library/reading-lists/:id')
@@ -94,6 +102,20 @@ export class ReadingListController {
   ): Promise<ReadingListResponseDto> {
     const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
     return this.lists.patch(id, body, actor);
+  }
+
+  @Patch('library/reading-lists/:id/publish')
+  @RequirePermission('lib-003:write')
+  @ApiOperation({
+    summary:
+      'P2-25a — Publish a reading list (alias for PATCH /library/reading-lists/:id with isPublished=true). Stamps is_published=true + published_at=now() atomically per the multi-column published_chk keystone.',
+  })
+  async publish(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<ReadingListResponseDto> {
+    const actor = await this.actors.resolveActor(req.user!.sub, req.user!.personId);
+    return this.lists.patch(id, { isPublished: true }, actor);
   }
 
   @Post('library/reading-lists/:id/items')

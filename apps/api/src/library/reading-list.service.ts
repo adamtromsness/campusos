@@ -30,6 +30,8 @@ interface ListRow {
   creator_first: string | null;
   creator_last: string | null;
   target_class_id: string | null;
+  target_grade_level: string | null;
+  curriculum_unit_id: string | null;
   academic_year_id: string | null;
   is_published: boolean;
   published_at: string | null;
@@ -59,6 +61,8 @@ const SELECT_LIST_BASE =
   'l.list_type, l.created_by::text AS created_by, ' +
   'cp.first_name AS creator_first, cp.last_name AS creator_last, ' +
   'l.target_class_id::text AS target_class_id, ' +
+  'l.target_grade_level, ' +
+  'l.curriculum_unit_id::text AS curriculum_unit_id, ' +
   'l.academic_year_id::text AS academic_year_id, ' +
   'l.is_published, ' +
   'TO_CHAR(l.published_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS published_at, ' +
@@ -92,6 +96,8 @@ function rowToListDto(r: ListRow): ReadingListResponseDto {
     createdByName:
       r.creator_first && r.creator_last ? r.creator_first + ' ' + r.creator_last : null,
     targetClassId: r.target_class_id,
+    targetGradeLevel: r.target_grade_level,
+    curriculumUnitId: r.curriculum_unit_id,
     academicYearId: r.academic_year_id,
     isPublished: r.is_published,
     publishedAt: r.published_at,
@@ -148,14 +154,35 @@ export class ReadingListService {
    */
   async list(
     actor: ResolvedActor,
-    args: { includeUnpublished?: boolean },
+    args: {
+      includeUnpublished?: boolean;
+      listType?: string;
+      targetGradeLevel?: string;
+      curriculumUnitId?: string;
+    },
   ): Promise<ReadingListResponseDto[]> {
     const tenant = getCurrentTenant();
     const isWriter = await this.hasWriterScope(actor);
     const sql: string[] = [SELECT_LIST_BASE, 'WHERE l.school_id = $1::uuid '];
     const params: unknown[] = [tenant.schoolId];
+    let idx = 2;
     if (!args.includeUnpublished || !isWriter) {
       sql.push('AND l.is_published = true ');
+    }
+    if (args.listType) {
+      sql.push('AND l.list_type = $' + idx + ' ');
+      params.push(args.listType);
+      idx++;
+    }
+    if (args.targetGradeLevel) {
+      sql.push('AND l.target_grade_level = $' + idx + ' ');
+      params.push(args.targetGradeLevel);
+      idx++;
+    }
+    if (args.curriculumUnitId) {
+      sql.push('AND l.curriculum_unit_id = $' + idx + '::uuid ');
+      params.push(args.curriculumUnitId);
+      idx++;
     }
     sql.push('ORDER BY l.created_at DESC LIMIT 200');
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -199,8 +226,8 @@ export class ReadingListService {
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
         await client.$executeRawUnsafe(
-          'INSERT INTO lib_reading_lists (id, school_id, name, description, list_type, created_by, target_class_id, academic_year_id) ' +
-            'VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::uuid, $7::uuid, $8::uuid)',
+          'INSERT INTO lib_reading_lists (id, school_id, name, description, list_type, created_by, target_class_id, target_grade_level, curriculum_unit_id, academic_year_id) ' +
+            'VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::uuid, $7::uuid, $8, $9::uuid, $10::uuid)',
           id,
           tenant.schoolId,
           input.name,
@@ -208,6 +235,8 @@ export class ReadingListService {
           input.listType,
           actor.employeeId,
           input.targetClassId ?? null,
+          input.targetGradeLevel ?? null,
+          input.curriculumUnitId ?? null,
           input.academicYearId ?? null,
         );
       });
@@ -259,6 +288,8 @@ export class ReadingListService {
       if (input.description !== undefined) set('description', input.description);
       if (input.listType !== undefined) set('list_type', input.listType);
       if (input.targetClassId !== undefined) set('target_class_id', input.targetClassId);
+      if (input.targetGradeLevel !== undefined) set('target_grade_level', input.targetGradeLevel);
+      if (input.curriculumUnitId !== undefined) set('curriculum_unit_id', input.curriculumUnitId);
 
       // Multi-column published_chk keystone — when is_published flips,
       // stamp published_at in lockstep (set on publish, clear on unpublish).
