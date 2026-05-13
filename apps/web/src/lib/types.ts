@@ -12202,3 +12202,260 @@ export interface UpdateAlumniEventPayload {
   rsvpUrl?: string;
   evtEventId?: string;
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Accreditation (P2-23, Wave D Module Completion)
+// ─────────────────────────────────────────────────────────────────
+
+export type AccFrameworkSource = 'PLATFORM' | 'TENANT';
+
+export interface AccFrameworkDto {
+  id: string;
+  source: AccFrameworkSource;
+  name: string;
+  abbreviation: string | null;
+  organisation: string | null;
+  description: string | null;
+  version: string | null;
+  isActive: boolean;
+  standardCount: number;
+  isAdopted: boolean;
+}
+
+export interface AccStandardDto {
+  id: string;
+  source: AccFrameworkSource;
+  frameworkId: string;
+  standardCode: string;
+  domain: string | null;
+  standardText: string;
+  guidanceNotes: string | null;
+  sortOrder: number;
+}
+
+export interface AccAdoptionDto {
+  id: string;
+  schoolId: string;
+  platformFrameworkId: string;
+  frameworkName: string;
+  frameworkAbbreviation: string;
+  adoptedAt: string;
+  isActive: boolean;
+}
+
+export interface CreateAccAdoptionPayload {
+  platformFrameworkId: string;
+  adoptedAt?: string;
+}
+
+export interface CreateAccCustomFrameworkPayload {
+  name: string;
+  description?: string;
+}
+
+export type AccEvidenceType = 'DOCUMENT' | 'URL' | 'METRIC' | 'OBSERVATION' | 'SURVEY';
+export const ACC_EVIDENCE_TYPES: readonly AccEvidenceType[] = [
+  'DOCUMENT',
+  'URL',
+  'METRIC',
+  'OBSERVATION',
+  'SURVEY',
+];
+
+export type AccEvidenceStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+export const ACC_EVIDENCE_STATUSES: readonly AccEvidenceStatus[] = [
+  'DRAFT',
+  'SUBMITTED',
+  'APPROVED',
+  'REJECTED',
+];
+
+export interface AccEvidenceItemDto {
+  id: string;
+  schoolId: string;
+  standardId: string;
+  evidenceType: AccEvidenceType;
+  title: string;
+  description: string | null;
+  s3Key: string | null;
+  url: string | null;
+  metricValue: string | null;
+  status: AccEvidenceStatus;
+  submittedBy: string;
+  submittedAt: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewerNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAccEvidencePayload {
+  standardId: string;
+  evidenceType: AccEvidenceType;
+  title: string;
+  description?: string;
+  s3Key?: string;
+  url?: string;
+  metricValue?: string;
+}
+
+export interface ReviewAccEvidencePayload {
+  status: 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+  reviewerNotes?: string;
+}
+
+export type AccSelfStudyRating = 'EXEMPLARY' | 'ACCOMPLISHED' | 'DEVELOPING' | 'NOT_MET';
+export const ACC_SELF_STUDY_RATINGS: readonly AccSelfStudyRating[] = [
+  'EXEMPLARY',
+  'ACCOMPLISHED',
+  'DEVELOPING',
+  'NOT_MET',
+];
+
+export interface AccSelfStudyRatingDto {
+  id: string;
+  schoolId: string;
+  standardId: string;
+  cycleId: string;
+  rating: AccSelfStudyRating;
+  rationale: string;
+  ratedBy: string;
+  ratedAt: string;
+}
+
+export interface CreateAccSelfStudyRatingPayload {
+  standardId: string;
+  cycleId: string;
+  rating: AccSelfStudyRating;
+  rationale: string;
+}
+
+export interface AccSelfStudySummaryDto {
+  cycleId: string;
+  totals: {
+    EXEMPLARY: number;
+    ACCOMPLISHED: number;
+    DEVELOPING: number;
+    NOT_MET: number;
+  };
+  totalRated: number;
+  byDomain: Array<{
+    domain: string;
+    EXEMPLARY: number;
+    ACCOMPLISHED: number;
+    DEVELOPING: number;
+    NOT_MET: number;
+  }>;
+}
+
+export type AccActionPlanStatus = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETE' | 'OVERDUE';
+export const ACC_ACTION_PLAN_STATUSES: readonly AccActionPlanStatus[] = [
+  'PLANNED',
+  'IN_PROGRESS',
+  'COMPLETE',
+  'OVERDUE',
+];
+
+export type AccSubActionStatus = 'PENDING' | 'COMPLETED' | 'OVERDUE';
+
+export interface AccSubAction {
+  description: string;
+  due_date: string;
+  status: AccSubActionStatus;
+}
+
+export interface AccActionPlanDto {
+  id: string;
+  schoolId: string;
+  standardId: string;
+  goal: string;
+  actions: AccSubAction[];
+  responsibleParty: string;
+  targetDate: string;
+  status: AccActionPlanStatus;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAccActionPlanPayload {
+  standardId: string;
+  goal: string;
+  actions: AccSubAction[];
+  responsibleParty: string;
+  targetDate: string;
+  notes?: string;
+}
+
+export interface UpdateAccActionPlanPayload {
+  goal?: string;
+  actions?: AccSubAction[];
+  responsibleParty?: string;
+  targetDate?: string;
+  status?: AccActionPlanStatus;
+  notes?: string;
+}
+
+export interface UpdateAccSubActionPayload {
+  index: number;
+  description?: string;
+  due_date?: string;
+  status?: AccSubActionStatus;
+}
+
+export type AccSiteVisitStatus = 'PREPARING' | 'READY' | 'VISIT_COMPLETE';
+export const ACC_SITE_VISIT_STATUSES: readonly AccSiteVisitStatus[] = [
+  'PREPARING',
+  'READY',
+  'VISIT_COMPLETE',
+];
+
+export interface AccSiteVisitPrepDto {
+  id: string;
+  schoolId: string;
+  visitDate: string;
+  accreditorOrg: string;
+  leadContactName: string | null;
+  leadContactEmail: string | null;
+  status: AccSiteVisitStatus;
+  readinessScore: number | null;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAccSiteVisitPrepPayload {
+  visitDate: string;
+  accreditorOrg: string;
+  leadContactName?: string;
+  leadContactEmail?: string;
+  notes?: string;
+}
+
+export interface UpdateAccSiteVisitPrepPayload {
+  visitDate?: string;
+  accreditorOrg?: string;
+  leadContactName?: string;
+  leadContactEmail?: string;
+  status?: AccSiteVisitStatus;
+  notes?: string;
+}
+
+export interface AccReadinessReportDto {
+  visitId: string;
+  readinessScore: number;
+  totalAdoptedStandards: number;
+  standardsWithRating: number;
+  standardsWithApprovedEvidence: number;
+  standardsReady: number;
+  gaps: Array<{
+    standardId: string;
+    standardCode: string;
+    domain: string | null;
+    hasRating: boolean;
+    hasApprovedEvidence: boolean;
+  }>;
+}

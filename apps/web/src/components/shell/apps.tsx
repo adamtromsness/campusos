@@ -86,7 +86,8 @@ export type AppKey =
   | 'payments-advanced'
   | 'substitutes'
   | 'events'
-  | 'alumni';
+  | 'alumni'
+  | 'accreditation';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -608,6 +609,24 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/curriculum',
       routePrefix: '/curriculum',
       icon: MapIcon,
+    });
+  }
+
+  // P2-23 — Accreditation (Wave D Module Completion). Accreditation
+  // coordinator (Staff / School Admin) drives the self-study against
+  // a platform-seeded framework. Evidence collection + ratings +
+  // action plans + site visit readiness. Reuses TCH-008 per the plan
+  // — the service layer (assertStaffOrAdmin / assertCoordinatorScope)
+  // refuses Parent + Student even though they hold the gate-tier
+  // tch-008:read for the curriculum surface.
+  if (hasAnyPermission(user, ['tch-008:read']) && (isStaff || isAdmin)) {
+    apps.push({
+      key: 'accreditation',
+      label: 'Accreditation',
+      description: 'Frameworks, evidence, self-study, action plans, site visit readiness',
+      href: '/accreditation',
+      routePrefix: '/accreditation',
+      icon: CheckCircleIcon,
     });
   }
 
