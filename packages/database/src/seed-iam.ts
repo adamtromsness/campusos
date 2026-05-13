@@ -1424,6 +1424,17 @@ async function seedIam() {
         'MKT-005': ['read', 'write'],
         'MKT-006': ['read', 'write'],
         'MKT-007': ['read', 'write'],
+        // P2-23 — Accreditation reuses TCH-008 (Curriculum Management)
+        // per the plan ("TCH-008 extended"). Staff covers the
+        // accreditation coordinator stand-in — read for browsing
+        // adopted frameworks + standards, write for self-study
+        // ratings + evidence approval + action plan management.
+        // Service-layer guards refuse STUDENT/GUARDIAN actors so the
+        // existing parent/student TCH-008:read grant for the Cycle
+        // 23 curriculum surface does NOT bleed into accreditation.
+        // Pre-pilot a dedicated Accreditation Coordinator role holds
+        // TCH-008 alone — joins the broader role-split chain.
+        'TCH-008': ['read', 'write'],
       },
     },
 

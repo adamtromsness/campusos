@@ -69,6 +69,7 @@ import { CrmModule } from './crm/crm.module';
 import { OpsModule } from './ops/ops.module';
 import { CommunityModule } from './community/community.module';
 import { AlumniModule } from './alumni/alumni.module';
+import { AccreditationModule } from './accreditation/accreditation.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -285,6 +286,20 @@ var devOnlyControllers: Type<unknown>[] =
     // fallback to rsvp_url. 8 services, 1 controller, ~28 endpoints,
     // 2 Kafka emits (alm.campaign.activated, alm.donation.received).
     AlumniModule,
+    // P2-23a — Accreditation. M85 platform-seeded frameworks
+    // (AdvancED, IB MYP, CIS) + per-school adoption with custom
+    // framework support. Standard-by-standard evidence collection
+    // (5 types: DOCUMENT/URL/METRIC/OBSERVATION/SURVEY) with
+    // approval workflow. Self-study ratings (4 values, UNIQUE per
+    // standard/school/cycle). Improvement action plans with JSONB
+    // sub-actions and ActionPlanOverdueWorker nightly sweep that
+    // emits acc.action_plan.overdue via durable outbox. Site visit
+    // preparation with auto-computed readiness_score (% of adopted
+    // standards with both rating + APPROVED evidence). 5 services,
+    // 1 controller, ~22 endpoints, 1 Kafka emit
+    // (acc.action_plan.overdue), 1 background worker
+    // (ActionPlanOverdueWorker).
+    AccreditationModule,
   ],
   controllers: devOnlyControllers,
   providers: [

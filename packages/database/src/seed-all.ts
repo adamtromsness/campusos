@@ -196,6 +196,11 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
     label: 'Alumni — profiles + tags + campaigns + donations + news + reunions + events (P2-22a)',
     script: 'seed-alumni.ts',
   },
+  {
+    label:
+      'Accreditation — platform frameworks (AdvancED, IB MYP, CIS) + Lincoln adoption + evidence + ratings + action plans + site visit (P2-23a)',
+    script: 'seed-accreditation.ts',
+  },
 ];
 
 async function main(): Promise<void> {

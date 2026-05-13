@@ -1116,3 +1116,51 @@ model PlatformOfficialAvailability {
   @@map("platform_official_availability")
   @@schema("platform")
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// P2-23 — Accreditation Frameworks & Standards (M85)
+// Platform-seeded national/international accreditation frameworks
+// (AdvancED/Cognia, IB MYP, CIS, NEASC, WASC, SACS, MSA) and their
+// standards live in the platform schema, seeded once by the
+// idempotent platform seeder and shared across every tenant.
+// School-custom frameworks live in tenant acc_frameworks. The
+// acc_evidence_items / acc_self_study_ratings / acc_action_plans
+// tables carry standard_id as a SOFT INTEGRITY reference per
+// ADR-001/020 — the service layer resolves it to either
+// acc_standards_platform OR a tenant custom standard at read time.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model AccFrameworkPlatform {
+  id           String   @id @db.Uuid
+  name         String   @unique
+  abbreviation String   @unique
+  organisation String
+  description  String?
+  version      String?
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  standards AccStandardPlatform[]
+
+  @@map("acc_frameworks_platform")
+  @@schema("platform")
+}
+
+model AccStandardPlatform {
+  id            String   @id @db.Uuid
+  frameworkId   String   @map("framework_id") @db.Uuid
+  standardCode  String   @map("standard_code")
+  domain        String
+  standardText  String   @map("standard_text")
+  guidanceNotes String?  @map("guidance_notes")
+  sortOrder     Int      @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  framework AccFrameworkPlatform @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+
+  @@unique([frameworkId, standardCode])
+  @@index([frameworkId, domain, sortOrder])
+  @@map("acc_standards_platform")
+  @@schema("platform")
+}
