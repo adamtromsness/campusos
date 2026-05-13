@@ -4223,6 +4223,10 @@ export interface ReadingListDto {
   createdById: string;
   createdByName: string | null;
   targetClassId: string | null;
+  /** P2-25b — Free-form grade label for list_type=YEAR_GROUP. */
+  targetGradeLevel?: string | null;
+  /** P2-25b — Soft UUID ref to cur_units(id) for CURRICULUM_UNIT lists. */
+  curriculumUnitId?: string | null;
   academicYearId: string | null;
   isPublished: boolean;
   publishedAt: string | null;
@@ -4237,6 +4241,8 @@ export interface CreateReadingListPayload {
   description?: string;
   listType: ReadingListType;
   targetClassId?: string;
+  targetGradeLevel?: string;
+  curriculumUnitId?: string;
   academicYearId?: string;
 }
 
@@ -4245,6 +4251,8 @@ export interface UpdateReadingListPayload {
   description?: string;
   listType?: ReadingListType;
   targetClassId?: string;
+  targetGradeLevel?: string;
+  curriculumUnitId?: string;
   isPublished?: boolean;
 }
 
@@ -12728,4 +12736,166 @@ export interface SubmitSurveyResponsePayload {
 export interface SubmitSurveyResponseResult {
   submitted: true;
   totalResponses: number;
+}
+
+// ─── P2-25 Library Advanced ─────────────────────────────────────
+
+export const CLASS_SET_STATUSES = ['ACTIVE', 'PARTIALLY_RETURNED', 'RETURNED', 'OVERDUE'] as const;
+export type ClassSetStatus = (typeof CLASS_SET_STATUSES)[number];
+
+export interface ClassSetCheckoutDto {
+  id: string;
+  schoolId: string;
+  catalogueItemId: string;
+  catalogueItemTitle: string | null;
+  catalogueItemAuthor: string | null;
+  teacherPatronId: string;
+  teacherName: string | null;
+  classId: string | null;
+  copyCount: number;
+  checkoutDate: string;
+  dueDate: string;
+  returnedCount: number;
+  status: ClassSetStatus;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateClassSetCheckoutPayload {
+  catalogueItemId: string;
+  teacherPatronId: string;
+  classId?: string;
+  copyCount: number;
+  checkoutDate: string;
+  dueDate: string;
+  notes?: string;
+}
+
+export interface ReturnClassSetCopiesPayload {
+  copiesReturned: number;
+  barcodes?: string[];
+}
+
+export const RECOMMENDATION_REASONS = [
+  'COLLABORATIVE_FILTERING',
+  'READING_LEVEL_MATCH',
+  'SUBJECT_MATCH',
+  'NEW_ARRIVAL',
+  'STAFF_PICK',
+] as const;
+export type RecommendationReason = (typeof RECOMMENDATION_REASONS)[number];
+
+export interface RecommendationDto {
+  id: string;
+  studentId: string;
+  recommendedItemId: string;
+  itemTitle: string | null;
+  itemAuthor: string | null;
+  itemCoverImageUrl: string | null;
+  reasonType: RecommendationReason;
+  score: number | null;
+  reasonMetadata: Record<string, unknown> | null;
+  dismissedAt: string | null;
+  generatedAt: string;
+}
+
+export interface RecommendationWeightsDto {
+  collaborativeFiltering: number;
+  readingLevelMatch: number;
+  subjectMatch: number;
+  newArrival: number;
+  staffPick: number;
+}
+
+export interface UpdateRecommendationWeightsPayload {
+  collaborativeFiltering?: number;
+  readingLevelMatch?: number;
+  subjectMatch?: number;
+  newArrival?: number;
+  staffPick?: number;
+}
+
+export const ILL_DIRECTIONS = ['BORROWED', 'LENT'] as const;
+export type IllDirection = (typeof ILL_DIRECTIONS)[number];
+
+export const ILL_STATUSES = [
+  'REQUESTED',
+  'IN_TRANSIT',
+  'ACTIVE',
+  'RETURNED',
+  'OVERDUE',
+  'LOST',
+] as const;
+export type IllStatus = (typeof ILL_STATUSES)[number];
+
+export interface InterlibraryLoanDto {
+  id: string;
+  schoolId: string;
+  loanDirection: IllDirection;
+  partnerInstitution: string;
+  catalogueItemId: string | null;
+  title: string;
+  author: string | null;
+  isbn: string | null;
+  requestDate: string;
+  receivedDate: string | null;
+  sentDate: string | null;
+  dueDate: string | null;
+  returnedDate: string | null;
+  status: IllStatus;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateInterlibraryLoanPayload {
+  loanDirection: IllDirection;
+  partnerInstitution: string;
+  catalogueItemId?: string;
+  title: string;
+  author?: string;
+  isbn?: string;
+  requestDate: string;
+  notes?: string;
+}
+
+export interface UpdateInterlibraryLoanPayload {
+  status?: IllStatus;
+  receivedDate?: string;
+  sentDate?: string;
+  dueDate?: string;
+  returnedDate?: string;
+  notes?: string;
+}
+
+export const IMPORT_TYPES = ['ISBN_BATCH', 'MARC_IMPORT', 'CSV_UPLOAD', 'WORLDCAT_SYNC'] as const;
+export type ImportType = (typeof IMPORT_TYPES)[number];
+
+export const IMPORT_STATUSES = ['QUEUED', 'PARSING', 'IMPORTING', 'COMPLETED', 'FAILED'] as const;
+export type ImportStatus = (typeof IMPORT_STATUSES)[number];
+
+export interface CatalogueImportJobDto {
+  id: string;
+  schoolId: string;
+  importType: ImportType;
+  sourceFileS3Key: string | null;
+  totalRecords: number | null;
+  recordsImported: number;
+  recordsSkipped: number;
+  recordsFailed: number;
+  status: ImportStatus;
+  initiatedById: string;
+  initiatedByName: string | null;
+  errorLogS3Key: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCatalogueImportJobPayload {
+  importType: ImportType;
+  sourceFileS3Key?: string;
+  isbns?: string[];
 }

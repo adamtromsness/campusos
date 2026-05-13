@@ -390,8 +390,109 @@ export class CatalogueImportJobResponseDto {
   updatedAt!: string;
 }
 
+// ── Recommendation engine weights (P2-25b Step 8) ──────────────
+
+/**
+ * Per-school recommendation engine weights. Stored under the
+ * school_config key 'library_recommendation_weights' as JSONB.
+ * The five values must sum to 100 (±0.5 tolerance, matching the
+ * P2-24 engagement-score convention). Schools that prioritise
+ * reading-level alignment can raise that weight at the expense of
+ * NEW_ARRIVAL / STAFF_PICK. The worker normalises scores within
+ * each strategy then applies these weights to produce the final
+ * ranked list.
+ */
+export const RECOMMENDATION_WEIGHTS_KEY = 'library_recommendation_weights';
+
+export const DEFAULT_RECOMMENDATION_WEIGHTS = {
+  collaborativeFiltering: 30,
+  readingLevelMatch: 25,
+  subjectMatch: 20,
+  newArrival: 15,
+  staffPick: 10,
+} as const;
+
+export type RecommendationWeights = {
+  collaborativeFiltering: number;
+  readingLevelMatch: number;
+  subjectMatch: number;
+  newArrival: number;
+  staffPick: number;
+};
+
+export class RecommendationWeightsDto {
+  @ApiProperty({
+    description: 'Weight for COLLABORATIVE_FILTERING (students-who-read-X-also-read-Y). 0-100.',
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  collaborativeFiltering!: number;
+
+  @ApiProperty({ description: 'Weight for READING_LEVEL_MATCH (±50 Lexile / AR band). 0-100.' })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  readingLevelMatch!: number;
+
+  @ApiProperty({ description: 'Weight for SUBJECT_MATCH (catalogue subject-tag overlap). 0-100.' })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  subjectMatch!: number;
+
+  @ApiProperty({
+    description: 'Weight for NEW_ARRIVAL (items catalogued in the last 30 days). 0-100.',
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  newArrival!: number;
+
+  @ApiProperty({ description: 'Weight for STAFF_PICK (librarian-curated). 0-100.' })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  staffPick!: number;
+}
+
+export class UpdateRecommendationWeightsDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  collaborativeFiltering?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  readingLevelMatch?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  subjectMatch?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  newArrival?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  staffPick?: number;
+}
+
 // Wire up the unused-import escape so eslint/strict-tsc don't fail on
-// IsISO8601 + IsNumber + Max which are reserved for follow-up fields.
+// IsISO8601 which is reserved for follow-up fields.
 void IsISO8601;
-void IsNumber;
-void Max;

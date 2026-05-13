@@ -10,7 +10,14 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { RecommendationReason, RecommendationResponseDto } from './dto/library-advanced.dto';
+import {
+  DEFAULT_RECOMMENDATION_WEIGHTS,
+  RECOMMENDATION_WEIGHTS_KEY,
+  RecommendationReason,
+  RecommendationResponseDto,
+  RecommendationWeights,
+  UpdateRecommendationWeightsDto,
+} from './dto/library-advanced.dto';
 
 /**
  * P2-25a Step 5 — RecommendationService.
@@ -254,4 +261,118 @@ export class RecommendationService {
     });
     return capped.length;
   }
+
+  /**
+   * P2-25b Step 8 — Load the per-school recommendation engine
+   * weights from school_config. Falls back to
+   * DEFAULT_RECOMMENDATION_WEIGHTS when no row exists. Mirrors the
+   * P2-24 EngagementScoreService.loadWeights pattern.
+   */
+  async loadWeights(): Promise<RecommendationWeights> {
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        'SELECT config_value FROM school_config WHERE config_key = $1 LIMIT 1',
+        RECOMMENDATION_WEIGHTS_KEY,
+      );
+    })) as Array<{ config_value: unknown }>;
+    if (rows.length === 0) return { ...DEFAULT_RECOMMENDATION_WEIGHTS };
+    const raw = rows[0]!.config_value;
+    const parsed: unknown = typeof raw === 'string' ? safeJsonParse(raw) : raw;
+    return mergeWeights(parsed);
+  }
+
+  async getConfig(actor: ResolvedActor): Promise<RecommendationWeights> {
+    if (!actor.isSchoolAdmin) {
+      const ok = await this.permissions.hasAnyPermissionInTenant(
+        actor.accountId,
+        getCurrentTenant().schoolId,
+        ['lib-002:read', 'lib-002:write'],
+      );
+      if (!ok) {
+        throw new ForbiddenException('Reading recommendation config requires lib-002 access');
+      }
+    }
+    return this.loadWeights();
+  }
+
+  /**
+   * Update recommendation weights. Admin-only — librarians read but
+   * cannot mutate this surface. PATCH-merge semantics: only supplied
+   * keys overwrite the stored value; omitted keys retain their
+   * current value. The merged weights must sum to 100 (±0.5),
+   * matching the P2-24 engagement-score convention.
+   */
+  async updateConfig(
+    actor: ResolvedActor,
+    input: UpdateRecommendationWeightsDto,
+  ): Promise<RecommendationWeights> {
+    if (!actor.isSchoolAdmin) {
+      const ok = await this.permissions.hasAnyPermissionInTenant(
+        actor.accountId,
+        getCurrentTenant().schoolId,
+        ['lib-002:admin', 'lib-003:admin'],
+      );
+      if (!ok) {
+        throw new ForbiddenException(
+          'Updating recommendation weights requires lib-002:admin or lib-003:admin',
+        );
+      }
+    }
+    const current = await this.loadWeights();
+    const merged: RecommendationWeights = {
+      collaborativeFiltering: input.collaborativeFiltering ?? current.collaborativeFiltering,
+      readingLevelMatch: input.readingLevelMatch ?? current.readingLevelMatch,
+      subjectMatch: input.subjectMatch ?? current.subjectMatch,
+      newArrival: input.newArrival ?? current.newArrival,
+      staffPick: input.staffPick ?? current.staffPick,
+    };
+    const sum =
+      merged.collaborativeFiltering +
+      merged.readingLevelMatch +
+      merged.subjectMatch +
+      merged.newArrival +
+      merged.staffPick;
+    if (Math.abs(sum - 100) > 0.5) {
+      throw new BadRequestException(
+        'Recommendation weights must sum to 100. Provided sum=' + sum.toFixed(2),
+      );
+    }
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        'INSERT INTO school_config (id, config_key, config_value, description) ' +
+          'VALUES ($1::uuid, $2, $3::jsonb, $4) ' +
+          'ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = now()',
+        generateId(),
+        RECOMMENDATION_WEIGHTS_KEY,
+        JSON.stringify(merged),
+        'Library recommendation engine weights — 5-strategy scoring blend.',
+      );
+    });
+    return merged;
+  }
+}
+
+function safeJsonParse(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function mergeWeights(raw: unknown): RecommendationWeights {
+  const base = { ...DEFAULT_RECOMMENDATION_WEIGHTS };
+  if (!raw || typeof raw !== 'object') return base;
+  const r = raw as Record<string, unknown>;
+  return {
+    collaborativeFiltering:
+      typeof r.collaborativeFiltering === 'number'
+        ? r.collaborativeFiltering
+        : base.collaborativeFiltering,
+    readingLevelMatch:
+      typeof r.readingLevelMatch === 'number' ? r.readingLevelMatch : base.readingLevelMatch,
+    subjectMatch: typeof r.subjectMatch === 'number' ? r.subjectMatch : base.subjectMatch,
+    newArrival: typeof r.newArrival === 'number' ? r.newArrival : base.newArrival,
+    staffPick: typeof r.staffPick === 'number' ? r.staffPick : base.staffPick,
+  };
 }

@@ -6,21 +6,27 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuthStore } from '@/lib/auth-store';
 import {
   useCheckouts,
+  useDismissRecommendation,
   useFines,
   useHolds,
   useReadingLog,
   useReadingProgrammes,
+  useRecommendations,
 } from '@/hooks/use-library';
+import { useMyStudent } from '@/hooks/use-classroom';
 import {
   CHECKOUT_STATUS_PILL,
   FINE_STATUS_PILL,
   HOLD_STATUS_PILL,
   LIBRARY_HOLD_STATUS_LABELS,
+  RECOMMENDATION_REASON_LABELS,
+  RECOMMENDATION_REASON_PILL,
   formatCurrency,
   formatDate,
   formatDaysUntilDue,
   isOverdue,
 } from '@/lib/library-format';
+import { useToast } from '@/components/ui/Toast';
 
 /**
  * /library/my — student-only combined library landing.
@@ -89,6 +95,8 @@ export default function MyLibraryPage() {
         <Stat label="Books read" value={String(completed.length)} />
         <Stat label="Pages read" value={String(totalPages)} />
       </section>
+
+      <RecommendationsShelf />
 
       {programmes.length > 0 && (
         <section>
@@ -297,5 +305,83 @@ function Stat({
         {value}
       </div>
     </div>
+  );
+}
+
+function RecommendationsShelf() {
+  const me = useMyStudent();
+  const recsQ = useRecommendations(me.data?.id ?? null);
+  const dismiss = useDismissRecommendation(me.data?.id ?? null);
+  const { toast } = useToast();
+
+  if (!me.data) return null;
+  const recs = recsQ.data ?? [];
+  if (recs.length === 0 && !recsQ.isLoading) return null;
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-base font-semibold text-gray-900">Recommended for you</h2>
+        <span className="text-xs text-gray-500">Refreshed weekly</span>
+      </div>
+      {recsQ.isLoading ? (
+        <LoadingSpinner />
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {recs.slice(0, 6).map((r) => (
+            <article
+              key={r.id}
+              className="flex flex-col gap-2 rounded-md border border-gray-200 p-3 transition hover:border-campus-300"
+            >
+              <div className="flex items-start gap-3">
+                {r.itemCoverImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={r.itemCoverImageUrl}
+                    alt=""
+                    className="h-16 w-12 flex-shrink-0 rounded object-cover"
+                  />
+                ) : (
+                  <div className="flex h-16 w-12 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-xs text-gray-400">
+                    book
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={`/library/catalogue/${r.recommendedItemId}`}
+                    className="block truncate font-medium text-gray-900 hover:text-campus-700"
+                  >
+                    {r.itemTitle ?? '—'}
+                  </Link>
+                  {r.itemAuthor && (
+                    <div className="truncate text-xs text-gray-600">by {r.itemAuthor}</div>
+                  )}
+                  <span
+                    className={
+                      'mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ' +
+                      RECOMMENDATION_REASON_PILL[r.reasonType]
+                    }
+                  >
+                    {RECOMMENDATION_REASON_LABELS[r.reasonType]}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  dismiss.mutate(r.id, {
+                    onSuccess: () => toast('Dismissed', 'success'),
+                    onError: (err) => toast((err as Error).message, 'error'),
+                  })
+                }
+                className="self-end text-xs text-gray-500 hover:text-rose-600"
+              >
+                Not interested
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

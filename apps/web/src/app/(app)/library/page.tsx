@@ -82,6 +82,9 @@ function QuickNav() {
   if (isLibrarian) {
     links.push({ href: '/library/circulation', label: 'Circulation desk' });
     links.push({ href: '/library/fines', label: 'Fines' });
+    links.push({ href: '/library/class-sets', label: 'Class sets' });
+    links.push({ href: '/library/ill', label: 'Interlibrary loans' });
+    links.push({ href: '/library/imports', label: 'Catalogue import' });
   }
 
   return (

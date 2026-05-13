@@ -267,3 +267,95 @@ export function isOverdue(days: number | null): boolean {
 export function isCheckoutLive(status: LibraryCheckoutStatus): boolean {
   return status === 'ACTIVE' || status === 'OVERDUE';
 }
+
+// ─── P2-25 Library Advanced labels + pill maps ──────────────
+
+import type {
+  ClassSetStatus,
+  IllDirection,
+  IllStatus,
+  ImportStatus,
+  ImportType,
+  RecommendationReason,
+} from '@/lib/types';
+
+export const CLASS_SET_STATUS_LABELS: Record<ClassSetStatus, string> = {
+  ACTIVE: 'Active',
+  PARTIALLY_RETURNED: 'Partially returned',
+  RETURNED: 'Returned',
+  OVERDUE: 'Overdue',
+};
+
+export const CLASS_SET_STATUS_PILL: Record<ClassSetStatus, string> = {
+  ACTIVE: 'bg-sky-100 text-sky-700',
+  PARTIALLY_RETURNED: 'bg-amber-100 text-amber-700',
+  RETURNED: 'bg-emerald-100 text-emerald-700',
+  OVERDUE: 'bg-rose-100 text-rose-700',
+};
+
+export const RECOMMENDATION_REASON_LABELS: Record<RecommendationReason, string> = {
+  COLLABORATIVE_FILTERING: 'Others also read',
+  READING_LEVEL_MATCH: 'Right reading level',
+  SUBJECT_MATCH: 'Matches your interests',
+  NEW_ARRIVAL: 'New arrival',
+  STAFF_PICK: 'Librarian pick',
+};
+
+export const RECOMMENDATION_REASON_PILL: Record<RecommendationReason, string> = {
+  COLLABORATIVE_FILTERING: 'bg-violet-100 text-violet-700',
+  READING_LEVEL_MATCH: 'bg-sky-100 text-sky-700',
+  SUBJECT_MATCH: 'bg-emerald-100 text-emerald-700',
+  NEW_ARRIVAL: 'bg-amber-100 text-amber-700',
+  STAFF_PICK: 'bg-rose-100 text-rose-700',
+};
+
+export const ILL_DIRECTION_LABELS: Record<IllDirection, string> = {
+  BORROWED: 'Borrowed',
+  LENT: 'Lent',
+};
+
+export const ILL_STATUS_LABELS: Record<IllStatus, string> = {
+  REQUESTED: 'Requested',
+  IN_TRANSIT: 'In transit',
+  ACTIVE: 'Active',
+  RETURNED: 'Returned',
+  OVERDUE: 'Overdue',
+  LOST: 'Lost',
+};
+
+export const ILL_STATUS_PILL: Record<IllStatus, string> = {
+  REQUESTED: 'bg-gray-100 text-gray-700',
+  IN_TRANSIT: 'bg-sky-100 text-sky-700',
+  ACTIVE: 'bg-emerald-100 text-emerald-700',
+  RETURNED: 'bg-emerald-50 text-emerald-700',
+  OVERDUE: 'bg-rose-100 text-rose-700',
+  LOST: 'bg-rose-200 text-rose-800',
+};
+
+export const IMPORT_TYPE_LABELS: Record<ImportType, string> = {
+  ISBN_BATCH: 'ISBN batch',
+  MARC_IMPORT: 'MARC import',
+  CSV_UPLOAD: 'CSV upload',
+  WORLDCAT_SYNC: 'WorldCat sync',
+};
+
+export const IMPORT_STATUS_LABELS: Record<ImportStatus, string> = {
+  QUEUED: 'Queued',
+  PARSING: 'Parsing',
+  IMPORTING: 'Importing',
+  COMPLETED: 'Completed',
+  FAILED: 'Failed',
+};
+
+export const IMPORT_STATUS_PILL: Record<ImportStatus, string> = {
+  QUEUED: 'bg-gray-100 text-gray-700',
+  PARSING: 'bg-amber-100 text-amber-700',
+  IMPORTING: 'bg-sky-100 text-sky-700',
+  COMPLETED: 'bg-emerald-100 text-emerald-700',
+  FAILED: 'bg-rose-100 text-rose-700',
+};
+
+export function classSetProgress(returned: number, copies: number): number {
+  if (copies <= 0) return 0;
+  return Math.round((returned / copies) * 100);
+}

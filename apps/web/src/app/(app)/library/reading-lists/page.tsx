@@ -127,6 +127,8 @@ function CreateForm({ onClose }: { onClose: () => void }) {
     listType: 'GENERAL',
   });
   const [description, setDescription] = useState('');
+  const [targetGradeLevel, setTargetGradeLevel] = useState('');
+  const [curriculumUnitId, setCurriculumUnitId] = useState('');
 
   return (
     <form
@@ -139,6 +141,12 @@ function CreateForm({ onClose }: { onClose: () => void }) {
             listType: form.listType,
           };
           if (description.trim()) payload.description = description.trim();
+          if (form.listType === 'YEAR_GROUP' && targetGradeLevel.trim()) {
+            payload.targetGradeLevel = targetGradeLevel.trim();
+          }
+          if (form.listType === 'CURRICULUM_UNIT' && curriculumUnitId.trim()) {
+            payload.curriculumUnitId = curriculumUnitId.trim();
+          }
           const created = await create.mutateAsync(payload);
           toast.toast('Reading list created. Add books to publish it.');
           onClose();
@@ -174,6 +182,33 @@ function CreateForm({ onClose }: { onClose: () => void }) {
           ))}
         </select>
       </label>
+      {form.listType === 'YEAR_GROUP' && (
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-gray-700">
+            Target grade level (free-form, e.g. &quot;5&quot;)
+          </span>
+          <input
+            value={targetGradeLevel}
+            onChange={(e) => setTargetGradeLevel(e.target.value)}
+            placeholder="5"
+            maxLength={20}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500"
+          />
+        </label>
+      )}
+      {form.listType === 'CURRICULUM_UNIT' && (
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-gray-700">
+            Curriculum unit id (UUID — links to cur_units)
+          </span>
+          <input
+            value={curriculumUnitId}
+            onChange={(e) => setCurriculumUnitId(e.target.value)}
+            placeholder="Paste the curriculum unit UUID"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:border-campus-500 focus:outline-none focus:ring-1 focus:ring-campus-500"
+          />
+        </label>
+      )}
       <label className="block">
         <span className="mb-1 block text-xs font-medium text-gray-700">Description</span>
         <textarea

@@ -617,3 +617,230 @@ export function useUnhideReview(itemId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['library', 'reviews', itemId] }),
   });
 }
+
+// ─── P2-25b — Library Advanced ────────────────────────────────
+
+import type {
+  ClassSetCheckoutDto,
+  ClassSetStatus,
+  CreateCatalogueImportJobPayload,
+  CreateClassSetCheckoutPayload,
+  CreateInterlibraryLoanPayload,
+  CatalogueImportJobDto,
+  IllDirection,
+  IllStatus,
+  InterlibraryLoanDto,
+  RecommendationDto,
+  RecommendationWeightsDto,
+  ReturnClassSetCopiesPayload,
+  UpdateInterlibraryLoanPayload,
+  UpdateRecommendationWeightsPayload,
+} from '@/lib/types';
+
+// ── Class sets ──────────────────────────────────────────────
+
+export interface ClassSetListArgs {
+  status?: ClassSetStatus;
+  teacherPatronId?: string;
+}
+
+export function useClassSets(args: ClassSetListArgs = {}) {
+  const params = new URLSearchParams();
+  if (args.status) params.set('status', args.status);
+  if (args.teacherPatronId) params.set('teacherPatronId', args.teacherPatronId);
+  const qs = params.toString();
+  return useQuery({
+    queryKey: ['library', 'class-sets', args],
+    queryFn: () =>
+      apiFetch<ClassSetCheckoutDto[]>(PREFIX + '/library/class-sets' + (qs ? '?' + qs : '')),
+    staleTime: 30_000,
+  });
+}
+
+export function useClassSet(id: string | null) {
+  return useQuery({
+    queryKey: ['library', 'class-sets', id],
+    queryFn: () => apiFetch<ClassSetCheckoutDto>(PREFIX + '/library/class-sets/' + id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateClassSet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateClassSetCheckoutPayload) =>
+      apiFetch<ClassSetCheckoutDto>(PREFIX + '/library/class-sets', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['library', 'class-sets'] }),
+  });
+}
+
+export function useReturnClassSetCopies(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ReturnClassSetCopiesPayload) =>
+      apiFetch<ClassSetCheckoutDto>(PREFIX + '/library/class-sets/' + id + '/return', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['library', 'class-sets'] }),
+  });
+}
+
+// ── Recommendations ─────────────────────────────────────────
+
+export function useRecommendations(
+  studentId: string | null,
+  args: { includeDismissed?: boolean } = {},
+) {
+  const params = new URLSearchParams();
+  if (args.includeDismissed) params.set('includeDismissed', 'true');
+  const qs = params.toString();
+  return useQuery({
+    queryKey: ['library', 'recommendations', studentId, args],
+    queryFn: () =>
+      apiFetch<RecommendationDto[]>(
+        PREFIX + '/library/recommendations/' + studentId + (qs ? '?' + qs : ''),
+      ),
+    enabled: !!studentId,
+    staleTime: 60_000,
+  });
+}
+
+export function useDismissRecommendation(studentId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (recommendationId: string) =>
+      apiFetch<void>(PREFIX + '/library/recommendations/' + recommendationId + '/dismiss', {
+        method: 'POST',
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['library', 'recommendations', studentId] }),
+  });
+}
+
+export function useRecommendationConfig(enabled = true) {
+  return useQuery({
+    queryKey: ['library', 'recommendation-config'],
+    queryFn: () => apiFetch<RecommendationWeightsDto>(PREFIX + '/library/recommendation-config'),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useUpdateRecommendationConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpdateRecommendationWeightsPayload) =>
+      apiFetch<RecommendationWeightsDto>(PREFIX + '/library/recommendation-config', {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['library', 'recommendation-config'] }),
+  });
+}
+
+// ── Interlibrary loans ──────────────────────────────────────
+
+export interface IllListArgs {
+  status?: IllStatus;
+  loanDirection?: IllDirection;
+}
+
+export function useInterlibraryLoans(args: IllListArgs = {}) {
+  const params = new URLSearchParams();
+  if (args.status) params.set('status', args.status);
+  if (args.loanDirection) params.set('loanDirection', args.loanDirection);
+  const qs = params.toString();
+  return useQuery({
+    queryKey: ['library', 'ill', args],
+    queryFn: () => apiFetch<InterlibraryLoanDto[]>(PREFIX + '/library/ill' + (qs ? '?' + qs : '')),
+    staleTime: 30_000,
+  });
+}
+
+export function useInterlibraryLoan(id: string | null) {
+  return useQuery({
+    queryKey: ['library', 'ill', id],
+    queryFn: () => apiFetch<InterlibraryLoanDto>(PREFIX + '/library/ill/' + id),
+    enabled: !!id,
+  });
+}
+
+export function useOverdueInterlibraryLoans() {
+  return useQuery({
+    queryKey: ['library', 'ill', 'overdue'],
+    queryFn: () => apiFetch<InterlibraryLoanDto[]>(PREFIX + '/library/ill/overdue'),
+    staleTime: 60_000,
+  });
+}
+
+export function useCreateInterlibraryLoan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateInterlibraryLoanPayload) =>
+      apiFetch<InterlibraryLoanDto>(PREFIX + '/library/ill', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['library', 'ill'] }),
+  });
+}
+
+export function useUpdateInterlibraryLoan(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpdateInterlibraryLoanPayload) =>
+      apiFetch<InterlibraryLoanDto>(PREFIX + '/library/ill/' + id, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['library', 'ill'] }),
+  });
+}
+
+// ── Catalogue import ────────────────────────────────────────
+
+export function useCatalogueImports() {
+  return useQuery({
+    queryKey: ['library', 'imports'],
+    queryFn: () => apiFetch<CatalogueImportJobDto[]>(PREFIX + '/library/imports'),
+    staleTime: 30_000,
+    refetchInterval: (q) => {
+      const data = q.state.data as CatalogueImportJobDto[] | undefined;
+      if (!data) return false;
+      const running = data.some(
+        (j) => j.status === 'QUEUED' || j.status === 'PARSING' || j.status === 'IMPORTING',
+      );
+      return running ? 5_000 : false;
+    },
+  });
+}
+
+export function useCatalogueImport(id: string | null) {
+  return useQuery({
+    queryKey: ['library', 'imports', id],
+    queryFn: () => apiFetch<CatalogueImportJobDto>(PREFIX + '/library/imports/' + id),
+    enabled: !!id,
+    refetchInterval: (q) => {
+      const data = q.state.data as CatalogueImportJobDto | undefined;
+      if (!data) return false;
+      return data.status === 'QUEUED' || data.status === 'PARSING' || data.status === 'IMPORTING'
+        ? 3_000
+        : false;
+    },
+  });
+}
+
+export function useCreateCatalogueImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateCatalogueImportJobPayload) =>
+      apiFetch<CatalogueImportJobDto>(PREFIX + '/library/imports', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['library', 'imports'] }),
+  });
+}
