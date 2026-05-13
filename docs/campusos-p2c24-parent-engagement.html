@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-24: Parent Engagement</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="index.html">Design Hub</a><a href="campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave D &mdash; Module Completion</div>
+    <h1>P2-24: Parent Engagement</h1>
+    <div class="sub">Parent-teacher conference scheduling with teacher availability slots and parent self-booking, conference outcome documentation with follow-up action tracking, composite parent engagement scoring from attendance events + communications reads + conference participation + volunteer hours + payment compliance, and parent satisfaction surveys with anonymous response aggregation. The school&rsquo;s relationship health dashboard for families.</div>
+    <span class="version">May 2026 &middot; 8 Steps &middot; ERD v11 &middot; M100 Parent Engagement (5 tables) &middot; MTG-002 + ENG-001 &middot; Phase 2 Cycle 24</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+  <p class="body-text">Phase 2 Cycle 24 builds the entire M100 Parent Engagement module &mdash; 5 new tables. This module was extracted from Meetings (M41) by ADR-021 because parent-teacher conferences have a distinct scheduling model: teachers publish availability slots, parents self-book into them, and the booking engine prevents double-booking on both sides. The engagement scoring system is the unique value &mdash; it computes a composite score per family from data already collected across 6 other modules (attendance, communications, conferences, volunteering, payments, behaviour points), giving administrators a single number that indicates how connected a family is to the school.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin creates "Fall PTC Week" conference event (Nov 10&ndash;14) &rarr; 15 teachers publish availability slots (10-min slots, 4pm&ndash;7pm each day) &rarr; booking window opens Nov 1 &rarr; parent David Chen views Mrs Rivera's available slots for Maya's class &rarr; books Tuesday 4:30pm slot &rarr; slot status BOOKED, confirmation email sent &rarr; parent Sarah Johnson tries to book the same slot &rarr; 409 (already booked) &rarr; Sarah books Tuesday 4:40pm instead &rarr; PTC week arrives &rarr; Mrs Rivera documents Maya's conference: academic progress on track, needs more practice with writing, agreed action: 20 min nightly journaling &rarr; follow-up action created (due 4 weeks) &rarr; separately, the EngagementScoreWorker runs weekly for all families &rarr; Chen family score: attendance_events=8/10 (80%), communications_read_rate=90%, conferences_attended=2/2 (100%), volunteer_hours=12, payment_on_time=true &rarr; composite score = 88 (HIGHLY_ENGAGED) &rarr; Johnson family: attendance_events=3/10 (30%), communications_read_rate=20%, conferences_attended=0/2 (0%), volunteer=0, payment=overdue &rarr; composite score = 18 (AT_RISK) &rarr; admin sees engagement dashboard: 75% of families ENGAGED or above, 10% AT_RISK &rarr; targets AT_RISK families for outreach &rarr; admin sends parent satisfaction survey (anonymous) → 80% response rate → aggregated results: "How would you rate school communication?" avg 4.2/5.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (5 tables):</strong> eng_conference_events, eng_conference_slots, eng_conference_bookings, eng_family_engagement_scores, eng_parent_surveys. Functions MTG-002 (PTC Conferences) + ENG-001 (Parent Engagement).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Video conference integration (meeting_url field ready; Zoom/Teams integration deferred). Multi-child booking optimization (parent with 3 children books 3 teachers efficiently — combinatorial scheduler). Conference outcome template library. Engagement score AI prediction (predict which families will disengage). Parent engagement mobile push notifications. Survey branching logic. Parent portal home screen engagement widget.</p>
+  </div>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Conference Scheduling Schema (3 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>eng_conference_events</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>start_date DATE NOT NULL</code>, <code>end_date DATE NOT NULL</code>, <code>booking_opens_at TIMESTAMPTZ NOT NULL</code>, <code>booking_closes_at TIMESTAMPTZ NOT NULL</code>, <code>default_slot_duration_minutes INT NOT NULL DEFAULT 10</code>, <code>default_break_minutes INT NOT NULL DEFAULT 5</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 4-value CHECK (DRAFT, BOOKING_OPEN, IN_PROGRESS, COMPLETED), <code>created_by UUID FK NOT NULL</code>. INDEX(school_id, status). Auto-transition: DRAFT → BOOKING_OPEN when booking_opens_at passes. Emits <code>eng.conference.booking_open</code> for parent notification.</li>
+      <li><strong>eng_conference_slots</strong> &mdash; <code>conference_event_id UUID FK NOT NULL</code>, <code>teacher_id UUID FK(hr_employees) NOT NULL</code>, <code>slot_date DATE NOT NULL</code>, <code>start_time TIME NOT NULL</code>, <code>end_time TIME NOT NULL</code>, <code>location TEXT</code>, <code>meeting_url TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'AVAILABLE'</code> 3-value CHECK (AVAILABLE, BOOKED, BLOCKED), <code>max_bookings INT DEFAULT 1</code> (1 for individual PTC; &gt;1 for group sessions). UNIQUE(conference_event_id, teacher_id, slot_date, start_time). <strong>ATOMIC BOOKING:</strong> UPDATE SET status='BOOKED' WHERE id=$1 AND status='AVAILABLE'. 0 rows = 409 already booked.</li>
+      <li><strong>eng_conference_bookings</strong> &mdash; <code>slot_id UUID FK NOT NULL</code>, <code>parent_id UUID FK NOT NULL</code>, <code>student_id UUID FK NOT NULL</code>, <code>booked_at TIMESTAMPTZ NOT NULL</code>, <code>cancelled_at TIMESTAMPTZ</code>, <code>attended BOOLEAN</code>, <code>conference_notes TEXT</code> (teacher documents outcome), <code>follow_up_actions JSONB</code> (array of {description, due_date, status: PENDING|COMPLETED}), <code>parent_feedback_rating INT</code> CHECK(1..5). UNIQUE(slot_id, parent_id, student_id). INDEX(parent_id, booked_at DESC). On cancel: slot.status reverts to AVAILABLE. On attended=true: parent engagement score recalculated.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>151_eng_conferences.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Engagement Scores + Surveys Schema (2 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>eng_family_engagement_scores</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>family_account_id UUID FK(pay_family_accounts) NOT NULL</code>, <code>score_date DATE NOT NULL</code>, <code>composite_score INT NOT NULL</code> CHECK(0..100), <code>attendance_component INT</code> (% of school events attended: open houses, sports, performances), <code>communication_component INT</code> (msg_read_rate from Communications), <code>conference_component INT</code> (conferences attended / conferences available), <code>volunteer_component INT</code> (volunteer hours via P2-12 evt_volunteers + P2-14 positive engagement), <code>payment_component INT</code> (on-time payment rate from Cycle 6), <code>engagement_level TEXT NOT NULL</code> 4-value CHECK (HIGHLY_ENGAGED, ENGAGED, MINIMAL, AT_RISK). UNIQUE(family_account_id, score_date). INDEX(school_id, engagement_level, score_date). Materialised weekly by EngagementScoreWorker. No individual student data &mdash; aggregated at family level.</li>
+      <li><strong>eng_parent_surveys</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>questions JSONB NOT NULL</code> (array of {question_text, question_type: RATING_1_5|RATING_1_10|YES_NO|FREE_TEXT|MULTIPLE_CHOICE, options: [...]}), <code>is_anonymous BOOLEAN DEFAULT true</code>, <code>opens_at TIMESTAMPTZ</code>, <code>closes_at TIMESTAMPTZ</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 3-value CHECK (DRAFT, OPEN, CLOSED), <code>total_responses INT DEFAULT 0</code>, <code>response_data_aggregated JSONB</code> (per-question averages/counts — never individual responses when anonymous), <code>created_by UUID FK NOT NULL</code>. INDEX(school_id, status). Individual responses stored in a separate responses array within the survey record — when is_anonymous=true, respondent_id is NULL and cannot be reverse-engineered. Emits <code>eng.survey.opened</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 tables. Migration: <code>152_eng_scores_surveys.sql</code>. Total P2-24 tables: 5.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li><strong>1 conference event:</strong> "Fall PTC Week" COMPLETED. 10 slots across 3 teachers. 6 bookings (4 attended with notes + follow-up actions, 1 cancelled, 1 no-show).</li>
+      <li><strong>5 engagement scores:</strong> 3 families scored: 1 HIGHLY_ENGAGED (score 88), 1 ENGAGED (score 62), 1 AT_RISK (score 18). Each with component breakdowns.</li>
+      <li><strong>1 survey:</strong> "Fall Satisfaction Survey" CLOSED, anonymous, 3 questions (RATING_1_5 communication, RATING_1_5 safety, FREE_TEXT suggestions), 15 responses, aggregated results.</li>
+      <li><strong>Permissions:</strong> MTG-002:read to Parent (view own bookings + survey). MTG-002:write to Teacher (publish slots, document outcomes), Parent (book/cancel). ENG-001:read to Teacher (view engagement for own class families). ENG-001:admin to Admin (view all engagement, configure scoring weights, manage surveys).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Conference, engagement, survey demo data across all 5 tables.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Conference Scheduling NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>ConferenceEventService</strong> &mdash; CRUD. <code>GET /engagement/conferences</code> (admin: all; parent: active). Auto-transition: ConferenceStatusWorker checks booking_opens_at every minute → DRAFT → BOOKING_OPEN; emits <code>eng.conference.booking_open</code>.</li>
+      <li><strong>ConferenceSlotService</strong> &mdash; <code>POST /engagement/conferences/:id/slots/generate</code> (teacher: auto-generate from availability window + duration + break config), <code>GET /engagement/conferences/:id/slots</code> (parent: available slots for a teacher), <code>PATCH /engagement/slots/:id</code> (teacher: block a slot).</li>
+      <li><strong>ConferenceBookingService</strong> &mdash; <code>POST /engagement/slots/:id/book</code> (<strong>ATOMIC:</strong> UPDATE eng_conference_slots SET status='BOOKED' WHERE id=$1 AND status='AVAILABLE'; 0 rows = 409; creates booking; sends confirmation), <code>DELETE /engagement/bookings/:id</code> (cancel: reverts slot to AVAILABLE), <code>PATCH /engagement/bookings/:id</code> (teacher: mark attended, write notes, add follow-up actions). <code>GET /engagement/bookings/my</code> (parent: own bookings).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services + 1 worker, ~14 endpoints, 1 Kafka emit.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Engagement Scoring + Survey NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>EngagementScoreService</strong> &mdash; <code>GET /engagement/scores</code> (admin: all families with scores + engagement levels; filterable by level), <code>GET /engagement/scores/:familyId</code> (score history + component breakdown chart), <code>GET /engagement/scores/summary</code> (school-wide: % per engagement level). EngagementScoreWorker: weekly for all families. Computes each component from source modules: attendance_component from att_records (school event attendance, not daily — uses cal_events attended), communication_component from msg_read_receipts, conference_component from eng_conference_bookings WHERE attended=true, volunteer_component from evt_volunteers WHERE status='CONFIRMED', payment_component from pay_invoices (on-time rate). Composite = weighted average (configurable weights via platform_tenant_configs key <code>engagement_score_weights</code>, default: attendance 20%, communication 25%, conference 25%, volunteer 15%, payment 15%). Level thresholds: HIGHLY_ENGAGED &ge;75, ENGAGED &ge;50, MINIMAL &ge;25, AT_RISK &lt;25.</li>
+      <li><strong>ParentSurveyService</strong> &mdash; <code>POST /engagement/surveys</code> (admin creates), <code>GET /engagement/surveys</code> (admin: all; parent: open surveys), <code>POST /engagement/surveys/:id/respond</code> (parent submits; if is_anonymous: respondent_id NOT stored; increments total_responses; aggregates into response_data_aggregated), <code>GET /engagement/surveys/:id/results</code> (admin: aggregated results only — never individual anonymous responses). Emits <code>eng.survey.opened</code> on DRAFT → OPEN.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 services + 1 worker, ~10 endpoints, 1 Kafka emit. Total P2-24 endpoints: ~24.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Parent Engagement UI</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Conference Booking Portal</strong> <code>/engagement/conferences</code> &mdash; parent: browse teachers with available slots. Calendar view per teacher. Book button (one click). Confirmation with details. My bookings list. Cancel button. Teacher: publish availability with auto-generate from time range. My conference list. Document outcomes form with notes + follow-up actions.</li>
+      <li><strong>Engagement Dashboard</strong> <code>/engagement/dashboard</code> &mdash; admin: family list sorted by engagement score. Colour-coded levels (green highly engaged → red at-risk). Per-family: component radar chart (5 axes). School-wide: engagement level distribution pie chart. AT_RISK families highlighted for outreach. Score weight configuration.</li>
+      <li><strong>Survey Manager</strong> <code>/engagement/surveys</code> &mdash; admin: create survey with question builder (drag-add question types). Open/close. Results dashboard with per-question charts (bar chart for ratings, word cloud for free text). Response rate. Parent: respond to open surveys.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Conference booking, engagement dashboard, survey manager.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <ol class="detail-list">
+      <li><strong>Conference lifecycle:</strong> Create event. Teacher generates 5 slots. Parent books slot 1 (ATOMIC: AVAILABLE → BOOKED). Second parent tries slot 1 → 409. Second parent books slot 2. Cancel slot 2 → reverts to AVAILABLE. Teacher marks slot 1 attended + writes notes + adds follow-up action.</li>
+      <li><strong>Booking window enforcement:</strong> Attempt to book before booking_opens_at → 400. Attempt to book after booking_closes_at → 400. Book within window → success.</li>
+      <li><strong>Engagement scoring:</strong> Family with high activity across all 5 components → score &ge;75 HIGHLY_ENGAGED. Family with zero activity → score &lt;25 AT_RISK. Verify component breakdown sums to composite (within rounding). Verify configurable weights change the score.</li>
+      <li><strong>Anonymous survey:</strong> Create anonymous survey. Parent responds. Verify respondent_id NOT stored. Second parent responds. Verify total_responses=2. Verify aggregated results correct. Verify admin cannot see individual responses.</li>
+      <li><strong>Follow-up actions:</strong> Teacher adds 2 follow-up actions. Marks 1 COMPLETED. Verify remaining shows as PENDING.</li>
+      <li><strong>Visibility:</strong> Parent sees own bookings + open surveys. Cannot see other families' bookings. Teacher sees slots + bookings for own classes. Cannot see engagement scores. Admin sees all + engagement dashboard.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified parent engagement: conference booking (atomic) → outcome documentation → engagement scoring → anonymous surveys.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Engagement Score Weight Configuration</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li>Engagement score weights stored in <code>platform_tenant_configs</code> with key <code>engagement_score_weights</code> (JSONB: {attendance: 20, communication: 25, conference: 25, volunteer: 15, payment: 15}). Admin configures via <code>GET/PATCH /engagement/score-config</code>. Level thresholds also configurable: <code>engagement_level_thresholds</code> (JSONB: {highly_engaged: 75, engaged: 50, minimal: 25}). EngagementScoreWorker reads both configs at execution time. Schools can adjust weights to reflect their priorities (e.g., a school that values volunteerism heavily can weight volunteer at 30%).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Configurable scoring weights + level thresholds via tenant config. No new tables.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 5 new tables. Tenant table count: ~757.</li>
+      <li>Parent Engagement API: ~24 endpoints + 2 workers.</li>
+      <li>Conference scheduling with teacher availability + parent self-booking (ATOMIC).</li>
+      <li>Conference outcome documentation with follow-up action tracking.</li>
+      <li>Composite engagement scoring from 5 cross-module data sources.</li>
+      <li>Configurable score weights + level thresholds per school.</li>
+      <li>Anonymous surveys with aggregated-only results (no individual attribution).</li>
+      <li><code>eng.conference.booking_open</code> + <code>eng.survey.opened</code> Kafka emits.</li>
+      <li>HANDOFF-P2C24.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 24 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M100 Parent Engagement, 5 tables). Functions: MTG-002 Parent-Teacher Conferences + ENG-001 Parent Engagement. Cross-cycle: Cycle 3 att_records, Cycle 6 pay_invoices + pay_family_accounts, Cycle 14 msg_read_receipts, P2-12 evt_volunteers, Cycle 7 cal_events. No split needed.</p>
+  </div>
+</div>
+</body>
+</html>

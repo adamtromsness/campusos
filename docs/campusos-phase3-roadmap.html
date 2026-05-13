@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Phase 3 Roadmap</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea;--teal:#0d9488;--teal-bg:#e6f7f5}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:960px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:42px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:750px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+h3.sub-heading{font-size:18px;color:var(--accent);font-weight:700;margin:28px 0 10px}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+
+.theme-card{background:var(--white);border:2px solid var(--border);border-radius:14px;padding:28px 32px;margin:20px 0;position:relative;overflow:hidden}
+.theme-card::before{content:'';position:absolute;top:0;left:0;width:6px;height:100%}
+.theme-a::before{background:var(--blue)}
+.theme-b::before{background:var(--green)}
+.theme-c::before{background:var(--purple)}
+.theme-d::before{background:var(--teal)}
+.theme-card .theme-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
+.theme-a .theme-label{color:var(--blue)}
+.theme-b .theme-label{color:var(--green)}
+.theme-c .theme-label{color:var(--purple)}
+.theme-d .theme-label{color:var(--teal)}
+.theme-card h3{font-family:'DM Serif Display',serif;font-size:22px;color:var(--accent);font-weight:400;margin-bottom:10px}
+.theme-card p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:0}
+
+.project{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:22px 26px;margin:14px 0}
+.project-header{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.project-id{font-family:'DM Serif Display',serif;font-size:15px;color:var(--accent-mid);opacity:.6;min-width:40px}
+.project-title{font-size:16px;font-weight:700;color:var(--accent)}
+.project-meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.project-tag{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600}
+.tag-infra{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.tag-integ{background:var(--teal-bg);color:var(--teal);border:1px solid #a3ddd8}
+.tag-mobile{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.tag-compliance{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.project p{font-size:13px;line-height:1.8;color:var(--text);margin-bottom:6px}
+.project .deps{font-size:12px;color:var(--text-light);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+
+.timeline-grid{display:grid;grid-template-columns:120px 1fr;gap:0;margin:24px 0;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.tg-header{background:#d5e8f0;padding:8px 12px;font-size:12px;font-weight:700;color:var(--accent);border-bottom:1px solid var(--border)}
+.tg-row{display:contents}
+.tg-quarter{padding:10px 12px;font-size:13px;font-weight:600;color:var(--accent);border-bottom:1px solid var(--border);border-right:1px solid var(--border);background:#f8fafe}
+.tg-content{padding:10px 12px;font-size:13px;line-height:1.8;border-bottom:1px solid var(--border)}
+.tg-content:last-child,.tg-quarter:last-of-type{border-bottom:none}
+
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin:20px 0}
+.stat-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px 20px;text-align:center}
+.stat-card .num{font-family:'DM Serif Display',serif;font-size:32px;color:var(--accent);line-height:1}
+.stat-card .label{font-size:12px;color:var(--text-light);margin-top:4px}
+
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:32px}.container{padding:20px 20px 60px}.timeline-grid{grid-template-columns:80px 1fr}.stats-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="index.html">Design Hub</a><a href="campusos-erd-v11.html">ERD v11</a><a href="campusos-phase2-build-plan.html">Phase 2 Plan</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 3 Roadmap</div>
+    <h1>Infrastructure, Integration &amp; Ecosystem</h1>
+    <div class="sub">Phase 1 built the foundation (34 cycles, 418 tables). Phase 2 builds the depth (30 cycles, 422 tables). Phase 3 is a fundamentally different kind of work &mdash; not more tables, but live service deployment, real-world integrations, compliance certification, mobile native apps, and the marketplace ecosystem that transforms CampusOS from a product into a platform. Four themes, fifteen projects, twelve months.</div>
+    <span class="version">May 2026 &middot; 4 Themes &middot; 15 Projects &middot; ~35 New Tables &middot; 6 Extracted Services &middot; 2 Native Apps &middot; Target: Q3 2027</span>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">How Phase 3 Differs from Phases 1 &amp; 2</div>
+    <p style="font-size:15px;line-height:1.8;">Phases 1 and 2 are schema-driven: the ERD defines the work, Claude Code builds it cycle by cycle, ChatGPT reviews, human accepts. The build pattern is sequential and the deliverable is code committed to a monolith. Phase 3 breaks that pattern in three ways. First, it's <strong>infrastructure-heavy</strong>: deploying 6 extracted services requires Terraform, Docker, scaling policies, health checks, and real DevOps &mdash; not more NestJS modules. Second, it's <strong>integration-heavy</strong>: connecting to Jamf, Stripe Connect, PowerSchool, Google Classroom, Ed-Fi, and NSLP APIs requires API keys, sandbox environments, vendor relationships, and data mapping that AI can't do autonomously. Third, it's <strong>parallel</strong>: with a team of 7&ndash;11 (per the business strategy's Month 15&ndash;24 hiring plan), multiple projects run simultaneously across different engineers. The CIO orchestrates; no single AI agent owns the full surface.</p>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card"><span class="num">4</span><span class="label">Themes</span></div>
+    <div class="stat-card"><span class="num">15</span><span class="label">Projects</span></div>
+    <div class="stat-card"><span class="num">6</span><span class="label">Extracted Services</span></div>
+    <div class="stat-card"><span class="num">~35</span><span class="label">New Tables</span></div>
+    <div class="stat-card"><span class="num">2</span><span class="label">Native Apps</span></div>
+    <div class="stat-card"><span class="num">12</span><span class="label">Months (Est.)</span></div>
+  </div>
+
+  <!-- ═══════════════ THEME A ═══════════════ -->
+  <h2 class="section-heading">Theme A &mdash; Extracted Service Go-Live</h2>
+  <div class="theme-card theme-a">
+    <div class="theme-label">Theme A &mdash; Infrastructure</div>
+    <h3>Deploy the 6 Extracted Services for Real</h3>
+    <p>Phases 1 and 2 stubbed all 6 extracted services behind Kafka contracts. Every event envelope, every consumer, every topic ownership is already wired. Phase 3 deploys the real services: separate Docker images, separate Terraform modules, separate scaling policies, separate health checks. No new tables &mdash; the schema contracts are already in place. The work is infrastructure + ML pipeline + GPU provisioning.</p>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-A1</span><span class="project-title">AI Inference Service</span></div>
+    <div class="project-meta"><span class="project-tag tag-infra">Infrastructure</span></div>
+    <p>The AI Gateway per ADR-004. Serves all AI workloads: tutoring conversations (P2-7c), learning signal extraction, lesson summary generation, grading assistance, moderation sensitivity scoring (P2-19b), message translation (P2-19a), and future behaviour pattern detection. Deployed as a separate ECS service with GPU instances (or Bedrock/OpenAI API proxy with fallback). PII masking middleware strips student identifiers before prompts reach the model. Per-tenant quota enforcement via Redis counters (cls_ai_usage_log). Rate limiting + cost management + model version pinning.</p>
+    <p><strong>Deliverables:</strong> Terraform module (ECS Fargate + optional GPU), Docker image, PII masking middleware, model router (Claude/GPT-4 configurable per tenant), quota enforcement, health check, Prometheus metrics, Grafana dashboard. Swap all AI stubs in the monolith to real AI Gateway calls.</p>
+    <div class="deps"><strong>Depends on:</strong> P2-7c (AI tutoring stubs), P2-19a/b (translation + moderation stubs). <strong>Unblocks:</strong> P3-D4 (behaviour pattern detection AI).</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-A2</span><span class="project-title">Video Processing Service</span></div>
+    <div class="project-meta"><span class="project-tag tag-infra">Infrastructure</span></div>
+    <p>GPU workloads for lesson recording transcription (P2-7c cls_lesson_recordings), athletic game streaming (P2-8b ath_game_streams), and highlight clip extraction (P2-8b ath_highlight_clips). Consumes <code>video.uploaded</code> events, processes via FFmpeg + Whisper (or AWS Transcribe), produces <code>video.transcribed</code> events. S3 lifecycle management for raw uploads (hot 30 days, Glacier after 90). Separate from the monolith because GPU workloads cannot share a JVM heap with OLTP traffic.</p>
+    <p><strong>Deliverables:</strong> ECS task definition with GPU, FFmpeg pipeline, transcription integration (Whisper self-hosted or AWS Transcribe), S3 lifecycle policies, dead letter queue for failed processing, retry with exponential backoff.</p>
+    <div class="deps"><strong>Depends on:</strong> P2-7c (lesson video stubs), P2-8b (streaming stubs). <strong>Unblocks:</strong> Live lesson transcription, real-time athletic streaming.</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-A3</span><span class="project-title">Notification / Push Service</span></div>
+    <div class="project-meta"><span class="project-tag tag-infra">Infrastructure</span></div>
+    <p>Fan-out to thousands of recipients for broadcasts, emergency alerts, and push notifications. Currently the Communications module emits events but delivery is stubbed. This service handles: email delivery (SES/SendGrid with bounce handling), SMS delivery (Twilio/SNS), push notification delivery (FCM + APNs via P2-19b msg_push_device_tokens), WebSocket connections for real-time in-app notifications, and delivery webhook processing for broadcast analytics (P2-19a msg_broadcast_analytics). Redis pub/sub backbone for WebSocket fan-out.</p>
+    <p><strong>Deliverables:</strong> ECS service, email provider integration (SES), SMS provider integration (Twilio), push gateway integration (FCM + APNs), WebSocket server, delivery webhook processor, bounce/complaint handling, unsubscribe management.</p>
+    <div class="deps"><strong>Depends on:</strong> P2-19a/b (broadcast analytics + push campaigns). <strong>Unblocks:</strong> Real email/SMS/push delivery, parent bus arrival notifications.</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-A4</span><span class="project-title">Scheduling Solver Service</span></div>
+    <div class="project-meta"><span class="project-tag tag-infra">Infrastructure</span></div>
+    <p>Stateless constraint solver (OR-Tools CP-SAT for &le;300 sections, heuristic for &gt;300 per ADR-060). Currently the SchedulingWorker in P2-17a accepts manual candidate creation as fallback. This service receives the constraint payload (teachers, rooms, periods, classes, hard/soft constraints) and returns candidate timetable solutions with clash reports. Deployed as a Python ECS task (OR-Tools is Python-native). Stateless &mdash; no database access, pure computation. Timeout: 5 minutes for CP-SAT, 30 seconds for heuristic.</p>
+    <p><strong>Deliverables:</strong> Python Docker image with OR-Tools, gRPC API (constraint payload → candidate solutions), timeout management, solver seed for heuristic reproducibility, Prometheus metrics (solve time, constraint satisfaction rate).</p>
+    <div class="deps"><strong>Depends on:</strong> P2-17a (scheduling generation stubs). <strong>Unblocks:</strong> Automated timetable generation for pilot schools.</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-A5</span><span class="project-title">Transport Dispatch Service</span></div>
+    <div class="project-meta"><span class="project-tag tag-infra">Infrastructure</span></div>
+    <p>GPS position ingestion from bus fleet (10&ndash;30 second intervals per vehicle), ETA computation from position + route geometry + historical speed, and geofence boundary detection. Currently P2-11c accepts manual position entry. This service ingests from GPS hardware providers (Samsara, Verizon Connect, or generic NMEA/GTFS-RT feeds), writes to trn_vehicle_positions (high-volume partitioned table), computes ETAs, checks geofences, and emits parent notification events when bus enters school zone.</p>
+    <p><strong>Deliverables:</strong> ECS service, GPS provider adapter (Samsara API + generic GTFS-RT), position ingestion pipeline (batch insert every 10s), ETA computation engine, geofence check on each position batch, parent tracking token endpoint proxy.</p>
+    <div class="deps"><strong>Depends on:</strong> P2-11c (GPS telemetry stubs). <strong>Unblocks:</strong> Real-time parent bus tracking, geofence notifications.</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-A6</span><span class="project-title">Emergency Alert Service</span></div>
+    <div class="project-meta"><span class="project-tag tag-infra">Infrastructure</span></div>
+    <p>Crash-recoverable emergency alert fan-out from P2-2's atomic outbox pattern. Currently the Emergency Declaration worker runs in-process. This extracted service guarantees: alert delivery within 60 seconds to all staff + parents, crash recovery (if the service restarts mid-fan-out, it resumes from the last checkpoint), 5-minute PAGE to on-call if any alert stalls, and multi-channel delivery (push + SMS + email simultaneously). The SLA justifies a dedicated service &mdash; emergency alerts cannot compete with routine notification traffic.</p>
+    <p><strong>Deliverables:</strong> ECS service with auto-scaling on alert volume, checkpoint-based fan-out, multi-channel parallel delivery, PagerDuty integration for stall detection, delivery confirmation tracking, 99.99% availability target.</p>
+    <div class="deps"><strong>Depends on:</strong> P2-2 (emergency outbox), P3-A3 (notification service for email/SMS/push). <strong>Unblocks:</strong> Production emergency drill SLA compliance.</div>
+  </div>
+
+  <!-- ═══════════════ THEME B ═══════════════ -->
+  <h2 class="section-heading">Theme B &mdash; Full Finance &amp; Accounting</h2>
+  <div class="theme-card theme-b">
+    <div class="theme-label">Theme B &mdash; Schema + Logic</div>
+    <h3>M83 Finance + Advanced Procurement</h3>
+    <p>The architecture review (ADR-058) explicitly deferred M83 to post-pilot because double-entry accounting with period close, audit trail, and regulatory reporting is the most complex business logic in the entire system. Phase 2 built the minimal GL backbone (Cycle 26) and the payment flows that post to it. Phase 3 builds the complete finance module and upgrades procurement from basic to full.</p>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-B1</span><span class="project-title">Full Chart of Accounts + GL + Period Close</span></div>
+    <div class="project-meta"><span class="project-tag tag-schema">Schema</span></div>
+    <p>Complete chart of accounts management with account hierarchies (asset, liability, equity, revenue, expense), departmental budgets with encumbrance accounting (budget commitment reduces available balance before payment), period open/close workflow with trial balance verification, year-end close with retained earnings rollforward, and financial statement generation (balance sheet, income statement, cash flow). ~9 tables already in the ERD for M83. The GL backbone from Cycle 26 is the foundation &mdash; this adds the full accounting workflow around it.</p>
+    <p><strong>Deliverables:</strong> Chart of accounts CRUD with hierarchy, budget management with encumbrance, period open/close state machine, trial balance computation, year-end close procedure, financial statement PDF generation, audit trail for all GL mutations.</p>
+    <div class="deps"><strong>Depends on:</strong> Cycle 26 (GL backbone), P2-6 (payment ledger entries). <strong>Unblocks:</strong> P3-B2 (AP + grants), district-level consolidated financials.</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-B2</span><span class="project-title">Accounts Payable + Grants + Advanced Procurement</span></div>
+    <div class="project-meta"><span class="project-tag tag-schema">Schema</span></div>
+    <p>Three-way matching (PO → receipt → vendor invoice with tolerance thresholds), blanket purchase orders for recurring procurement, catalogue-based purchasing with approved vendor catalogues, competitive bidding workflow for high-value purchases, contract lifecycle management, grant tracking with restricted fund accounting (grant funds can only be spent on approved categories), and grant reporting with expenditure vs budget tracking. All deferred by ADR-061 to "post-M83."</p>
+    <p><strong>Deliverables:</strong> Three-way matching engine, blanket PO management, vendor catalogue, bid workflow, contract management, grant fund tracking with restricted spending rules, grant reporting.</p>
+    <div class="deps"><strong>Depends on:</strong> P3-B1 (full GL + encumbrance). <strong>Unblocks:</strong> Federal/state grant compliance for US schools, district-level procurement.</div>
+  </div>
+
+  <!-- ═══════════════ THEME C ═══════════════ -->
+  <h2 class="section-heading">Theme C &mdash; Compliance &amp; Multi-Region</h2>
+  <div class="theme-card theme-c">
+    <div class="theme-label">Theme C &mdash; Compliance</div>
+    <h3>DPO Compliance Suite + EU/UK Deployment</h3>
+    <p>13 dpo_ tables already in the ERD. This theme builds the compliance tooling that enables international deployment: GDPR subject access requests, right to erasure, consent management, data processing agreements, breach notification, data retention, and legal holds. Multi-region deployment follows because you can't serve EU/UK schools without GDPR tooling operational. Architecture Review Section 21 defines the multi-region strategy.</p>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-C1</span><span class="project-title">DPO Compliance Suite</span></div>
+    <div class="project-meta"><span class="project-tag tag-compliance">Compliance</span><span class="project-tag tag-schema">Schema</span></div>
+    <p>13 new dpo_ tables. Subject access requests (SAR) with automated data assembly across all modules &mdash; the DPO clicks "Generate SAR Response" and the system crawls every module's tables for the requested person's data, assembles a PDF, and logs the response. Right to erasure with the pseudonymisation log (ADR-059) &mdash; personal data is replaced with pseudonyms across all tables, the pseudonymisation_log records what was erased, and the erasure is irreversible. Consent management with granular per-purpose tracking (marketing, analytics, AI tutoring, photo sharing). Data processing agreements between the school (controller) and CampusOS (processor). Breach notification workflow with GDPR 72-hour regulatory timeline enforcement. Data retention policies with automated purge scheduling (e.g., student records 7 years after graduation). Legal hold management (freezes purge for specific records under litigation).</p>
+    <p><strong>Deliverables:</strong> 13 tables, SAR assembly engine, erasure workflow with pseudonymisation, consent management UI, breach notification timeline tracker, retention policy engine, legal hold freeze mechanism.</p>
+    <div class="deps"><strong>Depends on:</strong> Phase 2 complete (all modules must exist for SAR assembly to crawl them). <strong>Unblocks:</strong> P3-C2 (multi-region), EU/UK school sales.</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-C2</span><span class="project-title">Multi-Region Deployment (EU/UK)</span></div>
+    <div class="project-meta"><span class="project-tag tag-infra">Infrastructure</span></div>
+    <p>Architecture Review Section 21: EU data residency requires data to stay within the EU region. Terraform modules for eu-west-1 (Ireland) and eu-west-2 (London) deployment. Regional RDS instances with no cross-region replication of PII. Kafka cross-region replication for event idempotency records (platform_event_consumer_idempotency). CloudFront distribution restricted to not cache PII content outside the residency region. Auth0/Cognito regional tenant pools. DNS-based routing (eu.campusos.com vs us.campusos.com). Platform schema (CRM, officials, substitutes, community exchange) replicated globally; tenant schemas regional.</p>
+    <p><strong>Deliverables:</strong> Terraform modules for EU regions, regional RDS provisioning, Kafka cross-region setup, CloudFront geo-restriction, DNS routing, regional auth pools, data residency verification tests.</p>
+    <div class="deps"><strong>Depends on:</strong> P3-C1 (DPO compliance must be operational before EU deployment). <strong>Unblocks:</strong> UK independent school market, EU international school market.</div>
+  </div>
+
+  <!-- ═══════════════ THEME D ═══════════════ -->
+  <h2 class="section-heading">Theme D &mdash; Integration &amp; Ecosystem</h2>
+  <div class="theme-card theme-d">
+    <div class="theme-label">Theme D &mdash; Ecosystem</div>
+    <h3>Third-Party Integrations + Mobile + Marketplace</h3>
+    <p>The "last mile" that transforms CampusOS from a standalone product into an ecosystem. Live vendor integrations, native mobile apps, and the marketplace launch. This theme generates direct revenue (marketplace commission, premium integrations) and is the primary driver of competitive differentiation. Most projects can run in parallel across the growing team.</p>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-D1</span><span class="project-title">SIS Data Import &amp; Migration Toolkit</span></div>
+    <div class="project-meta"><span class="project-tag tag-integ">Integration</span></div>
+    <p>Automated data import from the 5 most common US SIS platforms: PowerSchool, Infinite Campus, Skyward, Tyler SIS, and Alma. Each adapter maps the source system's schema to CampusOS's ERD: students → sis_students, guardians → sis_student_guardians, classes → sis_classes, grades → cls_grades, attendance → att_records, staff → hr_employees. Includes a dry-run mode (import to staging, generate diff report, human approves before production write), rollback capability, and duplicate detection (match on name + DOB + school). This is the single biggest friction reducer for pilot onboarding &mdash; currently "~2-3 days per school" per the cloud deployment guide; target: &lt;4 hours with the toolkit.</p>
+    <p><strong>Deliverables:</strong> 5 source adapters, schema mapping engine, dry-run + diff report, duplicate detection, rollback, CLI tool + web UI for admins.</p>
+    <div class="deps"><strong>Depends on:</strong> Phase 2 complete (all target tables must exist). <strong>Unblocks:</strong> Faster pilot onboarding, self-service school migration.</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-D2</span><span class="project-title">MDM Provider Integration (Jamf / Intune / Mosyle)</span></div>
+    <div class="project-meta"><span class="project-tag tag-integ">Integration</span></div>
+    <p>Live MDM API integration replacing the manual status updates in P2-20. Jamf Pro API for Apple device management, Microsoft Intune Graph API for Windows/Chromebook, Mosyle API as a third option. Real remote actions (LOCK, WIPE, RESTART, LOCATE) execute via the MDM provider's API and callback updates tech_remote_actions.status. Device usage summaries (tech_device_usage_summaries) sync nightly from the MDM's app usage reports. Device inventory (tech_assets) auto-sync from MDM enrollment data. Each provider is an adapter behind a common interface &mdash; schools configure which MDM they use.</p>
+    <p><strong>Deliverables:</strong> MDM adapter interface, Jamf adapter, Intune adapter, Mosyle adapter, remote action execution + callback, usage sync worker, inventory sync worker, provider configuration UI.</p>
+    <div class="deps"><strong>Depends on:</strong> P2-20 (IT Advanced stubs). <strong>Unblocks:</strong> Real device management from within CampusOS.</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-D3</span><span class="project-title">LMS Sync (Google Classroom + Canvas)</span></div>
+    <div class="project-meta"><span class="project-tag tag-integ">Integration</span></div>
+    <p>Bidirectional sync with Google Classroom and Canvas LMS. Roster sync: CampusOS sis_classes → Google Classroom courses (or Canvas courses). Assignment sync: cls_assignments ↔ Google Classroom coursework / Canvas assignments. Grade sync: cls_grades ↔ external gradebook. Attendance sync: att_records → external attendance (one-way, CampusOS is source of truth). Schools choose: CampusOS-primary (sync out) or LMS-primary (sync in) per data type. Conflict resolution: last-write-wins with audit log. OAuth2 consent flow for teacher-level authorization.</p>
+    <p><strong>Deliverables:</strong> Google Classroom adapter (REST API), Canvas adapter (REST API), roster sync worker, assignment sync worker, grade sync worker, conflict resolution engine, OAuth2 consent UI, sync status dashboard.</p>
+    <div class="deps"><strong>Depends on:</strong> Cycle 1 (SIS), Cycle 2 (Classroom), Cycle 3 (Attendance). <strong>Unblocks:</strong> Schools that can't fully migrate from Google Classroom / Canvas immediately.</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-D4</span><span class="project-title">State Reporting &amp; Ed-Fi / NSLP Integration</span></div>
+    <div class="project-meta"><span class="project-tag tag-integ">Integration</span><span class="project-tag tag-compliance">Compliance</span></div>
+    <p>US state reporting format export: Ed-Fi API integration for student demographics, enrollment, attendance, grades, and assessment data. SIF (Schools Interoperability Framework) export for states that require it. NSLP (National School Lunch Program) eligibility verification API integration for P2-10's fds_eligibility_applications &mdash; currently manual determination, this automates via the USDA's verification system. State immunisation registry reporting integration for P2-3's health compliance data. Each state has slightly different requirements; start with Kansas (home state), Texas, California, New York as the first four.</p>
+    <p><strong>Deliverables:</strong> Ed-Fi API adapter, SIF export engine, NSLP verification API integration, state immunisation registry adapter (4 states), configurable per-state reporting profiles.</p>
+    <div class="deps"><strong>Depends on:</strong> P2-3 (health), P2-10 (food service), P2-13 (SIS advanced). <strong>Unblocks:</strong> District-level sales (districts require state reporting compliance).</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-D5</span><span class="project-title">Native Mobile Apps (Parent + Staff)</span></div>
+    <div class="project-meta"><span class="project-tag tag-mobile">Mobile</span></div>
+    <p>React Native apps for iOS and Android. Two apps: <strong>CampusOS Parent</strong> (bus tracking with live map, lunch account balance + deposit, attendance notifications, positive behaviour points, event tickets with QR display, report card viewing, parent-teacher conference booking, emergency alerts) and <strong>CampusOS Staff</strong> (attendance marking, hall pass management, substitute job acceptance, gate scanning camera, classroom moments photo upload, dispatch event logging). Both apps authenticate via the same Auth0/Cognito flow as the web app. Push notifications via FCM + APNs (wired to P3-A3 Notification Service). Offline mode for attendance marking (sync on reconnect).</p>
+    <p><strong>Deliverables:</strong> React Native monorepo, Parent app (iOS + Android), Staff app (iOS + Android), offline-first attendance, push notification integration, App Store + Play Store submission, MDM distribution profile for staff app.</p>
+    <div class="deps"><strong>Depends on:</strong> P3-A3 (push notification service), P2-19b (device tokens). <strong>Unblocks:</strong> Parent engagement (the #1 requested feature from pilot schools).</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-D6</span><span class="project-title">Marketplace &amp; Teacher Content Store Launch</span></div>
+    <div class="project-meta"><span class="project-tag tag-integ">Integration</span></div>
+    <p>The Community Exchange (P2-21c) goes live for real transactions. Stripe Connect integration for school-to-school asset settlement (5% platform fee, per the business strategy). Teacher content marketplace with the 20/10/70 revenue split (20% CampusOS, 10% school, 70% teacher). Stripe Connected Accounts for teachers + schools. Payout scheduling (monthly). Tax document generation (1099-K for US teachers earning &gt;$600). Content moderation for marketplace listings. Search promotion algorithm (relevance + quality + freshness). Featured listings. Seller analytics dashboard.</p>
+    <p><strong>Deliverables:</strong> Stripe Connect integration (Connected Accounts, payout scheduling, 1099-K generation), content moderation pipeline, search ranking algorithm, seller analytics, featured listings, marketplace terms of service, payment dispute resolution workflow.</p>
+    <div class="deps"><strong>Depends on:</strong> P2-21c (Community Exchange schema + basic transaction flow). <strong>Unblocks:</strong> Revenue stream #2 (marketplace commission), teacher content ecosystem.</div>
+  </div>
+
+  <div class="project">
+    <div class="project-header"><span class="project-id">P3-D7</span><span class="project-title">Advanced Payment Integrations</span></div>
+    <div class="project-meta"><span class="project-tag tag-integ">Integration</span></div>
+    <p>Stripe ACH / direct debit for automatic payment plan instalment collection (deferred from P2-6). Stripe SetupIntent integration for saved payment method tokenisation (pay_saved_payment_methods schema ready from P2-6). Lunch account auto-replenishment via Stripe when balance drops below threshold. Apple Pay + Google Pay for event ticket purchases (P2-12) and lunch deposits. International payment methods for non-US schools: SEPA (EU), BACS (UK), iDEAL (Netherlands). Automated reconciliation: Stripe webhook → pay_ledger_entries → GL journal (already wired, needs production hardening).</p>
+    <p><strong>Deliverables:</strong> ACH adapter, SetupIntent flow, auto-replenishment worker, Apple/Google Pay integration, SEPA/BACS/iDEAL adapters, reconciliation hardening, payment failure retry logic.</p>
+    <div class="deps"><strong>Depends on:</strong> P2-6 (payments advanced), P3-B1 (full GL for reconciliation). <strong>Unblocks:</strong> Automated billing, international school payments.</div>
+  </div>
+
+  <!-- ═══════════════ TIMELINE ═══════════════ -->
+  <h2 class="section-heading">Estimated Timeline</h2>
+  <p class="body-text">Phase 3 runs ~12 months post-Phase-2 completion. Projects within a theme run in sequence where dependencies require it; across themes they run in parallel. The team grows from ~7 to ~11 during this period (per the business strategy Month 15&ndash;24 hiring plan). Dates assume Phase 2 completes Q4 2026.</p>
+
+  <div class="timeline-grid">
+    <div class="tg-header">Quarter</div><div class="tg-header">Projects</div>
+    <div class="tg-row"><div class="tg-quarter">Q1 2027</div><div class="tg-content"><strong>P3-A1</strong> AI Inference Service, <strong>P3-A3</strong> Notification/Push Service, <strong>P3-A4</strong> Scheduling Solver, <strong>P3-D1</strong> SIS Data Import Toolkit, <strong>P3-C1</strong> DPO Compliance Suite (starts). High-value, high-dependency services first. SIS import toolkit accelerates new school onboarding immediately.</div></div>
+    <div class="tg-row"><div class="tg-quarter">Q2 2027</div><div class="tg-content"><strong>P3-A2</strong> Video Processing, <strong>P3-A5</strong> Transport Dispatch, <strong>P3-A6</strong> Emergency Alert, <strong>P3-C1</strong> DPO Compliance (completes), <strong>P3-B1</strong> Full GL + Period Close (starts), <strong>P3-D5</strong> Mobile Apps (starts). All 6 extracted services deployed by end of Q2. DPO complete &mdash; unblocks EU.</div></div>
+    <div class="tg-row"><div class="tg-quarter">Q3 2027</div><div class="tg-content"><strong>P3-B1</strong> Full GL (completes), <strong>P3-B2</strong> AP + Grants + Advanced Procurement, <strong>P3-C2</strong> Multi-Region EU/UK, <strong>P3-D2</strong> MDM Integration, <strong>P3-D3</strong> LMS Sync, <strong>P3-D5</strong> Mobile Apps (completes). Finance module complete. First EU deployment. Mobile apps in App Store.</div></div>
+    <div class="tg-row"><div class="tg-quarter">Q4 2027</div><div class="tg-content"><strong>P3-D4</strong> State Reporting + Ed-Fi, <strong>P3-D6</strong> Marketplace Launch, <strong>P3-D7</strong> Advanced Payments. Revenue-generating features close Phase 3. Marketplace live with Stripe Connect. International payment methods for EU/UK schools.</div></div>
+  </div>
+
+  <!-- ═══════════════ COST ═══════════════ -->
+  <h2 class="section-heading">Infrastructure Cost Estimate</h2>
+  <p class="body-text">Phase 3 adds significant infrastructure cost above the ~$800&ndash;1,200/month Phase 2 baseline (2&ndash;3 pilot schools). The 6 extracted services, GPU instances for AI/video, and multi-region deployment drive the increase. Cost per school decreases as the fleet grows.</p>
+
+  <div class="callout callout-note">
+    <div class="callout-title">Monthly AWS Estimate at Scale (10&ndash;20 schools)</div>
+    <p style="font-size:14px;line-height:2;">Monolith API (ECS Fargate): $400&ndash;600. RDS Multi-AZ (r6g.xlarge): $600&ndash;900. AI Inference Service (Bedrock/OpenAI API pass-through): $500&ndash;2,000 (usage-dependent, per-tenant quota caps this). Video Processing (GPU spot instances): $200&ndash;500. Notification Service (SES + Twilio): $100&ndash;300. Scheduling Solver (spot, burst only): $50&ndash;100. Transport Dispatch (continuous): $150&ndash;250. Emergency Alert (always-on): $100&ndash;150. Kafka (MSK): $300&ndash;500. ElastiCache Redis: $150&ndash;250. S3 + CloudFront: $200&ndash;400. Multi-region (if EU deployed): +60% of above for second region. <strong>Total US-only: $2,750&ndash;5,950/month. With EU: $4,400&ndash;9,500/month.</strong></p>
+    <p style="font-size:14px;">At 10 schools × $800&ndash;2,000/month subscription = $8K&ndash;20K revenue vs $3K&ndash;6K infrastructure. Healthy margins from day one at the 10-school mark.</p>
+  </div>
+
+  <!-- ═══════════════ WHAT PHASE 3 IS NOT ═══════════════ -->
+  <h2 class="section-heading">What Phase 3 Is Not</h2>
+  <p class="body-text">Phase 3 is not another 30 sequential build cycles. The ERD is complete after Phase 2 &mdash; all 840 tables exist. Phase 3 adds ~35 new tables (DPO compliance + advanced finance), but the majority of the work is infrastructure, integration, and mobile, not schema design. The build pattern shifts from "one AI agent builds sequentially" to "a team of 7&ndash;11 works in parallel across themes." Claude Code remains the primary code generator, but human engineers own the infrastructure projects (Terraform, Kubernetes, vendor API integrations) that require credentials, sandbox environments, and real-world testing that AI can't do autonomously.</p>
+
+  <p class="body-text">Phase 3 is also not the end. There's a Phase 4 on the horizon: district federation (multi-school district management with consolidated reporting, cross-school student transfers, district-wide procurement), white-label / OEM (CampusOS as infrastructure for other edtech products), and the API platform (public developer API for third-party integrations). But Phase 4 is a product strategy decision, not an engineering roadmap &mdash; it depends on market feedback from pilot schools and early customers.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 3 Roadmap &mdash; May 2026. Derived from: Architecture Review v10 (Sections 18, 21, 22), Business Strategy v2.1 (Sections 3&ndash;5), ERD v11 (M83 Finance, DPO Compliance), and all Phase 2 "Deferred" items across P2-1 through P2-30. 4 themes, 15 projects, ~12 months estimated. Subject to revision based on Phase 2 completion timeline and pilot school feedback.</p>
+  </div>
+</div>
+</body>
+</html>
