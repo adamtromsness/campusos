@@ -1,11 +1,82 @@
 # HANDOFF — Phase 2 Cycle 23 (P2-23): Accreditation
 
-**Status:** COMPLETE pending peer review across both sub-cycles
-(2026-05-13). P2-23a (Steps 1–4 + integrated 7+8) shipped at `cc385e4` —
-backend schema + seed + services + readiness recompute side-effects + idempotent
-platform seeder. P2-23b ships in this commit — Step 5 UI + Step 6 vertical-slice
-integration test + handoff/review docs covering all 8 user-defined steps.
-Awaiting peer review verdict before tagging `p2c23-complete`.
+**Status:** COMPLETE + APPROVED at the closeout commit (REVIEW-P2C23-CHATGPT —
+final verdict, 2026-05-13). Round 1 against `b7690d3` returned **FAIL** with
+2 BLOCKING + 1 actionable MAJOR; Round 2 against `855cc51` returned **PASS** —
+reviewer's per-finding verification table confirmed every fix matches in
+code. P2-23a (schema + seed + services + worker — Steps 1–4 + integrated
+7+8) shipped at `cc385e4`. P2-23b (UI + integration tests + handoff/review
+docs — Steps 5–6) shipped at `b7690d3`. Round 1 fix commit `855cc51` lands
+all 2 BLOCKING + 1 MAJOR + 13 new pinned regression tests. Tagged
+`p2c23-complete` at `855cc51` (the Round 1 fix that earned Round 2 PASS) and
+`p2c23-approved` at the closeout commit. **Wave D (Module Completion)
+continues — P2-23 closes the M85 Accreditation module clean.**
+
+## REVIEW-P2C23 Round 1 fix log (2026-05-13)
+
+Round 1 reviewer identified 2 BLOCKING + 1 actionable MAJOR. The Round 1
+fix commit `855cc51` lands all 3 + 13 new pinned regression tests so the
+contracts cannot regress.
+
+**BLOCKING 1 — Accreditation coordinator authority split off from TCH-008:**
+
+- `packages/database/data/permissions.json` adds the new `ACR-001
+Accreditation Management` function code under the new "Accreditation"
+  group. Catalog total: 178 → 179.
+- `apps/api/src/accreditation/access.ts` — `assertCoordinatorScope`
+  re-points from `tch-008:write/admin` to `acr-001:write/admin`.
+  Curriculum management authority (held by every Teacher / VP / Staff
+  via TCH-008:write for the Curriculum module) no longer confers
+  accreditation coordinator authority.
+- `apps/api/src/accreditation/accreditation.controller.ts` — 11
+  write-side endpoints re-gated from `@RequirePermission('tch-008:write')`
+  to `@RequirePermission('acr-001:write')`. Read endpoints keep
+  `tch-008:read` (the Staff role already holds it for Curriculum).
+- `packages/database/src/seed-iam.ts` — Staff role gains
+  `ACR-001:read+write` (coordinator stand-in). Vice Principal gains
+  `ACR-001:read+write` (typical VP-handles-accreditation pattern).
+  School Admin + Platform Admin pick up `ACR-001:admin` via
+  `everyFunction`. Teacher does NOT receive ACR-001 at any tier.
+
+**BLOCKING 2 — `ActionPlanService.assertEmployeeInTenant` school-scoped:**
+
+- SQL rewrites from `SELECT 1 FROM hr_employees WHERE id = $1::uuid
+LIMIT 1` to `SELECT 1 FROM hr_employees WHERE id = $1::uuid AND
+school_id = $2::uuid LIMIT 1` with `tenant.schoolId` bound as `$2`.
+  School A coordinator can no longer reference a School B `hr_employees.id`
+  as `responsible_party`. Applied to both `create()` and `update()`
+  paths via the shared helper.
+
+**MAJOR 1 — `resolveStandard` JOINs `acc_school_framework_adoptions`:**
+
+- Platform-side SQL rewrites to
+  `JOIN acc_school_framework_adoptions a ON a.platform_framework_id =
+s.framework_id WHERE s.id = $1::uuid AND a.school_id = $2::uuid AND
+a.is_active = true`.
+- A platform standard from an UN-adopted framework now returns 404 at
+  every create path. Evidence / ratings / action plans against
+  unadopted frameworks are no longer creatable. Tenant custom
+  framework branch unchanged.
+
+**Test coverage:** vitest 1191 → **1204 passing across 60 spec files**
+(+13 new pinned regression tests in `accreditation-integration.spec.ts`
+across 3 REVIEW-P2C23 describe blocks: BLOCKING 1 (5 tests), BLOCKING
+2 (3 tests), MAJOR 1 (5 tests)). Existing
+`assertCoordinatorScope passes STAFF with tch-008:write` test renamed
+to `acr-001:write` so the helper's new contract is pinned.
+
+**CI parity green:** format:check + lint:logs (922 files clean) + API
+build + web build (6 accreditation routes ship 116–118 kB) + vitest
+1204/1204.
+
+**Carry-over (non-blocking, Phase 2 hardening):** MAJOR 2 — best-effort
+readiness recompute after evidence/rating updates. Recompute failure
+does not roll back the parent operation by design; the dashboard
+triggers a fresh `readinessForVisit` compute on every read so
+staleness is bounded. Durable cache-invalidation outbox is pre-pilot
+polish.
+
+## Original cycle build state preserved below for review trail.
 
 **Plan:** `docs/campusos-p2c23-accreditation.html`
 **Review scaffold:** `P2C23-REVIEW-NOTES.md`

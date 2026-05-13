@@ -1,7 +1,17 @@
 # REVIEW NOTES — Phase 2 Cycle 23 (P2-23): Accreditation
 
+**Status:** COMPLETE + APPROVED at the closeout commit (REVIEW-P2C23-CHATGPT
+— final verdict, 2026-05-13). Round 1 against `b7690d3` returned **FAIL**
+with 2 BLOCKING + 1 actionable MAJOR; Round 2 against `855cc51` returned
+**PASS** — reviewer cache-busted each affected file and confirmed every
+fix matches in code. Tagged `p2c23-complete` at `855cc51` and
+`p2c23-approved` at the closeout commit. Sole carry-over: best-effort
+readiness recompute (non-blocking — recompute failure does not roll
+back the parent operation; dashboard reads trigger fresh compute).
+
 **Scope:** P2-23a (schema + seed + services + worker) at `cc385e4` +
-P2-23b (UI + integration tests + docs) at this commit.
+P2-23b (UI + integration tests + docs) at `b7690d3` + REVIEW-P2C23
+Round 1 fix commit at `855cc51`.
 **Plan:** `docs/campusos-p2c23-accreditation.html`
 **Handoff:** `HANDOFF-P2C23.md`
 **Dates:** 2026-05-13
