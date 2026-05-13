@@ -1,12 +1,17 @@
 # REVIEW NOTES — Phase 2 Cycle 24 (P2-24): Parent Engagement
 
-**Status:** COMPLETE pending Round 2 peer review verdict. P2-24a at
-`79cd0ac`, P2-24b at `46fce5e`. REVIEW-P2C24 Round 1 returned **FAIL**
-with 4 BLOCKING + 2 MAJOR. The Round 1 fix commit lands all 4
-BLOCKING + the actionable MAJOR 1 + 17 new pinned regression tests
-(vitest 1278 → 1295). MAJOR 2 (engagement score read authority
-narrowing for teachers) carries to the Phase 2 punch list as a
-product-side scope decision.
+**Status:** COMPLETE + APPROVED at the closeout commit
+(REVIEW-P2C24-CHATGPT — final verdict, 2026-05-13). Round 1 against
+`46fce5e` returned **FAIL** with 4 BLOCKING + 2 MAJOR; Round 2
+against `911874b` returned **PASS** with every dimension at PASS
+(Atomic Booking / Conference Slot Management / Booking Outcome
+Documentation / Engagement Score Worker / Survey Responses / Test
+Coverage). The Round 1 fix commit landed all 4 BLOCKING + the
+actionable MAJOR 1 + 17 pinned regression tests (vitest 1278 →
+1295). Tagged `p2c24-complete` at `911874b` and `p2c24-approved`
+at the closeout commit. **MAJOR 2** (narrow `eng-001:read` for
+teachers from full component breakdown to conference-only) carries
+to the Phase 2 punch list as a product-side scope decision.
 
 ## Round 1 fix summary
 

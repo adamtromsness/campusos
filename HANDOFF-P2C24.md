@@ -1,17 +1,28 @@
 # HANDOFF — Phase 2 Cycle 24 (P2-24): Parent Engagement
 
-**Status:** COMPLETE pending Round 2 peer review verdict. P2-24a
-(schema + seed + services + workers — Steps 1–5, plus Step 8
+**Status:** COMPLETE + APPROVED at the closeout commit
+(REVIEW-P2C24-CHATGPT — final verdict, 2026-05-13). Round 1 against
+`46fce5e` returned **FAIL** with 4 BLOCKING + 2 MAJOR; Round 2
+against `911874b` returned **PASS** — reviewer's per-finding
+verification table marks every prior blocker FIXED across all 6
+dimensions (Atomic Booking / Conference Slot Management / Booking
+Outcome Documentation / Engagement Score Worker / Survey Responses
+/ Test Coverage). Tagged `p2c24-complete` at `911874b` (the Round 1
+fix that earned Round 2 PASS) and `p2c24-approved` at the closeout
+commit. **Wave D (Module Completion) continues — P2-24 closes the
+M100 Parent Engagement module clean.** Reviewer's sole carry-over
+(non-blocking, recommendation-class) per the Round 2 verdict:
+teachers holding `eng-001:read` currently see family-level
+engagement component breakdowns including payment and communication
+data — pre-pilot product decision on whether to narrow to
+conference-only for teachers; service-layer `assertEngagementReader`
+is straightforward to tighten once the policy lands.
+
+P2-24a (schema + seed + services + workers — Steps 1–5, plus Step 8
 score-weight configuration via `school_config`) shipped at `79cd0ac`.
 P2-24b (UI + vertical-slice tests + handoff/review docs — Steps
-6–7) shipped at `46fce5e`. REVIEW-P2C24 Round 1 returned **FAIL**
-with 4 BLOCKING + 2 MAJOR; the Round 1 fix commit (this commit) lands
-all 4 BLOCKING + the actionable MAJOR 1 + 17 new pinned regression
-tests so the contracts cannot regress. **MAJOR 2** (engagement score
-read authority for teachers — Teacher holds `eng-001:read` and sees
-family component breakdowns including payment data) is a product-side
-scope decision and stays on the Phase 2 backlog. Awaiting Round 2
-verdict before tagging `p2c24-complete`.
+6–7) shipped at `46fce5e`. REVIEW-P2C24 Round 1 fix commit shipped at
+`911874b`.
 
 ## REVIEW-P2C24 Round 1 fix log (2026-05-13)
 
