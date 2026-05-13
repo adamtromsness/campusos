@@ -10,7 +10,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import { RedisService } from '../notifications/redis.service';
 import {
   AddRecipientsByTagDto,
@@ -26,7 +26,11 @@ import {
   UpdateCampaignDto,
   UpdateRecipientStatusDto,
 } from './dto/alumni.dto';
-import { hasStaffScope, loadCampaignOrFail, loadAlumniProfileOrFail } from './access';
+import { hasAdminScope, loadAlumniProfileOrFail, loadCampaignOrFail } from './access';
+import {
+  deterministicCampaignActivatedEventId,
+  deterministicDonationReceivedEventId,
+} from './event-ids';
 
 interface CampaignRow {
   id: string;
@@ -85,19 +89,44 @@ function campaignRaisedKey(campaignId: string): string {
 
 const RAISED_TTL_SECONDS = 5 * 60;
 
+/**
+ * P2-22 — CampaignService.
+ *
+ * REVIEW-P2C22 ROUND 1 hardening throughout:
+ *
+ *   - BLOCKING 1: `activate()` enqueues `alm.campaign.activated` via
+ *     `OutboxService.enqueueInTx` INSIDE the same tx that flips
+ *     DRAFT → ACTIVE. Deterministic v5-shaped event_id keyed on
+ *     campaignId. The Kafka emit is no longer best-effort post-
+ *     commit — outbox-publisher-worker drains durably.
+ *   - BLOCKING 2: Every read + mutation routes through
+ *     `loadCampaignOrFail` (school-scoped) or carries an explicit
+ *     `school_id = tenant.schoolId` predicate. Cross-school
+ *     campaign UUIDs collapse to 404 at the loader.
+ *   - BLOCKING 3: Patch / raised / funnel / send-outreach /
+ *     bulk-add-recipients / list-recipients all carry the school_id
+ *     predicate on every UPDATE and through the campaign join on
+ *     reads.
+ *   - BLOCKING 6: `hasAdminScope` replaces `hasStaffScope`. Generic
+ *     `STAFF + pub-004:write` is no longer sufficient for campaign
+ *     management — admin tier is required (school admin OR
+ *     pub-004:admin). Self-service alumni surfaces stay open to
+ *     pub-004:write via the profile/tag service per-row owner
+ *     check.
+ */
 @Injectable()
 export class CampaignService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permCheck: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly redis: RedisService,
   ) {}
 
-  /** List campaigns. Staff + admin see all; non-staff see ACTIVE + COMPLETED only. */
+  /** List campaigns. Admin sees all; non-admin sees ACTIVE + COMPLETED only. */
   async list(actor: ResolvedActor, status?: CampaignStatus): Promise<CampaignDto[]> {
     const tenant = getCurrentTenant();
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isAdmin = await hasAdminScope(this.permCheck, actor);
 
     const where: string[] = ['c.school_id = $1::uuid'];
     const args: unknown[] = [tenant.schoolId];
@@ -105,7 +134,7 @@ export class CampaignService {
     if (status !== undefined) {
       where.push(`c.status = $${args.length + 1}`);
       args.push(status);
-    } else if (!isStaff) {
+    } else if (!isAdmin) {
       where.push(`c.status IN ('ACTIVE', 'COMPLETED')`);
     }
 
@@ -119,7 +148,7 @@ export class CampaignService {
 
   async getById(id: string, actor: ResolvedActor): Promise<CampaignDto> {
     const tenant = getCurrentTenant();
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isAdmin = await hasAdminScope(this.permCheck, actor);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_CAMPAIGN_BASE + 'WHERE c.id = $1::uuid AND c.school_id = $2::uuid LIMIT 1',
@@ -131,16 +160,16 @@ export class CampaignService {
       throw new NotFoundException('Campaign not found');
     }
     const dto = campaignRowToDto(rows[0]!);
-    if (!isStaff && dto.status === 'DRAFT') {
-      // DRAFT is staff-only — hide from non-staff readers.
+    if (!isAdmin && dto.status === 'DRAFT') {
+      // DRAFT is admin-only — hide from non-admin readers.
       throw new NotFoundException('Campaign not found');
     }
     return dto;
   }
 
   async create(input: CreateCampaignDto, actor: ResolvedActor): Promise<CampaignDto> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
-      throw new ForbiddenException('Campaign management requires staff or admin scope');
+    if (!(await hasAdminScope(this.permCheck, actor))) {
+      throw new ForbiddenException('Campaign management requires admin scope');
     }
     const tenant = getCurrentTenant();
     const id = generateId();
@@ -164,10 +193,13 @@ export class CampaignService {
   }
 
   async patch(id: string, input: UpdateCampaignDto, actor: ResolvedActor): Promise<CampaignDto> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
-      throw new ForbiddenException('Campaign management requires staff or admin scope');
+    if (!(await hasAdminScope(this.permCheck, actor))) {
+      throw new ForbiddenException('Campaign management requires admin scope');
     }
+    // REVIEW-P2C22 BLOCKING 2 — loadCampaignOrFail now binds to
+    // school_id; cross-school UUIDs 404 here before the UPDATE.
     await loadCampaignOrFail(this.tenantPrisma, id);
+    const tenant = getCurrentTenant();
 
     const sets: string[] = ['updated_at = now()'];
     const args: unknown[] = [];
@@ -190,7 +222,10 @@ export class CampaignService {
       }
     }
     args.push(id);
-    const sql = `UPDATE alm_campaigns SET ${sets.join(', ')} WHERE id = $${i}::uuid`;
+    args.push(tenant.schoolId);
+    // REVIEW-P2C22 BLOCKING 3 — UPDATE carries the school_id predicate
+    // as defence-in-depth alongside the loader's school check.
+    const sql = `UPDATE alm_campaigns SET ${sets.join(', ')} WHERE id = $${i}::uuid AND school_id = $${i + 1}::uuid`;
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(sql, ...args);
     });
@@ -199,16 +234,21 @@ export class CampaignService {
 
   /**
    * Activate a DRAFT campaign. Stamps activated_at + flips status to
-   * ACTIVE inside a single tx, then emits alm.campaign.activated AFTER
-   * the tx commits.
+   * ACTIVE inside a single tx AND enqueues `alm.campaign.activated`
+   * via the OutboxService in the SAME tx. The outbox-publisher-
+   * worker picks the row up and publishes durably.
+   *
+   * REVIEW-P2C22 BLOCKING 1 — was best-effort kafka.emit() after
+   * the tx committed; a broker outage left the campaign ACTIVE
+   * with no downstream signal. Now durable.
    */
   async activate(id: string, actor: ResolvedActor): Promise<CampaignDto> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
-      throw new ForbiddenException('Campaign management requires staff or admin scope');
+    if (!(await hasAdminScope(this.permCheck, actor))) {
+      throw new ForbiddenException('Campaign management requires admin scope');
     }
     const tenant = getCurrentTenant();
 
-    const result = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = (await tx.$queryRawUnsafe(
         `SELECT status FROM alm_campaigns WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE`,
         id,
@@ -223,38 +263,43 @@ export class CampaignService {
         );
       }
       await tx.$executeRawUnsafe(
-        `UPDATE alm_campaigns SET status = 'ACTIVE', activated_at = now(), updated_at = now() WHERE id = $1::uuid`,
+        `UPDATE alm_campaigns SET status = 'ACTIVE', activated_at = now(), updated_at = now()
+         WHERE id = $1::uuid AND school_id = $2::uuid`,
         id,
+        tenant.schoolId,
       );
       const after = (await tx.$queryRawUnsafe(
-        `SELECT id::text AS id, title, reporting_currency, goal_amount FROM alm_campaigns WHERE id = $1::uuid`,
+        `SELECT id::text AS id, title, reporting_currency, goal_amount
+         FROM alm_campaigns WHERE id = $1::uuid AND school_id = $2::uuid`,
         id,
+        tenant.schoolId,
       )) as Array<{
         id: string;
         title: string;
         reporting_currency: string;
         goal_amount: string | null;
       }>;
-      return after[0]!;
-    });
+      const row = after[0]!;
 
-    try {
-      await this.kafka.emit({
+      // REVIEW-P2C22 BLOCKING 1 — outbox enqueue INSIDE the tx so
+      // the row commits together with the activation. Deterministic
+      // event_id keyed on campaignId so retries dedupe cleanly.
+      await this.outbox.enqueueInTx(tx, {
         topic: 'alm.campaign.activated',
         key: id,
         sourceModule: 'alumni',
+        eventId: deterministicCampaignActivatedEventId(id),
         payload: {
-          campaignId: result.id,
+          campaignId: row.id,
           schoolId: tenant.schoolId,
-          title: result.title,
-          reportingCurrency: result.reporting_currency,
-          goalAmount: result.goal_amount === null ? null : Number(result.goal_amount),
+          title: row.title,
+          reportingCurrency: row.reporting_currency,
+          goalAmount: row.goal_amount === null ? null : Number(row.goal_amount),
           activatedBy: actor.personId,
         },
       });
-    } catch {
-      // best-effort emit
-    }
+    });
+
     await this.redis.cacheInvalidate(campaignRaisedKey(id));
     return this.getById(id, actor);
   }
@@ -263,9 +308,13 @@ export class CampaignService {
    * Read the campaign raised total in reporting_currency. Hits Redis
    * first, then falls through to the authoritative SUM query and
    * caches the result with TTL=5min.
+   *
+   * REVIEW-P2C22 BLOCKING 3 — the SUM query joins through
+   * `alm_campaigns` on `school_id` so a leaked campaign UUID can't
+   * surface the total across schools.
    */
   async raised(id: string, actor: ResolvedActor): Promise<CampaignRaisedDto> {
-    await this.getById(id, actor); // RLS gate
+    await this.getById(id, actor); // RLS gate + school-scoped lookup
     const campaign = await loadCampaignOrFail(this.tenantPrisma, id);
 
     const cached = await this.redis.cacheGet<{ amount: number; currency: string }>(
@@ -280,10 +329,15 @@ export class CampaignService {
       };
     }
 
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT COALESCE(SUM(amount_in_reporting_currency), 0) AS total FROM alm_donations WHERE campaign_id = $1::uuid`,
+        `SELECT COALESCE(SUM(d.amount_in_reporting_currency), 0) AS total
+         FROM alm_donations d
+         JOIN alm_campaigns c ON c.id = d.campaign_id
+         WHERE d.campaign_id = $1::uuid AND c.school_id = $2::uuid`,
         id,
+        tenant.schoolId,
       );
     })) as Array<{ total: string }>;
     const total = Number(rows[0]?.total ?? 0);
@@ -300,16 +354,22 @@ export class CampaignService {
     };
   }
 
-  /** Roll up the outreach funnel for a campaign. */
+  /** Roll up the outreach funnel for a campaign. Admin-only. */
   async funnel(id: string, actor: ResolvedActor): Promise<CampaignFunnelDto> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
-      throw new ForbiddenException('Campaign funnel requires staff or admin scope');
+    if (!(await hasAdminScope(this.permCheck, actor))) {
+      throw new ForbiddenException('Campaign funnel requires admin scope');
     }
     await loadCampaignOrFail(this.tenantPrisma, id);
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT outreach_status, COUNT(*)::int AS n FROM alm_campaign_recipients WHERE campaign_id = $1::uuid GROUP BY outreach_status`,
+        `SELECT r.outreach_status, COUNT(*)::int AS n
+         FROM alm_campaign_recipients r
+         JOIN alm_campaigns c ON c.id = r.campaign_id
+         WHERE r.campaign_id = $1::uuid AND c.school_id = $2::uuid
+         GROUP BY r.outreach_status`,
         id,
+        tenant.schoolId,
       );
     })) as Array<{ outreach_status: string; n: number }>;
     const out: CampaignFunnelDto = {
@@ -352,24 +412,29 @@ export class CampaignService {
    * Bulk-add campaign recipients by tag. Resolves the tag to
    * alm_alumni_profiles ids and inserts campaign_recipient rows
    * idempotently — duplicates are skipped via ON CONFLICT DO NOTHING.
+   *
+   * REVIEW-P2C22 BLOCKING 3 — the alumni-resolution subquery now
+   * explicitly takes the campaign's `school_id` from `loadCampaignOrFail`
+   * rather than deriving it from a nested SELECT against the same
+   * campaign row. This keeps the SQL self-evident and tightens the
+   * cross-school path.
    */
   async addRecipientsByTag(
     campaignId: string,
     input: AddRecipientsByTagDto,
     actor: ResolvedActor,
   ): Promise<{ campaignId: string; created: number; skipped: number }> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
-      throw new ForbiddenException('Recipient management requires staff or admin scope');
+    if (!(await hasAdminScope(this.permCheck, actor))) {
+      throw new ForbiddenException('Recipient management requires admin scope');
     }
-    await loadCampaignOrFail(this.tenantPrisma, campaignId);
+    const campaign = await loadCampaignOrFail(this.tenantPrisma, campaignId);
 
     const result = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const alumniRows = (await tx.$queryRawUnsafe(
         `SELECT p.id::text AS id FROM alm_alumni_profiles p
          JOIN alm_alumni_tags t ON t.alumni_id = p.id
-         WHERE p.school_id = (SELECT school_id FROM alm_campaigns WHERE id = $1::uuid)
-           AND t.tag = $2`,
-        campaignId,
+         WHERE p.school_id = $1::uuid AND t.tag = $2`,
+        campaign.schoolId,
         input.tag,
       )) as Array<{ id: string }>;
 
@@ -396,26 +461,29 @@ export class CampaignService {
     };
   }
 
-  /** List recipients for a campaign. Staff + admin only. */
+  /** List recipients for a campaign. Admin-only. */
   async listRecipients(
     campaignId: string,
     actor: ResolvedActor,
     status?: OutreachStatus,
   ): Promise<CampaignRecipientDto[]> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
-      throw new ForbiddenException('Recipient list requires staff or admin scope');
+    if (!(await hasAdminScope(this.permCheck, actor))) {
+      throw new ForbiddenException('Recipient list requires admin scope');
     }
     await loadCampaignOrFail(this.tenantPrisma, campaignId);
-    const where: string[] = ['campaign_id = $1::uuid'];
-    const args: unknown[] = [campaignId];
+    const tenant = getCurrentTenant();
+    const where: string[] = ['r.campaign_id = $1::uuid', 'c.school_id = $2::uuid'];
+    const args: unknown[] = [campaignId, tenant.schoolId];
     if (status !== undefined) {
-      where.push(`outreach_status = $${args.length + 1}`);
+      where.push(`r.outreach_status = $${args.length + 1}`);
       args.push(status);
     }
     const sql =
-      `SELECT id::text AS id, campaign_id::text AS campaign_id, alumni_id::text AS alumni_id, outreach_status, ` +
-      `sent_at, opened_at, responded_at, donated_at, unsubscribed_at ` +
-      `FROM alm_campaign_recipients WHERE ${where.join(' AND ')} ORDER BY created_at DESC`;
+      `SELECT r.id::text AS id, r.campaign_id::text AS campaign_id, r.alumni_id::text AS alumni_id, r.outreach_status, ` +
+      `r.sent_at, r.opened_at, r.responded_at, r.donated_at, r.unsubscribed_at ` +
+      `FROM alm_campaign_recipients r ` +
+      `JOIN alm_campaigns c ON c.id = r.campaign_id ` +
+      `WHERE ${where.join(' AND ')} ORDER BY r.created_at DESC`;
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(sql, ...args);
     })) as Array<{
@@ -455,23 +523,31 @@ export class OutreachService {
    * (via Cycle 14 Communications) is the Step 6 concern; this method
    * just flips the funnel state to make the dashboard reflect that
    * outreach has gone out. Returns the count of rows flipped.
+   *
+   * REVIEW-P2C22 BLOCKING 3 — the UPDATE now JOINs through
+   * `alm_campaigns` so a leaked campaign UUID belonging to a sister
+   * school cannot flip the wrong recipients.
    */
   async sendOutreach(
     campaignId: string,
     actor: ResolvedActor,
   ): Promise<{ campaignId: string; sent: number }> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
-      throw new ForbiddenException('Outreach send requires staff or admin scope');
+    if (!(await hasAdminScope(this.permCheck, actor))) {
+      throw new ForbiddenException('Outreach send requires admin scope');
     }
     await loadCampaignOrFail(this.tenantPrisma, campaignId);
+    const tenant = getCurrentTenant();
 
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `UPDATE alm_campaign_recipients
+        `UPDATE alm_campaign_recipients r
          SET outreach_status = 'SENT', sent_at = now(), updated_at = now()
-         WHERE campaign_id = $1::uuid AND outreach_status = 'PENDING'
-         RETURNING id`,
+         FROM alm_campaigns c
+         WHERE r.campaign_id = $1::uuid AND c.id = r.campaign_id
+           AND c.school_id = $2::uuid AND r.outreach_status = 'PENDING'
+         RETURNING r.id`,
         campaignId,
+        tenant.schoolId,
       );
     })) as Array<{ id: string }>;
     return { campaignId, sent: rows.length };
@@ -485,20 +561,31 @@ export class OutreachService {
    *   RESPONDED -> DONATED / UNSUBSCRIBED
    * DONATED is terminal (donations land via the DonationService);
    * UNSUBSCRIBED is terminal.
+   *
+   * REVIEW-P2C22 BLOCKING 3 — the FOR UPDATE lock now JOINs through
+   * `alm_campaigns` so a leaked recipient UUID from a sister school
+   * collapses to 404 don't-leak-existence at the loader. The UPDATE
+   * statement also carries the school predicate as defence-in-depth.
    */
   async updateStatus(
     recipientId: string,
     input: UpdateRecipientStatusDto,
     actor: ResolvedActor,
   ): Promise<CampaignRecipientDto> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
-      throw new ForbiddenException('Recipient status changes require staff or admin scope');
+    if (!(await hasAdminScope(this.permCheck, actor))) {
+      throw new ForbiddenException('Recipient status changes require admin scope');
     }
     const stamp = stampForStatus(input.status);
+    const tenant = getCurrentTenant();
     const result = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = (await tx.$queryRawUnsafe(
-        `SELECT outreach_status FROM alm_campaign_recipients WHERE id = $1::uuid FOR UPDATE`,
+        `SELECT r.outreach_status
+         FROM alm_campaign_recipients r
+         JOIN alm_campaigns c ON c.id = r.campaign_id
+         WHERE r.id = $1::uuid AND c.school_id = $2::uuid
+         FOR UPDATE OF r`,
         recipientId,
+        tenant.schoolId,
       )) as Array<{ outreach_status: string }>;
       if (rows.length === 0) {
         throw new NotFoundException('Recipient not found');
@@ -514,15 +601,22 @@ export class OutreachService {
         sets.push(`${stamp} = COALESCE(${stamp}, now())`);
       }
       await tx.$executeRawUnsafe(
-        `UPDATE alm_campaign_recipients SET ${sets.join(', ')} WHERE id = $2::uuid`,
+        `UPDATE alm_campaign_recipients r
+         SET ${sets.join(', ')}
+         FROM alm_campaigns c
+         WHERE c.id = r.campaign_id AND r.id = $2::uuid AND c.school_id = $3::uuid`,
         input.status,
         recipientId,
+        tenant.schoolId,
       );
       const after = (await tx.$queryRawUnsafe(
-        `SELECT id::text AS id, campaign_id::text AS campaign_id, alumni_id::text AS alumni_id, outreach_status,
-         sent_at, opened_at, responded_at, donated_at, unsubscribed_at
-         FROM alm_campaign_recipients WHERE id = $1::uuid`,
+        `SELECT r.id::text AS id, r.campaign_id::text AS campaign_id, r.alumni_id::text AS alumni_id,
+         r.outreach_status, r.sent_at, r.opened_at, r.responded_at, r.donated_at, r.unsubscribed_at
+         FROM alm_campaign_recipients r
+         JOIN alm_campaigns c ON c.id = r.campaign_id
+         WHERE r.id = $1::uuid AND c.school_id = $2::uuid`,
         recipientId,
+        tenant.schoolId,
       )) as Array<{
         id: string;
         campaign_id: string;
@@ -585,7 +679,7 @@ export class DonationService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permCheck: PermissionCheckService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly redis: RedisService,
   ) {}
 
@@ -593,13 +687,17 @@ export class DonationService {
    * Record a donation. Computes amount_in_reporting_currency = amount *
    * fxRateAtDonation (or amount when currency matches the campaign's
    * reporting_currency). Atomically updates any matching
-   * alm_campaign_recipients row to DONATED inside the same tx. Emits
-   * alm.donation.received AFTER tx commits. Invalidates the Redis
-   * campaign-raised cache.
+   * alm_campaign_recipients row to DONATED inside the same tx AND
+   * enqueues `alm.donation.received` via OutboxService.enqueueInTx in
+   * the same tx. The outbox-publisher-worker drains durably.
+   *
+   * REVIEW-P2C22 BLOCKING 1 — emit moved from best-effort kafka.emit()
+   * post-commit to durable outbox-inside-tx with deterministic event_id.
    *
    * Authority — alumni may donate to themselves (donor_alumni_id ===
-   * own profile id); staff + admin may record a donation on behalf of
-   * any alumnus.
+   * own profile id); admin may record a donation on behalf of any
+   * alumnus. Generic STAFF + pub-004:write is NOT sufficient
+   * (BLOCKING 6).
    */
   async donate(
     campaignId: string,
@@ -614,10 +712,10 @@ export class DonationService {
       );
     }
     const profile = await loadAlumniProfileOrFail(this.tenantPrisma, donorAlumniId);
-    const isStaff = await hasStaffScope(this.permCheck, actor);
-    if (!isStaff && profile.personId !== actor.personId) {
+    const isAdmin = await hasAdminScope(this.permCheck, actor);
+    if (!isAdmin && profile.personId !== actor.personId) {
       throw new ForbiddenException(
-        'Only staff or admin may record a donation on behalf of another alumnus.',
+        'Only admin may record a donation on behalf of another alumnus.',
       );
     }
 
@@ -637,6 +735,7 @@ export class DonationService {
     }
 
     const donationId = generateId();
+    const tenant = getCurrentTenant();
     const result = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
         `INSERT INTO alm_donations
@@ -658,12 +757,19 @@ export class DonationService {
       // Atomically flip the matching campaign_recipient (if any) to
       // DONATED. ON CONFLICT not needed — recipient may not exist for
       // every donor (donations can land without prior outreach).
+      // REVIEW-P2C22 BLOCKING 3 — JOIN alm_campaigns so cross-school
+      // campaignId never propagates here.
       await tx.$executeRawUnsafe(
-        `UPDATE alm_campaign_recipients
-         SET outreach_status = 'DONATED', donated_at = COALESCE(donated_at, now()), updated_at = now()
-         WHERE campaign_id = $1::uuid AND alumni_id = $2::uuid`,
+        `UPDATE alm_campaign_recipients r
+         SET outreach_status = 'DONATED', donated_at = COALESCE(r.donated_at, now()), updated_at = now()
+         FROM alm_campaigns c
+         WHERE c.id = r.campaign_id
+           AND r.campaign_id = $1::uuid
+           AND r.alumni_id = $2::uuid
+           AND c.school_id = $3::uuid`,
         campaignId,
         donorAlumniId,
+        tenant.schoolId,
       );
 
       const rows = (await tx.$queryRawUnsafe(
@@ -685,43 +791,46 @@ export class DonationService {
         donated_at: Date;
         is_anonymous: boolean;
       }>;
-      return rows[0]!;
-    });
+      const row = rows[0]!;
 
-    // Invalidate raised cache so the next read recomputes.
-    await this.redis.cacheInvalidate(campaignRaisedKey(campaignId));
-
-    // Emit alm.donation.received AFTER tx commits.
-    try {
-      await this.kafka.emit({
+      // REVIEW-P2C22 BLOCKING 1 — outbox enqueue inside the tx so
+      // the donation + recipient flip + envelope all commit together.
+      await this.outbox.enqueueInTx(tx, {
         topic: 'alm.donation.received',
         key: donationId,
         sourceModule: 'alumni',
+        eventId: deterministicDonationReceivedEventId(donationId),
         payload: {
           donationId,
           campaignId,
           schoolId: campaign.schoolId,
           donorAlumniId,
-          amount: Number(result.amount),
-          currency: result.currency,
+          amount: Number(row.amount),
+          currency: row.currency,
           fxRateAtDonation:
-            result.fx_rate_at_donation === null ? null : Number(result.fx_rate_at_donation),
-          amountInReportingCurrency: Number(result.amount_in_reporting_currency),
-          isAnonymous: result.is_anonymous,
-          donatedAt: result.donated_at.toISOString(),
+            row.fx_rate_at_donation === null ? null : Number(row.fx_rate_at_donation),
+          amountInReportingCurrency: Number(row.amount_in_reporting_currency),
+          isAnonymous: row.is_anonymous,
+          donatedAt: row.donated_at.toISOString(),
         },
       });
-    } catch {
-      // best-effort emit
-    }
 
-    return this.toDto(result, isStaff);
+      return row;
+    });
+
+    // Invalidate raised cache so the next read recomputes. The DB +
+    // outbox row are durable; the cache invalidate is the fastest
+    // signal that the dashboard total moved.
+    await this.redis.cacheInvalidate(campaignRaisedKey(campaignId));
+
+    return this.toDto(result, isAdmin);
   }
 
-  /** List donations on a campaign. Anonymous donations are stripped for non-staff readers. */
+  /** List donations on a campaign. Anonymous donations are stripped for non-admin readers. */
   async listForCampaign(campaignId: string, actor: ResolvedActor): Promise<DonationDto[]> {
     await loadCampaignOrFail(this.tenantPrisma, campaignId);
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isAdmin = await hasAdminScope(this.permCheck, actor);
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         `SELECT d.id::text AS id, d.campaign_id::text AS campaign_id, d.donor_alumni_id::text AS donor_alumni_id,
@@ -729,11 +838,13 @@ export class DonationService {
          d.stripe_payment_intent_id, d.donated_at, d.is_anonymous,
          (ip.first_name || ' ' || ip.last_name) AS donor_display_name
          FROM alm_donations d
+         JOIN alm_campaigns c ON c.id = d.campaign_id
          JOIN alm_alumni_profiles p ON p.id = d.donor_alumni_id
          LEFT JOIN platform.iam_person ip ON ip.id = p.person_id
-         WHERE d.campaign_id = $1::uuid
+         WHERE d.campaign_id = $1::uuid AND c.school_id = $2::uuid
          ORDER BY d.donated_at DESC`,
         campaignId,
+        tenant.schoolId,
       );
     })) as Array<{
       id: string;
@@ -749,14 +860,15 @@ export class DonationService {
       is_anonymous: boolean;
       donor_display_name: string | null;
     }>;
-    return rows.map((r) => this.toDto(r, isStaff));
+    return rows.map((r) => this.toDto(r, isAdmin));
   }
 
   /**
-   * Build a DonationDto with anonymous-donor stripping. Non-staff
-   * readers see is_anonymous=true rows with donorAlumniId + donorDisplayName
-   * cleared and the display name swapped for 'Anonymous'. Admin + staff
-   * still see donor for auditing.
+   * Build a DonationDto with anonymous-donor stripping. Non-admin
+   * readers see is_anonymous=true rows with donorAlumniId +
+   * donorDisplayName cleared and the display name swapped for
+   * 'Anonymous'. Admin sees donor for auditing. Payment refs are
+   * admin-only regardless of is_anonymous (audit fields).
    */
   private toDto(
     r: {
@@ -773,20 +885,20 @@ export class DonationService {
       is_anonymous: boolean;
       donor_display_name?: string | null;
     },
-    isStaff: boolean,
+    isAdmin: boolean,
   ): DonationDto {
     const isAnonymous = r.is_anonymous;
     return {
       id: r.id,
       campaignId: r.campaign_id,
-      donorAlumniId: isAnonymous && !isStaff ? null : r.donor_alumni_id,
-      donorDisplayName: isAnonymous && !isStaff ? 'Anonymous' : (r.donor_display_name ?? null),
+      donorAlumniId: isAnonymous && !isAdmin ? null : r.donor_alumni_id,
+      donorDisplayName: isAnonymous && !isAdmin ? 'Anonymous' : (r.donor_display_name ?? null),
       amount: Number(r.amount),
       currency: r.currency,
       fxRateAtDonation: r.fx_rate_at_donation === null ? null : Number(r.fx_rate_at_donation),
       amountInReportingCurrency: Number(r.amount_in_reporting_currency),
-      paymentRef: isStaff ? r.payment_ref : null,
-      stripePaymentIntentId: isStaff ? r.stripe_payment_intent_id : null,
+      paymentRef: isAdmin ? r.payment_ref : null,
+      stripePaymentIntentId: isAdmin ? r.stripe_payment_intent_id : null,
       donatedAt: r.donated_at.toISOString(),
       isAnonymous,
     };

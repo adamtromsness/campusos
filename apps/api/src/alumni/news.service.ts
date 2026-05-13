@@ -10,7 +10,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { hasStaffScope } from './access';
+import { hasAdminScope } from './access';
 import {
   AlumniEventDto,
   AlumniNewsDto,
@@ -72,7 +72,7 @@ export class AlumniNewsService {
     filters: { category?: NewsCategory; includeDrafts?: boolean } = {},
   ): Promise<AlumniNewsDto[]> {
     const tenant = getCurrentTenant();
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isStaff = await hasAdminScope(this.permCheck, actor);
     const where: string[] = ['n.school_id = $1::uuid'];
     const args: unknown[] = [tenant.schoolId];
     if (!isStaff || !filters.includeDrafts) {
@@ -95,7 +95,7 @@ export class AlumniNewsService {
 
   async getById(id: string, actor: ResolvedActor): Promise<AlumniNewsDto> {
     const tenant = getCurrentTenant();
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isStaff = await hasAdminScope(this.permCheck, actor);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_NEWS_BASE + 'WHERE n.id = $1::uuid AND n.school_id = $2::uuid LIMIT 1',
@@ -113,7 +113,7 @@ export class AlumniNewsService {
   }
 
   async create(input: CreateAlumniNewsDto, actor: ResolvedActor): Promise<AlumniNewsDto> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
+    if (!(await hasAdminScope(this.permCheck, actor))) {
       throw new ForbiddenException('News management requires staff or admin scope');
     }
     const tenant = getCurrentTenant();
@@ -139,9 +139,10 @@ export class AlumniNewsService {
     input: UpdateAlumniNewsDto,
     actor: ResolvedActor,
   ): Promise<AlumniNewsDto> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
+    if (!(await hasAdminScope(this.permCheck, actor))) {
       throw new ForbiddenException('News management requires staff or admin scope');
     }
+    const tenant = getCurrentTenant();
     const sets: string[] = ['updated_at = now()'];
     const args: unknown[] = [];
     let i = 1;
@@ -155,7 +156,13 @@ export class AlumniNewsService {
     if (input.publish === true) sets.push('published_at = COALESCE(published_at, now())');
     if (input.publish === false) sets.push('published_at = NULL');
     args.push(id);
-    const sql = `UPDATE alm_alumni_news SET ${sets.join(', ')} WHERE id = $${i}::uuid`;
+    args.push(tenant.schoolId);
+    // REVIEW-P2C22 BLOCKING 4 — every UPDATE carries the school
+    // predicate so a stray cross-school UUID cannot mutate a sister
+    // school's news article. The pre-flight getById in this method
+    // already enforces school scope at read time; the predicate here
+    // is defence-in-depth.
+    const sql = `UPDATE alm_alumni_news SET ${sets.join(', ')} WHERE id = $${i}::uuid AND school_id = $${i + 1}::uuid`;
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(sql, ...args);
     });
@@ -163,11 +170,19 @@ export class AlumniNewsService {
   }
 
   async remove(id: string, actor: ResolvedActor): Promise<void> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
+    if (!(await hasAdminScope(this.permCheck, actor))) {
       throw new ForbiddenException('News management requires staff or admin scope');
     }
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C22 BLOCKING 4 — DELETE carries the school predicate
+    // so cross-school UUIDs cannot land here. Zero-row result raises
+    // 404 (collapses "not found" + "not yours" to don't-leak-existence).
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$executeRawUnsafe('DELETE FROM alm_alumni_news WHERE id = $1::uuid', id);
+      return client.$executeRawUnsafe(
+        'DELETE FROM alm_alumni_news WHERE id = $1::uuid AND school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     })) as unknown;
     if (typeof rows === 'number' && rows === 0) {
       throw new NotFoundException('News article not found');
@@ -272,7 +287,7 @@ export class ReunionGroupService {
    */
   async create(input: CreateReunionGroupDto, actor: ResolvedActor): Promise<ReunionGroupDto> {
     const tenant = getCurrentTenant();
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isStaff = await hasAdminScope(this.permCheck, actor);
     if (!isStaff) {
       // Non-staff must be the organiser themselves.
       const ownRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -314,8 +329,9 @@ export class ReunionGroupService {
     input: UpdateReunionGroupDto,
     actor: ResolvedActor,
   ): Promise<ReunionGroupDto> {
+    const tenant = getCurrentTenant();
     const current = await this.getById(id, actor);
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isStaff = await hasAdminScope(this.permCheck, actor);
     if (!isStaff) {
       const ownRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe(
@@ -351,7 +367,11 @@ export class ReunionGroupService {
     if (input.description !== undefined) add('description', input.description);
     if (input.venue !== undefined) add('venue', input.venue);
     args.push(id);
-    const sql = `UPDATE alm_reunion_groups SET ${sets.join(', ')} WHERE id = $${i}::uuid`;
+    args.push(tenant.schoolId);
+    // REVIEW-P2C22 BLOCKING 4 — UPDATE carries the school predicate
+    // so cross-school UUIDs cannot mutate a sister school's reunion.
+    // The pre-flight getById already enforces school scope at read.
+    const sql = `UPDATE alm_reunion_groups SET ${sets.join(', ')} WHERE id = $${i}::uuid AND school_id = $${i + 1}::uuid`;
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(sql, ...args);
     });
@@ -449,7 +469,7 @@ export class AlumniEventService {
   }
 
   async create(input: CreateAlumniEventDto, actor: ResolvedActor): Promise<AlumniEventDto> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
+    if (!(await hasAdminScope(this.permCheck, actor))) {
       throw new ForbiddenException('Event management requires staff or admin scope');
     }
     const tenant = getCurrentTenant();
@@ -477,9 +497,12 @@ export class AlumniEventService {
     input: UpdateAlumniEventDto,
     actor: ResolvedActor,
   ): Promise<AlumniEventDto> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
+    if (!(await hasAdminScope(this.permCheck, actor))) {
       throw new ForbiddenException('Event management requires staff or admin scope');
     }
+    // Pre-flight read enforces school scope at the loader.
+    await this.getById(id, actor);
+    const tenant = getCurrentTenant();
     const sets: string[] = ['updated_at = now()'];
     const args: unknown[] = [];
     let i = 1;
@@ -494,7 +517,11 @@ export class AlumniEventService {
     if (input.rsvpUrl !== undefined) add('rsvp_url', input.rsvpUrl);
     if (input.evtEventId !== undefined) add('evt_event_id', input.evtEventId);
     args.push(id);
-    const sql = `UPDATE alm_events SET ${sets.join(', ')} WHERE id = $${i}::uuid`;
+    args.push(tenant.schoolId);
+    // REVIEW-P2C22 BLOCKING 4 — every UPDATE carries the school
+    // predicate. The defence-in-depth fires even if a future code
+    // path skips the pre-flight getById.
+    const sql = `UPDATE alm_events SET ${sets.join(', ')} WHERE id = $${i}::uuid AND school_id = $${i + 1}::uuid`;
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(sql, ...args);
     });
@@ -502,23 +529,44 @@ export class AlumniEventService {
   }
 
   async remove(id: string, actor: ResolvedActor): Promise<void> {
-    if (!(await hasStaffScope(this.permCheck, actor))) {
+    if (!(await hasAdminScope(this.permCheck, actor))) {
       throw new ForbiddenException('Event management requires staff or admin scope');
     }
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe('DELETE FROM alm_events WHERE id = $1::uuid', id);
-    });
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C22 BLOCKING 4 — DELETE carries the school predicate
+    // so cross-school UUIDs cannot land here. Zero-row result raises
+    // 404 (collapses "not found" + "not yours" to don't-leak-existence).
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$executeRawUnsafe(
+        'DELETE FROM alm_events WHERE id = $1::uuid AND school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
+    })) as unknown;
+    if (typeof rows === 'number' && rows === 0) {
+      throw new NotFoundException('Alumni event not found');
+    }
   }
 
   /**
    * Resolve ticket availability from the P2-12 Events module. The link
    * is DISPLAY-ONLY (no FK constraint) so this method ALWAYS handles
-   * the four no-data outcomes gracefully:
+   * the no-data outcomes gracefully:
    *   - evtEventId is null → returns null (no link)
    *   - Events module not enabled / evt_events table missing → null
    *     (caller falls back to rsvp_url)
-   *   - Events module enabled but the supplied id is not a real row → null
-   *   - The row exists → returns the computed remaining-capacity int
+   *   - Events module enabled but the supplied id is not a real row
+   *     IN THE CURRENT SCHOOL → null
+   *   - The row exists in the current school → returns the computed
+   *     remaining-capacity int
+   *
+   * REVIEW-P2C22 BLOCKING 5 — the WHERE now adds `e.school_id = $2`
+   * so a stale `evt_event_id` pointing at a sister school's tickets
+   * cannot leak counts into the current school's alumni event card.
+   * Cross-school evt_event_id values resolve to null (treated as "no
+   * link") and the UI falls back to the rsvp_url, which is the right
+   * behaviour — the alumni event lives in this tenant, the linked
+   * ticket cannot live elsewhere.
    *
    * Resolution method: a defensive raw query against tenant
    * `evt_events` joined to `evt_ticket_tiers` to sum (quantity -
@@ -527,15 +575,17 @@ export class AlumniEventService {
    */
   private async resolveTicketsAvailable(evtEventId: string | null): Promise<number | null> {
     if (!evtEventId) return null;
+    const tenant = getCurrentTenant();
     try {
       const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe(
           `SELECT COALESCE(SUM(t.quantity - t.quantity_sold), 0)::int AS available
            FROM evt_events e
            LEFT JOIN evt_ticket_tiers t ON t.event_id = e.id
-           WHERE e.id = $1::uuid
+           WHERE e.id = $1::uuid AND e.school_id = $2::uuid
            GROUP BY e.id`,
           evtEventId,
+          tenant.schoolId,
         );
       })) as Array<{ available: number }>;
       if (rows.length === 0) return null;

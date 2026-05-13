@@ -323,7 +323,126 @@ covering all 7 plan scenarios:
 
 ## REVIEW-P2C22 Round 1 fix log
 
-_(reserved for the post-cycle review record)_
+Round 1 of REVIEW-P2C22-CHATGPT (against the P2-22b closeout commit
+`262d867`) returned **REJECT** with 6 BLOCKING items. All 6 fixes
+landed in the Round 1 closeout commit + 9 new pinned regression
+tests so the contracts cannot regress. The pre-existing alumni spec
+file was retrofitted in place (helper `makeKafka()` rerouted to a
+new `makeOutbox()` capturing `enqueueInTx(tx, opts)` calls; six
+pre-existing fake-handler match patterns rewritten to recognise
+the new school-scoped SQL shape; one `staff campaign list returns
+all statuses` test split into two — one for `pub-004:admin` (sees
+all) + one for `pub-004:write` (sees ACTIVE/COMPLETED only) — to
+verify the B6 narrowing).
+
+**BLOCKING fixes:**
+
+1. **Outbox for `alm.campaign.activated` + `alm.donation.received`**
+   — `CampaignService` + `DonationService` constructors flipped from
+   `KafkaProducerService` to `OutboxService` (KafkaModule already
+   exports both, so DI resolves automatically). `CampaignService.activate`
+   now enqueues via `outbox.enqueueInTx(tx, …)` INSIDE the same
+   `executeInTenantTransaction` callback as the DRAFT → ACTIVE flip.
+   `DonationService.donate` enqueues inside the same tx as the donation
+   INSERT + recipient flip. New `apps/api/src/alumni/event-ids.ts`
+   exports `deterministicCampaignActivatedEventId(campaignId)` and
+   `deterministicDonationReceivedEventId(donationId)` — both v5-shaped
+   UUIDs via `sha256(<key>:<topic>:v1)` matching the helpers across
+   Cycles 11 / 12 / P2-12 / P2-14 / P2-20 / P2-21. Outbox retries
+   land the same envelope event_id so downstream consumers dedupe
+   cleanly through the consumer-group idempotency claim.
+
+2. **School-scoped access helpers** — `apps/api/src/alumni/access.ts`
+   `resolveOwnAlumniId` / `loadAlumniProfileOrFail` /
+   `loadCampaignOrFail` all bind to `school_id = $tenant.schoolId`.
+   Cross-school UUIDs collapse to `NotFoundException` at the loader
+   layer instead of being accepted by downstream services. Every
+   service that previously routed through these helpers (campaign,
+   donation, outreach, news, reunion, event, profile, tag) now
+   inherits the school predicate for free.
+
+3. **School-scoped campaign + recipient + outreach mutations** —
+   `CampaignService.patch` UPDATE now carries `WHERE id=$ AND school_id=$`.
+   `CampaignService.raised` SUM query JOINs through `alm_campaigns
+c ON c.id = d.campaign_id WHERE c.school_id = $tenant.schoolId`.
+   `CampaignService.funnel` SQL JOINs through `alm_campaigns` and
+   uses `r.outreach_status` (table-aliased) so cross-school recipient
+   counts cannot leak. `CampaignService.addRecipientsByTag` resolves
+   `campaign.schoolId` from the school-scoped loader instead of a
+   nested SELECT. `CampaignService.listRecipients` SQL JOINs through
+   `alm_campaigns` with `c.school_id` predicate.
+   `OutreachService.sendOutreach` rewrites the UPDATE to
+   `UPDATE alm_campaign_recipients r SET … FROM alm_campaigns c WHERE
+r.campaign_id = $1 AND c.id = r.campaign_id AND c.school_id = $2
+AND r.outreach_status = 'PENDING' RETURNING r.id`.
+   `OutreachService.updateStatus` FOR UPDATE lock now JOINs through
+   `alm_campaigns c ON c.id = r.campaign_id WHERE r.id = $1 AND
+c.school_id = $2 FOR UPDATE OF r`. `DonationService.donate`
+   recipient flip UPDATE also JOINs through `alm_campaigns`.
+
+4. **School-scoped news + reunion + event mutations** —
+   `AlumniNewsService.patch` UPDATE adds `AND school_id = $N::uuid`.
+   `AlumniNewsService.remove` DELETE adds `AND school_id = $2::uuid`
+   and raises `NotFoundException` on zero-row result (collapses
+   "not found" + "not yours" to don't-leak-existence).
+   `ReunionGroupService.patch` UPDATE adds the same predicate.
+   `AlumniEventService.patch` UPDATE + `AlumniEventService.remove`
+   DELETE both add the school predicate. Same pattern applied for
+   defence-in-depth on `AlumniProfileService.patch` and
+   `AlumniTagService.removeTag` (the JOIN through `alm_alumni_profiles
+WHERE school_id` was added too so the DELETE cannot land via a
+   leaked cross-school tag UUID).
+
+5. **School-scoped `evt_event_id` ticket enrichment** —
+   `AlumniEventService.resolveTicketsAvailable` SQL adds
+   `AND e.school_id = $2::uuid` and passes `tenant.schoolId` as `$2`.
+   A stale `evt_event_id` pointing at a sister school's tickets
+   cannot leak counts into the current school's alumni event card;
+   the row resolves to `null` (treated as "no link") and the UI
+   falls back to the `rsvp_url`. The graceful fallback for the
+   Events-module-not-enabled case still works (try/catch swallow
+   on `relation "evt_events" does not exist`).
+
+6. **Module-wide admin authority requires `pub-004:admin`** —
+   new `hasAdminScope(permCheck, actor)` in `apps/api/src/alumni/access.ts`
+   returns `true` when `actor.isSchoolAdmin OR actor holds
+pub-004:admin at the tenant scope`. Legacy `hasStaffScope` kept
+   as a `@deprecated` alias delegating to the new helper so the
+   transition is non-breaking. Every management surface across
+   `CampaignService` / `DonationService` / `OutreachService` /
+   `AlumniNewsService` / `ReunionGroupService` / `AlumniEventService`
+   / `AlumniProfileService` / `AlumniTagService` now calls
+   `hasAdminScope`. Generic STAFF + `pub-004:write` continues to
+   manage their OWN profile + own tags via per-row owner checks at
+   the service layer, but no longer inherits module-wide admin
+   authority. The pre-existing `Scenario 7 — staff campaign list
+returns all statuses` test was split into two: one for an
+   admin (`pub-004:admin` holder — sees all statuses) and one for
+   the B6 narrowing case (`pub-004:write` only — sees ACTIVE +
+   COMPLETED only, same as a non-admin reader).
+
+**Test coverage:** the existing 35 alumni vertical-slice integration
+tests retrofitted to use `makeOutbox()` and the school-scoped SQL
+patterns + **9 new pinned regression tests in the REVIEW-P2C22
+ROUND 1 describe block** covering: deterministic event_id stability
+for both topics (3 tests); school-scoped helper SQL shape (3 tests);
+campaign + recipient JOIN through `alm_campaigns.school_id` (2 tests);
+news + reunion + event UPDATE/DELETE school predicate (3 tests);
+`evt_event_id` ticket enrichment school predicate (1 test); module-
+wide admin authority distribution across STAFF with `pub-004:write`
+vs STAFF with `pub-004:admin` (4 tests). Total alumni spec: **44
+passing tests**. Full API vitest suite: **1125 passing across 58
+spec files** (was 1116 before Round 1 fixes; +9 regression tests).
+
+**CI parity green** at the Round 1 fix commit: `format:check` + `lint:logs`
+(909 files clean) + API build clean + web build clean + vitest
+1125/1125. No schema migrations in Round 1 — every fix is service-
+layer + new `event-ids.ts` helper + module-wiring (DI auto-resolves
+the new constructor signatures via the existing `KafkaModule`
+exports).
+
+Awaiting Round 2 verdict before tagging `p2c22-complete`. See
+`P2C22-REVIEW-NOTES.md` for the per-blocker verification trail.
 
 ## Reviewer attention items
 

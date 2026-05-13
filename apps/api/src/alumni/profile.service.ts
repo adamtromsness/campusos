@@ -11,7 +11,7 @@ import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import {
-  hasStaffScope,
+  hasAdminScope,
   isUniqueViolation,
   loadAlumniProfileOrFail,
   resolveOwnAlumniId,
@@ -89,12 +89,12 @@ export class AlumniProfileService {
     filters: { graduationYear?: number; employer?: string; tag?: string } = {},
   ): Promise<AlumniProfileDto[]> {
     const tenant = getCurrentTenant();
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isAdmin = await hasAdminScope(this.permCheck, actor);
 
     const where: string[] = ['p.school_id = $1::uuid'];
     const args: unknown[] = [tenant.schoolId];
 
-    if (!isStaff) {
+    if (!isAdmin) {
       // Non-staff non-admin readers see opted-in only, EXCEPT the
       // calling alumnus's own row regardless of opt-in state.
       where.push(`(p.is_opted_in = true OR p.person_id = $${args.length + 1}::uuid)`);
@@ -134,9 +134,9 @@ export class AlumniProfileService {
    */
   async getById(id: string, actor: ResolvedActor): Promise<AlumniProfileDto> {
     const profile = await loadAlumniProfileOrFail(this.tenantPrisma, id);
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isAdmin = await hasAdminScope(this.permCheck, actor);
 
-    if (!isStaff && !profile.isOptedIn && profile.personId !== actor.personId) {
+    if (!isAdmin && !profile.isOptedIn && profile.personId !== actor.personId) {
       // Hide existence — opt-out is private.
       throw new NotFoundException('Alumni profile not found');
     }
@@ -171,9 +171,9 @@ export class AlumniProfileService {
    */
   async create(input: CreateAlumniProfileDto, actor: ResolvedActor): Promise<AlumniProfileDto> {
     const tenant = getCurrentTenant();
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isAdmin = await hasAdminScope(this.permCheck, actor);
 
-    if (!isStaff && input.personId !== actor.personId) {
+    if (!isAdmin && input.personId !== actor.personId) {
       throw new ForbiddenException(
         'Only staff or admin may create an alumni profile on behalf of another user.',
       );
@@ -222,10 +222,10 @@ export class AlumniProfileService {
     actor: ResolvedActor,
   ): Promise<AlumniProfileDto> {
     const profile = await loadAlumniProfileOrFail(this.tenantPrisma, id);
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isAdmin = await hasAdminScope(this.permCheck, actor);
     const isOwner = profile.personId === actor.personId;
 
-    if (!isStaff && !isOwner) {
+    if (!isAdmin && !isOwner) {
       // Don't leak existence to non-owners outside staff.
       throw new NotFoundException('Alumni profile not found');
     }
@@ -250,8 +250,14 @@ export class AlumniProfileService {
       return this.getById(id, actor);
     }
 
+    const tenant = getCurrentTenant();
     args.push(id);
-    const sql = `UPDATE alm_alumni_profiles SET ${sets.join(', ')} WHERE id = $${i}::uuid`;
+    args.push(tenant.schoolId);
+    // REVIEW-P2C22 BLOCKING 4 — UPDATE carries the school predicate
+    // alongside the per-row owner-check + loadAlumniProfileOrFail
+    // pre-flight. Defence-in-depth for the rare path where a cached
+    // profile id outlives the originating tenant scope.
+    const sql = `UPDATE alm_alumni_profiles SET ${sets.join(', ')} WHERE id = $${i}::uuid AND school_id = $${i + 1}::uuid`;
 
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(sql, ...args);
@@ -274,9 +280,9 @@ export class AlumniTagService {
    */
   async addTag(input: AddTagDto, actor: ResolvedActor): Promise<AlumniTagDto> {
     const profile = await loadAlumniProfileOrFail(this.tenantPrisma, input.alumniId);
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isAdmin = await hasAdminScope(this.permCheck, actor);
 
-    if (!isStaff && profile.personId !== actor.personId) {
+    if (!isAdmin && profile.personId !== actor.personId) {
       throw new ForbiddenException(
         'Only staff or admin may tag another alumnus. You may tag your own profile.',
       );
@@ -318,27 +324,39 @@ export class AlumniTagService {
   /**
    * Remove a tag by id. Non-staff callers may remove only tags on their
    * OWN profile. Staff + admin may remove any tag.
+   *
+   * REVIEW-P2C22 BLOCKING 4 — the lookup + DELETE both JOIN through
+   * `alm_alumni_profiles.school_id` so cross-school tag UUIDs collapse
+   * to 404 don't-leak-existence.
    */
   async removeTag(tagId: string, actor: ResolvedActor): Promise<void> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         `SELECT t.id::text AS id, p.person_id::text AS person_id
          FROM alm_alumni_tags t JOIN alm_alumni_profiles p ON p.id = t.alumni_id
-         WHERE t.id = $1::uuid LIMIT 1`,
+         WHERE t.id = $1::uuid AND p.school_id = $2::uuid LIMIT 1`,
         tagId,
+        tenant.schoolId,
       );
     })) as Array<{ id: string; person_id: string }>;
     if (rows.length === 0) {
       throw new NotFoundException('Tag not found');
     }
     const tag = rows[0]!;
-    const isStaff = await hasStaffScope(this.permCheck, actor);
-    if (!isStaff && tag.person_id !== actor.personId) {
+    const isAdmin = await hasAdminScope(this.permCheck, actor);
+    if (!isAdmin && tag.person_id !== actor.personId) {
       // Use 404 don't-leak-existence for non-owners.
       throw new NotFoundException('Tag not found');
     }
     await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe('DELETE FROM alm_alumni_tags WHERE id = $1::uuid', tagId);
+      await client.$executeRawUnsafe(
+        `DELETE FROM alm_alumni_tags
+         WHERE id = $1::uuid
+           AND alumni_id IN (SELECT id FROM alm_alumni_profiles WHERE school_id = $2::uuid)`,
+        tagId,
+        tenant.schoolId,
+      );
     });
   }
 
@@ -352,14 +370,14 @@ export class AlumniTagService {
       throw new BadRequestException('tag is required');
     }
     const tenant = getCurrentTenant();
-    const isStaff = await hasStaffScope(this.permCheck, actor);
+    const isAdmin = await hasAdminScope(this.permCheck, actor);
 
     const where: string[] = [
       'p.school_id = $1::uuid',
       `EXISTS (SELECT 1 FROM alm_alumni_tags t WHERE t.alumni_id = p.id AND t.tag = $2)`,
     ];
     const args: unknown[] = [tenant.schoolId, tag];
-    if (!isStaff) {
+    if (!isAdmin) {
       where.push(`(p.is_opted_in = true OR p.person_id = $${args.length + 1}::uuid)`);
       args.push(actor.personId);
     }
