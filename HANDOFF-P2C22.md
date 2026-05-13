@@ -1,9 +1,16 @@
 # HANDOFF — Phase 2 Cycle 22 (P2-22): Alumni
 
-**Status:** COMPLETE pending peer review across both sub-cycles (2026-05-12).
-P2-22a (schema + seed + services) shipped at `9ed0423`. P2-22b (UI + integration
-tests + handoff/review docs) ships in this commit. **Wave D (Module Completion)
-continues — P2-22 closes the M102 Alumni module.**
+**Status:** COMPLETE + APPROVED at the closeout commit (REVIEW-P2C22-CHATGPT —
+final verdict, 2026-05-12). Round 1 against `262d867` returned **FAIL** with
+6 BLOCKING; Round 2 against `230ce72` returned **PASS** — reviewer's per-finding
+verification table marked every prior blocker FIXED across all 5 dimensions
+(Event Durability / School Scoping / Events Integration / Permission Model /
+Test Coverage). P2-22a (schema + seed + services) shipped at `9ed0423`. P2-22b
+(UI + integration tests + handoff/review docs) shipped at `262d867`. Round 1
+fix commit `230ce72` lands the 6 BLOCKING fixes + 9 new pinned regression
+tests. Tagged `p2c22-complete` at `230ce72` (the Round 1 fix that earned
+Round 2 PASS) and `p2c22-approved` at the closeout commit. **Wave D (Module
+Completion) continues — P2-22 closes the M102 Alumni module clean.**
 
 **Plan:** `docs/campusos-p2c22-alumni.html`
 **Review scaffold:** `P2C22-REVIEW-NOTES.md`
@@ -24,8 +31,8 @@ continues — P2-22 closes the M102 Alumni module.**
 | Permission code                   | PUB-004 (already in catalogue)     |
 | Web routes                        | 7                                  |
 | React Query hooks                 | 32                                 |
-| Integration tests                 | 27 (across 7 plan scenarios)       |
-| Total vitest pass count           | 1108 / 1108 (across 58 spec files) |
+| Integration tests                 | 27 P2-22 + 17 Round 1 = 44         |
+| Total vitest pass count           | 1125 / 1125 (across 58 spec files) |
 
 ## Sub-cycle layout
 
@@ -441,7 +448,8 @@ layer + new `event-ids.ts` helper + module-wiring (DI auto-resolves
 the new constructor signatures via the existing `KafkaModule`
 exports).
 
-Awaiting Round 2 verdict before tagging `p2c22-complete`. See
+**Round 2 verdict: PASS.** Tagged `p2c22-complete` at `230ce72` (the Round 1
+fix that earned PASS) and `p2c22-approved` at the closeout commit. See
 `P2C22-REVIEW-NOTES.md` for the per-blocker verification trail.
 
 ## Reviewer attention items
@@ -502,8 +510,9 @@ itself.
 - Web build (`pnpm --filter @campusos/web build`) ✓ — 7 alumni
   routes ship (sizes above).
 - `pnpm lint:logs` ✓ (909 files clean)
-- `pnpm --filter @campusos/api test` ✓ — **1108 / 1108 across 58
-  spec files** (+27 new alumni tests)
+- `pnpm --filter @campusos/api test` ✓ — **1125 / 1125 across 58
+  spec files** (+27 new alumni tests in P2-22 + 17 more across new
+  - split + retrofitted blocks in Round 1)
 
 ## Cross-cycle integration
 
@@ -535,9 +544,10 @@ itself.
 
 ## Next steps
 
-Awaiting peer review verdict. Once `cycle22-complete` is tagged at
-the closeout commit + the review returns PASS, `cycle22-approved`
-gets tagged.
+P2-22 closeout complete. Tagged `p2c22-complete` at `230ce72` and
+`p2c22-approved` at this closeout commit. Wave D (Module Completion)
+continues with the next planned cycle — see `CLAUDE.md` "Project
+Status" for the rolling roadmap.
 
 ## Decisions made during the cycle
 
