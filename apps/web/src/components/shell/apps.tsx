@@ -85,7 +85,8 @@ export type AppKey =
   | 'enrolment-withdrawals'
   | 'payments-advanced'
   | 'substitutes'
-  | 'events';
+  | 'events'
+  | 'alumni';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -672,6 +673,32 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/publications',
       routePrefix: '/publications',
       icon: NewspaperIcon,
+    });
+  }
+
+  // P2-22 — Alumni (Wave D Module Completion). Self-maintained
+  // alumni profiles + opt-in directory + tag segmentation. Multi-
+  // currency fundraising campaigns + outreach funnel. News, reunions,
+  // events with optional P2-12 Events linkage. PUB-004:read covers
+  // every persona that holds the function tier (Teacher, Parent, Student,
+  // Staff, Admin). The portal description switches on persona because
+  // a current student becomes the alumnus on this surface once they
+  // graduate; a guardian or teacher who attended this school can also
+  // self-register.
+  if (hasAnyPermission(user, ['pub-004:read'])) {
+    apps.push({
+      key: 'alumni',
+      label: 'Alumni',
+      description: isStaff
+        ? 'Campaigns, donations, news, reunions, events'
+        : isStudent
+          ? 'Your alumni profile (after graduation) and directory'
+          : isGuardian
+            ? 'Alumni directory and school news'
+            : 'Directory, campaigns, news, events',
+      href: '/alumni',
+      routePrefix: '/alumni',
+      icon: AcademicCapIcon,
     });
   }
 

@@ -11910,3 +11910,295 @@ export interface WorkOrderCostSummaryDto {
   labourCost: number | null;
   grandTotal: number;
 }
+
+// ───────────────────────────────────────────────────────────────
+// Alumni (P2-22, Wave D Module Completion)
+// ───────────────────────────────────────────────────────────────
+
+export type CampaignStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+export const CAMPAIGN_STATUSES: readonly CampaignStatus[] = [
+  'DRAFT',
+  'ACTIVE',
+  'COMPLETED',
+  'CANCELLED',
+] as const;
+
+export type OutreachStatus =
+  | 'PENDING'
+  | 'SENT'
+  | 'OPENED'
+  | 'RESPONDED'
+  | 'DONATED'
+  | 'UNSUBSCRIBED';
+export const OUTREACH_STATUSES: readonly OutreachStatus[] = [
+  'PENDING',
+  'SENT',
+  'OPENED',
+  'RESPONDED',
+  'DONATED',
+  'UNSUBSCRIBED',
+] as const;
+
+export type AlumniNewsCategory = 'ACHIEVEMENT' | 'EVENT' | 'OPPORTUNITY' | 'GENERAL';
+export const ALUMNI_NEWS_CATEGORIES: readonly AlumniNewsCategory[] = [
+  'ACHIEVEMENT',
+  'EVENT',
+  'OPPORTUNITY',
+  'GENERAL',
+] as const;
+
+export type ReunionStatus = 'PLANNING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+export const REUNION_STATUSES: readonly ReunionStatus[] = [
+  'PLANNING',
+  'CONFIRMED',
+  'COMPLETED',
+  'CANCELLED',
+] as const;
+
+export interface AlumniProfileDto {
+  id: string;
+  schoolId: string;
+  personId: string;
+  displayName: string;
+  graduationYear: number;
+  degreeProgramme: string | null;
+  currentEmployer: string | null;
+  currentTitle: string | null;
+  linkedinUrl: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  isOptedIn: boolean;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAlumniProfilePayload {
+  personId: string;
+  graduationYear: number;
+  degreeProgramme?: string;
+  currentEmployer?: string;
+  currentTitle?: string;
+  linkedinUrl?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  isOptedIn?: boolean;
+}
+
+export interface UpdateAlumniProfilePayload {
+  degreeProgramme?: string;
+  currentEmployer?: string;
+  currentTitle?: string;
+  linkedinUrl?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  isOptedIn?: boolean;
+}
+
+export interface AlumniTagDto {
+  id: string;
+  alumniId: string;
+  tag: string;
+  createdAt: string;
+}
+
+export interface AddAlumniTagPayload {
+  alumniId: string;
+  tag: string;
+}
+
+export interface AlumniCampaignDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  description: string | null;
+  goalAmount: number | null;
+  reportingCurrency: string;
+  startDate: string | null;
+  endDate: string | null;
+  status: CampaignStatus;
+  createdBy: string;
+  activatedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  raisedAmount: number;
+  recipientCount: number;
+  donationCount: number;
+}
+
+export interface CreateAlumniCampaignPayload {
+  title: string;
+  description?: string;
+  goalAmount?: number;
+  reportingCurrency?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface UpdateAlumniCampaignPayload {
+  title?: string;
+  description?: string;
+  goalAmount?: number;
+  startDate?: string;
+  endDate?: string;
+  status?: CampaignStatus;
+}
+
+export interface CampaignFunnelDto {
+  campaignId: string;
+  pending: number;
+  sent: number;
+  opened: number;
+  responded: number;
+  donated: number;
+  unsubscribed: number;
+  total: number;
+}
+
+export interface CampaignRaisedDto {
+  campaignId: string;
+  raisedAmount: number;
+  reportingCurrency: string;
+  cached: boolean;
+}
+
+export interface AddRecipientsByTagPayload {
+  tag: string;
+}
+
+export interface AlumniCampaignRecipientDto {
+  id: string;
+  campaignId: string;
+  alumniId: string;
+  outreachStatus: OutreachStatus;
+  sentAt: string | null;
+  openedAt: string | null;
+  respondedAt: string | null;
+  donatedAt: string | null;
+  unsubscribedAt: string | null;
+}
+
+export interface UpdateRecipientStatusPayload {
+  status: OutreachStatus;
+}
+
+export interface AlumniDonationDto {
+  id: string;
+  campaignId: string;
+  donorAlumniId: string | null;
+  donorDisplayName: string | null;
+  amount: number;
+  currency: string;
+  fxRateAtDonation: number | null;
+  amountInReportingCurrency: number;
+  paymentRef: string | null;
+  stripePaymentIntentId: string | null;
+  donatedAt: string;
+  isAnonymous: boolean;
+}
+
+export interface CreateAlumniDonationPayload {
+  donorAlumniId: string;
+  amount: number;
+  currency: string;
+  fxRateAtDonation?: number;
+  paymentRef?: string;
+  stripePaymentIntentId?: string;
+  isAnonymous?: boolean;
+}
+
+export interface AlumniNewsDto {
+  id: string;
+  schoolId: string;
+  authorId: string;
+  authorName: string | null;
+  title: string;
+  body: string;
+  category: AlumniNewsCategory;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAlumniNewsPayload {
+  title: string;
+  body: string;
+  category: AlumniNewsCategory;
+  publish?: boolean;
+}
+
+export interface UpdateAlumniNewsPayload {
+  title?: string;
+  body?: string;
+  category?: AlumniNewsCategory;
+  publish?: boolean;
+}
+
+export interface ReunionGroupDto {
+  id: string;
+  schoolId: string;
+  graduationYear: number;
+  name: string;
+  organiserId: string;
+  organiserName: string | null;
+  eventDate: string | null;
+  rsvpDeadline: string | null;
+  status: ReunionStatus;
+  description: string | null;
+  venue: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReunionGroupPayload {
+  graduationYear: number;
+  name: string;
+  organiserId: string;
+  eventDate?: string;
+  rsvpDeadline?: string;
+  description?: string;
+  venue?: string;
+}
+
+export interface UpdateReunionGroupPayload {
+  name?: string;
+  eventDate?: string;
+  rsvpDeadline?: string;
+  status?: ReunionStatus;
+  description?: string;
+  venue?: string;
+}
+
+export interface AlumniEventDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  description: string | null;
+  eventDate: string;
+  venue: string | null;
+  rsvpUrl: string | null;
+  evtEventId: string | null;
+  /** Populated only when the P2-12 Events module resolves the soft ref. Null otherwise. */
+  ticketsAvailable: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAlumniEventPayload {
+  title: string;
+  description?: string;
+  eventDate: string;
+  venue?: string;
+  rsvpUrl?: string;
+  evtEventId?: string;
+}
+
+export interface UpdateAlumniEventPayload {
+  title?: string;
+  description?: string;
+  eventDate?: string;
+  venue?: string;
+  rsvpUrl?: string;
+  evtEventId?: string;
+}
