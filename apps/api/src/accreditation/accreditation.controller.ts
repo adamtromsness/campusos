@@ -73,14 +73,14 @@ export class AccreditationController {
   }
 
   @Post('adoptions')
-  @RequirePermission('tch-008:write')
+  @RequirePermission('acr-001:write')
   @ApiOperation({ summary: 'Adopt a platform framework for this school' })
   async createAdoption(@Req() req: AuthRequest, @Body() body: CreateAdoptionDto) {
     return this.frameworks.createAdoption(await this.resolve(req), body);
   }
 
   @Post('custom-frameworks')
-  @RequirePermission('tch-008:write')
+  @RequirePermission('acr-001:write')
   @ApiOperation({ summary: 'Create a school-custom accreditation framework' })
   async createCustomFramework(@Req() req: AuthRequest, @Body() body: CreateCustomFrameworkDto) {
     return this.frameworks.createCustomFramework(await this.resolve(req), body);
@@ -137,7 +137,7 @@ export class AccreditationController {
   }
 
   @Post('evidence')
-  @RequirePermission('tch-008:write')
+  @RequirePermission('acr-001:write')
   @ApiOperation({
     summary: 'Submit evidence linked to a standard (DRAFT) — type-shape validated',
   })
@@ -146,7 +146,7 @@ export class AccreditationController {
   }
 
   @Patch('evidence/:id/review')
-  @RequirePermission('tch-008:write')
+  @RequirePermission('acr-001:write')
   @ApiOperation({
     summary:
       'Lifecycle transition: DRAFT→SUBMITTED (any staff) or SUBMITTED→APPROVED|REJECTED (coordinator only)',
@@ -176,7 +176,7 @@ export class AccreditationController {
   }
 
   @Post('self-study-ratings')
-  @RequirePermission('tch-008:write')
+  @RequirePermission('acr-001:write')
   @ApiOperation({
     summary:
       'Submit a self-study rating (UNIQUE per (standard, school, cycle) — re-rating returns 409)',
@@ -202,14 +202,14 @@ export class AccreditationController {
   }
 
   @Post('action-plans')
-  @RequirePermission('tch-008:write')
+  @RequirePermission('acr-001:write')
   @ApiOperation({ summary: 'Create an action plan for a standard' })
   async createActionPlan(@Req() req: AuthRequest, @Body() body: CreateActionPlanDto) {
     return this.actionPlans.create(await this.resolve(req), body);
   }
 
   @Patch('action-plans/:id')
-  @RequirePermission('tch-008:write')
+  @RequirePermission('acr-001:write')
   @ApiOperation({ summary: 'Update an action plan (status transitions enforced)' })
   async updateActionPlan(
     @Req() req: AuthRequest,
@@ -220,7 +220,7 @@ export class AccreditationController {
   }
 
   @Patch('action-plans/:id/actions')
-  @RequirePermission('tch-008:write')
+  @RequirePermission('acr-001:write')
   @ApiOperation({
     summary:
       'Update one sub-action by index. Auto-completes the parent plan when all sub-actions are COMPLETED.',
@@ -234,7 +234,7 @@ export class AccreditationController {
   }
 
   @Delete('action-plans/:id')
-  @RequirePermission('tch-008:write')
+  @RequirePermission('acr-001:write')
   @ApiOperation({ summary: 'Delete a non-COMPLETE action plan' })
   async deleteActionPlan(@Req() req: AuthRequest, @Param('id', new ParseUUIDPipe()) id: string) {
     await this.actionPlans.delete(await this.resolve(req), id);
@@ -258,14 +258,14 @@ export class AccreditationController {
   }
 
   @Post('site-visit')
-  @RequirePermission('tch-008:write')
+  @RequirePermission('acr-001:write')
   @ApiOperation({ summary: 'Schedule a site visit preparation (status=PREPARING)' })
   async createSiteVisit(@Req() req: AuthRequest, @Body() body: CreateSiteVisitPrepDto) {
     return this.siteVisits.create(await this.resolve(req), body);
   }
 
   @Patch('site-visit/:id')
-  @RequirePermission('tch-008:write')
+  @RequirePermission('acr-001:write')
   @ApiOperation({
     summary: 'Update a site visit preparation (PREPARING → READY → VISIT_COMPLETE)',
   })

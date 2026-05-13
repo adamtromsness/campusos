@@ -16,6 +16,11 @@
       "group": "Achievements & Portfolio"
     },
     {
+      "code": "ACR-001",
+      "name": "Accreditation Management",
+      "group": "Accreditation"
+    },
+    {
       "code": "ATH-001",
       "name": "Team Management",
       "group": "Athletics"

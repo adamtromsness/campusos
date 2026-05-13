@@ -154,13 +154,13 @@ describe('access helpers', () => {
     const perm = makePermCheck(() => false);
     await expect(assertCoordinatorScope(ADMIN_ACTOR, perm, 'X')).resolves.not.toThrow();
   });
-  it('assertCoordinatorScope passes STAFF with tch-008:write', async () => {
-    const perm = makePermCheck((_, codes) => codes.includes('tch-008:write'));
+  it('assertCoordinatorScope passes STAFF with acr-001:write (REVIEW-P2C23 BLOCKING 1)', async () => {
+    const perm = makePermCheck((_, codes) => codes.includes('acr-001:write'));
     await expect(
       withTenant(() => assertCoordinatorScope(COORDINATOR_ACTOR, perm, 'X')),
     ).resolves.not.toThrow();
   });
-  it('assertCoordinatorScope refuses STAFF without tch-008:write', async () => {
+  it('assertCoordinatorScope refuses STAFF without acr-001:write (REVIEW-P2C23 BLOCKING 1)', async () => {
     const perm = makePermCheck(() => false);
     await expect(
       withTenant(() => assertCoordinatorScope(TEACHER_READONLY_ACTOR, perm, 'X')),

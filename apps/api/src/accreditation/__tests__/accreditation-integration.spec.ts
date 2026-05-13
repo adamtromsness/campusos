@@ -992,3 +992,397 @@ describe('S7 — Visibility', () => {
     expect(rows).toHaveLength(1);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// REVIEW-P2C23 ROUND 1 regression block
+//
+// BLOCKING 1 — Accreditation coordinator authority is now gated on
+//   ACR-001:write/admin (dedicated permission code), NOT on
+//   TCH-008:write (broadly granted to Teacher / VP / Staff for
+//   curriculum management). Teachers + non-coordinator Staff are
+//   refused at every write-side endpoint even though they hold
+//   TCH-008:write for the curriculum surface.
+//
+// BLOCKING 2 — ActionPlanService.assertEmployeeInTenant adds
+//   `school_id = tenant.schoolId` predicate so a current-school
+//   action plan can no longer reference a foreign-school employee.
+//
+// MAJOR 1 — resolveStandard JOINs through acc_school_framework_adoptions
+//   so a platform standard from an UN-adopted framework no longer
+//   resolves. Evidence / ratings / action plans against unadopted
+//   platform standards now return 404 at the create path.
+// ─────────────────────────────────────────────────────────────────
+
+describe('REVIEW-P2C23 BLOCKING 1 — ACR-001 coordinator authority split', () => {
+  it('Teacher with only TCH-008:write is refused at EvidenceService.review APPROVED', async () => {
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM acc_evidence_items')) {
+        return [evidenceRow({ id: 'ev-1', status: 'SUBMITTED' })];
+      }
+      return [];
+    });
+    const siteVisit = {
+      recomputeReadinessForSchool: async () => undefined,
+    } as unknown as SiteVisitService;
+    // Permission check returns true ONLY for tch-008:* (curriculum
+    // permission). Caller has NO acr-001 perms.
+    const teacherWithCurriculum = makePermCheck((_, codes) =>
+      codes.every((c) => c.startsWith('tch-008:')),
+    );
+    const svc = new EvidenceService(fake.tenantPrisma as never, teacherWithCurriculum, siteVisit);
+    await expect(
+      withTenant(() => svc.review(COORDINATOR_ACTOR, 'ev-1', { status: 'APPROVED' })),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('Teacher with only TCH-008:write is refused at ActionPlanService.create', async () => {
+    const fake = makeFake(() => []);
+    const teacherWithCurriculum = makePermCheck((_, codes) =>
+      codes.every((c) => c.startsWith('tch-008:')),
+    );
+    const svc = new ActionPlanService(fake.tenantPrisma as never, teacherWithCurriculum);
+    await expect(
+      withTenant(() =>
+        svc.create(COORDINATOR_ACTOR, {
+          standardId: '019dabcd-0000-7000-8000-000000000001',
+          goal: 'Improve',
+          responsibleParty: '019dabcd-0000-7000-8000-000000000777',
+          targetDate: '2026-12-31',
+          actions: [{ description: 'Step 1', due_date: '2026-06-01', status: 'PENDING' }],
+        }),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('Teacher with only TCH-008:write is refused at SelfStudyService.create', async () => {
+    const fake = makeFake(() => []);
+    const siteVisit = {
+      recomputeReadinessForSchool: async () => undefined,
+    } as unknown as SiteVisitService;
+    const teacherWithCurriculum = makePermCheck((_, codes) =>
+      codes.every((c) => c.startsWith('tch-008:')),
+    );
+    const svc = new SelfStudyService(fake.tenantPrisma as never, teacherWithCurriculum, siteVisit);
+    await expect(
+      withTenant(() =>
+        svc.create(COORDINATOR_ACTOR, {
+          standardId: '019dabcd-0000-7000-8000-000000000001',
+          cycleId: '2025-2026',
+          rating: 'ACCOMPLISHED',
+          rationale: 'X',
+        }),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('Coordinator with ACR-001:write passes EvidenceService.review APPROVED', async () => {
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM acc_evidence_items')) {
+        return [evidenceRow({ id: 'ev-1', status: 'SUBMITTED' })];
+      }
+      return [];
+    });
+    const siteVisit = {
+      recomputeReadinessForSchool: async () => undefined,
+    } as unknown as SiteVisitService;
+    const coordinator = makePermCheck((_, codes) => codes.includes('acr-001:write'));
+    const svc = new EvidenceService(fake.tenantPrisma as never, coordinator, siteVisit);
+    // Note: the underlying getById returns SUBMITTED status; we expect
+    // the lifecycle transition path to fire without 403.
+    await expect(
+      withTenant(() => svc.review(COORDINATOR_ACTOR, 'ev-1', { status: 'APPROVED' })),
+    ).resolves.toBeDefined();
+  });
+
+  it('School admin bypass keeps working without ACR-001', async () => {
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM acc_evidence_items')) {
+        return [evidenceRow({ id: 'ev-1', status: 'SUBMITTED' })];
+      }
+      return [];
+    });
+    const siteVisit = {
+      recomputeReadinessForSchool: async () => undefined,
+    } as unknown as SiteVisitService;
+    const noPerms = makePermCheck(() => false);
+    const svc = new EvidenceService(fake.tenantPrisma as never, noPerms, siteVisit);
+    await expect(
+      withTenant(() => svc.review(ADMIN_ACTOR, 'ev-1', { status: 'APPROVED' })),
+    ).resolves.toBeDefined();
+  });
+});
+
+describe('REVIEW-P2C23 BLOCKING 2 — assertEmployeeInTenant school-scope', () => {
+  it('action-plan create rejects a foreign-school employee UUID with 400', async () => {
+    const fake = makeFake((call) => {
+      if (
+        call.sql.includes('FROM platform.acc_standards_platform') &&
+        call.sql.includes('acc_school_framework_adoptions')
+      ) {
+        return [platformStandardRow('s-1', '1.1')];
+      }
+      // employee row is NOT in this school (school-scoped predicate returns nothing)
+      if (call.sql.includes('FROM hr_employees') && call.sql.includes('school_id')) {
+        return [];
+      }
+      return [];
+    });
+    const svc = new ActionPlanService(
+      fake.tenantPrisma as never,
+      makePermCheck(() => true),
+    );
+    await expect(
+      withTenant(() =>
+        svc.create(COORDINATOR_ACTOR, {
+          standardId: '019dabcd-0000-7000-8000-000000000001',
+          goal: 'Improve',
+          responsibleParty: '019dabcd-0000-7000-8000-000000000bad',
+          targetDate: '2026-12-31',
+          actions: [{ description: 'Step 1', due_date: '2026-06-01', status: 'PENDING' }],
+        }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('action-plan create accepts an in-school employee UUID', async () => {
+    const fake = makeFake((call) => {
+      if (
+        call.sql.includes('FROM platform.acc_standards_platform') &&
+        call.sql.includes('acc_school_framework_adoptions')
+      ) {
+        return [platformStandardRow('s-1', '1.1')];
+      }
+      if (call.sql.includes('FROM hr_employees') && call.sql.includes('school_id')) {
+        return [{ ok: 1 }];
+      }
+      if (call.sql.includes('FROM acc_action_plans')) {
+        return [
+          {
+            id: 'ap-1',
+            school_id: SCHOOL.schoolId,
+            standard_id: 's-1',
+            goal: 'Improve',
+            actions: JSON.stringify([
+              { description: 'Step 1', due_date: '2026-06-01', status: 'PENDING' },
+            ]),
+            responsible_party: 'emp-1',
+            target_date: '2026-12-31',
+            status: 'PLANNED',
+            notes: null,
+            created_by: 'u',
+            created_at: '2026-01-01',
+            updated_at: '2026-01-01',
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new ActionPlanService(
+      fake.tenantPrisma as never,
+      makePermCheck(() => true),
+    );
+    const plan = await withTenant(() =>
+      svc.create(COORDINATOR_ACTOR, {
+        standardId: '019dabcd-0000-7000-8000-000000000001',
+        goal: 'Improve',
+        responsibleParty: '019dabcd-0000-7000-8000-000000000777',
+        targetDate: '2026-12-31',
+        actions: [{ description: 'Step 1', due_date: '2026-06-01', status: 'PENDING' }],
+      }),
+    );
+    expect(plan.goal).toBe('Improve');
+  });
+
+  it('assertEmployeeInTenant SQL carries the school_id predicate', async () => {
+    const captured: string[] = [];
+    const fake = makeFake((call) => {
+      captured.push(call.sql);
+      if (
+        call.sql.includes('FROM platform.acc_standards_platform') &&
+        call.sql.includes('acc_school_framework_adoptions')
+      ) {
+        return [platformStandardRow('s-1', '1.1')];
+      }
+      if (call.sql.includes('FROM hr_employees') && call.sql.includes('school_id')) {
+        return [{ ok: 1 }];
+      }
+      if (call.sql.includes('FROM acc_action_plans')) {
+        return [
+          {
+            id: 'ap-1',
+            school_id: SCHOOL.schoolId,
+            standard_id: 's-1',
+            goal: 'X',
+            actions: '[]',
+            responsible_party: 'emp-1',
+            target_date: '2026-01-01',
+            status: 'PLANNED',
+            notes: null,
+            created_by: 'u',
+            created_at: '2026-01-01',
+            updated_at: '2026-01-01',
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new ActionPlanService(
+      fake.tenantPrisma as never,
+      makePermCheck(() => true),
+    );
+    await withTenant(() =>
+      svc.create(COORDINATOR_ACTOR, {
+        standardId: '019dabcd-0000-7000-8000-000000000001',
+        goal: 'Improve',
+        responsibleParty: '019dabcd-0000-7000-8000-000000000777',
+        targetDate: '2026-12-31',
+        actions: [{ description: 'X', due_date: '2026-06-01', status: 'PENDING' }],
+      }),
+    );
+    const empSql = captured.find((s) => s.includes('FROM hr_employees'));
+    expect(empSql).toBeDefined();
+    expect(empSql!).toMatch(/school_id\s*=\s*\$2::uuid/);
+  });
+});
+
+describe('REVIEW-P2C23 MAJOR 1 — Platform standards must be adopted before use', () => {
+  it('resolveStandard SQL JOINs acc_school_framework_adoptions and filters is_active=true', async () => {
+    const captured: string[] = [];
+    const fake = makeFake((call) => {
+      captured.push(call.sql);
+      // No platform match (school has not adopted), no tenant match
+      return [];
+    });
+    const siteVisit = {
+      recomputeReadinessForSchool: async () => undefined,
+    } as unknown as SiteVisitService;
+    const svc = new EvidenceService(
+      fake.tenantPrisma as never,
+      makePermCheck(() => true),
+      siteVisit,
+    );
+    await expect(
+      withTenant(() =>
+        svc.create(COORDINATOR_ACTOR, {
+          standardId: '019dabcd-0000-7000-8000-000000000001',
+          evidenceType: 'DOCUMENT',
+          title: 'X',
+          s3Key: 'acc/x.pdf',
+        }),
+      ),
+    ).rejects.toThrow(NotFoundException);
+    const platformSql = captured.find((s) => s.includes('FROM platform.acc_standards_platform'));
+    expect(platformSql).toBeDefined();
+    expect(platformSql!).toMatch(/JOIN acc_school_framework_adoptions/);
+    expect(platformSql!).toMatch(/a\.is_active\s*=\s*true/);
+  });
+
+  it('platform standard from an UN-adopted framework → 404 on evidence create', async () => {
+    const fake = makeFake((call) => {
+      // Platform standard exists but JOIN to acc_school_framework_adoptions
+      // misses (school has not adopted that framework) → returns []
+      if (
+        call.sql.includes('FROM platform.acc_standards_platform') &&
+        call.sql.includes('acc_school_framework_adoptions')
+      ) {
+        return [];
+      }
+      // Tenant custom also misses
+      if (call.sql.includes('FROM acc_frameworks')) {
+        return [];
+      }
+      return [];
+    });
+    const siteVisit = {
+      recomputeReadinessForSchool: async () => undefined,
+    } as unknown as SiteVisitService;
+    const svc = new EvidenceService(
+      fake.tenantPrisma as never,
+      makePermCheck(() => true),
+      siteVisit,
+    );
+    await expect(
+      withTenant(() =>
+        svc.create(COORDINATOR_ACTOR, {
+          standardId: '019dabcd-0000-7000-8000-000000000001',
+          evidenceType: 'METRIC',
+          title: 'Coverage',
+          metricValue: '92%',
+        }),
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('platform standard from an adopted framework still resolves cleanly', async () => {
+    const fake = makeFake((call) => {
+      if (
+        call.sql.includes('FROM platform.acc_standards_platform') &&
+        call.sql.includes('acc_school_framework_adoptions')
+      ) {
+        return [platformStandardRow('s-1', '1.1')];
+      }
+      if (call.sql.includes('FROM acc_evidence_items')) {
+        return [evidenceRow({ id: 'ev-1', status: 'DRAFT' })];
+      }
+      return [];
+    });
+    const siteVisit = {
+      recomputeReadinessForSchool: async () => undefined,
+    } as unknown as SiteVisitService;
+    const svc = new EvidenceService(
+      fake.tenantPrisma as never,
+      makePermCheck(() => true),
+      siteVisit,
+    );
+    const dto = await withTenant(() =>
+      svc.create(COORDINATOR_ACTOR, {
+        standardId: '019dabcd-0000-7000-8000-000000000001',
+        evidenceType: 'DOCUMENT',
+        title: 'Mission doc',
+        s3Key: 'acc/mission.pdf',
+      }),
+    );
+    expect(dto.status).toBe('DRAFT');
+  });
+
+  it('platform standard from an UN-adopted framework → 404 on self-study rating', async () => {
+    const fake = makeFake(() => []);
+    const siteVisit = {
+      recomputeReadinessForSchool: async () => undefined,
+    } as unknown as SiteVisitService;
+    const svc = new SelfStudyService(
+      fake.tenantPrisma as never,
+      makePermCheck(() => true),
+      siteVisit,
+    );
+    await expect(
+      withTenant(() =>
+        svc.create(COORDINATOR_ACTOR, {
+          standardId: '019dabcd-0000-7000-8000-000000000001',
+          cycleId: '2025-2026',
+          rating: 'ACCOMPLISHED',
+          rationale: 'X',
+        }),
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('platform standard from an UN-adopted framework → 404 on action plan create', async () => {
+    const fake = makeFake(() => []);
+    const svc = new ActionPlanService(
+      fake.tenantPrisma as never,
+      makePermCheck(() => true),
+    );
+    await expect(
+      withTenant(() =>
+        svc.create(COORDINATOR_ACTOR, {
+          standardId: '019dabcd-0000-7000-8000-000000000001',
+          goal: 'Improve',
+          responsibleParty: '019dabcd-0000-7000-8000-000000000777',
+          targetDate: '2026-12-31',
+          actions: [{ description: 'X', due_date: '2026-06-01', status: 'PENDING' }],
+        }),
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+});

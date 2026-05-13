@@ -81,11 +81,21 @@ export class ActionPlanService {
     };
   }
 
+  /**
+   * REVIEW-P2C23 BLOCKING 2 fix — school-scope the employee lookup so
+   * a current-school action plan cannot reference a foreign-school
+   * employee via `hr_employees.id` guessing. Adds the explicit
+   * `school_id = tenant.schoolId` predicate; bogus or cross-school
+   * UUIDs return 400 with the same friendly message.
+   */
   private async assertEmployeeInTenant(employeeId: string): Promise<void> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT 1 AS ok FROM hr_employees WHERE id = $1::uuid LIMIT 1`,
+        `SELECT 1 AS ok FROM hr_employees
+         WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
         employeeId,
+        tenant.schoolId,
       );
     })) as Array<{ ok: number }>;
     if (rows.length === 0) {

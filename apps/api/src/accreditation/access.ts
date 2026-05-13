@@ -5,27 +5,27 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 
 /**
- * P2-23a — Shared access helpers for the Accreditation module.
+ * P2-23 — Shared access helpers for the Accreditation module.
  *
- * Permission gating reuses TCH-008 (Curriculum Management) per the
- * plan ("TCH-008 extended"). The IAM seed grants TCH-008:read+write
- * to Teacher / VP / Staff and TCH-008:read to Parent + Student for
- * the Cycle 23 curriculum surface. Accreditation re-uses that gate
- * because the plan deliberately avoids minting a new function code.
+ * Controller-level gating uses TCH-008 for reads (so generic Staff
+ * who already hold curriculum-read for the Curriculum module can
+ * navigate into the Accreditation tile) and ACR-001:write for writes
+ * (so curriculum-management authority does NOT confer accreditation
+ * coordinator authority). The service layer is the actual access
+ * boundary on every endpoint:
  *
- * The plan's visibility scenario says "Students/parents cannot
- * access accreditation module." So while Parent + Student pass the
- * controller-level @RequirePermission('tch-008:read') gate (held
- * for curriculum reads), the service layer must refuse them.
+ * `assertStaffOrAdmin` — every read + write entry point. Parents +
+ * Students are refused at the service layer even though they hold
+ * the gate-tier TCH-008:read for the curriculum surface.
  *
- * `assertStaffOrAdmin` is the canonical entry-point for every read
- * + write path. Parents + Students get 403 even though they hold
- * the gate-tier permission for the curriculum surface.
- *
- * `assertCoordinatorScope` adds the write-side check — coordinator
- * = isSchoolAdmin OR holds tch-008:write. Generic STAFF with
- * tch-008:read alone cannot rate, approve evidence, or manage
- * action plans.
+ * `assertCoordinatorScope` — write-side check for evidence approval,
+ * self-study ratings, framework adoption, action plan management,
+ * and site visit prep. REVIEW-P2C23 BLOCKING 1 fix: coordinator
+ * authority is now `isSchoolAdmin OR holds acr-001:write` (was
+ * `tch-008:write` which was broadly granted to Teacher / VP / Staff
+ * for curriculum management). ACR-001 is the dedicated accreditation
+ * function code; Teacher does NOT hold ACR-001 at any tier — only
+ * Staff (coordinator stand-in) + VP + admins hold it.
  */
 
 export function isUniqueViolation(err: unknown): boolean {
@@ -60,9 +60,12 @@ export async function assertCoordinatorScope(
     );
   }
   const tenant = getCurrentTenant();
+  // REVIEW-P2C23 BLOCKING 1 fix — dedicated ACR-001 code so curriculum
+  // TCH-008:write authority does NOT confer accreditation coordinator
+  // authority. Teachers + non-coordinator Staff are refused.
   const ok = await permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
-    'tch-008:write',
-    'tch-008:admin',
+    'acr-001:write',
+    'acr-001:admin',
   ]);
   if (!ok) {
     throw new ForbiddenException(
@@ -103,15 +106,25 @@ export async function resolveStandard(
   if (!standardId) return null;
   const tenant = getCurrentTenant();
 
-  // Try platform first.
+  // Try platform first. REVIEW-P2C23 MAJOR 1 fix — platform standards
+  // are only valid when their parent framework is adopted by the
+  // current school. Without this JOIN, evidence / ratings / action
+  // plans could be created against frameworks the school has not
+  // adopted, distorting self-study reports + readiness scores even
+  // though the rows wouldn't count in the readiness denominator.
   const platformRows = (await tenantPrisma.executeInTenantContext(async (client) => {
     return client.$queryRawUnsafe(
-      `SELECT id::text AS id, framework_id::text AS framework_id,
-              standard_code, domain, standard_text
-       FROM platform.acc_standards_platform
-       WHERE id = $1::uuid
+      `SELECT s.id::text AS id, s.framework_id::text AS framework_id,
+              s.standard_code, s.domain, s.standard_text
+       FROM platform.acc_standards_platform s
+       JOIN acc_school_framework_adoptions a
+         ON a.platform_framework_id = s.framework_id
+       WHERE s.id = $1::uuid
+         AND a.school_id = $2::uuid
+         AND a.is_active = true
        LIMIT 1`,
       standardId,
+      tenant.schoolId,
     );
   })) as Array<{
     id: string;
@@ -170,7 +183,7 @@ export async function assertStandardResolves(
   const resolved = await resolveStandard(tenantPrisma, standardId);
   if (!resolved) {
     throw new NotFoundException(
-      `Standard ${standardId} not found in platform or tenant catalogues`,
+      `Standard ${standardId} not found in this school's adopted platform catalogue or tenant custom frameworks. Adopt the parent framework first.`,
     );
   }
   return resolved;
