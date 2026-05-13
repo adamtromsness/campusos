@@ -488,9 +488,6 @@ describe('ClassSetService.sweepOverdueForCurrentTenant', () => {
 
 describe('RecommendationService.replaceForStudent — full DELETE + INSERT', () => {
   it('DELETEs all rows then INSERTs each fresh row', async () => {
-    const fake = makeFake(() => []);
-    const perm = makePermCheck(() => true);
-    const svc = new RecommendationService(fake.tenantPrisma as never, perm);
     const fresh = [
       {
         itemId: '019aaaa1-0000-7000-8000-000000000001',
@@ -503,6 +500,17 @@ describe('RecommendationService.replaceForStudent — full DELETE + INSERT', () 
         score: 0.85,
       },
     ];
+    const fake = makeFake((call) => {
+      // REVIEW-P2C25 BLOCKING 3 — student-in-school + item ownership
+      // probes stub returning hits so the happy path can complete.
+      if (call.sql.includes('FROM sis_students WHERE')) return [{ ok: 1 }];
+      if (call.sql.includes('FROM lib_catalogue_items WHERE school_id')) {
+        return fresh.map((f) => ({ id: f.itemId }));
+      }
+      return [];
+    });
+    const perm = makePermCheck(() => true);
+    const svc = new RecommendationService(fake.tenantPrisma as never, perm);
     const n = await withTenant(() =>
       svc.replaceForStudent('019stu1-0000-7000-8000-000000000001', fresh),
     );
@@ -519,14 +527,21 @@ describe('RecommendationService.replaceForStudent — full DELETE + INSERT', () 
   });
 
   it('caps the input array at 20', async () => {
-    const fake = makeFake(() => []);
-    const perm = makePermCheck(() => true);
-    const svc = new RecommendationService(fake.tenantPrisma as never, perm);
     const fresh = Array.from({ length: 30 }, (_, i) => ({
       itemId: '019aaaa1-0000-7000-8000-' + String(i).padStart(12, '0'),
       reasonType: 'NEW_ARRIVAL' as const,
       score: 0.5,
     }));
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM sis_students WHERE')) return [{ ok: 1 }];
+      if (call.sql.includes('FROM lib_catalogue_items WHERE school_id')) {
+        // Return only the 20 the service will cap to.
+        return fresh.slice(0, 20).map((f) => ({ id: f.itemId }));
+      }
+      return [];
+    });
+    const perm = makePermCheck(() => true);
+    const svc = new RecommendationService(fake.tenantPrisma as never, perm);
     const n = await withTenant(() =>
       svc.replaceForStudent('019stu1-0000-7000-8000-000000000001', fresh),
     );

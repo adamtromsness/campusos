@@ -81,6 +81,10 @@ const SELECT_LIST_ITEM_BASE =
   'i.added_by::text AS added_by, ap.first_name AS added_first, ap.last_name AS added_last, ' +
   'TO_CHAR(i.created_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS created_at ' +
   'FROM lib_reading_list_items i ' +
+  // REVIEW-P2C25 BLOCKING 4 — every item read joins through the
+  // parent reading list so the school_id predicate can pin the row to
+  // the current tenant.
+  'JOIN lib_reading_lists l ON l.id = i.reading_list_id ' +
   'LEFT JOIN lib_catalogue_items ci ON ci.id = i.catalogue_item_id ' +
   'LEFT JOIN hr_employees ae ON ae.id = i.added_by ' +
   'LEFT JOIN platform.iam_person ap ON ap.id = ae.person_id ';
@@ -202,11 +206,15 @@ export class ReadingListService {
   }
 
   async listItems(listId: string): Promise<ReadingListItemResponseDto[]> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C25 BLOCKING 4 — bind via parent list's school_id.
       return client.$queryRawUnsafe<ListItemRow[]>(
         SELECT_LIST_ITEM_BASE +
-          'WHERE i.reading_list_id = $1::uuid ORDER BY i.sort_order ASC, i.created_at ASC',
+          'WHERE i.reading_list_id = $1::uuid AND l.school_id = $2::uuid ' +
+          'ORDER BY i.sort_order ASC, i.created_at ASC',
         listId,
+        tenant.schoolId,
       );
     });
     return rows.map(rowToItemDto);
@@ -389,15 +397,22 @@ export class ReadingListService {
         'Only librarians, teachers, or admins can update reading list items',
       );
     }
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C25 BLOCKING 4 — JOIN through lib_reading_lists so the
+      // FOR UPDATE lock only resolves for items whose parent list
+      // belongs to the current tenant. Cross-school item UUIDs land 404.
       const lockRows = (await tx.$queryRawUnsafe(
-        'SELECT id::text AS id FROM lib_reading_list_items WHERE id = $1::uuid FOR UPDATE',
+        'SELECT i.id::text AS id FROM lib_reading_list_items i ' +
+          'JOIN lib_reading_lists l ON l.id = i.reading_list_id ' +
+          'WHERE i.id = $1::uuid AND l.school_id = $2::uuid FOR UPDATE OF i',
         itemId,
+        tenant.schoolId,
       )) as Array<{ id: string }>;
       if (lockRows.length === 0) throw new NotFoundException('Reading list item ' + itemId);
       const updates: string[] = [];
-      const params: unknown[] = [itemId];
-      let idx = 2;
+      const params: unknown[] = [itemId, tenant.schoolId];
+      let idx = 3;
       const set = (col: string, val: unknown) => {
         updates.push(col + ' = $' + idx);
         params.push(val);
@@ -408,8 +423,13 @@ export class ReadingListService {
       if (input.notes !== undefined) set('notes', input.notes);
       if (updates.length === 0) return;
       updates.push('updated_at = now()');
+      // Carry the school_id predicate on the UPDATE too — defence-in-
+      // depth alongside the locked-row precondition.
       await tx.$executeRawUnsafe(
-        'UPDATE lib_reading_list_items SET ' + updates.join(', ') + ' WHERE id = $1::uuid',
+        'UPDATE lib_reading_list_items SET ' +
+          updates.join(', ') +
+          ' WHERE id = $1::uuid ' +
+          'AND reading_list_id IN (SELECT id FROM lib_reading_lists WHERE id = lib_reading_list_items.reading_list_id AND school_id = $2::uuid)',
         ...params,
       );
     });
@@ -422,10 +442,16 @@ export class ReadingListService {
         'Only librarians, teachers, or admins can remove reading list items',
       );
     }
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C25 BLOCKING 4 — DELETE only when the parent list
+    // belongs to this school; cross-school item UUIDs return 0 rows.
     const r = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$executeRawUnsafe(
-        'DELETE FROM lib_reading_list_items WHERE id = $1::uuid',
+        'DELETE FROM lib_reading_list_items i ' +
+          'USING lib_reading_lists l ' +
+          'WHERE i.reading_list_id = l.id AND i.id = $1::uuid AND l.school_id = $2::uuid',
         itemId,
+        tenant.schoolId,
       );
     });
     if (r === 0) throw new NotFoundException('Reading list item ' + itemId);
@@ -447,10 +473,14 @@ export class ReadingListService {
   }
 
   private async loadItemOrFail(itemId: string): Promise<ReadingListItemResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C25 BLOCKING 4 — SELECT_LIST_ITEM_BASE JOINs through
+      // lib_reading_lists; carry the school predicate on the load.
       return client.$queryRawUnsafe<ListItemRow[]>(
-        SELECT_LIST_ITEM_BASE + 'WHERE i.id = $1::uuid',
+        SELECT_LIST_ITEM_BASE + 'WHERE i.id = $1::uuid AND l.school_id = $2::uuid',
         itemId,
+        tenant.schoolId,
       );
     });
     if (rows.length === 0) throw new NotFoundException('Reading list item ' + itemId);

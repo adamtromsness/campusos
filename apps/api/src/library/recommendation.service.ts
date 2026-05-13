@@ -70,6 +70,9 @@ const SELECT_REC_BASE =
   'TO_CHAR(r.dismissed_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS dismissed_at, ' +
   'TO_CHAR(r.generated_at, \'YYYY-MM-DD"T"HH24:MI:SSOF\') AS generated_at ' +
   'FROM lib_recommendations r ' +
+  // REVIEW-P2C25 BLOCKING 3 — join through sis_students so every read
+  // path proves the recommendation belongs to a student in this tenant.
+  'JOIN sis_students s ON s.id = r.student_id ' +
   'LEFT JOIN lib_catalogue_items ci ON ci.id = r.recommended_item_id ';
 
 function rowToRecDto(r: RecommendationRow): RecommendationResponseDto {
@@ -107,20 +110,42 @@ export class RecommendationService {
 
   /**
    * Visibility:
-   *   - admin / librarian: any studentId
-   *   - student: own studentId only
-   *   - guardian: a studentId linked via sis_student_guardians
+   *   - admin / librarian: any studentId IN this school (REVIEW-P2C25
+   *     BLOCKING 3 — even admins must prove the student belongs to the
+   *     current tenant before reading recommendations).
+   *   - student: own studentId only, joined through current-school
+   *     sis_students so cross-school identities cannot resolve.
+   *   - guardian: a studentId linked via sis_student_guardians AND the
+   *     student belongs to the current school (the join through
+   *     sis_students enforces it).
    *   - else: 403
    */
   private async assertCanReadFor(studentId: string, actor: ResolvedActor): Promise<void> {
-    if (await this.hasLibrarianScope(actor)) return;
+    const tenant = getCurrentTenant();
+    if (await this.hasLibrarianScope(actor)) {
+      // Librarian / admin still must prove the student exists in this
+      // school — REVIEW-P2C25 BLOCKING 3 — otherwise a cross-school
+      // UUID could leak recommendations.
+      const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe<Array<{ ok: number }>>(
+          'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+          studentId,
+          tenant.schoolId,
+        );
+      });
+      if (rows.length === 0) {
+        throw new NotFoundException('Student ' + studentId);
+      }
+      return;
+    }
     if (actor.personType === STUDENT_PERSON_TYPE) {
       const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe<Array<{ ok: number }>>(
           'SELECT 1 AS ok FROM sis_students s ' +
             'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-            'WHERE s.id = $1::uuid AND ps.person_id = $2::uuid LIMIT 1',
+            'WHERE s.id = $1::uuid AND s.school_id = $2::uuid AND ps.person_id = $3::uuid LIMIT 1',
           studentId,
+          tenant.schoolId,
           actor.personId,
         );
       });
@@ -134,8 +159,10 @@ export class RecommendationService {
         return client.$queryRawUnsafe<Array<{ ok: number }>>(
           'SELECT 1 AS ok FROM sis_student_guardians sg ' +
             'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
+            'JOIN sis_students s ON s.id = sg.student_id ' +
+            'WHERE sg.student_id = $1::uuid AND s.school_id = $2::uuid AND g.person_id = $3::uuid LIMIT 1',
           studentId,
+          tenant.schoolId,
           actor.personId,
         );
       });
@@ -155,8 +182,15 @@ export class RecommendationService {
     args: { includeDismissed?: boolean },
   ): Promise<RecommendationResponseDto[]> {
     await this.assertCanReadFor(studentId, actor);
-    const sql: string[] = [SELECT_REC_BASE, 'WHERE r.student_id = $1::uuid '];
-    const params: unknown[] = [studentId];
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C25 BLOCKING 3 — bind via s.school_id even though
+    // assertCanReadFor already proved the student belongs to this
+    // school. Defence-in-depth.
+    const sql: string[] = [
+      SELECT_REC_BASE,
+      'WHERE r.student_id = $1::uuid AND s.school_id = $2::uuid ',
+    ];
+    const params: unknown[] = [studentId, tenant.schoolId];
     if (!args.includeDismissed) {
       sql.push('AND r.dismissed_at IS NULL ');
     }
@@ -175,24 +209,36 @@ export class RecommendationService {
    * re-recommend for 90 days).
    */
   async dismiss(recommendationId: string, actor: ResolvedActor): Promise<void> {
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C25 BLOCKING 3 — lock through sis_students.school_id
+      // so a cross-school recommendation UUID resolves to 0 rows
+      // before any UPDATE fires.
       const lockRows = (await tx.$queryRawUnsafe(
-        'SELECT id::text AS id, student_id::text AS student_id, dismissed_at ' +
-          'FROM lib_recommendations WHERE id = $1::uuid FOR UPDATE',
+        'SELECT r.id::text AS id, r.student_id::text AS student_id, r.dismissed_at ' +
+          'FROM lib_recommendations r ' +
+          'JOIN sis_students s ON s.id = r.student_id ' +
+          'WHERE r.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF r',
         recommendationId,
+        tenant.schoolId,
       )) as Array<{ id: string; student_id: string; dismissed_at: string | null }>;
       if (lockRows.length === 0) throw new NotFoundException('Recommendation ' + recommendationId);
       const row = lockRows[0]!;
       if (row.dismissed_at) {
         throw new BadRequestException('Recommendation already dismissed');
       }
-      // Authorisation — students may only dismiss their own
+      // Authorisation — students may only dismiss their own; the
+      // sis_students lookup binds through current-school identity so a
+      // student whose identity spans schools cannot resolve through
+      // this tenant unless the row belongs to their own current-school
+      // sis_students record.
       if (!actor.isSchoolAdmin && actor.personType === STUDENT_PERSON_TYPE) {
         const ok = (await tx.$queryRawUnsafe(
           'SELECT 1 AS ok FROM sis_students s ' +
             'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
-            'WHERE s.id = $1::uuid AND ps.person_id = $2::uuid LIMIT 1',
+            'WHERE s.id = $1::uuid AND s.school_id = $2::uuid AND ps.person_id = $3::uuid LIMIT 1',
           row.student_id,
+          tenant.schoolId,
           actor.personId,
         )) as Array<{ ok: number }>;
         if (ok.length === 0) {
@@ -201,7 +247,7 @@ export class RecommendationService {
       } else if (!actor.isSchoolAdmin) {
         const isLibrarian = await this.permissions.hasAnyPermissionInTenant(
           actor.accountId,
-          getCurrentTenant().schoolId,
+          tenant.schoolId,
           ['lib-002:write'],
         );
         if (!isLibrarian) {
@@ -240,7 +286,36 @@ export class RecommendationService {
     }>,
   ): Promise<number> {
     const capped = fresh.slice(0, 20);
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C25 BLOCKING 3 — validate the student belongs to this
+      // school before mutating recommendations. A buggy worker call
+      // with a cross-school studentId cannot replace into another
+      // tenant's recommendations from this tenant context.
+      const studentRows = (await tx.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        studentId,
+        tenant.schoolId,
+      )) as Array<{ ok: number }>;
+      if (studentRows.length === 0) {
+        throw new NotFoundException('Student ' + studentId);
+      }
+      // Validate every recommended item belongs to this school's catalogue.
+      if (capped.length > 0) {
+        const itemIds = capped.map((c) => c.itemId);
+        const foundRows = (await tx.$queryRawUnsafe(
+          'SELECT id::text AS id FROM lib_catalogue_items WHERE school_id = $1::uuid AND id = ANY($2::uuid[])',
+          tenant.schoolId,
+          itemIds,
+        )) as Array<{ id: string }>;
+        const found = new Set(foundRows.map((r) => r.id));
+        const missing = itemIds.filter((i) => !found.has(i));
+        if (missing.length > 0) {
+          throw new BadRequestException(
+            'Recommended items do not belong to this school: ' + missing.join(', '),
+          );
+        }
+      }
       await tx.$executeRawUnsafe(
         'DELETE FROM lib_recommendations WHERE student_id = $1::uuid',
         studentId,

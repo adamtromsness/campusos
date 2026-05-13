@@ -252,11 +252,15 @@ export class CatalogueImportService {
       return;
     }
 
-    // Mark PARSING
+    // Mark PARSING. REVIEW-P2C25 BLOCKING 6 — every job mutation
+    // carries the school_id predicate so a worker pass under one
+    // tenant cannot flip the state of a job loaded under another.
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
-        "UPDATE lib_catalogue_import_jobs SET status = 'PARSING', started_at = now(), updated_at = now() WHERE id = $1::uuid",
+        "UPDATE lib_catalogue_import_jobs SET status = 'PARSING', started_at = now(), updated_at = now() " +
+          'WHERE id = $1::uuid AND school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
 
@@ -273,11 +277,13 @@ export class CatalogueImportService {
         }
         const isbns = JSON.parse(inline.slice('inline://'.length)) as string[];
 
-        // Move to IMPORTING
+        // Move to IMPORTING — REVIEW-P2C25 BLOCKING 6 carries school_id.
         await this.tenantPrisma.executeInTenantContext(async (client) => {
           await client.$executeRawUnsafe(
-            "UPDATE lib_catalogue_import_jobs SET status = 'IMPORTING', updated_at = now() WHERE id = $1::uuid",
+            "UPDATE lib_catalogue_import_jobs SET status = 'IMPORTING', updated_at = now() " +
+              'WHERE id = $1::uuid AND school_id = $2::uuid',
             id,
+            tenant.schoolId,
           );
         });
 
@@ -357,14 +363,21 @@ export class CatalogueImportService {
   ): Promise<void> {
     const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C25 BLOCKING 6 — terminal update carries school_id so
+      // the worker contract cannot mutate a job loaded under a
+      // different tenant context. Phase 2 convention is to thread the
+      // school predicate through every mutation, including worker
+      // -driven terminal states.
       await tx.$executeRawUnsafe(
-        'UPDATE lib_catalogue_import_jobs SET status = $1, records_imported = $2, records_skipped = $3, records_failed = $4, error_log_s3_key = $5, completed_at = now(), updated_at = now() WHERE id = $6::uuid',
+        'UPDATE lib_catalogue_import_jobs SET status = $1, records_imported = $2, records_skipped = $3, records_failed = $4, error_log_s3_key = $5, completed_at = now(), updated_at = now() ' +
+          'WHERE id = $6::uuid AND school_id = $7::uuid',
         terminal,
         counts.imported,
         counts.skipped,
         counts.failed,
         errorLogKey,
         id,
+        tenant.schoolId,
       );
       await this.outbox.enqueueInTx(tx, {
         topic: 'lib.import.completed',

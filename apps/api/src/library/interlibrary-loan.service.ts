@@ -163,6 +163,23 @@ export class InterlibraryLoanService {
       throw new BadRequestException('LENT loans require catalogueItemId (schema direction_chk)');
     }
     const tenant = getCurrentTenant();
+    // REVIEW-P2C25 BLOCKING 5 — LENT catalogueItemId must belong to
+    // this school. A School A LENT loan cannot reference a School B
+    // catalogue item via cross-tenant UUID guess.
+    if (input.catalogueItemId) {
+      await this.tenantPrisma.executeInTenantContext(async (client) => {
+        const rows = (await client.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM lib_catalogue_items WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+          input.catalogueItemId,
+          tenant.schoolId,
+        )) as Array<{ ok: number }>;
+        if (rows.length === 0) {
+          throw new BadRequestException(
+            'catalogueItemId does not match a catalogue item in this school',
+          );
+        }
+      });
+    }
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
@@ -194,17 +211,22 @@ export class InterlibraryLoanService {
         'Only librarians or admins can update interlibrary loan records',
       );
     }
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C25 BLOCKING 5 — lock by id + school_id so a cross
+      // -school ILL UUID cannot resolve and mutate.
       const lockRows = (await tx.$queryRawUnsafe(
-        'SELECT id::text AS id, status FROM lib_interlibrary_loans WHERE id = $1::uuid FOR UPDATE',
+        'SELECT id::text AS id, status FROM lib_interlibrary_loans ' +
+          'WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         id,
+        tenant.schoolId,
       )) as Array<{ id: string; status: string }>;
       if (lockRows.length === 0) throw new NotFoundException('Interlibrary loan ' + id);
       const current = lockRows[0]!.status as IllStatus;
 
       const updates: string[] = [];
-      const params: unknown[] = [id];
-      let idx = 2;
+      const params: unknown[] = [id, tenant.schoolId];
+      let idx = 3;
       const set = (col: string, val: unknown, cast?: string) => {
         updates.push(col + ' = $' + idx + (cast ? '::' + cast : ''));
         params.push(val);
@@ -233,8 +255,12 @@ export class InterlibraryLoanService {
 
       if (updates.length === 0) return;
       updates.push('updated_at = now()');
+      // REVIEW-P2C25 BLOCKING 5 — carry the school predicate on the
+      // UPDATE alongside the locked-row precondition.
       await tx.$executeRawUnsafe(
-        'UPDATE lib_interlibrary_loans SET ' + updates.join(', ') + ' WHERE id = $1::uuid',
+        'UPDATE lib_interlibrary_loans SET ' +
+          updates.join(', ') +
+          ' WHERE id = $1::uuid AND school_id = $2::uuid',
         ...params,
       );
       this.logger.log(
@@ -251,12 +277,18 @@ export class InterlibraryLoanService {
    * Returns the list of flipped ILL ids.
    */
   async sweepOverdueForCurrentTenant(): Promise<string[]> {
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C25 BLOCKING 5 — bind to current school so a worker pass
+    // running under School A context cannot flip School B ILL rows
+    // in a shared-schema future.
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<Array<{ id: string }>>(
         "UPDATE lib_interlibrary_loans SET status = 'OVERDUE', updated_at = now() " +
-          "WHERE status = 'ACTIVE' AND due_date IS NOT NULL AND due_date < CURRENT_DATE " +
+          'WHERE school_id = $1::uuid ' +
+          "AND status = 'ACTIVE' AND due_date IS NOT NULL AND due_date < CURRENT_DATE " +
           'AND returned_date IS NULL ' +
           'RETURNING id::text AS id',
+        tenant.schoolId,
       );
     });
     return rows.map((r) => r.id);

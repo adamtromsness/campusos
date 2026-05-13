@@ -155,10 +155,12 @@ export class ClassSetService {
   }
 
   async getById(id: string): Promise<ClassSetCheckoutResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<ClassSetRow[]>(
-        SELECT_CLASS_SET_BASE + 'WHERE cs.id = $1::uuid',
+        SELECT_CLASS_SET_BASE + 'WHERE cs.id = $1::uuid AND cs.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     });
     if (rows.length === 0) throw new NotFoundException('Class set ' + id);
@@ -202,17 +204,35 @@ export class ClassSetService {
         throw new NotFoundException('Catalogue item ' + input.catalogueItemId);
       }
 
-      // 2. Validate the teacher has an hr_employees row in this tenant.
-      //    teacher_patron_id is a soft ref to platform.iam_person, but
-      //    schools only check class sets out to their own employees.
+      // 2. Validate the teacher has an hr_employees row in *this*
+      //    tenant. teacher_patron_id is a soft ref to platform.iam_person,
+      //    but schools only check class sets out to their own employees.
+      //    The school_id predicate is the REVIEW-P2C25 BLOCKING 2 fix —
+      //    a School A librarian cannot create a class set against a
+      //    School B employee's iam_person UUID.
       const teacherRows = (await tx.$queryRawUnsafe(
-        'SELECT 1 AS ok FROM hr_employees WHERE person_id = $1::uuid LIMIT 1',
+        'SELECT 1 AS ok FROM hr_employees WHERE person_id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         input.teacherPatronId,
+        tenant.schoolId,
       )) as Array<{ ok: number }>;
       if (teacherRows.length === 0) {
         throw new BadRequestException(
           'teacherPatronId does not match an hr_employees row in this school',
         );
+      }
+
+      // 2b. When classId is supplied, verify it belongs to this school.
+      //     Soft ref to sis_classes per ADR-001/020 — the schema does not
+      //     enforce; the service is the gate. REVIEW-P2C25 BLOCKING 2.
+      if (input.classId) {
+        const classRows = (await tx.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM sis_classes WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+          input.classId,
+          tenant.schoolId,
+        )) as Array<{ ok: number }>;
+        if (classRows.length === 0) {
+          throw new BadRequestException('classId does not match a class in this school');
+        }
       }
 
       // 3. Lock `copy_count` available copies of the item with FOR
@@ -311,12 +331,16 @@ export class ClassSetService {
       throw new BadRequestException('copiesReturned must be >= 1');
     }
 
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      // Lock the parent class set
+      // Lock the parent class set — school-scoped per REVIEW-P2C25
+      // BLOCKING 1 so a School A librarian cannot return copies on a
+      // School B class set by UUID guess.
       const lockRows = (await tx.$queryRawUnsafe(
         'SELECT id::text AS id, copy_count, returned_count, status, school_id::text AS school_id ' +
-          'FROM lib_class_set_checkouts WHERE id = $1::uuid FOR UPDATE',
+          'FROM lib_class_set_checkouts WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         id,
+        tenant.schoolId,
       )) as Array<{
         id: string;
         copy_count: number;
@@ -409,11 +433,16 @@ export class ClassSetService {
       } else if (newReturnedCount === 0) {
         newStatus = 'ACTIVE';
       }
+      // The parent was locked above with `id + school_id` so the school
+      // predicate is already proven; carry it on the UPDATE as
+      // defence-in-depth (REVIEW-P2C25 BLOCKING 1).
       await tx.$executeRawUnsafe(
-        'UPDATE lib_class_set_checkouts SET returned_count = $1, status = $2, updated_at = now() WHERE id = $3::uuid',
+        'UPDATE lib_class_set_checkouts SET returned_count = $1, status = $2, updated_at = now() ' +
+          'WHERE id = $3::uuid AND school_id = $4::uuid',
         newReturnedCount,
         newStatus,
         id,
+        tenant.schoolId,
       );
 
       this.logger.log(
@@ -442,13 +471,21 @@ export class ClassSetService {
    * Returns the list of flipped class set ids for logging.
    */
   async sweepOverdueForCurrentTenant(): Promise<string[]> {
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C25 BLOCKING 1 — bind the sweep to the current tenant's
+      // school_id so a worker pass running under School A context cannot
+      // flip School B class sets in a shared-schema future. The
+      // search_path SET LOCAL already pins the schema; this is the row
+      // -level cross-school guard.
       return client.$queryRawUnsafe<Array<{ id: string }>>(
         "UPDATE lib_class_set_checkouts SET status = 'OVERDUE', updated_at = now() " +
-          "WHERE status IN ('ACTIVE', 'PARTIALLY_RETURNED') " +
+          'WHERE school_id = $1::uuid ' +
+          "AND status IN ('ACTIVE', 'PARTIALLY_RETURNED') " +
           'AND due_date < CURRENT_DATE ' +
           'AND returned_count < copy_count ' +
           'RETURNING id::text AS id',
+        tenant.schoolId,
       );
     });
     return rows.map((r) => r.id);

@@ -300,9 +300,6 @@ describe('S3 — ClassSetOverdueWorker sweep flips past-due ACTIVE/PARTIAL to OV
 
 describe('S4 — Recommendations full-replace + dismiss + 20-cap', () => {
   it('replaceForStudent DELETEs all then INSERTs each new row', async () => {
-    const fake = makeFake(() => []);
-    const perm = makePermCheck(() => true);
-    const svc = new RecommendationService(fake.tenantPrisma as never, perm);
     const fresh = [
       {
         itemId: 'i1',
@@ -320,6 +317,17 @@ describe('S4 — Recommendations full-replace + dismiss + 20-cap', () => {
         score: 0.75,
       },
     ];
+    const fake = makeFake((call) => {
+      // REVIEW-P2C25 BLOCKING 3 — student + catalogue-item ownership
+      // probes return hits so the happy path can complete.
+      if (call.sql.includes('FROM sis_students WHERE')) return [{ ok: 1 }];
+      if (call.sql.includes('FROM lib_catalogue_items WHERE school_id')) {
+        return fresh.map((f) => ({ id: f.itemId }));
+      }
+      return [];
+    });
+    const perm = makePermCheck(() => true);
+    const svc = new RecommendationService(fake.tenantPrisma as never, perm);
     const n = await withTenant(() => svc.replaceForStudent('s1', fresh));
     expect(n).toBe(3);
 
@@ -334,14 +342,20 @@ describe('S4 — Recommendations full-replace + dismiss + 20-cap', () => {
   });
 
   it('caps at 20 — input of 30 produces 20 INSERTs', async () => {
-    const fake = makeFake(() => []);
-    const perm = makePermCheck(() => true);
-    const svc = new RecommendationService(fake.tenantPrisma as never, perm);
     const fresh = Array.from({ length: 30 }, (_, i) => ({
       itemId: 'i' + i,
       reasonType: 'NEW_ARRIVAL' as const,
       score: 0.5,
     }));
+    const fake = makeFake((call) => {
+      if (call.sql.includes('FROM sis_students WHERE')) return [{ ok: 1 }];
+      if (call.sql.includes('FROM lib_catalogue_items WHERE school_id')) {
+        return fresh.slice(0, 20).map((f) => ({ id: f.itemId }));
+      }
+      return [];
+    });
+    const perm = makePermCheck(() => true);
+    const svc = new RecommendationService(fake.tenantPrisma as never, perm);
     const n = await withTenant(() => svc.replaceForStudent('s1', fresh));
     expect(n).toBe(20);
   });

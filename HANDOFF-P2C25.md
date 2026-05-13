@@ -285,3 +285,99 @@ All mutations invalidate the matching list + detail query keys.
 **Cumulative P2-25 totals:** 6 new base tables + 1 ALTER on Cycle 12 `lib_checkouts` + 2 ALTERs on Cycle 12 `lib_reading_lists` (target_grade_level + curriculum_unit_id columns) across 2 tenant migrations (164 + 165). ~22 endpoints across 5 new services. 1 Kafka emit topic (`lib.import.completed`). 4 web routes + recommendations shelf on `/library/my` + extended reading-list form. 18 vertical-slice integration tests across the 7 plan scenarios.
 
 Awaiting peer review verdict before tagging `p2c25-complete`.
+
+---
+
+## REVIEW-P2C25 Round 1 fix log (2026-05-13)
+
+Reviewer's Round 1 verdict against `5085572`: **FAIL** with 6 BLOCKING all in the same Phase 2 category — direct-object references and worker sweeps must be school-scoped all the way through mutation and reload paths.
+
+All 6 BLOCKING + 19 new pinned regression tests landed in the Round 1 fix commit. No schema migrations — every fix is service-layer.
+
+### BLOCKING 1 — Class-set `getById` / `returnCopies` lock / sweep school-scope
+
+`apps/api/src/library/class-set.service.ts`
+
+- `getById(id)` SELECT now reads `WHERE cs.id = $1::uuid AND cs.school_id = $2::uuid`. Cross-school UUIDs collapse to 404 don't-leak-existence.
+- `returnCopies(id, input, actor)` parent lock SELECT now reads `WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE`; the final parent UPDATE carries the same predicate as defence-in-depth alongside the locked-row precondition.
+- `sweepOverdueForCurrentTenant()` UPDATE now binds `WHERE school_id = $1::uuid` so a worker pass under one tenant's context cannot flip another tenant's class sets in a shared-schema future. The existing `search_path` SET LOCAL pins the schema; this is the row-level cross-school guard.
+
+### BLOCKING 2 — Class-set teacher + classId validation school-scope
+
+`apps/api/src/library/class-set.service.ts`
+
+- `create()` teacher probe now `SELECT 1 FROM hr_employees WHERE person_id = $1::uuid AND school_id = $2::uuid LIMIT 1`. A School A librarian cannot create a class set against a School B employee's iam_person UUID — the foreign employee row returns 0 and the service throws 400.
+- New `classId` validation runs before the INSERT chain when the optional `classId` is supplied: `SELECT 1 FROM sis_classes WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`. Cross-school class UUIDs return 400 with the canonical "classId does not match a class in this school" message.
+
+### BLOCKING 3 — Recommendations cross-school hardening
+
+`apps/api/src/library/recommendation.service.ts`
+
+- `assertCanReadFor(studentId, actor)` rewritten with explicit per-actor school-scope:
+  - admin/librarian — must prove the student exists in current-school `sis_students` (`SELECT 1 FROM sis_students WHERE id = $1 AND school_id = $2`).
+  - STUDENT — joins through `sis_students s` + `platform.platform_students ps` with `s.school_id = $tenant.schoolId AND ps.person_id = $actor.personId`.
+  - GUARDIAN — joins through `sis_student_guardians + sis_guardians + sis_students` with `s.school_id = $tenant.schoolId AND g.person_id = $actor.personId`.
+- `SELECT_REC_BASE` constant rewritten to `FROM lib_recommendations r JOIN sis_students s ON s.id = r.student_id LEFT JOIN lib_catalogue_items ci …` so every read path proves the recommendation belongs to a student in this tenant via the JOIN.
+- `listForStudent` adds `s.school_id = $2::uuid` predicate after the assertCanReadFor check — defence-in-depth.
+- `dismiss()` lock query rewritten to `SELECT r.id, r.student_id, r.dismissed_at FROM lib_recommendations r JOIN sis_students s ON s.id = r.student_id WHERE r.id = $1 AND s.school_id = $2 FOR UPDATE OF r`. Student-self check also adds the `s.school_id` predicate.
+- `replaceForStudent(studentId, fresh[])` validates the student belongs to this school BEFORE any mutation. After that, validates every `recommendedItemId` against `lib_catalogue_items WHERE school_id = $tenant.schoolId AND id = ANY($itemIds::uuid[])` — any missing ids surface as 400 with the offending UUIDs listed.
+
+### BLOCKING 4 — Reading-list item mutation paths school-scope
+
+`apps/api/src/library/reading-list.service.ts`
+
+- `SELECT_LIST_ITEM_BASE` constant rewritten to JOIN `lib_reading_lists l ON l.id = i.reading_list_id` so every item read path can carry the school predicate.
+- `listItems(listId)` adds `WHERE i.reading_list_id = $1::uuid AND l.school_id = $2::uuid`. Cross-school list UUIDs return an empty array.
+- `patchItem(itemId, ...)` lock query rewritten to JOIN through the parent list: `SELECT i.id FROM lib_reading_list_items i JOIN lib_reading_lists l ON l.id = i.reading_list_id WHERE i.id = $1 AND l.school_id = $2 FOR UPDATE OF i`. Cross-school item UUIDs return 0 rows and the service throws 404 don't-leak-existence. The UPDATE statement carries a subquery on `reading_list_id IN (SELECT id FROM lib_reading_lists WHERE … AND school_id = $2)` as defence-in-depth alongside the locked-row precondition.
+- `removeItem(itemId, ...)` rewritten to `DELETE FROM lib_reading_list_items i USING lib_reading_lists l WHERE i.reading_list_id = l.id AND i.id = $1 AND l.school_id = $2`. Cross-school item UUIDs return 0 rows.
+- `loadItemOrFail(itemId)` adds `l.school_id = $2::uuid` predicate to the reload.
+
+### BLOCKING 5 — ILL patch + sweep + LENT catalogue validation
+
+`apps/api/src/library/interlibrary-loan.service.ts`
+
+- `create()` LENT branch now validates `catalogueItemId` against `lib_catalogue_items WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1` BEFORE the INSERT. Foreign-school catalogue ids return 400 with the canonical "does not match a catalogue item in this school" message. BORROWED rows are unaffected (the `catalogueItemId` is optional for BORROWED — partner-supplied title may not be in our catalogue).
+- `patch(id, input, actor)` lock query reads `SELECT id, status FROM lib_interlibrary_loans WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE`. The trailing UPDATE carries the same `id + school_id` predicate (the locked-row precondition + the UPDATE-side guard are belt-and-braces).
+- `sweepOverdueForCurrentTenant()` UPDATE binds `WHERE school_id = $1::uuid AND status = 'ACTIVE' AND due_date < CURRENT_DATE` — a worker pass under one tenant cannot flip another tenant's ILL rows.
+
+### BLOCKING 6 — Catalogue import `markTerminal` + intermediates school-scope
+
+`apps/api/src/library/catalogue-import.service.ts`
+
+The PARSING / IMPORTING / COMPLETED / FAILED updates all now carry `school_id` predicate:
+
+- PARSING transition: `UPDATE lib_catalogue_import_jobs SET status='PARSING', started_at = now(), updated_at = now() WHERE id = $1::uuid AND school_id = $2::uuid`.
+- IMPORTING transition: `UPDATE lib_catalogue_import_jobs SET status='IMPORTING', updated_at = now() WHERE id = $1::uuid AND school_id = $2::uuid`.
+- `markTerminal()` (COMPLETED + FAILED): `UPDATE lib_catalogue_import_jobs SET status = $1, records_imported = $2, records_skipped = $3, records_failed = $4, error_log_s3_key = $5, completed_at = now(), updated_at = now() WHERE id = $6::uuid AND school_id = $7::uuid`. The `lib.import.completed` outbox enqueue runs inside the same tx as the terminal UPDATE so the durable contract is unchanged.
+
+Even though `processQueuedJob` initially loads the job via a school-scoped SELECT, the Phase 2 convention is to thread the school predicate through every mutation — including worker-driven terminal states.
+
+### Regression tests (19 new pinned cases)
+
+`apps/api/src/library/__tests__/library-advanced-review-p2c25.spec.ts` — 19 cases across 6 REVIEW-P2C25 R-B1..6 describe blocks:
+
+- **R-B1** × 3 — getById SQL shape; returnCopies parent lock SQL; sweep UPDATE binds to school_id.
+- **R-B2** × 2 — hr_employees probe carries school_id arg; classId validation queries sis_classes with school_id.
+- **R-B3** × 6 — student self-read joins sis_students with school predicate; guardian read joins through sis_students.school_id; librarian read also validates student belongs to school; list SQL joins through sis_students; dismiss lock JOIN + FOR UPDATE OF r; replaceForStudent refuses cross-school student + refuses cross-school items.
+- **R-B4** × 3 — listItems / patchItem lock / removeItem DELETE all JOIN through lib_reading_lists.school_id.
+- **R-B5** × 3 — patch lock + UPDATE shape; sweep UPDATE binds school_id; LENT catalogueItemId validated against school.
+- **R-B6** × 1 — PARSING + IMPORTING + COMPLETED updates all carry school_id arg + outbox emit shape verified.
+
+Plus 4 pre-existing `replaceForStudent` happy-path tests in `library-advanced.spec.ts` + `library-advanced-vertical-slice.spec.ts` updated to provide the new student-existence + item-ownership stubs.
+
+### Test totals after Round 1
+
+- `library-advanced.spec.ts` — 30 cases (unchanged)
+- `library-advanced-vertical-slice.spec.ts` — 18 cases (unchanged)
+- `library-advanced-review-p2c25.spec.ts` — 19 cases (new)
+
+Library spec total: **67 cases**. Full vitest tally: 1343 → **1362 passing across 65 spec files**.
+
+### CI parity (Round 1 fix commit)
+
+- format:check + lint:logs (951 files clean)
+- API build clean
+- Web build clean (no UI changes)
+- vitest **1362/1362 across 65 spec files**
+
+Awaiting Round 2 verdict before tagging `p2c25-complete`.
