@@ -12459,3 +12459,273 @@ export interface AccReadinessReportDto {
     hasApprovedEvidence: boolean;
   }>;
 }
+
+// ─────────────────────────────────────────────────────────────────
+// P2-24 Parent Engagement (M100)
+//
+// Naming note: Cycle 15 Meetings ships its own `Conference*` types
+// (ConferenceEventDto / ConferenceStatus / etc.) — P2-24 uses the
+// `EngConference*` prefix to keep the two surfaces independent.
+// ─────────────────────────────────────────────────────────────────
+
+export type EngConferenceEventStatus = 'DRAFT' | 'BOOKING_OPEN' | 'IN_PROGRESS' | 'COMPLETED';
+export const ENG_CONFERENCE_EVENT_STATUSES: readonly EngConferenceEventStatus[] = [
+  'DRAFT',
+  'BOOKING_OPEN',
+  'IN_PROGRESS',
+  'COMPLETED',
+] as const;
+
+export interface EngConferenceEventDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  description: string | null;
+  startDate: string;
+  endDate: string;
+  bookingOpensAt: string;
+  bookingClosesAt: string;
+  defaultSlotDurationMinutes: number;
+  defaultBreakMinutes: number;
+  status: EngConferenceEventStatus;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEngConferenceEventPayload {
+  title: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  bookingOpensAt: string;
+  bookingClosesAt: string;
+  defaultSlotDurationMinutes?: number;
+  defaultBreakMinutes?: number;
+}
+
+export interface UpdateEngConferenceEventPayload {
+  title?: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  bookingOpensAt?: string;
+  bookingClosesAt?: string;
+  defaultSlotDurationMinutes?: number;
+  defaultBreakMinutes?: number;
+  status?: EngConferenceEventStatus;
+}
+
+export type EngConferenceSlotStatus = 'AVAILABLE' | 'BOOKED' | 'BLOCKED';
+export const ENG_CONFERENCE_SLOT_STATUSES: readonly EngConferenceSlotStatus[] = [
+  'AVAILABLE',
+  'BOOKED',
+  'BLOCKED',
+] as const;
+
+export interface EngConferenceSlotDto {
+  id: string;
+  conferenceEventId: string;
+  schoolId: string;
+  teacherId: string;
+  teacherName: string | null;
+  slotDate: string;
+  startTime: string;
+  endTime: string;
+  location: string | null;
+  meetingUrl: string | null;
+  status: EngConferenceSlotStatus;
+  maxBookings: number;
+  currentBookings: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GenerateEngSlotsPayload {
+  teacherId: string;
+  slotDate: string;
+  startTime: string;
+  endTime: string;
+  slotDurationMinutes?: number;
+  breakMinutes?: number;
+  location?: string;
+  meetingUrl?: string;
+}
+
+export interface UpdateEngSlotPayload {
+  status?: 'AVAILABLE' | 'BLOCKED';
+  location?: string;
+  meetingUrl?: string;
+  notes?: string;
+}
+
+export interface EngConferenceFollowUpAction {
+  description: string;
+  due_date: string;
+  status: 'PENDING' | 'COMPLETED';
+}
+
+export interface EngConferenceBookingDto {
+  id: string;
+  slotId: string;
+  schoolId: string;
+  parentId: string;
+  studentId: string;
+  bookedAt: string;
+  cancelledAt: string | null;
+  cancelledBy: string | null;
+  cancellationReason: string | null;
+  attended: boolean | null;
+  conferenceNotes: string | null;
+  followUpActions: EngConferenceFollowUpAction[] | null;
+  parentFeedbackRating: number | null;
+  parentFeedbackComments: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BookEngSlotPayload {
+  studentId: string;
+}
+
+export interface CancelEngBookingPayload {
+  reason?: string;
+}
+
+export interface UpdateEngBookingPayload {
+  attended?: boolean;
+  conferenceNotes?: string;
+  followUpActions?: EngConferenceFollowUpAction[];
+  parentFeedbackRating?: number;
+  parentFeedbackComments?: string;
+}
+
+export type EngagementLevel = 'HIGHLY_ENGAGED' | 'ENGAGED' | 'MINIMAL' | 'AT_RISK';
+export const ENGAGEMENT_LEVELS: readonly EngagementLevel[] = [
+  'HIGHLY_ENGAGED',
+  'ENGAGED',
+  'MINIMAL',
+  'AT_RISK',
+] as const;
+
+export interface EngagementScoreDto {
+  id: string;
+  schoolId: string;
+  familyAccountId: string;
+  scoreDate: string;
+  compositeScore: number;
+  attendanceComponent: number | null;
+  communicationComponent: number | null;
+  conferenceComponent: number | null;
+  volunteerComponent: number | null;
+  paymentComponent: number | null;
+  engagementLevel: EngagementLevel;
+  componentWeights: Record<string, number> | null;
+  notes: string | null;
+  computedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EngagementSummaryDto {
+  totalFamilies: number;
+  byLevel: Record<EngagementLevel, number>;
+  averageScore: number;
+  scoreDate: string | null;
+}
+
+export interface EngagementScoreWeights {
+  attendance: number;
+  communication: number;
+  conference: number;
+  volunteer: number;
+  payment: number;
+}
+
+export interface EngagementLevelThresholds {
+  highlyEngaged: number;
+  engaged: number;
+  minimal: number;
+}
+
+export interface EngagementScoreConfigDto {
+  weights: EngagementScoreWeights;
+  thresholds: EngagementLevelThresholds;
+}
+
+export interface UpdateScoreConfigPayload {
+  weights?: Partial<EngagementScoreWeights>;
+  thresholds?: Partial<EngagementLevelThresholds>;
+}
+
+export type SurveyStatus = 'DRAFT' | 'OPEN' | 'CLOSED';
+export const SURVEY_STATUSES: readonly SurveyStatus[] = ['DRAFT', 'OPEN', 'CLOSED'] as const;
+
+export type SurveyQuestionType =
+  | 'RATING_1_5'
+  | 'RATING_1_10'
+  | 'YES_NO'
+  | 'FREE_TEXT'
+  | 'MULTIPLE_CHOICE';
+
+export const SURVEY_QUESTION_TYPES: readonly SurveyQuestionType[] = [
+  'RATING_1_5',
+  'RATING_1_10',
+  'YES_NO',
+  'FREE_TEXT',
+  'MULTIPLE_CHOICE',
+] as const;
+
+export interface SurveyQuestion {
+  id: string;
+  question_text: string;
+  question_type: SurveyQuestionType;
+  options?: string[];
+}
+
+export interface SurveyDto {
+  id: string;
+  schoolId: string;
+  title: string;
+  description: string | null;
+  questions: SurveyQuestion[];
+  isAnonymous: boolean;
+  opensAt: string | null;
+  closesAt: string | null;
+  status: SurveyStatus;
+  totalResponses: number;
+  responseDataAggregated: Record<string, unknown> | null;
+  createdBy: string;
+  openedAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSurveyPayload {
+  title: string;
+  description?: string;
+  questions: SurveyQuestion[];
+  isAnonymous?: boolean;
+  opensAt?: string;
+  closesAt?: string;
+}
+
+export interface UpdateSurveyPayload {
+  title?: string;
+  description?: string;
+  questions?: SurveyQuestion[];
+  opensAt?: string;
+  closesAt?: string;
+  status?: SurveyStatus;
+}
+
+export interface SubmitSurveyResponsePayload {
+  answers: Record<string, string | number | boolean>;
+}
+
+export interface SubmitSurveyResponseResult {
+  submitted: true;
+  totalResponses: number;
+}

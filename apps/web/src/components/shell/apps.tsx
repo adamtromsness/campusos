@@ -87,7 +87,8 @@ export type AppKey =
   | 'substitutes'
   | 'events'
   | 'alumni'
-  | 'accreditation';
+  | 'accreditation'
+  | 'engagement';
 export type BadgeKey =
   | 'messages'
   | 'announcements'
@@ -932,6 +933,29 @@ export function getAppsForUser(user: AuthUser): AppDef[] {
       href: '/groups',
       routePrefix: '/groups',
       icon: ChatBubbleIcon,
+    });
+  }
+
+  // P2-24 — Parent Engagement (Wave D Module Completion). Conference
+  // scheduling (atomic AVAILABLE→BOOKED transition), engagement
+  // dashboard (composite score from 5 cross-module data sources),
+  // anonymous parent surveys. MTG-002:read covers every persona that
+  // holds the function tier (Teacher, Parent, Student, Staff, Admin
+  // — though students never see conferences and parents never see
+  // engagement scoring). Tile lands for any user with MTG-002:read
+  // OR ENG-001:read; nested route gates enforce per-surface access.
+  if (hasAnyPermission(user, ['mtg-002:read', 'eng-001:read'])) {
+    apps.push({
+      key: 'engagement',
+      label: 'Engagement',
+      description: isStaff
+        ? 'Conferences, family engagement dashboard, and parent surveys'
+        : isGuardian
+          ? 'Book parent-teacher conferences and respond to surveys'
+          : 'Parent-teacher conferences and engagement',
+      href: '/engagement/conferences',
+      routePrefix: '/engagement',
+      icon: HeartHandIcon,
     });
   }
 
