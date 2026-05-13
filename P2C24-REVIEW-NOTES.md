@@ -1,10 +1,57 @@
 # REVIEW NOTES — Phase 2 Cycle 24 (P2-24): Parent Engagement
 
-**Status:** COMPLETE pending peer review. P2-24a (schema + seed +
-services + workers — Steps 1–5 + Step 8) shipped at `79cd0ac`. P2-24b
-(UI + vertical-slice integration tests + handoff/review docs — Steps
-6–7) ships in this commit. Awaiting peer review verdict before tagging
-`p2c24-complete`.
+**Status:** COMPLETE pending Round 2 peer review verdict. P2-24a at
+`79cd0ac`, P2-24b at `46fce5e`. REVIEW-P2C24 Round 1 returned **FAIL**
+with 4 BLOCKING + 2 MAJOR. The Round 1 fix commit lands all 4
+BLOCKING + the actionable MAJOR 1 + 17 new pinned regression tests
+(vitest 1278 → 1295). MAJOR 2 (engagement score read authority
+narrowing for teachers) carries to the Phase 2 punch list as a
+product-side scope decision.
+
+## Round 1 fix summary
+
+| Finding    | Fix                                                                                                                                                                                                                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| BLOCKING 1 | `ConferenceBookingService.book` — new `isConferenceAdmin` helper branches student validation; parent path JOINs `sis_student_guardians + sis_guardians` with `g.person_id = actor.personId`; admin path validates `sis_students.school_id = tenant.schoolId`.                                                      |
+| BLOCKING 2 | `ConferenceSlotService.generateSlots` — `hr_employees` lookup adds `school_id = tenant.schoolId` predicate. `slotSelectSql()` LEFT JOIN extended with `e.school_id = s.school_id` defence-in-depth.                                                                                                                |
+| BLOCKING 3 | `ConferenceBookingService.patch` — staff-outcome fields (`attended` / `conferenceNotes` / `followUpActions`) now require `mtg-002:write` or `:admin` via `isConferenceAdmin`. Parent feedback fields tightened to owner-only; staff cannot author parent feedback.                                                 |
+| BLOCKING 4 | `EngagementScoreWorker` — all 5 source queries now carry a current-school predicate or school-derived JOIN. Communication query also fixes column-name bugs (`tp.user_id` → `tp.platform_user_id`, `r.user_id` → `r.reader_id`) that were silently swallowed by try/catch and scoring everyone 0 on communication. |
+| MAJOR 1    | `ParentSurveyService.submitResponse` — identified surveys (`is_anonymous=false`) walk existing responses for matching `respondent_id` and throw 409 on duplicate. Anonymous surveys unchanged (multiple submissions allowed by design).                                                                            |
+| MAJOR 2    | Carry to Phase 2 punch list — narrow `eng-001:read` for teachers from full component breakdown to conference-only.                                                                                                                                                                                                 |
+
+## Test coverage
+
+Round 1 ships **17 new pinned regression tests** in
+`engagement-vertical-slice.spec.ts`. Total spec: 41 cases (was 24).
+Total project: 1295/1295 across 62 spec files (was 1278).
+
+Specific contracts pinned:
+
+- **BLOCKING 1** — parent SQL shape JOINing sis_student_guardians +
+  sis_guardians + s.school_id with all 3 args bound (tenant.schoolId,
+  studentId, actor.personId); parent unlinked → 400; admin SQL shape
+  with school_id predicate + bound args; admin foreign-school student
+  → 400.
+- **BLOCKING 2** — hr_employees lookup SQL includes school_id
+  predicate with both args bound; foreign-school teacher → 400;
+  slotSelectSql LEFT JOIN includes `e.school_id = s.school_id`.
+- **BLOCKING 3** — read-only STAFF refused on `attended`,
+  `conferenceNotes`, `followUpActions` (3 tests); STAFF WITH
+  `mtg-002:write` can mark attended; STAFF cannot author parent
+  feedback; owner CAN submit own feedback.
+- **BLOCKING 4** — single comprehensive test verifying all 5
+  component queries (attendance / communication / conference /
+  volunteer / payment) carry school predicate or school-derived
+  JOIN, with explicit args binding + column-name corrections.
+- **MAJOR 1** — identified-survey same respondent re-submits → 409
+  Conflict; identified-survey different respondent succeeds with
+  responses=2; anonymous-survey same parent succeeds (anonymity
+  preserved).
+
+## Round 1 build state preserved below for review trail.
+
+P2-24 is the COMPLETE pending peer review state from `79cd0ac` +
+`46fce5e`, documented below.
 
 **Scope:** Full P2-24 cycle covering 5 new tenant tables, ~24 endpoints,
 2 background workers, 2 Kafka emits, 4 web routes, 74 vitest cases

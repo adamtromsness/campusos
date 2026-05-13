@@ -60,6 +60,11 @@ export class ConferenceSlotService {
   }
 
   private slotSelectSql(): string {
+    // REVIEW-P2C24 BLOCKING 2 (defence-in-depth) — the LEFT JOIN on
+    // hr_employees ANDs `e.school_id = s.school_id` so a historical row
+    // with a foreign-school teacher_id (planted before BLOCKING 2 fix)
+    // resolves the teacher name to NULL rather than leaking the
+    // cross-school employee's name into the slot DTO.
     return `SELECT s.id::text AS id, s.conference_event_id::text AS conference_event_id,
                    s.school_id::text AS school_id, s.teacher_id::text AS teacher_id,
                    (TRIM(BOTH ' ' FROM COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, ''))) AS teacher_name,
@@ -69,7 +74,8 @@ export class ConferenceSlotService {
                    s.max_bookings, s.current_bookings, s.notes,
                    s.created_at::text AS created_at, s.updated_at::text AS updated_at
             FROM eng_conference_slots s
-            LEFT JOIN hr_employees e ON e.id = s.teacher_id
+            LEFT JOIN hr_employees e
+              ON e.id = s.teacher_id AND e.school_id = s.school_id
             LEFT JOIN platform.iam_person p ON p.id = e.person_id`;
   }
 
@@ -157,11 +163,16 @@ export class ConferenceSlotService {
       throw new BadRequestException('slotDurationMinutes must be > 0');
     }
 
-    // Validate teacher belongs to this school
+    // REVIEW-P2C24 BLOCKING 2 — Validate teacher belongs to THIS school.
+    // Prior version checked hr_employees.id only, allowing a multi-school
+    // tenant admin to mint slots against a foreign-school employee UUID.
     const teacher = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT id::text FROM hr_employees WHERE id = $1::uuid LIMIT 1`,
+        `SELECT id::text FROM hr_employees
+         WHERE id = $1::uuid AND school_id = $2::uuid
+         LIMIT 1`,
         input.teacherId,
+        tenant.schoolId,
       );
     })) as Array<{ id: string }>;
     if (teacher.length === 0) {

@@ -45,6 +45,22 @@ export class ConferenceBookingService {
     private readonly permCheck: PermissionCheckService,
   ) {}
 
+  /**
+   * REVIEW-P2C24 — admin tier for booking-on-behalf-of paths. Returns
+   * true for school admin OR any non-parent actor holding mtg-002:write
+   * or mtg-002:admin at the tenant scope. Used by book() to decide
+   * whether to validate studentId against the guardian-link chain
+   * (parent path) or just against current-school ownership (admin path).
+   */
+  private async isConferenceAdmin(actor: ResolvedActor, schoolId: string): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    if (actor.personType === 'GUARDIAN' || actor.personType === 'STUDENT') return false;
+    return this.permCheck.hasAnyPermissionInTenant(actor.accountId, schoolId, [
+      'mtg-002:write',
+      'mtg-002:admin',
+    ]);
+  }
+
   private toDto(row: BookingRow): ConferenceBookingDto {
     let follow: FollowUpAction[] | null = null;
     if (Array.isArray(row.follow_up_actions)) {
@@ -251,15 +267,45 @@ export class ConferenceBookingService {
         }
       }
 
-      // Validate student belongs to this school
-      const stu = (await tx.$queryRawUnsafe(
-        'SELECT id::text FROM sis_students WHERE id = $1::uuid LIMIT 1',
-        input.studentId,
-      )) as Array<{ id: string }>;
-      if (stu.length === 0) {
-        throw new BadRequestException(
-          `studentId ${input.studentId} does not match a student in this school`,
-        );
+      // REVIEW-P2C24 BLOCKING 1 — Validate student is in current school AND
+      // (for parent actors) is linked to this parent via sis_student_guardians.
+      // Admin / conference-admin path skips the guardian-link check but
+      // ALWAYS enforces school ownership. Mirrors the Cycle 6 family-account
+      // student attach contract.
+      const isConferenceAdmin = await this.isConferenceAdmin(actor, tenant.schoolId);
+      if (isConferenceAdmin) {
+        const stu = (await tx.$queryRawUnsafe(
+          `SELECT id::text FROM sis_students
+           WHERE id = $1::uuid AND school_id = $2::uuid
+           LIMIT 1`,
+          input.studentId,
+          tenant.schoolId,
+        )) as Array<{ id: string }>;
+        if (stu.length === 0) {
+          throw new BadRequestException(
+            `studentId ${input.studentId} does not match a student in this school`,
+          );
+        }
+      } else {
+        // Parent / guardian — must be linked to this student
+        const link = (await tx.$queryRawUnsafe(
+          `SELECT s.id::text
+             FROM sis_students s
+             JOIN sis_student_guardians sg ON sg.student_id = s.id
+             JOIN sis_guardians g ON g.id = sg.guardian_id
+            WHERE s.school_id = $1::uuid
+              AND s.id = $2::uuid
+              AND g.person_id = $3::uuid
+            LIMIT 1`,
+          tenant.schoolId,
+          input.studentId,
+          actor.personId,
+        )) as Array<{ id: string }>;
+        if (link.length === 0) {
+          throw new BadRequestException(
+            `studentId ${input.studentId} is not linked to your account in this school`,
+          );
+        }
       }
 
       // For individual slots (max_bookings=1) the atomic transition is
@@ -408,8 +454,6 @@ export class ConferenceBookingService {
       const before = rows[0]!;
 
       const isOwner = before.parent_id === actor.accountId;
-      const isStaff = actor.isSchoolAdmin || actor.personType === 'STAFF';
-
       const wantsStaffFields =
         input.attended !== undefined ||
         input.conferenceNotes !== undefined ||
@@ -417,13 +461,28 @@ export class ConferenceBookingService {
       const wantsParentFields =
         input.parentFeedbackRating !== undefined || input.parentFeedbackComments !== undefined;
 
-      if (wantsStaffFields && !isStaff) {
-        throw new ForbiddenException(
-          'Only staff or admin can mark attendance, write notes, or add follow-up actions',
-        );
+      // REVIEW-P2C24 BLOCKING 3 — Staff outcome fields require
+      // mtg-002:write or :admin (not just personType=STAFF). The
+      // controller gate is mtg-002:read so parents can reach the
+      // endpoint to write their own feedback; field-level authority
+      // is the actual access boundary.
+      if (wantsStaffFields) {
+        const canWriteStaffFields = await this.isConferenceAdmin(actor, tenant.schoolId);
+        if (!canWriteStaffFields) {
+          throw new ForbiddenException(
+            'Marking attendance, writing notes, or adding follow-up actions requires mtg-002:write or :admin',
+          );
+        }
       }
-      if (wantsParentFields && !isOwner && !isStaff) {
-        throw new ForbiddenException('Only the booking owner can submit feedback');
+      // Parent feedback fields are owner-only. Staff cannot author
+      // parent feedback on the parent's behalf — pre-pilot we can
+      // introduce a dedicated correction workflow if schools ask for
+      // it, but the default contract is "parent writes their own
+      // satisfaction rating".
+      if (wantsParentFields && !isOwner) {
+        throw new ForbiddenException(
+          'Only the booking owner (the parent) can submit parent feedback',
+        );
       }
 
       const fields: string[] = [];

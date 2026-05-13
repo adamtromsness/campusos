@@ -1016,3 +1016,627 @@ describe('S7 — Conference slot generation (idempotency)', () => {
     expect(insertedTimes).toEqual(['16:00', '16:15', '16:30', '16:45']);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────
+// REVIEW-P2C24 ROUND 1 — pinned regression tests
+// ──────────────────────────────────────────────────────────────────
+
+describe('REVIEW-P2C24 BLOCKING 1 — student school + guardian link validation', () => {
+  function makeBookingFake(opts: { studentExistsInSchool: boolean; guardianLinked: boolean }) {
+    return makeFake((call) => {
+      if (call.fn === 'q' && call.sql.includes('FROM eng_conference_slots s')) {
+        const past = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+        const future = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+        return [
+          {
+            id: 'slot-1',
+            conference_event_id: 'evt-1',
+            max_bookings: 1,
+            current_bookings: 0,
+            status: 'AVAILABLE',
+            booking_opens_at: past,
+            booking_closes_at: future,
+            event_status: 'BOOKING_OPEN',
+          },
+        ];
+      }
+      // Guardian-link query (parent path) — has sis_student_guardians JOIN
+      if (
+        call.fn === 'q' &&
+        call.sql.includes('FROM sis_students s') &&
+        call.sql.includes('sis_student_guardians')
+      ) {
+        return opts.guardianLinked ? [{ id: 'student-1' }] : [];
+      }
+      // Admin path — has school_id check
+      if (
+        call.fn === 'q' &&
+        call.sql.includes('FROM sis_students') &&
+        call.sql.includes('school_id')
+      ) {
+        return opts.studentExistsInSchool ? [{ id: 'student-1' }] : [];
+      }
+      if (call.fn === 'q' && call.sql.includes('UPDATE eng_conference_slots')) {
+        return [{ id: 'slot-1' }];
+      }
+      if (call.fn === 'q' && call.sql.includes('FROM eng_conference_bookings')) {
+        return [
+          {
+            id: 'booking-1',
+            slot_id: 'slot-1',
+            school_id: SCHOOL.schoolId,
+            parent_id: PARENT_A.accountId,
+            student_id: 'student-1',
+            booked_at: '',
+            cancelled_at: null,
+            cancelled_by: null,
+            cancellation_reason: null,
+            attended: null,
+            conference_notes: null,
+            follow_up_actions: null,
+            parent_feedback_rating: null,
+            parent_feedback_comments: null,
+            created_at: '',
+            updated_at: '',
+          },
+        ];
+      }
+      return [];
+    });
+  }
+
+  it('parent SQL JOINs through sis_student_guardians + sis_guardians + s.school_id', async () => {
+    const captured: CapturedCall[] = [];
+    const { tenantPrisma } = makeFake((call) => {
+      captured.push(call);
+      if (call.fn === 'q' && call.sql.includes('FROM eng_conference_slots s')) {
+        const past = new Date(Date.now() - 1000).toISOString();
+        const future = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+        return [
+          {
+            id: 'slot-1',
+            conference_event_id: 'evt-1',
+            max_bookings: 1,
+            current_bookings: 0,
+            status: 'AVAILABLE',
+            booking_opens_at: past,
+            booking_closes_at: future,
+            event_status: 'BOOKING_OPEN',
+          },
+        ];
+      }
+      if (call.fn === 'q' && call.sql.includes('sis_student_guardians')) {
+        return [{ id: 'student-1' }];
+      }
+      if (call.fn === 'q' && call.sql.includes('UPDATE eng_conference_slots')) {
+        return [{ id: 'slot-1' }];
+      }
+      if (call.fn === 'q' && call.sql.includes('FROM eng_conference_bookings')) {
+        return [
+          {
+            id: 'booking-1',
+            slot_id: 'slot-1',
+            school_id: SCHOOL.schoolId,
+            parent_id: PARENT_A.accountId,
+            student_id: 'student-1',
+            booked_at: '',
+            cancelled_at: null,
+            cancelled_by: null,
+            cancellation_reason: null,
+            attended: null,
+            conference_notes: null,
+            follow_up_actions: null,
+            parent_feedback_rating: null,
+            parent_feedback_comments: null,
+            created_at: '',
+            updated_at: '',
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new ConferenceBookingService(
+      tenantPrisma as any,
+      makePermCheck(() => false),
+    );
+    await withTenant(() => svc.book(PARENT_A, 'slot-1', { studentId: 'student-1' } as any));
+    const guardianQ = captured.find(
+      (c) =>
+        c.fn === 'q' &&
+        c.sql.includes('sis_student_guardians') &&
+        c.sql.includes('sis_guardians') &&
+        c.sql.includes('s.school_id'),
+    );
+    expect(guardianQ).toBeDefined();
+    // The SQL must bind tenant.schoolId, studentId, and actor.personId
+    expect(guardianQ!.args).toContain(SCHOOL.schoolId);
+    expect(guardianQ!.args).toContain('student-1');
+    expect(guardianQ!.args).toContain(PARENT_A.personId);
+  });
+
+  it('parent cannot book for an unlinked student — 400', async () => {
+    const { tenantPrisma } = makeBookingFake({
+      studentExistsInSchool: true,
+      guardianLinked: false,
+    });
+    const svc = new ConferenceBookingService(
+      tenantPrisma as any,
+      makePermCheck(() => false),
+    );
+    await expect(
+      withTenant(() => svc.book(PARENT_A, 'slot-1', { studentId: 'student-1' } as any)),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('admin SQL carries school_id predicate on sis_students lookup', async () => {
+    const captured: CapturedCall[] = [];
+    const { tenantPrisma } = makeFake((call) => {
+      captured.push(call);
+      if (call.fn === 'q' && call.sql.includes('FROM eng_conference_slots s')) {
+        const past = new Date(Date.now() - 1000).toISOString();
+        const future = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+        return [
+          {
+            id: 'slot-1',
+            conference_event_id: 'evt-1',
+            max_bookings: 1,
+            current_bookings: 0,
+            status: 'AVAILABLE',
+            booking_opens_at: past,
+            booking_closes_at: future,
+            event_status: 'BOOKING_OPEN',
+          },
+        ];
+      }
+      if (
+        call.fn === 'q' &&
+        call.sql.includes('FROM sis_students') &&
+        !call.sql.includes('sis_student_guardians')
+      ) {
+        return [{ id: 'student-1' }];
+      }
+      if (call.fn === 'q' && call.sql.includes('UPDATE eng_conference_slots')) {
+        return [{ id: 'slot-1' }];
+      }
+      if (call.fn === 'q' && call.sql.includes('FROM eng_conference_bookings')) {
+        return [
+          {
+            id: 'booking-1',
+            slot_id: 'slot-1',
+            school_id: SCHOOL.schoolId,
+            parent_id: ADMIN_ACTOR.accountId,
+            student_id: 'student-1',
+            booked_at: '',
+            cancelled_at: null,
+            cancelled_by: null,
+            cancellation_reason: null,
+            attended: null,
+            conference_notes: null,
+            follow_up_actions: null,
+            parent_feedback_rating: null,
+            parent_feedback_comments: null,
+            created_at: '',
+            updated_at: '',
+          },
+        ];
+      }
+      return [];
+    });
+    const svc = new ConferenceBookingService(tenantPrisma as any, makePermCheck());
+    await withTenant(() => svc.book(ADMIN_ACTOR, 'slot-1', { studentId: 'student-1' } as any));
+    const adminQ = captured.find(
+      (c) =>
+        c.fn === 'q' &&
+        c.sql.includes('FROM sis_students') &&
+        c.sql.includes('school_id') &&
+        !c.sql.includes('sis_student_guardians'),
+    );
+    expect(adminQ).toBeDefined();
+    expect(adminQ!.args).toContain('student-1');
+    expect(adminQ!.args).toContain(SCHOOL.schoolId);
+  });
+
+  it('admin cannot attach a booking to a foreign-school student — 400', async () => {
+    const { tenantPrisma } = makeBookingFake({
+      studentExistsInSchool: false,
+      guardianLinked: false,
+    });
+    const svc = new ConferenceBookingService(tenantPrisma as any, makePermCheck());
+    await expect(
+      withTenant(() => svc.book(ADMIN_ACTOR, 'slot-1', { studentId: 'student-1' } as any)),
+    ).rejects.toThrow(BadRequestException);
+  });
+});
+
+describe('REVIEW-P2C24 BLOCKING 2 — teacher school validation on generateSlots', () => {
+  it('hr_employees lookup SQL carries school_id predicate', async () => {
+    const captured: CapturedCall[] = [];
+    const { tenantPrisma } = makeFake((call) => {
+      captured.push(call);
+      if (call.fn === 'q' && call.sql.includes('FROM eng_conference_events')) {
+        return [
+          {
+            id: 'evt-1',
+            default_slot_duration_minutes: 10,
+            default_break_minutes: 5,
+            status: 'BOOKING_OPEN',
+          },
+        ];
+      }
+      if (call.fn === 'q' && call.sql.includes('FROM hr_employees')) {
+        return [{ id: 'teacher-emp' }];
+      }
+      if (call.fn === 'q' && call.sql.includes('FROM eng_conference_slots')) {
+        return [];
+      }
+      return [];
+    });
+    const svc = new ConferenceSlotService(tenantPrisma as any, makePermCheck());
+    await withTenant(() =>
+      svc.generateSlots(ADMIN_ACTOR, 'evt-1', {
+        teacherId: 'teacher-emp',
+        slotDate: '2026-11-10',
+        startTime: '16:00',
+        endTime: '16:30',
+        slotDurationMinutes: 10,
+        breakMinutes: 5,
+      } as any),
+    );
+    const teacherQ = captured.find(
+      (c) => c.fn === 'q' && c.sql.includes('FROM hr_employees') && c.sql.includes('school_id'),
+    );
+    expect(teacherQ).toBeDefined();
+    expect(teacherQ!.args).toContain('teacher-emp');
+    expect(teacherQ!.args).toContain(SCHOOL.schoolId);
+  });
+
+  it('rejects foreign-school teacher with 400', async () => {
+    const { tenantPrisma } = makeFake((call) => {
+      if (call.fn === 'q' && call.sql.includes('FROM eng_conference_events')) {
+        return [
+          {
+            id: 'evt-1',
+            default_slot_duration_minutes: 10,
+            default_break_minutes: 5,
+            status: 'BOOKING_OPEN',
+          },
+        ];
+      }
+      if (call.fn === 'q' && call.sql.includes('FROM hr_employees')) {
+        // Foreign-school teacher returns 0 rows
+        return [];
+      }
+      return [];
+    });
+    const svc = new ConferenceSlotService(tenantPrisma as any, makePermCheck());
+    await expect(
+      withTenant(() =>
+        svc.generateSlots(ADMIN_ACTOR, 'evt-1', {
+          teacherId: 'foreign-teacher',
+          slotDate: '2026-11-10',
+          startTime: '16:00',
+          endTime: '16:30',
+        } as any),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('slotSelectSql LEFT JOIN carries e.school_id = s.school_id (defence-in-depth)', async () => {
+    // listForEvent uses slotSelectSql() — capture the SELECT to verify
+    // the LEFT JOIN includes the school predicate so a historical row
+    // with a foreign-school teacher_id cannot leak the cross-school
+    // employee name into the slot DTO.
+    const capturedSql: string[] = [];
+    const { tenantPrisma } = makeFake((call) => {
+      capturedSql.push(call.sql);
+      return [];
+    });
+    const svc = new ConferenceSlotService(tenantPrisma as any, makePermCheck());
+    await withTenant(() => svc.listForEvent(ADMIN_ACTOR, 'evt-1', {}));
+    const selectSql = capturedSql.find((s) => s.includes('LEFT JOIN hr_employees e'));
+    expect(selectSql).toBeDefined();
+    expect(selectSql!).toContain('e.school_id = s.school_id');
+  });
+});
+
+describe('REVIEW-P2C24 BLOCKING 3 — booking PATCH staff fields require mtg-002:write', () => {
+  function makePatchFake() {
+    return makeFake((call) => {
+      if (
+        call.fn === 'q' &&
+        call.sql.includes('FROM eng_conference_bookings') &&
+        call.sql.includes('FOR UPDATE')
+      ) {
+        return [{ id: 'booking-1', parent_id: PARENT_A.accountId }];
+      }
+      if (call.fn === 'q' && call.sql.includes('FROM eng_conference_bookings')) {
+        return [
+          {
+            id: 'booking-1',
+            slot_id: 'slot-1',
+            school_id: SCHOOL.schoolId,
+            parent_id: PARENT_A.accountId,
+            student_id: 'student-1',
+            booked_at: '',
+            cancelled_at: null,
+            cancelled_by: null,
+            cancellation_reason: null,
+            attended: true,
+            conference_notes: null,
+            follow_up_actions: null,
+            parent_feedback_rating: null,
+            parent_feedback_comments: null,
+            created_at: '',
+            updated_at: '',
+          },
+        ];
+      }
+      return [];
+    });
+  }
+
+  it('STAFF with only mtg-002:read cannot mark attended', async () => {
+    const { tenantPrisma } = makePatchFake();
+    // Read-only staff — perm check returns false for write/admin codes
+    const readOnlyPerm = makePermCheck(
+      (codes) => !codes.some((c) => c.endsWith(':write') || c.endsWith(':admin')),
+    );
+    const svc = new ConferenceBookingService(tenantPrisma as any, readOnlyPerm);
+    await expect(
+      withTenant(() => svc.patch(TEACHER_ACTOR, 'booking-1', { attended: true } as any)),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('STAFF with only mtg-002:read cannot write conferenceNotes', async () => {
+    const { tenantPrisma } = makePatchFake();
+    const readOnlyPerm = makePermCheck(
+      (codes) => !codes.some((c) => c.endsWith(':write') || c.endsWith(':admin')),
+    );
+    const svc = new ConferenceBookingService(tenantPrisma as any, readOnlyPerm);
+    await expect(
+      withTenant(() => svc.patch(TEACHER_ACTOR, 'booking-1', { conferenceNotes: 'Sneaky' } as any)),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('STAFF with only mtg-002:read cannot add followUpActions', async () => {
+    const { tenantPrisma } = makePatchFake();
+    const readOnlyPerm = makePermCheck(
+      (codes) => !codes.some((c) => c.endsWith(':write') || c.endsWith(':admin')),
+    );
+    const svc = new ConferenceBookingService(tenantPrisma as any, readOnlyPerm);
+    await expect(
+      withTenant(() =>
+        svc.patch(TEACHER_ACTOR, 'booking-1', {
+          followUpActions: [
+            {
+              description: 'Sneaky action',
+              due_date: '2026-12-01',
+              status: 'PENDING' as const,
+            },
+          ],
+        } as any),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('STAFF with mtg-002:write CAN mark attended', async () => {
+    const { tenantPrisma } = makePatchFake();
+    const writePerm = makePermCheck((codes) => codes.includes('mtg-002:write'));
+    const svc = new ConferenceBookingService(tenantPrisma as any, writePerm);
+    await expect(
+      withTenant(() => svc.patch(TEACHER_ACTOR, 'booking-1', { attended: true } as any)),
+    ).resolves.toBeDefined();
+  });
+
+  it('STAFF cannot author parent feedback (owner-only)', async () => {
+    const { tenantPrisma } = makePatchFake();
+    const writePerm = makePermCheck((codes) => codes.includes('mtg-002:write'));
+    const svc = new ConferenceBookingService(tenantPrisma as any, writePerm);
+    await expect(
+      withTenant(() =>
+        svc.patch(TEACHER_ACTOR, 'booking-1', {
+          parentFeedbackRating: 5,
+          parentFeedbackComments: 'Authored by staff',
+        } as any),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('Booking owner CAN submit their own feedback', async () => {
+    const { tenantPrisma } = makePatchFake();
+    const svc = new ConferenceBookingService(
+      tenantPrisma as any,
+      makePermCheck(() => false),
+    );
+    await expect(
+      withTenant(() =>
+        svc.patch(PARENT_A, 'booking-1', {
+          parentFeedbackRating: 5,
+          parentFeedbackComments: 'Great meeting',
+        } as any),
+      ),
+    ).resolves.toBeDefined();
+  });
+});
+
+describe('REVIEW-P2C24 BLOCKING 4 — engagement worker school-scopes all 5 sources', () => {
+  // We import EngagementScoreWorker indirectly via direct construction.
+  // The worker queries are private, so we capture the SQL stream by
+  // running a tickForSchool against the fake client.
+
+  it('every source query carries either school_id or a school-derived JOIN', async () => {
+    const { EngagementScoreWorker } = await import('../engagement-score.worker');
+    const captured: { sql: string; args: unknown[] }[] = [];
+    const client = {
+      $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
+        captured.push({ sql, args });
+        if (sql.includes('FROM school_config')) return [];
+        if (sql.includes('FROM pay_family_accounts')) {
+          return [{ id: 'fam-1', account_holder_id: PARENT_A.accountId }];
+        }
+        return [];
+      },
+      $executeRawUnsafe: async () => 0,
+    };
+    const tenantPrisma = {
+      executeInExplicitSchema: async (_s: string, fn: (c: unknown) => Promise<unknown>) =>
+        fn(client),
+      executeInTenantContext: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+      executeInTenantTransaction: async (fn: (c: unknown) => Promise<unknown>) => fn(client),
+    };
+    const score = {
+      upsertScore: async () => ({ compositeScore: 0, engagementLevel: 'AT_RISK' as const }),
+    };
+    const worker = new EngagementScoreWorker(tenantPrisma as any, score as any);
+    await worker.tickForSchool('tenant_test', SCHOOL.schoolId);
+
+    // Find the 5 component queries
+    const attendance = captured.find((c) => c.sql.includes('FROM sis_attendance_records'));
+    const communication = captured.find((c) => c.sql.includes('FROM msg_thread_participants'));
+    const conference = captured.find((c) => c.sql.includes('FROM eng_conference_bookings'));
+    const volunteer = captured.find((c) => c.sql.includes('FROM evt_volunteers'));
+    const payment = captured.find((c) => c.sql.includes('FROM pay_invoices'));
+
+    expect(attendance).toBeDefined();
+    expect(attendance!.sql).toMatch(/ar\.school_id\s*=\s*\$/);
+    expect(attendance!.sql).toMatch(/s\.school_id\s*=\s*\$/);
+    expect(attendance!.args).toContain(SCHOOL.schoolId);
+
+    expect(communication).toBeDefined();
+    expect(communication!.sql).toMatch(/tp\.school_id\s*=\s*\$/);
+    expect(communication!.sql).toMatch(/mp\.school_id\s*=\s*tp\.school_id/);
+    expect(communication!.args).toContain(SCHOOL.schoolId);
+    // Verify the column names are corrected from the original broken SQL
+    expect(communication!.sql).toContain('tp.platform_user_id');
+    expect(communication!.sql).toContain('r.reader_id');
+
+    expect(conference).toBeDefined();
+    expect(conference!.sql).toMatch(/school_id\s*=\s*\$/);
+    expect(conference!.args).toContain(SCHOOL.schoolId);
+
+    expect(volunteer).toBeDefined();
+    expect(volunteer!.sql).toContain('JOIN evt_events e');
+    expect(volunteer!.sql).toMatch(/e\.school_id\s*=\s*\$/);
+    expect(volunteer!.args).toContain(SCHOOL.schoolId);
+
+    expect(payment).toBeDefined();
+    expect(payment!.sql).toMatch(/school_id\s*=\s*\$/);
+    expect(payment!.args).toContain(SCHOOL.schoolId);
+  });
+});
+
+describe('REVIEW-P2C24 MAJOR 1 — identified survey deduplication', () => {
+  function makeSurveyFake(opts: { isAnonymous: boolean; existingResponses: unknown[] }) {
+    const updates: { sql: string; args: unknown[] }[] = [];
+    const { tenantPrisma } = makeFake((call) => {
+      if (
+        call.fn === 'q' &&
+        call.sql.includes('FROM eng_parent_surveys') &&
+        call.sql.includes('FOR UPDATE')
+      ) {
+        return [
+          {
+            id: 'survey-1',
+            status: 'OPEN',
+            is_anonymous: opts.isAnonymous,
+            questions: JSON.stringify([
+              { id: 'q1', question_text: 'Rate', question_type: 'RATING_1_5' },
+            ]),
+            response_data_aggregated: JSON.stringify({}),
+            responses: JSON.stringify(opts.existingResponses),
+            total_responses: opts.existingResponses.length,
+          },
+        ];
+      }
+      if (call.fn === 'q' && call.sql.includes('FROM eng_parent_surveys')) {
+        return [
+          {
+            id: 'survey-1',
+            school_id: SCHOOL.schoolId,
+            title: 'Survey',
+            description: null,
+            questions: JSON.stringify([
+              { id: 'q1', question_text: 'Rate', question_type: 'RATING_1_5' },
+            ]),
+            is_anonymous: opts.isAnonymous,
+            opens_at: null,
+            closes_at: null,
+            status: 'OPEN',
+            total_responses: opts.existingResponses.length + 1,
+            response_data_aggregated: JSON.stringify({}),
+            responses: null,
+            created_by: 'admin',
+            opened_at: null,
+            closed_at: null,
+            created_at: '',
+            updated_at: '',
+          },
+        ];
+      }
+      if (call.fn === 'e' && call.sql.includes('UPDATE eng_parent_surveys')) {
+        updates.push({ sql: call.sql, args: call.args });
+      }
+      return [];
+    });
+    return { tenantPrisma, updates };
+  }
+
+  it('identified survey: same respondent re-submitting returns 409 Conflict', async () => {
+    const existingResponse = {
+      submitted_at: '2026-11-01T10:00:00Z',
+      answers: { q1: 3 },
+      respondent_id: PARENT_A.accountId,
+    };
+    const { tenantPrisma, updates } = makeSurveyFake({
+      isAnonymous: false,
+      existingResponses: [existingResponse],
+    });
+    const { outbox } = makeOutbox();
+    const svc = new ParentSurveyService(tenantPrisma as any, makePermCheck(), outbox as any);
+    await expect(
+      withTenant(() => svc.submitResponse(PARENT_A, 'survey-1', { answers: { q1: 5 } } as any)),
+    ).rejects.toThrow(ConflictException);
+    // Verify no UPDATE was issued
+    expect(updates).toHaveLength(0);
+  });
+
+  it('identified survey: a DIFFERENT respondent can still submit', async () => {
+    const existingResponse = {
+      submitted_at: '2026-11-01T10:00:00Z',
+      answers: { q1: 3 },
+      respondent_id: PARENT_A.accountId,
+    };
+    const { tenantPrisma, updates } = makeSurveyFake({
+      isAnonymous: false,
+      existingResponses: [existingResponse],
+    });
+    const { outbox } = makeOutbox();
+    const svc = new ParentSurveyService(tenantPrisma as any, makePermCheck(), outbox as any);
+    await withTenant(() => svc.submitResponse(PARENT_B, 'survey-1', { answers: { q1: 4 } } as any));
+    expect(updates).toHaveLength(1);
+    const responses = JSON.parse(updates[0]!.args[0] as string) as Array<Record<string, unknown>>;
+    expect(responses).toHaveLength(2);
+    expect(responses[1]!.respondent_id).toBe(PARENT_B.accountId);
+  });
+
+  it('anonymous survey: same parent can submit multiple times (no respondent_id to dedup against)', async () => {
+    const existingResponse = {
+      submitted_at: '2026-11-01T10:00:00Z',
+      answers: { q1: 3 },
+      // No respondent_id — anonymous
+    };
+    const { tenantPrisma, updates } = makeSurveyFake({
+      isAnonymous: true,
+      existingResponses: [existingResponse],
+    });
+    const { outbox } = makeOutbox();
+    const svc = new ParentSurveyService(tenantPrisma as any, makePermCheck(), outbox as any);
+    await withTenant(() => svc.submitResponse(PARENT_A, 'survey-1', { answers: { q1: 5 } } as any));
+    expect(updates).toHaveLength(1);
+    const responses = JSON.parse(updates[0]!.args[0] as string) as Array<Record<string, unknown>>;
+    expect(responses).toHaveLength(2);
+    // Both responses remain anonymous
+    expect(responses[0]).not.toHaveProperty('respondent_id');
+    expect(responses[1]).not.toHaveProperty('respondent_id');
+  });
+});

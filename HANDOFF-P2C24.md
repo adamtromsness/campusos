@@ -1,11 +1,123 @@
 # HANDOFF — Phase 2 Cycle 24 (P2-24): Parent Engagement
 
-**Status:** COMPLETE pending peer review. All 8 user-defined steps
-shipped across two sub-cycles. P2-24a (schema + seed + services +
-workers — Steps 1–5, plus Step 8 score-weight configuration via
-school_config) shipped at `79cd0ac`. P2-24b (UI + integration tests +
-handoff/review docs — Steps 6–7) ships in this commit. **Awaiting
-peer review verdict before tagging `p2c24-complete`.**
+**Status:** COMPLETE pending Round 2 peer review verdict. P2-24a
+(schema + seed + services + workers — Steps 1–5, plus Step 8
+score-weight configuration via `school_config`) shipped at `79cd0ac`.
+P2-24b (UI + vertical-slice tests + handoff/review docs — Steps
+6–7) shipped at `46fce5e`. REVIEW-P2C24 Round 1 returned **FAIL**
+with 4 BLOCKING + 2 MAJOR; the Round 1 fix commit (this commit) lands
+all 4 BLOCKING + the actionable MAJOR 1 + 17 new pinned regression
+tests so the contracts cannot regress. **MAJOR 2** (engagement score
+read authority for teachers — Teacher holds `eng-001:read` and sees
+family component breakdowns including payment data) is a product-side
+scope decision and stays on the Phase 2 backlog. Awaiting Round 2
+verdict before tagging `p2c24-complete`.
+
+## REVIEW-P2C24 Round 1 fix log (2026-05-13)
+
+**BLOCKING 1 — Student school + guardian link validation on `book()`.**
+The prior code validated `studentId` with `SELECT id FROM sis_students
+WHERE id = $1::uuid` only. A parent in School A could book a slot for
+a School B student UUID, or for another family's student in the same
+school. Fix: new private `isConferenceAdmin(actor, schoolId)` helper
+branches the validation. Admin / conference-admin path runs `SELECT id
+FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid` so a
+foreign-school student id returns 0 rows → 400. Parent path runs a
+guardian-link JOIN through `sis_student_guardians + sis_guardians`
+with `g.person_id = actor.personId` — unlinked students return 0 rows
+→ 400 with the canonical "is not linked to your account" message.
+
+**BLOCKING 2 — Teacher school validation on `generateSlots()`.** The
+prior code validated `teacherId` with `SELECT id FROM hr_employees
+WHERE id = $1::uuid` only. A multi-school tenant admin could mint
+School A slots against a School B employee UUID. Fix: SQL rewrites
+to `WHERE id = $1::uuid AND school_id = $2::uuid`. Defence-in-depth:
+`slotSelectSql()` LEFT JOIN extended with `AND e.school_id =
+s.school_id` so a historical row with a foreign-school `teacher_id`
+resolves the teacher name to NULL rather than leaking the cross-school
+employee's name into the slot DTO.
+
+**BLOCKING 3 — Booking PATCH staff fields require `mtg-002:write`.**
+The controller gates PATCH on `mtg-002:read` because parents reach
+the endpoint to write their own feedback. The service prior version
+checked `actor.personType === 'STAFF'` for staff-outcome fields
+(`attended`, `conferenceNotes`, `followUpActions`), so any STAFF
+actor with only `mtg-002:read` could mark attendance and write
+conference notes. Fix: staff-outcome fields now require
+`isConferenceAdmin(actor, schoolId)` (school admin OR holds
+`mtg-002:write` / `mtg-002:admin`). The controller gate stays at
+`mtg-002:read` so parents can reach the endpoint for the parent
+feedback fields; field-level authority is the actual access
+boundary. Parent feedback fields tightened: `parentFeedbackRating` +
+`parentFeedbackComments` are now **owner-only** — staff cannot author
+parent feedback on the parent's behalf. Pre-pilot a dedicated
+correction workflow can land if schools request it.
+
+**BLOCKING 4 — EngagementScoreWorker school-scopes all 5 sources.**
+Worker loops through active schools and writes school-scoped rows,
+but several source-component queries omitted current-school
+predicates. In a multi-school tenant pool the same parent / family
+could legitimately participate across both schools, leaking
+engagement signal between them. Fix:
+
+- `attendanceComponent` adds `ar.school_id = $schoolId` AND `s.school_id
+= $schoolId` via JOIN through `sis_students`.
+- `communicationComponent` adds `tp.school_id = $schoolId` + `mp.school_id
+= tp.school_id`. The original SQL also referenced columns that do
+  not exist (`tp.user_id`, `r.user_id`) — try/catch was swallowing
+  the broken query so every family scored 0 on communication. Round 1
+  fix corrects both: column names rewritten to `tp.platform_user_id`
+  and `r.reader_id` per the Cycle 3 schema.
+- `conferenceComponent` adds `school_id = $schoolId`.
+- `volunteerComponent` JOINs through `evt_events e ON e.id = v.event_id`
+  with `e.school_id = $schoolId` (the `evt_volunteers` table has no
+  direct school_id column).
+- `paymentComponent` adds `school_id = $schoolId` (pay_invoices has
+  a direct school_id column).
+
+`computeComponents` updated to pass `schoolId` to all 5 helper
+methods.
+
+**MAJOR 1 — Identified survey deduplication.** Anonymous surveys
+allow multiple submissions by design (no respondent_id stored, no
+way to dedup without compromising anonymity). Identified surveys
+(`is_anonymous=false`) now enforce one response per `respondent_id`
+— `ParentSurveyService.submitResponse` walks the existing `responses`
+array and throws `ConflictException` on duplicate. The check runs
+inside the FOR-UPDATE-locked tx so two concurrent submissions cannot
+both pass.
+
+**MAJOR 2 carried to Phase 2 punch list.** Teachers hold `eng-001:read`
+and currently see family-level engagement scores with payment +
+communication component breakdowns. Pre-pilot, schools may want to
+restrict full component detail to admin / counsellor roles and show
+teachers only the classroom-relevant conference component. The
+service-layer `assertEngagementReader` helper is the load-bearing gate
+and is straightforward to narrow; product-side scope decision.
+
+**Test coverage:** vitest 1278 → **1295 passing across 62 spec
+files** (+17 new pinned regression tests in
+`engagement-vertical-slice.spec.ts` across 5 new describe blocks:
+BLOCKING 1 × 4 (parent SQL shape, parent unlinked rejection, admin
+SQL school predicate, admin foreign-school student rejection);
+BLOCKING 2 × 3 (hr_employees SQL school predicate, foreign-school
+teacher rejected, slotSelectSql LEFT JOIN defence-in-depth);
+BLOCKING 3 × 6 (read-only staff cannot mark attended / write notes
+/ add follow-up actions, staff WITH write can mark attended, staff
+cannot author parent feedback, owner CAN submit own feedback);
+BLOCKING 4 × 1 (all 5 source queries carry school predicate or
+school-derived JOIN, with explicit args binding check); MAJOR 1 × 3
+(identified-survey same respondent 409, different respondent allowed,
+anonymous-survey same parent allowed)).
+
+**CI parity green:** format:check + lint:logs (936 files clean) +
+API build clean + web build clean + vitest **1295/1295 across 62
+spec files**.
+
+No schema migrations in Round 1 — every fix is service-layer.
+Awaiting Round 2 verdict before tagging `p2c24-complete`.
+
+## P2-24 — Original cycle build state preserved below for review trail.
 
 **Wave D (Module Completion) continues — P2-24 ships the M100 Parent
 Engagement surface.** The Engagement module is the school's

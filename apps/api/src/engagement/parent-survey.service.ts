@@ -350,6 +350,24 @@ export class ParentSurveyService {
         cleanedAnswers[qid] = validateAnswer(q.question_type, answer);
       }
 
+      // REVIEW-P2C24 MAJOR 1 — identified-survey deduplication.
+      // Identified surveys (is_anonymous=false) enforce one response
+      // per respondent — duplicate submissions return 409. Anonymous
+      // surveys allow multiple submissions by design: there is no
+      // respondent_id stored, so we cannot distinguish a re-submit from
+      // a different parent, and adding a rate-limit token strategy
+      // would compromise anonymity. Documented in P2C24-REVIEW-NOTES.
+      if (!row.is_anonymous) {
+        const existing = (responses as Array<Record<string, unknown>>).find(
+          (r) => r && typeof r === 'object' && r.respondent_id === actor.accountId,
+        );
+        if (existing) {
+          throw new ConflictException(
+            'You have already submitted a response to this survey. Identified surveys accept one response per respondent.',
+          );
+        }
+      }
+
       // Build response row — STRICT contract: when is_anonymous, no
       // respondent_id is stored. When identified, store the parent's
       // accountId.
