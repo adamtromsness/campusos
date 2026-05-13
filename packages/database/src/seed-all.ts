@@ -201,6 +201,11 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
       'Accreditation — platform frameworks (AdvancED, IB MYP, CIS) + Lincoln adoption + evidence + ratings + action plans + site visit (P2-23a)',
     script: 'seed-accreditation.ts',
   },
+  {
+    label:
+      'Parent Engagement — conference events + slots + bookings + engagement scores + parent survey (P2-24a)',
+    script: 'seed-engagement.ts',
+  },
 ];
 
 async function main(): Promise<void> {

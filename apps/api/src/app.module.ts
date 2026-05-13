@@ -70,6 +70,7 @@ import { OpsModule } from './ops/ops.module';
 import { CommunityModule } from './community/community.module';
 import { AlumniModule } from './alumni/alumni.module';
 import { AccreditationModule } from './accreditation/accreditation.module';
+import { EngagementModule } from './engagement/engagement.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -300,6 +301,16 @@ var devOnlyControllers: Type<unknown>[] =
     // (acc.action_plan.overdue), 1 background worker
     // (ActionPlanOverdueWorker).
     AccreditationModule,
+
+    // P2-24 — Parent Engagement (M100). Conference scheduling
+    // (ATOMIC slot booking pattern), engagement scoring from 5
+    // cross-module sources (attendance, communications, conferences,
+    // volunteering, payments) with per-school configurable weights,
+    // and anonymous parent surveys with aggregated-only results.
+    // 5 services + 1 controller + 2 background workers + ~24
+    // endpoints + 2 Kafka emits (eng.conference.booking_open,
+    // eng.survey.opened).
+    EngagementModule,
   ],
   controllers: devOnlyControllers,
   providers: [

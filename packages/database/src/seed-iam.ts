@@ -322,6 +322,11 @@ async function seedIam() {
         // manage agendas, set PTC availability, and write notes.
         'MTG-001': ['read', 'write'],
         'MTG-002': ['read', 'write'],
+        // P2-24 — Parent Engagement read for the teacher engagement
+        // surface (visibility scoped to families of students in own
+        // classes at the service layer). Teachers do not get :write —
+        // engagement scoring + survey authoring is admin-only.
+        'ENG-001': ['read'],
         'SCH-001': ['read'],
         'SCH-003': ['read'],
         // Cycle 5 — coverage read so a teacher sees their own coverage,
@@ -571,8 +576,11 @@ async function seedIam() {
         // book PTC slots. Action items + parent-visible notes are
         // accessed via row scope on assignee_id and the
         // is_parent_visible + is_approved gate respectively.
+        // P2-24 — MTG-002:write so parents can book + cancel their
+        // own conference slots; the atomic UPDATE + service-layer
+        // parent_id check on cancel is the actual access gate.
         'MTG-001': ['read'],
-        'MTG-002': ['read'],
+        'MTG-002': ['read', 'write'],
         'SCH-003': ['read'],
         // Cycle 6 — Enrollment write so a parent can submit + track an
         // application (row-scoped to their own apps in ApplicationService).
@@ -959,8 +967,13 @@ async function seedIam() {
         // Cycle 15 — Staff covers VP / counsellor and creates
         // staff + IEP review meetings. MTG-002:read for visibility
         // into PTC schedules.
+        // P2-24 — Staff (VP / counsellor) gets MTG-002:write so they
+        // can manage conferences alongside teachers and ENG-001:read
+        // for the engagement surface (admin-tier writes flow through
+        // School Admin via everyFunction).
         'MTG-001': ['read', 'write'],
-        'MTG-002': ['read'],
+        'MTG-002': ['read', 'write'],
+        'ENG-001': ['read'],
         // Cycle 16 — Enrolment Officer (EO) reviews applications,
         // advances stages, scores criteria, issues offers, and
         // manages onboarding. Held by Staff (covers EO) so the

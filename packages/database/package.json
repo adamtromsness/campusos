@@ -88,6 +88,7 @@
     "seed:community": "tsx src/seed-community.ts",
     "seed:alumni": "tsx src/seed-alumni.ts",
     "seed:accreditation": "tsx src/seed-accreditation.ts",
+    "seed:engagement": "tsx src/seed-engagement.ts",
     "provision": "tsx src/provision-tenant.ts",
     "studio": "prisma studio --schema=prisma/platform/schema.prisma",
     "lint": "eslint src/",
