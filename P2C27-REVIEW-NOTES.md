@@ -199,4 +199,22 @@ The 3 MAJOR follow-ups are recommendation-class items joining the broader Phase 
 
 No schema migrations in Round 1 — every fix is service-layer + new `event-ids.ts` helper file + module-wiring.
 
-Awaiting Round 2 verdict before tagging `p2c27-complete` and `p2c27-approved`.
+**Round 2 verdict: PASS** (2026-05-16). Reviewer's per-finding verification table marks every fix CLOSED in code across all 7 dimensions:
+
+| Dimension               | Rating   |
+| ----------------------- | -------- |
+| Event Durability        | **PASS** |
+| Shared Access Helpers   | **PASS** |
+| Readiness Pathways      | **PASS** |
+| College Applications    | **PASS** |
+| Sections / Endorsements | **PASS** |
+| Resume Generation       | **PASS** |
+| Test Coverage           | **PASS** |
+
+The 3 MAJOR follow-ups correctly carried to Phase 2 / pre-pilot punch list:
+
+1. Broader studentId validation coverage for all cross-student endpoints (current fix covers assignToStudent, college create, resume access; pattern should extend to every cross-student read).
+2. Optional `school_id` denormalisation on `pfl_college_applications` + `pfl_resume_profiles` as performance polish.
+3. Configurable `auto_check_source` catalogue per school rather than hard-coded values in the consumer.
+
+Tagged `p2c27-complete` at `10928a5` (the Round 1 fix commit that earned PASS) and `p2c27-approved` at the closeout commit.

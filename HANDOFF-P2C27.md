@@ -301,8 +301,9 @@ source` strings.
 
 ## Tagging
 
-- `p2c27-complete` — to be tagged at the closeout commit (this commit)
-- `p2c27-approved` — to be tagged after peer review verdict
+- `p2c27-complete` — tagged at `10928a5` (the Round 1 fix commit that earned Round 2 PASS)
+- `p2c27-approved` — tagged at the closeout commit (this commit) after the Round 2 PASS verdict
+- **Round 2 verdict: PASS** — all 6 BLOCKING fixes confirmed in code by the reviewer; 3 MAJOR follow-ups correctly carried to Phase 2 / pre-pilot punch list
 
 ## REVIEW-P2C27 Round 1 fix log (2026-05-16)
 
@@ -357,4 +358,4 @@ The reviewer flagged 3 MAJOR follow-ups; they're recorded as Phase 2 / pre-pilot
 
 No schema migrations in Round 1 — every fix is service-layer + new `event-ids.ts` helper file + module-wiring (constructor signature flip from `KafkaProducerService` to `OutboxService` on `ReadinessPathwayService`; `KafkaModule` already exports `OutboxService` from prior cycles so no module-wiring change needed).
 
-Awaiting Round 2 verdict before tagging `p2c27-complete` and `p2c27-approved`.
+**Round 2 verdict: PASS** (2026-05-16). Reviewer cache-busted each affected file and confirmed every BLOCKING fix matches: deterministic outbox event IDs for milestone-completed (via `deterministicMilestoneCompletedEventId(assignmentId, milestoneId)`); school-scoped helpers in `portfolio-access.ts`; readiness assignment/milestone paths joined through `pfl_readiness_pathways.school_id`; college application paths joined through `sis_students.school_id`; section + endorsement update/delete carry parent portfolio school predicate; resume cross-module aggregation school-scoped. Tagged `p2c27-complete` at `10928a5` (the Round 1 fix commit that earned PASS) and `p2c27-approved` at the closeout commit.
