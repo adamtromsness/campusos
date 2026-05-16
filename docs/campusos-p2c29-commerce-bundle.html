@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-29: Commerce .1 Bundle</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.split-card{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:16px 0}
+.split-card h3{font-size:16px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.split-card p{font-size:14px;line-height:1.8;margin:0}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="index.html">Design Hub</a><a href="campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave D &mdash; Module Completion</div>
+    <h1>P2-29: Commerce .1 Bundle</h1>
+    <div class="sub">Deferred tables from three commerce modules: Procurement (M86) with vendor catalogues, contract lifecycle management, and spending analytics; School Store (M67) with inventory adjustments, promotions, loyalty points, gift cards, wishlists, and price scheduling; and Finance Extensions (M83/M84) with departmental budget management, budget transfers, and enhanced journal entry batches. Full GL accounting (period close, AP three-way matching, grants) remains in Phase 3 Theme B. Pre-split into 2 sub-cycles.</div>
+    <span class="version">May 2026 &middot; 2 Sub-Cycles &middot; ERD v11 &middot; M86.1 + M67.1 + M83/84.1 (19 tables) &middot; PRC-001..004 + STR-001..002 + FIN-001..003 &middot; Phase 2 Cycle 29</span>
+  </div>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Phase 2 vs Phase 3 Finance Boundary</div>
+    <p style="font-size:14px;line-height:1.8;">Phase 2 builds the <strong>operational finance layer</strong>: departmental budgets, budget transfers between departments, and enhanced journal entry batches for admin-initiated corrections. Phase 3 Theme B builds the <strong>full accounting layer</strong>: chart of accounts management, period close with trial balance, AP three-way matching, grant accounting, and financial statement generation. This boundary is set by ADR-058 + ADR-061: full accounting requires the GL backbone to be battle-tested with real production data before layering complex accounting workflows on top.</p>
+  </div>
+
+  <h2 class="section-heading">Sub-Cycle Structure</h2>
+
+  <div class="split-card">
+    <h3>P2-29a &mdash; Procurement Advanced + Finance Extensions (9 tables)</h3>
+    <p>Vendor catalogues with pre-approved items at pre-negotiated prices, catalogue-based requisitions that auto-populate pricing, contract lifecycle management (draft &rarr; active &rarr; expiring &rarr; renewed/terminated) with renewal alerting, procurement spending analytics by vendor/category/department, departmental budget management with allocation tracking, inter-department budget transfers with approval, and enhanced journal entry batches for manual GL corrections.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-29b &mdash; Store Advanced (10 tables)</h3>
+    <p>Store inventory adjustments with reason tracking and audit trail, product promotions with date-range scheduling and discount types (percentage, flat, BOGO), loyalty points with configurable earn rates and redemption, gift card issuance with balance management and top-up, product wishlists with back-in-stock notification, price scheduling for seasonal pricing, store categories with hierarchy, store analytics dashboard, and enhanced order fulfilment workflow.</p>
+  </div>
+
+  <h2 class="section-heading">P2-29a: Procurement + Finance (M86.1 + M83/84.1)</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema (9 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>prc_vendor_catalogues</strong> &mdash; <code>vendor_id UUID FK(fin_suppliers) NOT NULL</code>, <code>school_id UUID NOT NULL</code>, <code>catalogue_name TEXT NOT NULL</code>, <code>effective_from DATE NOT NULL</code>, <code>effective_to DATE</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(vendor_id, school_id, catalogue_name). Pre-approved item lists at pre-negotiated prices.</li>
+      <li><strong>prc_catalogue_items</strong> &mdash; <code>catalogue_id UUID FK NOT NULL</code>, <code>item_code TEXT NOT NULL</code>, <code>description TEXT NOT NULL</code>, <code>unit TEXT</code>, <code>negotiated_price NUMERIC(10,2) NOT NULL</code>, <code>category TEXT</code>, <code>min_order_qty INT DEFAULT 1</code>, <code>lead_time_days INT</code>. UNIQUE(catalogue_id, item_code). Requisitions from catalogue auto-populate pricing.</li>
+      <li><strong>prc_contracts</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>vendor_id UUID FK(fin_suppliers) NOT NULL</code>, <code>contract_number TEXT NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>start_date DATE NOT NULL</code>, <code>end_date DATE NOT NULL</code>, <code>total_value NUMERIC(12,2)</code>, <code>spent_to_date NUMERIC(12,2) DEFAULT 0</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 5-value CHECK (DRAFT, ACTIVE, EXPIRING, RENEWED, TERMINATED), <code>document_s3_key TEXT</code>, <code>renewal_reminder_days INT DEFAULT 90</code>, <code>created_by UUID FK NOT NULL</code>. UNIQUE(school_id, contract_number). INDEX(school_id, status, end_date). ContractExpiryWorker: nightly checks end_date - renewal_reminder_days &rarr; ACTIVE &rarr; EXPIRING + notifies procurement lead.</li>
+      <li><strong>prc_contract_amendments</strong> &mdash; <code>contract_id UUID FK NOT NULL</code>, <code>amendment_number INT NOT NULL</code>, <code>description TEXT NOT NULL</code>, <code>value_change NUMERIC(12,2)</code>, <code>new_end_date DATE</code>, <code>document_s3_key TEXT</code>, <code>approved_by UUID FK</code>, <code>effective_date DATE NOT NULL</code>. UNIQUE(contract_id, amendment_number). On value_change: updates prc_contracts.total_value.</li>
+      <li><strong>prc_spending_analytics</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>period DATE NOT NULL</code> (monthly), <code>vendor_id UUID FK</code>, <code>category TEXT</code>, <code>department TEXT</code>, <code>total_spend NUMERIC(12,2)</code>, <code>po_count INT</code>, <code>avg_lead_time_days NUMERIC(5,1)</code>. UNIQUE(school_id, period, vendor_id, category, department). Materialised monthly by ProcurementAnalyticsWorker from prc_purchase_orders + prc_receiving_records.</li>
+      <li><strong>fin_departmental_budgets</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>academic_year_id UUID FK NOT NULL</code>, <code>department TEXT NOT NULL</code>, <code>budget_category TEXT NOT NULL</code> 6-value CHECK (PERSONNEL, SUPPLIES, EQUIPMENT, CONTRACTED_SERVICES, TRAVEL, OTHER), <code>allocated_amount NUMERIC(12,2) NOT NULL</code>, <code>committed_amount NUMERIC(12,2) DEFAULT 0</code> (from prc_budget_commitments), <code>spent_amount NUMERIC(12,2) DEFAULT 0</code>, <code>available_amount NUMERIC(12,2)</code> (computed: allocated - committed - spent), <code>approved_by UUID FK</code>. UNIQUE(school_id, academic_year_id, department, budget_category). On prc.po.issued: committed_amount incremented. On pay.payment.received for vendor: committed released, spent incremented.</li>
+      <li><strong>fin_budget_transfers</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>from_budget_id UUID FK(fin_departmental_budgets) NOT NULL</code>, <code>to_budget_id UUID FK(fin_departmental_budgets) NOT NULL</code>, <code>amount NUMERIC(12,2) NOT NULL</code> CHECK(&gt;0), <code>reason TEXT NOT NULL</code>, <code>requested_by UUID FK NOT NULL</code>, <code>approved_by UUID FK</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, APPROVED, REJECTED), <code>transferred_at TIMESTAMPTZ</code>. CHECK(from_budget_id != to_budget_id). On APPROVED: from_budget.allocated decremented, to_budget.allocated incremented atomically.</li>
+      <li><strong>fin_journal_entry_batches</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>batch_name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>entry_count INT NOT NULL DEFAULT 0</code>, <code>total_debits NUMERIC(14,2) NOT NULL DEFAULT 0</code>, <code>total_credits NUMERIC(14,2) NOT NULL DEFAULT 0</code>, <code>is_balanced BOOLEAN</code> (computed: total_debits = total_credits), <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 3-value CHECK (DRAFT, POSTED, VOIDED), <code>posted_by UUID FK</code>, <code>posted_at TIMESTAMPTZ</code>. INDEX(school_id, status). On POST: validates is_balanced=true (rejects if not), creates fin_gl_entries for each line item.</li>
+      <li><strong>fin_journal_entry_lines</strong> &mdash; <code>batch_id UUID FK NOT NULL</code>, <code>account_id UUID FK(fin_chart_of_accounts) NOT NULL</code>, <code>debit NUMERIC(14,2) DEFAULT 0</code>, <code>credit NUMERIC(14,2) DEFAULT 0</code>, <code>description TEXT</code>. CHECK(debit &ge; 0 AND credit &ge; 0). CHECK(debit = 0 OR credit = 0) — a line is either debit or credit, never both. INDEX(batch_id).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 9 tables. Migration: <code>162_prc_catalogues_fin_budgets.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Seed + Services + UI + Tests (P2-29a)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <p><strong>Services (~22 endpoints):</strong> VendorCatalogueService (CRUD + catalogue-based requisition auto-pricing), ContractService (CRUD + lifecycle + amendment + ContractExpiryWorker), SpendingAnalyticsService (materialised monthly + dashboard), DepartmentalBudgetService (CRUD + available balance computation), BudgetTransferService (request + approve with atomic balance update), JournalBatchService (create + add lines + post with balance validation). <strong>CRITICAL:</strong> Journal batch POST validates total_debits = total_credits before creating GL entries. Budget transfer is atomic: from decremented + to incremented in single transaction. <strong>UI:</strong> Vendor catalogue browser, contract management with expiry timeline, spending analytics dashboard, departmental budget tracker with available balance, budget transfer request form, journal entry batch editor with balance indicator.</p>
+    <div class="produces">Produces &rarr; P2-29a: 9 tables, ~22 endpoints, 2 workers. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-29b: Store Advanced (M67.1)</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Schema (10 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>str_inventory_adjustments</strong> &mdash; <code>product_id UUID FK(str_products) NOT NULL</code>, <code>adjustment_type TEXT NOT NULL</code> 5-value CHECK (RECOUNT, DAMAGE, THEFT, RETURN_TO_STOCK, WRITE_OFF), <code>quantity_delta INT NOT NULL</code>, <code>reason TEXT NOT NULL</code>, <code>adjusted_by UUID FK NOT NULL</code>. INDEX(product_id, created_at DESC). On INSERT: updates str_products.stock_quantity += quantity_delta. Audit trail for all inventory changes outside of normal sales.</li>
+      <li><strong>str_promotions</strong> &mdash; <code>store_id UUID FK(str_stores) NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>discount_type TEXT NOT NULL</code> 4-value CHECK (PERCENTAGE, FLAT_AMOUNT, BOGO, FREE_SHIPPING), <code>discount_value NUMERIC(10,2) NOT NULL</code>, <code>min_order_amount NUMERIC(10,2)</code>, <code>promo_code TEXT</code>, <code>starts_at TIMESTAMPTZ NOT NULL</code>, <code>ends_at TIMESTAMPTZ NOT NULL</code>, <code>max_uses INT</code>, <code>current_uses INT DEFAULT 0</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(store_id, promo_code) WHERE promo_code IS NOT NULL. INDEX(store_id, starts_at, ends_at).</li>
+      <li><strong>str_promotion_products</strong> &mdash; <code>promotion_id UUID FK NOT NULL</code>, <code>product_id UUID FK(str_products) NOT NULL</code>. UNIQUE(promotion_id, product_id). Junction: which products a promotion applies to (empty = all products).</li>
+      <li><strong>str_loyalty_config</strong> &mdash; <code>store_id UUID FK(str_stores) NOT NULL UNIQUE</code>, <code>points_per_dollar INT NOT NULL DEFAULT 1</code>, <code>redemption_rate_cents INT NOT NULL DEFAULT 1</code> (1 point = 1 cent discount), <code>min_redemption_points INT DEFAULT 100</code>, <code>is_enabled BOOLEAN DEFAULT false</code>. School configures loyalty programme parameters.</li>
+      <li><strong>str_loyalty_transactions</strong> &mdash; <code>store_id UUID FK NOT NULL</code>, <code>customer_id UUID FK NOT NULL</code>, <code>transaction_type TEXT NOT NULL</code> 3-value CHECK (EARNED, REDEEMED, ADJUSTMENT), <code>points INT NOT NULL</code>, <code>order_id UUID FK</code>, <code>description TEXT</code>. INDEX(customer_id, created_at DESC). Customer balance = SUM(points) WHERE transaction_type IN (EARNED, ADJUSTMENT) - SUM(points) WHERE transaction_type = REDEEMED.</li>
+      <li><strong>str_gift_cards</strong> &mdash; <code>store_id UUID FK(str_stores) NOT NULL</code>, <code>card_code TEXT NOT NULL UNIQUE</code>, <code>initial_balance_cents INT NOT NULL</code>, <code>current_balance_cents INT NOT NULL</code>, <code>purchased_by UUID FK</code>, <code>recipient_email TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, DEPLETED, CANCELLED), <code>expires_at DATE</code>. INDEX(card_code). On current_balance_cents = 0: status &rarr; DEPLETED.</li>
+      <li><strong>str_gift_card_transactions</strong> &mdash; <code>card_id UUID FK NOT NULL</code>, <code>transaction_type TEXT NOT NULL</code> 3-value CHECK (PURCHASE, REDEMPTION, TOP_UP), <code>amount_cents INT NOT NULL</code>, <code>order_id UUID FK</code>, <code>performed_by UUID FK</code>. INDEX(card_id, created_at DESC). On REDEMPTION: atomic decrement current_balance_cents; reject if insufficient.</li>
+      <li><strong>str_wishlists</strong> &mdash; <code>customer_id UUID FK NOT NULL</code>, <code>product_id UUID FK(str_products) NOT NULL</code>, <code>notify_on_restock BOOLEAN DEFAULT true</code>. UNIQUE(customer_id, product_id). RestockNotificationWorker: when str_products.stock_quantity goes from 0 to &gt;0, notifies all wishlist entries with notify_on_restock=true.</li>
+      <li><strong>str_price_schedules</strong> &mdash; <code>product_id UUID FK(str_products) NOT NULL</code>, <code>scheduled_price NUMERIC(10,2) NOT NULL</code>, <code>effective_from TIMESTAMPTZ NOT NULL</code>, <code>effective_to TIMESTAMPTZ</code>, <code>reason TEXT</code>. INDEX(product_id, effective_from). PriceScheduleWorker: applies scheduled prices at effective_from. Reverts at effective_to if set.</li>
+      <li><strong>str_category_hierarchy</strong> &mdash; <code>store_id UUID FK(str_stores) NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>parent_category_id UUID FK(str_category_hierarchy)</code> nullable (null = top-level), <code>sort_order INT NOT NULL</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(store_id, name, parent_category_id). Self-referential hierarchy for product categories. ALTER str_products ADD category_id UUID FK(str_category_hierarchy).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 10 tables + ALTER str_products ADD category_id. Migration: <code>163_str_promotions_loyalty.sql</code>. Total P2-29 tables: 19.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed + Services + UI + Tests (P2-29b)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <p><strong>Services (~24 endpoints):</strong> InventoryAdjustmentService (adjust with reason + audit trail), PromotionService (CRUD + promo code validation + max_uses enforcement), LoyaltyService (configure + earn on purchase + redeem at checkout + balance query), GiftCardService (issue + redeem + top-up + balance check + expiry), WishlistService (add/remove + restock notification), PriceScheduleService (CRUD + PriceScheduleWorker), CategoryHierarchyService (CRUD with self-referential tree). <strong>CRITICAL:</strong> Gift card redemption uses atomic decrement — reject if current_balance_cents &lt; amount. Promotion max_uses enforced atomically (INCREMENT + CHECK). Loyalty redemption validates min_redemption_points. <strong>UI:</strong> Inventory adjustment form with reason selector, promotion manager with date range + product selector, loyalty dashboard (student: points balance + history; admin: programme config), gift card manager (issue, check balance, top-up), wishlist on product pages, price schedule calendar, category tree editor.</p>
+    <div class="produces">Produces &rarr; P2-29b: 10 tables, ~24 endpoints, 2 workers. Create all peer review docs. Total P2-29: 19 tables, ~46 endpoints.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist (Full P2-29)</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 19 new tables + ALTER str_products. Tenant table count: ~821.</li>
+      <li>Commerce API: ~46 endpoints across procurement, finance, store.</li>
+      <li>Vendor catalogues with catalogue-based requisition auto-pricing.</li>
+      <li>Contract lifecycle with expiry alerting + amendments.</li>
+      <li>Departmental budgets with committed + spent + available tracking.</li>
+      <li>Budget transfers with atomic balance update on approval.</li>
+      <li>Journal entry batches with debit/credit balance validation on post.</li>
+      <li>Store promotions with 4 discount types + promo codes + max uses.</li>
+      <li>Loyalty points with configurable earn/redeem rates.</li>
+      <li>Gift cards with atomic balance management + expiry.</li>
+      <li>Wishlists with restock notification.</li>
+      <li>Price scheduling with automated application.</li>
+      <li>HANDOFF-P2C29.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 29 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M86 Procurement .1, M67 Store .1, M83/84 Finance extensions &mdash; 19 tables). Functions: PRC-001..004, STR-001..002, FIN-001..003. Cross-cycle: Cycle 26 fin_chart_of_accounts + fin_gl_entries + fin_suppliers + prc_purchase_orders + prc_budget_commitments, Cycle 17 str_stores + str_products + str_orders. Full GL accounting deferred to Phase 3 Theme B (ADR-058). Pre-split into 2 sub-cycles.</p>
+  </div>
+</div>
+</body>
+</html>
