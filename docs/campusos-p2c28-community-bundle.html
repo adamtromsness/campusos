@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-28: Community .1 Bundle</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.split-card{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:16px 0}
+.split-card h3{font-size:16px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.split-card p{font-size:14px;line-height:1.8;margin:0}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="index.html">Design Hub</a><a href="campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave D &mdash; Module Completion</div>
+    <h1>P2-28: Community .1 Bundle</h1>
+    <div class="sub">The largest remaining cycle bundles deferred tables from four community modules: Groups &amp; Communities (M103) with polls, group events, resource sharing, and engagement analytics; Clubs &amp; Student Life (M64) with student elections, club budgets, field trip evaluation, and service partner organisations; Meetings (M41) with structured agendas, action items, AI meeting minutes, and recording consent management; and Student Services (M27) with counsellor caseload management, agency referrals, and longitudinal wellbeing tracking. Pre-split into 3 sub-cycles.</div>
+    <span class="version">May 2026 &middot; 3 Sub-Cycles &middot; ERD v11 &middot; M103.1 + M64.1 + M41.1 + M27.1 (27 tables) &middot; GRP-001..003 + CLB-001..004 + MTG-001..002 + SVC-001..003 &middot; Phase 2 Cycle 28</span>
+  </div>
+
+  <h2 class="section-heading">Sub-Cycle Structure</h2>
+  <p class="body-text">27 tables across 4 modules, split along module boundaries for clean dependency management.</p>
+
+  <div class="split-card">
+    <h3>P2-28a &mdash; Groups Advanced (9 tables)</h3>
+    <p>Group polls with multi-option voting and results aggregation, group events with RSVP management (distinct from school-wide P2-12 events), group resource library with file sharing and version control, group invitations with approval workflow, and group engagement analytics (posts, comments, active members per period).</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-28b &mdash; Clubs + Meetings Advanced (10 tables)</h3>
+    <p>Student government elections with anonymous voting (structurally anonymous: ext_votes has NO voter_id column; ext_election_voter_check records WHO voted without linking to HOW), club budget management with transaction tracking, field trip post-evaluation, service learning partner organisations; meeting agenda items with timed presenters, meeting action items with assignee tracking, AI-generated meeting minutes (stub), meeting templates for recurring meeting types.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-28c &mdash; Student Services Advanced (8 tables)</h3>
+    <p>Counsellor caseload management with capacity tracking and auto-assignment, formal referral workflow (teacher → counsellor → external provider) with immutable activity log, referral type configuration, external agency referrals for outside-school services, longitudinal wellbeing tracking across academic years, MTSS team meeting coordination, and intervention effectiveness reporting.</p>
+  </div>
+
+  <h2 class="section-heading">P2-28a: Groups Advanced (M103.1)</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema (9 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>grp_group_polls</strong> &mdash; <code>group_id UUID FK NOT NULL</code>, <code>question TEXT NOT NULL</code>, <code>poll_type TEXT NOT NULL</code> 3-value CHECK (SINGLE_CHOICE, MULTIPLE_CHOICE, RANKED), <code>allows_anonymous BOOLEAN DEFAULT false</code>, <code>closes_at TIMESTAMPTZ</code>, <code>status TEXT NOT NULL DEFAULT 'OPEN'</code> 3-value CHECK (OPEN, CLOSED, CANCELLED), <code>created_by UUID FK NOT NULL</code>. INDEX(group_id, status).</li>
+      <li><strong>grp_poll_options</strong> &mdash; <code>poll_id UUID FK NOT NULL</code>, <code>option_text TEXT NOT NULL</code>, <code>sort_order INT NOT NULL</code>, <code>vote_count INT DEFAULT 0</code>. UNIQUE(poll_id, sort_order).</li>
+      <li><strong>grp_poll_votes</strong> &mdash; <code>poll_id UUID FK NOT NULL</code>, <code>option_id UUID FK NOT NULL</code>, <code>voter_id UUID FK</code> (NULL when allows_anonymous=true), <code>rank INT</code> (for RANKED polls). UNIQUE(poll_id, voter_id, option_id) WHERE voter_id IS NOT NULL. Atomic: UPDATE grp_poll_options SET vote_count = vote_count + 1.</li>
+      <li><strong>grp_group_events</strong> &mdash; <code>group_id UUID FK NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>event_date TIMESTAMPTZ NOT NULL</code>, <code>location TEXT</code>, <code>max_attendees INT</code>, <code>created_by UUID FK NOT NULL</code>. INDEX(group_id, event_date). Distinct from evt_events (P2-12) — these are informal group-level meetups, not school-wide ticketed events.</li>
+      <li><strong>grp_event_rsvps</strong> &mdash; <code>event_id UUID FK NOT NULL</code>, <code>member_id UUID FK NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 3-value CHECK (CONFIRMED, DECLINED, PENDING), <code>responded_at TIMESTAMPTZ</code>. UNIQUE(event_id, member_id). CHECK(confirmed count &le; max_attendees) enforced at service layer.</li>
+      <li><strong>grp_resource_library</strong> &mdash; <code>group_id UUID FK NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>resource_type TEXT NOT NULL</code> 5-value CHECK (DOCUMENT, LINK, IMAGE, VIDEO, TEMPLATE), <code>s3_key TEXT</code>, <code>url TEXT</code>, <code>uploaded_by UUID FK NOT NULL</code>, <code>version INT DEFAULT 1</code>, <code>is_pinned BOOLEAN DEFAULT false</code>. INDEX(group_id, is_pinned DESC, created_at DESC).</li>
+      <li><strong>grp_resource_versions</strong> &mdash; <code>resource_id UUID FK NOT NULL</code>, <code>version_number INT NOT NULL</code>, <code>s3_key TEXT</code>, <code>uploaded_by UUID FK NOT NULL</code>, <code>change_notes TEXT</code>. UNIQUE(resource_id, version_number). On new version: grp_resource_library.version incremented.</li>
+      <li><strong>grp_group_invitations</strong> &mdash; <code>group_id UUID FK NOT NULL</code>, <code>invited_user_id UUID FK NOT NULL</code>, <code>invited_by UUID FK NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, ACCEPTED, DECLINED), <code>message TEXT</code>. UNIQUE(group_id, invited_user_id). On ACCEPTED: creates grp_group_members row.</li>
+      <li><strong>grp_group_analytics</strong> &mdash; <code>group_id UUID FK NOT NULL</code>, <code>period DATE NOT NULL</code> (monthly), <code>total_members INT</code>, <code>active_members INT</code>, <code>posts_count INT</code>, <code>comments_count INT</code>, <code>polls_created INT</code>, <code>events_held INT</code>, <code>resources_shared INT</code>, <code>engagement_rate NUMERIC(5,4)</code>. UNIQUE(group_id, period). Materialised monthly by GroupAnalyticsWorker.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 9 tables. Migration: <code>159_grp_polls_events_resources.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Seed + Services + UI + Tests (P2-28a)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <p><strong>Services (~18 endpoints):</strong> PollService (create, vote, close, results), GroupEventService (CRUD + RSVP with max_attendees enforcement), ResourceLibraryService (CRUD + versioning), InvitationService (invite, accept, decline → auto-creates member), GroupAnalyticsService (monthly materialisation + dashboard). <strong>UI:</strong> Poll widget (inline on group page), group events calendar with RSVP buttons, resource library with version history, invitation management, group analytics dashboard.</p>
+    <div class="produces">Produces &rarr; P2-28a: 9 tables, ~18 endpoints. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-28b: Clubs + Meetings Advanced (M64.1 + M41.1)</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Schema (10 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>ext_elections</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>voting_start TIMESTAMPTZ NOT NULL</code>, <code>voting_end TIMESTAMPTZ NOT NULL</code>, <code>eligible_voters_filter JSONB NOT NULL</code> (e.g., {grade_levels: ["9","10","11","12"]}), <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 4-value CHECK (DRAFT, OPEN, CLOSED, RESULTS_PUBLISHED), <code>created_by UUID FK NOT NULL</code>. INDEX(school_id, status).</li>
+      <li><strong>ext_candidates</strong> &mdash; <code>election_id UUID FK NOT NULL</code>, <code>student_id UUID FK NOT NULL</code>, <code>position TEXT NOT NULL</code>, <code>statement TEXT</code>, <code>photo_s3_key TEXT</code>, <code>is_approved BOOLEAN DEFAULT true</code>. UNIQUE(election_id, student_id, position).</li>
+      <li><strong>ext_votes</strong> &mdash; <code>election_id UUID FK NOT NULL</code>, <code>position TEXT NOT NULL</code>, <code>candidate_id UUID FK NOT NULL</code>, <code>voted_at TIMESTAMPTZ NOT NULL</code>. <strong>NO voter_id column</strong> — anonymity is structural. Cannot reverse-engineer who voted for whom.</li>
+      <li><strong>ext_election_voter_check</strong> &mdash; <code>election_id UUID FK NOT NULL</code>, <code>student_id UUID FK NOT NULL</code>. PRIMARY KEY(election_id, student_id). Records WHO voted without linking to HOW they voted. Prevents double voting.</li>
+      <li><strong>ext_club_budgets</strong> &mdash; <code>activity_id UUID FK(ext_activities) NOT NULL</code>, <code>academic_year_id UUID FK NOT NULL</code>, <code>allocated_amount NUMERIC(10,2) NOT NULL</code>, <code>spent_amount NUMERIC(10,2) DEFAULT 0</code>, <code>remaining_amount NUMERIC(10,2)</code> (computed: allocated - spent), <code>approved_by UUID FK</code>. UNIQUE(activity_id, academic_year_id).</li>
+      <li><strong>ext_budget_transactions</strong> &mdash; <code>budget_id UUID FK NOT NULL</code>, <code>transaction_type TEXT NOT NULL</code> 4-value CHECK (ALLOCATION, EXPENSE, REFUND, ADJUSTMENT), <code>amount NUMERIC(10,2) NOT NULL</code>, <code>description TEXT NOT NULL</code>, <code>receipt_s3_key TEXT</code>, <code>recorded_by UUID FK NOT NULL</code>. INDEX(budget_id, created_at DESC). On INSERT: updates ext_club_budgets.spent_amount.</li>
+      <li><strong>ext_field_trip_evaluations</strong> &mdash; <code>field_trip_id UUID FK(ext_field_trips) NOT NULL</code>, <code>evaluated_by UUID FK NOT NULL</code>, <code>overall_rating INT NOT NULL</code> CHECK(1..5), <code>educational_value_rating INT</code> CHECK(1..5), <code>logistics_rating INT</code> CHECK(1..5), <code>safety_rating INT</code> CHECK(1..5), <code>comments TEXT</code>, <code>would_recommend BOOLEAN</code>. UNIQUE(field_trip_id, evaluated_by).</li>
+      <li><strong>ext_service_partner_orgs</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>org_name TEXT NOT NULL</code>, <code>contact_name TEXT</code>, <code>contact_email TEXT</code>, <code>contact_phone TEXT</code>, <code>service_types TEXT[]</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, org_name). Service learning partner organisations for student volunteer placement.</li>
+      <li><strong>mtg_meeting_templates</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>meeting_type_id UUID FK(mtg_meeting_types)</code>, <code>default_duration_minutes INT</code>, <code>default_agenda JSONB</code> (pre-populated agenda items), <code>created_by UUID FK NOT NULL</code>. UNIQUE(school_id, name).</li>
+      <li><strong>mtg_ai_minutes</strong> &mdash; <code>meeting_id UUID FK(mtg_meetings) NOT NULL UNIQUE</code>, <code>raw_transcript TEXT</code>, <code>ai_summary TEXT</code>, <code>ai_action_items JSONB</code> (extracted action items with assignee suggestions), <code>ai_key_decisions JSONB</code>, <code>model_version TEXT</code>, <code>generated_at TIMESTAMPTZ</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, GENERATED, APPROVED), <code>approved_by UUID FK</code>. AI Inference stub — generates placeholder until P3-A1.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 10 tables. Migration: <code>160_ext_elections_budgets_mtg.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed + Services + UI + Tests (P2-28b)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <p><strong>Services (~22 endpoints):</strong> ElectionService (create, register candidates, vote with double-vote prevention via voter_check, close, publish results), ClubBudgetService (CRUD + transactions + remaining balance), FieldTripEvalService (post-trip evaluation), ServicePartnerService (CRUD), MeetingTemplateService (CRUD + create-from-template), AIMeetingMinutesService (generate stub, approve). <strong>CRITICAL:</strong> ext_votes has NO voter_id — anonymity is structural. ext_election_voter_check prevents double voting without linking vote to voter. <strong>UI:</strong> Election portal (candidate registration, voting booth, results), club budget tracker, field trip evaluation form, meeting template library, AI minutes preview + approval.</p>
+    <div class="produces">Produces &rarr; P2-28b: 10 tables, ~22 endpoints. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-28c: Student Services Advanced (M27.1)</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Schema (8 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>svc_counsellor_caseloads</strong> &mdash; <code>counselor_id UUID FK(hr_employees) NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>school_id UUID NOT NULL</code>, <code>academic_year_id UUID FK NOT NULL</code>, <code>assigned_at TIMESTAMPTZ NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, TRANSFERRED, GRADUATED). UNIQUE(counselor_id, student_id, academic_year_id) WHERE status='ACTIVE'. INDEX(counselor_id, status). INDEX(student_id).</li>
+      <li><strong>svc_referral_types</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>referral_category TEXT NOT NULL</code> 3-value CHECK (INTERNAL, EXTERNAL, CRISIS), <code>default_priority TEXT DEFAULT 'MEDIUM'</code> 4-value CHECK (LOW, MEDIUM, HIGH, URGENT), <code>requires_parent_notification BOOLEAN DEFAULT true</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name).</li>
+      <li><strong>svc_referrals</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>student_id UUID FK NOT NULL</code>, <code>referral_type_id UUID FK NOT NULL</code>, <code>referred_by UUID FK NOT NULL</code>, <code>assigned_to_id UUID FK</code> (counsellor), <code>priority TEXT NOT NULL</code>, <code>concern_description TEXT NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 6-value CHECK (PENDING, ACCEPTED, IN_PROGRESS, RESOLVED, CLOSED, DECLINED), <code>source_incident_id UUID</code> (SOFT INTEGRITY → sis_discipline_incidents), <code>parent_notified BOOLEAN DEFAULT false</code>, <code>parent_notified_at TIMESTAMPTZ</code>. INDEX(student_id, status). INDEX(assigned_to_id, status). Emits <code>svc.referral.created</code>.</li>
+      <li><strong>svc_referral_activity</strong> &mdash; <strong>IMMUTABLE.</strong> <code>referral_id UUID FK NOT NULL</code>, <code>actor_id UUID FK NOT NULL</code>, <code>activity_type TEXT NOT NULL</code> 6-value CHECK (STATUS_CHANGE, ASSIGNMENT_CHANGE, NOTE_ADDED, PARENT_NOTIFIED, ESCALATED, EXTERNAL_CONTACT_MADE), <code>notes TEXT</code>. NO UPDATE, NO DELETE.</li>
+      <li><strong>svc_agency_referrals</strong> &mdash; <code>referral_id UUID FK(svc_referrals) NOT NULL</code>, <code>agency_name TEXT NOT NULL</code>, <code>agency_contact TEXT</code>, <code>agency_phone TEXT</code>, <code>agency_email TEXT</code>, <code>referral_date DATE NOT NULL</code>, <code>reason TEXT NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'REFERRED'</code> 4-value CHECK (REFERRED, CONTACTED, ACTIVE_SERVICE, DISCHARGED), <code>consent_obtained BOOLEAN DEFAULT false</code>, <code>follow_up_date DATE</code>. INDEX(referral_id). External agency for outside-school services (therapy, social services, etc.).</li>
+      <li><strong>svc_wellbeing_longitudinal</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>school_id UUID NOT NULL</code>, <code>academic_year TEXT NOT NULL</code>, <code>domain TEXT NOT NULL</code> 5-value CHECK (ACADEMIC, SOCIAL, EMOTIONAL, PHYSICAL, SAFETY), <code>avg_score NUMERIC(3,1)</code>, <code>trend TEXT NOT NULL</code> 3-value CHECK (IMPROVING, STABLE, DECLINING), <code>checkin_count INT</code>, <code>flagged_count INT</code>, <code>counsellor_notes TEXT</code>. UNIQUE(student_id, academic_year, domain). Materialised annually from svc_wellbeing_check_in_responses. Multi-year view of student wellbeing.</li>
+      <li><strong>svc_mtss_team_meetings</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>meeting_id UUID</code> (SOFT INTEGRITY → mtg_meetings), <code>academic_year_id UUID FK NOT NULL</code>, <code>facilitated_by UUID FK NOT NULL</code>, <code>meeting_date DATE NOT NULL</code>, <code>notes TEXT</code>. INDEX(school_id, meeting_date DESC). Links formal MTSS team review meetings to the students discussed.</li>
+      <li><strong>svc_mtss_meeting_students</strong> &mdash; <code>team_meeting_id UUID FK NOT NULL</code>, <code>student_id UUID FK NOT NULL</code>, <code>tier_id UUID FK(svc_mtss_tiers)</code>, <code>discussion_notes TEXT</code>, <code>tier_change_recommended TEXT</code> 3-value CHECK (MAINTAIN, ESCALATE, DE_ESCALATE) nullable, <code>action_items JSONB</code>. UNIQUE(team_meeting_id, student_id). Junction table: which students were discussed at which MTSS meeting.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 tables. Migration: <code>161_svc_caseloads_referrals.sql</code>. Total P2-28 tables: 27.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Seed + Services + UI + Tests (P2-28c)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <p><strong>Services (~20 endpoints):</strong> CaseloadService (assign, transfer, capacity dashboard), ReferralService (create + auto-assign to caseload counsellor, status transitions with IMMUTABLE activity log, parent notification), AgencyReferralService (external agency tracking with consent + follow-up), WellbeingLongitudinalService (annual materialisation + multi-year trend view), MTSSMeetingService (create team meeting, add student discussions, record tier change recommendations). <strong>CRITICAL:</strong> svc_referral_activity is IMMUTABLE — no UPDATE, no DELETE. CRISIS referrals auto-escalate to admin + trigger immediate notification. <strong>UI:</strong> Counsellor caseload dashboard with capacity, referral management workflow, agency referral tracking, student wellbeing multi-year trend chart, MTSS team meeting notes.</p>
+    <div class="produces">Produces &rarr; P2-28c: 8 tables, ~20 endpoints, 1 Kafka emit. Create all peer review docs. Total P2-28: 27 tables, ~60 endpoints.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist (Full P2-28)</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 27 new tables. Tenant table count: ~802.</li>
+      <li>Community API: ~60 new endpoints across Groups, Clubs, Meetings, Student Services.</li>
+      <li>Group polls with anonymous voting + group events with RSVP + resource library with versioning.</li>
+      <li>Student elections with structural anonymity (NO voter_id on ext_votes).</li>
+      <li>Club budgets with transaction tracking + remaining balance.</li>
+      <li>Meeting templates + AI-generated minutes (stub).</li>
+      <li>Counsellor caseload management with capacity tracking.</li>
+      <li>Referral workflow (PENDING → ACCEPTED → IN_PROGRESS → RESOLVED) with IMMUTABLE activity log.</li>
+      <li>CRISIS referrals auto-escalate + immediate notification.</li>
+      <li>External agency referrals with consent + follow-up tracking.</li>
+      <li>Longitudinal wellbeing trends across academic years.</li>
+      <li><code>svc.referral.created</code> Kafka emit.</li>
+      <li>HANDOFF-P2C28.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 28 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M103 Groups .1, M64 Clubs .1, M41 Meetings .1, M27 Student Services .1 &mdash; 27 tables). Functions: GRP-001..003, CLB-001..004, MTG-001..002, SVC-001..003. Cross-cycle: Cycle 7 grp_groups + grp_group_members, Cycle 18 ext_activities + ext_field_trips, Cycle 7 mtg_meetings + mtg_meeting_types, Cycle 11 svc_mtss_tiers + svc_wellbeing_check_ins. Pre-split into 3 sub-cycles.</p>
+  </div>
+</div>
+</body>
+</html>
