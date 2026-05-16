@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-26: Publications Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="index.html">Design Hub</a><a href="campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave D &mdash; Module Completion</div>
+    <h1>P2-26: Publications Advanced</h1>
+    <div class="sub">Immutable publication version history with full content snapshots on every status transition, reusable publication templates with pre-populated section structures (platform-seeded + school-custom), scheduled publishing with timezone-aware queue processing, and per-publication engagement analytics with view/open/click tracking. Smallest cycle in Wave D.</div>
+    <span class="version">May 2026 &middot; 7 Steps &middot; ERD v11 &middot; M25 Publications .1 (4 tables) &middot; PUB-001 &middot; Phase 2 Cycle 26</span>
+  </div>
+  <h2 class="section-heading">Plan Overview</h2>
+  <p class="body-text">Phase 2 Cycle 26 builds the deferred tables from Cycle 25&rsquo;s M25 Publications module &mdash; 4 new tables. Cycle 25 built the core publishing surface (series, editions, publications, sections, collaborators, distribution lists, recipients, subscriptions, media). This cycle adds the editorial workflow depth: immutable version history so editors can review or revert to any prior state, a template library so schools don&rsquo;t start newsletters from scratch, scheduled publishing so the Friday newsletter queues on Wednesday and auto-publishes at 3pm Friday, and engagement analytics so the communications team knows which publications actually get read.</p>
+  <div class="callout callout-warn">
+    <div class="callout-title">IMMUTABLE &mdash; pub_publication_versions</div>
+    <p style="font-size:14px;line-height:1.8;"><code>pub_publication_versions</code> is <strong>IMMUTABLE</strong> &mdash; no UPDATE, no DELETE at the service layer. Each version is a complete JSONB snapshot of the publication&rsquo;s content at that point in time. Versions are created automatically on every status transition (DRAFT &rarr; IN_REVIEW &rarr; APPROVED &rarr; PUBLISHED) and on explicit &ldquo;Save Checkpoint&rdquo; by the editor. The version trail is the publication&rsquo;s audit history.</p>
+  </div>
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin creates template &ldquo;Monthly Newsletter&rdquo; with 5 pre-populated sections &rarr; editor creates new publication from template &rarr; sections auto-populated &rarr; editor writes content &rarr; saves checkpoint &rarr; v1 created (IMMUTABLE) &rarr; submits for review &rarr; v2 auto-created &rarr; reviewer approves &rarr; v3 &rarr; editor schedules publish for Friday 3pm EST &rarr; ScheduledPublishWorker fires &rarr; PUBLISHED &rarr; v4 (final) &rarr; distribution triggered &rarr; after 48 hours: 450 views, 312 opens, 89 clicks &rarr; editor views version history &rarr; can preview any version &rarr; reverts to v2 &rarr; creates new v5 based on v2&rsquo;s snapshot (append-only).</p>
+  </div>
+  <div class="callout callout-note">
+    <div class="callout-title">What&rsquo;s In / What&rsquo;s Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (4 tables):</strong> pub_publication_versions, pub_templates, pub_scheduled_publications, pub_publication_analytics. Function PUB-001 extended.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> AI-generated content suggestions. A/B testing for subject lines. Rich template designer with drag-and-drop. Multi-language publication variants. PDF export. Publication archive full-text search. Collaborative real-time editing. RSS feed generation.</p>
+  </div>
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema (4 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>pub_publication_versions</strong> &mdash; <strong>IMMUTABLE.</strong> <code>publication_id UUID FK NOT NULL</code>, <code>version_number INT NOT NULL</code>, <code>snapshot_content JSONB NOT NULL</code>, <code>created_by UUID FK NOT NULL</code>, <code>version_note TEXT</code>, <code>trigger TEXT NOT NULL</code> 3-value CHECK (STATUS_CHANGE, MANUAL_CHECKPOINT, REVERT). NO UPDATE, NO DELETE. UNIQUE(publication_id, version_number). INDEX(publication_id, version_number DESC).</li>
+      <li><strong>pub_templates</strong> &mdash; <code>school_id UUID</code> nullable (null = platform-seeded), <code>name TEXT NOT NULL</code>, <code>publication_type TEXT NOT NULL</code>, <code>description TEXT</code>, <code>template_content JSONB NOT NULL</code>, <code>is_system BOOLEAN DEFAULT false</code>, <code>created_by UUID FK</code>. UNIQUE(COALESCE(school_id, '00000000-0000-0000-0000-000000000000'), name).</li>
+      <li><strong>pub_scheduled_publications</strong> &mdash; <code>publication_id UUID FK NOT NULL UNIQUE</code>, <code>scheduled_at TIMESTAMPTZ NOT NULL</code>, <code>timezone TEXT NOT NULL DEFAULT 'America/Chicago'</code>, <code>status TEXT NOT NULL DEFAULT 'SCHEDULED'</code> 3-value CHECK (SCHEDULED, PUBLISHED, CANCELLED), <code>scheduled_by UUID FK NOT NULL</code>, <code>published_at TIMESTAMPTZ</code>. INDEX(status, scheduled_at) WHERE status='SCHEDULED'.</li>
+      <li><strong>pub_publication_analytics</strong> &mdash; <code>publication_id UUID FK NOT NULL UNIQUE</code>, <code>total_recipients INT DEFAULT 0</code>, <code>total_views INT DEFAULT 0</code>, <code>unique_views INT DEFAULT 0</code>, <code>total_opens INT DEFAULT 0</code>, <code>total_link_clicks INT DEFAULT 0</code>, <code>avg_read_time_seconds INT</code>, <code>last_updated_at TIMESTAMPTZ</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 tables. Migration: <code>155_pub_versions_templates.sql</code>.</div>
+  </div>
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li>5 versions for an existing publication (v1 STATUS_CHANGE, v2 MANUAL_CHECKPOINT, v3 STATUS_CHANGE, v4 REVERT, v5 STATUS_CHANGE). 3 templates (2 platform is_system=true, 1 school-custom). 1 scheduled publication (SCHEDULED, Friday 3pm). 2 analytics rows.</li>
+      <li>Permissions: PUB-001 extended: templates (admin create; staff use), versions (editor + admin view), scheduling (editor + admin), analytics (editor + admin).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Publication advanced demo data.</div>
+  </div>
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Version History + Template NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>VersionService</strong> &mdash; <code>GET /publications/:id/versions</code> (list without snapshot_content), <code>GET /publications/versions/:versionId</code> (full snapshot), <code>POST /publications/:id/checkpoint</code> (manual save), <code>POST /publications/:id/revert/:versionNumber</code> (creates NEW version from specified snapshot). Auto-hook on every status transition.</li>
+      <li><strong>TemplateService</strong> &mdash; <code>GET /publications/templates</code>, <code>POST /publications/templates</code> (admin), <code>PATCH /publications/templates/:id</code> (is_system=true rejects), <code>POST /publications/from-template/:templateId</code> (create + auto-populate sections). Platform seeder: 3 system templates.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 services, ~10 endpoints.</div>
+  </div>
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Scheduled Publishing + Analytics NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>ScheduledPublishService</strong> &mdash; <code>POST /publications/:id/schedule</code>, <code>DELETE /publications/:id/schedule</code>, <code>GET /publications/scheduled</code>. ScheduledPublishWorker: every minute, publishes due items, emits <code>pub.publication.published</code>.</li>
+      <li><strong>PublicationAnalyticsService</strong> &mdash; <code>GET /publications/:id/analytics</code>, <code>GET /publications/analytics/summary</code>. AnalyticsWorker: atomic INCREMENT on delivery/open/click events.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 services + 2 workers, ~8 endpoints, 1 Kafka emit. Total: ~18 endpoints.</div>
+  </div>
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Publications Advanced UI</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Version History Panel</strong> &mdash; timeline sidebar with trigger badges. Preview + revert buttons. Diff view.</li>
+      <li><strong>Template Library</strong> <code>/publications/templates</code> &mdash; grid with previews. &ldquo;Use Template&rdquo; button.</li>
+      <li><strong>Schedule Publish</strong> &mdash; date/time picker with timezone. Countdown indicator.</li>
+      <li><strong>Analytics Dashboard</strong> <code>/publications/analytics</code> &mdash; per-publication funnel + ranking table.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Version history, template library, scheduled publish, analytics.</div>
+  </div>
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <ol class="detail-list">
+      <li><strong>Version IMMUTABLE:</strong> Create + transition. Verify auto-versions. Attempt UPDATE/DELETE &rarr; rejected. Revert creates NEW version (append-only).</li>
+      <li><strong>Templates:</strong> Create from template. Verify sections auto-populated. is_system=true edit &rarr; 403.</li>
+      <li><strong>Scheduled publishing:</strong> Schedule for 1 min. Worker fires. Verify PUBLISHED + distribution + final version + Kafka emit. Cancel &rarr; CANCELLED.</li>
+      <li><strong>Analytics:</strong> Simulate events. Verify atomic increments. Concurrent events don&rsquo;t lose counts.</li>
+      <li><strong>Visibility:</strong> Editor sees versions + analytics for own. Admin sees all. Students see published only.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified: version history (IMMUTABLE) &rarr; templates &rarr; scheduled publishing &rarr; analytics.</div>
+  </div>
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Platform Template Seeder</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li>Idempotent upsert of 3 system templates (Monthly Newsletter, Weekly Bulletin, Annual Report) with school_id=NULL + is_system=true.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Idempotent platform template seeder.</div>
+  </div>
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 4 new tables. Tenant table count: ~767.</li>
+      <li>Publications API: ~18 endpoints + 2 workers.</li>
+      <li>Immutable version history with auto-creation on status transitions + manual checkpoints.</li>
+      <li>Revert creates new version from snapshot (append-only).</li>
+      <li>Reusable templates: platform-seeded + school-custom.</li>
+      <li>Scheduled publishing with timezone-aware queue.</li>
+      <li>Per-publication engagement analytics with atomic counters.</li>
+      <li><code>pub.publication.published</code> Kafka emit.</li>
+      <li>HANDOFF-P2C26.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 26 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M25 Publications deferred tables). Functions: PUB-001 extended. Cross-cycle: Cycle 25 pub_publications + pub_sections + pub_distribution_recipients. No split needed.</p>
+  </div>
+</div>
+</body>
+</html>
