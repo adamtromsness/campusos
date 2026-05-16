@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Post Phase 2 Review Context Package</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#fff;--border:#e2e6ea;--green:#28a745;--amber:#e5a919;--red:#dc3545}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7}
+.container{max-width:950px;margin:0 auto;padding:40px 40px 120px}
+h1{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent);margin-bottom:8px}
+h2{font-family:'DM Serif Display',serif;font-size:24px;color:var(--accent);margin:40px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+h3{font-size:16px;font-weight:700;color:var(--accent);margin:20px 0 8px}
+p,li{font-size:14px;line-height:1.8}
+.sub{font-size:16px;color:var(--text-light);margin-bottom:24px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+th{background:#d5e8f0;padding:8px 10px;border:1px solid #ccc;text-align:left;font-weight:600}
+td{padding:6px 10px;border:1px solid #ddd;vertical-align:top}
+.mono{font-family:monospace;font-size:12px;background:#f8f9fa}
+.callout{border-radius:8px;padding:16px 20px;margin:16px 0;border-left:4px solid;font-size:14px}
+.callout-blue{background:var(--accent-light);border-color:var(--accent-mid)}
+.callout-amber{background:#fef9ec;border-color:var(--amber)}
+.callout-red{background:#fdeaea;border-color:var(--red)}
+ol,ul{padding-left:20px;margin:8px 0}
+code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>CampusOS — Post Phase 2 Review Context Package</h1>
+<p class="sub">For ChatGPT Architectural Review. May 2026. This document summarises the entire CampusOS system built across Phase 1 (34 cycles) and Phase 2 (29 cycles). Use this alongside the ERD v11, Architecture Review, and Function Library for a complete picture.</p>
+
+<div class="callout callout-blue">
+<strong>Your Review Mission:</strong> You are reviewing the DESIGN PLANS, not source code. Look for architectural anti-patterns, security concerns, scalability risks, missing error handling patterns, over-engineering, under-specification, and cross-module coupling violations. A separate Claude Code audit will verify actual implementation matches these plans.
+</div>
+
+<h2>1. System Overview</h2>
+<p><strong>CampusOS</strong> is a cloud-native, multi-tenant School Operating System. 840 ERD tables across 38 modules, 76 ADRs. Tech stack: NestJS monolith + 6 extracted services, PostgreSQL (tenant-per-schema), Kafka, Redis, Next.js frontend. ~821 tenant tables built after Phase 2, ~19 deferred to Phase 3.</p>
+
+<h3>Key Architectural Patterns</h3>
+<ul>
+<li><strong>Multi-tenancy:</strong> Tenant-per-schema with platform schema for cross-tenant entities. Tenant routing via middleware. Schema rebalancing with is_frozen write gate (ADR-031).</li>
+<li><strong>Identity:</strong> iam_person is the universal human FK. platform_users is auth-only. ADR-055 locked.</li>
+<li><strong>Events:</strong> ADR-057 Kafka event envelope (event_id, event_type, event_version, occurred_at, tenant_id, source_module, correlation_id, payload). Topics: {env}.{domain}.{entity}.{verb}. Idempotency via platform_event_consumer_idempotency.</li>
+<li><strong>Cross-module references:</strong> HARD FK within module + to platform. SOFT INTEGRITY across modules (application-layer check). DISPLAY-ONLY for snapshots. No cross-module writes — event-driven propagation only (ADR-028).</li>
+<li><strong>IMMUTABLE tables:</strong> Financial ledger entries, referral activity logs, publication versions, inventory transactions — no UPDATE, no DELETE at service layer.</li>
+<li><strong>Atomic operations:</strong> Ticket sales (UPDATE WHERE qty_sold+$n≤qty), conference slot booking (UPDATE WHERE status='AVAILABLE'), gift card redemption (atomic decrement). Never SELECT-then-UPDATE.</li>
+</ul>
+
+<h2>2. Phase 1 — Foundation (Cycles 0–34, 418 tables)</h2>
+<table>
+<tr><th>Wave</th><th>Cycles</th><th>Modules</th><th>Tables</th></tr>
+<tr><td>Wave 1: Core Platform</td><td>0–8</td><td>Platform (M0), IAM, SIS (M20), Classroom (M21), HR (M80), Attendance, Calendar, Communications (M40), Approval Workflows</td><td>~180</td></tr>
+<tr><td>Wave 2: Operational</td><td>9–16</td><td>Health (M23), Student Services (M27), Library (M24), Athletics (M66), Scheduling (M22), Enrolment (M81), Payments (M84), Curriculum</td><td>~100</td></tr>
+<tr><td>Wave 3: Community</td><td>17–26</td><td>Clubs (M64), Transportation (M61), Food Service (M63), Facilities (M65), Groups (M103), IT (M62), Store (M67), Portfolio (M26), Publications (M25), Finance GL backbone (M83)</td><td>~100</td></tr>
+<tr><td>Wave 4: Analytics + Ops</td><td>27–34</td><td>Behaviour (M9.1), Procurement (M86), Safety/Emergency, Forms, Documents, Analytics read models (M110), Observability (Prometheus, Grafana, Jaeger)</td><td>~38</td></tr>
+</table>
+
+<h2>3. Phase 2 — All Cycles (P2-1 through P2-29, ~422 tables)</h2>
+<table>
+<tr><th>Wave</th><th>Cycles</th><th>Description</th><th>Tables</th></tr>
+<tr><td>Wave A: Core .1</td><td>P2-1 to P2-4</td><td>SIS Advanced (24t), Classroom Advanced (24t), Scheduling Advanced (20t), HR Advanced (18t incl. absorbed P2-16 Appraisals 7t)</td><td>~86</td></tr>
+<tr><td>Wave B: Pilot</td><td>P2-5 to P2-10</td><td>Enrolment Advanced (7t), Payments Advanced (17t), Classroom Advanced 2 (already in P2-7), Athletics Advanced (18t), Sub Marketplace (13t), Food Service Advanced (15t)</td><td>~70</td></tr>
+<tr><td>Wave C: Depth</td><td>P2-11 to P2-17</td><td>Transportation Advanced (22t), Events &amp; Ticketing (9t), SIS Advanced 2 (24t), Behaviour Advanced (5t), Analytics Read Models (18t), Scheduling Advanced 2 (already in P2-3)</td><td>~78</td></tr>
+<tr><td>Wave D: Completion</td><td>P2-18 to P2-29</td><td>Facilities Advanced (21t), Comms Advanced (13t), IT Advanced (10t), Platform Advanced (26t), Alumni (8t), Accreditation (8t), Parent Engagement (5t), Library Advanced (6t), Publications Advanced (4t), Portfolio Advanced (8t), Community Bundle (27t), Commerce Bundle (19t)</td><td>~155+</td></tr>
+</table>
+
+<h2>4. Cross-Module Kafka Event Map</h2>
+<p>Every event follows ADR-057 envelope. Key cross-module event chains:</p>
+<table>
+<tr><th>Event</th><th>Producer</th><th>Consumers</th><th>Purpose</th></tr>
+<tr><td>enr.student.enrolled</td><td>M81 Enrolment</td><td>M84 Payments, M20 SIS, M40 Comms</td><td>Create family account, activate student, send welcome</td></tr>
+<tr><td>enr.student.withdrawn</td><td>M81 Enrolment</td><td>M61 Transport, M62 IT, M63 Food, M40 Comms</td><td>Offboarding fan-out</td></tr>
+<tr><td>pay.invoice.created</td><td>M84 Payments</td><td>M83 Finance (GL entry), M40 Comms (notification)</td><td>AR → GL posting</td></tr>
+<tr><td>pay.payment.received</td><td>M84 Payments</td><td>M83 Finance (GL entry)</td><td>Cash receipt GL posting</td></tr>
+<tr><td>pay.credit_note.issued</td><td>M84 Payments</td><td>M83 Finance (GL entry)</td><td>Credit note GL posting</td></tr>
+<tr><td>hlth.allergy_alert.changed</td><td>M23 Health</td><td>M63 Food Service (allergen sync)</td><td>POS allergen read model</td></tr>
+<tr><td>prc.po.issued</td><td>M86 Procurement</td><td>M83 Finance (budget commitment)</td><td>Encumber budget</td></tr>
+<tr><td>prc.distribution.completed</td><td>M86 Procurement</td><td>M62, M61, M63, M24, M66, M64, M65, M67</td><td>Inventory records per module</td></tr>
+<tr><td>sub.assignment.confirmed</td><td>M82 Sub Marketplace</td><td>M22 Scheduling (cover arrangement)</td><td>Link substitute to timetable</td></tr>
+<tr><td>fds.meal.served</td><td>M63 Food Service</td><td>M84 Payments (lunch account debit)</td><td>POS cafeteria charge</td></tr>
+<tr><td>svc.referral.created</td><td>M27 Student Services</td><td>M40 Comms (notify counsellor)</td><td>Referral notification</td></tr>
+<tr><td>evt.event.completed</td><td>M101 Events</td><td>M83 Finance (revenue GL entry)</td><td>Event revenue posting</td></tr>
+<tr><td>sis.graduation.at_risk</td><td>M20 SIS</td><td>M40 Comms (alert counsellor)</td><td>Senior at-risk notification</td></tr>
+<tr><td>pfl.pathway.milestone_completed</td><td>M26 Portfolio</td><td>M40 Comms (notify student)</td><td>Readiness milestone celebration</td></tr>
+</table>
+
+<h2>5. IMMUTABLE Tables (No UPDATE, No DELETE)</h2>
+<ul>
+<li><code>fin_gl_entries</code> — General ledger entries (Cycle 26)</li>
+<li><code>pay_credit_notes</code> — Credit notes with offsetting ledger entries (P2-6)</li>
+<li><code>pay_payment_reversals</code> — Bounced cheques, chargebacks (P2-6)</li>
+<li><code>pay_lunch_account_balance_transfers</code> — Sibling/year-end transfers (P2-6)</li>
+<li><code>fds_inventory_transactions</code> — Stock movement audit trail (P2-10)</li>
+<li><code>pub_publication_versions</code> — Content snapshots on every status change (P2-26)</li>
+<li><code>svc_referral_activity</code> — Referral status change audit log (P2-28c)</li>
+<li><code>platform_import_run_log</code> — Import pipeline phase transitions (Phase 3)</li>
+</ul>
+
+<h2>6. Atomic Operation Patterns</h2>
+<ul>
+<li><strong>Ticket sales:</strong> <code>UPDATE evt_ticket_tiers SET quantity_sold=quantity_sold+$qty WHERE id=$1 AND quantity_sold+$qty≤quantity</code> — 0 rows = 409 Sold Out</li>
+<li><strong>Conference booking:</strong> <code>UPDATE eng_conference_slots SET status='BOOKED' WHERE id=$1 AND status='AVAILABLE'</code> — 0 rows = 409</li>
+<li><strong>Gate scanning:</strong> <code>UPDATE evt_tickets SET status='USED' WHERE qr_code_token=$1 AND status='VALID'</code> — 0 rows = already scanned</li>
+<li><strong>Gift card redemption:</strong> Atomic decrement <code>current_balance_cents</code>, reject if insufficient</li>
+<li><strong>Budget transfer:</strong> From decremented + to incremented in single transaction</li>
+<li><strong>Poll voting:</strong> <code>UPDATE grp_poll_options SET vote_count=vote_count+1</code></li>
+</ul>
+
+<h2>7. Platform vs Tenant Schema Split</h2>
+<p>Most tables are tenant-schema (school-scoped). These are platform-schema (cross-tenant):</p>
+<ul>
+<li><strong>M0 Platform Core:</strong> platform_tenants, platform_users, platform_tenant_configs, iam_* tables, schools, districts</li>
+<li><strong>Officials Marketplace (ADR-063):</strong> platform_official_profiles, platform_official_availability</li>
+<li><strong>Sub Marketplace (ADR-029):</strong> platform_substitute_profiles, platform_sub_credentials, platform_sub_availability, platform_sub_preferences</li>
+<li><strong>Accreditation frameworks (P2-23):</strong> platform_accreditation_frameworks, platform_accreditation_standards (platform-seeded, tenant adopts)</li>
+<li><strong>Publication templates (P2-26):</strong> pub_templates with school_id=NULL for system templates</li>
+</ul>
+
+<h2>8. Key Design Decisions to Scrutinise</h2>
+<div class="callout callout-amber">
+<strong>Review these areas specifically:</strong>
+<ol>
+<li><strong>Election anonymity (P2-28b):</strong> ext_votes has NO voter_id column. ext_election_voter_check records WHO voted without linking to HOW. Is structural anonymity sufficient or are there re-identification risks with small electorates?</li>
+<li><strong>Engagement scoring (P2-24):</strong> Composite score from 5 modules. Are configurable weights + level thresholds appropriate, or does this create a surveillance score?</li>
+<li><strong>AI tutoring opt-out (P2-7c):</strong> Parent/student opt-out stored in cls_ai_tutoring_opt_outs. Is the opt-out mechanism robust enough? What happens to existing session data on opt-out?</li>
+<li><strong>SOFT INTEGRITY everywhere:</strong> Cross-module references use application-layer checks, not DB FKs. Is the platform_reference_health monitoring sufficient to catch dangling references?</li>
+<li><strong>JSONB for milestone statuses (P2-27):</strong> pfl_student_pathway_assignments stores milestone progress as JSONB. Should this be a normalised junction table for queryability?</li>
+<li><strong>Tenant-per-schema at scale:</strong> 840 tables × N tenants. What's the practical ceiling? How does schema migration work across 100+ tenants?</li>
+<li><strong>Financial boundary (M84 vs M83):</strong> Payments emits events, Finance consumes and posts GL entries. Is the event contract robust enough for audit-grade financial reconciliation?</li>
+<li><strong>Gift card + loyalty (P2-29b):</strong> Balance management with atomic decrements. Are there edge cases around concurrent redemptions + top-ups?</li>
+</ol>
+</div>
+
+<h2>9. Deferred to Phase 3 (~24 tables)</h2>
+<ul>
+<li><strong>P3-C1:</strong> DPO Compliance Suite — ~13 dpo_ tables (GDPR/FERPA tooling)</li>
+<li><strong>P3-B1/B2:</strong> Full M83 Finance — ~5 tables (AP, grants, reconciliation, board reports) + full procurement (three-way matching)</li>
+<li><strong>P3-D1:</strong> Data Import Pipeline — 6 platform_import_* tables (onboarding migration toolkit)</li>
+<li><strong>P3-A1–A6:</strong> 6 extracted services go live (AI Inference, Video Processing, Notification/Push, Scheduling Solver, Transport Dispatch, Emergency Alert)</li>
+</ul>
+
+<h2>10. ChatGPT Review Checklist</h2>
+<div class="callout callout-red">
+<strong>Please evaluate each area and provide findings with severity (BLOCKING / IMPORTANT / ADVISORY):</strong>
+<ol>
+<li><strong>Security:</strong> Are there data leakage paths? Can a student see another student's data? Can a parent see non-custody child's data? Are CONFIDENTIAL notes properly restricted? Is PII properly masked in AI pipelines?</li>
+<li><strong>Scalability:</strong> Which tables will hit scale issues first? Are partitioning strategies correct? Is the trn_vehicle_positions high-frequency write pattern viable? Are materialised read models sufficient?</li>
+<li><strong>Data integrity:</strong> Are IMMUTABLE constraints enforceable at the DB level (not just service layer)? Are there race conditions beyond the documented atomic operations? Can SOFT INTEGRITY references go stale?</li>
+<li><strong>Financial accuracy:</strong> Is the M84→M83 event-driven GL posting pattern audit-grade? Can events be lost? What happens on Kafka consumer failure for a payment event?</li>
+<li><strong>Operational concerns:</strong> Are there tables that will grow unboundedly without retention policies? Are worker frequencies (every minute, nightly, weekly) appropriate? Are DLQ procedures documented?</li>
+<li><strong>Over-engineering:</strong> Are any modules unnecessarily complex for a school context? Could JSONB columns replace normalised tables in some cases (or vice versa)?</li>
+<li><strong>Missing capabilities:</strong> Given the 840-table ERD, what critical school operations are NOT covered that a competing SIS would provide?</li>
+<li><strong>Privacy/compliance:</strong> FERPA, GDPR readiness. Are consent mechanisms adequate? Is the right-to-erasure path viable given IMMUTABLE tables?</li>
+</ol>
+</div>
+
+<h2>11. Claude Code Audit Prompt</h2>
+<p>When the API recovers, give Claude Code this prompt to audit the actual codebase:</p>
+<div style="background:#f8f9fa;border:1px solid #ddd;padding:16px;border-radius:8px;font-size:13px;line-height:1.8;margin:12px 0;">
+<pre style="white-space:pre-wrap;font-family:monospace;">
+Read docs/campusos-erd-v11.html and the full src/ directory structure.
+
+Perform a POST PHASE 2 CODE AUDIT across these categories. For each finding,
+report: CATEGORY, SEVERITY (BLOCKING/IMPORTANT/ADVISORY), FILE, DESCRIPTION.
+
+1. SCHEMA DRIFT: Compare every Prisma model against ERD v11. Report any
+   missing columns, wrong types, missing indexes, missing CHECK constraints,
+   or missing UNIQUE constraints.
+
+2. PERMISSION GAPS: Grep all @RequirePermission decorators. Cross-reference
+   against the Function Library. Report any endpoints missing permission
+   guards or using wrong permission codes.
+
+3. KAFKA INTEGRITY: List every Kafka emit (producer) and every consumer.
+   Cross-reference against the ERD's Kafka Topic Register. Report any
+   events that are emitted but never consumed, or consumed but never emitted.
+
+4. IMMUTABLE VIOLATIONS: For tables documented as IMMUTABLE (fin_gl_entries,
+   pay_credit_notes, pay_payment_reversals, pay_lunch_account_balance_transfers,
+   fds_inventory_transactions, pub_publication_versions, svc_referral_activity):
+   grep for any UPDATE or DELETE operations at the service/repository layer.
+
+5. ATOMIC OPERATION VERIFICATION: For documented atomic patterns (ticket sales,
+   conference booking, gate scanning, gift card redemption, budget transfer):
+   verify the actual SQL uses UPDATE WHERE (not SELECT-then-UPDATE).
+
+6. SCHOOL SCOPE LEAKS: Grep all repository queries. Verify every tenant-schema
+   query includes school_id in the WHERE clause (or uses the tenant middleware).
+   Report any queries that could return cross-school data.
+
+7. SOFT INTEGRITY GAPS: For all SOFT INTEGRITY references documented in the ERD:
+   verify the application-layer check exists in the service. Report any missing
+   validation.
+
+8. TEST COVERAGE: Run pnpm test --coverage. Report any module below 80%.
+   Report any critical path (financial, auth, atomic operations) below 95%.
+
+9. SEED DATA COMPLETENESS: Verify every table has seed data. Report any
+   tables with no seed rows.
+
+10. ADR COMPLIANCE: Spot-check 10 ADRs against implementation. Report any
+    violations.
+
+Output a markdown report: CAMPUSOS-PHASE2-CODE-AUDIT.md with all findings
+sorted by severity. Commit and push.
+</pre>
+</div>
+
+</div>
+</body>
+</html>

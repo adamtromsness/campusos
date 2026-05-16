@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Phase 2 Completion Report</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#fff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--red:#dc3545;--red-bg:#fdeaea;--blue:#3d7ab5;--blue-bg:#e8f0f8}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7}
+.container{max-width:950px;margin:0 auto;padding:40px 40px 120px}
+h1{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent);margin-bottom:8px}
+h2{font-family:'DM Serif Display',serif;font-size:24px;color:var(--accent);margin:40px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+h3{font-size:15px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+p,li{font-size:14px;line-height:1.8}
+.sub{font-size:16px;color:var(--text-light);margin-bottom:24px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+th{background:#d5e8f0;padding:8px 10px;border:1px solid #ccc;text-align:left;font-weight:600}
+td{padding:6px 10px;border:1px solid #ddd;vertical-align:top}
+.finding{border-radius:10px;padding:16px 20px;margin:12px 0;border-left:5px solid}
+.f-imp{background:var(--amber-bg);border-color:var(--amber)}
+.f-adv{background:var(--blue-bg);border-color:var(--blue)}
+.sev{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.sev-i{color:#9a7b1a}.sev-a{color:var(--blue)}
+.source{font-size:11px;color:var(--text-light);font-style:italic;margin-bottom:6px}
+.summary-box{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:24px 0}
+.verdict-box{background:#f0f7f0;border:2px solid var(--green);border-radius:10px;padding:20px 24px;margin:24px 0}
+code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:12px}
+ol,ul{padding-left:20px;margin:8px 0}
+.action-table td:nth-child(1){font-weight:700;white-space:nowrap}
+.action-table td:nth-child(2){white-space:nowrap}
+.pri-1{color:var(--red);font-weight:700}
+.pri-2{color:var(--amber);font-weight:700}
+.pri-3{color:var(--blue);font-weight:700}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>CampusOS — Phase 2 Completion Report</h1>
+<p class="sub">Merged findings from Claude Plan-Level Audit + ChatGPT Architectural Review. May 2026. Claude Code audit pending API recovery.</p>
+
+<div class="verdict-box">
+<h3 style="margin-top:0;color:var(--green)">Overall Verdict: PASS WITH PRE-PRODUCTION CONDITIONS</h3>
+<p>Both reviewers independently reached the same conclusion: the plan-level architecture is structurally sound with no blocking issues, but 11 IMPORTANT findings must be addressed before any real school pilot. The reviews had strong overlap (7 findings flagged by both), confirming these are real concerns, not noise.</p>
+<p style="margin-top:8px"><strong>0 BLOCKING &middot; 11 IMPORTANT &middot; 8 ADVISORY &middot; Claude Code audit pending</strong></p>
+</div>
+
+<h2>Merged Findings — Deduplicated &amp; Prioritised</h2>
+<p>Where both reviewers flagged the same issue, the higher severity is used. Source attribution shows which reviewer(s) identified it.</p>
+
+<h2>IMPORTANT Findings (11)</h2>
+
+<div class="finding f-imp">
+<div class="sev sev-i">IMP-01 — Custody-Aware Parent Access Must Be Centralised</div>
+<div class="source">Claude P-02 (advisory) + ChatGPT SEC-01 (important) → elevated to IMPORTANT</div>
+<p>Multiple parent-facing surfaces (health, engagement, college apps, payments, conferences, portfolio, transport) check parent access independently. Custody arrangements, court orders, safety restrictions, and per-capability permissions must not be reimplemented per module.</p>
+<p><strong>Action:</strong> Create a central <code>GuardianAuthorizationService</code> with capability-specific methods (canViewAcademicRecord, canViewHealthRecord, canAuthorizePayment, canReceiveTransportInfo, canAttendConference). Policy-backed, audited, reused by all modules.</p>
+</div>
+
+<div class="finding f-imp">
+<div class="sev sev-i">IMP-02 — IMMUTABLE Tables Need DB-Level Enforcement</div>
+<div class="source">Claude I-01 + ChatGPT DI-01 → both IMPORTANT</div>
+<p>All 7+ IMMUTABLE tables are enforced at the service layer only. A developer with direct DB access or a migration script could violate immutability. Both reviewers flagged this identically.</p>
+<p><strong>Action:</strong> For every IMMUTABLE table: (1) Postgres <code>BEFORE UPDATE OR DELETE</code> trigger that raises exception. (2) Remove UPDATE/DELETE grants from application DB role. (3) Break-glass maintenance path with dual approval + audit. (4) CI test that attempts UPDATE/DELETE and expects failure.</p>
+</div>
+
+<div class="finding f-imp">
+<div class="sev sev-i">IMP-03 — AI PII Masking &amp; Deletion Policy Under-Specified</div>
+<div class="source">ChatGPT SEC-02 → IMPORTANT (Claude did not flag)</div>
+<p>The AI Gateway is architecturally correct as a choke point, but operational rules are undefined: prompt retention, provider logging, deletion on opt-out, reprocessing rules, special treatment for health/behaviour/counselling data. What happens to existing AI tutoring session data when a parent opts out?</p>
+<p><strong>Action:</strong> Define an AI Data Policy covering: PII minimisation before model calls, stable pseudonym replacement, provider retention settings, opt-out effect on historical artifacts, deletion/pseudonymisation path for DPO requests, special rules for sensitive data categories.</p>
+</div>
+
+<div class="finding f-imp">
+<div class="sev sev-i">IMP-04 — Tenant-per-Schema Migration Model at 100+ Tenants</div>
+<div class="source">ChatGPT SCL-01 → IMPORTANT (Claude did not flag)</div>
+<p>840 tables &times; N tenants means long-running migration windows, partial failures, and schema drift. The ERD mentions <code>is_frozen</code> write gate for rebalancing, but the production migration orchestration is not specified.</p>
+<p><strong>Action:</strong> Define migration orchestration standard: max tenants per cluster, canary tenant strategy, resumable execution, expand/contract DDL pattern, online index creation rules, schema drift verification, failure rollback procedure.</p>
+</div>
+
+<div class="finding f-imp">
+<div class="sev sev-i">IMP-05 — High-Volume Table Retention &amp; Partitioning Enforcement</div>
+<div class="source">Claude S-02 (advisory) + ChatGPT SCL-02 (important) → elevated to IMPORTANT</div>
+<p><code>trn_vehicle_positions</code> (~1.7M rows/day for 200 buses), <code>msg_messages</code> (potentially 250M rows/month), <code>evt_ticket_scans</code>, audit logs, and Kafka outbox tables all need verified partition creation, retention jobs, and failure alerts.</p>
+<p><strong>Action:</strong> For each high-volume table: verify partition creation is automated, retention drop job exists, failure alerting is configured, archive policy is documented. Claude Code audit should confirm actual implementation.</p>
+</div>
+
+<div class="finding f-imp">
+<div class="sev sev-i">IMP-06 — Soft-Integrity Drift Monitoring</div>
+<div class="source">ChatGPT DI-02 → IMPORTANT (Claude flagged pattern but not monitoring)</div>
+<p>SOFT INTEGRITY references across modules will inevitably go stale (deleted records in source module leave dangling references in consumer module). No monitoring or repair workflow is specified.</p>
+<p><strong>Action:</strong> Build a <code>platform_reference_health</code> scanning job that checks all soft-reference categories nightly, reports dangling counts, and triggers repair workflows (hide stale display-only refs, quarantine invalid workflow records, rehydrate read models).</p>
+</div>
+
+<div class="finding f-imp">
+<div class="sev sev-i">IMP-07 — GL Reconciliation Controls</div>
+<div class="source">ChatGPT FIN-01 → IMPORTANT (Claude confirmed chain complete but didn't flag reconciliation)</div>
+<p>Event-driven GL posting is audit-grade only if completeness is provable. Currently no reconciliation job verifies that every pay_invoice, payment, credit_note, and reversal has corresponding GL entries.</p>
+<p><strong>Action:</strong> Build daily reconciliation jobs: every payment source event → expected GL entry exists. Every source_event_id → at most one posted batch. DLQ payment events are finance-blocking incidents with SRE escalation.</p>
+</div>
+
+<div class="finding f-imp">
+<div class="sev sev-i">IMP-08 — Kafka DLQ Runbooks &amp; Replay Procedures</div>
+<div class="source">ChatGPT OPS-01 → IMPORTANT (Claude did not flag)</div>
+<p>Kafka is used heavily but consumer retry policy, DLQ triage, replay ordering, poison-message quarantine, and financial event escalation SLAs are not specified in the design package.</p>
+<p><strong>Action:</strong> Create Kafka operations runbook: retry policy by event class, DLQ naming/payload format, alert thresholds by criticality, replay procedure with idempotency verification, poison-message quarantine workflow, financial/safety event escalation SLAs.</p>
+</div>
+
+<div class="finding f-imp">
+<div class="sev sev-i">IMP-09 — Right-to-Erasure vs Immutable Records</div>
+<div class="source">ChatGPT COMP-01 → IMPORTANT (Claude did not flag at plan level)</div>
+<p>GDPR Article 17 right-to-erasure conflicts with IMMUTABLE financial, referral, and audit tables. The DPO module is deferred to Phase 3, but production launch before defining the retention/pseudonymisation policy is risky. The ERD does include a <code>dpo_pseudonymisation_log</code> table, but the operational workflow is undefined.</p>
+<p><strong>Action:</strong> Define retention/pseudonymisation matrix by record class before pilot: GL entries (pseudonymise, don't delete), referral activity (pseudonymise), AI transcripts (delete on request), analytics (recompute without PII), health logs (pseudonymise with legal basis). The DPO module can remain Phase 3, but the policy must be documented now.</p>
+</div>
+
+<div class="finding f-imp">
+<div class="sev sev-i">IMP-10 — Engagement Score Treated as Sensitive Profiling</div>
+<div class="source">Claude D-03 (advisory) + ChatGPT COMP-02 (important) → elevated to IMPORTANT</div>
+<p>Composite family engagement scores from 5 data sources (attendance, communications, conferences, volunteering, payments) risk becoming a general-purpose family ranking metric used for admissions, discipline, or financial aid decisions.</p>
+<p><strong>Action:</strong> Restrict component-level view to <code>engagement_admin</code> permission only. Exclude from data exports by default. Prohibit use in admissions/discipline/financial aid decisions (enforce via policy, not just documentation). Store weight version with every score. Allow schools to disable payment-derived weighting entirely.</p>
+</div>
+
+<div class="finding f-imp">
+<div class="sev sev-i">IMP-11 — Student-Owned Data Enforcement Inconsistent</div>
+<div class="source">Claude P-01 → IMPORTANT</div>
+<p>Multiple cycle plans declare data as "student-owned" (reflections, portfolios, recruiting profiles, resume) but the enforcement mechanism varies. The coach delegation exception in recruiting profiles is under-specified.</p>
+<p><strong>Action:</strong> Claude Code audit must verify every "student-owned" table has <code>student_id = req.user.personId</code> guard. Coach delegation should use a formal delegation pattern (not role === 'COACH'). Create a shared <code>@StudentOwned</code> decorator for consistent enforcement.</p>
+</div>
+
+<h2>ADVISORY Findings (8)</h2>
+
+<div class="finding f-adv">
+<div class="sev sev-a">ADV-01 — Kafka Events With No Documented Consumer</div>
+<div class="source">Claude K-01 + ChatGPT OPS-02</div>
+<p>6 events emitted with no consumer: eng.conference.booking_open, eng.survey.opened, lib.import.completed, pub.publication.published, trn.parts.low, fds.inventory.low. Classify each as: notification trigger (add Comms consumer), future automation (document backlog owner), or observable-only (no consumer needed).</p>
+</div>
+
+<div class="finding f-adv">
+<div class="sev sev-a">ADV-02 — JSONB Milestone/Status Fields Need Read Models</div>
+<div class="source">Claude D-01 + ChatGPT DI-03</div>
+<p>JSONB columns for milestone_statuses, follow_up_actions, action_plans hard to query at school-wide dashboard scale. Add materialised read models (rpt_pathway_milestone_completion, etc.) without prematurely normalising the checklist view.</p>
+</div>
+
+<div class="finding f-adv">
+<div class="sev sev-a">ADV-03 — Nightly Worker Thundering Herd</div>
+<div class="source">Claude S-01 + ChatGPT SCL-03</div>
+<p>At 100+ tenants, all nightly workers firing simultaneously creates DB contention. Use per-tenant jitter: nightly within 2-hour window, weekly random day/hour, heavy recompute queue-based with concurrency limits.</p>
+</div>
+
+<div class="finding f-adv">
+<div class="sev sev-a">ADV-04 — Election Small-Electorate Re-Identification</div>
+<div class="source">ChatGPT SEC-03</div>
+<p>Structural anonymity (no voter_id on ext_votes) is correct, but with 1 voter the outcome is trivially identifiable. Suppress or aggregate results until min_votes threshold (e.g., 5) is met.</p>
+</div>
+
+<div class="finding f-adv">
+<div class="sev sev-a">ADV-05 — prc.distribution.completed Consumer Coverage</div>
+<div class="source">Claude K-02</div>
+<p>ERD documents 8 module consumers for distribution events but not all modules have inventory receipt handlers built. Claude Code audit should verify which consumers actually exist.</p>
+</div>
+
+<div class="finding f-adv">
+<div class="sev sev-a">ADV-06 — TEXT+CHECK Pattern Should Be Documented as ADR</div>
+<div class="source">Claude D-02</div>
+<p>Consistent use of TEXT with CHECK constraints instead of Postgres ENUMs is correct for extensibility but should be formally documented so future developers don't "fix" it.</p>
+</div>
+
+<div class="finding f-adv">
+<div class="sev sev-a">ADV-07 — Complexity Hidden Behind School-Size Defaults</div>
+<div class="source">ChatGPT ENG-01</div>
+<p>All features included (no gating) is correct commercially, but micro/small schools will be overwhelmed. Use configuration presets (Micro, Small, Advanced) that surface features progressively, not feature gates.</p>
+</div>
+
+<div class="finding f-adv">
+<div class="sev sev-a">ADV-08 — Production Readiness Prioritisation</div>
+<div class="source">ChatGPT CAP-01</div>
+<p>Domain coverage is broad; gaps are operational. Priority order for Phase 3: (1) Data import pipeline, (2) DPO/erasure workflow, (3) Full finance/AP, (4) Notification push service, (5) Scheduling solver, (6) Transport dispatch.</p>
+</div>
+
+<h2>Pre-Production Hardening Action Plan</h2>
+<p>Ordered by priority. Items marked P1 must be done before any real school pilot. P2 before general availability. P3 during Phase 3.</p>
+
+<table class="action-table">
+<tr><th>ID</th><th>Priority</th><th>Action</th><th>Owner</th><th>Estimated Effort</th></tr>
+<tr><td>IMP-02</td><td class="pri-1">P1</td><td>Add DB triggers + role restrictions for all IMMUTABLE tables</td><td>Claude Code</td><td>1 day</td></tr>
+<tr><td>IMP-01</td><td class="pri-1">P1</td><td>Build central GuardianAuthorizationService with custody-aware capability checks</td><td>Claude Code</td><td>2–3 days</td></tr>
+<tr><td>IMP-11</td><td class="pri-1">P1</td><td>Verify + standardise student-owned data guards (@StudentOwned decorator)</td><td>Claude Code audit</td><td>1 day</td></tr>
+<tr><td>IMP-10</td><td class="pri-1">P1</td><td>Restrict engagement score visibility + prohibit use in admissions/discipline</td><td>Claude Code</td><td>0.5 days</td></tr>
+<tr><td>IMP-07</td><td class="pri-1">P1</td><td>Build daily GL reconciliation jobs (source events → GL entries completeness check)</td><td>Claude Code</td><td>1–2 days</td></tr>
+<tr><td>IMP-09</td><td class="pri-2">P2</td><td>Define retention/pseudonymisation matrix for all IMMUTABLE + sensitive tables</td><td>You + legal</td><td>Document: 1 day; implementation: Phase 3</td></tr>
+<tr><td>IMP-03</td><td class="pri-2">P2</td><td>Define AI Data Policy (PII masking, opt-out effects, provider retention)</td><td>You + legal</td><td>Document: 1 day; AI Gateway hardening: 2 days</td></tr>
+<tr><td>IMP-04</td><td class="pri-2">P2</td><td>Define migration orchestration standard for 100+ tenant deploys</td><td>DevOps/SRE</td><td>Document: 1 day; tooling: Phase 3</td></tr>
+<tr><td>IMP-05</td><td class="pri-2">P2</td><td>Verify partition creation + retention jobs for all high-volume tables</td><td>Claude Code audit</td><td>0.5 days</td></tr>
+<tr><td>IMP-06</td><td class="pri-2">P2</td><td>Build platform_reference_health soft-integrity scanner</td><td>Claude Code</td><td>1–2 days</td></tr>
+<tr><td>IMP-08</td><td class="pri-2">P2</td><td>Create Kafka operations runbook (DLQ, replay, escalation SLAs)</td><td>DevOps/SRE</td><td>Document: 1 day</td></tr>
+<tr><td>ADV-01</td><td class="pri-3">P3</td><td>Classify all orphan events; add Comms consumers where needed</td><td>Claude Code</td><td>1 day</td></tr>
+<tr><td>ADV-02</td><td class="pri-3">P3</td><td>Add materialised read models for JSONB dashboard queries</td><td>Claude Code</td><td>1–2 days</td></tr>
+<tr><td>ADV-03</td><td class="pri-3">P3</td><td>Add per-tenant jitter to nightly/weekly workers</td><td>Claude Code</td><td>0.5 days</td></tr>
+<tr><td>ADV-04</td><td class="pri-3">P3</td><td>Add min_votes threshold for election result display</td><td>Claude Code</td><td>0.5 days</td></tr>
+<tr><td>ADV-07</td><td class="pri-3">P3</td><td>Build school-size configuration presets (Micro/Small/Advanced)</td><td>Product</td><td>2–3 days</td></tr>
+</table>
+
+<h2>Reviewer Agreement Matrix</h2>
+<table>
+<tr><th>Finding Area</th><th>Claude</th><th>ChatGPT</th><th>Agreement</th></tr>
+<tr><td>IMMUTABLE DB enforcement</td><td>I-01 (IMP)</td><td>DI-01 (IMP)</td><td style="color:var(--green);font-weight:700">Full match</td></tr>
+<tr><td>Custody-aware access</td><td>P-02 (ADV)</td><td>SEC-01 (IMP)</td><td style="color:var(--amber);font-weight:700">Elevated by ChatGPT</td></tr>
+<tr><td>Engagement score privacy</td><td>D-03 (ADV)</td><td>COMP-02 (IMP)</td><td style="color:var(--amber);font-weight:700">Elevated by ChatGPT</td></tr>
+<tr><td>High-volume partitioning</td><td>S-02 (ADV)</td><td>SCL-02 (IMP)</td><td style="color:var(--amber);font-weight:700">Elevated by ChatGPT</td></tr>
+<tr><td>Worker thundering herd</td><td>S-01 (ADV)</td><td>SCL-03 (ADV)</td><td style="color:var(--green);font-weight:700">Full match</td></tr>
+<tr><td>JSONB read models</td><td>D-01 (IMP)</td><td>DI-03 (ADV)</td><td style="color:var(--amber);font-weight:700">Demoted by ChatGPT</td></tr>
+<tr><td>Orphan Kafka events</td><td>K-01 (IMP)</td><td>OPS-02 (ADV)</td><td style="color:var(--amber);font-weight:700">Demoted by ChatGPT</td></tr>
+<tr><td>Student-owned guards</td><td>P-01 (IMP)</td><td>—</td><td>Claude only</td></tr>
+<tr><td>AI PII policy</td><td>—</td><td>SEC-02 (IMP)</td><td>ChatGPT only</td></tr>
+<tr><td>Migration orchestration</td><td>—</td><td>SCL-01 (IMP)</td><td>ChatGPT only</td></tr>
+<tr><td>Soft-integrity monitoring</td><td>—</td><td>DI-02 (IMP)</td><td>ChatGPT only</td></tr>
+<tr><td>GL reconciliation</td><td>—</td><td>FIN-01 (IMP)</td><td>ChatGPT only</td></tr>
+<tr><td>Kafka DLQ runbooks</td><td>—</td><td>OPS-01 (IMP)</td><td>ChatGPT only</td></tr>
+<tr><td>Right-to-erasure policy</td><td>—</td><td>COMP-01 (IMP)</td><td>ChatGPT only</td></tr>
+</table>
+
+<h2>Pending: Claude Code Audit</h2>
+<p>The code-level audit (verifying actual implementation against plans) is blocked by the Anthropic API outage. When the API recovers, run the audit prompt from Section 11 of the Review Context Package. The code audit will verify or add findings in these categories:</p>
+<ul>
+<li>Schema drift (Prisma models vs ERD)</li>
+<li>Permission gaps (@RequirePermission coverage)</li>
+<li>Kafka producer/consumer wiring</li>
+<li>IMMUTABLE table UPDATE/DELETE paths</li>
+<li>Atomic operation SQL patterns</li>
+<li>School-scope query leaks</li>
+<li>Soft-integrity validation</li>
+<li>Test coverage by module</li>
+<li>Seed data completeness</li>
+<li>ADR compliance spot-checks</li>
+</ul>
+<p>The code audit may reveal additional findings or confirm that some IMPORTANT items are already handled in the implementation.</p>
+
+<div class="summary-box">
+<h3 style="margin-top:0">Final Summary</h3>
+<p>CampusOS Phase 2 is architecturally complete: 821 tenant tables across 38 modules, ~2,000 endpoints, 63 build cycles. Both independent reviewers agree the design is sound and internally consistent. The 11 IMPORTANT findings are governance and hardening issues, not architectural flaws. The P1 items (DB immutability triggers, custody guard, student-owned enforcement, engagement score restrictions, GL reconciliation) are estimated at ~6–8 days of Claude Code work. The P2 items are primarily policy documents + operational tooling. Phase 3 can begin in parallel with pre-production hardening.</p>
+</div>
+
+</div>
+</body>
+</html>

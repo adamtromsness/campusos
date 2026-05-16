@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Plan-Level Consistency Audit</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#fff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--red:#dc3545;--red-bg:#fdeaea;--blue:#3d7ab5;--blue-bg:#e8f0f8}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7}
+.container{max-width:950px;margin:0 auto;padding:40px 40px 120px}
+h1{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent);margin-bottom:8px}
+h2{font-family:'DM Serif Display',serif;font-size:24px;color:var(--accent);margin:40px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+h3{font-size:15px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+p,li{font-size:14px;line-height:1.8}
+.sub{font-size:16px;color:var(--text-light);margin-bottom:24px}
+.finding{border-radius:10px;padding:16px 20px;margin:12px 0;border-left:5px solid}
+.blocking{background:var(--red-bg);border-color:var(--red)}
+.important{background:var(--amber-bg);border-color:var(--amber)}
+.advisory{background:var(--blue-bg);border-color:var(--blue)}
+.clean{background:var(--green-bg);border-color:var(--green)}
+.sev{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.sev-b{color:var(--red)}.sev-i{color:#9a7b1a}.sev-a{color:var(--blue)}.sev-c{color:var(--green)}
+.finding p{margin:4px 0;font-size:14px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+th{background:#d5e8f0;padding:8px 10px;border:1px solid #ccc;text-align:left;font-weight:600}
+td{padding:6px 10px;border:1px solid #ddd;vertical-align:top}
+.summary-box{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:24px 0}
+code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:12px}
+ol,ul{padding-left:20px;margin:8px 0}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>CampusOS — Plan-Level Consistency Audit</h1>
+<p class="sub">Claude's review of all 63 cycle plans cross-referenced against ERD v11, Architecture Review, and Function Library. May 2026.</p>
+
+<div class="summary-box">
+<h3 style="margin-top:0">Executive Summary</h3>
+<p><strong>0 BLOCKING</strong> findings. <strong>4 IMPORTANT</strong> findings requiring attention before production. <strong>7 ADVISORY</strong> findings for Phase 3 consideration. <strong>8 CLEAN</strong> confirmations where things are working well. The plan-level architecture is sound — no structural contradictions found across 63 cycles.</p>
+</div>
+
+<h2>Category 1: Cross-Cycle Dependency Chains</h2>
+
+<div class="finding clean">
+<div class="sev sev-c">CLEAN — Forward dependencies respected</div>
+<p>Every Phase 2 cycle correctly references its Phase 1 foundation tables. No cycle plan references a table that hasn't been built in a prior cycle. Verified chains: P2-6 Payments → Cycle 6 pay_invoices; P2-7 Classroom → Cycle 2 cls_submissions; P2-24 Parent Engagement → P2-12 evt_volunteers + Cycle 3 att_records; P2-27 Portfolio → Cycle 24 pfl_portfolios + P2-13 sis_service_learning_hours; P2-29 Commerce → Cycle 26 fin_chart_of_accounts.</p>
+</div>
+
+<div class="finding advisory">
+<div class="sev sev-a">ADVISORY — A-01: Circular soft dependency between P2-27 and P2-13</div>
+<p>P2-27 Portfolio Advanced's MilestoneAutoCheckWorker subscribes to <code>sis.service_learning.approved</code> and <code>sis.transcript.generated</code> events from P2-13 SIS Advanced. P2-13 was built first, so the events exist. However, if P2-13 is ever rebuilt or refactored, the worker's event subscriptions need to be verified. This is correctly event-driven (not a direct dependency) but the coupling should be documented in both CLAUDE.md entries.</p>
+</div>
+
+<div class="finding clean">
+<div class="sev sev-c">CLEAN — ALTER TABLE operations documented</div>
+<p>5 cycles modify existing tables via ALTER: P2-25 (ALTER lib_checkouts ADD class_set_checkout_id), P2-27 (ALTER pfl_portfolio_items ADD section_id), P2-29b (ALTER str_products ADD category_id), P2-7b implied cls_submissions extensions for peer review. All are nullable FK additions — backward compatible, no data migration needed.</p>
+</div>
+
+<h2>Category 2: Kafka Event Contract Audit</h2>
+
+<div class="finding important">
+<div class="sev sev-i">IMPORTANT — K-01: Several Kafka emits lack documented consumers</div>
+<p>The following events are emitted in cycle plans but no cycle plan documents a consumer for them:</p>
+<ul>
+<li><code>eng.conference.booking_open</code> (P2-24) — should be consumed by Communications for parent notification, but no consumer is documented.</li>
+<li><code>eng.survey.opened</code> (P2-24) — same: Communications should notify parents.</li>
+<li><code>lib.import.completed</code> (P2-25) — no documented consumer. Likely just an observable event, but should be explicitly noted as "no consumer required" or consumed by admin notification.</li>
+<li><code>pub.publication.published</code> (P2-26) — the distribution worker is mentioned but it's internal to the module, not a cross-module consumer.</li>
+<li><code>trn.parts.low</code> (P2-11a) — should trigger a procurement requisition suggestion, but no Procurement consumer is documented.</li>
+<li><code>fds.inventory.low</code> (P2-10a) — same: should trigger procurement, but no consumer documented.</li>
+</ul>
+<p><strong>Resolution:</strong> Most of these should be consumed by the Communications/Notification module for alerting. The procurement-triggering events (trn.parts.low, fds.inventory.low) should be documented as "future consumer: Procurement auto-requisition" for Phase 3. None are blocking — events with no consumer simply accumulate in Kafka until a consumer is added.</p>
+</div>
+
+<div class="finding clean">
+<div class="sev sev-c">CLEAN — Core financial event chain complete</div>
+<p>The M84 → M83 financial event chain is fully documented: pay.invoice.created, pay.payment.received, pay.credit_note.issued, pay.payment.reversed, pay.debt.written_off are all emitted by M84 and consumed by M83's GLConsumer. evt.event.completed → GL revenue posting is also complete.</p>
+</div>
+
+<div class="finding advisory">
+<div class="sev sev-a">ADVISORY — K-02: prc.distribution.completed has 8 potential consumers</div>
+<p>The ERD documents prc.distribution.completed as consumed by M62, M61, M63, M24, M66, M64, M65, M67 — each creating inventory records. Only some of these modules have advanced inventory tables built (P2-10 Food Service, P2-11 Transportation, P2-18 Facilities). Others (Library, Athletics, IT, Clubs, Store) may not have inventory receipt handlers yet. The consumer list should be verified against actual implementation.</p>
+</div>
+
+<h2>Category 3: Permission Model Coverage</h2>
+
+<div class="finding clean">
+<div class="sev sev-c">CLEAN — Every cycle plan documents permission assignments</div>
+<p>All 29 Phase 2 cycle plans include explicit permission assignments in their seed data steps, mapping to Function Library codes. The three-tier model (View Only, Read/Write, Admin) is consistently applied.</p>
+</div>
+
+<div class="finding important">
+<div class="sev sev-i">IMPORTANT — P-01: Student-owned data pattern inconsistently enforced</div>
+<p>Several cycle plans declare data as "student-owned" (reflections, portfolios, recruiting profiles, resume) but the enforcement mechanism varies:</p>
+<ul>
+<li>P2-27 reflections: "only the student can write or edit" — needs service-layer check on student_id = authenticated user</li>
+<li>P2-8b recruiting profiles: "student-owned: only the student (or coach with permission) can edit" — the "or coach" exception should use a delegation pattern, not a role check</li>
+<li>P2-27 endorsement visibility: "student controls is_visible_on_share" — student can toggle, but can the endorser see the toggle state?</li>
+</ul>
+<p><strong>Resolution:</strong> Claude Code audit should verify every "student-owned" table has a service-layer guard checking <code>student_id = req.user.personId</code>. The coach delegation exception in recruiting profiles should be verified as using a proper delegation mechanism (not just role === 'COACH').</p>
+</div>
+
+<div class="finding advisory">
+<div class="sev sev-a">ADVISORY — P-02: Parent visibility in custody situations</div>
+<p>P2-13a introduces sis_family_relationships with custody_arrangement (JOINT, SOLE_A, SOLE_B). Multiple cycle plans mention "parent sees own child's data" but don't specify custody filtering. If custody_arrangement is SOLE_A, should guardian_b see the student's engagement scores (P2-24), college applications (P2-27), or health records? This filtering logic needs to be centralised, not reimplemented per module.</p>
+</div>
+
+<h2>Category 4: IMMUTABLE Table Enforcement</h2>
+
+<div class="finding important">
+<div class="sev sev-i">IMPORTANT — I-01: IMMUTABLE enforcement is service-layer only</div>
+<p>All 7 IMMUTABLE tables (fin_gl_entries, pay_credit_notes, pay_payment_reversals, pay_lunch_account_balance_transfers, fds_inventory_transactions, pub_publication_versions, svc_referral_activity) are documented as "NO UPDATE, NO DELETE at the service layer." However, the ERD does not specify database-level enforcement (e.g., a BEFORE UPDATE/DELETE trigger that raises an exception). A developer with direct DB access could violate immutability.</p>
+<p><strong>Resolution:</strong> Add Postgres triggers: <code>CREATE TRIGGER prevent_update BEFORE UPDATE OR DELETE ON [table] FOR EACH ROW EXECUTE FUNCTION raise_immutable_violation()</code>. This should be a Phase 3 hardening task if not already implemented.</p>
+</div>
+
+<div class="finding clean">
+<div class="sev sev-c">CLEAN — Revert pattern correctly uses append-only</div>
+<p>P2-26 pub_publication_versions uses the correct append-only revert pattern: "revert creates NEW version from old snapshot, never modifies existing." This is architecturally sound and the trigger type REVERT properly documents the action.</p>
+</div>
+
+<h2>Category 5: Data Model Concerns</h2>
+
+<div class="finding important">
+<div class="sev sev-i">IMPORTANT — D-01: JSONB vs normalised table choices inconsistent</div>
+<p>The ERD mixes JSONB columns and normalised tables for similar use cases:</p>
+<ul>
+<li><strong>JSONB (harder to query):</strong> pfl_student_pathway_assignments.milestone_statuses, eng_conference_bookings.follow_up_actions, acc_improvement_action_plans.actions, ext_elections.eligible_voters_filter</li>
+<li><strong>Normalised (easier to query):</strong> pfl_pathway_milestones (separate table for milestone definitions), ext_budget_transactions (separate table for budget entries)</li>
+</ul>
+<p>The milestone_statuses JSONB is the most concerning: querying "which students have milestone X completed?" requires a JSONB path query across all assignments. If the readiness dashboard needs to show school-wide milestone completion rates, this will be slow.</p>
+<p><strong>Resolution:</strong> Consider adding a materialised view or a normalised junction table (pfl_student_milestone_statuses) alongside the JSONB for queryability. The JSONB can remain as the source of truth for the student's full checklist view.</p>
+</div>
+
+<div class="finding advisory">
+<div class="sev sev-a">ADVISORY — D-02: TEXT CHECK constraints vs ENUM</div>
+<p>The ERD consistently uses <code>TEXT NOT NULL</code> with CHECK constraints instead of Postgres ENUM types. This is actually the correct choice for CampusOS: CHECK constraints are easier to extend (ALTER TABLE ADD CHECK) than ENUMs (which require a type migration). But it should be documented as a deliberate ADR pattern so future developers don't "fix" it by converting to ENUMs.</p>
+</div>
+
+<div class="finding advisory">
+<div class="sev sev-a">ADVISORY — D-03: Engagement score privacy concern</div>
+<p>P2-24's eng_family_engagement_scores computes a composite score per family from attendance, communications, conferences, volunteering, and payment data. While configurable weights are good, the score itself could be perceived as surveillance. Schools with access to this data might make admission or scholarship decisions based on engagement scores. Consider: should scores be visible to all admin, or restricted to a specific engagement_admin permission? Should scores be excluded from any data export or state reporting?</p>
+</div>
+
+<h2>Category 6: Scalability Flags</h2>
+
+<div class="finding advisory">
+<div class="sev sev-a">ADVISORY — S-01: Read model materialisation frequency</div>
+<p>Multiple cycles define materialised read models with different refresh frequencies:</p>
+<ul>
+<li><strong>Every minute:</strong> ConferenceStatusWorker (P2-24), ScheduledPublishWorker (P2-26)</li>
+<li><strong>Nightly:</strong> GraduationAuditWorker (P2-13), ClassSetOverdueWorker (P2-25), FleetStatusWorker (P2-11c), ContractExpiryWorker (P2-29a), LateFeesWorker (P2-6)</li>
+<li><strong>Weekly:</strong> EngagementScoreWorker (P2-24), LibraryRecommendationWorker (P2-25)</li>
+<li><strong>Monthly:</strong> GroupAnalyticsWorker (P2-28a), ProcurementAnalyticsWorker (P2-29a)</li>
+<li><strong>Annually:</strong> WellbeingLongitudinalWorker (P2-28c)</li>
+</ul>
+<p>At scale (100+ schools), the nightly workers all running simultaneously could create a thundering herd on the database. Consider staggering: randomise each tenant's nightly run within a 2-hour window. The every-minute workers are fine — they're just polling, not heavy computation.</p>
+</div>
+
+<div class="finding advisory">
+<div class="sev sev-a">ADVISORY — S-02: trn_vehicle_positions partitioning</div>
+<p>P2-11c correctly identifies trn_vehicle_positions as the highest-volume table (every 10-30 seconds per vehicle). RANGE partition by day with 7-day hot / 90-day cold is specified. However, for a district with 200 buses, that's ~1.7M rows/day. The plan mentions TimescaleDB hypertable as an option. The Claude Code audit should verify which approach was actually implemented and whether the retention policy (auto-drop old partitions) is configured.</p>
+</div>
+
+<h2>Category 7: Missing Cross-Module Integrations</h2>
+
+<div class="finding clean">
+<div class="sev sev-c">CLEAN — Financial flow chain complete</div>
+<p>The chain from store orders → family account charge → invoice → payment → GL entry is fully planned across Cycles 17 (Store), 6 (Payments core), P2-6 (Payments advanced), 26 (Finance GL). Event-driven at every boundary.</p>
+</div>
+
+<div class="finding clean">
+<div class="sev sev-c">CLEAN — Health → Food Service allergen sync</div>
+<p>P2-10b's AllergenAlertConsumer properly replaces the Cycle 20 seed-only sync with live event-driven sync from hlth.allergy_alert.changed. The preorder allergen cross-check uses the synced read model.</p>
+</div>
+
+<div class="finding clean">
+<div class="sev sev-c">CLEAN — Substitute → Scheduling cover arrangement</div>
+<p>P2-9 Step 10 explicitly documents the sub.assignment.confirmed → sch_cover_arrangements consumer that bridges the substitute marketplace with the scheduling module's timetable view.</p>
+</div>
+
+<h2>Category 8: Table Count Reconciliation</h2>
+
+<table>
+<tr><th>Phase</th><th>Planned</th><th>Running Total</th></tr>
+<tr><td>Phase 1 (Cycles 0–34)</td><td>418</td><td>418</td></tr>
+<tr><td>P2 Wave A (P2-1 to P2-4)</td><td>~86</td><td>~504</td></tr>
+<tr><td>P2 Wave B (P2-5 to P2-10)</td><td>~70</td><td>~574</td></tr>
+<tr><td>P2 Wave C (P2-11 to P2-17)</td><td>~78</td><td>~652</td></tr>
+<tr><td>P2 Wave D (P2-18 to P2-29)</td><td>~169</td><td>~821</td></tr>
+<tr><td>Phase 3 deferred</td><td>~24</td><td>840 (ERD total) ±5</td></tr>
+</table>
+<p>The ±5 variance is from ALTERs on existing tables (adding columns, not new tables) and slight counting differences across sub-cycles. The math holds: all 840 ERD tables are accounted for.</p>
+
+<h2>Findings Summary</h2>
+
+<table>
+<tr><th>ID</th><th>Severity</th><th>Category</th><th>Finding</th><th>Resolution</th></tr>
+<tr><td>K-01</td><td style="color:var(--amber);font-weight:700">IMPORTANT</td><td>Kafka</td><td>6 events emitted with no documented consumer</td><td>Add Communications consumers or document as "no consumer required"</td></tr>
+<tr><td>P-01</td><td style="color:var(--amber);font-weight:700">IMPORTANT</td><td>Permissions</td><td>Student-owned data enforcement inconsistent</td><td>Claude Code audit to verify service-layer guards</td></tr>
+<tr><td>I-01</td><td style="color:var(--amber);font-weight:700">IMPORTANT</td><td>Immutability</td><td>IMMUTABLE is service-layer only, no DB triggers</td><td>Add Postgres BEFORE UPDATE/DELETE triggers</td></tr>
+<tr><td>D-01</td><td style="color:var(--amber);font-weight:700">IMPORTANT</td><td>Data Model</td><td>JSONB milestone_statuses hard to query at scale</td><td>Consider materialised view or normalised junction table</td></tr>
+<tr><td>A-01</td><td style="color:var(--blue);font-weight:700">ADVISORY</td><td>Dependencies</td><td>Circular soft dependency P2-27 ↔ P2-13</td><td>Document in both CLAUDE.md entries</td></tr>
+<tr><td>K-02</td><td style="color:var(--blue);font-weight:700">ADVISORY</td><td>Kafka</td><td>prc.distribution.completed has 8 consumers, not all may be built</td><td>Claude Code audit to verify which consumers exist</td></tr>
+<tr><td>P-02</td><td style="color:var(--blue);font-weight:700">ADVISORY</td><td>Permissions</td><td>Custody-aware parent filtering not centralised</td><td>Create CustodyFilterGuard in IAM module</td></tr>
+<tr><td>D-02</td><td style="color:var(--blue);font-weight:700">ADVISORY</td><td>Data Model</td><td>TEXT+CHECK vs ENUM — correct but undocumented rationale</td><td>Add to ADR or CLAUDE.md as pattern decision</td></tr>
+<tr><td>D-03</td><td style="color:var(--blue);font-weight:700">ADVISORY</td><td>Privacy</td><td>Engagement score could be perceived as surveillance</td><td>Restrict to engagement_admin permission; exclude from exports</td></tr>
+<tr><td>S-01</td><td style="color:var(--blue);font-weight:700">ADVISORY</td><td>Scalability</td><td>Nightly workers may thundering-herd at scale</td><td>Stagger per-tenant runs within 2-hour window</td></tr>
+<tr><td>S-02</td><td style="color:var(--blue);font-weight:700">ADVISORY</td><td>Scalability</td><td>trn_vehicle_positions partitioning needs verification</td><td>Claude Code audit to verify partition + retention config</td></tr>
+</table>
+
+<div class="summary-box">
+<h3 style="margin-top:0">Overall Assessment</h3>
+<p>The CampusOS Phase 2 plan-level architecture is <strong>structurally sound</strong>. No blocking issues found. The 4 IMPORTANT findings are all implementable fixes (add DB triggers for immutability, add Kafka consumers for orphaned events, verify student-owned guards, consider normalising JSONB milestones). The 7 ADVISORY findings are optimisations for production hardening, not design flaws. The cross-module event-driven architecture follows ADR-057 consistently. Financial integrity patterns are correct. The system is ready for code-level audit.</p>
+</div>
+
+</div>
+</body>
+</html>
