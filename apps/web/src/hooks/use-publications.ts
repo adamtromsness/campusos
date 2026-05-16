@@ -287,3 +287,228 @@ export function useUnsubscribe(seriesId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['publications'] }),
   });
 }
+
+// ─── Phase 2 Cycle 26 — Publications Advanced ───
+
+import type {
+  PubCancelScheduledPublicationPayload,
+  PubCreateCheckpointPayload,
+  PubCreateFromTemplatePayload,
+  PubCreateScheduledPublicationPayload,
+  PubCreateTemplatePayload,
+  PubIngestAnalyticsEventPayload,
+  PubPublicationAnalyticsDto,
+  PubPublicationVersionDetailDto,
+  PubPublicationVersionDto,
+  PubRevertToVersionPayload,
+  PubScheduledPublicationDto,
+  PubTemplateDto,
+  PubUpdateTemplatePayload,
+} from '@/lib/types';
+
+// Version history
+
+export function useVersionsForPublication(publicationId: string | null) {
+  return useQuery({
+    queryKey: ['publications', publicationId, 'versions'],
+    queryFn: () =>
+      apiFetch<PubPublicationVersionDto[]>(`${PREFIX}/publications/${publicationId}/versions`),
+    enabled: !!publicationId,
+    staleTime: 15_000,
+  });
+}
+
+export function useVersionDetail(versionId: string | null) {
+  return useQuery({
+    queryKey: ['publications', 'version', versionId],
+    queryFn: () =>
+      apiFetch<PubPublicationVersionDetailDto>(`${PREFIX}/publications/versions/${versionId}`),
+    enabled: !!versionId,
+  });
+}
+
+export function useCheckpointVersion(publicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PubCreateCheckpointPayload) =>
+      apiFetch<PubPublicationVersionDto>(`${PREFIX}/publications/${publicationId}/checkpoint`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['publications', publicationId, 'versions'] }),
+  });
+}
+
+export function useRevertToVersion(publicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { versionNumber: number; payload: PubRevertToVersionPayload }) =>
+      apiFetch<PubPublicationVersionDto>(
+        `${PREFIX}/publications/${publicationId}/revert/${input.versionNumber}`,
+        {
+          method: 'POST',
+          body: JSON.stringify(input.payload),
+        },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['publications', publicationId] });
+      qc.invalidateQueries({ queryKey: ['publications', publicationId, 'versions'] });
+    },
+  });
+}
+
+// Templates
+
+export function useTemplates(includeInactive = false) {
+  return useQuery({
+    queryKey: ['publications', 'templates', includeInactive],
+    queryFn: () =>
+      apiFetch<PubTemplateDto[]>(
+        `${PREFIX}/publications/templates${includeInactive ? '?includeInactive=true' : ''}`,
+      ),
+    staleTime: 60_000,
+  });
+}
+
+export function useTemplate(id: string | null) {
+  return useQuery({
+    queryKey: ['publications', 'templates', 'detail', id],
+    queryFn: () => apiFetch<PubTemplateDto>(`${PREFIX}/publications/templates/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useCreateTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PubCreateTemplatePayload) =>
+      apiFetch<PubTemplateDto>(`${PREFIX}/publications/templates`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['publications', 'templates'] }),
+  });
+}
+
+export function useUpdateTemplate(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PubUpdateTemplatePayload) =>
+      apiFetch<PubTemplateDto>(`${PREFIX}/publications/templates/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['publications', 'templates'] }),
+  });
+}
+
+export function useDeleteTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`${PREFIX}/publications/templates/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['publications', 'templates'] }),
+  });
+}
+
+export function useCreateFromTemplate(templateId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PubCreateFromTemplatePayload) =>
+      apiFetch<PubPublicationDto>(`${PREFIX}/publications/from-template/${templateId}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['publications'] }),
+  });
+}
+
+// Scheduled publishing
+
+export function useScheduledPublications() {
+  return useQuery({
+    queryKey: ['publications', 'scheduled'],
+    queryFn: () => apiFetch<PubScheduledPublicationDto[]>(`${PREFIX}/publications/scheduled`),
+    staleTime: 30_000,
+  });
+}
+
+export function useScheduleForPublication(publicationId: string | null) {
+  return useQuery({
+    queryKey: ['publications', publicationId, 'schedule'],
+    queryFn: () =>
+      apiFetch<PubScheduledPublicationDto | null>(
+        `${PREFIX}/publications/${publicationId}/schedule`,
+      ),
+    enabled: !!publicationId,
+    staleTime: 30_000,
+  });
+}
+
+export function useSchedulePublication(publicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PubCreateScheduledPublicationPayload) =>
+      apiFetch<PubScheduledPublicationDto>(`${PREFIX}/publications/${publicationId}/schedule`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['publications', 'scheduled'] });
+      qc.invalidateQueries({ queryKey: ['publications', publicationId, 'schedule'] });
+    },
+  });
+}
+
+export function useCancelSchedule(publicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PubCancelScheduledPublicationPayload) =>
+      apiFetch<PubScheduledPublicationDto>(`${PREFIX}/publications/${publicationId}/schedule`, {
+        method: 'DELETE',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['publications', 'scheduled'] });
+      qc.invalidateQueries({ queryKey: ['publications', publicationId, 'schedule'] });
+    },
+  });
+}
+
+// Analytics
+
+export function usePublicationAnalytics(publicationId: string | null) {
+  return useQuery({
+    queryKey: ['publications', publicationId, 'analytics'],
+    queryFn: () =>
+      apiFetch<PubPublicationAnalyticsDto>(`${PREFIX}/publications/${publicationId}/analytics`),
+    enabled: !!publicationId,
+    staleTime: 30_000,
+  });
+}
+
+export function usePublicationAnalyticsSummary() {
+  return useQuery({
+    queryKey: ['publications', 'analytics', 'summary'],
+    queryFn: () =>
+      apiFetch<PubPublicationAnalyticsDto[]>(`${PREFIX}/publications/analytics/summary`),
+    staleTime: 30_000,
+  });
+}
+
+export function useIngestAnalyticsEvent(publicationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PubIngestAnalyticsEventPayload) =>
+      apiFetch<PubPublicationAnalyticsDto>(
+        `${PREFIX}/publications/${publicationId}/analytics/events`,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+      ),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['publications', publicationId, 'analytics'] }),
+  });
+}

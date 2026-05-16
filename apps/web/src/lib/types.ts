@@ -8143,6 +8143,119 @@ export interface PubDistributeResultDto {
   status: 'PUBLISHED';
 }
 
+// ─── Phase 2 Cycle 26 — Publications Advanced ───
+
+export type PubVersionTrigger = 'STATUS_CHANGE' | 'MANUAL_CHECKPOINT' | 'REVERT';
+export type PubScheduledStatus = 'SCHEDULED' | 'PUBLISHED' | 'CANCELLED';
+export type PubAnalyticsEventType = 'VIEW' | 'OPEN' | 'LINK_CLICK' | 'BOUNCE';
+
+export interface PubPublicationVersionDto {
+  id: string;
+  publicationId: string;
+  versionNumber: number;
+  trigger: PubVersionTrigger;
+  revertedFromVersion: number | null;
+  versionNote: string | null;
+  createdById: string;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+export interface PubPublicationVersionDetailDto extends PubPublicationVersionDto {
+  snapshotContent: Record<string, unknown>;
+}
+
+export interface PubCreateCheckpointPayload {
+  versionNote?: string;
+}
+
+export interface PubRevertToVersionPayload {
+  versionNote?: string;
+}
+
+export interface PubTemplateDto {
+  id: string;
+  schoolId: string | null;
+  name: string;
+  description: string | null;
+  publicationType: PubPublicationType;
+  templateContent: Record<string, unknown>;
+  isSystem: boolean;
+  isActive: boolean;
+  parentTemplateId: string | null;
+  createdById: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PubCreateTemplatePayload {
+  name: string;
+  description?: string;
+  publicationType: PubPublicationType;
+  templateContent: Record<string, unknown>;
+  isActive?: boolean;
+}
+
+export interface PubUpdateTemplatePayload {
+  name?: string;
+  description?: string;
+  templateContent?: Record<string, unknown>;
+  isActive?: boolean;
+}
+
+export interface PubCreateFromTemplatePayload {
+  title: string;
+  seriesId?: string;
+  editionId?: string;
+}
+
+export interface PubScheduledPublicationDto {
+  id: string;
+  publicationId: string;
+  publicationTitle: string | null;
+  scheduledAt: string;
+  timezone: string;
+  status: PubScheduledStatus;
+  scheduledById: string;
+  scheduledByName: string | null;
+  cancelledAt: string | null;
+  cancelledById: string | null;
+  cancellationReason: string | null;
+  publishedAt: string | null;
+  workerAttempts: number;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PubCreateScheduledPublicationPayload {
+  scheduledAt: string;
+  timezone?: string;
+}
+
+export interface PubCancelScheduledPublicationPayload {
+  cancellationReason?: string;
+}
+
+export interface PubPublicationAnalyticsDto {
+  publicationId: string;
+  totalRecipients: number;
+  totalViews: number;
+  uniqueViews: number;
+  totalOpens: number;
+  totalLinkClicks: number;
+  totalBounces: number;
+  avgReadTimeSeconds: number | null;
+  lastEventAt: string | null;
+  lastUpdatedAt: string;
+}
+
+export interface PubIngestAnalyticsEventPayload {
+  eventType: PubAnalyticsEventType;
+  recipientAccountId?: string;
+  readTimeSeconds?: number;
+}
+
 // ─── Cycle 26 — Finance & Accounting (M83) ───
 
 export type FinAccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';

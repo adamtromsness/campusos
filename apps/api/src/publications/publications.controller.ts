@@ -22,34 +22,49 @@ import {
 } from './series.service';
 import { CommentService, ContributorService, SectionService } from './sections.service';
 import { DistributionService, SubscriptionService } from './distribution.service';
+import { TemplateService, VersionService } from './versions.service';
+import { PublicationAnalyticsService, ScheduledPublishService } from './scheduled-publish.service';
 import {
   AddContributorDto,
   AudiencePreviewDto,
+  CancelScheduledPublicationDto,
+  CreateCheckpointDto,
   CreateCommentDto,
   CreateDistributionListDto,
   CreateDistributionRuleDto,
   CreateEditionDto,
+  CreateFromTemplateDto,
   CreatePublicationDto,
+  CreateScheduledPublicationDto,
   CreateSectionDto,
   CreateSeriesDto,
+  CreateTemplateDto,
   DistributionListDto,
   DistributionRuleDto,
   DistributionStatusDto,
   EditionDto,
+  IngestAnalyticsEventDto,
   InviteCollaboratorDto,
+  PublicationAnalyticsDto,
   PublicationCollaboratorDto,
   PublicationDetailDto,
   PublicationDto,
   PublicationStatus,
+  PublicationVersionDetailDto,
+  PublicationVersionDto,
+  RevertToVersionDto,
+  ScheduledPublicationDto,
   SectionCommentDto,
   SectionContributorDto,
   SectionDto,
   SeriesDto,
   SubscriptionDto,
+  TemplateDto,
   UpdateEditionDto,
   UpdatePublicationStatusDto,
   UpdateSectionDto,
   UpdateSeriesDto,
+  UpdateTemplateDto,
 } from './dto/publications.dto';
 
 interface AuthedRequest extends Request {
@@ -75,6 +90,10 @@ export class PublicationsController {
     private readonly comments: CommentService,
     private readonly distribution: DistributionService,
     private readonly subscriptions: SubscriptionService,
+    private readonly versions: VersionService,
+    private readonly templates: TemplateService,
+    private readonly scheduled: ScheduledPublishService,
+    private readonly analytics: PublicationAnalyticsService,
     private readonly actors: ActorContextService,
   ) {}
 
@@ -420,5 +439,226 @@ export class PublicationsController {
   @RequirePermission('pub-001:read')
   async unsubscribe(@Param('id') id: string, @Req() req: AuthedRequest): Promise<SubscriptionDto> {
     return this.subscriptions.unsubscribe(await this.resolveActor(req), id);
+  }
+
+  // ── P2-26: Version History ──
+
+  @Get('publications/:id/versions')
+  @RequirePermission('pub-001:read')
+  @ApiOperation({
+    summary:
+      'P2-26 — list version history (without snapshot body) for a publication. Editor + collaborators only.',
+  })
+  async listVersions(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<PublicationVersionDto[]> {
+    return this.versions.listForPublication(await this.resolveActor(req), id);
+  }
+
+  @Get('publications/versions/:versionId')
+  @RequirePermission('pub-001:read')
+  @ApiOperation({
+    summary: 'P2-26 — fetch the full snapshot for a specific version. Editor + collaborators only.',
+  })
+  async getVersion(
+    @Param('versionId') versionId: string,
+    @Req() req: AuthedRequest,
+  ): Promise<PublicationVersionDetailDto> {
+    return this.versions.getById(await this.resolveActor(req), versionId);
+  }
+
+  @Post('publications/:id/checkpoint')
+  @RequirePermission('pub-001:write')
+  @ApiOperation({
+    summary:
+      'P2-26 — editor explicitly saves a checkpoint. Creates a new IMMUTABLE version with trigger=MANUAL_CHECKPOINT.',
+  })
+  async createCheckpoint(
+    @Param('id') id: string,
+    @Body() body: CreateCheckpointDto,
+    @Req() req: AuthedRequest,
+  ): Promise<PublicationVersionDto> {
+    return this.versions.checkpoint(await this.resolveActor(req), id, body);
+  }
+
+  @Post('publications/:id/revert/:versionNumber')
+  @RequirePermission('pub-001:write')
+  @ApiOperation({
+    summary:
+      'P2-26 — REVERT KEYSTONE. Creates a NEW IMMUTABLE version from the target version snapshot (append-only — existing rows are never modified).',
+  })
+  async revertToVersion(
+    @Param('id') id: string,
+    @Param('versionNumber') versionNumber: string,
+    @Body() body: RevertToVersionDto,
+    @Req() req: AuthedRequest,
+  ): Promise<PublicationVersionDto> {
+    return this.versions.revert(await this.resolveActor(req), id, Number(versionNumber), body);
+  }
+
+  // ── P2-26: Templates ──
+
+  @Get('publications/templates')
+  @RequirePermission('pub-001:read')
+  @ApiOperation({
+    summary:
+      'P2-26 — list publication templates. Includes platform-seeded system templates + school-custom templates.',
+  })
+  async listTemplates(
+    @Query('includeInactive') includeInactive: string | undefined,
+    @Req() req: AuthedRequest,
+  ): Promise<TemplateDto[]> {
+    return this.templates.list(
+      await this.resolveActor(req),
+      includeInactive === 'true' || includeInactive === '1',
+    );
+  }
+
+  @Get('publications/templates/:id')
+  @RequirePermission('pub-001:read')
+  async getTemplate(@Param('id') id: string, @Req() req: AuthedRequest): Promise<TemplateDto> {
+    return this.templates.getById(await this.resolveActor(req), id);
+  }
+
+  @Post('publications/templates')
+  @RequirePermission('pub-001:write')
+  @ApiOperation({
+    summary:
+      'P2-26 — admins + pub-001:write STAFF only. Creates a school-custom template (is_system always false).',
+  })
+  async createTemplate(
+    @Body() body: CreateTemplateDto,
+    @Req() req: AuthedRequest,
+  ): Promise<TemplateDto> {
+    return this.templates.create(await this.resolveActor(req), body);
+  }
+
+  @Patch('publications/templates/:id')
+  @RequirePermission('pub-001:write')
+  @ApiOperation({
+    summary:
+      'P2-26 — admins + pub-001:write STAFF only. is_system=true templates are rejected with 403 — only the platform seeder may modify those.',
+  })
+  async updateTemplate(
+    @Param('id') id: string,
+    @Body() body: UpdateTemplateDto,
+    @Req() req: AuthedRequest,
+  ): Promise<TemplateDto> {
+    return this.templates.patch(await this.resolveActor(req), id, body);
+  }
+
+  @Delete('publications/templates/:id')
+  @RequirePermission('pub-001:write')
+  @HttpCode(204)
+  @ApiOperation({
+    summary:
+      'P2-26 — admins + pub-001:write STAFF only. is_system=true templates are rejected with 403.',
+  })
+  async deleteTemplate(@Param('id') id: string, @Req() req: AuthedRequest): Promise<void> {
+    await this.templates.remove(await this.resolveActor(req), id);
+  }
+
+  @Post('publications/from-template/:templateId')
+  @RequirePermission('pub-001:write')
+  @ApiOperation({
+    summary:
+      'P2-26 — FROM-TEMPLATE KEYSTONE. Creates a new pub_publications row (status=DRAFT) and auto-populates sections from template_content.sections inside one tenant tx.',
+  })
+  async createFromTemplate(
+    @Param('templateId') templateId: string,
+    @Body() body: CreateFromTemplateDto,
+    @Req() req: AuthedRequest,
+  ): Promise<PublicationDto> {
+    return this.templates.createFromTemplate(await this.resolveActor(req), templateId, body);
+  }
+
+  // ── P2-26: Scheduled Publishing ──
+
+  @Get('publications/scheduled')
+  @RequirePermission('pub-001:write')
+  @ApiOperation({
+    summary: 'P2-26 — list every active schedule. Editors + admins only.',
+  })
+  async listScheduled(@Req() req: AuthedRequest): Promise<ScheduledPublicationDto[]> {
+    return this.scheduled.list(await this.resolveActor(req));
+  }
+
+  @Get('publications/:id/schedule')
+  @RequirePermission('pub-001:read')
+  @ApiOperation({
+    summary:
+      'P2-26 — fetch the active schedule for a publication (if any). Returns null when none exists.',
+  })
+  async getScheduleForPublication(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<ScheduledPublicationDto | null> {
+    return this.scheduled.getForPublication(await this.resolveActor(req), id);
+  }
+
+  @Post('publications/:id/schedule')
+  @RequirePermission('pub-001:write')
+  @ApiOperation({
+    summary:
+      'P2-26 — schedule a publication for auto-publish. Validates scheduled_at is in the future + parent status is DRAFT/IN_REVIEW/APPROVED.',
+  })
+  async schedulePublication(
+    @Param('id') id: string,
+    @Body() body: CreateScheduledPublicationDto,
+    @Req() req: AuthedRequest,
+  ): Promise<ScheduledPublicationDto> {
+    return this.scheduled.schedule(await this.resolveActor(req), id, body);
+  }
+
+  @Delete('publications/:id/schedule')
+  @RequirePermission('pub-001:write')
+  @ApiOperation({
+    summary:
+      'P2-26 — cancel an active schedule. Flips status to CANCELLED with multi-column cancelled_chk lockstep satisfied atomically.',
+  })
+  async cancelSchedule(
+    @Param('id') id: string,
+    @Body() body: CancelScheduledPublicationDto,
+    @Req() req: AuthedRequest,
+  ): Promise<ScheduledPublicationDto> {
+    return this.scheduled.cancel(await this.resolveActor(req), id, body);
+  }
+
+  // ── P2-26: Analytics ──
+
+  @Get('publications/:id/analytics')
+  @RequirePermission('pub-001:read')
+  @ApiOperation({
+    summary: 'P2-26 — per-publication engagement counters. Editor + collaborators + admins only.',
+  })
+  async getAnalytics(
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ): Promise<PublicationAnalyticsDto> {
+    return this.analytics.get(await this.resolveActor(req), id);
+  }
+
+  @Get('publications/analytics/summary')
+  @RequirePermission('pub-001:read')
+  @ApiOperation({
+    summary: 'P2-26 — school-wide analytics summary. School admins only at service layer.',
+  })
+  async analyticsSummary(@Req() req: AuthedRequest): Promise<PublicationAnalyticsDto[]> {
+    return this.analytics.summary(await this.resolveActor(req));
+  }
+
+  @Post('publications/:id/analytics/events')
+  @RequirePermission('pub-001:read')
+  @HttpCode(202)
+  @ApiOperation({
+    summary:
+      'P2-26 — atomic counter increment for view/open/link_click/bounce events. Concurrent events safe via SQL-level INCREMENT.',
+  })
+  async ingestAnalyticsEvent(
+    @Param('id') id: string,
+    @Body() body: IngestAnalyticsEventDto,
+  ): Promise<PublicationAnalyticsDto> {
+    return this.analytics.ingestEvent(id, body);
   }
 }

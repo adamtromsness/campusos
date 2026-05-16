@@ -211,6 +211,16 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
       'Library Advanced — reading lists + class sets + recommendations + ILL + catalogue import (P2-25a)',
     script: 'seed-library-advanced.ts',
   },
+  {
+    label:
+      'Publications Templates (Platform) — system templates seeded once across all tenants (P2-26 Step 7)',
+    script: 'seed-publications-templates-platform.ts',
+  },
+  {
+    label:
+      'Publications Advanced — version history + custom templates + scheduled publish + analytics (P2-26)',
+    script: 'seed-publications-advanced.ts',
+  },
 ];
 
 async function main(): Promise<void> {

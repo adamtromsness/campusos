@@ -450,3 +450,206 @@ export class SubscriptionDto {
   subscribedAt!: string;
   unsubscribedAt!: string | null;
 }
+
+// ── Phase 2 Cycle 26 — Publications Advanced ─────────────────
+
+export type VersionTrigger = 'STATUS_CHANGE' | 'MANUAL_CHECKPOINT' | 'REVERT';
+export const VERSION_TRIGGERS: readonly VersionTrigger[] = [
+  'STATUS_CHANGE',
+  'MANUAL_CHECKPOINT',
+  'REVERT',
+] as const;
+
+export type ScheduledStatus = 'SCHEDULED' | 'PUBLISHED' | 'CANCELLED';
+export const SCHEDULED_STATUSES: readonly ScheduledStatus[] = [
+  'SCHEDULED',
+  'PUBLISHED',
+  'CANCELLED',
+] as const;
+
+export type AnalyticsEventType = 'VIEW' | 'OPEN' | 'LINK_CLICK' | 'BOUNCE';
+export const ANALYTICS_EVENT_TYPES: readonly AnalyticsEventType[] = [
+  'VIEW',
+  'OPEN',
+  'LINK_CLICK',
+  'BOUNCE',
+] as const;
+
+export class PublicationVersionDto {
+  id!: string;
+  publicationId!: string;
+  versionNumber!: number;
+  trigger!: VersionTrigger;
+  revertedFromVersion!: number | null;
+  versionNote!: string | null;
+  createdById!: string;
+  createdByName!: string | null;
+  createdAt!: string;
+}
+
+export class PublicationVersionDetailDto extends PublicationVersionDto {
+  snapshotContent!: Record<string, unknown>;
+}
+
+export class CreateCheckpointDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 500)
+  versionNote?: string;
+}
+
+export class RevertToVersionDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 500)
+  versionNote?: string;
+}
+
+export class TemplateDto {
+  id!: string;
+  schoolId!: string | null;
+  name!: string;
+  description!: string | null;
+  publicationType!: PublicationType;
+  templateContent!: Record<string, unknown>;
+  isSystem!: boolean;
+  isActive!: boolean;
+  parentTemplateId!: string | null;
+  createdById!: string | null;
+  createdAt!: string;
+  updatedAt!: string;
+}
+
+export class CreateTemplateDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 200)
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({ enum: PUBLICATION_TYPES })
+  @IsIn(PUBLICATION_TYPES as unknown as string[])
+  publicationType!: PublicationType;
+
+  @ApiProperty()
+  templateContent!: Record<string, unknown>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateTemplateDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  templateContent?: Record<string, unknown>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class CreateFromTemplateDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 300)
+  title!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  seriesId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  editionId?: string;
+}
+
+export class ScheduledPublicationDto {
+  id!: string;
+  publicationId!: string;
+  publicationTitle!: string | null;
+  scheduledAt!: string;
+  timezone!: string;
+  status!: ScheduledStatus;
+  scheduledById!: string;
+  scheduledByName!: string | null;
+  cancelledAt!: string | null;
+  cancelledById!: string | null;
+  cancellationReason!: string | null;
+  publishedAt!: string | null;
+  workerAttempts!: number;
+  lastError!: string | null;
+  createdAt!: string;
+  updatedAt!: string;
+}
+
+export class CreateScheduledPublicationDto {
+  @ApiProperty()
+  @IsString()
+  scheduledAt!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 80)
+  timezone?: string;
+}
+
+export class CancelScheduledPublicationDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 500)
+  cancellationReason?: string;
+}
+
+export class PublicationAnalyticsDto {
+  publicationId!: string;
+  totalRecipients!: number;
+  totalViews!: number;
+  uniqueViews!: number;
+  totalOpens!: number;
+  totalLinkClicks!: number;
+  totalBounces!: number;
+  avgReadTimeSeconds!: number | null;
+  lastEventAt!: string | null;
+  lastUpdatedAt!: string;
+}
+
+export class IngestAnalyticsEventDto {
+  @ApiProperty({ enum: ANALYTICS_EVENT_TYPES })
+  @IsIn(ANALYTICS_EVENT_TYPES as unknown as string[])
+  eventType!: AnalyticsEventType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  recipientAccountId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  readTimeSeconds?: number;
+}

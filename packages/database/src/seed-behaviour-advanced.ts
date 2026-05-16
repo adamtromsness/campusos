@@ -97,7 +97,7 @@ async function seedBehaviourAdvanced() {
     return;
   }
 
-  const [riveraEmpId, hayesEmpId, mitchellEmpId] = await Promise.all([
+  const [riveraEmpId, hayesEmpId, _mitchellEmpId] = await Promise.all([
     findEmployeeId('teacher@demo.campusos.dev'),
     findEmployeeId('counsellor@demo.campusos.dev'),
     findEmployeeId('principal@demo.campusos.dev'),

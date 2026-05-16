@@ -4,6 +4,14 @@ import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 
+export function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; meta?: { code?: string }; message?: string };
+  if (e?.code === 'P2002') return true;
+  if (e?.code === 'P2010' && e?.meta?.code === '23505') return true;
+  if (typeof e?.message === 'string' && e.message.includes('23505')) return true;
+  return false;
+}
+
 // REVIEW-CYCLE25 BLOCKING 1 / 2 / 3 / 4 — shared access helpers.
 //
 // canEditPublication: school admin OR pub-001:write OR pub-002:write OR

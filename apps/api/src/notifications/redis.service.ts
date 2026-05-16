@@ -436,4 +436,29 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       return 0;
     }
   }
+
+  /**
+   * P2-26 — unique-view dedup for Publications analytics. SADD returns
+   * 1 if member was new in the set; the EXPIRE sets a 24h TTL on the
+   * SET so memory growth is bounded. Returns 1 if this is a new unique
+   * view (caller increments unique_views by 1), 0 if it's a repeat
+   * view within the 24h window OR Redis is unavailable (degrades to
+   * "skip unique-view increment" rather than fail closed).
+   */
+  async markUniquePublicationView(
+    publicationId: string,
+    recipientAccountId: string,
+  ): Promise<number> {
+    if (!this.connected || !this.client) return 0;
+    var key = 'notif:pub-views:' + publicationId;
+    try {
+      var added = await this.client.sadd(key, recipientAccountId);
+      // EXPIRE on every write keeps the window sliding for active rows.
+      await this.client.expire(key, 60 * 60 * 24);
+      return Number(added);
+    } catch (e: any) {
+      this.logger.warn('Redis SADD failed (' + key + '): ' + (e?.message || e));
+      return 0;
+    }
+  }
 }

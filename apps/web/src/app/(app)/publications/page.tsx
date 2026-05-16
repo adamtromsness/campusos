@@ -37,6 +37,28 @@ export default function PublicationsDashboardPage() {
         >
           My subscriptions
         </Link>
+        {showStaffSurfaces && (
+          <>
+            <Link
+              href="/publications/templates"
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+            >
+              Templates
+            </Link>
+            <Link
+              href="/publications/scheduled"
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+            >
+              Scheduled
+            </Link>
+            <Link
+              href="/publications/analytics"
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+            >
+              Analytics
+            </Link>
+          </>
+        )}
       </div>
 
       {showStaffSurfaces && (

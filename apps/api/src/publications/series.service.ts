@@ -10,7 +10,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { assertAccountInCurrentTenant } from './access';
+import { assertAccountInCurrentTenant, isUniqueViolation } from './access';
 import type {
   CollaboratorRole,
   CreateEditionDto,
@@ -28,13 +28,12 @@ import type {
   UpdateSeriesDto,
 } from './dto/publications.dto';
 
-export function isUniqueViolation(err: unknown): boolean {
-  const e = err as { code?: string; meta?: { code?: string }; message?: string };
-  if (e?.code === 'P2002') return true;
-  if (e?.code === 'P2010' && e?.meta?.code === '23505') return true;
-  if (typeof e?.message === 'string' && e.message.includes('23505')) return true;
-  return false;
-}
+// isUniqueViolation moved to access.ts in Phase 2 Cycle 26 to break
+// the circular dependency between series.service (PublicationService) +
+// versions.service (VersionService). Kept here as a re-export for
+// backwards compatibility with sections.service.ts + distribution.service.ts
+// imports.
+export { isUniqueViolation } from './access';
 
 interface SeriesRow {
   id: string;
@@ -428,10 +427,21 @@ export class EditionService {
 
 @Injectable()
 export class PublicationService {
+  // Phase 2 Cycle 26 — VersionService is wired via setter (not constructor)
+  // to break the circular dependency between PublicationService (which
+  // calls captureForStatusChange) and VersionService (which loads
+  // PublicationService.composeSnapshot via the access helpers).
+  private versionService: { captureForStatusChange: (...args: any[]) => Promise<string> } | null =
+    null;
+
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly permCheck: PermissionCheckService,
   ) {}
+
+  setVersionService(svc: { captureForStatusChange: (...args: any[]) => Promise<string> }): void {
+    this.versionService = svc;
+  }
 
   private async assertWriter(actor: ResolvedActor): Promise<void> {
     if (actor.isSchoolAdmin) return;
@@ -640,6 +650,18 @@ export class PublicationService {
         `UPDATE pub_publications SET ${sets.join(', ')} WHERE id = $${params.length}::uuid`,
         ...params,
       );
+      // Phase 2 Cycle 26 — auto-create a STATUS_CHANGE version inside the
+      // same locked tx so the version trail captures every transition. The
+      // hook is best-effort — if VersionService isn't wired yet (unit
+      // tests without the bridge) we skip silently.
+      if (this.versionService) {
+        await this.versionService.captureForStatusChange(
+          client,
+          id,
+          actor.accountId,
+          `Status: ${rows[0]!.status} → ${input.status}`,
+        );
+      }
       return this.getById(id, actor);
     });
   }

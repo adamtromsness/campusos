@@ -119,3 +119,51 @@ export function formatDateTime(iso: string | null): string {
     minute: '2-digit',
   });
 }
+
+// ─── Phase 2 Cycle 26 — Publications Advanced helpers ───
+
+import type { PubScheduledStatus, PubVersionTrigger } from '@/lib/types';
+
+export const VERSION_TRIGGER_LABELS: Record<PubVersionTrigger, string> = {
+  STATUS_CHANGE: 'Status change',
+  MANUAL_CHECKPOINT: 'Manual checkpoint',
+  REVERT: 'Reverted',
+};
+
+export const VERSION_TRIGGER_PILL: Record<PubVersionTrigger, string> = {
+  STATUS_CHANGE: 'bg-sky-100 text-sky-700',
+  MANUAL_CHECKPOINT: 'bg-emerald-100 text-emerald-700',
+  REVERT: 'bg-amber-100 text-amber-700',
+};
+
+export const SCHEDULED_STATUS_LABELS: Record<PubScheduledStatus, string> = {
+  SCHEDULED: 'Scheduled',
+  PUBLISHED: 'Published',
+  CANCELLED: 'Cancelled',
+};
+
+export const SCHEDULED_STATUS_PILL: Record<PubScheduledStatus, string> = {
+  SCHEDULED: 'bg-amber-100 text-amber-700',
+  PUBLISHED: 'bg-emerald-100 text-emerald-700',
+  CANCELLED: 'bg-gray-100 text-gray-600',
+};
+
+export function formatCountdown(iso: string | null): string {
+  if (!iso) return '—';
+  const target = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = target - now;
+  if (diffMs <= 0) return 'now';
+  const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const minutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
+  if (days > 0) return `in ${days}d ${hours}h`;
+  if (hours > 0) return `in ${hours}h ${minutes}m`;
+  return `in ${minutes}m`;
+}
+
+export function formatEngagement(numerator: number, denominator: number): string {
+  if (denominator === 0) return '0%';
+  const pct = Math.round((numerator / denominator) * 100);
+  return `${pct}%`;
+}
