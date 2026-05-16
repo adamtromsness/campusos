@@ -471,6 +471,12 @@ async function seedIam() {
         // groups + post announcements + create events on groups they
         // own/admin. Cross-role social fabric.
         'GRP-001': ['read', 'write'],
+        // P2-H1 Step 2 — Group resources (shared files / links) and
+        // group analytics (membership growth, post engagement). Teachers
+        // who lead groups need read+write on resources; analytics is
+        // read-only at the teacher tier.
+        'GRP-002': ['read', 'write'],
+        'GRP-003': ['read'],
         // Cycle 19 — Transportation. Teachers see route + assignment
         // info but do not manage routes or fleet. TRN-001:read covers
         // the read-only Transportation app tile.
@@ -694,6 +700,10 @@ async function seedIam() {
         // groups they're invited to. Service-layer row scope binds
         // membership-derived reads to actor.personId.
         'GRP-001': ['read', 'write'],
+        // P2-H1 Step 2 — Parents read group resources for groups they
+        // are members of (newsletters, event flyers). No analytics
+        // access at the parent tier.
+        'GRP-002': ['read'],
         // Cycle 19 — Transportation. Parents view their child's route +
         // bus pass + ridership history (TRN-001:read), and submit
         // route-change requests with the parent-portal flow
@@ -908,6 +918,9 @@ async function seedIam() {
         // scope at the Step 5 GroupService binds member-derived
         // reads to actor.personId.
         'GRP-001': ['read', 'write'],
+        // P2-H1 Step 2 — Students read group resources for groups
+        // they belong to. No analytics access at the student tier.
+        'GRP-002': ['read'],
         // Cycle 19 — Transportation. Students view their own bus
         // pass + route info via TRN-001:read. The Step 7
         // BusPassService row-scopes my-pass reads to the calling
@@ -1279,6 +1292,12 @@ async function seedIam() {
         // groups school-wide; admins additionally hold GRP-001:admin
         // via everyFunction.
         'GRP-001': ['read', 'write'],
+        // P2-H1 Step 2 — Staff (covers group coordinators / VPs /
+        // counsellors) get full read+write on group resources and
+        // analytics so they can curate shared files and review
+        // engagement dashboards. Admin tier reached via everyFunction.
+        'GRP-002': ['read', 'write'],
+        'GRP-003': ['read', 'write'],
         // Cycle 19 — Transportation. Staff covers the Transportation
         // Coordinator (TC) — the sixth specialist operator persona.
         // TRN-001..005 read+write covers the full TC operational

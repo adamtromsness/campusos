@@ -351,6 +351,16 @@
       "group": "Communications"
     },
     {
+      "code": "GRP-002",
+      "name": "Group Resources",
+      "group": "Communications"
+    },
+    {
+      "code": "GRP-003",
+      "name": "Group Analytics",
+      "group": "Communications"
+    },
+    {
       "code": "HLT-001",
       "name": "Health Records",
       "group": "Health & Wellness"

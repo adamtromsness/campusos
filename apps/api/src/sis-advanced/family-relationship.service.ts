@@ -67,10 +67,15 @@ export class FamilyRelationshipService {
   }
 
   private async assertGuardiansInTenant(guardianAId: string, guardianBId: string): Promise<void> {
+    // P2-H1 Step 1: school-scope the guardian lookup so a cross-school guardian id
+    // in a multi-school tenant cannot satisfy the existence check.
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<Array<{ id: string }>>(
-        'SELECT id::text AS id FROM sis_guardians WHERE id = ANY($1::uuid[])',
+        'SELECT id::text AS id FROM sis_guardians ' +
+          'WHERE id = ANY($1::uuid[]) AND school_id = $2::uuid',
         [guardianAId, guardianBId],
+        tenant.schoolId,
       ),
     );
     const found = new Set(rows.map((r) => r.id));
@@ -83,25 +88,36 @@ export class FamilyRelationshipService {
   }
 
   async listForFamily(familyId: string): Promise<FamilyRelationshipDto[]> {
+    // P2-H1 Step 1: defence-in-depth — JOIN through sis_guardians.school_id so a
+    // foreign-school family id in a multi-school tenant returns 0 rows.
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<RelationshipRow[]>(
-        'SELECT id::text, family_id::text, guardian_a_id::text, guardian_b_id::text, ' +
-          'relationship_type, custody_arrangement, notes ' +
-          'FROM sis_family_relationships WHERE family_id = $1::uuid ' +
-          'ORDER BY created_at DESC',
+        'SELECT r.id::text, r.family_id::text, r.guardian_a_id::text, r.guardian_b_id::text, ' +
+          'r.relationship_type, r.custody_arrangement, r.notes ' +
+          'FROM sis_family_relationships r ' +
+          'JOIN sis_guardians ga ON ga.id = r.guardian_a_id ' +
+          'WHERE r.family_id = $1::uuid AND ga.school_id = $2::uuid ' +
+          'ORDER BY r.created_at DESC',
         familyId,
+        tenant.schoolId,
       ),
     );
     return rows.map((r) => this.rowToDto(r));
   }
 
   async getByIdOrFail(id: string): Promise<FamilyRelationshipDto> {
+    // P2-H1 Step 1: school-scope via JOIN through sis_guardians.school_id.
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<RelationshipRow[]>(
-        'SELECT id::text, family_id::text, guardian_a_id::text, guardian_b_id::text, ' +
-          'relationship_type, custody_arrangement, notes ' +
-          'FROM sis_family_relationships WHERE id = $1::uuid',
+        'SELECT r.id::text, r.family_id::text, r.guardian_a_id::text, r.guardian_b_id::text, ' +
+          'r.relationship_type, r.custody_arrangement, r.notes ' +
+          'FROM sis_family_relationships r ' +
+          'JOIN sis_guardians ga ON ga.id = r.guardian_a_id ' +
+          'WHERE r.id = $1::uuid AND ga.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       ),
     );
     if (rows.length === 0) throw new NotFoundException('Family relationship not found');
@@ -206,9 +222,22 @@ export class FamilyRelationshipService {
     if (sets.length > 0) {
       sets.push('updated_at = now()');
       params.push(id);
+      // P2-H1 Step 1: UPDATE joins through sis_guardians.school_id as
+      // defence-in-depth — the prior getByIdOrFail already 404s on cross-school
+      // ids, but landing the predicate on the UPDATE itself guards against any
+      // future code path that bypasses the loader.
+      const tenant = getCurrentTenant();
+      params.push(tenant.schoolId);
       await this.tenantPrisma.executeInTenantContext(async (client) =>
         client.$executeRawUnsafe(
-          'UPDATE sis_family_relationships SET ' + sets.join(', ') + ' WHERE id = $' + n + '::uuid',
+          'UPDATE sis_family_relationships AS r SET ' +
+            sets.join(', ') +
+            ' FROM sis_guardians ga ' +
+            ' WHERE r.id = $' +
+            n +
+            '::uuid AND ga.id = r.guardian_a_id AND ga.school_id = $' +
+            (n + 1) +
+            '::uuid',
           ...params,
         ),
       );
@@ -221,8 +250,16 @@ export class FamilyRelationshipService {
       throw new ForbiddenException('Only admins can delete family relationships.');
     }
     await this.getByIdOrFail(id);
+    // P2-H1 Step 1: DELETE joins through sis_guardians.school_id.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantContext(async (client) =>
-      client.$executeRawUnsafe('DELETE FROM sis_family_relationships WHERE id = $1::uuid', id),
+      client.$executeRawUnsafe(
+        'DELETE FROM sis_family_relationships r ' +
+          'USING sis_guardians ga ' +
+          'WHERE r.id = $1::uuid AND ga.id = r.guardian_a_id AND ga.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      ),
     );
   }
 }

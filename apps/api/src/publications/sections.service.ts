@@ -210,10 +210,17 @@ export class SectionService {
     sectionId: string,
     input: UpdateSectionDto,
   ): Promise<SectionDto> {
+    // P2-H1 Step 1: school-scope the lock + UPDATE via JOIN through
+    // pub_publications.school_id so a foreign-school section id resolves to
+    // NotFoundException at the loader.
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
       const rows = (await client.$queryRawUnsafe(
-        'SELECT id::text AS id FROM pub_sections WHERE id = $1::uuid FOR UPDATE',
+        'SELECT s.id::text AS id FROM pub_sections s ' +
+          'JOIN pub_publications p ON p.id = s.publication_id ' +
+          'WHERE s.id = $1::uuid AND p.school_id = $2::uuid FOR UPDATE OF s',
         sectionId,
+        tenant.schoolId,
       )) as Array<{ id: string }>;
       if (rows.length === 0) throw new NotFoundException('Section not found');
       const sets: string[] = [];
@@ -235,8 +242,12 @@ export class SectionService {
       }
       sets.push('updated_at = now()');
       params.push(sectionId);
+      params.push(tenant.schoolId);
       await client.$executeRawUnsafe(
-        `UPDATE pub_sections SET ${sets.join(', ')} WHERE id = $${params.length}::uuid`,
+        `UPDATE pub_sections AS s SET ${sets.join(', ')} ` +
+          `FROM pub_publications p ` +
+          `WHERE s.id = $${params.length - 1}::uuid AND p.id = s.publication_id ` +
+          `AND p.school_id = $${params.length}::uuid`,
         ...params,
       );
       const cur = (await client.$queryRawUnsafe(
@@ -248,8 +259,16 @@ export class SectionService {
   }
 
   async remove(_actor: ResolvedActor, sectionId: string): Promise<void> {
+    // P2-H1 Step 1: school-scope via JOIN through pub_publications.school_id.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe('DELETE FROM pub_sections WHERE id = $1::uuid', sectionId);
+      await client.$executeRawUnsafe(
+        'DELETE FROM pub_sections s ' +
+          'USING pub_publications p ' +
+          'WHERE s.id = $1::uuid AND p.id = s.publication_id AND p.school_id = $2::uuid',
+        sectionId,
+        tenant.schoolId,
+      );
     });
   }
 
@@ -257,14 +276,23 @@ export class SectionService {
   // flag on a section. BLOCKING 3 (REVIEW-CYCLE25) — generic PUB-002:write
   // is no longer enough; the actor must be school admin, the publication
   // creator, or an EDITOR/REVIEWER collaborator.
+  //
+  // P2-H1 Step 1: school-scope the lock + UPDATE via JOIN through
+  // pub_publications.school_id so a foreign-school section id is rejected at
+  // the loader (404 don't-leak-existence) BEFORE the canApproveSection check
+  // runs against the wrong publication.
   async approve(actor: ResolvedActor, sectionId: string): Promise<SectionDto> {
     if (!actor.isSchoolAdmin && actor.personType === 'STUDENT') {
       throw new ForbiddenException('Students cannot approve their own sections.');
     }
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
       const rows = (await client.$queryRawUnsafe(
-        'SELECT id::text AS id, publication_id::text AS publication_id FROM pub_sections WHERE id = $1::uuid FOR UPDATE',
+        'SELECT s.id::text AS id, s.publication_id::text AS publication_id FROM pub_sections s ' +
+          'JOIN pub_publications p ON p.id = s.publication_id ' +
+          'WHERE s.id = $1::uuid AND p.school_id = $2::uuid FOR UPDATE OF s',
         sectionId,
+        tenant.schoolId,
       )) as Array<{ id: string; publication_id: string }>;
       if (rows.length === 0) throw new NotFoundException('Section not found');
       const publicationId = rows[0]!.publication_id;
@@ -275,8 +303,11 @@ export class SectionService {
         );
       }
       await client.$executeRawUnsafe(
-        'UPDATE pub_sections SET is_approved = true, updated_at = now() WHERE id = $1::uuid',
+        'UPDATE pub_sections AS s SET is_approved = true, updated_at = now() ' +
+          'FROM pub_publications p ' +
+          'WHERE s.id = $1::uuid AND p.id = s.publication_id AND p.school_id = $2::uuid',
         sectionId,
+        tenant.schoolId,
       );
       const fresh = (await client.$queryRawUnsafe(
         SELECT_SECTION_BASE + ' WHERE s.id = $1::uuid LIMIT 1',

@@ -4,7 +4,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { assertEngagementAdmin, assertEngagementReader } from './access';
+import { assertEngagementAdmin, assertEngagementReader, isEngagementAdmin } from './access';
 import type {
   EngagementLevel,
   EngagementLevelThresholds,
@@ -57,7 +57,14 @@ export class EngagementScoreService {
     private readonly permCheck: PermissionCheckService,
   ) {}
 
-  private toDto(row: ScoreRow): EngagementScoreDto {
+  /**
+   * P2-H1 Step 5 — engagement score components are sensitive profiling.
+   * When stripComponents=true, the per-component breakdown
+   * (attendance / communication / conference / volunteer / payment) is
+   * cleared and componentWeights is null. Aggregate engagement_level +
+   * composite_score remain visible. Caller decides via isEngagementAdmin().
+   */
+  private toDto(row: ScoreRow, stripComponents: boolean = false): EngagementScoreDto {
     let weights: Record<string, number> | null = null;
     if (row.component_weights && typeof row.component_weights === 'object') {
       weights = row.component_weights as Record<string, number>;
@@ -74,16 +81,33 @@ export class EngagementScoreService {
       familyAccountId: row.family_account_id,
       scoreDate: row.score_date,
       compositeScore: Number(row.composite_score),
-      attendanceComponent:
-        row.attendance_component === null ? null : Number(row.attendance_component),
-      communicationComponent:
-        row.communication_component === null ? null : Number(row.communication_component),
-      conferenceComponent:
-        row.conference_component === null ? null : Number(row.conference_component),
-      volunteerComponent: row.volunteer_component === null ? null : Number(row.volunteer_component),
-      paymentComponent: row.payment_component === null ? null : Number(row.payment_component),
+      attendanceComponent: stripComponents
+        ? null
+        : row.attendance_component === null
+          ? null
+          : Number(row.attendance_component),
+      communicationComponent: stripComponents
+        ? null
+        : row.communication_component === null
+          ? null
+          : Number(row.communication_component),
+      conferenceComponent: stripComponents
+        ? null
+        : row.conference_component === null
+          ? null
+          : Number(row.conference_component),
+      volunteerComponent: stripComponents
+        ? null
+        : row.volunteer_component === null
+          ? null
+          : Number(row.volunteer_component),
+      paymentComponent: stripComponents
+        ? null
+        : row.payment_component === null
+          ? null
+          : Number(row.payment_component),
       engagementLevel: row.engagement_level as EngagementLevel,
-      componentWeights: weights,
+      componentWeights: stripComponents ? null : weights,
       notes: row.notes,
       computedAt: row.computed_at,
       createdAt: row.created_at,
@@ -125,7 +149,9 @@ export class EngagementScoreService {
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(sql, ...args);
     })) as ScoreRow[];
-    return rows.map((r) => this.toDto(r));
+    // P2-H1 Step 5 — strip per-component breakdown for non-admin readers.
+    const stripComponents = !(await isEngagementAdmin(actor, this.permCheck));
+    return rows.map((r) => this.toDto(r, stripComponents));
   }
 
   async getForFamily(actor: ResolvedActor, familyAccountId: string): Promise<EngagementScoreDto[]> {
@@ -148,7 +174,9 @@ export class EngagementScoreService {
         familyAccountId,
       );
     })) as ScoreRow[];
-    return rows.map((r) => this.toDto(r));
+    // P2-H1 Step 5 — strip per-component breakdown for non-admin readers.
+    const stripComponents = !(await isEngagementAdmin(actor, this.permCheck));
+    return rows.map((r) => this.toDto(r, stripComponents));
   }
 
   async summary(actor: ResolvedActor): Promise<EngagementSummaryDto> {

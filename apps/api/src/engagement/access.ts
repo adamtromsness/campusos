@@ -90,3 +90,24 @@ export async function assertEngagementReader(
     throw new ForbiddenException(`${surface} is restricted to school staff and administrators`);
   }
 }
+
+/**
+ * P2-H1 Step 5 — capability check (boolean, not throw) for whether the actor
+ * may see the component breakdown of an engagement score. School admins +
+ * ENG-001:admin holders see components; everyone else sees aggregate-level
+ * only (engagement_level + composite_score), with component_* fields
+ * stripped server-side.
+ *
+ * Rationale: component scores expose payment behaviour + communication
+ * engagement + conference attendance per family. Treat as sensitive
+ * profiling; restrict to admin tier per the hardening plan (Plan IMP-10,
+ * GPT COMP-02).
+ */
+export async function isEngagementAdmin(
+  actor: ResolvedActor,
+  permCheck: PermissionCheckService,
+): Promise<boolean> {
+  if (actor.isSchoolAdmin) return true;
+  const tenant = getCurrentTenant();
+  return permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, ['eng-001:admin']);
+}

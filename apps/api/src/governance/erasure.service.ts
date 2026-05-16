@@ -303,10 +303,13 @@ export class ErasureService {
     })) as number;
 
     // Refresh the row to return it.
+    // P2-H1 Step 1: school-scope the reload as defence-in-depth.
+    const tenantForReload = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT * FROM dpo_pseudonymisation_log WHERE id = $1::uuid LIMIT 1`,
+        `SELECT * FROM dpo_pseudonymisation_log WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
         logId,
+        tenantForReload.schoolId,
       );
     })) as Array<Record<string, unknown>>;
     const row = rows[0]!;
@@ -645,10 +648,13 @@ export class PrivacyNoticeService {
       }
       throw err;
     }
+    // P2-H1 Step 1: school-scope the reload — defence-in-depth.
+    const reloadTenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT * FROM dpo_privacy_notices WHERE id = $1::uuid LIMIT 1`,
+        `SELECT * FROM dpo_privacy_notices WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
         id,
+        reloadTenant.schoolId,
       );
     })) as Array<Record<string, unknown>>;
     const name = await this.resolveAccountName(rows[0]!.published_by as string);
@@ -689,10 +695,13 @@ export class PrivacyNoticeService {
       );
       if (result === 0) throw new NotFoundException(`Privacy notice ${id} not found.`);
     });
+    // P2-H1 Step 1: school-scope the reload — defence-in-depth.
+    const reloadTenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT * FROM dpo_privacy_notices WHERE id = $1::uuid LIMIT 1`,
+        `SELECT * FROM dpo_privacy_notices WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
         id,
+        reloadTenant.schoolId,
       );
     })) as Array<Record<string, unknown>>;
     const name = await this.resolveAccountName(rows[0]!.published_by as string);

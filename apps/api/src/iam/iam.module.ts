@@ -6,6 +6,7 @@ import { RoleService } from './role.service';
 import { AssignmentService } from './assignment.service';
 import { ScopeService } from './scope.service';
 import { ActorContextService } from './actor-context.service';
+import { GuardianAuthorizationService } from './guardian-authorization.service';
 import { TenantModule } from '../tenant/tenant.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ObservabilityModule } from '../observability/observability.module';
@@ -44,6 +45,7 @@ import { ObservabilityModule } from '../observability/observability.module';
     AssignmentService,
     ScopeService,
     ActorContextService,
+    GuardianAuthorizationService,
   ],
   exports: [
     PermissionCheckService,
@@ -52,6 +54,7 @@ import { ObservabilityModule } from '../observability/observability.module';
     AssignmentService,
     ScopeService,
     ActorContextService,
+    GuardianAuthorizationService,
   ],
 })
 export class IamModule {}

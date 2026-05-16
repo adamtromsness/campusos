@@ -187,6 +187,9 @@ export class StudentNoteService {
       ),
     );
 
+    // P2-H1 Step 1: post-insert reload joins through school_id so the DTO
+    // cannot surface a foreign-school row even on a stale loader path. The
+    // `tenant` const is already in scope from the insert preamble above.
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<NoteRow[]>(
         'SELECT n.id::text, n.student_id::text, n.author_id::text, ' +
@@ -195,18 +198,23 @@ export class StudentNoteService {
           'n.created_at::text ' +
           'FROM sis_student_notes n ' +
           'LEFT JOIN platform.iam_person ip ON ip.id = n.author_id ' +
-          'WHERE n.id = $1::uuid',
+          'WHERE n.id = $1::uuid AND n.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       ),
     );
     return this.rowToDto(rows[0]!);
   }
 
   async delete(id: string, actor: ResolvedActor): Promise<void> {
+    // P2-H1 Step 1: school-scope both the authz pre-check and the DELETE.
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<Array<{ author_id: string; is_confidential: boolean }>>(
-        'SELECT author_id::text AS author_id, is_confidential FROM sis_student_notes WHERE id = $1::uuid',
+        'SELECT author_id::text AS author_id, is_confidential FROM sis_student_notes ' +
+          'WHERE id = $1::uuid AND school_id = $2::uuid',
         id,
+        tenant.schoolId,
       ),
     );
     if (rows.length === 0) throw new NotFoundException('Note not found');
@@ -214,7 +222,11 @@ export class StudentNoteService {
       throw new ForbiddenException('Only the note author or an admin can delete this note.');
     }
     await this.tenantPrisma.executeInTenantContext(async (client) =>
-      client.$executeRawUnsafe('DELETE FROM sis_student_notes WHERE id = $1::uuid', id),
+      client.$executeRawUnsafe(
+        'DELETE FROM sis_student_notes WHERE id = $1::uuid AND school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      ),
     );
   }
 }

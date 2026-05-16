@@ -298,10 +298,15 @@ export class CurriculumMapService {
     actor: ResolvedActor,
   ): Promise<CurriculumMapDto> {
     await assertCurriculumWriter(actor, this.permCheck);
+    // P2-H1 Step 1: school-scope the lock + UPDATE so a foreign-school map id
+    // resolves to NotFoundException at the loader stage.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lockRows = (await tx.$queryRawUnsafe(
-        'SELECT status, academic_year_id::text AS academic_year_id FROM cur_curriculum_maps WHERE id = $1::uuid FOR UPDATE',
+        'SELECT status, academic_year_id::text AS academic_year_id FROM cur_curriculum_maps ' +
+          'WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         id,
+        tenant.schoolId,
       )) as Array<{ status: CurriculumMapStatus; academic_year_id: string }>;
       if (lockRows.length === 0) throw new NotFoundException('Curriculum map not found');
       const cur = lockRows[0]!.status;
@@ -357,10 +362,13 @@ export class CurriculumMapService {
       if (sets.length > 0) {
         sets.push('updated_at = now()');
         params.push(id);
+        params.push(tenant.schoolId);
         await tx.$executeRawUnsafe(
           'UPDATE cur_curriculum_maps SET ' +
             sets.join(', ') +
             ' WHERE id = $' +
+            (params.length - 1) +
+            '::uuid AND school_id = $' +
             params.length +
             '::uuid',
           ...params,
@@ -466,13 +474,17 @@ export class UnitService {
   }
 
   async getById(id: string, actor: ResolvedActor): Promise<UnitDetailDto> {
+    // P2-H1 Step 1: school-scope via JOIN to cur_curriculum_maps.school_id.
+    const tenant = getCurrentTenant();
     const list = await this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
         'SELECT u.id::text AS id, u.curriculum_map_id::text AS curriculum_map_id, u.title, u.description, ' +
           'u.sequence_order, u.estimated_weeks, u.start_date::text AS start_date, u.end_date::text AS end_date, ' +
           'u.essential_questions ' +
-          'FROM cur_units u WHERE u.id = $1::uuid LIMIT 1',
+          'FROM cur_units u JOIN cur_curriculum_maps m ON m.id = u.curriculum_map_id ' +
+          'WHERE u.id = $1::uuid AND m.school_id = $2::uuid LIMIT 1',
         id,
+        tenant.schoolId,
       )) as Array<{
         id: string;
         curriculum_map_id: string;
@@ -723,9 +735,19 @@ export class UnitService {
     if (sets.length > 0) {
       sets.push('updated_at = now()');
       params.push(id);
+      // P2-H1 Step 1: UPDATE joins through cur_curriculum_maps.school_id.
+      const tenant = getCurrentTenant();
+      params.push(tenant.schoolId);
       await this.tenantPrisma.executeInTenantContext(async (client) => {
         await client.$executeRawUnsafe(
-          'UPDATE cur_units SET ' + sets.join(', ') + ' WHERE id = $' + params.length + '::uuid',
+          'UPDATE cur_units AS u SET ' +
+            sets.join(', ') +
+            ' FROM cur_curriculum_maps m ' +
+            ' WHERE u.id = $' +
+            (params.length - 1) +
+            '::uuid AND m.id = u.curriculum_map_id AND m.school_id = $' +
+            params.length +
+            '::uuid',
           ...params,
         );
       });
@@ -811,8 +833,17 @@ export class UnitService {
 
   async unalignStandard(linkId: string, actor: ResolvedActor): Promise<void> {
     await assertCurriculumWriter(actor, this.permCheck);
+    // P2-H1 Step 1: school-scope via JOIN through cur_units → cur_curriculum_maps.school_id.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe('DELETE FROM cur_unit_standards WHERE id = $1::uuid', linkId);
+      await client.$executeRawUnsafe(
+        'DELETE FROM cur_unit_standards us ' +
+          'USING cur_units u, cur_curriculum_maps m ' +
+          'WHERE us.id = $1::uuid AND u.id = us.unit_id AND m.id = u.curriculum_map_id ' +
+          'AND m.school_id = $2::uuid',
+        linkId,
+        tenant.schoolId,
+      );
     });
   }
 
@@ -867,8 +898,17 @@ export class UnitService {
 
   async unlinkLesson(linkId: string, actor: ResolvedActor): Promise<void> {
     await assertCurriculumWriter(actor, this.permCheck);
+    // P2-H1 Step 1: school-scope via JOIN through cur_units → cur_curriculum_maps.school_id.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe('DELETE FROM cur_unit_lessons WHERE id = $1::uuid', linkId);
+      await client.$executeRawUnsafe(
+        'DELETE FROM cur_unit_lessons ul ' +
+          'USING cur_units u, cur_curriculum_maps m ' +
+          'WHERE ul.id = $1::uuid AND u.id = ul.unit_id AND m.id = u.curriculum_map_id ' +
+          'AND m.school_id = $2::uuid',
+        linkId,
+        tenant.schoolId,
+      );
     });
   }
 }

@@ -266,27 +266,42 @@ export class ViolationService {
     if (input.linkedWorkOrderId) {
       await assertWorkOrderInCurrentTenant(this.tenantPrisma, input.linkedWorkOrderId);
     }
+    // P2-H1 Step 1: school-scope the lock + UPDATE via JOIN through
+    // fac_inspections.school_id so a foreign-school violation id resolves to
+    // NotFoundException at the loader.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const locked = (await tx.$queryRawUnsafe(
-        'SELECT id, resolved_at, inspection_id::text AS inspection_id, due_date FROM fac_inspection_violations WHERE id = $1::uuid FOR UPDATE',
+        'SELECT v.id, v.resolved_at, v.inspection_id::text AS inspection_id, v.due_date ' +
+          'FROM fac_inspection_violations v ' +
+          'JOIN fac_inspections i ON i.id = v.inspection_id ' +
+          'WHERE v.id = $1::uuid AND i.school_id = $2::uuid FOR UPDATE OF v',
         id,
+        tenant.schoolId,
       )) as Array<{ id: string; resolved_at: Date | null; inspection_id: string; due_date: Date }>;
       if (locked.length === 0) throw new NotFoundException('Violation not found');
       if (locked[0]!.resolved_at !== null) {
         throw new BadRequestException('Violation is already resolved');
       }
       await tx.$executeRawUnsafe(
-        'UPDATE fac_inspection_violations SET resolved_at = now(), resolved_by = $1::uuid, resolution_notes = $2, linked_work_order_id = $3::uuid, updated_at = now() WHERE id = $4::uuid',
+        'UPDATE fac_inspection_violations AS v SET resolved_at = now(), resolved_by = $1::uuid, ' +
+          'resolution_notes = $2, linked_work_order_id = $3::uuid, updated_at = now() ' +
+          'FROM fac_inspections i WHERE v.id = $4::uuid AND i.id = v.inspection_id ' +
+          'AND i.school_id = $5::uuid',
         actor.personId,
         input.resolutionNotes,
         input.linkedWorkOrderId ?? null,
         id,
+        tenant.schoolId,
       );
     });
     const insp = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        'SELECT inspection_id::text AS inspection_id FROM fac_inspection_violations WHERE id = $1::uuid',
+        'SELECT v.inspection_id::text AS inspection_id FROM fac_inspection_violations v ' +
+          'JOIN fac_inspections i ON i.id = v.inspection_id ' +
+          'WHERE v.id = $1::uuid AND i.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     })) as Array<{ inspection_id: string }>;
     return (await this.listForInspection(insp[0]!.inspection_id)).find((v) => v.id === id)!;

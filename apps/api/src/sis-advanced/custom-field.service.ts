@@ -237,12 +237,17 @@ export class CustomFieldService {
     if (sets.length > 0) {
       sets.push('updated_at = now()');
       params.push(id);
+      // P2-H1 Step 1: school-scope the UPDATE as defence-in-depth.
+      const tenant = getCurrentTenant();
+      params.push(tenant.schoolId);
       await this.tenantPrisma.executeInTenantContext(async (client) =>
         client.$executeRawUnsafe(
           'UPDATE sis_custom_field_definitions SET ' +
             sets.join(', ') +
             ' WHERE id = $' +
             n +
+            '::uuid AND school_id = $' +
+            (n + 1) +
             '::uuid',
           ...params,
         ),
@@ -252,12 +257,15 @@ export class CustomFieldService {
   }
 
   async getDefinitionByIdOrFail(id: string): Promise<CustomFieldDefinitionDto> {
+    // P2-H1 Step 1: school-scope so foreign-school definition ids collapse to 404.
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<DefinitionRow[]>(
         'SELECT id::text, school_id::text, entity_type, field_name, field_label, ' +
           'field_type, enum_options, is_required, is_visible_to_parent, sort_order, is_active ' +
-          'FROM sis_custom_field_definitions WHERE id = $1::uuid',
+          'FROM sis_custom_field_definitions WHERE id = $1::uuid AND school_id = $2::uuid',
         id,
+        tenant.schoolId,
       ),
     );
     if (rows.length === 0) throw new NotFoundException('Custom field definition not found');

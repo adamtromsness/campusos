@@ -9,6 +9,7 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
+import { GuardianAuthorizationService } from '../iam/guardian-authorization.service';
 import { HealthAccessLogService } from './health-access-log.service';
 import {
   AllergyEntryDto,
@@ -120,6 +121,7 @@ export class HealthRecordService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly accessLog: HealthAccessLogService,
     private readonly permCheck: PermissionCheckService,
+    private readonly guardianAuthz: GuardianAuthorizationService,
   ) {}
 
   // ─── Permission helpers ──────────────────────────────────────
@@ -174,16 +176,14 @@ export class HealthRecordService {
     }
 
     if (actor.personType === 'GUARDIAN') {
-      const ok = await this.tenantPrisma.executeInTenantContext(async (client) => {
-        const rows = (await client.$queryRawUnsafe(
-          'SELECT 1 AS ok FROM sis_student_guardians sg ' +
-            'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-            'WHERE sg.student_id = $1::uuid AND g.person_id = $2::uuid LIMIT 1',
-          studentId,
-          actor.personId,
-        )) as Array<{ ok: number }>;
-        return rows.length > 0;
-      });
+      // P2-H1 Step 3 — replace the per-module guardian-link check with the
+      // centralised GuardianAuthorizationService. canViewHealthRecord requires
+      // portal_access + FULL scope + (receives_reports OR is_emergency_contact
+      // OR has_custody). Demo seed gives every guardian all flags = true so
+      // the existing happy-path behavior is preserved; production schools that
+      // narrow custody / portal scope get FERPA-appropriate filtering for free.
+      const ok = await this.guardianAuthz.canViewHealthRecord(actor.personId, studentId);
+      this.guardianAuthz.logAccessDecision('VIEW_HEALTH_RECORD', actor.personId, studentId, ok);
       if (!ok) throw new NotFoundException('Student ' + studentId);
       return { isManager: false };
     }

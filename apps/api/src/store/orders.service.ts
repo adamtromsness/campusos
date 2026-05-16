@@ -143,15 +143,67 @@ export class OrderService {
    * Resolve the calling student's own sis_students.id from their iam_person.id.
    * Returns null if the actor is not bridged to a student row in this tenant.
    * Used by BLOCKING 2 fix to enforce student-self-only on STUDENT orders.
+   *
+   * P2-H1 Step 1: school-scope the lookup. A platform_users.person_id that is
+   * bridged to a student in a DIFFERENT school within the same tenant pool must
+   * NOT resolve to that student here — the caller's STUDENT order would land
+   * against a foreign-school student row.
    */
   private async resolveStudentSelfId(personId: string): Promise<string | null> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT s.id::text AS id FROM sis_students s JOIN platform.platform_students ps ON ps.id = s.platform_student_id WHERE ps.person_id = $1::uuid LIMIT 1`,
+        `SELECT s.id::text AS id FROM sis_students s ` +
+          `JOIN platform.platform_students ps ON ps.id = s.platform_student_id ` +
+          `WHERE ps.person_id = $1::uuid AND s.school_id = $2::uuid LIMIT 1`,
         personId,
+        tenant.schoolId,
       );
     })) as Array<{ id: string }>;
     return rows.length === 0 ? null : rows[0]!.id;
+  }
+
+  /**
+   * P2-H1 Step 1: validate that an externalCustomerId belongs to the calling
+   * tenant's school before it is written onto an str_orders row. Used by both
+   * the create path (public storefront PUBLIC orders) and the admin-on-behalf
+   * path.
+   */
+  private async assertExternalCustomerInCurrentSchool(externalCustomerId: string): Promise<void> {
+    const tenant = getCurrentTenant();
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        `SELECT 1 AS ok FROM str_external_customers ec ` +
+          `JOIN str_stores s ON s.id = ec.store_id ` +
+          `WHERE ec.id = $1::uuid AND s.school_id = $2::uuid LIMIT 1`,
+        externalCustomerId,
+        tenant.schoolId,
+      );
+    })) as Array<{ ok: number }>;
+    if (rows.length === 0) {
+      throw new BadRequestException(
+        'externalCustomerId does not match an external customer in this school',
+      );
+    }
+  }
+
+  /**
+   * P2-H1 Step 1: validate that an admin-supplied studentId resolves to a
+   * student in the calling tenant's school before a manager-on-behalf STUDENT
+   * order references it.
+   */
+  private async assertStudentInCurrentSchool(studentId: string): Promise<void> {
+    const tenant = getCurrentTenant();
+    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$queryRawUnsafe(
+        `SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
+        studentId,
+        tenant.schoolId,
+      );
+    })) as Array<{ ok: number }>;
+    if (rows.length === 0) {
+      throw new BadRequestException('studentId does not match a student in this school');
+    }
   }
 
   private async loadLines(orderIds: string[]): Promise<Map<string, OrderLineDto[]>> {
@@ -429,6 +481,17 @@ export class OrderService {
     }
     if (input.orderType === 'EXTERNAL' && input.shippingMethod !== 'SHIPPED') {
       throw new BadRequestException('EXTERNAL orders must use shippingMethod=SHIPPED');
+    }
+
+    // P2-H1 Step 1 + Step 6: soft-integrity validation. An admin-on-behalf
+    // STUDENT order may supply an arbitrary studentId; an EXTERNAL order may
+    // supply an arbitrary externalCustomerId. Both must resolve in the
+    // calling school before the INSERT lands.
+    if (input.orderType === 'STUDENT' && input.studentId && this.isStoreManager(actor)) {
+      await this.assertStudentInCurrentSchool(input.studentId);
+    }
+    if (input.orderType === 'EXTERNAL' && input.externalCustomerId) {
+      await this.assertExternalCustomerInCurrentSchool(input.externalCustomerId);
     }
 
     const tenant = getCurrentTenant();
@@ -769,10 +832,14 @@ export class OrderService {
     if (!this.isStoreManager(actor)) {
       throw new ForbiddenException('Only store managers or admins may fulfil orders');
     }
+    // P2-H1 Step 1: school-scope the lock + UPDATE via JOIN through str_stores.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = (await tx.$queryRawUnsafe(
-        `SELECT status FROM str_orders WHERE id = $1::uuid FOR UPDATE`,
+        `SELECT o.status FROM str_orders o JOIN str_stores s ON s.id = o.store_id ` +
+          `WHERE o.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF o`,
         orderId,
+        tenant.schoolId,
       )) as Array<{ status: string }>;
       if (rows.length === 0) throw new NotFoundException('Order not found');
       const current = rows[0]!.status as OrderStatus;
@@ -784,15 +851,19 @@ export class OrderService {
       }
       if (input.toStatus === 'SHIPPED') {
         await tx.$executeRawUnsafe(
-          `UPDATE str_orders SET status = 'SHIPPED', tracking_number = $1, updated_at = now() WHERE id = $2::uuid`,
+          `UPDATE str_orders AS o SET status = 'SHIPPED', tracking_number = $1, updated_at = now() ` +
+            `FROM str_stores s WHERE o.id = $2::uuid AND s.id = o.store_id AND s.school_id = $3::uuid`,
           input.trackingNumber ?? null,
           orderId,
+          tenant.schoolId,
         );
       } else {
         await tx.$executeRawUnsafe(
-          `UPDATE str_orders SET status = $1, updated_at = now() WHERE id = $2::uuid`,
+          `UPDATE str_orders AS o SET status = $1, updated_at = now() ` +
+            `FROM str_stores s WHERE o.id = $2::uuid AND s.id = o.store_id AND s.school_id = $3::uuid`,
           input.toStatus,
           orderId,
+          tenant.schoolId,
         );
       }
     });
@@ -803,10 +874,14 @@ export class OrderService {
     if (!this.isStoreManager(actor)) {
       throw new ForbiddenException('Only store managers or admins may complete orders');
     }
+    // P2-H1 Step 1: school-scope every read + write via JOIN through str_stores.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = (await tx.$queryRawUnsafe(
-        `SELECT status FROM str_orders WHERE id = $1::uuid FOR UPDATE`,
+        `SELECT o.status FROM str_orders o JOIN str_stores s ON s.id = o.store_id ` +
+          `WHERE o.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF o`,
         orderId,
+        tenant.schoolId,
       )) as Array<{ status: string }>;
       if (rows.length === 0) throw new NotFoundException('Order not found');
       const current = rows[0]!.status as OrderStatus;
@@ -816,7 +891,9 @@ export class OrderService {
         );
       }
       // Decrement quantity_on_hand by line.quantity for every IN_STOCK
-      // / FULFILLED line, atomically with releasing the reservation.
+      // / FULFILLED line, atomically with releasing the reservation. The order
+      // is already locked + verified above so the order_id predicate alone is
+      // safe here.
       const lineRows = (await tx.$queryRawUnsafe(
         `SELECT id::text AS id, product_id::text AS product_id, quantity, line_status FROM str_order_lines WHERE order_id = $1::uuid AND line_status IN ('IN_STOCK', 'FULFILLED')`,
         orderId,
@@ -829,8 +906,10 @@ export class OrderService {
         );
       }
       await tx.$executeRawUnsafe(
-        `UPDATE str_orders SET status = 'COMPLETED', updated_at = now() WHERE id = $1::uuid`,
+        `UPDATE str_orders AS o SET status = 'COMPLETED', updated_at = now() ` +
+          `FROM str_stores s WHERE o.id = $1::uuid AND s.id = o.store_id AND s.school_id = $2::uuid`,
         orderId,
+        tenant.schoolId,
       );
     });
     return this.getById(orderId, actor);
@@ -840,22 +919,30 @@ export class OrderService {
     if (!this.isStoreManager(actor)) {
       throw new ForbiddenException('Only store managers or admins may cancel orders');
     }
+    // P2-H1 Step 1: school-scope the lock + UPDATE.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const rows = (await tx.$queryRawUnsafe(
-        `SELECT status FROM str_orders WHERE id = $1::uuid FOR UPDATE`,
+        `SELECT o.status FROM str_orders o JOIN str_stores s ON s.id = o.store_id ` +
+          `WHERE o.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF o`,
         orderId,
+        tenant.schoolId,
       )) as Array<{ status: string }>;
       if (rows.length === 0) throw new NotFoundException('Order not found');
       const current = rows[0]!.status as OrderStatus;
       if (current === 'COMPLETED' || current === 'CANCELLED') {
         throw new BadRequestException(`Order is already ${current}`);
       }
-      // Release reserved inventory for non-fulfilled lines
+      // Release reserved inventory for non-fulfilled lines. The order is
+      // already locked + verified above so the order_id predicate alone is
+      // safe in the release helper.
       await this.releaseAllReservations(tx, orderId);
       await tx.$executeRawUnsafe(
-        `UPDATE str_orders SET status = 'CANCELLED', notes = COALESCE($1, notes), updated_at = now() WHERE id = $2::uuid`,
+        `UPDATE str_orders AS o SET status = 'CANCELLED', notes = COALESCE($1, notes), updated_at = now() ` +
+          `FROM str_stores s WHERE o.id = $2::uuid AND s.id = o.store_id AND s.school_id = $3::uuid`,
         input.reason ?? null,
         orderId,
+        tenant.schoolId,
       );
     });
     return this.getById(orderId, actor);
@@ -866,16 +953,24 @@ export class OrderService {
    * INSIDE the same tenant transaction as the approval row update so the
    * approval flip + order transition are atomic. The order row must already
    * be locked by the caller via SELECT ... FOR UPDATE.
+   *
+   * P2-H1 Step 1: UPDATE joins through str_stores.school_id even though the
+   * caller has already locked the row — defence-in-depth so a future direct
+   * caller cannot bypass school scope.
    */
   async advanceFromApprovalInTx(
     tx: PrismaClient,
     orderId: string,
     paymentStatus: PaymentStatus,
   ): Promise<void> {
+    const tenant = getCurrentTenant();
     await tx.$executeRawUnsafe(
-      `UPDATE str_orders SET status = 'PROCESSING', payment_status = $1, updated_at = now() WHERE id = $2::uuid AND status = 'PENDING_APPROVAL'`,
+      `UPDATE str_orders AS o SET status = 'PROCESSING', payment_status = $1, updated_at = now() ` +
+        `FROM str_stores s ` +
+        `WHERE o.id = $2::uuid AND s.id = o.store_id AND s.school_id = $3::uuid AND o.status = 'PENDING_APPROVAL'`,
       paymentStatus,
       orderId,
+      tenant.schoolId,
     );
   }
 
@@ -883,12 +978,18 @@ export class OrderService {
    * REVIEW-CYCLE28 BLOCKING 3: in-tx variant called by ApprovalService.decline
    * INSIDE the same tenant transaction as the approval row update.
    * Releases inventory reservations + flips order to CANCELLED.
+   *
+   * P2-H1 Step 1: UPDATE joins through str_stores.school_id as defence-in-depth.
    */
   async cancelFromApprovalDeclineInTx(tx: PrismaClient, orderId: string): Promise<void> {
     await this.releaseAllReservations(tx, orderId);
+    const tenant = getCurrentTenant();
     await tx.$executeRawUnsafe(
-      `UPDATE str_orders SET status = 'CANCELLED', updated_at = now() WHERE id = $1::uuid AND status = 'PENDING_APPROVAL'`,
+      `UPDATE str_orders AS o SET status = 'CANCELLED', updated_at = now() ` +
+        `FROM str_stores s ` +
+        `WHERE o.id = $1::uuid AND s.id = o.store_id AND s.school_id = $2::uuid AND o.status = 'PENDING_APPROVAL'`,
       orderId,
+      tenant.schoolId,
     );
   }
 

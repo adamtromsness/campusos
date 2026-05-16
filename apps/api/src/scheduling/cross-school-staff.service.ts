@@ -104,8 +104,17 @@ export class CrossSchoolStaffService {
   }
 
   async getById(id: string): Promise<CrossSchoolStaffResponseDto> {
+    // P2-H1 Step 1: the requesting tenant must be either the home school OR the
+    // visiting school for the assignment to be visible. Cross-school assignments
+    // belonging entirely to OTHER schools collapse to 404 don't-leak-existence.
+    const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<AssignmentRow[]>(SELECT_BASE + 'WHERE id = $1::uuid', id);
+      return client.$queryRawUnsafe<AssignmentRow[]>(
+        SELECT_BASE +
+          'WHERE id = $1::uuid AND (home_school_id = $2::uuid OR visiting_school_id = $2::uuid)',
+        id,
+        tenant.schoolId,
+      );
     });
     if (rows.length === 0) throw new NotFoundException('Cross-school staff assignment not found');
     return rowToDto(rows[0]!);
@@ -184,6 +193,10 @@ export class CrossSchoolStaffService {
     if (sets.length === 0) return this.getById(id);
     sets.push('updated_at = now()');
     args.push(id);
+    // P2-H1 Step 1: UPDATE requires the calling tenant to be home OR visiting
+    // school for the assignment. Defence-in-depth on top of the getById guard.
+    const tenant = getCurrentTenant();
+    args.push(tenant.schoolId);
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
         await client.$executeRawUnsafe(
@@ -191,7 +204,11 @@ export class CrossSchoolStaffService {
             sets.join(', ') +
             ' WHERE id = $' +
             i +
-            '::uuid',
+            '::uuid AND (home_school_id = $' +
+            (i + 1) +
+            '::uuid OR visiting_school_id = $' +
+            (i + 1) +
+            '::uuid)',
           ...args,
         );
       });
