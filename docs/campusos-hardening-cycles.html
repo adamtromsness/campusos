@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Phase 2 Hardening Cycles (P2-H1 through P2-H4)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#fff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--red:#dc3545;--red-bg:#fdeaea;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7}
+.topbar{background:#8b1a1a;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:950px;margin:0 auto;padding:40px 40px 120px}
+h1{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent);margin-bottom:8px}
+h2{font-family:'DM Serif Display',serif;font-size:24px;color:var(--accent);margin:40px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;margin-top:16px}
+h3{font-size:15px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+p,li{font-size:14px;line-height:1.8}
+.sub{font-size:16px;color:var(--text-light);margin-bottom:24px}
+.cycle-card{background:var(--white);border:2px solid var(--border);border-radius:12px;padding:24px;margin:16px 0}
+.cycle-card h3{margin-top:0;font-size:18px}
+.cycle-card .meta{font-size:12px;color:var(--text-light);margin-bottom:8px}
+.finding-ref{font-size:11px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);padding:2px 8px;border-radius:4px;display:inline-block;margin:1px 2px}
+.f-blocking{background:var(--red-bg);color:var(--red)}
+.f-important{background:var(--amber-bg);color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin:12px 0}
+.step-header{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
+.step-num{font-family:'DM Serif Display',serif;font-size:28px;color:var(--accent-mid);opacity:.4}
+.step-title{font-size:16px;font-weight:700;color:var(--accent)}
+.step p{font-size:13px;margin:4px 0}
+.step ol,.step ul{font-size:13px;padding-left:18px;margin:6px 0}
+.step li{line-height:1.9}
+.step .produces{font-size:12px;color:var(--accent-mid);font-weight:600;margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
+.summary-box{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:20px 0}
+.verdict-box{background:#f0f7f0;border:2px solid var(--green);border-radius:10px;padding:20px 24px;margin:20px 0}
+.warn-box{background:var(--red-bg);border:2px solid var(--red);border-radius:10px;padding:20px 24px;margin:20px 0}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px}
+th{background:#d5e8f0;padding:6px 8px;border:1px solid #ccc;text-align:left;font-weight:600}
+td{padding:5px 8px;border:1px solid #ddd;vertical-align:top}
+code{background:#f0f0f0;padding:1px 4px;border-radius:3px;font-size:11px}
+ol,ul{padding-left:20px;margin:8px 0}
+.doc-footer{margin-top:40px;padding-top:16px;border-top:2px solid var(--accent);font-size:12px;color:var(--text-light);line-height:1.8}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="index.html">Design Hub</a><span class="sep">|</span><span style="color:#ff9999;font-size:13px;font-weight:600">HARDENING SPRINT</span></div>
+<div class="container">
+<h1>Phase 2 Hardening Cycles</h1>
+<p class="sub">P2-H1 through P2-H4. Addresses all 114 findings from the three-review audit: Claude Plan Audit (11 IMP + 8 ADV), ChatGPT Architectural Review (11 IMP + 6 ADV), Claude Code Audit (41 BLOCKING + 35 MAJOR + 38 ADVISORY). No new feature tables. Zero schema additions. Pure hardening.</p>
+
+<div class="warn-box">
+<h3 style="margin-top:0;color:var(--red)">Gate Rule</h3>
+<p>No Phase 3 feature cycles begin until P2-H4 passes a second round of all three reviews. Each hardening cycle has its own exit checklist. The re-review after P2-H4 must show: 0 BLOCKING, 0 school-scope leaks, IMMUTABLE DB triggers on all 12 tables, financial emits on outbox, test coverage &ge;80% statements on critical-path modules.</p>
+</div>
+
+<div class="summary-box">
+<h3 style="margin-top:0">Hardening Sprint Overview</h3>
+<table>
+<tr><th>Cycle</th><th>Focus</th><th>Findings Addressed</th><th>Duration</th></tr>
+<tr><td><strong>P2-H1</strong></td><td>Security &amp; Access Control</td><td>22 school-scope leaks + 2 permission gaps + custody guard + student-owned guards + engagement restrictions + soft-integrity validation</td><td>~1 week</td></tr>
+<tr><td><strong>P2-H2</strong></td><td>Schema, Data &amp; Immutability</td><td>11 schema drift fixes + DB IMMUTABLE triggers (12 tables) + 3 missing platform tables + seed data gaps + soft-integrity monitor + partition declarations</td><td>~1 week</td></tr>
+<tr><td><strong>P2-H3</strong></td><td>Kafka &amp; Financial Integrity</td><td>15 consumer-without-producer wiring + 7 financial best-effort→outbox + GL reconciliation jobs + orphan event classification + DLQ runbook + Kafka naming fixes</td><td>~2 weeks</td></tr>
+<tr><td><strong>P2-H4</strong></td><td>Test Coverage &amp; Production Readiness</td><td>Integration test pyramid (28 zero-coverage modules) + policy documents (AI data, retention/pseudonymisation, migration orchestration) + worker jitter + election threshold + school-size presets</td><td>~3&ndash;4 weeks</td></tr>
+</table>
+</div>
+
+<!-- ═══════ P2-H1 ═══════ -->
+<h2>P2-H1: Security &amp; Access Control</h2>
+<p>Closes all data access vulnerabilities. After this cycle, no endpoint can leak cross-school data, no student-owned record can be modified by non-owners, and custody-aware filtering is centralised.</p>
+
+<div class="step">
+<div class="step-header"><span class="step-num">01</span><span class="step-title">Close 22 School-Scope Leaks</span></div>
+<p><span class="finding-ref f-blocking">Code #22-27 BLOCKING</span> <span class="finding-ref f-important">Code #35-38 MAJOR</span></p>
+<p>Every UPDATE, DELETE, and single-record GET that operates by id-only on a tenant table must thread <code>school_id</code> through the WHERE clause, either directly or via JOIN to the parent table that carries school_id.</p>
+<ol>
+<li><strong>sis_family_relationships</strong> — <code>family-relationship.service.ts</code>: list, get, patch, delete all need JOIN through sis_guardians → school_id. Also validate both guardians belong to same school on create.</li>
+<li><strong>sis_student_notes</strong> — <code>student-note.service.ts</code>: delete pre-check + DELETE must include <code>AND school_id = $tenant</code>.</li>
+<li><strong>sis_custom_field_definitions</strong> — <code>custom-field.service.ts</code>: getById + updateDefinition must include school_id.</li>
+<li><strong>sch_cross_school_staff_assignments</strong> — <code>cross-school-staff.service.ts</code>: getById + patch must validate the requesting school is either home_school_id or host_school_id.</li>
+<li><strong>str_orders lifecycle</strong> — <code>orders.service.ts</code>: fulfil, complete, cancel, advanceFromApproval, cancelFromApprovalDecline — all 5 paths must JOIN to str_stores.school_id. Also fix external customer existence check to validate same school.</li>
+<li><strong>cur_maps + cur_units</strong> — <code>maps.service.ts</code>: patch, unit create/patch, unalignStandard, unlinkLesson — all must include school_id.</li>
+<li><strong>fac_inspection_violations</strong> — <code>inspections.service.ts</code>: resolve lock + UPDATE must JOIN through inspection chain.</li>
+<li><strong>dpo_pseudonymisation_log + dpo_privacy_notices</strong> — <code>erasure.service.ts</code>: getPseudonymisationById + privacy notice reads must include school_id.</li>
+<li><strong>pub_sections</strong> — <code>sections.service.ts</code>: patch, remove, approve must JOIN to pub_publications.school_id.</li>
+</ol>
+<p><strong>Pattern:</strong> For each fix, use the defence-in-depth pattern from P2C27/28/29 reviews: <code>WHERE id = $1 AND school_id = $2</code> (or JOIN equivalent). If 0 rows returned, throw <code>NotFoundException</code> (not 403 — avoid revealing the record exists in another school).</p>
+<div class="produces">Produces → 0 school-scope leaks. Regression test for each fix.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">02</span><span class="step-title">Fix Permission Catalogue Gaps</span></div>
+<p><span class="finding-ref f-blocking">Code #7-8 BLOCKING</span></p>
+<ol>
+<li>Add <code>GRP-002</code> (Group Resources: read/write/admin) to <code>permissions.json</code>.</li>
+<li>Add <code>GRP-003</code> (Group Analytics: read/write/admin) to <code>permissions.json</code>.</li>
+<li>Update <code>seed-iam.ts</code> to grant GRP-002 and GRP-003 to appropriate roles (GROUP_ADMIN, TEACHER, etc.).</li>
+<li>Verify all 8 previously-dead endpoints are now accessible.</li>
+</ol>
+<div class="produces">Produces → 330/330 permission codes valid. 8 endpoints live.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">03</span><span class="step-title">Build Central GuardianAuthorizationService</span></div>
+<p><span class="finding-ref f-important">Plan IMP-01</span> <span class="finding-ref f-important">ChatGPT SEC-01</span></p>
+<ol>
+<li>Create <code>src/iam/guardian-authorization.service.ts</code> with capability-specific methods: <code>canViewAcademicRecord(guardianId, studentId)</code>, <code>canViewHealthRecord(guardianId, studentId)</code>, <code>canAuthorizePayment(guardianId, familyAccountId)</code>, <code>canReceiveTransportInfo(guardianId, studentId)</code>, <code>canViewCommunications(guardianId, studentId)</code>, <code>canAttendConference(guardianId, studentId)</code>.</li>
+<li>Resolution logic: check sis_family_relationships.custody_arrangement + sis_student_guardians.relationship_type + any court-order restrictions (stored as JSONB on sis_family_relationships).</li>
+<li>Replace per-module guardian checks with calls to this service across: health, engagement, college apps, payments, conferences, portfolio, transport, communications.</li>
+<li>Audit log every guardian access decision for custody-sensitive records.</li>
+</ol>
+<div class="produces">Produces → Centralised custody-aware access. No per-module reimplementation.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">04</span><span class="step-title">Standardise Student-Owned Data Guards</span></div>
+<p><span class="finding-ref f-important">Plan IMP-11</span></p>
+<ol>
+<li>Create <code>@StudentOwned()</code> decorator that validates <code>student_id = req.user.personId</code> on mutations.</li>
+<li>Apply to: pfl_reflections, pfl_resume_profiles, pfl_college_applications, sis_student_profiles (bio/interests/motto), ath_recruiting_profiles, cls_ai_tutoring_sessions.</li>
+<li>For coach delegation (recruiting profiles): implement proper delegation via <code>iam_delegations</code> pattern, not role === 'COACH'.</li>
+<li>Verify endorsement visibility toggle (is_visible_on_share) is student-only mutation.</li>
+</ol>
+<div class="produces">Produces → Consistent student-owned enforcement. @StudentOwned decorator reusable.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">05</span><span class="step-title">Restrict Engagement Score Access</span></div>
+<p><span class="finding-ref f-important">Plan IMP-10</span> <span class="finding-ref f-important">ChatGPT COMP-02</span></p>
+<ol>
+<li>Component-level engagement score view restricted to <code>ENG-001:admin</code> only (not ENG-001:read).</li>
+<li>Aggregate engagement_level (HIGHLY_ENGAGED/ENGAGED/MINIMAL/AT_RISK) visible to teacher + counsellor; component breakdown hidden.</li>
+<li>Exclude engagement scores from all data export endpoints by default (require explicit <code>include_engagement=true</code> with admin permission).</li>
+<li>Add <code>engagement_score_purpose</code> text to platform_tenant_configs: schools must acknowledge scores are for family outreach only, not admissions/discipline/financial aid.</li>
+<li>Allow schools to disable payment_component weighting via config.</li>
+</ol>
+<div class="produces">Produces → Engagement scores treated as sensitive profiling.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">06</span><span class="step-title">Fix Soft-Integrity Validation Gaps</span></div>
+<p><span class="finding-ref f-important">Code #56-57</span> <span class="finding-ref">Code #58-67 ADVISORY</span></p>
+<ol>
+<li><strong>str_orders.external_customer_id</strong> — add existence check: <code>assertExternalCustomerInCurrentSchool(externalCustomerId, schoolId)</code> before INSERT.</li>
+<li><strong>str_orders.student_id (manager-on-behalf)</strong> — add <code>assertStudentInCurrentSchool(studentId, schoolId)</code> before INSERT.</li>
+<li>For the 10 ADVISORY admin-on-behalf paths: add <code>assertPersonInTenant(personId, tenantId)</code> validation for all admin-submitted UUIDs that reference iam_person or sis_students.</li>
+</ol>
+<div class="produces">Produces → All soft-integrity cross-school references validated at service layer.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">07</span><span class="step-title">P2-H1 Exit Checklist</span></div>
+<ol>
+<li>0 school-scope leaks — every UPDATE/DELETE/GET-by-id includes school_id predicate.</li>
+<li>330/330 permission codes in catalogue. All 8 previously-dead endpoints accessible.</li>
+<li>GuardianAuthorizationService deployed with capability-specific methods.</li>
+<li>@StudentOwned decorator applied to all student-owned tables.</li>
+<li>Engagement scores restricted to engagement_admin for component view.</li>
+<li>All soft-integrity admin-on-behalf paths validate person-in-tenant.</li>
+<li>Regression tests for every school-scope fix + every permission fix.</li>
+<li>CI green. HANDOFF-P2H1.md committed.</li>
+</ol>
+</div>
+
+<!-- ═══════ P2-H2 ═══════ -->
+<h2>P2-H2: Schema, Data &amp; Immutability</h2>
+<p>Closes all schema drift, adds DB-level immutability enforcement, fills seed gaps, builds soft-integrity monitoring, and declares missing partitioning.</p>
+
+<div class="step">
+<div class="step-header"><span class="step-num">01</span><span class="step-title">Fix 6 BLOCKING Schema Drift Issues</span></div>
+<p><span class="finding-ref f-blocking">Code #1-6 BLOCKING</span></p>
+<ol>
+<li><strong>platform_reference_health</strong> — rebuild model to match ERD: registry-per-reference shape with school_id, reference_table, reference_column, target_module, unique constraint (school, table, column). Drop event-log-per-scan shape.</li>
+<li><strong>fin_gl_entries</strong> — add <code>period_start DATE NOT NULL</code> column. Add ANNUAL <code>RANGE(period_start)</code> partitioning per ADR-059 FIX 1. Backfill existing rows from posting date.</li>
+<li><strong>platform_event_consumer_idempotency</strong> — rename <code>consumer_group</code> → <code>consumer_name</code> to match ERD. Add MONTHLY <code>RANGE(processed_at)</code> partitioning + 90-day retention policy.</li>
+<li><strong>platform_signature_requests</strong> — create table matching ERD spec (IEP/504 activation, telehealth consent, field-trip consent, HR contract sign-off). Wire existing <code>signature_request_id</code> soft FKs.</li>
+<li><strong>partition_mgmt_health</strong> — create per ADR-024 (partition monitoring across ~290 partitioned tables).</li>
+<li><strong>compliance_ferpa_requests</strong> — create per ERD spec.</li>
+<li><strong>platform_students / platform_families</strong> — declare HASH partitioning (32 buckets / 16 buckets per ADR-041/059).</li>
+</ol>
+<div class="produces">Produces → Schema matches ERD. 3 new platform tables. Partitioning declared.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">02</span><span class="step-title">Fix 5 IMPORTANT Schema Drift Issues</span></div>
+<p><span class="finding-ref f-important">Code #39-43</span></p>
+<ol>
+<li><strong>platform_audit_log</strong> — add <code>data_subject_id UUID</code> and <code>action_category TEXT</code> columns per ADR-052 for DPO SAR cross-module query.</li>
+<li><strong>fin_journal_batches</strong> — add DB-level CHECK for zero-sum balance (invariant I-13) or document why Prisma limitation prevents it with compensating CI test.</li>
+<li><strong>pay_invoices</strong> — add DB-level CHECK <code>total_amount = SUM(line_items)</code> (invariant I-11) via trigger or document compensating test.</li>
+<li><strong>pay_credit_notes / pay_payment_reversals</strong> — covered in step 03 (immutability triggers).</li>
+<li><strong>pub_publication_versions</strong> — covered in step 03.</li>
+</ol>
+<div class="produces">Produces → Invariants I-11, I-13 enforced at DB level.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">03</span><span class="step-title">Add DB-Level Immutability Enforcement (12 Tables)</span></div>
+<p><span class="finding-ref f-blocking">Code #3 BLOCKING</span> <span class="finding-ref f-important">Plan IMP-02</span> <span class="finding-ref f-important">ChatGPT DI-01</span></p>
+<ol>
+<li>Create shared function: <code>CREATE OR REPLACE FUNCTION raise_immutable_violation() RETURNS TRIGGER AS $$ BEGIN RAISE EXCEPTION 'IMMUTABLE table: UPDATE and DELETE are prohibited'; END; $$ LANGUAGE plpgsql;</code></li>
+<li>For each of 12 IMMUTABLE tables, add: <code>CREATE TRIGGER prevent_mutation BEFORE UPDATE OR DELETE ON [table] FOR EACH ROW EXECUTE FUNCTION raise_immutable_violation();</code></li>
+<li>Tables: fin_gl_entries, pay_credit_notes, pay_payment_reversals, pay_lunch_account_balance_transfers, pay_ledger_entries, fds_inventory_transactions, pub_publication_versions, svc_referral_activity, tkt_ticket_activity, hlth_health_access_log, inc_incident_timeline, dpo_pseudonymisation_log.</li>
+<li>Update <code>provision-tenant.ts</code>: after tenant schema creation, REVOKE UPDATE and DELETE on all IMMUTABLE tables from the application DB role.</li>
+<li>Add CI test per table: attempt UPDATE → expect failure. Attempt DELETE → expect failure.</li>
+<li>Document break-glass procedure: superuser role + dual approval + audit log entry required for any IMMUTABLE table modification.</li>
+</ol>
+<div class="produces">Produces → DB triggers + REVOKE + CI tests on all 12 IMMUTABLE tables.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">04</span><span class="step-title">Fill Seed Data BLOCKING Gaps</span></div>
+<p><span class="finding-ref f-blocking">Code #44-46 BLOCKING</span> <span class="finding-ref f-important">Code #47-55 IMPORTANT</span></p>
+<ol>
+<li><strong>BLOCKING:</strong> school_config + school_feature_flags — seed tenant config rows for engagement weights, library recommendation weights, breach escalation thresholds, etc.</li>
+<li><strong>BLOCKING:</strong> pay_refunds + pay_payment_plans + pay_payment_plan_installments — seed financial flow demo data.</li>
+<li><strong>BLOCKING:</strong> All 10 P2-29b Store Advanced tables — seed promotions, loyalty, gift cards, wishlists, price schedules, inventory adjustments, category hierarchy.</li>
+<li><strong>IMPORTANT (batch):</strong> HR depth tables, workflow audit children, core SIS workflow tables, Groups Advanced surfaces, Meetings advanced, Counselling tables, Transportation ops, Classroom depth tables — seed all per Code audit #47-54.</li>
+</ol>
+<div class="produces">Produces → All 752 tenant tables have seed data. CAT scripts exercisable.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">05</span><span class="step-title">Build Soft-Integrity Health Monitor</span></div>
+<p><span class="finding-ref f-important">Plan IMP-06</span> <span class="finding-ref f-important">ChatGPT DI-02</span></p>
+<ol>
+<li>Rebuild <code>platform_reference_health</code> (fixed in step 01) as the registry for all soft-integrity references.</li>
+<li>Create <code>SoftIntegrityHealthWorker</code>: nightly scan of every registered soft-reference. For each: COUNT dangling references (WHERE target_id NOT IN target_table). Store dangling_count + last_checked_at.</li>
+<li>Alert on dangling_count > 0 for CRITICAL references (financial, IEP, consent). WARNING for DISPLAY-ONLY.</li>
+<li>Create admin dashboard: <code>GET /platform/reference-health</code> — all references with status.</li>
+</ol>
+<div class="produces">Produces → Nightly soft-integrity monitoring with alerting.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">06</span><span class="step-title">P2-H2 Exit Checklist</span></div>
+<ol>
+<li>All 11 schema drift fixes applied. 3 new platform tables created.</li>
+<li>12 IMMUTABLE tables have DB triggers + REVOKE + CI tests.</li>
+<li>fin_gl_entries has period_start column + RANGE partitioning.</li>
+<li>platform_event_consumer_idempotency has correct column name + RANGE partitioning.</li>
+<li>platform_students/families HASH partitioning declared.</li>
+<li>All BLOCKING + IMPORTANT seed gaps filled.</li>
+<li>SoftIntegrityHealthWorker running nightly.</li>
+<li>CI green. HANDOFF-P2H2.md committed.</li>
+</ol>
+</div>
+
+<!-- ═══════ P2-H3 ═══════ -->
+<h2>P2-H3: Kafka &amp; Financial Integrity</h2>
+<p>Wires all orphaned Kafka consumers to their producers, migrates financial emits to the durable outbox pattern, builds GL reconciliation, and creates the Kafka operations runbook.</p>
+
+<div class="step">
+<div class="step-header"><span class="step-num">01</span><span class="step-title">Wire 15 Consumer-Without-Producer Topics</span></div>
+<p><span class="finding-ref f-blocking">Code #9-21 BLOCKING</span></p>
+<ol>
+<li><strong>pay.debt.written_off</strong> (#9, highest priority) — add producer in PaymentService when invoice is written off. GLConsumer already wired.</li>
+<li><strong>hlth.allergy_alert.changed</strong> (#10) — add producer in HealthAllergyService on allergy INSERT/UPDATE/DELETE. AllergyAlertConsumer in food-service already wired.</li>
+<li><strong>fds.meal.served</strong> (#11) — add producer in FoodService.MealSessionService on meal transaction creation. LunchAccountConsumer + readmodel already wired.</li>
+<li><strong>ath.game.completed</strong> (#12) — add producer in AthleticsGameService on game status → COMPLETED.</li>
+<li><strong>ext.activity.completed</strong> (#13) — add producer in ClubsActivityService on activity session completion.</li>
+<li><strong>fac.inspection.completed / fac.work_order.completed</strong> (#14) — add producers in FacilitiesInspectionService + WorkOrderService.</li>
+<li><strong>grp.post.created / grp.member.joined / grp.comment.created</strong> (#15) — add producers in GroupsService on respective mutations.</li>
+<li><strong>lib.checkout.created / lib.return.completed</strong> (#16) — add producers in LibraryCheckoutService.</li>
+<li><strong>msg.broadcast.delivered / .sent / msg.push.delivered / msg.message.sent</strong> (#17) — add producers in CommunicationsService broadcast + push + messaging paths.</li>
+<li><strong>prc.po.issued / prc.receipt.completed</strong> (#18) — add producers in ProcurementService PO issuance + receiving completion.</li>
+<li><strong>svc.wellbeing.response.submitted</strong> (#19) — add producer in WellbeingCheckInService on response submission.</li>
+<li><strong>tech.device.provisioned / .deprovisioned / .incident</strong> (#20) — add producers in ITAssetService.</li>
+<li><strong>trn.run.completed</strong> (#21) — add producer in TransportRunService on run completion.</li>
+</ol>
+<p><strong>Pattern:</strong> All new producers must use the ADR-057 envelope via <code>EventEnvelope&lt;P&gt;</code>. Financial and safety topics (#9, #10, #11) must use the outbox pattern. Read-model topics can use best-effort emit.</p>
+<div class="produces">Produces → 0 consumer-without-producer gaps. All analytics read-model pipelines active.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">02</span><span class="step-title">Migrate 7 Financial/Safety Emits to Outbox</span></div>
+<p><span class="finding-ref f-important">Code #28-34 MAJOR</span></p>
+<ol>
+<li><strong>pay.payment.received</strong> (<code>payment.service.ts:266</code>) — replace <code>void this.kafka.emit(...)</code> with <code>outbox.enqueueInTx(tx, ...)</code>.</li>
+<li><strong>pay.invoice.created</strong> (<code>invoice.service.ts:285</code>) — same pattern.</li>
+<li><strong>pay.refund.issued</strong> (<code>refund.service.ts:275</code>) — same pattern.</li>
+<li><strong>enr.student.enrolled</strong> (<code>offer.service.ts:415</code>) — same pattern. Critical: enrollment without family account creation breaks billing.</li>
+<li><strong>iep.accommodation.updated</strong> (<code>iep-plan.service.ts:940</code>) — same pattern. IEP accommodations must reach teachers.</li>
+<li><strong>msg.message.posted</strong> (<code>message.service.ts:228</code>) — same pattern. Safety: unmoderated messages must not be possible.</li>
+<li><strong>mtg.meeting.scheduled</strong> (<code>meeting.service.ts:315</code>) — add try/catch around awaited emit; if broker fails, log + retry queue instead of throwing after DB commit.</li>
+</ol>
+<p><strong>Verification:</strong> For each, confirm the outbox row is written in the same DB transaction as the domain mutation. OutboxWorker polls and publishes.</p>
+<div class="produces">Produces → All financial + safety event paths are durable. No silent GL loss on broker outage.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">03</span><span class="step-title">Build GL Reconciliation Jobs</span></div>
+<p><span class="finding-ref f-important">Plan IMP-07</span> <span class="finding-ref f-important">ChatGPT FIN-01</span></p>
+<ol>
+<li>Create <code>GLReconciliationWorker</code> — daily job that verifies: every pay_invoice → has corresponding GL AR entry; every pay_payment → has GL cash entry; every pay_credit_note → has GL credit entry; every pay_payment_reversal → has GL reversing entry.</li>
+<li>Report: <code>rpt_gl_reconciliation</code> table with date, source_count, gl_count, discrepancy_count, discrepancy_details JSONB.</li>
+<li>Alert: any discrepancy_count > 0 triggers URGENT notification to finance admin.</li>
+<li>DLQ payment events classified as finance-blocking incidents with SRE escalation SLA (&le;15 min response).</li>
+</ol>
+<div class="produces">Produces → Daily GL reconciliation. Audit-grade completeness provable.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">04</span><span class="step-title">Classify Orphan Events + Fix Naming</span></div>
+<p><span class="finding-ref">Plan ADV-01</span> <span class="finding-ref">Code #68-75 ADVISORY</span></p>
+<ol>
+<li>Classify every event as: COMMAND (must have consumer), NOTIFICATION (add Comms consumer), OBSERVABLE (no consumer needed), FUTURE (document backlog owner).</li>
+<li>Fix naming: <code>cls.grade.posted</code> → <code>cls.grade.published</code> (or vice versa — pick one, update seed + producer).</li>
+<li>Remove or disable idle auto-task rules for events with no producer (#69): cls.grade.returned, msg.announcement.requires_acknowledgement, sis.consent.requested, sys.profile.update_requested.</li>
+<li>Document Phase 3 expected producers for: sis.service_learning.approved, sis.transcript.generated, lesson.summary.from_ai, video.transcribed.</li>
+<li>Evaluate beh.incident.* + tkt.ticket.* best-effort emits (#72-75): if notification is the only consumer, best-effort is acceptable with retry. If task-completion depends on it, consider outbox.</li>
+</ol>
+<div class="produces">Produces → Every event classified. No undocumented orphans. Naming consistent.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">05</span><span class="step-title">Create Kafka Operations Runbook</span></div>
+<p><span class="finding-ref f-important">Plan IMP-08</span> <span class="finding-ref f-important">ChatGPT OPS-01</span></p>
+<ol>
+<li>Create <code>docs/kafka-operations-runbook.md</code> covering: consumer retry policy by event class (financial: 10 retries + exponential backoff; notification: 3 retries; analytics: 3 retries + skip), DLQ topic naming ({original_topic}.dlq), alert thresholds (financial DLQ: 0 tolerance, &le;15 min SRE response; other: &le;1 hour), replay procedure (reset consumer group offset + clear idempotency rows for range), poison-message quarantine workflow, financial event escalation SLAs, event schema compatibility process (backward-compatible minor versions, new topic for major versions).</li>
+</ol>
+<div class="produces">Produces → Kafka runbook document. Operational readiness for production.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">06</span><span class="step-title">P2-H3 Exit Checklist</span></div>
+<ol>
+<li>0 consumer-without-producer gaps. All 15 producers wired.</li>
+<li>7 financial/safety emits on outbox pattern. No best-effort on financial paths.</li>
+<li>GLReconciliationWorker running daily. rpt_gl_reconciliation table exists.</li>
+<li>Every event in the registry classified (COMMAND/NOTIFICATION/OBSERVABLE/FUTURE).</li>
+<li>Kafka naming inconsistencies resolved.</li>
+<li>Kafka operations runbook committed to docs/.</li>
+<li>CI green. HANDOFF-P2H3.md committed.</li>
+</ol>
+</div>
+
+<!-- ═══════ P2-H4 ═══════ -->
+<h2>P2-H4: Test Coverage &amp; Production Readiness</h2>
+<p>The largest hardening cycle. Builds the integration test pyramid for critical-path modules, creates required policy documents, and implements remaining advisory fixes. This is the gate cycle — the re-review happens after this.</p>
+
+<div class="step">
+<div class="step-header"><span class="step-num">01</span><span class="step-title">Integration Test Pyramid — Critical Path (Target: &ge;80% coverage)</span></div>
+<p><span class="finding-ref f-important">Code Cat 8 — 28 modules at 0%</span></p>
+<p>Priority tiers based on risk. Each module needs integration tests covering: happy path, error path, permission enforcement, school-scope isolation, and edge cases.</p>
+<ol>
+<li><strong>Tier 1 — Financial (must reach &ge;95%):</strong> finance (GL posting, journal batches, budget transfers), payments (invoices, payments, refunds, credit notes, reversals, payment plans, lunch accounts, financial aid), payroll (wage processing), procurement (POs, budget commitments, receiving).</li>
+<li><strong>Tier 2 — Auth &amp; Security (must reach &ge;95%):</strong> iam (permission resolution, role assignments, effective access cache), auth (login, JWT refresh, tenant resolution, MFA).</li>
+<li><strong>Tier 3 — Atomic Operations (must reach &ge;95%):</strong> ticket sales (concurrent race test), conference booking (atomic slot), gate scanning (double-scan), gift card redemption (concurrent), budget transfer (deadlock-safe), promotion max_uses, journal batch balance validation.</li>
+<li><strong>Tier 4 — IMMUTABLE Contracts (must reach 100%):</strong> CI test per IMMUTABLE table: attempt UPDATE → failure. Attempt DELETE → failure. Verify trigger fires.</li>
+<li><strong>Tier 5 — Core Domain (&ge;80%):</strong> sis, enrollment, attendance, classroom, scheduling, hr, messaging, notifications, curriculum, discipline, wellbeing, counselling.</li>
+<li><strong>Tier 6 — Operational (&ge;80%):</strong> store, facilities, transport, food-service, library, athletics, clubs, groups, meetings, governance, analytics, platform, configuration, announcements, profile, households, region, workflows, tickets.</li>
+</ol>
+<div class="produces">Produces → All critical-path modules &ge;95%. All other modules &ge;80%. Global coverage &ge;80%.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">02</span><span class="step-title">School-Scope Leak Regression Suite</span></div>
+<p>Create a dedicated test suite that verifies school-scope isolation for every tenant table with mutation endpoints. Pattern: create data in School A, attempt to read/modify/delete from School B context → expect NotFoundException.</p>
+<div class="produces">Produces → Regression suite prevents future school-scope leaks.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">03</span><span class="step-title">Meeting Notes Approved-State Guard</span></div>
+<p><span class="finding-ref">Code Cat 4 ADVISORY</span></p>
+<ol>
+<li><code>meeting-notes.service.ts::patch()</code> — add guard: if <code>is_approved = true</code>, reject UPDATE to <code>notes_text</code>. Only allow un-approve (which requires MTG-001:admin).</li>
+</ol>
+<div class="produces">Produces → Approved meeting notes cannot be silently edited.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">04</span><span class="step-title">Policy Documents</span></div>
+<p><span class="finding-ref f-important">Plan IMP-03</span> <span class="finding-ref f-important">Plan IMP-04</span> <span class="finding-ref f-important">Plan IMP-09</span></p>
+<ol>
+<li><strong>AI Data Policy</strong> (<code>docs/ai-data-policy.md</code>) — PII minimisation before model calls (stable pseudonym replacement for student names), provider retention settings (request zero-retention where available), opt-out effect (delete all cls_ai_tutoring_sessions + cls_ai_tutoring_messages + cls_ai_tutoring_learning_signals for opted-out student; prevent future session creation), special rules for health/behaviour/counselling data (never sent to AI even with consent), model-output audit retention (90 days then pseudonymise).</li>
+<li><strong>Retention &amp; Pseudonymisation Matrix</strong> (<code>docs/retention-pseudonymisation-matrix.md</code>) — per record class: GL entries (pseudonymise personal refs, keep financial data, legal basis: contract/legal obligation), referral activity (pseudonymise, legal basis: safeguarding), AI transcripts (delete on request, legal basis: consent), analytics (recompute without PII), health access logs (pseudonymise, legal basis: compliance), pub_publication_versions (pseudonymise author refs, keep content), pay_ledger_entries (pseudonymise, keep financial data). Include the dpo_pseudonymisation_log workflow.</li>
+<li><strong>Migration Orchestration Standard</strong> (<code>docs/migration-orchestration.md</code>) — max 50 tenants per cluster (initial), canary tenant strategy (2 tenants first, wait 1 hour, then batch), resumable execution (migration_status per tenant per migration), expand/contract DDL pattern (add column nullable → backfill → add NOT NULL), online index creation rules (CREATE INDEX CONCURRENTLY), is_frozen write gate during schema DDL, schema drift verification after every deploy (compare Prisma schema hash per tenant), failure rollback procedure.</li>
+</ol>
+<div class="produces">Produces → 3 policy documents. Production-launch prerequisites documented.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">05</span><span class="step-title">Advisory Fixes Batch</span></div>
+<p><span class="finding-ref">Plan ADV-02, ADV-03, ADV-04, ADV-05, ADV-06, ADV-07</span> <span class="finding-ref f-important">Plan IMP-05</span></p>
+<ol>
+<li><strong>JSONB Read Models (ADV-02):</strong> Add materialised views or rpt_ tables for: rpt_pathway_milestone_completion (from pfl_student_pathway_assignments.milestone_statuses JSONB), rpt_conference_follow_up_status (from eng_conference_bookings.follow_up_actions), rpt_accreditation_action_progress (from acc_improvement_action_plans.actions). Workers refresh nightly.</li>
+<li><strong>Worker Jitter (ADV-03):</strong> Add per-tenant jitter to all nightly/weekly/monthly workers. Pattern: <code>delay = hash(tenantId) % jitterWindowMs</code>. Nightly: 2-hour window. Weekly: random weekday. Monthly: first 5 days with hash spread.</li>
+<li><strong>Election Min-Votes Threshold (ADV-04):</strong> Add <code>min_votes_for_results INT DEFAULT 5</code> to ext_elections. Results endpoint: if total votes < min_votes_for_results, return "Insufficient votes to display results" instead of vote counts.</li>
+<li><strong>Distribution Consumer Coverage (ADV-05):</strong> Verify which of the 8 documented prc.distribution.completed consumers actually exist. Wire missing ones or document as Phase 3.</li>
+<li><strong>TEXT+CHECK Pattern ADR (ADV-06):</strong> Add to CLAUDE.md: "CampusOS uses TEXT with CHECK constraints instead of Postgres ENUM types. This is deliberate: CHECK constraints are easier to extend (ALTER TABLE ADD CHECK) than ENUMs. Do not convert to ENUM."</li>
+<li><strong>School-Size Presets (ADV-07):</strong> Add <code>platform_tenant_configs</code> key <code>school_size_preset</code> with values MICRO/SMALL/STANDARD/ADVANCED. Create preset configurations that hide advanced UI navigation items (advanced finance, complex procurement, AI minutes, accreditation, advanced analytics) for MICRO/SMALL presets. Features remain available via direct URL — presets control navigation visibility only.</li>
+<li><strong>High-Volume Partition Verification (IMP-05):</strong> Verify automated partition creation + retention drop jobs for: trn_vehicle_positions (daily, 7d hot/90d cold), trn_geofence_events (daily), msg_messages (monthly, 24mo), evt_ticket_scans (monthly), audit logs, Kafka outbox. Create missing retention jobs.</li>
+</ol>
+<div class="produces">Produces → All advisory findings addressed. Production-hardened.</div>
+</div>
+
+<div class="step">
+<div class="step-header"><span class="step-num">06</span><span class="step-title">P2-H4 Exit Checklist — FINAL GATE</span></div>
+<ol>
+<li>Test coverage: financial modules &ge;95%, auth/IAM &ge;95%, all modules &ge;80%, global &ge;80%.</li>
+<li>IMMUTABLE contract CI tests: 12 tables, each with UPDATE + DELETE failure tests.</li>
+<li>Atomic operation integration tests: 7 patterns, each with concurrent race test.</li>
+<li>School-scope leak regression suite: covers every tenant table with mutation endpoints.</li>
+<li>3 policy documents committed: AI Data Policy, Retention Matrix, Migration Orchestration.</li>
+<li>JSONB read models materialised. Worker jitter implemented. Election threshold added.</li>
+<li>School-size presets configured. High-volume partitions verified.</li>
+<li>All prc.distribution.completed consumers wired or documented as Phase 3.</li>
+<li>TEXT+CHECK pattern documented in CLAUDE.md.</li>
+<li>CI green. HANDOFF-P2H4.md committed.</li>
+<li><strong>TRIGGER: Second-round review (Claude plan + ChatGPT architectural + Claude Code audit).</strong></li>
+</ol>
+</div>
+
+<h2>Finding Traceability Matrix</h2>
+<p>Every finding from all three reviews mapped to its hardening cycle:</p>
+<table>
+<tr><th>Finding</th><th>Source</th><th>Severity</th><th>Hardening Cycle</th></tr>
+<tr><td>22 school-scope leaks</td><td>Code #22-27,35-38</td><td>BLOCKING+MAJOR</td><td>P2-H1 Step 1</td></tr>
+<tr><td>2 permission codes missing</td><td>Code #7-8</td><td>BLOCKING</td><td>P2-H1 Step 2</td></tr>
+<tr><td>Custody-aware access</td><td>Plan IMP-01, GPT SEC-01</td><td>IMPORTANT</td><td>P2-H1 Step 3</td></tr>
+<tr><td>Student-owned guards</td><td>Plan IMP-11</td><td>IMPORTANT</td><td>P2-H1 Step 4</td></tr>
+<tr><td>Engagement score restrictions</td><td>Plan IMP-10, GPT COMP-02</td><td>IMPORTANT</td><td>P2-H1 Step 5</td></tr>
+<tr><td>Soft-integrity validation</td><td>Code #56-67</td><td>IMP+ADV</td><td>P2-H1 Step 6</td></tr>
+<tr><td>6 schema drift BLOCKING</td><td>Code #1-6</td><td>BLOCKING</td><td>P2-H2 Step 1</td></tr>
+<tr><td>5 schema drift IMPORTANT</td><td>Code #39-43</td><td>IMPORTANT</td><td>P2-H2 Step 2</td></tr>
+<tr><td>DB IMMUTABLE triggers (12 tables)</td><td>Plan IMP-02, GPT DI-01, Code #3</td><td>BLOCKING</td><td>P2-H2 Step 3</td></tr>
+<tr><td>Seed data gaps</td><td>Code #44-55</td><td>BLOCKING+IMP</td><td>P2-H2 Step 4</td></tr>
+<tr><td>Soft-integrity monitoring</td><td>Plan IMP-06, GPT DI-02</td><td>IMPORTANT</td><td>P2-H2 Step 5</td></tr>
+<tr><td>15 consumer-without-producer</td><td>Code #9-21</td><td>BLOCKING</td><td>P2-H3 Step 1</td></tr>
+<tr><td>7 financial best-effort emits</td><td>Code #28-34</td><td>MAJOR</td><td>P2-H3 Step 2</td></tr>
+<tr><td>GL reconciliation</td><td>Plan IMP-07, GPT FIN-01</td><td>IMPORTANT</td><td>P2-H3 Step 3</td></tr>
+<tr><td>Orphan event classification</td><td>Plan ADV-01, Code #68-75</td><td>ADVISORY</td><td>P2-H3 Step 4</td></tr>
+<tr><td>Kafka DLQ runbook</td><td>Plan IMP-08, GPT OPS-01</td><td>IMPORTANT</td><td>P2-H3 Step 5</td></tr>
+<tr><td>Test coverage 18.3% → &ge;80%</td><td>Code Cat 8</td><td>IMPORTANT</td><td>P2-H4 Step 1</td></tr>
+<tr><td>School-scope regression suite</td><td>Code Cat 6</td><td>BLOCKING</td><td>P2-H4 Step 2</td></tr>
+<tr><td>Meeting notes approved guard</td><td>Code Cat 4 ADV</td><td>ADVISORY</td><td>P2-H4 Step 3</td></tr>
+<tr><td>AI Data Policy</td><td>Plan IMP-03, GPT SEC-02</td><td>IMPORTANT</td><td>P2-H4 Step 4</td></tr>
+<tr><td>Retention/pseudonymisation matrix</td><td>Plan IMP-09, GPT COMP-01</td><td>IMPORTANT</td><td>P2-H4 Step 4</td></tr>
+<tr><td>Migration orchestration standard</td><td>Plan IMP-04, GPT SCL-01</td><td>IMPORTANT</td><td>P2-H4 Step 4</td></tr>
+<tr><td>JSONB read models</td><td>Plan ADV-02, GPT DI-03</td><td>ADVISORY</td><td>P2-H4 Step 5</td></tr>
+<tr><td>Worker jitter</td><td>Plan ADV-03, GPT SCL-03</td><td>ADVISORY</td><td>P2-H4 Step 5</td></tr>
+<tr><td>Election min_votes</td><td>GPT SEC-03</td><td>ADVISORY</td><td>P2-H4 Step 5</td></tr>
+<tr><td>Distribution consumers</td><td>Plan ADV-05</td><td>ADVISORY</td><td>P2-H4 Step 5</td></tr>
+<tr><td>TEXT+CHECK documentation</td><td>Plan ADV-06</td><td>ADVISORY</td><td>P2-H4 Step 5</td></tr>
+<tr><td>School-size presets</td><td>GPT ENG-01</td><td>ADVISORY</td><td>P2-H4 Step 5</td></tr>
+<tr><td>High-volume partitions</td><td>Plan IMP-05, GPT SCL-02</td><td>IMPORTANT</td><td>P2-H4 Step 5</td></tr>
+</table>
+
+<div class="verdict-box">
+<h3 style="margin-top:0;color:var(--green)">Re-Review Gate</h3>
+<p>After P2-H4 completes, run all three reviews again:</p>
+<ol>
+<li><strong>Claude plan audit</strong> — verify all 11 IMP + 8 ADV findings resolved.</li>
+<li><strong>ChatGPT architectural review</strong> — same context package + updated completion report. Target: 0 IMPORTANT.</li>
+<li><strong>Claude Code audit</strong> — same 10-category audit prompt. Target: 0 BLOCKING, 0 MAJOR, test coverage &ge;80% global.</li>
+</ol>
+<p>Phase 3 feature cycles begin only after the re-review passes.</p>
+</div>
+
+<div class="doc-footer">
+<p>CampusOS Phase 2 Hardening Cycles — May 2026. Addresses all 114 findings from: Claude Plan-Level Audit (19 findings), ChatGPT Architectural Review (17 findings), Claude Code Audit (114 findings). No new feature tables. Pure hardening. Estimated duration: 6–8 weeks. Re-review gate after P2-H4.</p>
+</div>
+</div>
+</body>
+</html>

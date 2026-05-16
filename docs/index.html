@@ -112,13 +112,13 @@ a.card{text-decoration:none;color:inherit}
 
 <div class="hero">
   <h1>Design Hub</h1>
-  <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38+ modules, 76 ADRs. Phase 1 complete (8 waves, 34 cycles). Phase 2 in progress (4 waves, 30 cycles).</p>
+  <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38+ modules, 76 ADRs. Phase 1 complete (34 cycles). Phase 2 complete (29 cycles). Hardening sprint in progress (4 cycles).</p>
   <div class="stats-row">
-    <div class="stat"><span class="num">802</span><span class="label">Tables Built</span></div>
-    <div class="stat"><span class="num">~1,976</span><span class="label">Endpoints</span></div>
-    <div class="stat"><span class="num">525+</span><span class="label">UI Pages</span></div>
-    <div class="stat"><span class="num">52</span><span class="label">Kafka Consumers</span></div>
-    <div class="stat"><span class="num">62</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">~840</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">2,333</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">600+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">73</span><span class="label">Kafka Consumers</span></div>
+    <div class="stat"><span class="num">63</span><span class="label">Cycles Complete</span></div>
     <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
   </div>
 </div>
@@ -135,41 +135,45 @@ a.card{text-decoration:none;color:inherit}
 <div id="overview" class="tab-content active">
   <div class="status-grid">
     <div class="status-card sc-green">
-      <h4>Phase 1 + Waves A/B/C + P2-18 through P2-28 Complete &mdash; 62 Cycles</h4>
-      <p>802 tables (95%), ~1,976 endpoints, 525+ pages. Groups, clubs, elections, meetings, counsellor caseloads, referrals all live. Wave D closing — 1 cycle left.</p>
+      <h4>Phase 1 + Phase 2 Complete &mdash; 63 Cycles</h4>
+      <p>~840 tables (100%), 2,333 endpoints, 600+ pages, 149 Kafka topics. All 38 modules built. Three-review audit completed (Claude + ChatGPT + Claude Code).</p>
     </div>
-    <div class="status-card sc-blue">
-      <h4>P2-29: Commerce .1 Bundle &mdash; Next</h4>
-      <p>Procurement catalogues + contracts, departmental budgets, journal batches, store promotions + loyalty + gift cards. 19 tables split into 2 sub-cycles. Final Phase 2 cycle.</p>
+    <div class="status-card" style="background:#fee2e2;border-color:#dc2626">
+      <h4 style="color:#dc2626">Hardening Sprint &mdash; P2-H1 through P2-H4</h4>
+      <p>114 audit findings mapped across 4 hardening cycles. Security, schema, Kafka, financial integrity, test coverage. No new feature tables. <a href="campusos-hardening-cycles.html" style="color:#dc2626;font-weight:600;">Hardening Plan &rarr;</a></p>
     </div>
     <div class="status-card sc-amber">
-      <h4>Phase 2: 1 Cycle, 38 Tables Remaining &middot; Phase 3 Roadmap Ready</h4>
-      <p>Wave D final cycle. Phase 3 planned: 4 themes, 15 projects. <a href="campusos-phase3-roadmap.html" style="color:var(--accent);font-weight:600;">Phase 3 Roadmap &rarr;</a></p>
+      <h4>Gate: Phase 3 blocked until hardening passes re-review</h4>
+      <p>Second-round three-review audit after P2-H4. Target: 0 BLOCKING, test coverage &ge;80%, all IMMUTABLE triggers live. <a href="campusos-phase3-roadmap.html" style="color:var(--accent);font-weight:600;">Phase 3 Roadmap &rarr;</a></p>
     </div>
   </div>
 
   <h2 class="sec">Build Progress</h2>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Tables Built</span><span>802 / 840 (95%)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:95%"></div></div>
+    <div class="progress-label"><span>Tables Built</span><span>~840 / 840 (100%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
   </div>
   <div class="progress-wrap">
     <div class="progress-label"><span>Phase 1 Cycles</span><span>34 / 34 (100% &mdash; Complete)</span></div>
     <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Phase 2 Cycles</span><span>28 / 30 (Wave D — 1 cycle left)</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:93%"></div></div>
+    <div class="progress-label"><span>Phase 2 Cycles</span><span>29 / 29 (100% &mdash; Complete)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-label"><span>Waves Complete</span><span>8 of 8 Phase 1 + 3 of 4 Phase 2</span></div>
-    <div class="progress-bar"><div class="progress-fill" style="width:92%"></div></div>
+    <div class="progress-label"><span>Hardening Sprint</span><span>0 / 4 (P2-H1 next)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:0%;background:linear-gradient(90deg,#dc2626,#ef4444)"></div></div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>Three-Review Audit</span><span>Round 1 complete &middot; Round 2 after P2-H4</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:50%;background:linear-gradient(90deg,#d97706,#f59e0b)"></div></div>
   </div>
 
   <h2 class="sec">What is CampusOS?</h2>
   <p class="body">CampusOS is a cloud-native, multi-tenant School Operating System designed to replace the patchwork of disconnected tools that schools use today. It covers the complete operational surface of a K-12 school: student information, classroom management, scheduling, health records, counselling, library, athletics, transportation, food service, finance, communications, and more &mdash; all in one platform with a unified identity model, shared permission framework, and event-driven architecture.</p>
   <p class="body">The system is built as a modular monolith (NestJS + Next.js + PostgreSQL + Kafka) with 6 extracted services for compute-intensive workloads (video processing, AI inference, scheduling solver, transport dispatch, notification push, emergency alert). Multi-tenancy uses schema-per-tenant PostgreSQL with a platform schema for shared identity and routing.</p>
-  <p class="body"><strong>Phase 1 (34 cycles, 8 waves) is complete</strong> &mdash; 418 tables covering every core module, plus observability instrumentation and multi-region disaster recovery. <strong>Phase 2 (30 cycles, 4 waves) is in progress</strong> &mdash; deepening existing modules with .1 cycles and adding new modules (visitor management, incident &amp; emergency, HR depth, events &amp; ticketing, alumni, accreditation) to reach the full 840-table ERD.</p>
+  <p class="body"><strong>Phase 1 (34 cycles, 8 waves) is complete</strong> &mdash; 418 tables covering every core module, plus observability instrumentation and multi-region disaster recovery. <strong>Phase 2 (29 cycles, 4 waves) is complete</strong> &mdash; all remaining ERD tables built across .1 cycles and new modules (visitor management, incident &amp; emergency, HR depth, events &amp; ticketing, alumni, accreditation, parent engagement). A <strong>three-review audit</strong> (Claude plan audit + ChatGPT architectural review + Claude Code audit) identified 114 findings, now being addressed in a <strong>4-cycle hardening sprint</strong> (P2-H1 through P2-H4) before Phase 3 begins.</p>
 </div>
 
 <!-- ═══════ ARCHITECTURE ═══════ -->
@@ -185,6 +189,9 @@ a.card{text-decoration:none;color:inherit}
     <a href="campusos-dev-deployment-plan.html" class="card"><span class="pill pill-gray">FROZEN</span><h4>Development &amp; Deployment Plan</h4><div class="desc">Infrastructure architecture, CI/CD pipeline, environment strategy, and operational runbook for the CampusOS platform.</div><div class="meta">DevOps &middot; Infrastructure &middot; CI/CD</div></a>
     <a href="campusos-phase2-build-plan.html" class="card"><span class="pill pill-purple">PHASE 2</span><h4>Phase 2 Build Plan</h4><div class="desc">30 cycles across 4 waves completing the remaining 422 tables. Visitor management, incidents, HR depth, payments, classroom AI, and full module completion.</div><div class="meta">30 cycles &middot; 4 waves &middot; 422 tables</div></a>
     <a href="campusos-school-configuration-admin.html" class="card"><span class="pill pill-teal">ADMIN</span><h4>School Configuration Admin</h4><div class="desc">Three organizational structures (Facility, Academic, Position) with CRUD, hierarchy views, assignments, and an 8-step setup wizard for onboarding.</div><div class="meta">12 pages &middot; 9 endpoints &middot; 0 new tables</div></a>
+    <a href="campusos-phase2-completion-report.html" class="card"><span class="pill pill-red">AUDIT</span><h4>Phase 2 Completion Report</h4><div class="desc">Merged findings from Claude Plan Audit + ChatGPT Architectural Review + Claude Code Audit. 0 BLOCKING plan-level, 11 IMPORTANT, 8 ADVISORY. Code audit: 41 BLOCKING, 35 MAJOR.</div><div class="meta">3 reviewers &middot; 114 findings &middot; PASS WITH CONDITIONS</div></a>
+    <a href="campusos-hardening-cycles.html" class="card"><span class="pill pill-red">HARDENING</span><h4>Hardening Cycles (P2-H1–H4)</h4><div class="desc">4 hardening cycles addressing all 114 findings: school-scope leaks, IMMUTABLE triggers, Kafka wiring, financial integrity, test coverage pyramid. No new feature tables.</div><div class="meta">~6–8 weeks &middot; Gate for Phase 3</div></a>
+    <a href="campusos-review-context-package.html" class="card"><span class="pill pill-gray">REVIEW</span><h4>Review Context Package</h4><div class="desc">Comprehensive system summary for external reviewers. Cross-module event map, IMMUTABLE tables, atomic operations, platform/tenant schema split, ChatGPT review checklist.</div><div class="meta">For ChatGPT &middot; Claude Code audit prompt</div></a>
   </div>
 
   <h2 class="sec">Key Architectural Decisions</h2>
@@ -416,8 +423,8 @@ a.card{text-decoration:none;color:inherit}
     </div>
   </div>
 
-  <h2 class="sec">Phase 2 &mdash; Remaining 422 Tables</h2>
-  <p class="body">30 cycles across 4 waves completing every table in the ERD. <a href="campusos-phase2-build-plan.html" style="color:var(--accent-mid);font-weight:600;">Full Phase 2 Build Plan &rarr;</a></p>
+  <h2 class="sec">Phase 2 &mdash; 422 Tables (COMPLETE)</h2>
+  <p class="body">29 cycles across 4 waves completing every table in the ERD. All feature cycles done. Hardening sprint in progress. <a href="campusos-phase2-build-plan.html" style="color:var(--accent-mid);font-weight:600;">Full Phase 2 Build Plan &rarr;</a></p>
 
   <!-- P2 WAVE A — COMPLETE -->
   <div class="wave w-green">
@@ -469,11 +476,11 @@ a.card{text-decoration:none;color:inherit}
     </div>
   </div>
 
-  <!-- P2 WAVE D — IN PROGRESS -->
-  <div class="wave w-amber open">
+  <!-- P2 WAVE D — COMPLETE -->
+  <div class="wave w-green">
     <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
       <h3>P2 Wave D &mdash; Module Completion</h3>
-      <span class="wave-meta">13 cycles &middot; 172 tables &middot; IN PROGRESS</span>
+      <span class="wave-meta">12 cycles &middot; 170 tables &middot; COMPLETE</span>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="wave-body">
@@ -488,16 +495,30 @@ a.card{text-decoration:none;color:inherit}
       <div class="cycle-row"><span class="cycle-num">P2-26</span><span class="cycle-title">Publications Advanced (25.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">4 tables</span><span class="cycle-links"><a href="campusos-p2c26-publications-advanced.html" class="cl-plan">Plan</a> <a href="p2c26-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-27</span><span class="cycle-title">Portfolio Advanced (24.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">8 tables</span><span class="cycle-links"><a href="campusos-p2c27-portfolio-advanced.html" class="cl-plan">Plan</a> <a href="p2c27-cat-script.md" class="cl-cat">CAT</a></span></div>
       <div class="cycle-row"><span class="cycle-num">P2-28</span><span class="cycle-title">Community .1 Bundle <span class="pill pill-green">Done</span></span><span class="cycle-tables">27 tables</span><span class="cycle-links"><a href="campusos-p2c28-community-bundle.html" class="cl-plan">Plan</a> <a href="p2c28-cat-script.md" class="cl-cat">CAT</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">P2-29</span><span class="cycle-title">Commerce .1 Bundle <span class="pill pill-blue">Next</span></span><span class="cycle-tables">19 tables (2 sub-cycles)</span><span class="cycle-links"><a href="campusos-p2c29-commerce-bundle.html" class="cl-plan">Plan</a></span></div>
-      <div class="cycle-row"><span class="cycle-num">P2-30</span><span class="cycle-title">Student Services .1</span><span class="cycle-tables">2 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-29</span><span class="cycle-title">Commerce .1 Bundle <span class="pill pill-green">Done</span></span><span class="cycle-tables">19 tables</span><span class="cycle-links"><a href="campusos-p2c29-commerce-bundle.html" class="cl-plan">Plan</a> <a href="p2c29-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <!-- HARDENING SPRINT -->
+  <div class="wave w-red open">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Hardening Sprint &mdash; Pre-Production</h3>
+      <span class="wave-meta">4 cycles &middot; 0 new tables &middot; IN PROGRESS</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">P2-H1</span><span class="cycle-title">Security &amp; Access Control <span class="pill pill-amber">Next</span></span><span class="cycle-tables">0 tables</span><span class="cycle-links"><a href="campusos-hardening-cycles.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-H2</span><span class="cycle-title">Schema, Data &amp; Immutability</span><span class="cycle-tables">0 tables</span><span class="cycle-links"><a href="campusos-hardening-cycles.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-H3</span><span class="cycle-title">Kafka &amp; Financial Integrity</span><span class="cycle-tables">0 tables</span><span class="cycle-links"><a href="campusos-hardening-cycles.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-H4</span><span class="cycle-title">Test Coverage &amp; Production Readiness</span><span class="cycle-tables">0 tables</span><span class="cycle-links"><a href="campusos-hardening-cycles.html" class="cl-plan">Plan</a></span></div>
     </div>
   </div>
 </div>
 
 <!-- ═══════ PHASE 3 — UPCOMING ═══════ -->
 <div class="phase3-upcoming" style="margin-top:32px;padding:24px;background:linear-gradient(135deg,#f0f4f8 0%,#e8f0f8 100%);border:2px solid #b5d4f4;border-radius:14px;">
-  <h2 class="sec" style="margin-top:0;padding-top:0;border-top:none;">Phase 3 &mdash; Infrastructure, Integration &amp; Ecosystem <span class="pill pill-gray" style="font-size:11px;vertical-align:middle;">Upcoming</span></h2>
-  <p class="body" style="margin-bottom:16px;">Phase 3 begins after Phase 2 completes. Not more tables &mdash; live service deployment, real integrations, compliance certification, mobile apps, and the marketplace ecosystem. <a href="campusos-phase3-roadmap.html" style="color:var(--accent);font-weight:600;">Full Phase 3 Roadmap &rarr;</a></p>
+  <h2 class="sec" style="margin-top:0;padding-top:0;border-top:none;">Phase 3 &mdash; Infrastructure, Integration &amp; Ecosystem <span class="pill pill-gray" style="font-size:11px;vertical-align:middle;">Blocked on Hardening</span></h2>
+  <p class="body" style="margin-bottom:16px;">Phase 3 begins after the hardening sprint (P2-H1 through P2-H4) passes the second-round three-review audit. Not more tables &mdash; live service deployment, real integrations, compliance certification, mobile apps, and the marketplace ecosystem. <a href="campusos-phase3-roadmap.html" style="color:var(--accent);font-weight:600;">Full Phase 3 Roadmap &rarr;</a></p>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
     <div style="background:white;border:1px solid #e2e6ea;border-left:4px solid #3d7ab5;border-radius:8px;padding:14px;">
       <h4 style="font-size:14px;color:#1a3a5c;margin-bottom:4px;">Theme A: Extracted Services</h4>
@@ -522,6 +543,27 @@ a.card{text-decoration:none;color:inherit}
 <div id="buildlog" class="tab-content">
   <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
   <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry" style="border-left:4px solid #dc2626">
+    <h4>Hardening Sprint Planned (P2-H1 through P2-H4) <span class="pill pill-red">Next</span></h4>
+    <div class="log-meta">0 tables &middot; 114 findings &middot; 4 cycles &middot; ~6&ndash;8 weeks</div>
+    <div class="log-desc">P2-H1 (Security): close 22 school-scope leaks, fix 2 permission gaps, build GuardianAuthorizationService, standardise @StudentOwned decorator, restrict engagement scores. P2-H2 (Schema): fix 11 schema drift issues, add DB IMMUTABLE triggers on 12 tables (REVOKE + triggers + CI tests), create 3 missing platform tables, fill all seed data gaps, build soft-integrity health monitor. P2-H3 (Kafka): wire 15 consumer-without-producer topics, migrate 7 financial emits to outbox, build GL reconciliation jobs, classify all orphan events, create Kafka operations runbook. P2-H4 (Tests): integration test pyramid (financial &ge;95%, auth/IAM &ge;95%, all modules &ge;80%), school-scope regression suite, 3 policy documents (AI Data Policy, Retention Matrix, Migration Orchestration), JSONB read models, worker jitter, election threshold, school-size presets.</div>
+    <div class="log-links"><a href="campusos-hardening-cycles.html">Plan</a></div>
+  </div>
+
+  <div class="log-entry" style="border-left:4px solid #d97706">
+    <h4>Phase 2 Completion Report <span class="pill pill-amber">Pass with Conditions</span></h4>
+    <div class="log-meta">3 reviewers &middot; 0 BLOCKING (plan) &middot; 41 BLOCKING (code) &middot; 11 IMPORTANT (merged)</div>
+    <div class="log-desc">Three-review audit: Claude plan audit (0 BLOCKING, 4 IMP, 7 ADV), ChatGPT architectural review (0 BLOCKING, 11 IMP, 6 ADV), Claude Code audit (41 BLOCKING, 35 MAJOR, 38 ADV). Clean passes: IMMUTABLE service discipline (12/12), atomic operations (7/7), ADR compliance (10/10). Critical findings: 18 school-scope leaks, 15 consumer-without-producer Kafka topics, 6 schema drift issues, test coverage 18.3% (target 90%). Verdict: architecturally sound, code needs hardening sprint before pilot.</div>
+    <div class="log-links"><a href="campusos-phase2-completion-report.html">Report</a> <a href="campusos-plan-level-audit.html">Claude Audit</a> <a href="campusos-review-context-package.html">Context Package</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-29: Commerce .1 Bundle <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">19 tables &middot; ~40 endpoints &middot; 2 sub-cycles &middot; 3 Kafka emits &middot; Final Phase 2 cycle</div>
+    <div class="log-desc">P2-29a: procurement catalogues with tiered pricing + vendor item catalogue, supplier contracts with renewal tracking + compliance documents, departmental budgets with budget transfer workflow (atomic: lock both in id-ascending order), spending analytics with category/department/vendor breakdown. P2-29b: store promotions with 6 discount types + max_uses atomic enforcement, loyalty points with configurable earn/redeem rules + tier thresholds, gift cards with atomic balance management (UPDATE WHERE balance&ge;amount), wishlists, price schedules with date-range pricing, inventory adjustments with audit trail, hierarchical product categories.</div>
+    <div class="log-links"><a href="campusos-p2c29-commerce-bundle.html">Plan</a> <a href="p2c29-cat-script.md">CAT</a></div>
+  </div>
 
   <div class="log-entry">
     <h4>P2-28: Community .1 Bundle <span class="pill pill-green">Approved</span></h4>
@@ -959,6 +1001,7 @@ a.card{text-decoration:none;color:inherit}
     <a href="p2c26-cat-script.md" class="card"><h4>P2-26 CAT</h4><div class="desc">Version history IMMUTABLE + auto-creation on status change, revert creates new version (append-only), is_system template edit blocked, scheduled publish with timezone, analytics atomic increments, concurrent safety.</div><div class="meta">5 scenarios</div></a>
     <a href="p2c27-cat-script.md" class="card"><h4>P2-27 CAT</h4><div class="desc">Section drag-reorder, reflection student-owned enforcement, endorsement role restriction (students blocked), milestone auto-check from cross-module events, readiness progress recomputation, resume cross-module auto-populate + PDF generation.</div><div class="meta">7 scenarios</div></a>
     <a href="p2c28-cat-script.md" class="card"><h4>P2-28 CAT</h4><div class="desc">Poll anonymous voting, RSVP max_attendees enforcement, election structural anonymity (no voter_id), double-vote prevention, club budget balance computation, referral IMMUTABLE activity log, CRISIS auto-escalation, agency consent tracking, wellbeing longitudinal aggregation.</div><div class="meta">10 scenarios</div></a>
+    <a href="p2c29-cat-script.md" class="card"><h4>P2-29 CAT</h4><div class="desc">Procurement catalogue + tiered pricing, supplier contract renewal, budget transfer atomic lock ordering, spending analytics, promotion max_uses atomic enforcement, loyalty tier computation, gift card atomic balance + depletion, wishlist notifications, price schedule overlap prevention, category hierarchy.</div><div class="meta">10 scenarios</div></a>
   </div>
 
   <h2 class="sec">Phase 1 Punch List Status</h2>
@@ -969,17 +1012,18 @@ a.card{text-decoration:none;color:inherit}
     <div class="card"><h4>Transactional Outbox <span class="pill pill-green">Resolved</span></h4><div class="desc">Evaluated in Cycle 31 Step 7. Decision documented — implement or defer with rationale.</div></div>
     <div class="card"><h4>Role Split <span class="pill pill-amber">Phase 2</span></h4><div class="desc">Split Staff role into Nurse / Counsellor / VP / AD / Librarian / EO. Tracked in Phase 2 Wave A.</div></div>
     <div class="card"><h4>Scheduled-Dose Dedup <span class="pill pill-amber">Phase 2</span></h4><div class="desc">Advisory lock or partial UNIQUE on medication administrations. Tracked in P2-3 Health Advanced.</div></div>
-    <div class="card"><h4>Wellbeing Score-Drop Alerts <span class="pill pill-amber">Phase 2</span></h4><div class="desc">SIGNIFICANT_SCORE_DROP + PERSISTENT_LOW_SCORE. Tracked in P2-30 Student Services .1.</div></div>
+    <div class="card"><h4>Wellbeing Score-Drop Alerts <span class="pill pill-green">Resolved</span></h4><div class="desc">SIGNIFICANT_SCORE_DROP + PERSISTENT_LOW_SCORE. Absorbed into P2-28c Community Bundle (Student Services .1 scope).</div></div>
   </div>
 
-  <h2 class="sec">Phase 2 Build Plan</h2>
-  <p class="body">30 cycles across 4 waves completing the remaining 422 tables. <a href="campusos-phase2-build-plan.html" style="color:var(--accent-mid);font-weight:600;">View the full Phase 2 Build Plan &rarr;</a></p>
+  <h2 class="sec">Phase 2 Build Plan (COMPLETE)</h2>
+  <p class="body">29 cycles across 4 waves — all complete. Now in hardening sprint. <a href="campusos-phase2-build-plan.html" style="color:var(--accent-mid);font-weight:600;">View the full Phase 2 Build Plan &rarr;</a></p>
   <div class="card-grid">
-    <div class="card" style="border-left:4px solid var(--red)"><h4>Wave A &mdash; Pilot Critical</h4><div class="desc">Visitor Management, Incident &amp; Emergency, Health Advanced, HR Advanced. Ship before pilot day 1.</div><div class="meta" style="color:var(--red)">4 cycles &middot; 53 tables</div></div>
-    <div class="card" style="border-left:4px solid var(--amber)"><h4>Wave B &mdash; Pilot Enhancement</h4><div class="desc">Enrolment, Payments, Classroom AI, Athletics, Sub Marketplace, Food Service depth. First 90 days.</div><div class="meta" style="color:var(--amber)">6 cycles &middot; 92 tables</div></div>
-    <div class="card" style="border-left:4px solid var(--blue)"><h4>Wave C &mdash; Operational Depth</h4><div class="desc">Transport fleet, Events, SIS completion, Behaviour, Analytics live consumers, Appraisals, Scheduling solver.</div><div class="meta" style="color:var(--blue)">7 cycles &middot; 105 tables</div></div>
-    <div class="card" style="border-left:4px solid #64748b"><h4>Wave D &mdash; Module Completion</h4><div class="desc">Facilities, Comms, IT, Platform marketplace, Alumni, Accreditation, remaining .1 bundles. Product maturity.</div><div class="meta" style="color:#64748b">13 cycles &middot; 172 tables</div></div>
-    <div class="card" style="border-left:4px solid #0d9488"><h4>Phase 3 &mdash; Infrastructure &amp; Ecosystem</h4><div class="desc">6 extracted services go live, full finance + accounting, DPO compliance + EU deployment, SIS migration toolkit, MDM/LMS integrations, native mobile apps, marketplace launch.</div><div class="meta" style="color:#0d9488">4 themes &middot; 15 projects &middot; ~12 months &middot; <a href="campusos-phase3-roadmap.html">Roadmap &rarr;</a></div></div>
+    <div class="card" style="border-left:4px solid var(--red)"><h4>Wave A &mdash; Pilot Critical <span class="pill pill-green" style="font-size:9px">Done</span></h4><div class="desc">Visitor Management, Incident &amp; Emergency, Health Advanced, HR Advanced.</div><div class="meta" style="color:var(--green)">4 cycles &middot; 56 tables &middot; COMPLETE</div></div>
+    <div class="card" style="border-left:4px solid var(--amber)"><h4>Wave B &mdash; Pilot Enhancement <span class="pill pill-green" style="font-size:9px">Done</span></h4><div class="desc">Enrolment, Payments, Classroom AI, Athletics, Sub Marketplace, Food Service depth.</div><div class="meta" style="color:var(--green)">6 cycles &middot; 92 tables &middot; COMPLETE</div></div>
+    <div class="card" style="border-left:4px solid var(--blue)"><h4>Wave C &mdash; Operational Depth <span class="pill pill-green" style="font-size:9px">Done</span></h4><div class="desc">Transport fleet, Events, SIS completion, Behaviour, Analytics live consumers, Scheduling solver.</div><div class="meta" style="color:var(--green)">7 cycles &middot; 105 tables &middot; COMPLETE</div></div>
+    <div class="card" style="border-left:4px solid #64748b"><h4>Wave D &mdash; Module Completion <span class="pill pill-green" style="font-size:9px">Done</span></h4><div class="desc">Facilities, Comms, IT, Platform marketplace, Alumni, Accreditation, remaining .1 bundles.</div><div class="meta" style="color:var(--green)">12 cycles &middot; 170 tables &middot; COMPLETE</div></div>
+    <div class="card" style="border-left:4px solid #dc2626"><h4>Hardening Sprint <span class="pill pill-amber" style="font-size:9px">In Progress</span></h4><div class="desc">P2-H1 Security, P2-H2 Schema, P2-H3 Kafka, P2-H4 Tests. 114 findings from three-review audit. No new tables.</div><div class="meta" style="color:#dc2626">4 cycles &middot; 0 tables &middot; <a href="campusos-hardening-cycles.html">Plan &rarr;</a></div></div>
+    <div class="card" style="border-left:4px solid #0d9488"><h4>Phase 3 &mdash; Infrastructure &amp; Ecosystem</h4><div class="desc">Blocked on hardening re-review. 6 extracted services, full finance, DPO compliance, SIS migration, mobile apps, marketplace.</div><div class="meta" style="color:#0d9488">4 themes &middot; 15 projects &middot; <a href="campusos-phase3-roadmap.html">Roadmap &rarr;</a></div></div>
   </div>
 </div>
 
