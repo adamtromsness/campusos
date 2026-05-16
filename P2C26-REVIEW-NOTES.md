@@ -278,3 +278,24 @@ Don't-leak-existence pattern: VersionService.assertCanAccess returns 404 (not 40
 ### Awaiting Round 2 verdict
 
 Tag `p2c26-complete` after Round 2 APPROVED. The Phase 2 / pre-pilot punch list items from the initial ship remain unchanged.
+
+---
+
+## REVIEW-P2C26 Round 2 — PASS verdict (final gate)
+
+**Round 2 verdict against `e66e757`:** `Approved`. Reviewer cache-busted each affected file in code on Round 2 and confirmed every Round 1 fix matches:
+
+| Prior Finding | Status | Evidence |
+| --- | --- | --- |
+| Template list/get/patch/delete/from-template not school-scoped | FIXED | Reads use `school_id IS NULL OR school_id = tenant.schoolId`; writes require `school_id = tenant.schoolId`; system templates remain read-only |
+| Scheduled publication list/get/cancel/schedule + worker sweep not school-scoped | FIXED | Request paths join through `pub_publications.school_id`; worker ripe query, schedule update, parent publication update, inline version insert, recipient count, failure update all carry school ownership |
+| Publication analytics get/summary/ingest/setRecipientTotal not school-scoped | FIXED | Analytics paths join through `pub_publications.school_id`; publication ownership validation happens before school-admin short-circuit |
+| Analytics additive counters not redelivery-safe | FIXED | New contribution table `pub_publication_analytics_contributions` enforces UNIQUE(consumer_group, source_event_id, publication_id, event_type); ingestEvent inserts ledger row before counter update in one tenant transaction and short-circuits on duplicate 23505 |
+| Version follow-up reads/reloads not school-scoped | FIXED | `listForPublication`, `getById`, `revert`, `composeSnapshot`, `nextVersionNumber`, checkpoint reload, captureInTx reload paths all join through `pub_publications.school_id` |
+| `assertAccountInCurrentTenant` lacked school predicates | FIXED | Student / guardian / employee projection checks carry `school_id = tenant.schoolId`, preventing cross-school collaborator/account validation |
+| Worker inline version capture comments misleading | FIXED | Handoff + inline comments document that the scheduled-publish worker performs direct SQL for the final status-change version rather than invoking the request-path service |
+| Regression coverage | FIXED | New `publications-advanced-review-p2c26.spec.ts` adds 20 pinned tests covering the 5 blockers + 2 majors; original 24 tests updated for the new SQL shapes; suite 1406/1406 |
+
+**Updated dimension scores:** Templates / Scheduled Publishing / Publication Analytics / Version History / Account Projection Helper / Test Coverage — all `PASS`.
+
+**Final gate: PASS.** P2-26 tagged `p2c26-complete` at `e66e757` (the Round 1 fix commit that earned Round 2 PASS) and `p2c26-approved` at the closeout commit. Publications Advanced now meets the Phase 2 bar for school-scoped object references, school-safe worker processing, redelivery-safe analytics counters, and regression coverage.

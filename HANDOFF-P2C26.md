@@ -280,3 +280,29 @@ No new Kafka topics in P2-26.
 - `HANDOFF-P2C26.md` (this Round 1 fix log section)
 - `P2C26-REVIEW-NOTES.md` (Round 1 verification trail)
 - `CLAUDE.md` (status section)
+
+---
+
+## REVIEW-P2C26 Round 2 — PASS verdict
+
+**Round 2 verdict against `e66e757`:** `Approved` — final gate decision. Reviewer cache-busted each affected file in code on Round 2 and confirmed all 5 BLOCKING + 2 MAJOR fixes match: template read/write boundaries are school-scoped; scheduled-publish request paths + worker flow are school-scoped with durable outbox intact; analytics reads/writes are school-scoped + additive counters are redelivery-safe via the new contribution ledger; version follow-up reads + snapshot helpers carry parent publication school predicates; `assertAccountInCurrentTenant` collaborator/account validation is current-school scoped; 20 new pinned regression tests + 24 retrofitted vertical-slice tests = 44/44 publications passing within the broader 1406/1406 suite.
+
+**Updated dimension scores (all PASS):**
+
+| Dimension                 | Rating | Notes                                                                                                |
+| ------------------------- | -----: | ---------------------------------------------------------------------------------------------------- |
+| Templates                 | PASS   | System + school-custom template read/write boundaries correct                                        |
+| Scheduled Publishing      | PASS   | Request paths + worker flow school-scoped; durable publish outbox intact                             |
+| Publication Analytics     | PASS   | Reads/writes school-scoped; additive counters redelivery-safe                                        |
+| Version History           | PASS   | Follow-up reads + snapshot helpers carry parent publication school predicates                        |
+| Account Projection Helper | PASS   | Collaborator/account validation current-school scoped                                                |
+| Test Coverage             | PASS   | Round 1 findings have pinned regression coverage; suite 1406/1406                                    |
+
+**Tags applied:**
+
+- `p2c26-complete` → `e66e757` (the Round 1 fix commit that earned Round 2 PASS)
+- `p2c26-approved` → closeout commit (this commit; updates CLAUDE.md to APPROVED state + appends Round 2 PASS verdict to HANDOFF + REVIEW-NOTES)
+
+**No carry-overs from Round 2.** The 6 reviewer attention items from the initial cycle ship (visual diff renderer, IANA timezone validation, exponential backoff on worker retry, Cycle 14 NotificationConsumer wiring on `pub.publication.published`, snapshot trimming for large publications, school-custom template Edit modal) remain on the pre-pilot polish punch list as recommendation-class work — none flagged by Round 2.
+
+**Cycle 26 ships clean. Wave D continues.**
