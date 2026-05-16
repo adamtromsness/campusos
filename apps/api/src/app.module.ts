@@ -37,6 +37,7 @@ import { ClubsModule } from './clubs/clubs.module';
 import { GroupsModule } from './groups/groups.module';
 import { GroupsAdvancedModule } from './groups-advanced/groups-advanced.module';
 import { ClubsMeetingsAdvancedModule } from './clubs-meetings-advanced/clubs-meetings-advanced.module';
+import { StudentServicesAdvancedModule } from './student-services-advanced/student-services-advanced.module';
 import { TransportModule } from './transport/transport.module';
 import { FoodServiceModule } from './food-service/food-service.module';
 import { FacilitiesModule } from './facilities/facilities.module';
@@ -153,6 +154,14 @@ var devOnlyControllers: Type<unknown>[] =
     // mtg_meetings + agenda items in one tx, and AI meeting minutes
     // (stubbed until P3-A1 AI Inference deploys).
     ClubsMeetingsAdvancedModule,
+    // Phase 2 Cycle 28 sub-cycle c (P2-28c) — Student Services
+    // Advanced. Adds counsellor caseload dashboard with capacity
+    // tracking, external agency referrals with parent-consent gate,
+    // CRISIS referral escalation with IMMUTABLE activity log audit,
+    // annual wellbeing longitudinal aggregation (no individual
+    // check-in data — only aggregated domain scores per academic
+    // year), and MTSS team meeting student-discussion coordination.
+    StudentServicesAdvancedModule,
     TransportModule,
     FoodServiceModule,
     FacilitiesModule,
