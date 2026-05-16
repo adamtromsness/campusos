@@ -36,6 +36,7 @@ import { MeetingsModule } from './meetings/meetings.module';
 import { ClubsModule } from './clubs/clubs.module';
 import { GroupsModule } from './groups/groups.module';
 import { GroupsAdvancedModule } from './groups-advanced/groups-advanced.module';
+import { ClubsMeetingsAdvancedModule } from './clubs-meetings-advanced/clubs-meetings-advanced.module';
 import { TransportModule } from './transport/transport.module';
 import { FoodServiceModule } from './food-service/food-service.module';
 import { FacilitiesModule } from './facilities/facilities.module';
@@ -145,6 +146,13 @@ var devOnlyControllers: Type<unknown>[] =
     // invitations that auto-create grp_members on ACCEPTED, and
     // monthly engagement analytics.
     GroupsAdvancedModule,
+    // Phase 2 Cycle 28 sub-cycle b (P2-28b) — Clubs + Meetings
+    // Advanced. Adds club budgets with atomic ledger + transaction
+    // updates, field-trip post-evaluations, service-learning partner
+    // orgs, meeting templates with create-from-template materialising
+    // mtg_meetings + agenda items in one tx, and AI meeting minutes
+    // (stubbed until P3-A1 AI Inference deploys).
+    ClubsMeetingsAdvancedModule,
     TransportModule,
     FoodServiceModule,
     FacilitiesModule,
