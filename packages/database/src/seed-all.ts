@@ -221,6 +221,11 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
       'Publications Advanced — version history + custom templates + scheduled publish + analytics (P2-26)',
     script: 'seed-publications-advanced.ts',
   },
+  {
+    label:
+      'Portfolio Advanced — sections + reflections + endorsements + readiness pathways + college apps + resume (P2-27)',
+    script: 'seed-portfolio-advanced.ts',
+  },
 ];
 
 async function main(): Promise<void> {

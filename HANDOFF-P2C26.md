@@ -289,14 +289,14 @@ No new Kafka topics in P2-26.
 
 **Updated dimension scores (all PASS):**
 
-| Dimension                 | Rating | Notes                                                                                                |
-| ------------------------- | -----: | ---------------------------------------------------------------------------------------------------- |
-| Templates                 | PASS   | System + school-custom template read/write boundaries correct                                        |
-| Scheduled Publishing      | PASS   | Request paths + worker flow school-scoped; durable publish outbox intact                             |
-| Publication Analytics     | PASS   | Reads/writes school-scoped; additive counters redelivery-safe                                        |
-| Version History           | PASS   | Follow-up reads + snapshot helpers carry parent publication school predicates                        |
-| Account Projection Helper | PASS   | Collaborator/account validation current-school scoped                                                |
-| Test Coverage             | PASS   | Round 1 findings have pinned regression coverage; suite 1406/1406                                    |
+| Dimension                 | Rating | Notes                                                                         |
+| ------------------------- | -----: | ----------------------------------------------------------------------------- |
+| Templates                 |   PASS | System + school-custom template read/write boundaries correct                 |
+| Scheduled Publishing      |   PASS | Request paths + worker flow school-scoped; durable publish outbox intact      |
+| Publication Analytics     |   PASS | Reads/writes school-scoped; additive counters redelivery-safe                 |
+| Version History           |   PASS | Follow-up reads + snapshot helpers carry parent publication school predicates |
+| Account Projection Helper |   PASS | Collaborator/account validation current-school scoped                         |
+| Test Coverage             |   PASS | Round 1 findings have pinned regression coverage; suite 1406/1406             |
 
 **Tags applied:**
 

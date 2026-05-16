@@ -48,6 +48,7 @@
     "seed:it": "tsx src/seed-it.ts",
     "seed:curriculum": "tsx src/seed-curriculum.ts",
     "seed:portfolio": "tsx src/seed-portfolio.ts",
+    "seed:portfolio-advanced": "tsx src/seed-portfolio-advanced.ts",
     "seed:publications": "tsx src/seed-publications.ts",
     "seed:finance": "tsx src/seed-finance.ts",
     "seed:procurement": "tsx src/seed-procurement.ts",

@@ -278,6 +278,13 @@ async function seedIam() {
         // gates the future teacher-comment feature only).
         'ACH-001': ['read', 'write'],
         'ACH-002': ['read', 'write'],
+        // P2-27 — Post-Secondary Readiness. Teachers read pathway
+        // milestones and student progress for advising. They do
+        // NOT receive :write — pathway assignment + milestone
+        // management is counsellor / admin scope. Endorsements
+        // (Step 5 EndorsementService) gate on ach-002:write so
+        // teachers can endorse student portfolios with skills.
+        'ACH-003': ['read'],
         // Cycle 25 — Publications (Wave 5 closeout). Teachers create
         // series + editions, author content sections, manage section
         // contributors. Distribution (PUB-003) is admin-only.
@@ -549,6 +556,12 @@ async function seedIam() {
         // portfolio).
         'ACH-001': ['read'],
         'ACH-002': ['read'],
+        // P2-27 — Post-Secondary Readiness. Parents read their
+        // child's pathway progress + college application tracker
+        // for support conversations. Row scope at the Step 6
+        // services binds parents to own children via
+        // sis_student_guardians. Resume is student-only.
+        'ACH-003': ['read'],
         // Cycle 25 — Publications. Parents read published series +
         // editions and manage subscriptions on the my-subscriptions
         // surface.
@@ -793,6 +806,15 @@ async function seedIam() {
         // portfolio + own achievements only.
         'ACH-001': ['read'],
         'ACH-002': ['read', 'write'],
+        // P2-27 — Post-Secondary Readiness. Students manage own
+        // pathway progress, track college applications, and
+        // build the resume. Pathway assignment is counsellor-side
+        // (Step 6 service refuses non-admin / non-counsellor
+        // POST /pathway-assignments). Milestone status updates +
+        // college application CRUD + resume PATCH all gate on
+        // ach-003:write with service-layer row scope to own
+        // student_id.
+        'ACH-003': ['read', 'write'],
         // Cycle 25 — Publications. Students read published editions
         // and contribute to sections (PUB-002:write); their sections
         // require editor approval per ADR-035.
@@ -1080,6 +1102,15 @@ async function seedIam() {
         // for at-risk students. Same scope as Teacher.
         'ACH-001': ['read', 'write'],
         'ACH-002': ['read', 'write'],
+        // P2-27 — Post-Secondary Readiness. Staff covers the
+        // counsellor who assigns students to pathways, tracks
+        // milestone progress, reviews college applications, and
+        // sees the school-wide readiness dashboard. ACH-003:read
+        // + write covers pathway assignment + milestone management
+        // + college deadlines view; admin tier on ACH-003 reaches
+        // school admins via everyFunction (for pathway / milestone
+        // CRUD).
+        'ACH-003': ['read', 'write'],
         // Cycle 25 — Publications. Staff covers VP / counsellor / admin
         // assistant who manage series + editions + content authoring +
         // distribution.
@@ -1518,6 +1549,13 @@ async function seedIam() {
         'COU-006': ['read', 'write', 'admin'],
         'COU-007': ['read', 'write', 'admin'],
         student_counseling_record: ['read'],
+        // P2-27 — Post-Secondary Readiness. Counsellors assign
+        // pathways, track milestones, view school-wide readiness
+        // dashboard, and review college applications. ACH-002:read
+        // for endorsement creation surface; ACH-003 full read+write
+        // for the readiness module.
+        'ACH-002': ['read', 'write'],
+        'ACH-003': ['read', 'write'],
         // Counsellors need basic student visibility + meetings.
         'STU-001': ['read'],
         'STU-002': ['read'],

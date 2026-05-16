@@ -89,6 +89,24 @@ function StudentPortfolioLanding() {
         >
           Achievement gallery
         </Link>
+        <Link
+          href="/portfolio/readiness"
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Readiness pathway
+        </Link>
+        <Link
+          href="/portfolio/college"
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          College applications
+        </Link>
+        <Link
+          href="/portfolio/resume"
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Resume builder
+        </Link>
       </div>
 
       <section className="grid grid-cols-3 gap-3">

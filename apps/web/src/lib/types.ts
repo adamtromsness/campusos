@@ -13012,3 +13012,286 @@ export interface CreateCatalogueImportJobPayload {
   sourceFileS3Key?: string;
   isbns?: string[];
 }
+
+// ── P2-27 Portfolio Advanced ────────────────────────────────
+
+export type EndorserRole = 'TEACHER' | 'COUNSELLOR' | 'MENTOR';
+export type PathwayType =
+  | 'COLLEGE_PREP'
+  | 'CAREER_TECHNICAL'
+  | 'ARTS_CONSERVATORY'
+  | 'MILITARY'
+  | 'GENERAL';
+export type MilestoneCategory =
+  | 'ACADEMIC'
+  | 'TESTING'
+  | 'SERVICE'
+  | 'APPLICATION'
+  | 'FINANCIAL_AID'
+  | 'OTHER';
+export type MilestoneStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+export type PathwayAssignmentStatus = 'ACTIVE' | 'COMPLETED' | 'WITHDRAWN';
+export type CollegeApplicationType = 'EARLY_DECISION' | 'EARLY_ACTION' | 'REGULAR' | 'ROLLING';
+export type CollegeApplicationStatus =
+  | 'RESEARCHING'
+  | 'PREPARING'
+  | 'SUBMITTED'
+  | 'INTERVIEW_SCHEDULED'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'WAITLISTED';
+
+export interface PortfolioSectionDto {
+  id: string;
+  portfolioId: string;
+  title: string;
+  description: string | null;
+  sortOrder: number;
+  coverImageS3Key: string | null;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSectionPayload {
+  title: string;
+  description?: string;
+  coverImageS3Key?: string;
+}
+
+export interface UpdateSectionPayload {
+  title?: string;
+  description?: string;
+  sortOrder?: number;
+  coverImageS3Key?: string;
+}
+
+export interface ReflectionDto {
+  id: string;
+  portfolioItemId: string;
+  studentId: string;
+  prompt: string | null;
+  reflectionText: string;
+  writtenAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReflectionPayload {
+  prompt?: string;
+  reflectionText: string;
+}
+
+export interface UpdateReflectionPayload {
+  prompt?: string;
+  reflectionText: string;
+}
+
+export interface EndorsementDto {
+  id: string;
+  portfolioId: string;
+  endorsedById: string | null;
+  endorsedByName: string | null;
+  endorserRole: EndorserRole;
+  skills: string[];
+  comment: string;
+  isVisibleOnShare: boolean;
+  endorsedAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEndorsementPayload {
+  endorserRole: EndorserRole;
+  skills: string[];
+  comment: string;
+  isVisibleOnShare?: boolean;
+}
+
+export interface PathwayMilestoneDto {
+  id: string;
+  pathwayId: string;
+  milestoneName: string;
+  description: string | null;
+  category: MilestoneCategory;
+  sortOrder: number;
+  isRequired: boolean;
+  autoCheckSource: string | null;
+}
+
+export interface ReadinessPathwayDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  description: string | null;
+  pathwayType: PathwayType;
+  isActive: boolean;
+  milestoneCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReadinessPathwayDetailDto extends ReadinessPathwayDto {
+  milestones: PathwayMilestoneDto[];
+}
+
+export interface CreatePathwayPayload {
+  name: string;
+  description?: string;
+  pathwayType: PathwayType;
+}
+
+export interface UpdatePathwayPayload {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface CreateMilestonePayload {
+  milestoneName: string;
+  description?: string;
+  category: MilestoneCategory;
+  sortOrder: number;
+  isRequired?: boolean;
+  autoCheckSource?: string;
+}
+
+export interface UpdateMilestonePayload {
+  milestoneName?: string;
+  description?: string;
+  category?: MilestoneCategory;
+  sortOrder?: number;
+  isRequired?: boolean;
+  autoCheckSource?: string;
+}
+
+export interface MilestoneStatusInlineDto {
+  milestoneId: string;
+  milestoneName: string;
+  category: MilestoneCategory;
+  sortOrder: number;
+  isRequired: boolean;
+  status: MilestoneStatus;
+  completedAt: string | null;
+  notes: string | null;
+  progressDetail: string | null;
+  autoCheckSource: string | null;
+}
+
+export interface PathwayAssignmentDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  pathwayId: string;
+  pathwayName: string | null;
+  pathwayType: PathwayType | null;
+  assignedById: string;
+  assignedByName: string | null;
+  assignedAt: string;
+  milestoneStatuses: MilestoneStatusInlineDto[];
+  overallProgress: number;
+  status: PathwayAssignmentStatus;
+  notes: string | null;
+  updatedAt: string;
+}
+
+export interface AssignPathwayPayload {
+  studentId: string;
+  notes?: string;
+}
+
+export interface UpdateMilestoneStatusPayload {
+  milestoneId: string;
+  status: MilestoneStatus;
+  notes?: string;
+  progressDetail?: string;
+}
+
+export interface ReadinessDashboardRowDto {
+  studentId: string;
+  studentName: string | null;
+  gradeLevel: string | null;
+  pathwayId: string;
+  pathwayName: string;
+  pathwayType: PathwayType;
+  overallProgress: number;
+  status: PathwayAssignmentStatus;
+  completedMilestones: number;
+  totalMilestones: number;
+  isAtRisk: boolean;
+}
+
+export interface CollegeApplicationDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  collegeName: string;
+  applicationType: CollegeApplicationType;
+  deadline: string | null;
+  status: CollegeApplicationStatus;
+  essayS3Key: string | null;
+  recommendationCount: number;
+  transcriptSent: boolean;
+  financialAidApplied: boolean;
+  notes: string | null;
+  decisionDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCollegeApplicationPayload {
+  studentId?: string;
+  collegeName: string;
+  applicationType: CollegeApplicationType;
+  deadline?: string;
+  status?: CollegeApplicationStatus;
+  notes?: string;
+}
+
+export interface UpdateCollegeApplicationPayload {
+  collegeName?: string;
+  applicationType?: CollegeApplicationType;
+  deadline?: string;
+  status?: CollegeApplicationStatus;
+  essayS3Key?: string;
+  recommendationCount?: number;
+  transcriptSent?: boolean;
+  financialAidApplied?: boolean;
+  notes?: string;
+  decisionDate?: string;
+}
+
+export interface ResumeProfileDto {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  objectiveStatement: string | null;
+  skills: string[];
+  workExperience: unknown[];
+  extracurriculars: unknown[];
+  awards: unknown[];
+  serviceHoursTotal: number;
+  references: unknown[];
+  pdfS3Key: string | null;
+  lastGeneratedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateResumePayload {
+  objectiveStatement?: string;
+  skills?: string[];
+  workExperience?: unknown[];
+  extracurriculars?: unknown[];
+  awards?: unknown[];
+  serviceHoursTotal?: number;
+  references?: unknown[];
+}
+
+export interface GenerateResumePdfResponseDto {
+  resumeId: string;
+  pdfS3Key: string;
+  lastGeneratedAt: string;
+  skillsCount: number;
+  awardsCount: number;
+  serviceHoursTotal: number;
+  extracurricularsCount: number;
+}
