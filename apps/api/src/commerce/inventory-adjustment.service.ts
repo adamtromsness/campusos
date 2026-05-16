@@ -138,12 +138,22 @@ export class InventoryAdjustmentService {
       // Apply the inventory delta atomically with the audit log
       // insert. quantity_reserved is left alone — RECOUNT may
       // change on_hand without touching the reservation contract.
+      //
+      // REVIEW-P2C29 Round 1 MAJOR 2 fix — carry the school predicate
+      // into the UPDATE itself via str_products + str_stores. The
+      // SELECT … FOR UPDATE above already proved ownership; this is
+      // the consistent mutation-statement-school-scope pattern.
       await tx.$executeRawUnsafe(
-        `UPDATE str_product_inventory
+        `UPDATE str_product_inventory i
             SET quantity_on_hand = $1::int,
                 updated_at = now()
-          WHERE id = $2::uuid`,
+           FROM str_products p
+           JOIN str_stores s ON s.id = p.store_id
+          WHERE p.id = i.product_id
+            AND s.school_id = $2::uuid
+            AND i.id = $3::uuid`,
         newQuantity,
+        tenant.schoolId,
         input.inventoryId,
       );
 

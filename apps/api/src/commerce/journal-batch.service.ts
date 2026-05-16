@@ -384,8 +384,31 @@ export class JournalBatchService {
         );
       }
 
-      // Copy lines into Cycle 26 fin_gl_entries so the manual batch
-      // is visible through every downstream reader.
+      // REVIEW-P2C29 Round 1 BLOCKING 5 fix — module boundary.
+      //
+      // Previously this service wrote directly into Cycle 26
+      // fin_gl_entries (the Finance/GL surface). The reviewer
+      // correctly flagged that the GL module should own GL writes;
+      // commerce/finance-extensions owns the manual batch + lines,
+      // emits fin.journal_batch.posted durably, and the
+      // JournalBatchPostedConsumer in apps/api/src/finance/
+      // materialises fin_gl_entries via PostingService.createAndPost
+      // (which already supports source_event_id UNIQUE for redelivery
+      // idempotency).
+      //
+      // The post() path now:
+      //   1. Validates the batch is DRAFT + balanced + non-empty.
+      //   2. Re-aggregates fresh under FOR UPDATE lock.
+      //   3. Flips status to POSTED + stamps posted_by + posted_at.
+      //   4. Emits fin.journal_batch.posted via durable outbox with
+      //      the line shape the consumer needs to create GL entries.
+      //
+      // The Finance consumer is the ONLY writer to fin_gl_entries
+      // for this event. Module boundary is preserved.
+
+      // Read the lines fresh inside the same tx so the emit payload
+      // carries the exact data the consumer needs without a second
+      // tenant context round trip on the consumer side.
       const lines = (await tx.$queryRawUnsafe(
         `SELECT id::text AS id, account_id::text AS account_id,
                 debit, credit, description, line_order
@@ -399,66 +422,6 @@ export class JournalBatchService {
         description: string | null;
         line_order: number;
       }>;
-
-      // Need a Cycle 26 fin_journal_batches row to attach
-      // fin_gl_entries to. We create a companion AUTO batch keyed
-      // back to our manual batch id so downstream readers see the
-      // canonical posting alongside its source manual batch.
-      // Resolve a default fund + currently OPEN period; throw if
-      // none exists.
-      const fund = (await tx.$queryRawUnsafe(
-        `SELECT id::text AS id FROM fin_funds
-          WHERE school_id = $1::uuid AND is_active = true
-          ORDER BY fund_code LIMIT 1`,
-        tenant.schoolId,
-      )) as Array<{ id: string }>;
-      if (fund.length === 0) {
-        throw new BadRequestException(
-          'No active fund configured — cannot post journal batch without a target fund',
-        );
-      }
-      const period = (await tx.$queryRawUnsafe(
-        `SELECT id::text AS id FROM fin_accounting_periods
-          WHERE school_id = $1::uuid AND status = 'OPEN'
-            AND now()::date >= start_date AND now()::date <= end_date
-          ORDER BY start_date DESC LIMIT 1`,
-        tenant.schoolId,
-      )) as Array<{ id: string }>;
-      if (period.length === 0) {
-        throw new BadRequestException(
-          'No OPEN accounting period covers today — cannot post journal batch',
-        );
-      }
-
-      const companionBatchId = generateId();
-      await tx.$executeRawUnsafe(
-        `INSERT INTO fin_journal_batches
-           (id, school_id, batch_number, description, batch_type, source_module,
-            accounting_period_id, status, posted_by, posted_at)
-         VALUES ($1::uuid, $2::uuid, $3, $4, 'ADJUSTMENT', 'commerce',
-                 $5::uuid, 'POSTED', $6::uuid, now())`,
-        companionBatchId,
-        tenant.schoolId,
-        'ADJ-' + batchId.slice(0, 8),
-        'Manual journal batch ' + batchId,
-        period[0]!.id,
-        actor.employeeId,
-      );
-      for (const ln of lines) {
-        await tx.$executeRawUnsafe(
-          `INSERT INTO fin_gl_entries
-             (id, batch_id, account_id, fund_id, debit, credit, description, line_order)
-           VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::numeric, $6::numeric, $7, $8)`,
-          generateId(),
-          companionBatchId,
-          ln.account_id,
-          fund[0]!.id,
-          ln.debit,
-          ln.credit,
-          ln.description,
-          ln.line_order,
-        );
-      }
 
       // Flip status to POSTED — schema-side posted_chk lockstep
       // requires posted_by + posted_at populated together.
@@ -488,8 +451,16 @@ export class JournalBatchService {
           entryCount: Number(updated[0]!.entry_count),
           totalDebits: Number(updated[0]!.total_debits),
           totalCredits: Number(updated[0]!.total_credits),
-          companionGlBatchId: companionBatchId,
           postedBy: actor.employeeId,
+          // The consumer needs each line's account + debit/credit
+          // to materialise the GL entries. Send them in the payload.
+          lines: lines.map((ln) => ({
+            accountId: ln.account_id,
+            debit: Number(ln.debit),
+            credit: Number(ln.credit),
+            description: ln.description,
+            lineOrder: ln.line_order,
+          })),
           sourceRefId: batchId,
         },
         sourceModule: 'commerce',

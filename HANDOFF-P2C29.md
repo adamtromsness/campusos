@@ -1,8 +1,43 @@
 # HANDOFF — Phase 2 Cycle 29 (Commerce .1 Bundle)
 
 **Plan:** [`docs/campusos-p2c29-commerce-bundle.html`](docs/campusos-p2c29-commerce-bundle.html)
-**Review:** [`P2C29-REVIEW-NOTES.md`](P2C29-REVIEW-NOTES.md)
-**Status:** **COMPLETE pending peer review.** All 4 plan steps shipped across 2 sub-cycles. **This is the FINAL cycle of Phase 2.**
+**Review scaffold:** [`P2C29-REVIEW-NOTES.md`](P2C29-REVIEW-NOTES.md)
+**Round 1 review:** [`REVIEW-P2C29-CHATGPT.md`](REVIEW-P2C29-CHATGPT.md)
+**Status:** **Round 1 returned FAIL with 5 BLOCKING + 3 MAJOR; fix commit lands all 5 BLOCKING + 2 actionable MAJORs + 11 pinned regression tests. Awaiting Round 2.**
+
+## REVIEW-P2C29 Round 1 fix log
+
+Round 1 against `c244206` returned FAIL with 5 BLOCKING + 3 MAJOR. The fix commit lands all 5 BLOCKING + the 2 actionable MAJORs (catalogue item no-op reload + inventory adjust UPDATE) + 11 pinned regression tests in `apps/api/src/commerce/__tests__/commerce-review-p2c29.spec.ts` across 5 describe blocks. MAJOR 3 (gift card lookup UX scoping) is a product decision tracked as a Phase 3 follow-up — the schema's UNIQUE `card_code` is global by tenant design; redemption gates through store ownership + school_id via the `FROM str_stores s WHERE s.school_id = $tenant` join.
+
+**BLOCKING fixes:**
+
+1. **Loyalty customer affiliation** — new shared helper `assertCustomerAffiliatedWithSchool(tenantPrisma, customerPersonId)` in `apps/api/src/commerce/access.ts` runs an EXISTS query against `sis_students` (via `platform_students.person_id` chain) / `sis_guardians.person_id` / `hr_employees.person_id` for the current school. `LoyaltyService.getBalance`, `listTransactions`, `earn`, `redeem`, and `adjust` call the helper before any read or insert. Bogus / cross-school `customerPersonId` throws `BadRequestException` with the offending UUID inlined; no admin bypass.
+
+2. **Wishlist update/remove school-scope** — `WishlistService.update` rewritten to `UPDATE str_wishlists w SET ... FROM str_products p JOIN str_stores s ON s.id = p.store_id WHERE w.product_id = p.id AND s.school_id = $tenant AND w.customer_person_id = $1 AND w.product_id = $2 RETURNING ...`. `remove` similarly uses `DELETE FROM str_wishlists w USING str_products p JOIN str_stores s ON s.id = p.store_id WHERE ...`. A support user with permission to act for a customer can no longer toggle or delete a wishlist entry for a foreign-school product.
+
+3. **Promotion patch UPDATE through store join** — `PromotionService.patch` UPDATE rewritten to `UPDATE str_promotions p SET ... FROM str_stores s WHERE s.id = p.store_id AND p.id = $N::uuid AND s.school_id = $M::uuid RETURNING ...`. The pre-lock SELECT already validated ownership; this is the consistent mutation-statement-school-scope pattern the Phase 2 style guide enforces.
+
+4. **PriceScheduleWorker apply/revert school predicate** — both UPDATE statements in `tickForSchool` rewritten. Apply runs `UPDATE str_products p ... FROM str_stores s WHERE s.id = p.store_id AND s.school_id = $tenant AND p.id = $id` and `UPDATE str_price_schedules ps ... FROM str_products p JOIN str_stores s ON s.id = p.store_id WHERE p.id = ps.product_id AND s.school_id = $tenant AND ps.id = $id`. Revert UPDATE follows the same pattern.
+
+5. **Journal batch GL ownership** — `JournalBatchService.post` no longer writes `fin_gl_entries` directly. It now (a) validates balance + locks the batch, (b) reads lines fresh under the lock, (c) flips status to POSTED, (d) emits `fin.journal_batch.posted` via durable outbox with the line payload. New `JournalBatchPostedConsumer` in `apps/api/src/finance/journal-batch-posted.consumer.ts` (Finance module — the GL owner) subscribes to the event under group `journal-batch-posted-consumer`, resolves a synthetic CFO actor + per-account funds (with active-fund fallback), and calls `PostingService.createAndPost()` which materialises `fin_journal_batches` + `fin_gl_entries` with `source_event_id` UNIQUE for redelivery idempotency. Configuration misses throw + propagate to DLQ via the existing retry chain.
+
+**MAJOR fixes:**
+
+- **M1 catalogue item reload** — `VendorCatalogueService.patchItem` no-op reload + UPDATE path both join through `prc_vendor_catalogues` with the school predicate.
+- **M2 inventory adjust UPDATE** — `InventoryAdjustmentService.adjust` UPDATE rewritten with FROM `str_products` + JOIN `str_stores` + school predicate.
+
+**Test coverage:** 11 new pinned regression tests across 5 describe blocks:
+
+- R-B1 × 3 — affiliation helper fires before mutation on `earn`, `redeem`, `getBalance`
+- R-B2 × 2 — wishlist update + delete SQL shape pinned (JOIN through products + stores with school predicate + arg-binding assertions)
+- R-B3 × 1 — promotion patch UPDATE SQL shape pinned (FROM `str_stores` + school predicate + arg-binding)
+- R-B4 × 2 — price schedule apply + revert UPDATE SQL shapes pinned (both UPDATEs join through products + stores)
+- R-B5 × 2 — journal batch post emits-only + lines payload + does NOT insert `fin_gl_entries` + unbalanced batch rejection before any UPDATE fires
+- 1 sanity test — affiliation helper is exported from `commerce/access`
+
+CI parity: API build clean + Prettier format clean + log-schema lint 1016+ files clean + new vitest spec passes 11/11. No schema migrations — every fix is service-layer + 1 new consumer.
+
+---
 
 P2-29 closes the M86 Procurement, M83/84 Finance, and M67 Store .1 deferred-table surface in two sub-cycles:
 

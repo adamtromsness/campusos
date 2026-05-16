@@ -10,7 +10,12 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
-import { assertStoreAdmin, assertStoreCustomer, isUniqueViolation } from './access';
+import {
+  assertCustomerAffiliatedWithSchool,
+  assertStoreAdmin,
+  assertStoreCustomer,
+  isUniqueViolation,
+} from './access';
 import type {
   AdjustLoyaltyPointsDto,
   EarnLoyaltyPointsDto,
@@ -213,6 +218,10 @@ export class LoyaltyService {
         throw new ForbiddenException('Customers may only read their own loyalty balance');
       }
     }
+    // REVIEW-P2C29 Round 1 BLOCKING 1: validate the customerPersonId
+    // is affiliated with the current school. School A admin reading
+    // a School B person's balance is refused with a 400.
+    await assertCustomerAffiliatedWithSchool(this.tenantPrisma, customerPersonId);
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       // Verify store in tenant.
       const storeRows = (await client.$queryRawUnsafe(
@@ -264,6 +273,9 @@ export class LoyaltyService {
         throw new ForbiddenException('Customers may only read their own loyalty history');
       }
     }
+    // REVIEW-P2C29 Round 1 BLOCKING 1: validate the customerPersonId
+    // is affiliated with the current school before reading history.
+    await assertCustomerAffiliatedWithSchool(this.tenantPrisma, customerPersonId);
     const cap = limit && limit > 0 && limit <= 500 ? limit : 100;
     return this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
@@ -291,6 +303,10 @@ export class LoyaltyService {
   /** Admin or system path — log points earned on a purchase. */
   async earn(actor: ResolvedActor, input: EarnLoyaltyPointsDto): Promise<LoyaltyTransactionDto> {
     await assertStoreAdmin(actor, this.permCheck, 'Loyalty earn');
+    // REVIEW-P2C29 Round 1 BLOCKING 1: a store admin in school A can
+    // no longer log earned points for a person in school B by guessing
+    // an iam_person UUID — the helper validates affiliation.
+    await assertCustomerAffiliatedWithSchool(this.tenantPrisma, input.customerPersonId);
     return this.insertTransaction(input.storeId, input.customerPersonId, 'EARNED', input.points, {
       orderId: input.orderId ?? null,
       description: input.description ?? null,
@@ -326,6 +342,11 @@ export class LoyaltyService {
         throw new ForbiddenException('Customers may only redeem their own loyalty points');
       }
     }
+    // REVIEW-P2C29 Round 1 BLOCKING 1: validate the customerPersonId
+    // is affiliated with the current school. A customer who somehow
+    // reaches str-002:read in a different school's tenant can no
+    // longer redeem against their own iam_person in this tenant.
+    await assertCustomerAffiliatedWithSchool(this.tenantPrisma, input.customerPersonId);
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const config = await this.loadConfigInTx(tx, input.storeId, tenant.schoolId);
       if (!config.is_enabled) {
@@ -390,6 +411,9 @@ export class LoyaltyService {
     input: AdjustLoyaltyPointsDto,
   ): Promise<LoyaltyTransactionDto> {
     await assertStoreAdmin(actor, this.permCheck, 'Loyalty adjust');
+    // REVIEW-P2C29 Round 1 BLOCKING 1: admin in school A can no
+    // longer adjust loyalty points for a person in school B.
+    await assertCustomerAffiliatedWithSchool(this.tenantPrisma, input.customerPersonId);
     return this.insertTransaction(
       input.storeId,
       input.customerPersonId,

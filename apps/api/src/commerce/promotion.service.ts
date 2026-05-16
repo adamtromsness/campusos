@@ -327,19 +327,30 @@ export class PromotionService {
         return reread;
       }
       sets.push(`updated_at = now()`);
-      args.push(id);
+      // REVIEW-P2C29 Round 1 BLOCKING 3: carry the school predicate
+      // into the UPDATE statement itself, not just into the
+      // pre-lock SELECT. The Phase 2 standard requires that every
+      // tenant mutation joins back to the school via the owning
+      // parent so a single grep catches the contract.
+      args.push(id, tenant.schoolId);
+      const idArg = i++;
+      const schoolArg = i;
       const rows = (await tx.$queryRawUnsafe(
-        `UPDATE str_promotions SET ${sets.join(', ')}
-          WHERE id = $${i}::uuid
-          RETURNING id::text AS id, store_id::text AS store_id, name,
-                    description, discount_type, discount_value,
-                    min_order_amount, promo_code,
-                    starts_at::text AS starts_at,
-                    ends_at::text AS ends_at,
-                    max_uses, current_uses, is_active,
-                    created_by::text AS created_by,
-                    created_at::text AS created_at,
-                    updated_at::text AS updated_at`,
+        `UPDATE str_promotions p
+            SET ${sets.join(', ')}
+           FROM str_stores s
+          WHERE s.id = p.store_id
+            AND p.id = $${idArg}::uuid
+            AND s.school_id = $${schoolArg}::uuid
+          RETURNING p.id::text AS id, p.store_id::text AS store_id, p.name,
+                    p.description, p.discount_type, p.discount_value,
+                    p.min_order_amount, p.promo_code,
+                    p.starts_at::text AS starts_at,
+                    p.ends_at::text AS ends_at,
+                    p.max_uses, p.current_uses, p.is_active,
+                    p.created_by::text AS created_by,
+                    p.created_at::text AS created_at,
+                    p.updated_at::text AS updated_at`,
         ...args,
       )) as PromotionRow[];
       return this.toDto(rows[0]!);

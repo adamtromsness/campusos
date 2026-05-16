@@ -15,6 +15,7 @@ import {
 } from './budgets.service';
 import { FinanceValidationService } from './validation';
 import { GLConsumer } from './gl.consumer';
+import { JournalBatchPostedConsumer } from './journal-batch-posted.consumer';
 import { FinanceController } from './finance.controller';
 
 /**
@@ -55,6 +56,7 @@ import { FinanceController } from './finance.controller';
     BoardReportService,
     GrantService,
     GLConsumer,
+    JournalBatchPostedConsumer,
   ],
   controllers: [FinanceController],
   exports: [

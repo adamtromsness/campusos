@@ -159,17 +159,29 @@ export class WishlistService {
   ): Promise<WishlistEntryDto> {
     await assertStoreCustomer(actor, this.permCheck, 'Wishlist update');
     await this.assertCanActFor(actor, customerPersonId);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C29 Round 1 BLOCKING 2: school-scope the mutation
+      // statement itself via product → store → school. A support
+      // actor with permission to act for a customer can no longer
+      // toggle a wishlist row for a foreign-school product by
+      // knowing (customerPersonId, productId).
       const rows = (await tx.$queryRawUnsafe(
-        `UPDATE str_wishlists
+        `UPDATE str_wishlists w
             SET notify_on_restock = $1
-          WHERE customer_person_id = $2::uuid AND product_id = $3::uuid
-          RETURNING id::text AS id,
-                    customer_person_id::text AS customer_person_id,
-                    product_id::text AS product_id,
-                    notify_on_restock,
-                    created_at::text AS created_at`,
+           FROM str_products p
+           JOIN str_stores s ON s.id = p.store_id
+          WHERE w.product_id = p.id
+            AND s.school_id = $2::uuid
+            AND w.customer_person_id = $3::uuid
+            AND w.product_id = $4::uuid
+          RETURNING w.id::text AS id,
+                    w.customer_person_id::text AS customer_person_id,
+                    w.product_id::text AS product_id,
+                    w.notify_on_restock,
+                    w.created_at::text AS created_at`,
         input.notifyOnRestock,
+        tenant.schoolId,
         customerPersonId,
         productId,
       )) as WishlistRow[];
@@ -181,10 +193,20 @@ export class WishlistService {
   async remove(actor: ResolvedActor, customerPersonId: string, productId: string): Promise<void> {
     await assertStoreCustomer(actor, this.permCheck, 'Wishlist remove');
     await this.assertCanActFor(actor, customerPersonId);
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C29 Round 1 BLOCKING 2: school-scope the DELETE
+      // via USING str_products + str_stores so a foreign-school
+      // product id cannot drop a wishlist row.
       await tx.$executeRawUnsafe(
-        `DELETE FROM str_wishlists
-          WHERE customer_person_id = $1::uuid AND product_id = $2::uuid`,
+        `DELETE FROM str_wishlists w
+          USING str_products p
+          JOIN str_stores s ON s.id = p.store_id
+          WHERE w.product_id = p.id
+            AND s.school_id = $1::uuid
+            AND w.customer_person_id = $2::uuid
+            AND w.product_id = $3::uuid`,
+        tenant.schoolId,
         customerPersonId,
         productId,
       );

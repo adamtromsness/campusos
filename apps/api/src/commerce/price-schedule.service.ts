@@ -262,14 +262,32 @@ export class PriceScheduleService implements OnModuleInit, OnModuleDestroy {
 
       let applied = 0;
       for (const r of ripe) {
+        // REVIEW-P2C29 Round 1 BLOCKING 4: carry the school
+        // predicate into the apply UPDATEs themselves. The
+        // pre-select already joins through str_products + str_stores,
+        // but if a stale or cross-tenant row leaks the mutation
+        // path stays defensive — both UPDATEs join back to
+        // str_stores.school_id.
         await client.$executeRawUnsafe(
-          `UPDATE str_products SET price = $1::numeric, updated_at = now()
-            WHERE id = $2::uuid`,
+          `UPDATE str_products p
+              SET price = $1::numeric, updated_at = now()
+             FROM str_stores s
+            WHERE s.id = p.store_id
+              AND s.school_id = $2::uuid
+              AND p.id = $3::uuid`,
           r.scheduled_price,
+          schoolId,
           r.product_id,
         );
         await client.$executeRawUnsafe(
-          `UPDATE str_price_schedules SET applied_at = now() WHERE id = $1::uuid`,
+          `UPDATE str_price_schedules ps
+              SET applied_at = now()
+             FROM str_products p
+             JOIN str_stores s ON s.id = p.store_id
+            WHERE p.id = ps.product_id
+              AND s.school_id = $1::uuid
+              AND ps.id = $2::uuid`,
+          schoolId,
           r.id,
         );
         await this.outbox.enqueueInTx(client, {
@@ -314,8 +332,17 @@ export class PriceScheduleService implements OnModuleInit, OnModuleDestroy {
 
       let reverted = 0;
       for (const r of revertable) {
+        // REVIEW-P2C29 Round 1 BLOCKING 4: carry school predicate
+        // into the revert UPDATE — same defensive pattern as apply.
         await client.$executeRawUnsafe(
-          `UPDATE str_price_schedules SET reverted_at = now() WHERE id = $1::uuid`,
+          `UPDATE str_price_schedules ps
+              SET reverted_at = now()
+             FROM str_products p
+             JOIN str_stores s ON s.id = p.store_id
+            WHERE p.id = ps.product_id
+              AND s.school_id = $1::uuid
+              AND ps.id = $2::uuid`,
+          schoolId,
           r.id,
         );
         reverted += 1;

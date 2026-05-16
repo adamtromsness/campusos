@@ -1,7 +1,8 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
+import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 
 /**
  * P2-29a — Shared access helpers for the Commerce bundle module
@@ -19,6 +20,60 @@ import { getCurrentTenant } from '../tenant/tenant.context';
  * permission gate; the service layer assertions defend admin paths
  * against staff who hold the read tier but not write.
  */
+
+/**
+ * REVIEW-P2C29 Round 1 BLOCKING 1 fix — loyalty customer affiliation.
+ *
+ * `customer_person_id` on str_loyalty_transactions references
+ * platform.iam_person. The service layer accepts the id from the
+ * caller; before that id may be used for any balance read or ledger
+ * write the helper verifies the person has a current-school
+ * projection in one of:
+ *   - sis_students (via platform_students.person_id chain)
+ *   - sis_guardians (g.person_id)
+ *   - hr_employees (e.person_id)
+ *
+ * External customers (Cycle 28 `str_external_customers`) are NOT
+ * supported by loyalty in the current schema because the column is
+ * NOT NULL UUID referencing iam_person — external customers don't
+ * carry a person id. A future cycle that wants external loyalty
+ * would either widen the column to nullable + add a separate
+ * external_customer_id column or projection.
+ *
+ * Throws BadRequestException with the offending UUID so the operator
+ * can debug; admins do not bypass — every loyalty mutation must
+ * reference a current-school customer.
+ */
+export async function assertCustomerAffiliatedWithSchool(
+  tenantPrisma: TenantPrismaService,
+  customerPersonId: string,
+): Promise<void> {
+  const tenant = getCurrentTenant();
+  const rows = (await tenantPrisma.executeInTenantContext(async (client) => {
+    return client.$queryRawUnsafe(
+      'SELECT 1 AS ok WHERE EXISTS (' +
+        'SELECT 1 FROM sis_students s ' +
+        '  JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+        '  WHERE ps.person_id = $1::uuid AND s.school_id = $2::uuid' +
+        ') OR EXISTS (' +
+        'SELECT 1 FROM sis_student_guardians sg ' +
+        '  JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+        '  JOIN sis_students s ON s.id = sg.student_id ' +
+        '  WHERE g.person_id = $1::uuid AND s.school_id = $2::uuid' +
+        ') OR EXISTS (' +
+        'SELECT 1 FROM hr_employees e ' +
+        '  WHERE e.person_id = $1::uuid AND e.school_id = $2::uuid' +
+        ') LIMIT 1',
+      customerPersonId,
+      tenant.schoolId,
+    );
+  })) as Array<{ ok: number }>;
+  if (rows.length === 0) {
+    throw new BadRequestException(
+      `customerPersonId ${customerPersonId} does not match a student, guardian, or employee affiliated with this school`,
+    );
+  }
+}
 
 export function isUniqueViolation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;

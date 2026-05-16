@@ -372,22 +372,42 @@ export class VendorCatalogueService {
         p++;
       }
       if (sets.length === 0) {
+        // REVIEW-P2C29 Round 1 MAJOR 1 fix — no-op reload joins back
+        // through prc_vendor_catalogues.school_id so the read still
+        // confirms current-school ownership even though the locked
+        // SELECT above already proved it. Defence-in-depth + grep
+        // consistency with the Phase 2 style guide.
         const rows = (await tx.$queryRawUnsafe(
-          `SELECT id::text AS id, catalogue_id::text AS catalogue_id, item_code, description,
-                  unit, negotiated_price, category, min_order_qty, lead_time_days, is_active
-             FROM prc_catalogue_items WHERE id = $1::uuid`,
+          `SELECT i.id::text AS id, i.catalogue_id::text AS catalogue_id, i.item_code,
+                  i.description, i.unit, i.negotiated_price, i.category,
+                  i.min_order_qty, i.lead_time_days, i.is_active
+             FROM prc_catalogue_items i
+             JOIN prc_vendor_catalogues c ON c.id = i.catalogue_id
+            WHERE i.id = $1::uuid AND c.school_id = $2::uuid`,
           itemId,
+          tenant.schoolId,
         )) as ItemRow[];
         return this.itemToDto(rows[0]!);
       }
       sets.push(`updated_at = now()`);
-      args.push(itemId);
+      // REVIEW-P2C29 Round 1 MAJOR 1 fix — carry the school predicate
+      // into the UPDATE itself via FROM prc_vendor_catalogues. The
+      // pre-lock already verified ownership; this is the consistent
+      // mutation-statement-school-scope pattern the Phase 2 style
+      // guide enforces across the codebase.
+      args.push(itemId, tenant.schoolId);
+      const idArg = p++;
+      const schoolArg = p;
       const rows = (await tx.$queryRawUnsafe(
-        `UPDATE prc_catalogue_items
+        `UPDATE prc_catalogue_items i
             SET ${sets.join(', ')}
-          WHERE id = $${p}::uuid
-          RETURNING id::text AS id, catalogue_id::text AS catalogue_id, item_code, description,
-                    unit, negotiated_price, category, min_order_qty, lead_time_days, is_active`,
+           FROM prc_vendor_catalogues c
+          WHERE c.id = i.catalogue_id
+            AND i.id = $${idArg}::uuid
+            AND c.school_id = $${schoolArg}::uuid
+          RETURNING i.id::text AS id, i.catalogue_id::text AS catalogue_id, i.item_code,
+                    i.description, i.unit, i.negotiated_price, i.category,
+                    i.min_order_qty, i.lead_time_days, i.is_active`,
         ...args,
       )) as ItemRow[];
       return this.itemToDto(rows[0]!);
