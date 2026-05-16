@@ -8,6 +8,7 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { GroupService } from '../groups/group.service';
+import { assertGroupInCurrentSchool } from './access';
 import {
   CreateGroupMeetupDto,
   MeetupResponseDto,
@@ -56,6 +57,9 @@ export class GroupMeetupService {
     input: CreateGroupMeetupDto,
     actor: ResolvedActor,
   ): Promise<MeetupResponseDto> {
+    // REVIEW-P2C28 BLOCKING 2 — school admins must still validate the
+    // target group belongs to the current school.
+    await assertGroupInCurrentSchool(this.tenantPrisma, groupId);
     if (!actor.isSchoolAdmin) {
       await this.groups.assertCanManageGroup(groupId, actor);
     }

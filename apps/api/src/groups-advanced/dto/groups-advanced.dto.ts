@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsBoolean,
@@ -31,9 +32,10 @@ export class CreatePollDto {
   @IsIn(['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'RANKED'])
   pollType!: PollType;
 
-  @ApiProperty({ type: [String], minItems: 2 })
+  @ApiProperty({ type: [String], minItems: 2, maxItems: 50 })
   @IsArray()
   @ArrayMinSize(2)
+  @ArrayMaxSize(50)
   @IsString({ each: true })
   options!: string[];
 
@@ -56,6 +58,7 @@ export class VotePollDto {
   })
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(50)
   @IsUUID('all', { each: true })
   optionIds!: string[];
 }

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -8,6 +9,7 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { GroupService } from '../groups/group.service';
+import { assertGroupInCurrentSchool } from './access';
 import {
   CreatePollDto,
   PollOptionResponseDto,
@@ -39,17 +41,27 @@ interface OptionRow {
 }
 
 /**
- * PollService — P2-28a Step 2.
+ * PollService — P2-28a Step 2 (REVIEW-P2C28 Round 1 BLOCKING 1 + 2
+ * fixes applied).
  *
  * Group-scoped poll lifecycle with atomic vote_count INCREMENT and
  * structural anonymity. Anonymous polls write grp_poll_votes with
  * voter_id=NULL — the schema-side partial UNIQUE INDEX
  * (poll_id, voter_id, option_id) WHERE voter_id IS NOT NULL prevents
- * identified double-vote on non-anonymous polls, and the service-layer
- * pre-check prevents double-vote on anonymous polls by tracking the
- * voter via the polls_voted_in lookup (joins grp_poll_votes ON
- * poll_id + voter_id for non-anonymous, and tracks via a service-side
- * exclusion read for anonymous).
+ * identified double-vote on non-anonymous polls. For anonymous
+ * polls, the new grp_poll_voter_checks PK(poll_id, voter_id) records
+ * WHO voted without linking to HOW — repeat anonymous ballots are
+ * rejected at the schema layer. The voter-check row is inserted in
+ * the same tx as the vote rows, so a duplicate hits the PK and
+ * rolls the entire vote back without ever revealing how the user
+ * voted.
+ *
+ * School-admin override paths still validate the target group
+ * belongs to the current school via assertGroupInCurrentSchool —
+ * the GroupService.assertCanManageGroup short-circuits for school
+ * admins without checking the group is in the current school, so
+ * a School A admin with a School B group UUID would otherwise
+ * succeed.
  *
  * Group OWNER / ADMIN can create polls. Active members can vote.
  * Group OWNER / ADMIN / school admin can close.
@@ -93,9 +105,13 @@ export class PollService {
   }
 
   private async hasVoted(pollId: string, voterAccountId: string): Promise<boolean> {
+    // REVIEW-P2C28 BLOCKING 1 — voter-check is the canonical
+    // "has this user voted?" signal for both anonymous and
+    // identified polls. The grp_poll_votes table no longer needs
+    // a voter_id read on the anonymous path.
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        'SELECT 1 AS ok FROM grp_poll_votes WHERE poll_id = $1::uuid AND voter_id = $2::uuid LIMIT 1',
+        'SELECT 1 AS ok FROM grp_poll_voter_checks WHERE poll_id = $1::uuid AND voter_id = $2::uuid LIMIT 1',
         pollId,
         voterAccountId,
       );
@@ -104,33 +120,24 @@ export class PollService {
   }
 
   /**
-   * Anonymous-poll dedup: the votes table has voter_id=NULL for
-   * anonymous polls, so we cannot SELECT WHERE voter_id=$x. Instead
-   * we keep a sentinel "voter_check" row mirroring the ext_elections
-   * structural-anonymity pattern. Schema-level dedup is enforced via
-   * the same row but anonymity is structural — votes carry no
-   * voter_id.
-   *
-   * For Step 2 we accept a single-tx INSERT-then-rollback-on-conflict
-   * pattern: insert a sentinel grp_poll_votes row with voter_id NULL,
-   * but BEFORE that scan an in-memory dedup via a separate
-   * grp_poll_anon_voters check. Since we did not ship a separate
-   * voter_check table for polls (the plan does NOT call for one),
-   * anonymous-poll double-vote prevention is structurally impossible
-   * without compromising anonymity — the UI hides the vote button
-   * after submission, but the service accepts repeat anonymous votes
-   * by design.
+   * Create a new poll. REVIEW-P2C28 Round 1 BLOCKING 2 — school
+   * admins still validate the target group belongs to the current
+   * school before the INSERT lands.
    */
   async create(
     groupId: string,
     input: CreatePollDto,
     actor: ResolvedActor,
   ): Promise<PollResponseDto> {
+    await assertGroupInCurrentSchool(this.tenantPrisma, groupId);
     if (!actor.isSchoolAdmin) {
       await this.groups.assertCanManageGroup(groupId, actor);
     }
     if (input.options.length < 2) {
       throw new BadRequestException('A poll must have at least 2 options');
+    }
+    if (input.options.length > 50) {
+      throw new BadRequestException('A poll cannot have more than 50 options');
     }
     if (input.closesAt && new Date(input.closesAt).getTime() <= Date.now()) {
       throw new BadRequestException('closesAt must be in the future');
@@ -183,7 +190,7 @@ export class PollService {
     await this.assertGroupMember(poll.group_id, actor);
     const options = await this.loadOptions(pollId);
     const totalVotes = options.reduce((s, o) => s + o.vote_count, 0);
-    const hasVoted = poll.allows_anonymous ? false : await this.hasVoted(pollId, actor.accountId);
+    const hasVoted = await this.hasVoted(pollId, actor.accountId);
     return this.rowToDto(poll, options, totalVotes, hasVoted);
   }
 
@@ -194,12 +201,23 @@ export class PollService {
    *   - poll has not passed closes_at
    *   - all optionIds belong to this poll
    *   - SINGLE_CHOICE has exactly 1 entry
-   *   - non-anonymous polls: caller has not already voted
+   *   - voter has not already voted (anonymous OR identified) — the
+   *     grp_poll_voter_checks PK(poll_id, voter_id) is the schema-
+   *     side dedup gate, the service inserts the voter-check row
+   *     first inside the tx so a duplicate vote rolls everything
+   *     back without revealing how the user voted on the anonymous
+   *     poll.
    *
    * RANKED polls record each option with a sequential rank based on
    * the order optionIds was supplied.
+   *
+   * REVIEW-P2C28 Round 1 BLOCKING 1 fix — anonymous repeat-vote
+   * prevention via the new grp_poll_voter_checks PK.
    */
   async vote(pollId: string, input: VotePollDto, actor: ResolvedActor): Promise<PollResponseDto> {
+    if (input.optionIds.length > 50) {
+      throw new BadRequestException('Cannot submit more than 50 options in one ballot');
+    }
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const pollRows = (await tx.$queryRawUnsafe(
         'SELECT id::text AS id, group_id::text AS group_id, poll_type, allows_anonymous, status, closes_at ' +
@@ -237,20 +255,28 @@ export class PollService {
         throw new BadRequestException('One or more optionIds do not belong to this poll');
       }
 
-      // Non-anonymous dedup check
-      if (!poll.allows_anonymous) {
-        const existing = (await tx.$queryRawUnsafe(
-          'SELECT 1 AS ok FROM grp_poll_votes WHERE poll_id = $1::uuid AND voter_id = $2::uuid LIMIT 1',
-          pollId,
-          actor.accountId,
-        )) as Array<{ ok: number }>;
-        if (existing.length > 0) {
-          throw new BadRequestException('You have already voted on this poll');
-        }
-      }
-
       // Group membership check (only members can vote)
       await this.assertGroupMember(poll.group_id, actor);
+
+      // REVIEW-P2C28 BLOCKING 1 — voter-check INSERT first. PK on
+      // (poll_id, voter_id) makes repeat ballots impossible for both
+      // identified and anonymous polls. Anonymous polls still write
+      // grp_poll_votes with voter_id=NULL — structural anonymity is
+      // preserved on the votes table.
+      try {
+        await tx.$executeRawUnsafe(
+          'INSERT INTO grp_poll_voter_checks (poll_id, voter_id, voted_at) ' +
+            'VALUES ($1::uuid, $2::uuid, now())',
+          pollId,
+          actor.accountId,
+        );
+      } catch (e) {
+        const err = e as { code?: string; meta?: { code?: string } };
+        if (err.code === '23505' || err.meta?.code === '23505') {
+          throw new ConflictException('You have already voted on this poll');
+        }
+        throw e;
+      }
 
       // Atomic INSERT votes + INCREMENT vote_count
       for (let i = 0; i < input.optionIds.length; i++) {

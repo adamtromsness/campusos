@@ -5,8 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
+import { getCurrentTenant } from '../tenant/tenant.context';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { assertAcademicYearInCurrentSchool, assertActivityInCurrentSchool } from './access';
 import {
   ClubBudgetResponseDto,
   ClubBudgetTransactionResponseDto,
@@ -103,14 +105,20 @@ export class ClubBudgetService {
 
   async list(actor: ResolvedActor, activityId?: string): Promise<ClubBudgetResponseDto[]> {
     this.assertStaff(actor);
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       if (activityId) {
         return client.$queryRawUnsafe(
-          SELECT_BUDGET + 'WHERE b.activity_id = $1::uuid ORDER BY y.start_date DESC',
+          SELECT_BUDGET +
+            'WHERE a.school_id = $1::uuid AND b.activity_id = $2::uuid ORDER BY y.start_date DESC',
+          tenant.schoolId,
           activityId,
         );
       }
-      return client.$queryRawUnsafe(SELECT_BUDGET + 'ORDER BY y.start_date DESC, a.name ASC');
+      return client.$queryRawUnsafe(
+        SELECT_BUDGET + 'WHERE a.school_id = $1::uuid ORDER BY y.start_date DESC, a.name ASC',
+        tenant.schoolId,
+      );
     })) as BudgetRow[];
     return rows.map((r) => this.rowToDto(r));
   }
@@ -121,8 +129,13 @@ export class ClubBudgetService {
   }
 
   private async loadOrFail(id: string): Promise<ClubBudgetResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_BUDGET + 'WHERE b.id = $1::uuid', id);
+      return client.$queryRawUnsafe(
+        SELECT_BUDGET + 'WHERE b.id = $1::uuid AND a.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     })) as BudgetRow[];
     if (rows.length === 0) throw new NotFoundException('Budget not found');
     return this.rowToDto(rows[0]!);
@@ -133,6 +146,10 @@ export class ClubBudgetService {
     if (!actor.isSchoolAdmin && actor.personType !== 'STAFF') {
       throw new ForbiddenException('Only admins or staff can create budgets');
     }
+    // REVIEW-P2C28 Round 1 BLOCKING 4 — validate activity and academic
+    // year belong to the current school before INSERT.
+    await assertActivityInCurrentSchool(this.tenantPrisma, input.activityId);
+    await assertAcademicYearInCurrentSchool(this.tenantPrisma, input.academicYearId);
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -164,6 +181,9 @@ export class ClubBudgetService {
     actor: ResolvedActor,
   ): Promise<ClubBudgetResponseDto> {
     this.assertStaff(actor);
+    // REVIEW-P2C28 Round 1 BLOCKING 4 — load through school-scoped
+    // SELECT before patching; cross-school UUIDs collapse to 404.
+    await this.loadOrFail(id);
     const sets: string[] = [];
     const params: unknown[] = [];
     if (input.allocatedAmount !== undefined) {
@@ -176,13 +196,20 @@ export class ClubBudgetService {
     }
     if (sets.length === 0) return this.loadOrFail(id);
     sets.push('updated_at = now()');
+    const tenant = getCurrentTenant();
     params.push(id);
+    const idIdx = params.length;
+    params.push(tenant.schoolId);
+    const schoolIdx = params.length;
     const result = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$executeRawUnsafe(
-        'UPDATE ext_club_budgets SET ' +
+        'UPDATE ext_club_budgets b SET ' +
           sets.join(', ') +
-          ' WHERE id = $' +
-          params.length +
+          ' FROM ext_activities a WHERE b.activity_id = a.id ' +
+          ' AND b.id = $' +
+          idIdx +
+          '::uuid AND a.school_id = $' +
+          schoolIdx +
           '::uuid',
         ...params,
       );
@@ -204,12 +231,19 @@ export class ClubBudgetService {
     actor: ResolvedActor,
   ): Promise<ClubBudgetTransactionResponseDto> {
     this.assertStaff(actor);
+    const tenant = getCurrentTenant();
     let txId = '';
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C28 Round 1 BLOCKING 4 — lock through ext_activities
+      // so cross-school budget UUIDs collapse to 404 before the
+      // UPDATE on spent_amount fires.
       const rows = (await tx.$queryRawUnsafe(
-        'SELECT id::text AS id, allocated_amount::text AS allocated_amount, spent_amount::text AS spent_amount ' +
-          'FROM ext_club_budgets WHERE id = $1::uuid FOR UPDATE',
+        'SELECT b.id::text AS id, b.allocated_amount::text AS allocated_amount, ' +
+          'b.spent_amount::text AS spent_amount ' +
+          'FROM ext_club_budgets b JOIN ext_activities a ON a.id = b.activity_id ' +
+          'WHERE b.id = $1::uuid AND a.school_id = $2::uuid FOR UPDATE OF b',
         budgetId,
+        tenant.schoolId,
       )) as Array<{ id: string; allocated_amount: string; spent_amount: string }>;
       if (rows.length === 0) throw new NotFoundException('Budget not found');
       const current = rows[0]!;
@@ -281,6 +315,9 @@ export class ClubBudgetService {
     actor: ResolvedActor,
   ): Promise<ClubBudgetTransactionResponseDto[]> {
     this.assertStaff(actor);
+    // REVIEW-P2C28 BLOCKING 4 — validate parent budget belongs to
+    // current school before listing transactions.
+    await this.loadOrFail(budgetId);
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_TX + 'WHERE t.budget_id = $1::uuid ORDER BY t.created_at DESC',

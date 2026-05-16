@@ -5,8 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
+import { getCurrentTenant } from '../tenant/tenant.context';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
+import { assertMeetingInCurrentSchool } from './access';
 import {
   AIMinutesActionItemDto,
   AIMinutesKeyDecisionDto,
@@ -32,6 +34,13 @@ interface MinutesRow {
   updated_at: Date;
 }
 
+/**
+ * REVIEW-P2C28 Round 1 BLOCKING 5 — every read and write JOINs
+ * through mtg_meetings.school_id so cross-school AI minutes UUIDs
+ * collapse to 404. The mtg_ai_minutes row has no school_id column
+ * — the parent meeting is the authoritative source of school
+ * ownership.
+ */
 const SELECT_MINUTES =
   'SELECT m.id::text AS id, m.meeting_id::text AS meeting_id, ' +
   'm.raw_transcript, m.ai_summary, m.ai_action_items, m.ai_key_decisions, ' +
@@ -41,7 +50,8 @@ const SELECT_MINUTES =
   '  JOIN platform.iam_person ip ON ip.id = e.person_id ' +
   '  WHERE e.id = m.approved_by) AS approved_by_name, ' +
   'm.approved_at, m.created_at, m.updated_at ' +
-  'FROM mtg_ai_minutes m ';
+  'FROM mtg_ai_minutes m ' +
+  'JOIN mtg_meetings mtg ON mtg.id = m.meeting_id ';
 
 function parseJsonArray(raw: unknown): unknown[] {
   if (!raw) return [];
@@ -101,8 +111,13 @@ export class AIMinutesService {
     actor: ResolvedActor,
   ): Promise<AIMinutesResponseDto | null> {
     this.assertStaff(actor);
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_MINUTES + 'WHERE m.meeting_id = $1::uuid', meetingId);
+      return client.$queryRawUnsafe(
+        SELECT_MINUTES + 'WHERE m.meeting_id = $1::uuid AND mtg.school_id = $2::uuid',
+        meetingId,
+        tenant.schoolId,
+      );
     })) as MinutesRow[];
     if (rows.length === 0) return null;
     return this.rowToDto(rows[0]!);
@@ -114,8 +129,13 @@ export class AIMinutesService {
   }
 
   private async loadOrFail(id: string): Promise<AIMinutesResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_MINUTES + 'WHERE m.id = $1::uuid', id);
+      return client.$queryRawUnsafe(
+        SELECT_MINUTES + 'WHERE m.id = $1::uuid AND mtg.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     })) as MinutesRow[];
     if (rows.length === 0) throw new NotFoundException('AI minutes not found');
     return this.rowToDto(rows[0]!);
@@ -143,6 +163,9 @@ export class AIMinutesService {
       // The controller gate is already mtg-001:admin, but defence-
       // in-depth at the service layer keeps the contract explicit.
     }
+    // REVIEW-P2C28 Round 1 BLOCKING 5 — parent meeting must belong to
+    // the current school before INSERT.
+    await assertMeetingInCurrentSchool(this.tenantPrisma, meetingId);
     const transcript = input.rawTranscript ?? '';
     const summary = this.stubSummary(transcript);
     const actionItems = this.stubActionItems(transcript);
@@ -197,18 +220,21 @@ export class AIMinutesService {
     const summary = this.stubSummary(transcript);
     const actionItems = this.stubActionItems(transcript);
     const keyDecisions = this.stubKeyDecisions(transcript);
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
-        'UPDATE mtg_ai_minutes SET raw_transcript = $1, ai_summary = $2, ' +
+        'UPDATE mtg_ai_minutes m SET raw_transcript = $1, ai_summary = $2, ' +
           'ai_action_items = $3::jsonb, ai_key_decisions = $4::jsonb, ' +
           "model_version = $5, generated_at = now(), status = 'GENERATED', updated_at = now() " +
-          'WHERE id = $6::uuid',
+          'FROM mtg_meetings mtg WHERE mtg.id = m.meeting_id ' +
+          'AND m.id = $6::uuid AND mtg.school_id = $7::uuid',
         transcript || null,
         summary,
         JSON.stringify(actionItems),
         JSON.stringify(keyDecisions),
         'STUB_VERSION_0',
         id,
+        tenant.schoolId,
       );
     });
     return this.loadOrFail(id);
@@ -231,12 +257,15 @@ export class AIMinutesService {
         'Only GENERATED minutes can be APPROVED. Current status: ' + current.status,
       );
     }
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
-        "UPDATE mtg_ai_minutes SET status = 'APPROVED', approved_by = $1::uuid, approved_at = now(), updated_at = now() " +
-          'WHERE id = $2::uuid',
+        "UPDATE mtg_ai_minutes m SET status = 'APPROVED', approved_by = $1::uuid, approved_at = now(), updated_at = now() " +
+          'FROM mtg_meetings mtg WHERE mtg.id = m.meeting_id ' +
+          'AND m.id = $2::uuid AND mtg.school_id = $3::uuid',
         actor.employeeId,
         id,
+        tenant.schoolId,
       );
     });
     return this.loadOrFail(id);

@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { getCurrentTenant } from '../tenant/tenant.context';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
@@ -45,10 +46,22 @@ export class CaseloadDashboardService {
     academicYearId?: string,
   ): Promise<CaseloadDashboardResponseDto> {
     this.assertStaff(actor);
+    const tenant = getCurrentTenant();
 
+    // REVIEW-P2C28 Round 1 BLOCKING 8 — filter through both svc
+    // _caseloads.school_id and hr_employees.school_id so cross-school
+    // counsellor caseload counts cannot leak into a School A dashboard.
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      const yearFilter = academicYearId ? 'AND c.academic_year_id = $1::uuid ' : '';
-      const yearArg = academicYearId ? [academicYearId] : [];
+      const args: unknown[] = [tenant.schoolId];
+      const filters: string[] = [
+        "c.status = 'ACTIVE'",
+        'c.school_id = $1::uuid',
+        'e.school_id = $1::uuid',
+      ];
+      if (academicYearId) {
+        args.push(academicYearId);
+        filters.push('c.academic_year_id = $' + args.length + '::uuid');
+      }
 
       const sql =
         'SELECT e.id::text AS counsellor_id, ' +
@@ -59,12 +72,12 @@ export class CaseloadDashboardService {
         'FROM svc_caseloads c ' +
         'JOIN hr_employees e ON e.id = c.counselor_id ' +
         'JOIN platform.iam_person ip ON ip.id = e.person_id ' +
-        "WHERE c.status = 'ACTIVE' " +
-        yearFilter +
-        'GROUP BY e.id, ip.first_name, ip.last_name, c.academic_year_id ' +
+        'WHERE ' +
+        filters.join(' AND ') +
+        ' GROUP BY e.id, ip.first_name, ip.last_name, c.academic_year_id ' +
         'ORDER BY active_count DESC';
 
-      return client.$queryRawUnsafe(sql, ...yearArg);
+      return client.$queryRawUnsafe(sql, ...args);
     })) as CapacityRow[];
 
     const dashboardRows: CaseloadCapacityRowDto[] = rows.map((r) => {

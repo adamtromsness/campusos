@@ -3,6 +3,7 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { GroupService } from '../groups/group.service';
+import { assertGroupInCurrentSchool } from './access';
 import { GroupAnalyticsRowDto, RecomputeAnalyticsDto } from './dto/groups-advanced.dto';
 
 interface AnalyticsRow {
@@ -38,6 +39,9 @@ export class GroupAnalyticsService {
   ) {}
 
   async listForGroup(groupId: string, actor: ResolvedActor): Promise<GroupAnalyticsRowDto[]> {
+    // REVIEW-P2C28 BLOCKING 2 — school admins must still validate the
+    // target group belongs to the current school.
+    await assertGroupInCurrentSchool(this.tenantPrisma, groupId);
     if (!actor.isSchoolAdmin) {
       await this.groups.assertCanManageGroup(groupId, actor);
     }
@@ -62,6 +66,11 @@ export class GroupAnalyticsService {
     input: RecomputeAnalyticsDto,
     actor: ResolvedActor,
   ): Promise<GroupAnalyticsRowDto> {
+    // REVIEW-P2C28 BLOCKING 2 — even school admins must validate the
+    // target group belongs to the current school. The recompute path
+    // aggregates membership and engagement counts — cross-school
+    // recompute could pollute another school's analytics.
+    await assertGroupInCurrentSchool(this.tenantPrisma, groupId);
     if (!actor.isSchoolAdmin) {
       await this.groups.assertCanManageGroup(groupId, actor);
     }

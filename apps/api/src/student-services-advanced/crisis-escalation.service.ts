@@ -7,8 +7,9 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
+import { deterministicReferralEscalatedEventId } from './event-ids';
 import { EscalateReferralResponseDto } from './dto/student-services-advanced.dto';
 
 /**
@@ -39,7 +40,7 @@ import { EscalateReferralResponseDto } from './dto/student-services-advanced.dto
 export class CrisisEscalationService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   private assertStaff(actor: ResolvedActor): void {
@@ -101,22 +102,31 @@ export class CrisisEscalationService {
         actor.accountId,
         'Escalated to URGENT — CRISIS handling',
       );
-    });
 
-    void this.kafka.emit({
-      topic: 'svc.referral.escalated',
-      key: referralId,
-      sourceModule: 'student-services-advanced',
-      payload: {
-        referralId,
-        sourceRefId: referralId,
-        schoolId: tenant.schoolId,
-        previousPriority,
-        newPriority: 'URGENT',
-        escalatedBy: actor.accountId,
-        escalatedAt,
-        activityId,
-      },
+      // REVIEW-P2C28 Round 1 BLOCKING 6 — durable outbox enqueue inside
+      // the same tenant tx as the priority/status flip + ESCALATED
+      // audit row. Deterministic event_id from (referralId, activityId)
+      // so a retry through the OutboxPublisherWorker produces the same
+      // envelope and the downstream consumer's idempotency catches
+      // redelivery cleanly. Best-effort Kafka.emit() after-commit was
+      // dropping events on broker outage — a safety-critical CRISIS
+      // event cannot be silently lost.
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'svc.referral.escalated',
+        key: referralId,
+        sourceModule: 'student-services-advanced',
+        eventId: deterministicReferralEscalatedEventId(referralId, activityId),
+        payload: {
+          referralId,
+          sourceRefId: referralId,
+          schoolId: tenant.schoolId,
+          previousPriority,
+          newPriority: 'URGENT',
+          escalatedBy: actor.accountId,
+          escalatedAt,
+          activityId,
+        },
+      });
     });
 
     return {

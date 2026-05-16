@@ -177,11 +177,16 @@ export class MtssTeamMeetingService {
         ? RECOMMENDATION_TO_OUTCOME[input.tierChangeRecommended]
         : null;
 
+    const tenant = getCurrentTenant();
     try {
       await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        // REVIEW-P2C28 Round 1 BLOCKING 8 — student must belong to
+        // the current school. Cross-school student UUIDs would
+        // otherwise land on a School A MTSS agenda.
         const studentRows = (await tx.$queryRawUnsafe(
-          'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid LIMIT 1',
+          'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
           input.studentId,
+          tenant.schoolId,
         )) as Array<{ ok: number }>;
         if (studentRows.length === 0) {
           throw new BadRequestException('studentId does not match a student in this school');
@@ -208,8 +213,17 @@ export class MtssTeamMeetingService {
       throw err;
     }
 
+    // REVIEW-P2C28 BLOCKING 8 — reload JOINs parent meeting for
+    // school predicate (defence-in-depth on top of the FOR UPDATE
+    // school-scope on the parent).
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_DISCUSSION + 'WHERE d.id = $1::uuid', id);
+      return client.$queryRawUnsafe(
+        SELECT_DISCUSSION +
+          'JOIN svc_mtss_team_meetings m2 ON m2.id = d.team_meeting_id ' +
+          'WHERE d.id = $1::uuid AND m2.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     })) as DiscussionRow[];
     return this.discussionToDto(rows[0]!);
   }

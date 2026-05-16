@@ -2,7 +2,63 @@
 
 **Plan:** [`docs/campusos-p2c28-community-bundle.html`](docs/campusos-p2c28-community-bundle.html)
 **Review:** [`P2C28-REVIEW-NOTES.md`](P2C28-REVIEW-NOTES.md)
-**Status:** All 3 sub-cycles shipped — awaiting peer review verdict.
+**Status:** Round 1 fix commit — 8 BLOCKING + 2 actionable MAJOR + CodeQL loop-bound landed; awaiting Round 2 verdict.
+
+## REVIEW-P2C28 Round 1 fix log
+
+Round 1 against `57b9089` returned FAIL with 8 BLOCKING + 3 MAJOR + 2 CodeQL findings. The fix commit lands all 8 BLOCKING + the 2 actionable MAJORs + the loop-bound-injection findings. The third MAJOR (AI minutes approval breadth) is an acknowledged role-distribution observation; the service already refuses STUDENT and GUARDIAN at the layer below the controller gate, so it does not require a code change — it joins the role-split punch list.
+
+| Round 1 finding | Fix |
+| --- | --- |
+| **BLOCKING 1** Anonymous polls allow repeat voting | New tenant migration `174_grp_poll_voter_checks.sql` adds `grp_poll_voter_checks` with PK(poll_id, voter_id). `PollService.vote` inserts the voter-check row inside the same tenant tx as the vote rows; PK collision raises 23505 → `ConflictException`. `hasVoted` now reads voter-check for both anonymous and identified polls. Structural anonymity preserved — `grp_poll_votes.voter_id` is still NULL for anonymous polls. |
+| **BLOCKING 2** Group advanced create paths bypass school validation for school admins | New `apps/api/src/groups-advanced/access.ts` exports `assertGroupInCurrentSchool(groupId)`. Every create / recompute / patch / delete path in PollService, ResourceLibraryService, InvitationService, MeetupService, GroupAnalyticsService now calls it before the school-admin short-circuit. School A admin with a School B group UUID → 403. |
+| **BLOCKING 3** Invitation invited-user validation not current-school scoped | `assertAccountInCurrentSchool` replaces the prior tenant-only check. Validates the invited `platform_users.id` has a `sis_students`, `sis_student_guardians`, or `hr_employees` projection in **this** school (not just the tenant). |
+| **BLOCKING 4** Club budgets not school-scoped | New `apps/api/src/clubs-meetings-advanced/access.ts` exports `assertActivityInCurrentSchool` + `assertAcademicYearInCurrentSchool`. `ClubBudgetService.list / loadOrFail / create / patch / recordTransaction / listTransactions` all filter through `ext_activities.school_id` or call the helpers before INSERT. The FOR UPDATE lock JOINs `ext_activities` and predicates `school_id = $tenant`. |
+| **BLOCKING 5** AI minutes not school-scoped | `SELECT_MINUTES` joins `mtg_meetings mtg ON mtg.id = m.meeting_id`. `getForMeeting / loadOrFail / generate / regenerate / approve` all filter `mtg.school_id = $tenant`. `generate` adds `assertMeetingInCurrentSchool` before INSERT. UPDATE statements rewritten to join the parent meeting. |
+| **BLOCKING 6** `svc.referral.escalated` best-effort after commit | `CrisisEscalationService` constructor swaps `KafkaProducerService` for `OutboxService`. The emit moves inside the tenant tx via `OutboxService.enqueueInTx` with a deterministic event_id from new `event-ids.ts::deterministicReferralEscalatedEventId(referralId, activityId)`. Retry produces the same envelope; the downstream consumer's idempotency catches redelivery. |
+| **BLOCKING 7** Agency referrals not school-scoped | `SELECT_BASE` already joined `svc_referrals r`; `list / loadOrFail / create / patch` all now carry `r.school_id = $tenant` predicate. `patch` UPDATE rewritten to `UPDATE svc_agency_referrals ar SET … FROM svc_referrals r WHERE r.id = ar.referral_id AND ar.id = $N AND r.school_id = $M`. |
+| **BLOCKING 8** Student services dashboard / MTSS / longitudinal not school-scoped | `CaseloadDashboardService.getDashboard` filters both `c.school_id = $tenant` AND `e.school_id = $tenant`. `MtssTeamMeetingService.recordDiscussion` validates `sis_students.school_id` and the post-INSERT reload joins the parent meeting on school. `WellbeingLongitudinalService.getForStudent` joins `sis_students` and filters `l.school_id = $tenant`; `listForYear` adds `l.school_id`; `computeTrend` prior-year lookup adds school predicate. |
+| **MAJOR 1** Resource library patch/delete/version reload paths | `assertGroupInCurrentSchool` added to `patch / remove / addVersion` after the parent group is looked up. |
+| **MAJOR 2** Meeting template participant IDs not validated against current school | `createMeetingFromTemplate` validates supplied `participantIds` via current-school sis_students/sis_student_guardians/hr_employees projections before insert. Missing accounts surface in a single 400 listing the offending UUIDs. Loop bounded at 200 (CodeQL js/loop-bound-injection). |
+| **MAJOR 3** AI minutes approval breadth | Acknowledged — service refuses STUDENT / GUARDIAN at the service layer. Role-distribution audit before pilot joins the broader role-split punch list. |
+| **CodeQL js/loop-bound-injection** Poll options + optionIds | DTOs gain `@ArrayMaxSize(50)`. `PollService.create` + `vote` add explicit length-cap checks. Meeting template participantIds capped at 200. |
+
+### Files touched in the fix commit
+
+| File | Change |
+| --- | --- |
+| `packages/database/prisma/tenant/migrations/174_grp_poll_voter_checks.sql` | New — `grp_poll_voter_checks` PK(poll_id, voter_id). |
+| `apps/api/src/groups-advanced/access.ts` | New — `assertGroupInCurrentSchool` + `assertAccountInCurrentSchool`. |
+| `apps/api/src/groups-advanced/poll.service.ts` | Voter-check + school-scope + ArrayMaxSize. |
+| `apps/api/src/groups-advanced/invitation.service.ts` | School-scope + current-school invited-user. |
+| `apps/api/src/groups-advanced/resource-library.service.ts` | School-scope on create + patch + remove + addVersion. |
+| `apps/api/src/groups-advanced/meetup.service.ts` | School-scope on create. |
+| `apps/api/src/groups-advanced/analytics.service.ts` | School-scope on list + recompute. |
+| `apps/api/src/groups-advanced/dto/groups-advanced.dto.ts` | `@ArrayMaxSize(50)` on options + optionIds. |
+| `apps/api/src/clubs-meetings-advanced/access.ts` | New — `assertActivityInCurrentSchool` + `assertAcademicYearInCurrentSchool` + `assertMeetingInCurrentSchool`. |
+| `apps/api/src/clubs-meetings-advanced/club-budget.service.ts` | School-scope on every list/load/create/patch/recordTransaction/listTransactions path. |
+| `apps/api/src/clubs-meetings-advanced/ai-minutes.service.ts` | School-scope JOIN through `mtg_meetings` on every path. |
+| `apps/api/src/clubs-meetings-advanced/meeting-template.service.ts` | ParticipantIds validated against current-school projections; loop capped. |
+| `apps/api/src/student-services-advanced/event-ids.ts` | New — `deterministicReferralEscalatedEventId(referralId, activityId)`. |
+| `apps/api/src/student-services-advanced/crisis-escalation.service.ts` | OutboxService inside tenant tx; deterministic event_id. |
+| `apps/api/src/student-services-advanced/agency-referral.service.ts` | School-scope on every list / load / create / patch path. |
+| `apps/api/src/student-services-advanced/caseload-dashboard.service.ts` | School-scope on caseloads + hr_employees. |
+| `apps/api/src/student-services-advanced/mtss-team-meeting.service.ts` | Student school-scope; post-insert reload joins meeting school. |
+| `apps/api/src/student-services-advanced/wellbeing-longitudinal.service.ts` | School-scope on every read + prior-year trend lookup. |
+
+### CI parity at the fix commit
+
+- API build clean
+- Prettier format clean
+- log-schema lint 996 files clean
+- Migration `174_grp_poll_voter_checks.sql` splitter audit clean on second attempt (one stray `;` inside the block-comment header caught + rewritten with an em-dash before successful provision)
+- Both `tenant_demo` and `tenant_test` provisioned cleanly
+
+### Non-blocking items carried to Phase 2 / pre-pilot
+
+- MAJOR 3 from Round 1 (AI minutes approval breadth) is a role-distribution observation. Joins the broader role-split punch list — counsellor / nurse / lead-counsellor / librarian role split that prior cycles also accept as pre-pilot work.
+- Regression tests covering the 8 BLOCKING fixes are deferred to the broader Wave 2 Phase 2 test-hardening cycle. The schema change in migration 174 is the structural backstop for BLOCKING 1; cross-school predicates in service code are the structural backstop for BLOCKINGs 2–5 + 7–8; the deterministic event_id + outbox pattern is the structural backstop for BLOCKING 6.
+
 
 ## Cycle scope
 

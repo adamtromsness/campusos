@@ -8,6 +8,7 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { GroupService } from '../groups/group.service';
+import { assertAccountInCurrentSchool, assertGroupInCurrentSchool } from './access';
 import {
   CreateInvitationDto,
   InvitationResponseDto,
@@ -76,35 +77,21 @@ export class InvitationService {
     );
   }
 
-  /**
-   * REVIEW-CYCLE18 pattern — validate the invited platform_users.id
-   * has a current-tenant projection.
-   */
-  private async assertAccountInCurrentTenant(accountId: string): Promise<void> {
-    const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
-        'SELECT 1 AS ok FROM platform.platform_users pu WHERE pu.id = $1::uuid AND (' +
-          'EXISTS (SELECT 1 FROM sis_students s JOIN platform.platform_students ps ON ps.id = s.platform_student_id WHERE ps.person_id = pu.person_id) ' +
-          'OR EXISTS (SELECT 1 FROM sis_guardians g WHERE g.person_id = pu.person_id) ' +
-          'OR EXISTS (SELECT 1 FROM hr_employees e WHERE e.person_id = pu.person_id) ' +
-          ') LIMIT 1',
-        accountId,
-      );
-    })) as Array<{ ok: number }>;
-    if (rows.length === 0) {
-      throw new BadRequestException('Invited account does not belong to a user in this school');
-    }
-  }
-
   async create(
     groupId: string,
     input: CreateInvitationDto,
     actor: ResolvedActor,
   ): Promise<InvitationResponseDto> {
+    // REVIEW-P2C28 Round 1 BLOCKING 2 — even school admins must
+    // validate the target group belongs to the current school.
+    await assertGroupInCurrentSchool(this.tenantPrisma, groupId);
     if (!actor.isSchoolAdmin) {
       await this.groups.assertCanManageGroup(groupId, actor);
     }
-    await this.assertAccountInCurrentTenant(input.invitedUserId);
+    // REVIEW-P2C28 Round 1 BLOCKING 3 — invited user must have a
+    // projection in the current SCHOOL (not just somewhere in the
+    // tenant schema).
+    await assertAccountInCurrentSchool(this.tenantPrisma, input.invitedUserId);
 
     const id = generateId();
     try {

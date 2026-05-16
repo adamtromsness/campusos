@@ -255,6 +255,41 @@ export class MeetingTemplateService {
     const agenda = template.defaultAgenda ?? [];
     const duration = input.durationMinutes ?? template.defaultDurationMinutes;
 
+    // REVIEW-P2C28 MAJOR 2 — validate supplied participantIds belong
+    // to users with a projection in the current school. Cap loop at
+    // 200 to bound iteration cost (CodeQL js/loop-bound-injection).
+    if (input.participantIds && input.participantIds.length > 200) {
+      throw new BadRequestException(
+        'participantIds list too large — max 200 participants per meeting',
+      );
+    }
+    if (input.participantIds && input.participantIds.length > 0) {
+      const verified = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+        return client.$queryRawUnsafe(
+          'SELECT pu.id::text AS account_id FROM platform.platform_users pu ' +
+            'WHERE pu.id = ANY($1::uuid[]) AND (' +
+            'EXISTS (SELECT 1 FROM sis_students s ' +
+            '  JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
+            '  WHERE ps.person_id = pu.person_id AND s.school_id = $2::uuid) ' +
+            'OR EXISTS (SELECT 1 FROM sis_student_guardians sg ' +
+            '  JOIN sis_students s ON s.id = sg.student_id ' +
+            '  JOIN sis_guardians g ON g.id = sg.guardian_id ' +
+            '  WHERE g.person_id = pu.person_id AND s.school_id = $2::uuid) ' +
+            'OR EXISTS (SELECT 1 FROM hr_employees e ' +
+            '  WHERE e.person_id = pu.person_id AND e.school_id = $2::uuid))',
+          input.participantIds,
+          tenant.schoolId,
+        );
+      })) as Array<{ account_id: string }>;
+      const verifiedSet = new Set(verified.map((r) => r.account_id));
+      const missing = input.participantIds.filter((id) => !verifiedSet.has(id));
+      if (missing.length > 0) {
+        throw new BadRequestException(
+          'participantIds contain accounts not affiliated with this school: ' + missing.join(', '),
+        );
+      }
+    }
+
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
         'INSERT INTO mtg_meetings ' +

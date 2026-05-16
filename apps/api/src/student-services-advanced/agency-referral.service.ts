@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
+import { getCurrentTenant } from '../tenant/tenant.context';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
@@ -83,8 +84,12 @@ export class AgencyReferralService {
     actor: ResolvedActor,
   ): Promise<AgencyReferralResponseDto[]> {
     this.assertStaff(actor);
-    const filters: string[] = [];
-    const args: unknown[] = [];
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C28 Round 1 BLOCKING 7 — every read joins through
+    // svc_referrals.school_id so cross-school agency-referral UUIDs
+    // collapse to empty results.
+    const args: unknown[] = [tenant.schoolId];
+    const filters: string[] = ['r.school_id = $1::uuid'];
     if (query.referralId) {
       args.push(query.referralId);
       filters.push('ar.referral_id = $' + args.length + '::uuid');
@@ -93,7 +98,7 @@ export class AgencyReferralService {
       args.push(query.status);
       filters.push('ar.status = $' + args.length);
     }
-    const where = filters.length ? 'WHERE ' + filters.join(' AND ') + ' ' : '';
+    const where = 'WHERE ' + filters.join(' AND ') + ' ';
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_BASE + where + 'ORDER BY ar.referral_date DESC',
@@ -109,8 +114,13 @@ export class AgencyReferralService {
   }
 
   private async loadOrFail(id: string): Promise<AgencyReferralResponseDto> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_BASE + 'WHERE ar.id = $1::uuid', id);
+      return client.$queryRawUnsafe(
+        SELECT_BASE + 'WHERE ar.id = $1::uuid AND r.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     })) as AgencyRow[];
     if (rows.length === 0) throw new NotFoundException('Agency referral not found');
     return this.rowToDto(rows[0]!);
@@ -121,11 +131,16 @@ export class AgencyReferralService {
     actor: ResolvedActor,
   ): Promise<AgencyReferralResponseDto> {
     this.assertStaff(actor);
+    const tenant = getCurrentTenant();
     const id = generateId();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C28 Round 1 BLOCKING 7 — parent referral must belong
+      // to the current school. Cross-school create would otherwise
+      // succeed by UUID.
       const parent = (await tx.$queryRawUnsafe(
-        'SELECT 1 AS ok FROM svc_referrals WHERE id = $1::uuid',
+        'SELECT 1 AS ok FROM svc_referrals WHERE id = $1::uuid AND school_id = $2::uuid',
         input.referralId,
+        tenant.schoolId,
       )) as Array<{ ok: number }>;
       if (parent.length === 0) {
         throw new BadRequestException('referralId does not match a parent referral in this school');
@@ -162,12 +177,17 @@ export class AgencyReferralService {
     actor: ResolvedActor,
   ): Promise<AgencyReferralResponseDto> {
     this.assertStaff(actor);
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // REVIEW-P2C28 Round 1 BLOCKING 7 — lock JOIN through
+      // svc_referrals.school_id so cross-school agency-referral
+      // UUIDs collapse to 404 before the UPDATE fires.
       const current = (await tx.$queryRawUnsafe(
         'SELECT ar.status, ar.consent_obtained FROM svc_agency_referrals ar ' +
           'JOIN svc_referrals r ON r.id = ar.referral_id ' +
-          'WHERE ar.id = $1::uuid FOR UPDATE OF ar',
+          'WHERE ar.id = $1::uuid AND r.school_id = $2::uuid FOR UPDATE OF ar',
         id,
+        tenant.schoolId,
       )) as Array<{ status: string; consent_obtained: boolean }>;
       if (current.length === 0) throw new NotFoundException('Agency referral not found');
       const currentStatus = current[0]!.status as AgencyReferralStatus;
@@ -211,11 +231,20 @@ export class AgencyReferralService {
       if (sets.length === 0) return;
       sets.push('updated_at = now()');
       params.push(id);
+      const idIdx = params.length;
+      params.push(tenant.schoolId);
+      const schoolIdx = params.length;
+      // REVIEW-P2C28 BLOCKING 7 — UPDATE joins parent referral for
+      // school predicate even though the lock already validated it
+      // (defence-in-depth).
       await tx.$executeRawUnsafe(
-        'UPDATE svc_agency_referrals SET ' +
+        'UPDATE svc_agency_referrals ar SET ' +
           sets.join(', ') +
-          ' WHERE id = $' +
-          params.length +
+          ' FROM svc_referrals r WHERE r.id = ar.referral_id ' +
+          ' AND ar.id = $' +
+          idIdx +
+          '::uuid AND r.school_id = $' +
+          schoolIdx +
           '::uuid',
         ...params,
       );

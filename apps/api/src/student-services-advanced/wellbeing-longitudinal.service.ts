@@ -77,10 +77,18 @@ export class WellbeingLongitudinalService {
     actor: ResolvedActor,
   ): Promise<StudentLongitudinalResponseDto> {
     this.assertStaff(actor);
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C28 Round 1 BLOCKING 8 — read filters l.school_id +
+    // joins through sis_students.school_id for defence in depth so
+    // cross-school student UUIDs collapse to empty results.
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        SELECT_BASE + 'WHERE l.student_id = $1::uuid ORDER BY l.academic_year DESC, l.domain ASC',
+        SELECT_BASE +
+          'JOIN sis_students st ON st.id = l.student_id ' +
+          'WHERE l.student_id = $1::uuid AND l.school_id = $2::uuid AND st.school_id = $2::uuid ' +
+          'ORDER BY l.academic_year DESC, l.domain ASC',
         studentId,
+        tenant.schoolId,
       );
     })) as LongitudinalRow[];
 
@@ -97,11 +105,15 @@ export class WellbeingLongitudinalService {
     actor: ResolvedActor,
   ): Promise<WellbeingLongitudinalRowDto[]> {
     this.assertStaff(actor);
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C28 Round 1 BLOCKING 8 — school predicate required.
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_BASE +
-          'WHERE l.academic_year = $1 ORDER BY l.domain ASC, l.avg_score ASC NULLS LAST',
+          'WHERE l.academic_year = $1 AND l.school_id = $2::uuid ' +
+          'ORDER BY l.domain ASC, l.avg_score ASC NULLS LAST',
         academicYear,
+        tenant.schoolId,
       );
     })) as LongitudinalRow[];
     return rows.map((r) => this.rowToDto(r));
@@ -190,12 +202,19 @@ export class WellbeingLongitudinalService {
   ): Promise<WellbeingTrend> {
     if (!currentAvg) return 'STABLE';
     const priorYear = String(Number(academicYear.slice(0, 4)) - 1) + academicYear.slice(4);
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C28 Round 1 BLOCKING 8 — prior-year trend lookup must
+    // carry the school predicate too. Cross-school prior-year rows
+    // (e.g. a student who transferred in) should not contribute to
+    // the trend calculation.
     const prior = (await tx.$queryRawUnsafe(
       'SELECT avg_score::text AS avg_score FROM svc_wellbeing_longitudinal ' +
-        'WHERE student_id = $1::uuid AND domain = $2 AND academic_year = $3 LIMIT 1',
+        'WHERE student_id = $1::uuid AND domain = $2 AND academic_year = $3 ' +
+        'AND school_id = $4::uuid LIMIT 1',
       studentId,
       domain,
       priorYear,
+      tenant.schoolId,
     )) as Array<{ avg_score: string | null }>;
     if (prior.length === 0 || !prior[0]!.avg_score) return 'STABLE';
     const currentNum = Number(currentAvg);

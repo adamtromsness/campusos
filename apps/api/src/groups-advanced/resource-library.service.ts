@@ -8,6 +8,7 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { GroupService } from '../groups/group.service';
+import { assertGroupInCurrentSchool } from './access';
 import {
   CreateResourceDto,
   CreateResourceVersionDto,
@@ -72,6 +73,9 @@ export class ResourceLibraryService {
     input: CreateResourceDto,
     actor: ResolvedActor,
   ): Promise<ResourceResponseDto> {
+    // REVIEW-P2C28 Round 1 BLOCKING 2 — school admins still validate
+    // the target group belongs to the current school before insert.
+    await assertGroupInCurrentSchool(this.tenantPrisma, groupId);
     await this.assertGroupMember(groupId, actor);
     if (!input.s3Key && !input.url) {
       throw new BadRequestException('Either s3Key or url must be provided');
@@ -135,6 +139,8 @@ export class ResourceLibraryService {
       );
     })) as Array<{ group_id: string; uploaded_by: string }>;
     if (rows.length === 0) throw new NotFoundException('Resource not found');
+    // REVIEW-P2C28 MAJOR 1 — parent group must belong to current school
+    await assertGroupInCurrentSchool(this.tenantPrisma, rows[0]!.group_id);
     if (!actor.isSchoolAdmin && rows[0]!.uploaded_by !== actor.accountId) {
       await this.groups.assertCanManageGroup(rows[0]!.group_id, actor);
     }
@@ -178,6 +184,8 @@ export class ResourceLibraryService {
       );
     })) as Array<{ group_id: string; uploaded_by: string }>;
     if (rows.length === 0) throw new NotFoundException('Resource not found');
+    // REVIEW-P2C28 MAJOR 1 — parent group must belong to current school
+    await assertGroupInCurrentSchool(this.tenantPrisma, rows[0]!.group_id);
     if (!actor.isSchoolAdmin && rows[0]!.uploaded_by !== actor.accountId) {
       await this.groups.assertCanManageGroup(rows[0]!.group_id, actor);
     }
@@ -215,6 +223,8 @@ export class ResourceLibraryService {
         resourceId,
       )) as Array<{ id: string; group_id: string; version: number }>;
       if (lockRows.length === 0) throw new NotFoundException('Resource not found');
+      // REVIEW-P2C28 MAJOR 1 — parent group must belong to current school
+      await assertGroupInCurrentSchool(this.tenantPrisma, lockRows[0]!.group_id);
       await this.assertGroupMember(lockRows[0]!.group_id, actor);
       newVersion = lockRows[0]!.version + 1;
 
