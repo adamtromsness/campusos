@@ -144,10 +144,11 @@ describe('S1 — Version IMMUTABLE contract', () => {
 
   it('checkpoint INSERTs a new row with trigger=MANUAL_CHECKPOINT (no UPDATE)', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('FROM pub_publications WHERE id') && call.sql.includes('school_id')) {
-        return [{ ok: 1 }];
-      }
-      if (call.sql.includes('FROM pub_publications WHERE id = $1::uuid LIMIT 1')) {
+      // composeSnapshot pub read — now JOINs via school_id
+      if (
+        call.sql.includes('FROM pub_publications WHERE id') &&
+        call.sql.includes('publication_type')
+      ) {
         return [
           {
             title: 'Test',
@@ -157,8 +158,15 @@ describe('S1 — Version IMMUTABLE contract', () => {
           },
         ];
       }
+      // assertCanAccess existence check
+      if (call.sql.includes('FROM pub_publications WHERE id') && call.sql.includes('school_id')) {
+        return [{ ok: 1 }];
+      }
       if (call.sql.includes('FROM pub_sections')) return [];
-      if (call.sql.includes('COALESCE(MAX(version_number)')) {
+      if (
+        call.sql.includes('COALESCE(MAX(v.version_number)') ||
+        call.sql.includes('COALESCE(MAX(version_number)')
+      ) {
         return [{ next: 6 }];
       }
       if (call.sql.includes('FROM pub_publication_versions v') && call.sql.includes('WHERE v.id')) {
@@ -201,11 +209,21 @@ describe('S1 — Version IMMUTABLE contract', () => {
 
   it('revert creates a NEW version (append-only) — never modifies an existing row', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('FROM pub_publications WHERE id')) return [{ ok: 1 }];
-      if (call.sql.includes('snapshot_content FROM pub_publication_versions')) {
+      if (call.sql.includes('FROM pub_publications WHERE id') && call.sql.includes('school_id')) {
+        return [{ ok: 1 }];
+      }
+      if (
+        call.sql.includes('snapshot_content') &&
+        call.sql.includes('FROM pub_publication_versions')
+      ) {
         return [{ snapshot_content: { title: 'v1 snapshot' } }];
       }
-      if (call.sql.includes('COALESCE(MAX(version_number)')) return [{ next: 7 }];
+      if (
+        call.sql.includes('COALESCE(MAX(v.version_number)') ||
+        call.sql.includes('COALESCE(MAX(version_number)')
+      ) {
+        return [{ next: 7 }];
+      }
       if (call.sql.includes('FROM pub_publication_versions v') && call.sql.includes('WHERE v.id')) {
         return [
           {
@@ -269,8 +287,9 @@ describe('S1 — Version IMMUTABLE contract', () => {
 describe('S2 — Templates (is_system protection + from-template auto-populate)', () => {
   it('patch refuses is_system=true with 403', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('SELECT is_system FROM pub_templates')) {
-        return [{ is_system: true }];
+      // REVIEW-P2C26 R-B1 — lookup row now also returns school_id alongside is_system
+      if (call.sql.includes('FROM pub_templates') && call.sql.includes('FOR UPDATE')) {
+        return [{ is_system: true, school_id: null }];
       }
       return [];
     });
@@ -283,8 +302,8 @@ describe('S2 — Templates (is_system protection + from-template auto-populate)'
 
   it('delete refuses is_system=true with 403', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('SELECT is_system FROM pub_templates')) {
-        return [{ is_system: true }];
+      if (call.sql.includes('FROM pub_templates') && call.sql.includes('FOR UPDATE')) {
+        return [{ is_system: true, school_id: null }];
       }
       return [];
     });
@@ -302,7 +321,7 @@ describe('S2 — Templates (is_system protection + from-template auto-populate)'
       { title: 'Section C', sortOrder: 2, ownerHint: 'STUDENT' },
     ];
     const fake = makeFake((call) => {
-      if (call.sql.includes('FROM pub_templates WHERE id')) {
+      if (call.sql.includes('FROM pub_templates') && call.sql.includes('WHERE id')) {
         return [
           {
             publication_type: 'NEWSLETTER',
@@ -348,7 +367,7 @@ describe('S2 — Templates (is_system protection + from-template auto-populate)'
 
   it('createFromTemplate refuses inactive templates with 400', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('FROM pub_templates WHERE id')) {
+      if (call.sql.includes('FROM pub_templates') && call.sql.includes('WHERE id')) {
         return [
           {
             publication_type: 'NEWSLETTER',
@@ -490,7 +509,14 @@ describe('S4 — Analytics atomic counter increments', () => {
       if (call.sql.includes('UPDATE pub_publication_analytics')) {
         updateSql = call.sql;
       }
-      if (call.sql.includes('SELECT publication_id::text')) {
+      // Publication existence check (R-B3)
+      if (
+        call.sql.includes('SELECT 1 FROM pub_publications WHERE id') &&
+        call.sql.includes('school_id')
+      ) {
+        return [{ ok: 1 }];
+      }
+      if (call.sql.includes('SELECT a.publication_id::text')) {
         return [
           {
             publication_id: 'pub-1',
@@ -512,7 +538,7 @@ describe('S4 — Analytics atomic counter increments', () => {
     const redis = makeRedis(1);
     const svc = new PublicationAnalyticsService(fake.tenantPrisma as never, perm, redis);
     const result = await withTenant(() =>
-      svc.ingestEvent('pub-1', { eventType: 'VIEW', recipientAccountId: 'r-1' }),
+      svc.ingestEvent(ADMIN_ACTOR, 'pub-1', { eventType: 'VIEW', recipientAccountId: 'r-1' }),
     );
     expect(updateSql).toContain('total_views = total_views + 1');
     expect(updateSql).toContain('last_event_at = now()');
@@ -525,7 +551,13 @@ describe('S4 — Analytics atomic counter increments', () => {
       if (call.sql.includes('UPDATE pub_publication_analytics')) {
         updateSql = call.sql;
       }
-      if (call.sql.includes('SELECT publication_id::text')) {
+      if (
+        call.sql.includes('SELECT 1 FROM pub_publications WHERE id') &&
+        call.sql.includes('school_id')
+      ) {
+        return [{ ok: 1 }];
+      }
+      if (call.sql.includes('SELECT a.publication_id::text')) {
         return [
           {
             publication_id: 'pub-1',
@@ -546,16 +578,22 @@ describe('S4 — Analytics atomic counter increments', () => {
     const perm = makePermCheck(() => false);
     const redis = makeRedis();
     const svc = new PublicationAnalyticsService(fake.tenantPrisma as never, perm, redis);
-    await withTenant(() => svc.ingestEvent('pub-1', { eventType: 'LINK_CLICK' }));
+    await withTenant(() => svc.ingestEvent(ADMIN_ACTOR, 'pub-1', { eventType: 'LINK_CLICK' }));
     expect(updateSql).toContain('total_link_clicks = total_link_clicks + 1');
   });
 
   it('ingestEvent first event upserts a zero-valued analytics row', async () => {
     const fake = makeFake((call) => {
-      if (call.sql.includes('INSERT INTO pub_publication_analytics')) {
+      if (call.sql.includes('INSERT INTO pub_publication_analytics ')) {
         expect(call.sql).toContain('ON CONFLICT (publication_id) DO NOTHING');
       }
-      if (call.sql.includes('SELECT publication_id::text')) {
+      if (
+        call.sql.includes('SELECT 1 FROM pub_publications WHERE id') &&
+        call.sql.includes('school_id')
+      ) {
+        return [{ ok: 1 }];
+      }
+      if (call.sql.includes('SELECT a.publication_id::text')) {
         return [
           {
             publication_id: 'pub-1',
@@ -576,9 +614,9 @@ describe('S4 — Analytics atomic counter increments', () => {
     const perm = makePermCheck(() => false);
     const redis = makeRedis();
     const svc = new PublicationAnalyticsService(fake.tenantPrisma as never, perm, redis);
-    await withTenant(() => svc.ingestEvent('pub-1', { eventType: 'OPEN' }));
+    await withTenant(() => svc.ingestEvent(ADMIN_ACTOR, 'pub-1', { eventType: 'OPEN' }));
     const upserts = fake.capture.filter(
-      (c) => c.fn === 'e' && c.sql.includes('INSERT INTO pub_publication_analytics'),
+      (c) => c.fn === 'e' && c.sql.includes('INSERT INTO pub_publication_analytics '),
     );
     expect(upserts).toHaveLength(1);
   });
@@ -652,6 +690,13 @@ describe('S5 — Visibility matrix', () => {
 
   it('PublicationAnalyticsService.get refuses non-collaborator non-editor with 403', async () => {
     const fake = makeFake((call) => {
+      // Publication existence check (R-B3 — must pass before access check)
+      if (
+        call.sql.includes('SELECT 1 FROM pub_publications WHERE id') &&
+        call.sql.includes('school_id')
+      ) {
+        return [{ ok: 1 }];
+      }
       if (call.sql.includes('FROM pub_publication_collaborators')) return [];
       return [];
     });
@@ -691,7 +736,7 @@ describe('S6 — captureForStatusChange auto-hook contract', () => {
     let insertArgs: unknown[] = [];
     const txClient = {
       $queryRawUnsafe: async (sql: string, ..._args: unknown[]) => {
-        if (sql.includes('FROM pub_publications WHERE id')) {
+        if (sql.includes('FROM pub_publications WHERE id') && sql.includes('publication_type')) {
           return [
             {
               title: 'Test',
@@ -702,7 +747,7 @@ describe('S6 — captureForStatusChange auto-hook contract', () => {
           ];
         }
         if (sql.includes('FROM pub_sections')) return [];
-        if (sql.includes('COALESCE(MAX(version_number)')) return [{ next: 4 }];
+        if (sql.includes('COALESCE(MAX(v.version_number)')) return [{ next: 4 }];
         return [];
       },
       $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
@@ -717,11 +762,13 @@ describe('S6 — captureForStatusChange auto-hook contract', () => {
       { executeInTenantContext: async () => [] } as never,
       makePermCheck(() => true),
     );
-    await svc.captureForStatusChange(
-      txClient as never,
-      'pub-1',
-      'admin-account',
-      'Status: DRAFT → IN_REVIEW',
+    await withTenant(() =>
+      svc.captureForStatusChange(
+        txClient as never,
+        'pub-1',
+        'admin-account',
+        'Status: DRAFT → IN_REVIEW',
+      ),
     );
     expect(insertCount).toBe(1);
     // trigger goes in via $5 parameter; reverted_from_version is $6 (null);

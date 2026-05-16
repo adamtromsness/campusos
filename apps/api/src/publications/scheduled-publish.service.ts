@@ -84,9 +84,15 @@ export class ScheduledPublishService {
 
   async list(actor: ResolvedActor): Promise<ScheduledPublicationDto[]> {
     void actor;
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C26 R-B2 — JOIN through pub_publications.school_id so the
+      // list cannot leak a foreign-school schedule in a multi-school tenant.
       const rows = (await client.$queryRawUnsafe(
-        `${SELECT_SCHEDULED_BASE} ORDER BY s.scheduled_at ASC`,
+        `${SELECT_SCHEDULED_BASE}
+         JOIN pub_publications p ON p.id = s.publication_id AND p.school_id = $1::uuid
+         ORDER BY s.scheduled_at ASC`,
+        tenant.schoolId,
       )) as ScheduledRow[];
       return rows.map((r) => this.rowToDto(r));
     });
@@ -94,10 +100,16 @@ export class ScheduledPublishService {
 
   async getById(actor: ResolvedActor, id: string): Promise<ScheduledPublicationDto> {
     void actor;
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C26 R-B2 — forged schedule UUID for a foreign-school
+      // publication collapses to 404 (don't-leak-existence).
       const rows = (await client.$queryRawUnsafe(
-        `${SELECT_SCHEDULED_BASE} WHERE s.id = $1::uuid LIMIT 1`,
+        `${SELECT_SCHEDULED_BASE}
+         JOIN pub_publications p ON p.id = s.publication_id AND p.school_id = $2::uuid
+         WHERE s.id = $1::uuid LIMIT 1`,
         id,
+        tenant.schoolId,
       )) as ScheduledRow[];
       if (rows.length === 0) throw new NotFoundException('Schedule not found');
       return this.rowToDto(rows[0]!);
@@ -109,10 +121,15 @@ export class ScheduledPublishService {
     publicationId: string,
   ): Promise<ScheduledPublicationDto | null> {
     await this.assertCanAccess(actor, publicationId);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C26 R-B2 — defence-in-depth school predicate.
       const rows = (await client.$queryRawUnsafe(
-        `${SELECT_SCHEDULED_BASE} WHERE s.publication_id = $1::uuid AND s.status = 'SCHEDULED' LIMIT 1`,
+        `${SELECT_SCHEDULED_BASE}
+         JOIN pub_publications p ON p.id = s.publication_id AND p.school_id = $2::uuid
+         WHERE s.publication_id = $1::uuid AND s.status = 'SCHEDULED' LIMIT 1`,
         publicationId,
+        tenant.schoolId,
       )) as ScheduledRow[];
       return rows.length ? this.rowToDto(rows[0]!) : null;
     });
@@ -131,12 +148,15 @@ export class ScheduledPublishService {
     if (scheduledAt.getTime() <= Date.now()) {
       throw new BadRequestException('scheduledAt must be in the future.');
     }
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
-      // Validate parent publication status — only APPROVED or DRAFT can
-      // be scheduled (PUBLISHED is already out; ARCHIVED is terminal).
+      // REVIEW-P2C26 R-B2 — lock the publication FOR UPDATE with the
+      // school predicate so two concurrent schedules from different schools
+      // serialise on row locks and a forged publication id collapses to 404.
       const pubRows = (await client.$queryRawUnsafe(
-        'SELECT status FROM pub_publications WHERE id = $1::uuid FOR UPDATE',
+        'SELECT status FROM pub_publications WHERE id = $1::uuid AND school_id = $2::uuid FOR UPDATE',
         publicationId,
+        tenant.schoolId,
       )) as Array<{ status: string }>;
       if (pubRows.length === 0) throw new NotFoundException('Publication not found');
       const pubStatus = pubRows[0]!.status;
@@ -165,9 +185,13 @@ export class ScheduledPublishService {
         }
         throw err;
       }
+      // REVIEW-P2C26 R-B2 — reload via parent publication school predicate.
       const rows = (await client.$queryRawUnsafe(
-        `${SELECT_SCHEDULED_BASE} WHERE s.id = $1::uuid LIMIT 1`,
+        `${SELECT_SCHEDULED_BASE}
+         JOIN pub_publications p ON p.id = s.publication_id AND p.school_id = $2::uuid
+         WHERE s.id = $1::uuid LIMIT 1`,
         id,
+        tenant.schoolId,
       )) as ScheduledRow[];
       return this.rowToDto(rows[0]!);
     });
@@ -179,12 +203,19 @@ export class ScheduledPublishService {
     input: CancelScheduledPublicationDto,
   ): Promise<ScheduledPublicationDto> {
     await this.assertCanAccess(actor, publicationId);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      // REVIEW-P2C26 R-B2 — JOIN through the parent publication school
+      // predicate when looking up the schedule to lock. Belt-and-braces with
+      // the assertCanAccess gate.
       const rows = (await client.$queryRawUnsafe(
-        `SELECT id::text AS id, status FROM pub_scheduled_publications
-         WHERE publication_id = $1::uuid AND status = 'SCHEDULED'
-         FOR UPDATE LIMIT 1`,
+        `SELECT s.id::text AS id, s.status
+         FROM pub_scheduled_publications s
+         JOIN pub_publications p ON p.id = s.publication_id AND p.school_id = $2::uuid
+         WHERE s.publication_id = $1::uuid AND s.status = 'SCHEDULED'
+         FOR UPDATE OF s LIMIT 1`,
         publicationId,
+        tenant.schoolId,
       )) as Array<{ id: string; status: string }>;
       if (rows.length === 0) {
         throw new NotFoundException('No active schedule found for this publication.');
@@ -203,8 +234,11 @@ export class ScheduledPublishService {
         id,
       );
       const fresh = (await client.$queryRawUnsafe(
-        `${SELECT_SCHEDULED_BASE} WHERE s.id = $1::uuid LIMIT 1`,
+        `${SELECT_SCHEDULED_BASE}
+         JOIN pub_publications p ON p.id = s.publication_id AND p.school_id = $2::uuid
+         WHERE s.id = $1::uuid LIMIT 1`,
         id,
+        tenant.schoolId,
       )) as ScheduledRow[];
       return this.rowToDto(fresh[0]!);
     });
@@ -290,15 +324,25 @@ export class PublicationAnalyticsService {
   ) {}
 
   async get(actor: ResolvedActor, publicationId: string): Promise<PublicationAnalyticsDto> {
+    // REVIEW-P2C26 R-B3 — assertCanRead now validates publication ownership
+    // BEFORE the admin short-circuit so a school admin can't pull foreign-
+    // school analytics by guessing a publication UUID.
     await this.assertCanRead(actor, publicationId);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C26 R-B3 — JOIN through pub_publications.school_id so the
+      // analytics row read also enforces school ownership at the SQL layer.
       const rows = (await client.$queryRawUnsafe(
-        `SELECT publication_id::text AS publication_id,
-                total_recipients, total_views, unique_views, total_opens, total_link_clicks, total_bounces,
-                avg_read_time_seconds, last_event_at::text AS last_event_at,
-                last_updated_at::text AS last_updated_at
-         FROM pub_publication_analytics WHERE publication_id = $1::uuid LIMIT 1`,
+        `SELECT a.publication_id::text AS publication_id,
+                a.total_recipients, a.total_views, a.unique_views, a.total_opens,
+                a.total_link_clicks, a.total_bounces,
+                a.avg_read_time_seconds, a.last_event_at::text AS last_event_at,
+                a.last_updated_at::text AS last_updated_at
+         FROM pub_publication_analytics a
+         JOIN pub_publications p ON p.id = a.publication_id AND p.school_id = $2::uuid
+         WHERE a.publication_id = $1::uuid LIMIT 1`,
         publicationId,
+        tenant.schoolId,
       )) as AnalyticsRow[];
       if (rows.length === 0) {
         // Return a zero-valued shell — analytics rows are lazy.
@@ -314,32 +358,55 @@ export class PublicationAnalyticsService {
         'Only school admins may read the publication analytics summary.',
       );
     }
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C26 R-B3 — JOIN through pub_publications.school_id so the
+      // summary cannot leak foreign-school publication analytics in a
+      // multi-school tenant pool.
       const rows = (await client.$queryRawUnsafe(
-        `SELECT publication_id::text AS publication_id,
-                total_recipients, total_views, unique_views, total_opens, total_link_clicks, total_bounces,
-                avg_read_time_seconds, last_event_at::text AS last_event_at,
-                last_updated_at::text AS last_updated_at
-         FROM pub_publication_analytics ORDER BY last_event_at DESC NULLS LAST LIMIT 100`,
+        `SELECT a.publication_id::text AS publication_id,
+                a.total_recipients, a.total_views, a.unique_views, a.total_opens,
+                a.total_link_clicks, a.total_bounces,
+                a.avg_read_time_seconds, a.last_event_at::text AS last_event_at,
+                a.last_updated_at::text AS last_updated_at
+         FROM pub_publication_analytics a
+         JOIN pub_publications p ON p.id = a.publication_id AND p.school_id = $1::uuid
+         ORDER BY a.last_event_at DESC NULLS LAST LIMIT 100`,
+        tenant.schoolId,
       )) as AnalyticsRow[];
       return rows.map((r) => this.rowToDto(r));
     });
   }
 
-  // INGEST KEYSTONE — atomic counter increments per event type.
+  // INGEST KEYSTONE — atomic counter increments per event type, gated by
+  // (1) publication-belongs-to-current-school (R-B3) and (2) the
+  // contribution ledger for redelivery idempotency (R-B4).
   async ingestEvent(
+    actor: ResolvedActor,
     publicationId: string,
     input: IngestAnalyticsEventDto,
   ): Promise<PublicationAnalyticsDto> {
-    // Upsert a zero-valued row if missing — fixes the "first event arrives
-    // before any UI ever read /analytics" race.
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        `INSERT INTO pub_publication_analytics (publication_id) VALUES ($1::uuid)
-         ON CONFLICT (publication_id) DO NOTHING`,
+    void actor;
+    const tenant = getCurrentTenant();
+
+    // REVIEW-P2C26 R-B3 — publication MUST belong to the current school.
+    // Without this, any user with pub-001:read could submit analytics
+    // events for foreign-school publication UUIDs.
+    const exists = (await this.tenantPrisma.executeInTenantContext(async (client) =>
+      client.$queryRawUnsafe(
+        'SELECT 1 FROM pub_publications WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         publicationId,
-      );
-    });
+        tenant.schoolId,
+      ),
+    )) as Array<unknown>;
+    if (exists.length === 0) throw new NotFoundException('Publication not found');
+
+    // REVIEW-P2C26 R-B4 — manual-route ingestion (no source_event_id
+    // supplied) gets a fresh UUID so each call lands one ledger row.
+    // Future Cycle 14 fan-out consumer SHOULD pass the envelope event_id
+    // + its consumer group so redelivery short-circuits cleanly.
+    const consumerGroup = input.consumerGroup ?? 'MANUAL';
+    const sourceEventId = input.sourceEventId ?? generateId();
 
     let uniqueViewIncrement = 0;
     if (input.eventType === 'VIEW' && input.recipientAccountId) {
@@ -359,7 +426,49 @@ export class PublicationAnalyticsService {
     };
     const counterCol = colByEvent[input.eventType];
 
-    return this.tenantPrisma.executeInTenantContext(async (client) => {
+    // REVIEW-P2C26 R-B4 — wrap the ledger INSERT + the counter UPDATE in
+    // one tenant tx so a duplicate envelope rolls back the bump on 23505.
+    return this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      // Upsert a zero-valued analytics row first.
+      await client.$executeRawUnsafe(
+        `INSERT INTO pub_publication_analytics (publication_id) VALUES ($1::uuid)
+         ON CONFLICT (publication_id) DO NOTHING`,
+        publicationId,
+      );
+
+      // Ledger gate — on duplicate (23505) short-circuit and return the
+      // current analytics row without bumping any counters.
+      try {
+        await client.$executeRawUnsafe(
+          `INSERT INTO pub_publication_analytics_contributions
+             (id, consumer_group, source_event_id, publication_id, event_type)
+           VALUES ($1::uuid, $2, $3, $4::uuid, $5)`,
+          generateId(),
+          consumerGroup,
+          sourceEventId,
+          publicationId,
+          input.eventType,
+        );
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          // Redelivery — return the current analytics row unchanged.
+          const cur = (await client.$queryRawUnsafe(
+            `SELECT a.publication_id::text AS publication_id,
+                    a.total_recipients, a.total_views, a.unique_views, a.total_opens,
+                    a.total_link_clicks, a.total_bounces,
+                    a.avg_read_time_seconds, a.last_event_at::text AS last_event_at,
+                    a.last_updated_at::text AS last_updated_at
+             FROM pub_publication_analytics a
+             JOIN pub_publications p ON p.id = a.publication_id AND p.school_id = $2::uuid
+             WHERE a.publication_id = $1::uuid LIMIT 1`,
+            publicationId,
+            tenant.schoolId,
+          )) as AnalyticsRow[];
+          return cur.length > 0 ? this.rowToDto(cur[0]!) : this.zero(publicationId);
+        }
+        throw err;
+      }
+
       // Atomic counter bump via SQL-level math (no read-then-write race).
       // Plus running-avg update when readTimeSeconds is supplied on VIEW.
       const readTime = input.readTimeSeconds;
@@ -391,13 +500,18 @@ export class PublicationAnalyticsService {
           publicationId,
         );
       }
+      // REVIEW-P2C26 R-B3 — reload via parent publication school predicate.
       const rows = (await client.$queryRawUnsafe(
-        `SELECT publication_id::text AS publication_id,
-                total_recipients, total_views, unique_views, total_opens, total_link_clicks, total_bounces,
-                avg_read_time_seconds, last_event_at::text AS last_event_at,
-                last_updated_at::text AS last_updated_at
-         FROM pub_publication_analytics WHERE publication_id = $1::uuid LIMIT 1`,
+        `SELECT a.publication_id::text AS publication_id,
+                a.total_recipients, a.total_views, a.unique_views, a.total_opens,
+                a.total_link_clicks, a.total_bounces,
+                a.avg_read_time_seconds, a.last_event_at::text AS last_event_at,
+                a.last_updated_at::text AS last_updated_at
+         FROM pub_publication_analytics a
+         JOIN pub_publications p ON p.id = a.publication_id AND p.school_id = $2::uuid
+         WHERE a.publication_id = $1::uuid LIMIT 1`,
         publicationId,
+        tenant.schoolId,
       )) as AnalyticsRow[];
       return this.rowToDto(rows[0]!);
     });
@@ -405,9 +519,17 @@ export class PublicationAnalyticsService {
 
   // Setter for the total_recipients column — called by
   // DistributionService.distribute + ScheduledPublishWorker once the
-  // audience is materialised.
+  // audience is materialised. REVIEW-P2C26 R-B3 — carries school predicate
+  // through the parent publication to refuse cross-school writes.
   async setRecipientTotal(publicationId: string, total: number): Promise<void> {
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
+      const exists = (await client.$queryRawUnsafe(
+        'SELECT 1 FROM pub_publications WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        publicationId,
+        tenant.schoolId,
+      )) as Array<unknown>;
+      if (exists.length === 0) throw new NotFoundException('Publication not found');
       await client.$executeRawUnsafe(
         `INSERT INTO pub_publication_analytics (publication_id, total_recipients)
          VALUES ($1::uuid, $2)
@@ -420,6 +542,20 @@ export class PublicationAnalyticsService {
   }
 
   private async assertCanRead(actor: ResolvedActor, publicationId: string): Promise<void> {
+    // REVIEW-P2C26 R-B3 — validate publication ownership BEFORE the admin
+    // short-circuit. A school admin holds the gate-tier permission but the
+    // actual access boundary is the publication's school ownership. Without
+    // this check, a forged publication UUID would let an admin pull foreign-
+    // school analytics.
+    const tenant = getCurrentTenant();
+    const exists = (await this.tenantPrisma.executeInTenantContext(async (client) =>
+      client.$queryRawUnsafe(
+        'SELECT 1 FROM pub_publications WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        publicationId,
+        tenant.schoolId,
+      ),
+    )) as Array<unknown>;
+    if (exists.length === 0) throw new NotFoundException('Publication not found');
     if (actor.isSchoolAdmin) return;
     const ok = await canEditPublication(
       this.tenantPrisma,
@@ -549,49 +685,76 @@ export class ScheduledPublishWorker implements OnModuleInit, OnModuleDestroy {
 
   async tickForSchool(schemaName: string, schoolId: string, subdomain: string): Promise<number> {
     return this.tenantPrisma.executeInExplicitSchema(schemaName, async (client) => {
-      // Use a tenant transaction so the schedule flip + publication
-      // update + outbox enqueue commit atomically.
+      // REVIEW-P2C26 R-B2 — JOIN through pub_publications.school_id so the
+      // worker only sees schedules whose parent publication belongs to the
+      // tenant context this pass is running in. In a multi-school tenant
+      // pool, the School A pass cannot pick up School B's ripe schedules.
       const ripe = (await client.$queryRawUnsafe(
         `SELECT s.id::text AS id, s.publication_id::text AS publication_id
          FROM pub_scheduled_publications s
+         JOIN pub_publications p ON p.id = s.publication_id AND p.school_id = $1::uuid
          WHERE s.status = 'SCHEDULED' AND s.scheduled_at <= now()
          ORDER BY s.scheduled_at ASC
          LIMIT 50`,
+        schoolId,
       )) as Array<{ id: string; publication_id: string }>;
 
       let flipped = 0;
       for (const row of ripe) {
         try {
+          // REVIEW-P2C26 R-B2 — schedule UPDATE carries school predicate
+          // through the publication JOIN (defence-in-depth alongside the
+          // ripe query's school filter).
           await client.$executeRawUnsafe(
-            `UPDATE pub_scheduled_publications
+            `UPDATE pub_scheduled_publications s
              SET status = 'PUBLISHED', published_at = now(), updated_at = now()
-             WHERE id = $1::uuid AND status = 'SCHEDULED'`,
+             FROM pub_publications p
+             WHERE s.id = $1::uuid AND s.status = 'SCHEDULED'
+               AND p.id = s.publication_id AND p.school_id = $2::uuid`,
             row.id,
+            schoolId,
           );
-          // Look up publication context for the envelope.
+          // Look up publication context for the envelope. School predicate
+          // ensures foreign-school publication ids cannot leak into the
+          // envelope payload.
           const pubRows = (await client.$queryRawUnsafe(
             `SELECT title, status, series_id::text AS series_id
-             FROM pub_publications WHERE id = $1::uuid LIMIT 1`,
+             FROM pub_publications WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
             row.publication_id,
+            schoolId,
           )) as Array<{ title: string; status: string; series_id: string | null }>;
           if (pubRows.length === 0) continue;
           const pub = pubRows[0]!;
           if (pub.status !== 'PUBLISHED') {
+            // REVIEW-P2C26 R-B2 — publication UPDATE carries the school
+            // predicate so a forged publication id in the ripe row cannot
+            // flip a foreign-school publication to PUBLISHED.
             await client.$executeRawUnsafe(
               `UPDATE pub_publications
                SET status = 'PUBLISHED', published_at = now(), updated_at = now()
-               WHERE id = $1::uuid`,
+               WHERE id = $1::uuid AND school_id = $2::uuid`,
               row.publication_id,
+              schoolId,
             );
-            // Auto-create the final STATUS_CHANGE version via the worker
-            // path. We replicate the captureForStatusChange shape inline
-            // because we cannot inject VersionService into a worker
-            // without a circular module dependency.
-            const snapshotPayload = await this.composeSnapshot(client, row.publication_id);
-            const nextVersionRows = (await client.$queryRawUnsafe(
-              `SELECT COALESCE(MAX(version_number), 0) + 1 AS next
-               FROM pub_publication_versions WHERE publication_id = $1::uuid`,
+            // REVIEW-P2C26 R-M2 — auto-create the final STATUS_CHANGE
+            // version inline because the worker writes the publication
+            // UPDATE via raw SQL (not via PublicationService.patchStatus)
+            // to avoid pulling the request-path service + its setter-wired
+            // VersionService dependency into a background worker. Inline
+            // INSERT mirrors VersionService.captureInTx + carries the
+            // school predicate through the parent publication JOIN.
+            const snapshotPayload = await this.composeSnapshot(
+              client,
               row.publication_id,
+              schoolId,
+            );
+            const nextVersionRows = (await client.$queryRawUnsafe(
+              `SELECT COALESCE(MAX(v.version_number), 0) + 1 AS next
+               FROM pub_publication_versions v
+               JOIN pub_publications p ON p.id = v.publication_id AND p.school_id = $2::uuid
+               WHERE v.publication_id = $1::uuid`,
+              row.publication_id,
+              schoolId,
             )) as Array<{ next: number }>;
             const nextVersion = Number(nextVersionRows[0]!.next);
             await client.$executeRawUnsafe(
@@ -599,21 +762,27 @@ export class ScheduledPublishWorker implements OnModuleInit, OnModuleDestroy {
                  (id, publication_id, version_number, snapshot_content, trigger, version_note, created_by)
                VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, 'STATUS_CHANGE',
                        'Published by ScheduledPublishWorker',
-                       (SELECT scheduled_by FROM pub_scheduled_publications WHERE id = $5::uuid))`,
+                       (SELECT s.scheduled_by FROM pub_scheduled_publications s
+                          JOIN pub_publications p ON p.id = s.publication_id AND p.school_id = $6::uuid
+                          WHERE s.id = $5::uuid))`,
               generateId(),
               row.publication_id,
               nextVersion,
               JSON.stringify(snapshotPayload),
               row.id,
+              schoolId,
             );
           }
-          // Resolve audience by walking pub_distribution_recipients
-          // already populated by the editor's call to
-          // POST /publications/:id/distribute prior to scheduling. If
-          // none exists yet, just emit with totalRecipients=0.
+          // REVIEW-P2C26 R-B2 — recipient count via parent publication
+          // JOIN so the totalRecipients on the wire reflects only the
+          // current school's audience materialisation.
           const recipientRows = (await client.$queryRawUnsafe(
-            `SELECT COUNT(*)::int AS n FROM pub_distribution_recipients WHERE publication_id = $1::uuid`,
+            `SELECT COUNT(*)::int AS n
+             FROM pub_distribution_recipients r
+             JOIN pub_publications p ON p.id = r.publication_id AND p.school_id = $2::uuid
+             WHERE r.publication_id = $1::uuid`,
             row.publication_id,
+            schoolId,
           )) as Array<{ n: number }>;
           await this.outbox.enqueueInTx(client, {
             topic: 'pub.publication.published',
@@ -640,16 +809,20 @@ export class ScheduledPublishWorker implements OnModuleInit, OnModuleDestroy {
           this.logger.warn(
             `ScheduledPublishWorker failed for schedule ${row.id} in ${schemaName}: ${msg}`,
           );
-          // Bump attempts + record last_error — row stays SCHEDULED so the
-          // next poll retries.
+          // REVIEW-P2C26 R-B2 — failure-attempt UPDATE also carries the
+          // school predicate via the publication JOIN so a worker error
+          // doesn't bump a foreign-school schedule's attempts counter.
           await client.$executeRawUnsafe(
-            `UPDATE pub_scheduled_publications
-             SET worker_attempts = worker_attempts + 1,
+            `UPDATE pub_scheduled_publications s
+             SET worker_attempts = s.worker_attempts + 1,
                  last_error = $1,
                  updated_at = now()
-             WHERE id = $2::uuid AND status = 'SCHEDULED'`,
+             FROM pub_publications p
+             WHERE s.id = $2::uuid AND s.status = 'SCHEDULED'
+               AND p.id = s.publication_id AND p.school_id = $3::uuid`,
             msg.slice(0, 500),
             row.id,
+            schoolId,
           );
         }
       }
@@ -668,11 +841,16 @@ export class ScheduledPublishWorker implements OnModuleInit, OnModuleDestroy {
   private async composeSnapshot(
     client: { $queryRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown> },
     publicationId: string,
+    schoolId: string,
   ): Promise<Record<string, unknown>> {
+    // REVIEW-P2C26 R-B2 — worker snapshot composer carries the school
+    // predicate through both reads (matches the request-path
+    // VersionService.composeSnapshot shape).
     const pubs = (await client.$queryRawUnsafe(
       `SELECT title, status, publication_type, published_at::text AS published_at
-       FROM pub_publications WHERE id = $1::uuid LIMIT 1`,
+       FROM pub_publications WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
       publicationId,
+      schoolId,
     )) as Array<{
       title: string;
       status: string;
@@ -682,9 +860,12 @@ export class ScheduledPublishWorker implements OnModuleInit, OnModuleDestroy {
     if (pubs.length === 0) return {};
     const pub = pubs[0]!;
     const sections = (await client.$queryRawUnsafe(
-      `SELECT id::text AS id, title, body, section_type, sort_order, is_approved
-       FROM pub_sections WHERE publication_id = $1::uuid ORDER BY sort_order`,
+      `SELECT s.id::text AS id, s.title, s.body, s.section_type, s.sort_order, s.is_approved
+       FROM pub_sections s
+       JOIN pub_publications p ON p.id = s.publication_id AND p.school_id = $2::uuid
+       WHERE s.publication_id = $1::uuid ORDER BY s.sort_order`,
       publicationId,
+      schoolId,
     )) as Array<{
       id: string;
       title: string;

@@ -652,4 +652,24 @@ export class IngestAnalyticsEventDto {
   @IsInt()
   @Min(0)
   readTimeSeconds?: number;
+
+  // REVIEW-P2C26 R-B4 — when the future Cycle 14 NotificationConsumer
+  // fan-out (or the future email-pixel tracker) ingests an event, it must
+  // pass its own consumer-group + envelope event_id so the contribution
+  // ledger can short-circuit duplicate deliveries cleanly. Manual route
+  // ingestion (no source_event_id supplied) gets a fresh UUID per call so
+  // each manual call lands one ledger row.
+  @ApiPropertyOptional({
+    description: 'Kafka consumer group when consumer-driven; MANUAL otherwise',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  consumerGroup?: string;
+
+  @ApiPropertyOptional({ description: 'Originating envelope event id for redelivery dedup' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  sourceEventId?: string;
 }

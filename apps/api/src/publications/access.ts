@@ -92,6 +92,13 @@ export async function isStudentCollaborator(
 // REVIEW-CYCLE25 BLOCKING 4 — soft platform_users.id refs must point at a
 // person who has a current-tenant projection. Walks sis_students (via
 // platform_students.person_id) + sis_guardians.person_id + hr_employees.person_id.
+//
+// REVIEW-P2C26 R-M1 — each projection now carries a `school_id = tenant.schoolId`
+// predicate so a cross-school user in the same tenant schema cannot satisfy
+// the existence check. Without this, a School A staff editor could invite a
+// School B user as a publication collaborator (or pass their accountId to
+// any future feature that uses this helper) because both schools live in
+// the same tenant schema today.
 export async function assertAccountInCurrentTenant(
   tenantPrisma: TenantPrismaService,
   accountId: string,
@@ -100,16 +107,26 @@ export async function assertAccountInCurrentTenant(
   if (!accountId) {
     throw new BadRequestException(`${fieldName} is required`);
   }
+  const tenant = getCurrentTenant();
   const rows = (await tenantPrisma.executeInTenantContext(async (client) => {
     return client.$queryRawUnsafe(
       `SELECT 1 FROM platform.platform_users pu
        WHERE pu.id = $1::uuid AND (
-         EXISTS (SELECT 1 FROM sis_students s JOIN platform.platform_students ps ON ps.id = s.platform_student_id WHERE ps.person_id = pu.person_id)
-         OR EXISTS (SELECT 1 FROM sis_guardians g WHERE g.person_id = pu.person_id)
-         OR EXISTS (SELECT 1 FROM hr_employees e WHERE e.person_id = pu.person_id)
+         EXISTS (
+           SELECT 1 FROM sis_students s
+           JOIN platform.platform_students ps ON ps.id = s.platform_student_id
+           WHERE ps.person_id = pu.person_id AND s.school_id = $2::uuid
+         )
+         OR EXISTS (
+           SELECT 1 FROM sis_guardians g WHERE g.person_id = pu.person_id AND g.school_id = $2::uuid
+         )
+         OR EXISTS (
+           SELECT 1 FROM hr_employees e WHERE e.person_id = pu.person_id AND e.school_id = $2::uuid
+         )
        )
        LIMIT 1`,
       accountId,
+      tenant.schoolId,
     );
   })) as Array<unknown>;
   if (rows.length === 0) {

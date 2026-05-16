@@ -100,21 +100,35 @@ export class VersionService {
     publicationId: string,
   ): Promise<PublicationVersionDto[]> {
     await this.assertCanAccess(actor, publicationId);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C26 R-B5 — JOIN through pub_publications.school_id so the
+      // version trail cannot surface rows from a foreign-school publication
+      // even if a forged publication UUID slipped past assertCanAccess.
       const rows = (await client.$queryRawUnsafe(
-        `${SELECT_VERSION_BASE} WHERE v.publication_id = $1::uuid ORDER BY v.version_number DESC`,
+        `${SELECT_VERSION_BASE}
+         JOIN pub_publications p ON p.id = v.publication_id AND p.school_id = $2::uuid
+         WHERE v.publication_id = $1::uuid
+         ORDER BY v.version_number DESC`,
         publicationId,
+        tenant.schoolId,
       )) as VersionRow[];
       return rows.map((r) => this.rowToDto(r));
     });
   }
 
   async getById(actor: ResolvedActor, versionId: string): Promise<PublicationVersionDetailDto> {
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C26 R-B5 — JOIN through pub_publications.school_id so a
+      // version id forged from another school's publication collapses to 404
+      // before the access check fires.
       const rows = (await client.$queryRawUnsafe(
         `${SELECT_VERSION_BASE.replace('FROM pub_publication_versions v', ', v.snapshot_content FROM pub_publication_versions v')}
+         JOIN pub_publications p ON p.id = v.publication_id AND p.school_id = $2::uuid
          WHERE v.id = $1::uuid LIMIT 1`,
         versionId,
+        tenant.schoolId,
       )) as VersionWithSnapshotRow[];
       if (rows.length === 0) throw new NotFoundException('Version not found');
       const row = rows[0]!;
@@ -143,9 +157,15 @@ export class VersionService {
         null,
         actor.accountId,
       );
+      // REVIEW-P2C26 R-B5 — reload through the parent publication school
+      // predicate (defence-in-depth alongside captureInTx's own check).
+      const tenant = getCurrentTenant();
       const rows = (await client.$queryRawUnsafe(
-        `${SELECT_VERSION_BASE} WHERE v.id = $1::uuid LIMIT 1`,
+        `${SELECT_VERSION_BASE}
+         JOIN pub_publications p ON p.id = v.publication_id AND p.school_id = $2::uuid
+         WHERE v.id = $1::uuid LIMIT 1`,
         versionId,
+        tenant.schoolId,
       )) as VersionRow[];
       return this.rowToDto(rows[0]!);
     });
@@ -163,11 +183,19 @@ export class VersionService {
     input: RevertToVersionDto,
   ): Promise<PublicationVersionDto> {
     await this.assertCanAccess(actor, publicationId);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      // REVIEW-P2C26 R-B5 — target version lookup carries the school
+      // predicate through the parent publication JOIN so a forged version
+      // number cannot pull a foreign-school snapshot into this publication.
       const targetRows = (await client.$queryRawUnsafe(
-        'SELECT snapshot_content FROM pub_publication_versions WHERE publication_id = $1::uuid AND version_number = $2 LIMIT 1',
+        `SELECT v.snapshot_content
+         FROM pub_publication_versions v
+         JOIN pub_publications p ON p.id = v.publication_id AND p.school_id = $3::uuid
+         WHERE v.publication_id = $1::uuid AND v.version_number = $2 LIMIT 1`,
         publicationId,
         versionNumber,
+        tenant.schoolId,
       )) as Array<{ snapshot_content: Record<string, unknown> }>;
       if (targetRows.length === 0) {
         throw new NotFoundException(`Version ${versionNumber} not found for this publication.`);
@@ -195,9 +223,13 @@ export class VersionService {
         }
         throw err;
       }
+      // REVIEW-P2C26 R-B5 — reload via parent publication school predicate.
       const rows = (await client.$queryRawUnsafe(
-        `${SELECT_VERSION_BASE} WHERE v.id = $1::uuid LIMIT 1`,
+        `${SELECT_VERSION_BASE}
+         JOIN pub_publications p ON p.id = v.publication_id AND p.school_id = $2::uuid
+         WHERE v.id = $1::uuid LIMIT 1`,
         versionId,
+        tenant.schoolId,
       )) as VersionRow[];
       return this.rowToDto(rows[0]!);
     });
@@ -255,10 +287,16 @@ export class VersionService {
     client: Prisma.TransactionClient,
     publicationId: string,
   ): Promise<Record<string, unknown>> {
+    // REVIEW-P2C26 R-B5 — snapshot composer reads via the parent publication
+    // school predicate so a forged publication id (e.g. from a worker that
+    // skipped the canEditPublication gate) can't surface foreign-school
+    // content into a version snapshot.
+    const tenant = getCurrentTenant();
     const pubs = (await client.$queryRawUnsafe(
       `SELECT title, status, publication_type, published_at::text AS published_at
-       FROM pub_publications WHERE id = $1::uuid LIMIT 1`,
+       FROM pub_publications WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
       publicationId,
+      tenant.schoolId,
     )) as Array<{
       title: string;
       status: string;
@@ -268,9 +306,12 @@ export class VersionService {
     if (pubs.length === 0) throw new NotFoundException('Publication not found');
     const pub = pubs[0]!;
     const sections = (await client.$queryRawUnsafe(
-      `SELECT id::text AS id, title, body, section_type, sort_order, is_approved
-       FROM pub_sections WHERE publication_id = $1::uuid ORDER BY sort_order`,
+      `SELECT s.id::text AS id, s.title, s.body, s.section_type, s.sort_order, s.is_approved
+       FROM pub_sections s
+       JOIN pub_publications p ON p.id = s.publication_id AND p.school_id = $2::uuid
+       WHERE s.publication_id = $1::uuid ORDER BY s.sort_order`,
       publicationId,
+      tenant.schoolId,
     )) as Array<{
       id: string;
       title: string;
@@ -299,9 +340,17 @@ export class VersionService {
     client: Prisma.TransactionClient,
     publicationId: string,
   ): Promise<number> {
+    // REVIEW-P2C26 R-B5 — JOIN through pub_publications.school_id so the
+    // counter calculation can't surface MAX from a foreign-school publication
+    // even if a forged publication id slipped past the access check.
+    const tenant = getCurrentTenant();
     const rows = (await client.$queryRawUnsafe(
-      'SELECT COALESCE(MAX(version_number), 0) + 1 AS next FROM pub_publication_versions WHERE publication_id = $1::uuid',
+      `SELECT COALESCE(MAX(v.version_number), 0) + 1 AS next
+       FROM pub_publication_versions v
+       JOIN pub_publications p ON p.id = v.publication_id AND p.school_id = $2::uuid
+       WHERE v.publication_id = $1::uuid`,
       publicationId,
+      tenant.schoolId,
     )) as Array<{ next: number }>;
     return Number(rows[0]!.next);
   }
@@ -388,14 +437,21 @@ export class TemplateService {
 
   async list(actor: ResolvedActor, includeInactive = false): Promise<TemplateDto[]> {
     void actor;
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
-      // Every tenant sees system templates (school_id IS NULL) plus its own
-      // custom templates. The tenant scope is implicit because pub_templates
-      // is a tenant-scoped table — system rows are seeded into every tenant
-      // by the Step 7 platform seeder.
-      const where = includeInactive ? '' : ' WHERE t.is_active = true';
+      // REVIEW-P2C26 R-B1 — visibility = system templates (school_id IS NULL)
+      // OR templates owned by the current school. Without this filter, a
+      // multi-school tenant pool would leak School B custom templates to
+      // School A staff. The system rows are platform-seeded into every
+      // tenant so every school sees the same catalogue.
+      const params: unknown[] = [tenant.schoolId];
+      let where = ' WHERE (t.school_id IS NULL OR t.school_id = $1::uuid)';
+      if (!includeInactive) {
+        where += ' AND t.is_active = true';
+      }
       const rows = (await client.$queryRawUnsafe(
         `${SELECT_TEMPLATE_BASE}${where} ORDER BY t.is_system DESC, t.name`,
+        ...params,
       )) as TemplateRow[];
       return rows.map((r) => this.rowToDto(r));
     });
@@ -403,10 +459,17 @@ export class TemplateService {
 
   async getById(actor: ResolvedActor, id: string): Promise<TemplateDto> {
     void actor;
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-P2C26 R-B1 — read carries the same school predicate as list.
+      // A forged template UUID for a foreign-school custom template collapses
+      // to 404 here rather than leaking the row.
       const rows = (await client.$queryRawUnsafe(
-        `${SELECT_TEMPLATE_BASE} WHERE t.id = $1::uuid LIMIT 1`,
+        `${SELECT_TEMPLATE_BASE}
+         WHERE t.id = $1::uuid
+           AND (t.school_id IS NULL OR t.school_id = $2::uuid) LIMIT 1`,
         id,
+        tenant.schoolId,
       )) as TemplateRow[];
       if (rows.length === 0) throw new NotFoundException('Template not found');
       return this.rowToDto(rows[0]!);
@@ -450,16 +513,30 @@ export class TemplateService {
 
   async patch(actor: ResolvedActor, id: string, input: UpdateTemplateDto): Promise<TemplateDto> {
     await this.assertCanManage(actor);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      // REVIEW-P2C26 R-B1 — lookup AND lock the row via school predicate so
+      // a forged template UUID from another school can't be mutated. Reads
+      // school_id alongside is_system to keep both checks atomic.
       const cur = (await client.$queryRawUnsafe(
-        'SELECT is_system FROM pub_templates WHERE id = $1::uuid FOR UPDATE',
+        `SELECT is_system, school_id::text AS school_id
+         FROM pub_templates
+         WHERE id = $1::uuid
+           AND (school_id IS NULL OR school_id = $2::uuid)
+         FOR UPDATE`,
         id,
-      )) as Array<{ is_system: boolean }>;
+        tenant.schoolId,
+      )) as Array<{ is_system: boolean; school_id: string | null }>;
       if (cur.length === 0) throw new NotFoundException('Template not found');
       if (cur[0]!.is_system) {
         throw new ForbiddenException(
           'System templates are read-only. Only the platform seeder may modify them.',
         );
+      }
+      if (cur[0]!.school_id !== tenant.schoolId) {
+        // Defence-in-depth — the lookup predicate already enforces this, but
+        // school admins legitimately reach the patch path so we belt-and-brace.
+        throw new ForbiddenException('Template is not owned by this school.');
       }
       const sets: string[] = [];
       const params: unknown[] = [];
@@ -474,15 +551,19 @@ export class TemplateService {
       if (input.isActive !== undefined) push('is_active', input.isActive);
       if (sets.length === 0) {
         const fresh = (await client.$queryRawUnsafe(
-          `${SELECT_TEMPLATE_BASE} WHERE t.id = $1::uuid LIMIT 1`,
+          `${SELECT_TEMPLATE_BASE}
+           WHERE t.id = $1::uuid AND (t.school_id IS NULL OR t.school_id = $2::uuid) LIMIT 1`,
           id,
+          tenant.schoolId,
         )) as TemplateRow[];
         return this.rowToDto(fresh[0]!);
       }
       params.push(id);
+      params.push(tenant.schoolId);
       try {
         await client.$executeRawUnsafe(
-          `UPDATE pub_templates SET ${sets.join(', ')}, updated_at = now() WHERE id = $${params.length}::uuid`,
+          `UPDATE pub_templates SET ${sets.join(', ')}, updated_at = now()
+           WHERE id = $${params.length - 1}::uuid AND school_id = $${params.length}::uuid`,
           ...params,
         );
       } catch (err) {
@@ -492,8 +573,10 @@ export class TemplateService {
         throw err;
       }
       const fresh = (await client.$queryRawUnsafe(
-        `${SELECT_TEMPLATE_BASE} WHERE t.id = $1::uuid LIMIT 1`,
+        `${SELECT_TEMPLATE_BASE}
+         WHERE t.id = $1::uuid AND (t.school_id IS NULL OR t.school_id = $2::uuid) LIMIT 1`,
         id,
+        tenant.schoolId,
       )) as TemplateRow[];
       return this.rowToDto(fresh[0]!);
     });
@@ -501,18 +584,32 @@ export class TemplateService {
 
   async remove(actor: ResolvedActor, id: string): Promise<void> {
     await this.assertCanManage(actor);
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      // REVIEW-P2C26 R-B1 — same school-scope contract as patch.
       const cur = (await client.$queryRawUnsafe(
-        'SELECT is_system FROM pub_templates WHERE id = $1::uuid FOR UPDATE',
+        `SELECT is_system, school_id::text AS school_id
+         FROM pub_templates
+         WHERE id = $1::uuid
+           AND (school_id IS NULL OR school_id = $2::uuid)
+         FOR UPDATE`,
         id,
-      )) as Array<{ is_system: boolean }>;
+        tenant.schoolId,
+      )) as Array<{ is_system: boolean; school_id: string | null }>;
       if (cur.length === 0) throw new NotFoundException('Template not found');
       if (cur[0]!.is_system) {
         throw new ForbiddenException(
           'System templates are read-only. Only the platform seeder may modify them.',
         );
       }
-      await client.$executeRawUnsafe('DELETE FROM pub_templates WHERE id = $1::uuid', id);
+      if (cur[0]!.school_id !== tenant.schoolId) {
+        throw new ForbiddenException('Template is not owned by this school.');
+      }
+      await client.$executeRawUnsafe(
+        'DELETE FROM pub_templates WHERE id = $1::uuid AND school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     });
   }
 
@@ -527,9 +624,16 @@ export class TemplateService {
     await this.assertCanManage(actor);
     const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      // REVIEW-P2C26 R-B1 — template must be either a system template
+      // (school_id IS NULL) or owned by the current school. A forged
+      // template UUID from another school is rejected with 404.
       const tplRows = (await client.$queryRawUnsafe(
-        'SELECT publication_type, template_content, is_active FROM pub_templates WHERE id = $1::uuid LIMIT 1',
+        `SELECT publication_type, template_content, is_active
+         FROM pub_templates
+         WHERE id = $1::uuid
+           AND (school_id IS NULL OR school_id = $2::uuid) LIMIT 1`,
         templateId,
+        tenant.schoolId,
       )) as Array<{
         publication_type: string;
         template_content: Record<string, unknown>;

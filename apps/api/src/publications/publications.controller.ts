@@ -658,7 +658,8 @@ export class PublicationsController {
   async ingestAnalyticsEvent(
     @Param('id') id: string,
     @Body() body: IngestAnalyticsEventDto,
+    @Req() req: AuthedRequest,
   ): Promise<PublicationAnalyticsDto> {
-    return this.analytics.ingestEvent(id, body);
+    return this.analytics.ingestEvent(await this.resolveActor(req), id, body);
   }
 }

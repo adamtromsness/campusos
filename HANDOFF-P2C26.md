@@ -240,3 +240,43 @@ No new Kafka topics in P2-26.
 4. **Analytics ingestion source** — `POST /publications/:id/analytics/events` is gated on `pub-001:read` and trusts the caller's `eventType`. Real-world wiring will be Cycle 14 NotificationConsumer + the Cycle 3 email tracking pixel; until then, the endpoint accepts manual events for testing.
 5. **Version snapshot trimming** — current snapshot captures the full sections array; large publications could land multi-MB rows. A pre-pilot polish item: snapshot only the diff from the previous version (with a periodic full snapshot) to bound table growth.
 6. **Template editor UI** — the templates page ships New + Use; an admin Edit modal for school-custom templates is a polish item (the PATCH endpoint exists and rejects is_system=true correctly).
+
+---
+
+## REVIEW-P2C26 Round 1 — fix log
+
+**Round 1 verdict:** REJECT pending 5 BLOCKING + 2 MAJOR findings. Every finding traced back to the same systemic gap — direct-object reads / writes on `pub_versions / pub_templates / pub_scheduled_publications / pub_publication_analytics` were resolved by surrogate id alone, with no school predicate joined through the parent `pub_publications` row. In a multi-school tenant pool that lets School A leak / mutate School B publications via guessed UUIDs.
+
+**Fix commit lands all 5 BLOCKING + both MAJOR + 20 new pinned regression tests + 1 new tenant migration:**
+
+(R-B1 — TemplateService school-scope) Every read + write on `TemplateService` now joins / where-clauses through `(pub_templates.school_id IS NULL OR school_id = $tenant.schoolId)` for reads and `school_id = $tenant.schoolId` for writes. `list`, `getById`, `patch`, `remove`, and `createFromTemplate` lookup all carry the predicate. `is_system=true` rows refused on `patch` / `remove` with ForbiddenException AFTER the school-predicate lookup succeeds (so a forged template id collapses to 404 before the immutability message ever fires).
+
+(R-B2 — ScheduledPublishService + Worker school-scope) `list`, `getById`, `getForPublication`, `schedule`, and `cancel` all JOIN through `pub_publications p ON p.id = s.publication_id AND p.school_id = $tenant.schoolId`. `schedule` locks the parent publication FOR UPDATE with the school predicate inside the same tx as the INSERT; `cancel` looks up the schedule via the parent JOIN with `FOR UPDATE OF s` and reloads via the same JOIN. `ScheduledPublishWorker.tickForSchool` ripe-query JOINs through pub_publications; the schedule UPDATE uses `FROM pub_publications WHERE ... school_id`; the parent publication UPDATE adds school_id; the inline version INSERT uses school-joined `nextVersionNumber`; the recipient count JOINs publications; the failure UPDATE on a worker hiccup carries the school predicate.
+
+(R-B3 — PublicationAnalyticsService school-scope) `get`, `summary`, `ingestEvent`, and `setRecipientTotal` all JOIN through `pub_publications.school_id`. The publication existence check fires BEFORE the canEditPublication admin short-circuit so a school admin cannot pull foreign-school analytics by guessing a publication UUID — the previous order let `isSchoolAdmin` return early without ever validating the publication's school.
+
+(R-B4 — Analytics contribution ledger) New tenant migration `167_pub_analytics_contributions.sql` adds the `pub_publication_analytics_contributions` table with UNIQUE(consumer_group, source_event_id, publication_id, event_type). `ingestEvent` accepts optional `consumerGroup` + `sourceEventId` (defaults `MANUAL` + fresh UUID), wraps the ledger INSERT + counter UPDATE in one `executeInTenantTransaction`, INSERTs the ledger row first, catches 23505 via `isUniqueViolation` and short-circuits to return the current analytics row WITHOUT bumping any counter. A redelivered envelope with the same (group, event_id, publication_id, event_type) tuple is now idempotent at the schema layer. The Cycle 14 fan-out consumer SHOULD pass the envelope's event_id + its consumer group when it wires this surface to live notification events.
+
+(R-B5 — VersionService follow-up reads school-scope) `listForPublication`, `getById`, `revert`, the private `composeSnapshot`, the private `nextVersionNumber`, the checkpoint reload, and every captureInTx call path all JOIN through `pub_publications p ON p.id = v.publication_id AND p.school_id = $tenant.schoolId`. A forged version id for a foreign-school publication collapses to 404 at the SQL layer before the `assertCanAccess` permission check fires. The `assertCanAccess` helper itself was already school-scoped from the initial cycle ship; R-B5 closes the follow-up reads that loaded version rows after the access check passed.
+
+(R-M1 — assertAccountInCurrentTenant school predicate) `access.ts::assertAccountInCurrentTenant` now carries the `school_id = $tenant.schoolId` predicate through all 3 projections (sis_students via platform_students, sis_guardians, hr_employees). Without this, a multi-school tenant pool could let a School A staff editor invite a School B platform_user as a publication collaborator (or pass their accountId to any future feature that uses this helper) because both schools live in the same tenant schema today.
+
+(R-M2 — ScheduledPublishWorker inline version capture) Worker comments + the handoff doc now spell out that the worker INSERTs the final STATUS_CHANGE version row via direct SQL (not via `VersionService.captureForStatusChange`) so it does not pull the request-path service + its setter-wired VersionService dependency into a background worker. The inline INSERT mirrors `VersionService.captureInTx` + carries the school predicate through the parent publication JOIN. Future maintainers won't reach for the request-path service when extending the worker.
+
+**Test coverage:** new `apps/api/src/publications/__tests__/publications-advanced-review-p2c26.spec.ts` ships 20 pinned regression tests covering R-B1 (5 tests — list / getById / patch is_system / delete is_system / createFromTemplate school predicate), R-B2 (4 tests — list / getById / schedule / cancel JOIN through publications), R-B3 (4 tests — get fires existence check first / summary JOIN / ingestEvent validates ownership / setRecipientTotal validation), R-B4 (2 tests — ingestEvent inserts ledger row before counter / redelivered 23505 short-circuits with no counter bump), R-B5 (2 tests — listForPublication carries school predicate / getById JOINs through publications), R-M1 (3 tests — each projection carries school predicate / empty result rejects with field-name message / any projection match passes). Existing `publications-advanced.spec.ts` retrofitted to match the new SQL shapes — all 24 original tests still pass. Vitest total: 1386 → **1406** across 67 spec files (+20 new pinned regression tests).
+
+**CI parity green:** format:check clean + lint:logs (956 files) clean + API build clean + web build clean + vitest 1406/1406. One additive tenant migration `167_pub_analytics_contributions.sql` — splitter-safe; provisioned cleanly to both `tenant_demo` and `tenant_test` on first attempt after audit (caught + fixed 2 stray `;` in COMMENT strings).
+
+**Files touched:**
+
+- `packages/database/prisma/tenant/migrations/167_pub_analytics_contributions.sql` (NEW)
+- `apps/api/src/publications/access.ts` (R-M1)
+- `apps/api/src/publications/versions.service.ts` (R-B1 + R-B5)
+- `apps/api/src/publications/scheduled-publish.service.ts` (R-B2 + R-B3 + R-B4 + R-M2)
+- `apps/api/src/publications/dto/publications.dto.ts` (R-B4 — added `consumerGroup` + `sourceEventId` optional fields)
+- `apps/api/src/publications/publications.controller.ts` (R-B3 — ingestEvent threads actor to service)
+- `apps/api/src/publications/__tests__/publications-advanced.spec.ts` (test stubs updated for new SQL shapes)
+- `apps/api/src/publications/__tests__/publications-advanced-review-p2c26.spec.ts` (NEW — 20 pinned regression tests)
+- `HANDOFF-P2C26.md` (this Round 1 fix log section)
+- `P2C26-REVIEW-NOTES.md` (Round 1 verification trail)
+- `CLAUDE.md` (status section)
