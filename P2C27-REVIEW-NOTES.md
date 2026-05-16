@@ -154,18 +154,49 @@ row + portfolio data and writes the file to S3.
 
 ## Reviewer scorecard
 
-| Dimension                                                               | Pass criteria                                                                                                                                                                |
-| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Schema integrity**                                                    | 8 tables created, ALTER on pfl_portfolio_items, splitter-safe, idempotent, FK delete actions match table.                                                                    |
-| **Section reorder safety**                                              | UNIQUE never fires under concurrent reorders; negative-slot parking; tx-bounded.                                                                                             |
-| **Reflection STUDENT-OWNED**                                            | UNIQUE(item, student); other students get 404 (not 403); teachers refused on create/edit; admin override works.                                                              |
-| **Endorsement STUDENT-CANNOT**                                          | Students 403; guardians 403; TEACHER role requires assigned-teacher; UNIQUE(portfolio, endorsed_by); visibility toggle owner-only.                                           |
-| **Pathway milestone progress**                                          | overall_progress recomputed atomically; emit fires only on COMPLETED transition (not on every PATCH); JSONB shape stable; required-only denominator.                         |
-| **Auto-check consumer**                                                 | Subscribes to both topics; UnwrappedEvent + processWithIdempotency; matching milestones flipped + emitted; tenant tx atomic.                                                 |
-| **Resume cross-module**                                                 | Skills UNION endorsements; service hours SUM; awards from achievements; extracurriculars from ext_activity_members; PDF path + last_generated_at updated atomically.         |
-| **College applications row scope**                                      | Student sees own; counsellor sees school-wide deadlines; parent sees linked children; auto-stamp decision_date on first terminal transition.                                 |
-| **Test coverage**                                                       | 13 new vitest cases across the 7 plan scenarios; all keystones exercised.                                                                                                    |
+| Dimension                          | Pass criteria                                                                                                                                                        |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Schema integrity**               | 8 tables created, ALTER on pfl_portfolio_items, splitter-safe, idempotent, FK delete actions match table.                                                            |
+| **Section reorder safety**         | UNIQUE never fires under concurrent reorders; negative-slot parking; tx-bounded.                                                                                     |
+| **Reflection STUDENT-OWNED**       | UNIQUE(item, student); other students get 404 (not 403); teachers refused on create/edit; admin override works.                                                      |
+| **Endorsement STUDENT-CANNOT**     | Students 403; guardians 403; TEACHER role requires assigned-teacher; UNIQUE(portfolio, endorsed_by); visibility toggle owner-only.                                   |
+| **Pathway milestone progress**     | overall_progress recomputed atomically; emit fires only on COMPLETED transition (not on every PATCH); JSONB shape stable; required-only denominator.                 |
+| **Auto-check consumer**            | Subscribes to both topics; UnwrappedEvent + processWithIdempotency; matching milestones flipped + emitted; tenant tx atomic.                                         |
+| **Resume cross-module**            | Skills UNION endorsements; service hours SUM; awards from achievements; extracurriculars from ext_activity_members; PDF path + last_generated_at updated atomically. |
+| **College applications row scope** | Student sees own; counsellor sees school-wide deadlines; parent sees linked children; auto-stamp decision_date on first terminal transition.                         |
+| **Test coverage**                  | 13 new vitest cases across the 7 plan scenarios; all keystones exercised.                                                                                            |
 
 ## Round 1 verification trail
 
-(Reserved for Round 1 fix log if blocking findings surface.)
+Round 1 against the initial cycle ship returned **FAIL** with 6 BLOCKING + 3 MAJOR. Every finding was the same systemic gap — direct-object reads/writes on `pfl_readiness_pathways / pfl_pathway_milestones / pfl_student_pathway_assignments / pfl_college_applications / pfl_portfolio_sections / pfl_endorsements / pfl_resume_profiles / sis_service_learning_hours / pfl_achievements / ext_activity_members` were resolved by surrogate id alone with no school predicate joined through the parent `pfl_portfolios` row or through `sis_students.school_id`. Plus `pfl.pathway.milestone_completed` was emitting through best-effort Kafka post-tx instead of the durable outbox.
+
+### Per-fix evidence table
+
+| Finding                                                                  | Fix                                                                                                                                                                                                                                                                                                                                       | Verified by                                                                                                                                      |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **BLOCKING 1** — `pfl.pathway.milestone_completed` not durable           | `ReadinessPathwayService` constructor → `OutboxService`. New `event-ids.ts` with `deterministicMilestoneCompletedEventId(assignmentId, milestoneId)`. Both `updateMilestoneStatus` and `autoCheckByCrossModuleEvent` call `outbox.enqueueInTx(client, ...)` INSIDE the same tx as the UPDATE.                                             | R-B1 (4 tests) — stability, v5 shape, distinctness across milestoneIds, emit + no-op on already-COMPLETED.                                       |
+| **BLOCKING 2** — shared portfolio access helpers not school-scoped       | `resolveStudentIdForActor` adds `s.school_id` predicate; `isAssignedTeacherOf` and `isLinkedGuardianOf` JOIN sis_students with `s.school_id`. New `isStudentInCurrentSchool` helper.                                                                                                                                                      | R-B2 (5 tests) — each helper's SQL shape + cross-school refusal.                                                                                 |
+| **BLOCKING 3** — readiness assignment / milestone paths not school-scope | `SELECT_MILESTONE_BASE` + `SELECT_ASSIGNMENT_BASE` JOIN through `pfl_readiness_pathways` with `p.school_id`. Every UPDATE rewrites to `UPDATE ... FROM pfl_readiness_pathways p WHERE p.id = ... AND p.school_id = $N`. `assignToStudent` validates studentId via `isStudentInCurrentSchool`.                                             | R-B3 (3 tests) — cross-school studentId on assignToStudent → 400; SELECT_ASSIGNMENT_BASE JOIN + predicate; cross-school getAssignment 404.       |
+| **BLOCKING 4** — college application paths not school-scope              | `SELECT_APP_BASE` JOINs `sis_students s` with `s.school_id`. All UPDATE/DELETE rewrite to `UPDATE/DELETE ... FROM/USING sis_students s WHERE s.school_id = $N`. `create` validates studentId via `isStudentInCurrentSchool`. `listUpcomingDeadlines` carries `s.school_id` predicate.                                                     | R-B4 (6 tests) — cross-school applicationId 404; cross-school studentId 400 on create; UPDATE SQL shape; counsellor deadline scope; TEACHER 403. |
+| **BLOCKING 5** — section + endorsement update/delete not school-scope    | `SELECT_SECTION_BASE` + `SELECT_ENDORSEMENT_BASE` JOIN `pfl_portfolios p` with `p.school_id`. UPDATE/DELETE rewrite to `UPDATE ... FROM pfl_portfolios p WHERE p.id = ... AND p.school_id = $N` and `DELETE ... USING pfl_portfolios p WHERE p.id = ... AND p.school_id = $N`.                                                            | R-B5 (4 tests) — section patch UPDATE + section remove DELETE + endorsement updateVisibility UPDATE + endorsement remove DELETE.                 |
+| **BLOCKING 6** — resume cross-module aggregation not school-scope        | `SELECT_RESUME_BASE` JOINs `sis_students s` with `s.school_id`. `getForStudent / patch / generatePdf` validate studentId via `isStudentInCurrentSchool` BEFORE any read. Every cross-module aggregation (endorsements / service hours / achievements / extracurriculars) carries the JOIN + predicate. Final UPDATE joins `sis_students`. | R-B6 (3 tests) — cross-school studentId 404 on generatePdf; SELECT_RESUME_BASE JOIN shape; every aggregation carries JOIN + predicate.           |
+
+### MAJORs carried to Phase 2 / pre-pilot punch list
+
+The 3 MAJOR follow-ups are recommendation-class items joining the broader Phase 2 punch list:
+
+1. Stronger `studentId` validation on every cross-student endpoint — current Round 1 fixes cover assignToStudent, college create, and resume access; the broader pattern should extend to every cross-student read.
+2. School-id denormalisation on `pfl_college_applications` / `pfl_resume_profiles` (single-column predicate vs JOIN) as a performance polish.
+3. `auto_check_source` value catalogue documented as configurable rather than hard-coded in the consumer.
+
+### CI parity at the Round 1 fix commit
+
+- `pnpm format:check` ✓ all files Prettier-clean
+- `pnpm lint:logs` ✓ 969 files clean
+- `pnpm --filter @campusos/api build` ✓ nest build clean
+- `pnpm --filter @campusos/web build` ✓ next build clean
+- `pnpm --filter @campusos/api test` ✓ **1452 / 1452 passing** across 69 spec files (was 1426 — +26 new pinned regression tests in `portfolio-advanced-review-p2c27.spec.ts` plus 4 retrofitted existing tests in `portfolio-advanced.spec.ts`)
+
+No schema migrations in Round 1 — every fix is service-layer + new `event-ids.ts` helper file + module-wiring.
+
+Awaiting Round 2 verdict before tagging `p2c27-complete` and `p2c27-approved`.

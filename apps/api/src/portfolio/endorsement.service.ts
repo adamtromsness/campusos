@@ -34,6 +34,9 @@ interface EndorsementRow {
   updated_at: string;
 }
 
+// REVIEW-P2C27 BLOCKING 5 — every endorsement read joins through
+// pfl_portfolios so the school predicate is bound on every list /
+// get / reload.
 const SELECT_ENDORSEMENT_BASE = `
   SELECT
     e.id::text AS id,
@@ -49,6 +52,7 @@ const SELECT_ENDORSEMENT_BASE = `
     e.endorsed_at::text AS endorsed_at,
     e.updated_at::text AS updated_at
   FROM pfl_endorsements e
+  JOIN pfl_portfolios p ON p.id = e.portfolio_id
 `;
 
 @Injectable()
@@ -85,9 +89,6 @@ export class EndorsementService {
     return { studentId: rows[0]!.student_id, visibility: rows[0]!.visibility };
   }
 
-  // Reader scope mirrors the portfolio visibility lattice. The
-  // is_visible_on_share flag is the student-controlled override that
-  // hides specific endorsements from non-owner / non-admin readers.
   async listForPortfolio(portfolioId: string, actor: ResolvedActor): Promise<EndorsementDto[]> {
     const ctx = await this.loadPortfolioContext(portfolioId);
     if (!ctx) throw new NotFoundException('Portfolio not found');
@@ -96,7 +97,6 @@ export class EndorsementService {
     const isOwner = ownerStudentId === ctx.studentId;
     const canSeeAll = isOwner || actor.isSchoolAdmin;
 
-    // Validate read visibility via the portfolio lattice
     if (!canSeeAll) {
       if (ctx.visibility === 'PRIVATE') throw new NotFoundException('Portfolio not found');
       if (ctx.visibility === 'TEACHER') {
@@ -112,10 +112,13 @@ export class EndorsementService {
       }
     }
 
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        SELECT_ENDORSEMENT_BASE + ' WHERE e.portfolio_id = $1::uuid ORDER BY e.endorsed_at DESC',
+        SELECT_ENDORSEMENT_BASE +
+          ' WHERE e.portfolio_id = $1::uuid AND p.school_id = $2::uuid ORDER BY e.endorsed_at DESC',
         portfolioId,
+        tenant.schoolId,
       );
     })) as EndorsementRow[];
     return rows.filter((r) => canSeeAll || r.is_visible_on_share).map((r) => this.rowToDto(r));
@@ -126,9 +129,6 @@ export class EndorsementService {
     actor: ResolvedActor,
     input: CreateEndorsementDto,
   ): Promise<EndorsementDto> {
-    // STUDENTS CANNOT ENDORSE — the Step 5 keystone. Refused with 403.
-    // GUARDIANS likewise cannot endorse — endorsements are staff-side
-    // adult observations.
     if (actor.personType === 'STUDENT') {
       throw new ForbiddenException(
         'Students cannot endorse portfolios. Endorsements are written by teachers, counsellors, and mentors.',
@@ -148,15 +148,8 @@ export class EndorsementService {
     const ctx = await this.loadPortfolioContext(portfolioId);
     if (!ctx) throw new NotFoundException('Portfolio not found');
 
-    // Endorsers must have a relationship to the student — the school admin
-    // bypasses; assigned teachers + linked staff (Staff persona via
-    // service-layer scope) may endorse.
     if (!actor.isSchoolAdmin) {
       const isAssigned = await isAssignedTeacherOf(this.tenantPrisma, actor, ctx.studentId);
-      // Counsellors / mentors who don't formally teach the student can also
-      // endorse — we treat staff scope as sufficient. The endorser_role flag
-      // records the relationship type; service does not enforce per-role
-      // teaching ties beyond requiring an hr_employees row.
       if (!isAssigned && input.endorserRole === 'TEACHER') {
         throw new ForbiddenException(
           "Only the student's assigned teachers can endorse as TEACHER. Use COUNSELLOR or MENTOR if you do not formally teach this student.",
@@ -186,9 +179,15 @@ export class EndorsementService {
       }
       throw err;
     }
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_ENDORSEMENT_BASE + ' WHERE e.id = $1::uuid', id);
+      return client.$queryRawUnsafe(
+        SELECT_ENDORSEMENT_BASE + ' WHERE e.id = $1::uuid AND p.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     })) as EndorsementRow[];
+    if (rows.length === 0) throw new NotFoundException('Endorsement not found');
     return this.rowToDto(rows[0]!);
   }
 
@@ -200,34 +199,39 @@ export class EndorsementService {
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
       const tenant = getCurrentTenant();
       const rows = (await client.$queryRawUnsafe(
-        `SELECT e.id::text AS id, p.student_id::text AS student_id, p.school_id::text AS school_id
+        `SELECT e.id::text AS id, p.student_id::text AS student_id
          FROM pfl_endorsements e
          JOIN pfl_portfolios p ON p.id = e.portfolio_id
-         WHERE e.id = $1::uuid
+         WHERE e.id = $1::uuid AND p.school_id = $2::uuid
          FOR UPDATE OF e`,
         endorsementId,
-      )) as Array<{ id: string; student_id: string; school_id: string }>;
+        tenant.schoolId,
+      )) as Array<{ id: string; student_id: string }>;
       if (rows.length === 0) throw new NotFoundException('Endorsement not found');
-      if (rows[0]!.school_id !== tenant.schoolId) {
-        throw new NotFoundException('Endorsement not found');
-      }
-      // Visibility toggle is student-controlled — only the owning student
-      // or a school admin can flip is_visible_on_share. The endorser
-      // cannot retract visibility for the student.
       if (!(await isOwningStudent(this.tenantPrisma, actor, rows[0]!.student_id))) {
         throw new ForbiddenException(
           'Only the owning student or a school admin can change endorsement visibility.',
         );
       }
+      // REVIEW-P2C27 BLOCKING 5 — UPDATE joins through pfl_portfolios so the
+      // school predicate is enforced on the write.
       await client.$executeRawUnsafe(
-        'UPDATE pfl_endorsements SET is_visible_on_share = $1, updated_at = now() WHERE id = $2::uuid',
+        `UPDATE pfl_endorsements AS upd
+         SET is_visible_on_share = $1, updated_at = now()
+         FROM pfl_portfolios p
+         WHERE p.id = upd.portfolio_id
+           AND upd.id = $2::uuid
+           AND p.school_id = $3::uuid`,
         input.isVisibleOnShare,
         endorsementId,
+        tenant.schoolId,
       );
       const after = (await client.$queryRawUnsafe(
-        SELECT_ENDORSEMENT_BASE + ' WHERE e.id = $1::uuid',
+        SELECT_ENDORSEMENT_BASE + ' WHERE e.id = $1::uuid AND p.school_id = $2::uuid',
         endorsementId,
+        tenant.schoolId,
       )) as EndorsementRow[];
+      if (after.length === 0) throw new NotFoundException('Endorsement not found');
       return this.rowToDto(after[0]!);
     });
   }
@@ -236,19 +240,15 @@ export class EndorsementService {
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
       const tenant = getCurrentTenant();
       const rows = (await client.$queryRawUnsafe(
-        `SELECT e.endorsed_by::text AS endorsed_by, p.school_id::text AS school_id
+        `SELECT e.endorsed_by::text AS endorsed_by
          FROM pfl_endorsements e
          JOIN pfl_portfolios p ON p.id = e.portfolio_id
-         WHERE e.id = $1::uuid
+         WHERE e.id = $1::uuid AND p.school_id = $2::uuid
          FOR UPDATE OF e`,
         endorsementId,
-      )) as Array<{ endorsed_by: string | null; school_id: string }>;
+        tenant.schoolId,
+      )) as Array<{ endorsed_by: string | null }>;
       if (rows.length === 0) throw new NotFoundException('Endorsement not found');
-      if (rows[0]!.school_id !== tenant.schoolId) {
-        throw new NotFoundException('Endorsement not found');
-      }
-      // The original endorser may delete their own endorsement. School
-      // admins may delete any.
       const isOriginalEndorser =
         actor.personType === 'STAFF' &&
         actor.employeeId !== null &&
@@ -259,9 +259,16 @@ export class EndorsementService {
           'Only the original endorser or a school admin can remove an endorsement.',
         );
       }
+      // REVIEW-P2C27 BLOCKING 5 — DELETE joins through pfl_portfolios so the
+      // school predicate is enforced on the write.
       await client.$executeRawUnsafe(
-        'DELETE FROM pfl_endorsements WHERE id = $1::uuid',
+        `DELETE FROM pfl_endorsements AS del
+         USING pfl_portfolios p
+         WHERE p.id = del.portfolio_id
+           AND del.id = $1::uuid
+           AND p.school_id = $2::uuid`,
         endorsementId,
+        tenant.schoolId,
       );
     });
   }

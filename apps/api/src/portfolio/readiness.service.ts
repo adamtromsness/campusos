@@ -8,14 +8,16 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
+  isStudentInCurrentSchool,
   isUniqueViolation,
   resolveStudentIdForActor,
   isLinkedGuardianOf,
 } from './portfolio-access';
+import { deterministicMilestoneCompletedEventId } from './event-ids';
 import type {
   AssignPathwayDto,
   CreateMilestoneDto,
@@ -103,6 +105,9 @@ const SELECT_PATHWAY_BASE = `
   FROM pfl_readiness_pathways p
 `;
 
+// SELECT_MILESTONE_BASE joins through pfl_readiness_pathways so every
+// milestone read carries the parent pathway's school_id predicate
+// (REVIEW-P2C27 BLOCKING 3).
 const SELECT_MILESTONE_BASE = `
   SELECT
     m.id::text AS id,
@@ -114,8 +119,12 @@ const SELECT_MILESTONE_BASE = `
     m.is_required,
     m.auto_check_source
   FROM pfl_pathway_milestones m
+  JOIN pfl_readiness_pathways p ON p.id = m.pathway_id
 `;
 
+// SELECT_ASSIGNMENT_BASE joins through pfl_readiness_pathways so every
+// assignment read carries the parent pathway's school_id predicate
+// (REVIEW-P2C27 BLOCKING 3).
 const SELECT_ASSIGNMENT_BASE = `
   SELECT
     a.id::text AS id,
@@ -126,8 +135,8 @@ const SELECT_ASSIGNMENT_BASE = `
        JOIN platform.iam_person ip ON ip.id = ps.person_id
        WHERE s.id = a.student_id LIMIT 1) AS student_name,
     a.pathway_id::text AS pathway_id,
-    (SELECT name FROM pfl_readiness_pathways WHERE id = a.pathway_id) AS pathway_name,
-    (SELECT pathway_type FROM pfl_readiness_pathways WHERE id = a.pathway_id) AS pathway_type,
+    p.name AS pathway_name,
+    p.pathway_type AS pathway_type,
     a.assigned_by::text AS assigned_by,
     (SELECT ip.first_name || ' ' || ip.last_name
        FROM hr_employees e JOIN platform.iam_person ip ON ip.id = e.person_id
@@ -139,13 +148,14 @@ const SELECT_ASSIGNMENT_BASE = `
     a.notes,
     a.updated_at::text AS updated_at
   FROM pfl_student_pathway_assignments a
+  JOIN pfl_readiness_pathways p ON p.id = a.pathway_id
 `;
 
 @Injectable()
 export class ReadinessPathwayService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly permissions: PermissionCheckService,
   ) {}
 
@@ -187,17 +197,23 @@ export class ReadinessPathwayService {
     }));
   }
 
-  private async assignmentRowToDto(r: AssignmentRow): Promise<PathwayAssignmentDto> {
-    const statuses = this.normaliseStatuses(r.milestone_statuses);
-    // Compose milestoneStatuses by joining with the pathway's milestone
-    // definitions so the response carries milestone_name/category/sort_order/
-    // is_required/auto_check_source alongside status.
-    const milestones = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+  // Pull the list of milestones for a pathway with the pathway's
+  // school predicate baked into the JOIN (REVIEW-P2C27 BLOCKING 3).
+  private async loadPathwayMilestones(pathwayId: string): Promise<MilestoneRow[]> {
+    const tenant = getCurrentTenant();
+    return (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        SELECT_MILESTONE_BASE + ' WHERE m.pathway_id = $1::uuid ORDER BY m.sort_order ASC',
-        r.pathway_id,
+        SELECT_MILESTONE_BASE +
+          ' WHERE m.pathway_id = $1::uuid AND p.school_id = $2::uuid ORDER BY m.sort_order ASC',
+        pathwayId,
+        tenant.schoolId,
       );
     })) as MilestoneRow[];
+  }
+
+  private async assignmentRowToDto(r: AssignmentRow): Promise<PathwayAssignmentDto> {
+    const statuses = this.normaliseStatuses(r.milestone_statuses);
+    const milestones = await this.loadPathwayMilestones(r.pathway_id);
     const milestoneMap = new Map(milestones.map((m) => [m.id, m]));
     const milestoneStatuses: MilestoneStatusDto[] = milestones.map((m) => {
       const s = statuses.find((x) => x.milestone_id === m.id);
@@ -214,8 +230,6 @@ export class ReadinessPathwayService {
         autoCheckSource: m.auto_check_source,
       };
     });
-    // Pick up any orphan status entries that no longer match a milestone
-    // (defensive against milestone removal) — they are rendered first.
     for (const s of statuses) {
       if (!milestoneMap.has(s.milestone_id)) {
         milestoneStatuses.push({
@@ -270,8 +284,15 @@ export class ReadinessPathwayService {
     }
   }
 
-  // Compute overall_progress from a status array given the milestone set
-  // (only required milestones contribute to the percentage).
+  private async hasCounsellorScope(actor: ResolvedActor): Promise<boolean> {
+    if (actor.isSchoolAdmin) return true;
+    const tenant = getCurrentTenant();
+    return this.permissions.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+      'ach-003:write',
+      'ach-003:admin',
+    ]);
+  }
+
   private computeProgress(
     statuses: MilestoneStatusEntry[],
     requiredMilestoneIds: Set<string>,
@@ -310,12 +331,7 @@ export class ReadinessPathwayService {
       );
     })) as PathwayRow[];
     if (rows.length === 0) throw new NotFoundException('Readiness pathway not found');
-    const milestones = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
-        SELECT_MILESTONE_BASE + ' WHERE m.pathway_id = $1::uuid ORDER BY m.sort_order ASC',
-        pathwayId,
-      );
-    })) as MilestoneRow[];
+    const milestones = await this.loadPathwayMilestones(pathwayId);
     return {
       ...this.pathwayRowToDto(rows[0]!),
       milestones: milestones.map((m) => this.milestoneRowToDto(m)),
@@ -344,7 +360,11 @@ export class ReadinessPathwayService {
       throw err;
     }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_PATHWAY_BASE + ' WHERE p.id = $1::uuid', id);
+      return client.$queryRawUnsafe(
+        SELECT_PATHWAY_BASE + ' WHERE p.id = $1::uuid AND p.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     })) as PathwayRow[];
     return this.pathwayRowToDto(rows[0]!);
   }
@@ -394,6 +414,7 @@ export class ReadinessPathwayService {
   ): Promise<PathwayMilestoneDto> {
     await this.assertCounsellorScope(actor);
     await this.getPathway(pathwayId); // validates existence + school scope
+    const tenant = getCurrentTenant();
     const id = generateId();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
@@ -418,8 +439,13 @@ export class ReadinessPathwayService {
       throw err;
     }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_MILESTONE_BASE + ' WHERE m.id = $1::uuid', id);
+      return client.$queryRawUnsafe(
+        SELECT_MILESTONE_BASE + ' WHERE m.id = $1::uuid AND p.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     })) as MilestoneRow[];
+    if (rows.length === 0) throw new NotFoundException('Milestone not found');
     return this.milestoneRowToDto(rows[0]!);
   }
 
@@ -429,6 +455,7 @@ export class ReadinessPathwayService {
     input: UpdateMilestoneDto,
   ): Promise<PathwayMilestoneDto> {
     await this.assertCounsellorScope(actor);
+    const tenant = getCurrentTenant();
     const sets: string[] = [];
     const params: unknown[] = [];
     const push = (col: string, value: unknown) => {
@@ -441,11 +468,13 @@ export class ReadinessPathwayService {
     if (input.sortOrder !== undefined) push('sort_order', input.sortOrder);
     if (input.isRequired !== undefined) push('is_required', input.isRequired);
     if (input.autoCheckSource !== undefined) push('auto_check_source', input.autoCheckSource);
+
     if (sets.length === 0) {
       const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe(
-          SELECT_MILESTONE_BASE + ' WHERE m.id = $1::uuid',
+          SELECT_MILESTONE_BASE + ' WHERE m.id = $1::uuid AND p.school_id = $2::uuid',
           milestoneId,
+          tenant.schoolId,
         );
       })) as MilestoneRow[];
       if (rows.length === 0) throw new NotFoundException('Milestone not found');
@@ -453,10 +482,11 @@ export class ReadinessPathwayService {
     }
     sets.push('updated_at = now()');
     params.push(milestoneId);
+    params.push(tenant.schoolId);
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
         await client.$executeRawUnsafe(
-          `UPDATE pfl_pathway_milestones SET ${sets.join(', ')} WHERE id = $${params.length}::uuid`,
+          `UPDATE pfl_pathway_milestones SET ${sets.join(', ')} FROM pfl_readiness_pathways p WHERE p.id = pfl_pathway_milestones.pathway_id AND pfl_pathway_milestones.id = $${params.length - 1}::uuid AND p.school_id = $${params.length}::uuid`,
           ...params,
         );
       });
@@ -467,7 +497,11 @@ export class ReadinessPathwayService {
       throw err;
     }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_MILESTONE_BASE + ' WHERE m.id = $1::uuid', milestoneId);
+      return client.$queryRawUnsafe(
+        SELECT_MILESTONE_BASE + ' WHERE m.id = $1::uuid AND p.school_id = $2::uuid',
+        milestoneId,
+        tenant.schoolId,
+      );
     })) as MilestoneRow[];
     if (rows.length === 0) throw new NotFoundException('Milestone not found');
     return this.milestoneRowToDto(rows[0]!);
@@ -475,10 +509,16 @@ export class ReadinessPathwayService {
 
   async removeMilestone(milestoneId: string, actor: ResolvedActor): Promise<void> {
     await this.assertCounsellorScope(actor);
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
-        'DELETE FROM pfl_pathway_milestones WHERE id = $1::uuid',
+        `DELETE FROM pfl_pathway_milestones
+         USING pfl_readiness_pathways p
+         WHERE p.id = pfl_pathway_milestones.pathway_id
+           AND pfl_pathway_milestones.id = $1::uuid
+           AND p.school_id = $2::uuid`,
         milestoneId,
+        tenant.schoolId,
       );
     });
   }
@@ -497,6 +537,11 @@ export class ReadinessPathwayService {
       );
     }
     const pathway = await this.getPathway(pathwayId);
+    // REVIEW-P2C27 BLOCKING 3 — validate supplied studentId is in current school.
+    const studentOk = await isStudentInCurrentSchool(this.tenantPrisma, input.studentId);
+    if (!studentOk) {
+      throw new BadRequestException('studentId does not match a student in this school.');
+    }
     // Initialise milestone_statuses with NOT_STARTED entries for every milestone.
     const initialStatuses: MilestoneStatusEntry[] = pathway.milestones.map((m) => ({
       milestone_id: m.id,
@@ -506,6 +551,7 @@ export class ReadinessPathwayService {
       progress_detail: null,
     }));
     const id = generateId();
+    const tenant = getCurrentTenant();
     try {
       await this.tenantPrisma.executeInTenantContext(async (client) => {
         await client.$executeRawUnsafe(
@@ -528,8 +574,13 @@ export class ReadinessPathwayService {
       throw err;
     }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_ASSIGNMENT_BASE + ' WHERE a.id = $1::uuid', id);
+      return client.$queryRawUnsafe(
+        SELECT_ASSIGNMENT_BASE + ' WHERE a.id = $1::uuid AND p.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     })) as AssignmentRow[];
+    if (rows.length === 0) throw new NotFoundException('Assignment not found');
     return this.assignmentRowToDto(rows[0]!);
   }
 
@@ -544,20 +595,20 @@ export class ReadinessPathwayService {
       const ownerStudentId = await resolveStudentIdForActor(this.tenantPrisma, actor);
       const isOwner = ownerStudentId === studentId;
       const isGuardian = await isLinkedGuardianOf(this.tenantPrisma, actor, studentId);
-      const hasCounsellorScope = await this.permissions.hasAnyPermissionInTenant(
-        actor.accountId,
-        tenant.schoolId,
-        ['ach-003:write', 'ach-003:admin'],
-      );
+      const hasCounsellorScope = await this.hasCounsellorScope(actor);
       if (!isOwner && !isGuardian && !hasCounsellorScope) {
         throw new NotFoundException('Student not found');
       }
     }
+    // REVIEW-P2C27 BLOCKING 3 — readiness rows must belong to a pathway in the
+    // current school. SELECT_ASSIGNMENT_BASE joins through pfl_readiness_pathways
+    // and the school predicate is bound here.
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_ASSIGNMENT_BASE +
-          " WHERE a.student_id = $1::uuid AND a.status = 'ACTIVE' ORDER BY a.assigned_at DESC",
+          " WHERE a.student_id = $1::uuid AND p.school_id = $2::uuid AND a.status = 'ACTIVE' ORDER BY a.assigned_at DESC",
         studentId,
+        tenant.schoolId,
       );
     })) as AssignmentRow[];
     return Promise.all(rows.map((r) => this.assignmentRowToDto(r)));
@@ -567,13 +618,7 @@ export class ReadinessPathwayService {
     const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        SELECT_ASSIGNMENT_BASE +
-          ` WHERE a.id = $1::uuid
-             AND EXISTS (
-               SELECT 1 FROM pfl_readiness_pathways p
-               WHERE p.id = a.pathway_id AND p.school_id = $2::uuid
-             )
-           LIMIT 1`,
+        SELECT_ASSIGNMENT_BASE + ' WHERE a.id = $1::uuid AND p.school_id = $2::uuid LIMIT 1',
         assignmentId,
         tenant.schoolId,
       );
@@ -584,11 +629,7 @@ export class ReadinessPathwayService {
       const ownerStudentId = await resolveStudentIdForActor(this.tenantPrisma, actor);
       const isOwner = ownerStudentId === rows[0]!.student_id;
       const isGuardian = await isLinkedGuardianOf(this.tenantPrisma, actor, rows[0]!.student_id);
-      const hasCounsellorScope = await this.permissions.hasAnyPermissionInTenant(
-        actor.accountId,
-        tenant.schoolId,
-        ['ach-003:write', 'ach-003:admin'],
-      );
+      const hasCounsellorScope = await this.hasCounsellorScope(actor);
       if (!isOwner && !isGuardian && !hasCounsellorScope) {
         throw new NotFoundException('Assignment not found');
       }
@@ -604,7 +645,7 @@ export class ReadinessPathwayService {
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
       const tenant = getCurrentTenant();
       const rows = (await client.$queryRawUnsafe(
-        `SELECT a.*, p.school_id::text AS p_school_id
+        `SELECT a.*
          FROM pfl_student_pathway_assignments a
          JOIN pfl_readiness_pathways p ON p.id = a.pathway_id
          WHERE a.id = $1::uuid AND p.school_id = $2::uuid
@@ -625,11 +666,7 @@ export class ReadinessPathwayService {
       // Authorisation: admin / counsellor scope OR the owning student.
       const ownerStudentId = await resolveStudentIdForActor(this.tenantPrisma, actor);
       const isOwner = ownerStudentId === studentId;
-      const hasCounsellorScope = await this.permissions.hasAnyPermissionInTenant(
-        actor.accountId,
-        tenant.schoolId,
-        ['ach-003:write', 'ach-003:admin'],
-      );
+      const hasCounsellorScope = await this.hasCounsellorScope(actor);
       if (!actor.isSchoolAdmin && !isOwner && !hasCounsellorScope) {
         throw new ForbiddenException(
           'Only the owning student, a counsellor, or an admin can update milestone status.',
@@ -641,12 +678,19 @@ export class ReadinessPathwayService {
         );
       }
 
-      // Validate milestone belongs to the pathway.
+      // Validate milestone belongs to the pathway and the pathway is in this school.
       const milestoneRows = (await client.$queryRawUnsafe(
-        'SELECT id::text AS id, is_required FROM pfl_pathway_milestones WHERE id = $1::uuid AND pathway_id = $2::uuid LIMIT 1',
+        `SELECT m.id::text AS id, m.is_required, m.milestone_name
+         FROM pfl_pathway_milestones m
+         JOIN pfl_readiness_pathways p ON p.id = m.pathway_id
+         WHERE m.id = $1::uuid
+           AND m.pathway_id = $2::uuid
+           AND p.school_id = $3::uuid
+         LIMIT 1`,
         input.milestoneId,
         rows[0]!.pathway_id,
-      )) as Array<{ id: string; is_required: boolean }>;
+        tenant.schoolId,
+      )) as Array<{ id: string; is_required: boolean; milestone_name: string }>;
       if (milestoneRows.length === 0) {
         throw new BadRequestException('milestoneId does not belong to this pathway.');
       }
@@ -667,39 +711,48 @@ export class ReadinessPathwayService {
       if (idx >= 0) existing[idx] = next;
       else existing.push(next);
 
-      // Pull required milestone ids for progress computation
+      // Pull required milestone ids for progress computation — join through
+      // pathway to keep the school predicate honoured.
       const allMilestones = (await client.$queryRawUnsafe(
-        'SELECT id::text AS id, is_required FROM pfl_pathway_milestones WHERE pathway_id = $1::uuid',
+        `SELECT m.id::text AS id, m.is_required
+         FROM pfl_pathway_milestones m
+         JOIN pfl_readiness_pathways p ON p.id = m.pathway_id
+         WHERE m.pathway_id = $1::uuid AND p.school_id = $2::uuid`,
         rows[0]!.pathway_id,
+        tenant.schoolId,
       )) as Array<{ id: string; is_required: boolean }>;
       const requiredIds = new Set(allMilestones.filter((m) => m.is_required).map((m) => m.id));
       const newProgress = this.computeProgress(existing, requiredIds);
 
       await client.$executeRawUnsafe(
-        'UPDATE pfl_student_pathway_assignments SET milestone_statuses = $1::jsonb, overall_progress = $2, updated_at = now() WHERE id = $3::uuid',
+        `UPDATE pfl_student_pathway_assignments AS upd
+         SET milestone_statuses = $1::jsonb, overall_progress = $2, updated_at = now()
+         FROM pfl_readiness_pathways p
+         WHERE p.id = upd.pathway_id
+           AND upd.id = $3::uuid
+           AND p.school_id = $4::uuid`,
         JSON.stringify(existing),
         newProgress,
         assignmentId,
+        tenant.schoolId,
       );
 
-      // Emit pfl.pathway.milestone_completed when transitioning to COMPLETED.
+      // REVIEW-P2C27 BLOCKING 1 — emit through durable outbox INSIDE the tx
+      // with deterministic event_id keyed on (assignmentId, milestoneId) so
+      // redelivery dedups cleanly.
       if (isTransitioningToCompleted) {
-        // Resolve milestone name for the payload.
-        const milestoneNameRows = (await client.$queryRawUnsafe(
-          'SELECT milestone_name FROM pfl_pathway_milestones WHERE id = $1::uuid LIMIT 1',
-          input.milestoneId,
-        )) as Array<{ milestone_name: string }>;
-        await this.kafka.emit({
+        await this.outbox.enqueueInTx(client, {
           topic: 'pfl.pathway.milestone_completed',
           key: assignmentId,
           sourceModule: 'portfolio',
+          eventId: deterministicMilestoneCompletedEventId(assignmentId, input.milestoneId),
           payload: {
             assignmentId,
             pathwayId: rows[0]!.pathway_id,
             studentId,
             schoolId: tenant.schoolId,
             milestoneId: input.milestoneId,
-            milestoneName: milestoneNameRows[0]?.milestone_name ?? null,
+            milestoneName: milestoneRows[0]!.milestone_name,
             completedAt: next.completed_at,
             overallProgress: newProgress,
           },
@@ -707,8 +760,9 @@ export class ReadinessPathwayService {
       }
 
       const after = (await client.$queryRawUnsafe(
-        SELECT_ASSIGNMENT_BASE + ' WHERE a.id = $1::uuid',
+        SELECT_ASSIGNMENT_BASE + ' WHERE a.id = $1::uuid AND p.school_id = $2::uuid',
         assignmentId,
+        tenant.schoolId,
       )) as AssignmentRow[];
       return this.assignmentRowToDto(after[0]!);
     });
@@ -718,7 +772,10 @@ export class ReadinessPathwayService {
    * Internal — used by the MilestoneAutoCheckWorker. Walks every active
    * assignment whose pathway carries the given auto_check_source and
    * marks the matching milestone COMPLETED for the supplied student.
-   * Returns the count of assignments touched.
+   * Returns the count of milestones flipped. The outbox emit is keyed
+   * on (assignmentId, milestoneId) so the auto-check path and the
+   * manual updateMilestoneStatus path share the same deterministic
+   * envelope when the same milestone flips (REVIEW-P2C27 BLOCKING 1).
    */
   async autoCheckByCrossModuleEvent(
     schoolId: string,
@@ -766,21 +823,34 @@ export class ReadinessPathwayService {
         else existing.push(next);
 
         const reqRows = (await tx.$queryRawUnsafe(
-          'SELECT id::text AS id, is_required FROM pfl_pathway_milestones WHERE pathway_id = $1::uuid',
+          `SELECT m.id::text AS id, m.is_required
+           FROM pfl_pathway_milestones m
+           JOIN pfl_readiness_pathways p ON p.id = m.pathway_id
+           WHERE m.pathway_id = $1::uuid AND p.school_id = $2::uuid`,
           row.pathway_id,
+          schoolId,
         )) as Array<{ id: string; is_required: boolean }>;
         const requiredIds = new Set(reqRows.filter((m) => m.is_required).map((m) => m.id));
         const newProgress = this.computeProgress(existing, requiredIds);
         await tx.$executeRawUnsafe(
-          'UPDATE pfl_student_pathway_assignments SET milestone_statuses = $1::jsonb, overall_progress = $2, updated_at = now() WHERE id = $3::uuid',
+          `UPDATE pfl_student_pathway_assignments AS upd
+           SET milestone_statuses = $1::jsonb, overall_progress = $2, updated_at = now()
+           FROM pfl_readiness_pathways p
+           WHERE p.id = upd.pathway_id
+             AND upd.id = $3::uuid
+             AND p.school_id = $4::uuid`,
           JSON.stringify(existing),
           newProgress,
           row.id,
+          schoolId,
         );
-        await this.kafka.emit({
+        // Durable outbox emit with deterministic event_id keyed on
+        // (assignmentId, milestoneId) — REVIEW-P2C27 BLOCKING 1.
+        await this.outbox.enqueueInTx(tx, {
           topic: 'pfl.pathway.milestone_completed',
           key: row.id,
           sourceModule: 'portfolio',
+          eventId: deterministicMilestoneCompletedEventId(row.id, row.milestone_id),
           payload: {
             assignmentId: row.id,
             pathwayId: row.pathway_id,
@@ -815,8 +885,8 @@ export class ReadinessPathwayService {
               FROM sis_students s
               JOIN platform.platform_students ps ON ps.id = s.platform_student_id
               JOIN platform.iam_person ip ON ip.id = ps.person_id
-              WHERE s.id = a.student_id LIMIT 1) AS student_name,
-           (SELECT grade_level FROM sis_students WHERE id = a.student_id LIMIT 1) AS grade_level,
+              WHERE s.id = a.student_id AND s.school_id = p.school_id LIMIT 1) AS student_name,
+           (SELECT grade_level FROM sis_students WHERE id = a.student_id AND school_id = p.school_id LIMIT 1) AS grade_level,
            p.id::text AS pathway_id,
            p.name AS pathway_name,
            p.pathway_type AS pathway_type,

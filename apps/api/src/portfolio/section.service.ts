@@ -29,6 +29,8 @@ interface SectionRow {
   updated_at: string;
 }
 
+// REVIEW-P2C27 BLOCKING 5 — section reads JOIN through pfl_portfolios so
+// the school predicate is bound on every list / get / reload.
 const SELECT_SECTION_BASE = `
   SELECT
     s.id::text AS id,
@@ -41,6 +43,7 @@ const SELECT_SECTION_BASE = `
     s.updated_at::text AS updated_at,
     (SELECT COUNT(*)::int FROM pfl_portfolio_items i WHERE i.section_id = s.id) AS item_count
   FROM pfl_portfolio_sections s
+  JOIN pfl_portfolios p ON p.id = s.portfolio_id
 `;
 
 @Injectable()
@@ -63,9 +66,7 @@ export class PortfolioSectionService {
 
   // Resolve the parent portfolio + scope-check that the actor can edit it.
   // Sections are STUDENT-OWNED — only the owning student or a school admin
-  // can mutate. Teachers and parents have no write authority on sections
-  // even when the portfolio is at TEACHER / PARENT visibility — sections
-  // are a curation primitive, not a viewing primitive.
+  // can mutate.
   private async assertPortfolioOwnedByActor(
     portfolioId: string,
     actor: ResolvedActor,
@@ -90,10 +91,6 @@ export class PortfolioSectionService {
 
   async listForPortfolio(portfolioId: string): Promise<PortfolioSectionDto[]> {
     const tenant = getCurrentTenant();
-    // First verify the portfolio exists in this school — visibility is
-    // already enforced upstream by the caller (PortfolioService.getByStudent
-    // or the public share path), so the section list shape is read-only and
-    // follows the parent visibility. Don't-leak-existence collapse on miss.
     const found = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         'SELECT 1 FROM pfl_portfolios WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
@@ -106,8 +103,10 @@ export class PortfolioSectionService {
     }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        SELECT_SECTION_BASE + ' WHERE s.portfolio_id = $1::uuid ORDER BY s.sort_order ASC',
+        SELECT_SECTION_BASE +
+          ' WHERE s.portfolio_id = $1::uuid AND p.school_id = $2::uuid ORDER BY s.sort_order ASC',
         portfolioId,
+        tenant.schoolId,
       );
     })) as SectionRow[];
     return rows.map((r) => this.rowToDto(r));
@@ -119,13 +118,15 @@ export class PortfolioSectionService {
     input: CreateSectionDto,
   ): Promise<PortfolioSectionDto> {
     await this.assertPortfolioOwnedByActor(portfolioId, actor);
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
-      // Append at the end of the existing sort_order list. The UNIQUE
-      // constraint catches the race-window if two concurrent creates
-      // hit the same slot.
       const maxRows = (await client.$queryRawUnsafe(
-        'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM pfl_portfolio_sections WHERE portfolio_id = $1::uuid',
+        `SELECT COALESCE(MAX(s.sort_order), 0) AS max_order
+         FROM pfl_portfolio_sections s
+         JOIN pfl_portfolios p ON p.id = s.portfolio_id
+         WHERE s.portfolio_id = $1::uuid AND p.school_id = $2::uuid`,
         portfolioId,
+        tenant.schoolId,
       )) as Array<{ max_order: number }>;
       const nextOrder = Number(maxRows[0]?.max_order ?? 0) + 1;
       const id = generateId();
@@ -148,8 +149,9 @@ export class PortfolioSectionService {
         throw err;
       }
       const rows = (await client.$queryRawUnsafe(
-        SELECT_SECTION_BASE + ' WHERE s.id = $1::uuid',
+        SELECT_SECTION_BASE + ' WHERE s.id = $1::uuid AND p.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       )) as SectionRow[];
       return this.rowToDto(rows[0]!);
     });
@@ -161,21 +163,17 @@ export class PortfolioSectionService {
     input: UpdateSectionDto,
   ): Promise<PortfolioSectionDto> {
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
-      // Lock the section + parent portfolio row inside the tx so reorder
-      // races serialise. Validate ownership through the parent portfolio.
+      const tenant = getCurrentTenant();
       const rows = (await client.$queryRawUnsafe(
         `SELECT s.id::text AS id, s.portfolio_id::text AS portfolio_id, p.student_id::text AS student_id, p.school_id::text AS school_id
          FROM pfl_portfolio_sections s
          JOIN pfl_portfolios p ON p.id = s.portfolio_id
-         WHERE s.id = $1::uuid
+         WHERE s.id = $1::uuid AND p.school_id = $2::uuid
          FOR UPDATE OF s`,
         sectionId,
+        tenant.schoolId,
       )) as Array<{ id: string; portfolio_id: string; student_id: string; school_id: string }>;
       if (rows.length === 0) throw new NotFoundException('Section not found');
-      const tenant = getCurrentTenant();
-      if (rows[0]!.school_id !== tenant.schoolId) {
-        throw new NotFoundException('Section not found');
-      }
       if (!(await isOwningStudent(this.tenantPrisma, actor, rows[0]!.student_id))) {
         throw new ForbiddenException(
           'Only the owning student or a school admin can manage portfolio sections.',
@@ -195,45 +193,72 @@ export class PortfolioSectionService {
         if (input.sortOrder < 1) {
           throw new BadRequestException('sortOrder must be >= 1.');
         }
-        // Reorder: if a section already occupies the requested slot in this
-        // portfolio, swap it into the slot we are vacating. Two-step swap
-        // happens inside the tx; the UNIQUE constraint blocks any
-        // intermediate collision.
         const conflictRows = (await client.$queryRawUnsafe(
-          'SELECT id::text AS id, sort_order FROM pfl_portfolio_sections WHERE portfolio_id = $1::uuid AND sort_order = $2 AND id <> $3::uuid LIMIT 1',
+          `SELECT s.id::text AS id, s.sort_order
+           FROM pfl_portfolio_sections s
+           JOIN pfl_portfolios p ON p.id = s.portfolio_id
+           WHERE s.portfolio_id = $1::uuid
+             AND s.sort_order = $2
+             AND s.id <> $3::uuid
+             AND p.school_id = $4::uuid
+           LIMIT 1`,
           rows[0]!.portfolio_id,
           input.sortOrder,
           sectionId,
+          tenant.schoolId,
         )) as Array<{ id: string; sort_order: number }>;
         if (conflictRows.length > 0) {
-          // Park the conflict section out of the way using a deliberately
-          // large temporary slot, then place the new sort_order, then bring
-          // the conflict section into the old slot.
           const currentOrderRows = (await client.$queryRawUnsafe(
-            'SELECT sort_order FROM pfl_portfolio_sections WHERE id = $1::uuid LIMIT 1',
+            `SELECT s.sort_order
+             FROM pfl_portfolio_sections s
+             JOIN pfl_portfolios p ON p.id = s.portfolio_id
+             WHERE s.id = $1::uuid AND p.school_id = $2::uuid
+             LIMIT 1`,
             sectionId,
+            tenant.schoolId,
           )) as Array<{ sort_order: number }>;
           const currentOrder = currentOrderRows[0]!.sort_order;
+          // Park the conflict section at -conflict.sort_order with a school-
+          // joined UPDATE so cross-school sections cannot be touched.
           await client.$executeRawUnsafe(
-            'UPDATE pfl_portfolio_sections SET sort_order = $1 WHERE id = $2::uuid',
+            `UPDATE pfl_portfolio_sections AS upd
+             SET sort_order = $1
+             FROM pfl_portfolios p
+             WHERE p.id = upd.portfolio_id
+               AND upd.id = $2::uuid
+               AND p.school_id = $3::uuid`,
             -conflictRows[0]!.sort_order,
             conflictRows[0]!.id,
+            tenant.schoolId,
           );
           push('sort_order', input.sortOrder);
           sets.push('updated_at = now()');
           params.push(sectionId);
+          params.push(tenant.schoolId);
           await client.$executeRawUnsafe(
-            `UPDATE pfl_portfolio_sections SET ${sets.join(', ')} WHERE id = $${params.length}::uuid`,
+            `UPDATE pfl_portfolio_sections AS upd
+             SET ${sets.join(', ')}
+             FROM pfl_portfolios p
+             WHERE p.id = upd.portfolio_id
+               AND upd.id = $${params.length - 1}::uuid
+               AND p.school_id = $${params.length}::uuid`,
             ...params,
           );
           await client.$executeRawUnsafe(
-            'UPDATE pfl_portfolio_sections SET sort_order = $1 WHERE id = $2::uuid',
+            `UPDATE pfl_portfolio_sections AS upd
+             SET sort_order = $1
+             FROM pfl_portfolios p
+             WHERE p.id = upd.portfolio_id
+               AND upd.id = $2::uuid
+               AND p.school_id = $3::uuid`,
             currentOrder,
             conflictRows[0]!.id,
+            tenant.schoolId,
           );
           const after = (await client.$queryRawUnsafe(
-            SELECT_SECTION_BASE + ' WHERE s.id = $1::uuid',
+            SELECT_SECTION_BASE + ' WHERE s.id = $1::uuid AND p.school_id = $2::uuid',
             sectionId,
+            tenant.schoolId,
           )) as SectionRow[];
           return this.rowToDto(after[0]!);
         }
@@ -241,16 +266,23 @@ export class PortfolioSectionService {
       }
       if (sets.length === 0) {
         const cur = (await client.$queryRawUnsafe(
-          SELECT_SECTION_BASE + ' WHERE s.id = $1::uuid',
+          SELECT_SECTION_BASE + ' WHERE s.id = $1::uuid AND p.school_id = $2::uuid',
           sectionId,
+          tenant.schoolId,
         )) as SectionRow[];
         return this.rowToDto(cur[0]!);
       }
       sets.push('updated_at = now()');
       params.push(sectionId);
+      params.push(tenant.schoolId);
       try {
         await client.$executeRawUnsafe(
-          `UPDATE pfl_portfolio_sections SET ${sets.join(', ')} WHERE id = $${params.length}::uuid`,
+          `UPDATE pfl_portfolio_sections AS upd
+           SET ${sets.join(', ')}
+           FROM pfl_portfolios p
+           WHERE p.id = upd.portfolio_id
+             AND upd.id = $${params.length - 1}::uuid
+             AND p.school_id = $${params.length}::uuid`,
           ...params,
         );
       } catch (err) {
@@ -262,8 +294,9 @@ export class PortfolioSectionService {
         throw err;
       }
       const after = (await client.$queryRawUnsafe(
-        SELECT_SECTION_BASE + ' WHERE s.id = $1::uuid',
+        SELECT_SECTION_BASE + ' WHERE s.id = $1::uuid AND p.school_id = $2::uuid',
         sectionId,
+        tenant.schoolId,
       )) as SectionRow[];
       return this.rowToDto(after[0]!);
     });
@@ -271,38 +304,36 @@ export class PortfolioSectionService {
 
   async remove(sectionId: string, actor: ResolvedActor): Promise<void> {
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      const tenant = getCurrentTenant();
       const rows = (await client.$queryRawUnsafe(
         `SELECT p.student_id::text AS student_id, p.school_id::text AS school_id
          FROM pfl_portfolio_sections s
          JOIN pfl_portfolios p ON p.id = s.portfolio_id
-         WHERE s.id = $1::uuid
+         WHERE s.id = $1::uuid AND p.school_id = $2::uuid
          FOR UPDATE OF s`,
         sectionId,
+        tenant.schoolId,
       )) as Array<{ student_id: string; school_id: string }>;
       if (rows.length === 0) throw new NotFoundException('Section not found');
-      const tenant = getCurrentTenant();
-      if (rows[0]!.school_id !== tenant.schoolId) {
-        throw new NotFoundException('Section not found');
-      }
       if (!(await isOwningStudent(this.tenantPrisma, actor, rows[0]!.student_id))) {
         throw new ForbiddenException(
           'Only the owning student or a school admin can delete portfolio sections.',
         );
       }
-      // ON DELETE SET NULL on pfl_portfolio_items.section_id — items
-      // survive the section delete and return to the unsectioned bucket.
+      // REVIEW-P2C27 BLOCKING 5 — DELETE joins through pfl_portfolios so the
+      // school predicate is enforced on the write.
       await client.$executeRawUnsafe(
-        'DELETE FROM pfl_portfolio_sections WHERE id = $1::uuid',
+        `DELETE FROM pfl_portfolio_sections AS del
+         USING pfl_portfolios p
+         WHERE p.id = del.portfolio_id
+           AND del.id = $1::uuid
+           AND p.school_id = $2::uuid`,
         sectionId,
+        tenant.schoolId,
       );
     });
   }
 
-  /**
-   * Assign a portfolio item to a section (or null to remove). The item
-   * must belong to a portfolio the actor owns; the destination section
-   * (when set) must belong to the same portfolio as the item.
-   */
   async assignItemToSection(
     itemId: string,
     actor: ResolvedActor,
@@ -314,14 +345,12 @@ export class PortfolioSectionService {
         `SELECT i.id::text AS id, i.portfolio_id::text AS portfolio_id, p.student_id::text AS student_id, p.school_id::text AS school_id
          FROM pfl_portfolio_items i
          JOIN pfl_portfolios p ON p.id = i.portfolio_id
-         WHERE i.id = $1::uuid
+         WHERE i.id = $1::uuid AND p.school_id = $2::uuid
          FOR UPDATE OF i`,
         itemId,
+        tenant.schoolId,
       )) as Array<{ id: string; portfolio_id: string; student_id: string; school_id: string }>;
       if (itemRows.length === 0) throw new NotFoundException('Portfolio item not found');
-      if (itemRows[0]!.school_id !== tenant.schoolId) {
-        throw new NotFoundException('Portfolio item not found');
-      }
       if (!(await isOwningStudent(this.tenantPrisma, actor, itemRows[0]!.student_id))) {
         throw new ForbiddenException(
           'Only the owning student or a school admin can assign items to sections.',
@@ -329,8 +358,13 @@ export class PortfolioSectionService {
       }
       if (input.sectionId) {
         const sectionRows = (await client.$queryRawUnsafe(
-          'SELECT portfolio_id::text AS portfolio_id FROM pfl_portfolio_sections WHERE id = $1::uuid LIMIT 1',
+          `SELECT s.portfolio_id::text AS portfolio_id
+           FROM pfl_portfolio_sections s
+           JOIN pfl_portfolios p ON p.id = s.portfolio_id
+           WHERE s.id = $1::uuid AND p.school_id = $2::uuid
+           LIMIT 1`,
           input.sectionId,
+          tenant.schoolId,
         )) as Array<{ portfolio_id: string }>;
         if (sectionRows.length === 0) {
           throw new BadRequestException('sectionId does not match any section.');
@@ -341,10 +375,18 @@ export class PortfolioSectionService {
           );
         }
       }
+      // REVIEW-P2C27 BLOCKING 5 — UPDATE joins through pfl_portfolios so the
+      // school predicate is bound on the assignment write.
       await client.$executeRawUnsafe(
-        'UPDATE pfl_portfolio_items SET section_id = $1::uuid WHERE id = $2::uuid',
+        `UPDATE pfl_portfolio_items AS upd
+         SET section_id = $1::uuid
+         FROM pfl_portfolios p
+         WHERE p.id = upd.portfolio_id
+           AND upd.id = $2::uuid
+           AND p.school_id = $3::uuid`,
         input.sectionId ?? null,
         itemId,
+        tenant.schoolId,
       );
     });
   }

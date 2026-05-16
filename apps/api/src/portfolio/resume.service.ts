@@ -10,9 +10,10 @@ import { getCurrentTenant } from '../tenant/tenant.context';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import {
+  isLinkedGuardianOf,
+  isStudentInCurrentSchool,
   isUniqueViolation,
   resolveStudentIdForActor,
-  isLinkedGuardianOf,
 } from './portfolio-access';
 import type {
   GenerateResumePdfResponseDto,
@@ -37,15 +38,16 @@ interface ResumeRow {
   updated_at: string;
 }
 
+// REVIEW-P2C27 BLOCKING 6 — every resume read joins through sis_students
+// so the school predicate is bound on every list / get / reload.
 const SELECT_RESUME_BASE = `
   SELECT
     r.id::text AS id,
     r.student_id::text AS student_id,
     (SELECT ip.first_name || ' ' || ip.last_name
-       FROM sis_students s
-       JOIN platform.platform_students ps ON ps.id = s.platform_student_id
+       FROM platform.platform_students ps
        JOIN platform.iam_person ip ON ip.id = ps.person_id
-       WHERE s.id = r.student_id LIMIT 1) AS student_name,
+       WHERE ps.id = s.platform_student_id LIMIT 1) AS student_name,
     r.objective_statement,
     r.skills,
     r.work_experience,
@@ -58,6 +60,7 @@ const SELECT_RESUME_BASE = `
     r.created_at::text AS created_at,
     r.updated_at::text AS updated_at
   FROM pfl_resume_profiles r
+  JOIN sis_students s ON s.id = r.student_id
 `;
 
 @Injectable()
@@ -105,7 +108,13 @@ export class ResumeService {
   }
 
   async getForStudent(studentId: string, actor: ResolvedActor): Promise<ResumeProfileDto> {
-    // Row scope: admin / owner / guardian / counsellor (read-only).
+    const tenant = getCurrentTenant();
+    // REVIEW-P2C27 BLOCKING 6 — the studentId must belong to the calling
+    // school before any read / auto-create fires.
+    const studentOk = await isStudentInCurrentSchool(this.tenantPrisma, studentId);
+    if (!studentOk) {
+      throw new NotFoundException('Resume not found');
+    }
     if (!actor.isSchoolAdmin) {
       const ownerStudentId = await resolveStudentIdForActor(this.tenantPrisma, actor);
       const isOwner = ownerStudentId === studentId;
@@ -117,14 +126,13 @@ export class ResumeService {
     }
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        SELECT_RESUME_BASE + ' WHERE r.student_id = $1::uuid LIMIT 1',
+        SELECT_RESUME_BASE + ' WHERE r.student_id = $1::uuid AND s.school_id = $2::uuid LIMIT 1',
         studentId,
+        tenant.schoolId,
       );
     })) as ResumeRow[];
     if (rows.length === 0) {
-      // Auto-create a default resume row for the student on first read.
-      // Only when the caller is the owner / admin — guardians + counsellors
-      // see 404 until the student initialises their resume.
+      // Auto-create — owner / admin only.
       const ownerStudentId = await resolveStudentIdForActor(this.tenantPrisma, actor);
       if (!actor.isSchoolAdmin && ownerStudentId !== studentId) {
         throw new NotFoundException('Resume not found');
@@ -143,8 +151,9 @@ export class ResumeService {
       }
       const created = (await this.tenantPrisma.executeInTenantContext(async (client) => {
         return client.$queryRawUnsafe(
-          SELECT_RESUME_BASE + ' WHERE r.student_id = $1::uuid LIMIT 1',
+          SELECT_RESUME_BASE + ' WHERE r.student_id = $1::uuid AND s.school_id = $2::uuid LIMIT 1',
           studentId,
+          tenant.schoolId,
         );
       })) as ResumeRow[];
       return this.rowToDto(created[0]!);
@@ -158,11 +167,22 @@ export class ResumeService {
     input: UpdateResumeDto,
   ): Promise<ResumeProfileDto> {
     await this.assertOwnerOrAdminFor(actor, studentId);
+    // REVIEW-P2C27 BLOCKING 6 — defence-in-depth: the studentId must belong
+    // to the current school.
+    const studentOk = await isStudentInCurrentSchool(this.tenantPrisma, studentId);
+    if (!studentOk) {
+      throw new NotFoundException('Resume not found');
+    }
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
-      // Ensure resume row exists (auto-create on first PATCH).
       const existing = (await client.$queryRawUnsafe(
-        'SELECT id::text AS id FROM pfl_resume_profiles WHERE student_id = $1::uuid LIMIT 1 FOR UPDATE',
+        `SELECT r.id::text AS id
+         FROM pfl_resume_profiles r
+         JOIN sis_students s ON s.id = r.student_id
+         WHERE r.student_id = $1::uuid AND s.school_id = $2::uuid
+         LIMIT 1 FOR UPDATE OF r`,
         studentId,
+        tenant.schoolId,
       )) as Array<{ id: string }>;
       if (existing.length === 0) {
         const id = generateId();
@@ -197,48 +217,58 @@ export class ResumeService {
         push('"references"', JSON.stringify(input.references), '::jsonb');
       if (sets.length === 0) {
         const cur = (await client.$queryRawUnsafe(
-          SELECT_RESUME_BASE + ' WHERE r.student_id = $1::uuid',
+          SELECT_RESUME_BASE + ' WHERE r.student_id = $1::uuid AND s.school_id = $2::uuid',
           studentId,
+          tenant.schoolId,
         )) as ResumeRow[];
         return this.rowToDto(cur[0]!);
       }
       sets.push('updated_at = now()');
       params.push(studentId);
+      params.push(tenant.schoolId);
+      // REVIEW-P2C27 BLOCKING 6 — UPDATE joins through sis_students so the
+      // school predicate is enforced on the write.
       await client.$executeRawUnsafe(
-        `UPDATE pfl_resume_profiles SET ${sets.join(', ')} WHERE student_id = $${params.length}::uuid`,
+        `UPDATE pfl_resume_profiles AS upd
+         SET ${sets.join(', ')}
+         FROM sis_students s
+         WHERE s.id = upd.student_id
+           AND upd.student_id = $${params.length - 1}::uuid
+           AND s.school_id = $${params.length}::uuid`,
         ...params,
       );
       const after = (await client.$queryRawUnsafe(
-        SELECT_RESUME_BASE + ' WHERE r.student_id = $1::uuid',
+        SELECT_RESUME_BASE + ' WHERE r.student_id = $1::uuid AND s.school_id = $2::uuid',
         studentId,
+        tenant.schoolId,
       )) as ResumeRow[];
       return this.rowToDto(after[0]!);
     });
   }
 
   /**
-   * Generate (or regenerate) the resume PDF. Pulls cross-module data:
-   *   - skills: UNION of endorsement skills + self-reported skills.
-   *   - service_hours_total: SUM(sis_service_learning_hours.hours_logged)
-   *     for the student where status='APPROVED'. Falls back gracefully
-   *     when the table or columns are absent in the calling tenant
-   *     (different deployment shape).
-   *   - awards: pfl_achievements rows for the student.
-   *   - extracurriculars: ext_activity_enrollments when available;
-   *     manually-edited rows survive the regeneration.
-   * Stores the generated PDF S3 key + last_generated_at. The actual
-   * PDF rendering is a placeholder S3 key — pre-pilot replace with the
-   * real renderer (the schema is already wired for it).
+   * Generate (or regenerate) the resume PDF. Pulls cross-module data
+   * with every aggregation school-scoped through sis_students (REVIEW-
+   * P2C27 BLOCKING 6).
    */
   async generatePdf(
     studentId: string,
     actor: ResolvedActor,
   ): Promise<GenerateResumePdfResponseDto> {
     await this.assertOwnerOrAdminFor(actor, studentId);
+    // REVIEW-P2C27 BLOCKING 6 — defence-in-depth: studentId must be in
+    // current school before any cross-module aggregation fires.
+    const studentOk = await isStudentInCurrentSchool(this.tenantPrisma, studentId);
+    if (!studentOk) {
+      throw new NotFoundException('Resume not found');
+    }
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
       const existing = (await client.$queryRawUnsafe(
-        SELECT_RESUME_BASE + ' WHERE r.student_id = $1::uuid LIMIT 1 FOR UPDATE',
+        SELECT_RESUME_BASE +
+          ' WHERE r.student_id = $1::uuid AND s.school_id = $2::uuid LIMIT 1 FOR UPDATE OF r',
         studentId,
+        tenant.schoolId,
       )) as ResumeRow[];
       if (existing.length === 0) {
         throw new BadRequestException(
@@ -247,44 +277,59 @@ export class ResumeService {
       }
       const resume = existing[0]!;
 
-      // Aggregate endorsement skills via student -> portfolio -> endorsements.
+      // REVIEW-P2C27 BLOCKING 6 — endorsement skills aggregation joins
+      // through pfl_portfolios.school_id so a cross-school portfolio's
+      // endorsement skills cannot leak into the resume.
       const endorsementSkillRows = (await client.$queryRawUnsafe(
         `SELECT DISTINCT unnest(e.skills) AS skill
          FROM pfl_endorsements e
          JOIN pfl_portfolios p ON p.id = e.portfolio_id
-         WHERE p.student_id = $1::uuid`,
+         WHERE p.student_id = $1::uuid AND p.school_id = $2::uuid`,
         studentId,
+        tenant.schoolId,
       )) as Array<{ skill: string }>;
       const endorsementSkills = endorsementSkillRows.map((r) => r.skill);
       const mergedSkills = Array.from(
         new Set<string>([...(resume.skills ?? []), ...endorsementSkills]),
       );
 
-      // Service hours — defensive against table absence.
+      // REVIEW-P2C27 BLOCKING 6 — service hours aggregation joins through
+      // sis_students.school_id so cross-school service hour entries cannot
+      // contaminate the total. Defensive try/catch preserves the manually
+      // edited value when the cross-cycle table is absent in this tenant.
       let serviceHours = resume.service_hours_total;
       try {
         const rows = (await client.$queryRawUnsafe(
-          "SELECT COALESCE(SUM(hours_logged), 0)::numeric(5,1) AS total FROM sis_service_learning_hours WHERE student_id = $1::uuid AND status = 'APPROVED'",
+          `SELECT COALESCE(SUM(slh.hours_logged), 0)::numeric(5,1) AS total
+           FROM sis_service_learning_hours slh
+           JOIN sis_students s ON s.id = slh.student_id
+           WHERE slh.student_id = $1::uuid
+             AND s.school_id = $2::uuid
+             AND slh.status = 'APPROVED'`,
           studentId,
+          tenant.schoolId,
         )) as Array<{ total: number }>;
         serviceHours = Number(rows[0]?.total ?? 0);
       } catch (err) {
-        // Table or column missing — keep the manually edited value.
         void err;
       }
 
-      // Awards — aggregate from pfl_achievements.
+      // REVIEW-P2C27 BLOCKING 6 — achievements aggregation joins through
+      // sis_students so cross-school achievement rows cannot leak.
       const achievementRows = (await client.$queryRawUnsafe(
-        'SELECT title, achievement_type AS type, awarded_at::text AS awarded_at FROM pfl_achievements WHERE student_id = $1::uuid ORDER BY awarded_at DESC',
+        `SELECT a.title, a.achievement_type AS type, a.awarded_at::text AS awarded_at
+         FROM pfl_achievements a
+         JOIN sis_students s ON s.id = a.student_id
+         WHERE a.student_id = $1::uuid AND s.school_id = $2::uuid
+         ORDER BY a.awarded_at DESC`,
         studentId,
+        tenant.schoolId,
       )) as Array<{ title: string; type: string; awarded_at: string }>;
       const aggregatedAwards = achievementRows.map((r) => ({
         title: r.title,
         type: r.type,
         date: r.awarded_at,
       }));
-      // Merge with existing manually edited awards (existing wins on
-      // duplicate-title).
       const existingAwards = Array.isArray(resume.awards) ? resume.awards : [];
       const existingTitles = new Set(
         (existingAwards as Array<{ title?: string }>).map((a) => a.title).filter(Boolean),
@@ -294,7 +339,10 @@ export class ResumeService {
         ...aggregatedAwards.filter((a) => !existingTitles.has(a.title)),
       ];
 
-      // Extracurriculars — try ext_activity_enrollments if present.
+      // REVIEW-P2C27 BLOCKING 6 — extracurriculars aggregation joins through
+      // sis_students.school_id so cross-school activity memberships cannot
+      // leak. The inner subquery already binds to the current school via
+      // the JOIN on sis_students.
       let mergedExtracurriculars = Array.isArray(resume.extracurriculars)
         ? resume.extracurriculars
         : [];
@@ -304,11 +352,13 @@ export class ResumeService {
            FROM ext_activity_members em
            JOIN ext_activities a ON a.id = em.activity_id
            WHERE em.person_id IN (
-             SELECT ps.person_id FROM sis_students s
+             SELECT ps.person_id
+             FROM sis_students s
              JOIN platform.platform_students ps ON ps.id = s.platform_student_id
-             WHERE s.id = $1::uuid
+             WHERE s.id = $1::uuid AND s.school_id = $2::uuid
            )`,
           studentId,
+          tenant.schoolId,
         )) as Array<{ activity: string; role: string | null; joined_at: string }>;
         if (rows.length > 0) {
           const seen = new Set(
@@ -327,8 +377,21 @@ export class ResumeService {
 
       const pdfS3Key = `resumes/${studentId}/${Date.now()}.pdf`;
       const generatedAt = new Date().toISOString();
+      // REVIEW-P2C27 BLOCKING 6 — final UPDATE joins through sis_students
+      // so the school predicate is enforced on the write.
       await client.$executeRawUnsafe(
-        'UPDATE pfl_resume_profiles SET skills = $1, awards = $2::jsonb, extracurriculars = $3::jsonb, service_hours_total = $4, pdf_s3_key = $5, last_generated_at = $6::timestamptz, updated_at = now() WHERE student_id = $7::uuid',
+        `UPDATE pfl_resume_profiles AS upd
+         SET skills = $1,
+             awards = $2::jsonb,
+             extracurriculars = $3::jsonb,
+             service_hours_total = $4,
+             pdf_s3_key = $5,
+             last_generated_at = $6::timestamptz,
+             updated_at = now()
+         FROM sis_students s
+         WHERE s.id = upd.student_id
+           AND upd.student_id = $7::uuid
+           AND s.school_id = $8::uuid`,
         mergedSkills,
         JSON.stringify(mergedAwards),
         JSON.stringify(mergedExtracurriculars),
@@ -336,6 +399,7 @@ export class ResumeService {
         pdfS3Key,
         generatedAt,
         studentId,
+        tenant.schoolId,
       );
 
       return {

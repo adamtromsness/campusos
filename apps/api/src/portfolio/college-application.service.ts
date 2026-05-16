@@ -9,7 +9,11 @@ import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
-import { resolveStudentIdForActor, isLinkedGuardianOf } from './portfolio-access';
+import {
+  isLinkedGuardianOf,
+  isStudentInCurrentSchool,
+  resolveStudentIdForActor,
+} from './portfolio-access';
 import type {
   CollegeApplicationDto,
   CollegeApplicationStatus,
@@ -36,15 +40,18 @@ interface AppRow {
   updated_at: string;
 }
 
+// REVIEW-P2C27 BLOCKING 4 — every college-app read joins through
+// sis_students so the current-school predicate is bound on every
+// list/get/patch/delete/deadline query. Cross-school UUIDs collapse
+// to 404 don't-leak-existence.
 const SELECT_APP_BASE = `
   SELECT
     a.id::text AS id,
     a.student_id::text AS student_id,
     (SELECT ip.first_name || ' ' || ip.last_name
-       FROM sis_students s
-       JOIN platform.platform_students ps ON ps.id = s.platform_student_id
+       FROM platform.platform_students ps
        JOIN platform.iam_person ip ON ip.id = ps.person_id
-       WHERE s.id = a.student_id LIMIT 1) AS student_name,
+       WHERE ps.id = s.platform_student_id LIMIT 1) AS student_name,
     a.college_name,
     a.application_type,
     a.deadline::text AS deadline,
@@ -58,6 +65,7 @@ const SELECT_APP_BASE = `
     a.created_at::text AS created_at,
     a.updated_at::text AS updated_at
   FROM pfl_college_applications a
+  JOIN sis_students s ON s.id = a.student_id
 `;
 
 const TERMINAL_STATUSES: CollegeApplicationStatus[] = ['ACCEPTED', 'REJECTED', 'WAITLISTED'];
@@ -102,7 +110,6 @@ export class CollegeApplicationService {
     if (actor.isSchoolAdmin) return;
     const ownerStudentId = await resolveStudentIdForActor(this.tenantPrisma, actor);
     if (ownerStudentId === studentId) return;
-    // Counsellor on-behalf creates allowed via staff scope.
     if (actor.personType === 'STAFF') {
       const has = await this.hasCounsellorScope(actor);
       if (has) return;
@@ -113,7 +120,7 @@ export class CollegeApplicationService {
   }
 
   async listForStudent(studentId: string, actor: ResolvedActor): Promise<CollegeApplicationDto[]> {
-    // Row scope: admin / counsellor / owner / linked guardian.
+    const tenant = getCurrentTenant();
     if (!actor.isSchoolAdmin) {
       const ownerStudentId = await resolveStudentIdForActor(this.tenantPrisma, actor);
       const isOwner = ownerStudentId === studentId;
@@ -126,22 +133,24 @@ export class CollegeApplicationService {
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_APP_BASE +
-          ' WHERE a.student_id = $1::uuid ORDER BY a.deadline ASC NULLS LAST, a.created_at DESC',
+          ' WHERE a.student_id = $1::uuid AND s.school_id = $2::uuid ORDER BY a.deadline ASC NULLS LAST, a.created_at DESC',
         studentId,
+        tenant.schoolId,
       );
     })) as AppRow[];
     return rows.map((r) => this.rowToDto(r));
   }
 
   async getById(applicationId: string, actor: ResolvedActor): Promise<CollegeApplicationDto> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        SELECT_APP_BASE + ' WHERE a.id = $1::uuid LIMIT 1',
+        SELECT_APP_BASE + ' WHERE a.id = $1::uuid AND s.school_id = $2::uuid LIMIT 1',
         applicationId,
+        tenant.schoolId,
       );
     })) as AppRow[];
     if (rows.length === 0) throw new NotFoundException('Application not found');
-    // Row scope check
     if (!actor.isSchoolAdmin) {
       const ownerStudentId = await resolveStudentIdForActor(this.tenantPrisma, actor);
       const isOwner = ownerStudentId === rows[0]!.student_id;
@@ -160,7 +169,6 @@ export class CollegeApplicationService {
   ): Promise<CollegeApplicationDto> {
     let studentId = input.studentId ?? null;
     if (!studentId) {
-      // Default to the calling student. Counsellors must provide studentId.
       const ownerStudentId = await resolveStudentIdForActor(this.tenantPrisma, actor);
       if (!ownerStudentId) {
         throw new BadRequestException(
@@ -170,6 +178,13 @@ export class CollegeApplicationService {
       studentId = ownerStudentId;
     }
     await this.assertCanWriteForStudent(actor, studentId);
+    // REVIEW-P2C27 BLOCKING 4 — validate the supplied studentId belongs to the
+    // current school before INSERT so a cross-school student id cannot land.
+    const studentOk = await isStudentInCurrentSchool(this.tenantPrisma, studentId);
+    if (!studentOk) {
+      throw new BadRequestException('studentId does not match a student in this school.');
+    }
+    const tenant = getCurrentTenant();
     const id = generateId();
     await this.tenantPrisma.executeInTenantContext(async (client) => {
       await client.$executeRawUnsafe(
@@ -184,8 +199,13 @@ export class CollegeApplicationService {
       );
     });
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(SELECT_APP_BASE + ' WHERE a.id = $1::uuid', id);
+      return client.$queryRawUnsafe(
+        SELECT_APP_BASE + ' WHERE a.id = $1::uuid AND s.school_id = $2::uuid',
+        id,
+        tenant.schoolId,
+      );
     })) as AppRow[];
+    if (rows.length === 0) throw new NotFoundException('Application not found');
     return this.rowToDto(rows[0]!);
   }
 
@@ -195,9 +215,17 @@ export class CollegeApplicationService {
     input: UpdateCollegeApplicationDto,
   ): Promise<CollegeApplicationDto> {
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      const tenant = getCurrentTenant();
+      // REVIEW-P2C27 BLOCKING 4 — lock with school predicate via JOIN through
+      // sis_students so cross-school applicationIds collapse to 404.
       const rows = (await client.$queryRawUnsafe(
-        'SELECT id::text AS id, student_id::text AS student_id, status FROM pfl_college_applications WHERE id = $1::uuid FOR UPDATE',
+        `SELECT a.id::text AS id, a.student_id::text AS student_id, a.status
+         FROM pfl_college_applications a
+         JOIN sis_students s ON s.id = a.student_id
+         WHERE a.id = $1::uuid AND s.school_id = $2::uuid
+         FOR UPDATE OF a`,
         applicationId,
+        tenant.schoolId,
       )) as Array<{ id: string; student_id: string; status: CollegeApplicationStatus }>;
       if (rows.length === 0) throw new NotFoundException('Application not found');
       await this.assertCanWriteForStudent(actor, rows[0]!.student_id);
@@ -220,8 +248,6 @@ export class CollegeApplicationService {
       }
       if (input.status !== undefined) {
         push('status', input.status);
-        // Auto-stamp decision_date on first transition to a terminal status if
-        // the caller did not supply one.
         if (
           TERMINAL_STATUSES.includes(input.status) &&
           input.decisionDate === undefined &&
@@ -247,43 +273,68 @@ export class CollegeApplicationService {
       }
       if (sets.length === 0) {
         const cur = (await client.$queryRawUnsafe(
-          SELECT_APP_BASE + ' WHERE a.id = $1::uuid',
+          SELECT_APP_BASE + ' WHERE a.id = $1::uuid AND s.school_id = $2::uuid',
           applicationId,
+          tenant.schoolId,
         )) as AppRow[];
         return this.rowToDto(cur[0]!);
       }
       sets.push('updated_at = now()');
       params.push(applicationId);
+      params.push(tenant.schoolId);
+      // REVIEW-P2C27 BLOCKING 4 — UPDATE joins through sis_students so the
+      // school predicate is enforced on the write.
       await client.$executeRawUnsafe(
-        `UPDATE pfl_college_applications SET ${sets.join(', ')} WHERE id = $${params.length}::uuid`,
+        `UPDATE pfl_college_applications AS upd
+         SET ${sets.join(', ')}
+         FROM sis_students s
+         WHERE s.id = upd.student_id
+           AND upd.id = $${params.length - 1}::uuid
+           AND s.school_id = $${params.length}::uuid`,
         ...params,
       );
       const after = (await client.$queryRawUnsafe(
-        SELECT_APP_BASE + ' WHERE a.id = $1::uuid',
+        SELECT_APP_BASE + ' WHERE a.id = $1::uuid AND s.school_id = $2::uuid',
         applicationId,
+        tenant.schoolId,
       )) as AppRow[];
+      if (after.length === 0) throw new NotFoundException('Application not found');
       return this.rowToDto(after[0]!);
     });
   }
 
   async remove(applicationId: string, actor: ResolvedActor): Promise<void> {
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
+      const tenant = getCurrentTenant();
       const rows = (await client.$queryRawUnsafe(
-        'SELECT student_id::text AS student_id FROM pfl_college_applications WHERE id = $1::uuid FOR UPDATE',
+        `SELECT a.student_id::text AS student_id
+         FROM pfl_college_applications a
+         JOIN sis_students s ON s.id = a.student_id
+         WHERE a.id = $1::uuid AND s.school_id = $2::uuid
+         FOR UPDATE OF a`,
         applicationId,
+        tenant.schoolId,
       )) as Array<{ student_id: string }>;
       if (rows.length === 0) throw new NotFoundException('Application not found');
       await this.assertCanWriteForStudent(actor, rows[0]!.student_id);
+      // REVIEW-P2C27 BLOCKING 4 — DELETE joins through sis_students for defence
+      // in depth even though the row is already locked.
       await client.$executeRawUnsafe(
-        'DELETE FROM pfl_college_applications WHERE id = $1::uuid',
+        `DELETE FROM pfl_college_applications AS del
+         USING sis_students s
+         WHERE s.id = del.student_id
+           AND del.id = $1::uuid
+           AND s.school_id = $2::uuid`,
         applicationId,
+        tenant.schoolId,
       );
     });
   }
 
   /**
-   * Counsellor school-wide deadlines view — upcoming open applications
-   * sorted by deadline. Admin and counsellor scope only.
+   * Counsellor school-wide deadlines view — admin / counsellor scope only.
+   * REVIEW-P2C27 BLOCKING 4 — joined through sis_students.school_id so the
+   * deadline list is scoped to the calling school only.
    */
   async listUpcomingDeadlines(actor: ResolvedActor): Promise<CollegeApplicationDto[]> {
     const isCounsellor = await this.hasCounsellorScope(actor);
@@ -292,10 +343,12 @@ export class CollegeApplicationService {
         'School-wide deadline view requires counsellor or admin scope (ach-003:write).',
       );
     }
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
         SELECT_APP_BASE +
-          " WHERE a.status NOT IN ('ACCEPTED', 'REJECTED', 'WAITLISTED') AND a.deadline IS NOT NULL ORDER BY a.deadline ASC LIMIT 200",
+          " WHERE s.school_id = $1::uuid AND a.status NOT IN ('ACCEPTED', 'REJECTED', 'WAITLISTED') AND a.deadline IS NOT NULL ORDER BY a.deadline ASC LIMIT 200",
+        tenant.schoolId,
       );
     })) as AppRow[];
     return rows.map((r) => this.rowToDto(r));

@@ -123,6 +123,9 @@ function makeFake(handler: (call: CapturedCall) => unknown) {
 }
 
 function makeKafka() {
+  // Legacy alias from before REVIEW-P2C27 BLOCKING 1 moved emits to the
+  // durable outbox. New surface lives in `makeOutbox()`. Kept so tests that
+  // never reach an emit path can still inject a minimal kafka-shaped mock.
   const emitted: Array<Record<string, unknown>> = [];
   const kafka = {
     emit: async (opts: Record<string, unknown>) => {
@@ -130,6 +133,19 @@ function makeKafka() {
     },
   };
   return { kafka, emitted };
+}
+
+function makeOutbox() {
+  // REVIEW-P2C27 BLOCKING 1 — durable outbox replaces the best-effort Kafka
+  // emit for pfl.pathway.milestone_completed. The mock matches the
+  // OutboxService.enqueueInTx(tx, opts) shape used by the service.
+  const emitted: Array<Record<string, unknown>> = [];
+  const outbox = {
+    enqueueInTx: async (_tx: unknown, opts: Record<string, unknown>) => {
+      emitted.push({ ...opts });
+    },
+  };
+  return { outbox, emitted };
 }
 
 function makePermCheck(resolver: (accountId: string, codes: string[]) => boolean = () => false) {
@@ -476,7 +492,7 @@ describe('S4 — Readiness pathway milestone progress + Kafka emit', () => {
     ];
     let storedStatuses: unknown = null;
     let storedProgress: unknown = null;
-    const { kafka, emitted } = makeKafka();
+    const { outbox, emitted } = makeOutbox();
     const fake = makeFake((call) => {
       // Locked-row read of assignment
       if (
@@ -495,17 +511,27 @@ describe('S4 — Readiness pathway milestone progress + Kafka emit', () => {
           },
         ];
       }
-      // Milestone belongs-to-pathway probe (no alias) — matches "WHERE id ="
+      // Milestone belongs-to-pathway probe. REVIEW-P2C27 BLOCKING 3 joins
+      // through pfl_readiness_pathways so the new SQL shape is `FROM
+      // pfl_pathway_milestones m JOIN pfl_readiness_pathways p ON ... WHERE
+      // m.id = $1 AND m.pathway_id = $2 AND p.school_id = $3`.
       if (
         call.sql.includes('FROM pfl_pathway_milestones WHERE id =') ||
-        call.sql.includes('FROM pfl_pathway_milestones m WHERE m.id =')
+        call.sql.includes('FROM pfl_pathway_milestones m WHERE m.id =') ||
+        (call.sql.includes('FROM pfl_pathway_milestones m') &&
+          call.sql.includes('m.id = $1::uuid') &&
+          call.sql.includes('m.pathway_id = $2::uuid'))
       ) {
-        return [{ id: 'm2', is_required: true }];
+        return [{ id: 'm2', is_required: true, milestone_name: 'AP courses' }];
       }
-      // All milestones for progress denominator
+      // All-milestones-for-pathway probe (progress denominator). The new
+      // SQL is `FROM pfl_pathway_milestones m JOIN pfl_readiness_pathways p
+      // WHERE m.pathway_id = $1 AND p.school_id = $2`.
       if (
         call.sql.includes('FROM pfl_pathway_milestones m WHERE pathway_id') ||
-        call.sql.includes('FROM pfl_pathway_milestones WHERE pathway_id')
+        call.sql.includes('FROM pfl_pathway_milestones WHERE pathway_id') ||
+        (call.sql.includes('FROM pfl_pathway_milestones m') &&
+          call.sql.includes('m.pathway_id = $1::uuid'))
       ) {
         return milestoneIds.map((id) => ({ id, is_required: true }));
       }
@@ -558,7 +584,7 @@ describe('S4 — Readiness pathway milestone progress + Kafka emit', () => {
       return [];
     });
     const perm = makePermCheck((_a, codes) => codes.includes('ach-003:write'));
-    const svc = new ReadinessPathwayService(fake.tenantPrisma as never, kafka as never, perm);
+    const svc = new ReadinessPathwayService(fake.tenantPrisma as never, outbox as never, perm);
     const result = await withTenant(() =>
       svc.updateMilestoneStatus('assign-1', COUNSELLOR_ACTOR, {
         milestoneId: 'm2',
@@ -606,7 +632,7 @@ describe('S4 — Readiness pathway milestone progress + Kafka emit', () => {
     const perm = makePermCheck(() => false);
     const svc = new ReadinessPathwayService(
       fake.tenantPrisma as never,
-      { emit: async () => undefined } as never,
+      { enqueueInTx: async () => undefined } as never,
       perm,
     );
     await expect(
@@ -620,7 +646,7 @@ describe('S4 — Readiness pathway milestone progress + Kafka emit', () => {
   });
 
   it('autoCheckByCrossModuleEvent walks matching milestones + emits pfl.pathway.milestone_completed', async () => {
-    const { kafka, emitted } = makeKafka();
+    const { outbox, emitted } = makeOutbox();
     let updateCalled = false;
     const fake = makeFake((call) => {
       // Locked walk-and-update of matching milestones
@@ -655,7 +681,7 @@ describe('S4 — Readiness pathway milestone progress + Kafka emit', () => {
     });
     const svc = new ReadinessPathwayService(
       fake.tenantPrisma as never,
-      kafka as never,
+      outbox as never,
       makePermCheck(() => true),
     );
     const count = await withTenant(() =>
@@ -709,6 +735,11 @@ describe('S5 — College applications', () => {
             updated_at: '2026-05-16',
           },
         ];
+      }
+      // REVIEW-P2C27 BLOCKING 4 — isStudentInCurrentSchool probe runs before
+      // INSERT. Matches `FROM sis_students WHERE id = $1::uuid AND school_id`.
+      if (call.sql.includes('FROM sis_students WHERE id =')) {
+        return [{ exists: 1 }];
       }
       if (call.sql.includes('FROM sis_students s')) {
         return [{ id: MAYA_STUDENT_ID }];
@@ -857,8 +888,14 @@ describe('S6 — Resume PDF generation cross-module auto-populate', () => {
           },
         ];
       }
-      if (call.sql.includes('FROM sis_students s')) {
-        return [{ id: MAYA_STUDENT_ID }];
+      // REVIEW-P2C27 BLOCKING 6 — every cross-module aggregation joins
+      // through sis_students with s.school_id. Match the specific tables
+      // BEFORE the generic `FROM sis_students s` fallback because the new
+      // UPDATE statement also contains `FROM sis_students s` and we need
+      // to capture its args, not short-circuit on the JOIN.
+      if (call.sql.includes('UPDATE pfl_resume_profiles')) {
+        updateArgs = call.args;
+        return 1;
       }
       if (call.sql.includes('FROM pfl_endorsements e')) {
         return [{ skill: 'Critical Thinking' }, { skill: 'Written Communication' }];
@@ -875,9 +912,17 @@ describe('S6 — Resume PDF generation cross-module auto-populate', () => {
       if (call.sql.includes('FROM ext_activity_members em')) {
         return [{ activity: 'Debate Club', role: 'Vice President', joined_at: '2025-09-01' }];
       }
-      if (call.sql.includes('UPDATE pfl_resume_profiles')) {
-        updateArgs = call.args;
-        return 1;
+      // REVIEW-P2C27 BLOCKING 6 — isStudentInCurrentSchool probe matches
+      // `FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid`.
+      if (call.sql.includes('FROM sis_students WHERE id =')) {
+        return [{ exists: 1 }];
+      }
+      // resolveStudentIdForActor fallback — match last because all of the
+      // SQL above ALSO references `JOIN sis_students s` (or `FROM sis_students s`
+      // as a subquery), and we only want this matcher to fire for the
+      // platform_students-bridge query in portfolio-access.ts.
+      if (call.sql.includes('FROM sis_students s')) {
+        return [{ id: MAYA_STUDENT_ID }];
       }
       return [];
     });
