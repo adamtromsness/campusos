@@ -35,6 +35,7 @@ import { EmergencyAlertsModule } from './emergency-alerts/emergency-alerts.modul
 import { MeetingsModule } from './meetings/meetings.module';
 import { ClubsModule } from './clubs/clubs.module';
 import { GroupsModule } from './groups/groups.module';
+import { GroupsAdvancedModule } from './groups-advanced/groups-advanced.module';
 import { TransportModule } from './transport/transport.module';
 import { FoodServiceModule } from './food-service/food-service.module';
 import { FacilitiesModule } from './facilities/facilities.module';
@@ -137,6 +138,13 @@ var devOnlyControllers: Type<unknown>[] =
     MeetingsModule,
     ClubsModule,
     GroupsModule,
+    // Phase 2 Cycle 28 sub-cycle a (P2-28a) — Groups Advanced. Adds
+    // polls (atomic vote_count increment + structural anonymity),
+    // informal meetups with RSVP CONFIRMED count vs max_attendees
+    // enforcement, resource library with version history, group
+    // invitations that auto-create grp_members on ACCEPTED, and
+    // monthly engagement analytics.
+    GroupsAdvancedModule,
     TransportModule,
     FoodServiceModule,
     FacilitiesModule,
