@@ -72,3 +72,41 @@ export function deterministicJournalBatchPostedEventId(batchId: string): string 
       .digest(),
   );
 }
+
+/**
+ * P2-29b — Store Advanced event ids.
+ *
+ *   str.promotion.code_redeemed   keyed on (promotionId, current_uses_after)
+ *   str.price.scheduled_applied   keyed on (scheduleId, applied_at)
+ *   str.gift_card.depleted        keyed on giftCardId
+ *
+ * The promotion redemption helper keys on the post-increment uses
+ * counter so each successful atomic UPDATE produces a fresh event id
+ * even though the promotion id is reused across many customers.
+ */
+export function deterministicPromotionRedeemedEventId(
+  promotionId: string,
+  usesAfter: number,
+): string {
+  return toV5Shape(
+    createHash('sha256')
+      .update(`${promotionId}:${usesAfter}:str.promotion.code_redeemed:v1`)
+      .digest(),
+  );
+}
+
+export function deterministicPriceScheduleAppliedEventId(scheduleId: string): string {
+  return toV5Shape(
+    createHash('sha256')
+      .update(scheduleId + ':str.price.scheduled_applied:v1')
+      .digest(),
+  );
+}
+
+export function deterministicGiftCardDepletedEventId(giftCardId: string): string {
+  return toV5Shape(
+    createHash('sha256')
+      .update(giftCardId + ':str.gift_card.depleted:v1')
+      .digest(),
+  );
+}

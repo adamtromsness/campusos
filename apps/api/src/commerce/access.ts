@@ -102,6 +102,80 @@ export async function assertFinanceAdmin(
   }
 }
 
+/**
+ * Store administration — promotions, inventory adjustments, loyalty
+ * config, gift cards, categories, price schedules. School Admin and
+ * STR-001:admin holders only.
+ */
+export async function assertStoreAdmin(
+  actor: ResolvedActor,
+  permCheck: PermissionCheckService,
+  surface: string,
+): Promise<void> {
+  if (actor.isSchoolAdmin) return;
+  if (actor.personType === 'GUARDIAN' || actor.personType === 'STUDENT') {
+    throw new ForbiddenException(`${surface} is restricted to store administrators`);
+  }
+  const tenant = getCurrentTenant();
+  const ok = await permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+    'str-001:admin',
+    'str-001:write',
+    'str-003:admin',
+  ]);
+  if (!ok) {
+    throw new ForbiddenException(`${surface} is restricted to store administrators`);
+  }
+}
+
+/**
+ * Store read — any persona that holds STR-001/002/003 read or write.
+ * Wishlists and balance lookups also accept GUARDIAN/STUDENT since
+ * those are customer-facing surfaces; per-row authorisation is
+ * the service-layer customer_person_id row scope.
+ */
+export async function assertStoreReader(
+  actor: ResolvedActor,
+  permCheck: PermissionCheckService,
+  surface: string,
+): Promise<void> {
+  if (actor.isSchoolAdmin) return;
+  const tenant = getCurrentTenant();
+  const ok = await permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+    'str-001:read',
+    'str-002:read',
+    'str-003:read',
+    'str-001:write',
+    'str-002:write',
+    'str-003:write',
+    'str-001:admin',
+  ]);
+  if (!ok) {
+    throw new ForbiddenException(`${surface} is restricted to school store users`);
+  }
+}
+
+/**
+ * Customer-facing store operations (wishlist add, loyalty balance
+ * lookup, gift card redeem from a parent surface). Any authenticated
+ * user with str-002:read OR str-001:read passes.
+ */
+export async function assertStoreCustomer(
+  actor: ResolvedActor,
+  permCheck: PermissionCheckService,
+  surface: string,
+): Promise<void> {
+  if (actor.isSchoolAdmin) return;
+  const tenant = getCurrentTenant();
+  const ok = await permCheck.hasAnyPermissionInTenant(actor.accountId, tenant.schoolId, [
+    'str-001:read',
+    'str-002:read',
+    'str-002:write',
+  ]);
+  if (!ok) {
+    throw new ForbiddenException(`${surface} is restricted to authenticated store users`);
+  }
+}
+
 /** Finance read — staff + admin. */
 export async function assertFinanceReader(
   actor: ResolvedActor,
