@@ -39,6 +39,21 @@ export interface SoftFkEntry {
   targetTable: string;
   /** Target column. Defaults to `id`. */
   targetColumn?: string;
+  /**
+   * P2-H2 Step 1.1 — which CampusOS domain owns the target table.
+   * Surfaces on the operator dashboard so a referential-integrity
+   * spike can be routed to the right team. Defaults to 'platform'.
+   */
+  targetModule?: string;
+  /**
+   * P2-H2 Step 5 — alert severity. CRITICAL pages on any orphan;
+   * WARNING pages on orphan_count > 5; INFO surfaces in the
+   * dashboard but never pages. Defaults to WARNING.
+   *
+   * CRITICAL is reserved for financial / IEP / consent / health
+   * soft refs where any drift is a data-integrity incident.
+   */
+  severity?: 'CRITICAL' | 'WARNING' | 'INFO';
 }
 
 /**

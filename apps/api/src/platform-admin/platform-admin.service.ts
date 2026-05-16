@@ -204,6 +204,75 @@ export class PlatformAdminService {
 
     return out.sort((a, b) => b.appliedAt.localeCompare(a.appliedAt)).slice(0, limit);
   }
+
+  /**
+   * P2-H2 Step 5 — registry-shape reference health. Reads
+   * platform_reference_health (one row per registered ref after the
+   * worker has run). Filters by severity / target module / source
+   * schema. Sorted orphan_count DESC then severity rank so the
+   * dashboard surfaces highest-risk references first.
+   */
+  async listReferenceHealth(args: {
+    severity?: 'CRITICAL' | 'WARNING' | 'INFO';
+    targetModule?: string;
+    sourceSchema?: string;
+  }): Promise<ReferenceHealthRow[]> {
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (args.severity) {
+      params.push(args.severity);
+      where.push(`severity = $${params.length}`);
+    }
+    if (args.targetModule) {
+      params.push(args.targetModule);
+      where.push(`target_module = $${params.length}`);
+    }
+    if (args.sourceSchema) {
+      params.push(args.sourceSchema);
+      where.push(`source_schema = $${params.length}`);
+    }
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const rows = (await this.platform.$queryRawUnsafe(
+      `SELECT source_schema, source_table, source_column,
+              target_schema, target_table, target_column, target_module,
+              severity, total_rows, orphan_count, sample_orphan_ids,
+              scanned_at::text AS scanned_at, scan_duration_ms
+       FROM platform.platform_reference_health ${whereSql}
+       ORDER BY orphan_count DESC,
+                CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'WARNING' THEN 2 ELSE 3 END,
+                scanned_at DESC`,
+      ...params,
+    )) as Array<{
+      source_schema: string;
+      source_table: string;
+      source_column: string;
+      target_schema: string;
+      target_table: string;
+      target_column: string;
+      target_module: string;
+      severity: string;
+      total_rows: number;
+      orphan_count: number;
+      sample_orphan_ids: unknown;
+      scanned_at: string;
+      scan_duration_ms: number;
+    }>;
+    return rows.map((r) => ({
+      sourceSchema: r.source_schema,
+      sourceTable: r.source_table,
+      sourceColumn: r.source_column,
+      targetSchema: r.target_schema,
+      targetTable: r.target_table,
+      targetColumn: r.target_column,
+      targetModule: r.target_module,
+      severity: r.severity,
+      totalRows: Number(r.total_rows),
+      orphanCount: Number(r.orphan_count),
+      sampleOrphanIds: Array.isArray(r.sample_orphan_ids) ? (r.sample_orphan_ids as string[]) : [],
+      scannedAt: r.scanned_at,
+      scanDurationMs: Number(r.scan_duration_ms),
+    }));
+  }
 }
 
 export interface TenantSummary {
@@ -230,6 +299,27 @@ export interface MigrationRow {
   schemaName: string | null;
   migrationName: string;
   appliedAt: string;
+}
+
+/**
+ * P2-H2 Step 5 — reference-health dashboard row. One row per registered
+ * cross-schema soft-FK reference. Sorted by orphan-count DESC so the
+ * UI surfaces the noisiest references first.
+ */
+export interface ReferenceHealthRow {
+  sourceSchema: string;
+  sourceTable: string;
+  sourceColumn: string;
+  targetSchema: string;
+  targetTable: string;
+  targetColumn: string;
+  targetModule: string;
+  severity: string;
+  totalRows: number;
+  orphanCount: number;
+  sampleOrphanIds: string[];
+  scannedAt: string;
+  scanDurationMs: number;
 }
 
 /**

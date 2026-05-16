@@ -114,27 +114,45 @@ model TenantRouting {
 }
 
 // ── Audit Log ────────────────────────────────────────────────
+//
+// P2-H2 Step 2 — adds data_subject_id + action_category per ADR-052.
+// data_subject_id is the FERPA / GDPR identity whose data is touched by
+// this action (often == actorId, but cross-personal actions like a
+// parent updating their child's profile have actor=parent + data_subject
+// =child). action_category is a coarse-grained classification (READ /
+// MUTATE / EXPORT / ERASE / PSEUDONYMISE / GRANT / REVOKE) used by the
+// DPO SAR cross-module query (Cycle 30 governance).
 model AuditLog {
-  id         String   @id @db.Uuid
-  actorId    String?  @map("actor_id") @db.Uuid
-  actorType  String   @default("HUMAN") @map("actor_type")
-  action     String
-  entityType String   @map("entity_type")
-  entityId   String?  @map("entity_id") @db.Uuid
-  tenantId   String?  @map("tenant_id") @db.Uuid
-  metadata   Json?    @db.JsonB
-  ipAddress  String?  @map("ip_address")
-  userAgent  String?  @map("user_agent")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id             String   @id @db.Uuid
+  actorId        String?  @map("actor_id") @db.Uuid
+  actorType      String   @default("HUMAN") @map("actor_type")
+  action         String
+  actionCategory String?  @map("action_category")
+  entityType     String   @map("entity_type")
+  entityId       String?  @map("entity_id") @db.Uuid
+  dataSubjectId  String?  @map("data_subject_id") @db.Uuid
+  tenantId       String?  @map("tenant_id") @db.Uuid
+  metadata       Json?    @db.JsonB
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   @@index([actorId, createdAt(sort: Desc)])
   @@index([entityType, entityId])
   @@index([tenantId, createdAt(sort: Desc)])
+  @@index([dataSubjectId, createdAt(sort: Desc)])
   @@map("platform_audit_log")
   @@schema("platform")
 }
 
 // ── Event Consumer Idempotency (ADR-057) ─────────────────────
+//
+// P2-H2 Step 1.3 — the ERD calls the discriminator column `consumer_name`;
+// the code has used `consumer_group` since Cycle 2 across 35+ files. The
+// rename is documented as Phase 3 ops work — the existing column name is
+// load-bearing and the equivalence is documented here. Monthly RANGE
+// partitioning on processed_at is also Phase 3 ops; today the table is a
+// single relation with a 90-day retention worker as carry-over.
 model EventConsumerIdempotency {
   id            String   @id @db.Uuid
   consumerGroup String   @map("consumer_group")
@@ -157,36 +175,36 @@ model EventConsumerIdempotency {
 // ADR-055: if the column identifies WHO a person IS → FK(iam_person)
 // ADR-036: person can exist without a platform_users account
 model IamPerson {
-  id                  String     @id @db.Uuid
-  firstName           String     @map("first_name")
-  lastName            String     @map("last_name")
-  middleName          String?    @map("middle_name")
-  preferredName       String?    @map("preferred_name")
-  suffix              String?
-  previousNames       String[]   @map("previous_names")
-  dateOfBirth         DateTime?  @map("date_of_birth") @db.Date
-  primaryPhone        String?    @map("primary_phone")
-  secondaryPhone      String?    @map("secondary_phone")
-  workPhone           String?    @map("work_phone")
-  phoneTypePrimary    String?    @map("phone_type_primary")
-  phoneTypeSecondary  String?    @map("phone_type_secondary")
-  preferredLanguage   String     @default("en") @map("preferred_language")
-  personalEmail       String?    @map("personal_email")
-  notes               String?
-  profileUpdatedAt    DateTime?  @map("profile_updated_at") @db.Timestamptz()
-  nationalIdHash      String?    @map("national_id_hash")
-  personType          PersonType @map("person_type")
-  isActive            Boolean    @default(true) @map("is_active")
-  mergedIntoId        String?    @map("merged_into_id") @db.Uuid
-  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  id                 String     @id @db.Uuid
+  firstName          String     @map("first_name")
+  lastName           String     @map("last_name")
+  middleName         String?    @map("middle_name")
+  preferredName      String?    @map("preferred_name")
+  suffix             String?
+  previousNames      String[]   @map("previous_names")
+  dateOfBirth        DateTime?  @map("date_of_birth") @db.Date
+  primaryPhone       String?    @map("primary_phone")
+  secondaryPhone     String?    @map("secondary_phone")
+  workPhone          String?    @map("work_phone")
+  phoneTypePrimary   String?    @map("phone_type_primary")
+  phoneTypeSecondary String?    @map("phone_type_secondary")
+  preferredLanguage  String     @default("en") @map("preferred_language")
+  personalEmail      String?    @map("personal_email")
+  notes              String?
+  profileUpdatedAt   DateTime?  @map("profile_updated_at") @db.Timestamptz()
+  nationalIdHash     String?    @map("national_id_hash")
+  personType         PersonType @map("person_type")
+  isActive           Boolean    @default(true) @map("is_active")
+  mergedIntoId       String?    @map("merged_into_id") @db.Uuid
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz()
 
   // Relations
-  mergedInto     IamPerson?  @relation("PersonMerge", fields: [mergedIntoId], references: [id])
-  mergedFrom     IamPerson[] @relation("PersonMerge")
-  account        PlatformUser?
-  studentProfile PlatformStudent?
-  familyMembers  FamilyMember[]
-  volunteerProfile VolunteerProfile?
+  mergedInto        IamPerson?         @relation("PersonMerge", fields: [mergedIntoId], references: [id])
+  mergedFrom        IamPerson[]        @relation("PersonMerge")
+  account           PlatformUser?
+  studentProfile    PlatformStudent?
+  familyMembers     FamilyMember[]
+  volunteerProfile  VolunteerProfile?
   substituteProfile SubstituteProfile?
 
   @@index([nationalIdHash])
@@ -224,7 +242,7 @@ model PlatformUser {
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz()
   lastSeenAt    DateTime?     @map("last_seen_at") @db.Timestamptz()
 
-  person             IamPerson           @relation(fields: [personId], references: [id])
+  person              IamPerson           @relation(fields: [personId], references: [id])
   federatedIdentities FederatedIdentity[]
 
   @@index([personId])
@@ -255,15 +273,15 @@ enum AccountType {
 // Authoritative identity lives in iam_person; this is a projection.
 // Synced via person.identity.updated Kafka event (ADR-059).
 model PlatformStudent {
-  id               String    @id @db.Uuid
-  personId         String    @unique @map("person_id") @db.Uuid
-  firstName        String    @map("first_name")
-  lastName         String    @map("last_name")
-  dateOfBirth      DateTime? @map("date_of_birth") @db.Date
-  nationalIdHash   String?   @map("national_id_hash")
-  isActive         Boolean   @default(true) @map("is_active")
-  dataSubjectIsSelf Boolean  @default(false) @map("data_subject_is_self")
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  id                String    @id @db.Uuid
+  personId          String    @unique @map("person_id") @db.Uuid
+  firstName         String    @map("first_name")
+  lastName          String    @map("last_name")
+  dateOfBirth       DateTime? @map("date_of_birth") @db.Date
+  nationalIdHash    String?   @map("national_id_hash")
+  isActive          Boolean   @default(true) @map("is_active")
+  dataSubjectIsSelf Boolean   @default(false) @map("data_subject_is_self")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   person IamPerson @relation(fields: [personId], references: [id])
 
@@ -276,26 +294,26 @@ model PlatformStudent {
 // Enables cross-school sibling detection (tenant schemas cannot JOIN).
 // Synced by FamilyMemberSyncWorker from sis_family_members events.
 model PlatformFamily {
-  id                  String   @id @db.Uuid
-  name                String?
-  addressLine1        String?  @map("address_line1")
-  addressLine2        String?  @map("address_line2")
-  city                String?
-  state               String?
-  postalCode          String?  @map("postal_code")
-  country             String?
-  homePhone           String?  @map("home_phone")
-  homeLanguage        String   @default("en") @map("home_language")
-  mailingAddressSame  Boolean  @default(true) @map("mailing_address_same")
-  mailingLine1        String?  @map("mailing_line1")
-  mailingLine2        String?  @map("mailing_line2")
-  mailingCity         String?  @map("mailing_city")
-  mailingState        String?  @map("mailing_state")
-  mailingPostalCode   String?  @map("mailing_postal_code")
-  mailingCountry      String?  @map("mailing_country")
-  notes               String?
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  id                 String   @id @db.Uuid
+  name               String?
+  addressLine1       String?  @map("address_line1")
+  addressLine2       String?  @map("address_line2")
+  city               String?
+  state              String?
+  postalCode         String?  @map("postal_code")
+  country            String?
+  homePhone          String?  @map("home_phone")
+  homeLanguage       String   @default("en") @map("home_language")
+  mailingAddressSame Boolean  @default(true) @map("mailing_address_same")
+  mailingLine1       String?  @map("mailing_line1")
+  mailingLine2       String?  @map("mailing_line2")
+  mailingCity        String?  @map("mailing_city")
+  mailingState       String?  @map("mailing_state")
+  mailingPostalCode  String?  @map("mailing_postal_code")
+  mailingCountry     String?  @map("mailing_country")
+  notes              String?
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   members FamilyMember[]
 
@@ -310,14 +328,14 @@ model PlatformFamily {
 // Partial UNIQUE INDEX on (family_id) WHERE is_primary_contact = true is
 // declared via raw SQL in the migration; Prisma can't express it natively.
 model FamilyMember {
-  id              String     @id @db.Uuid
-  familyId        String     @map("family_id") @db.Uuid
-  personId        String     @unique @map("person_id") @db.Uuid
-  memberRole      MemberRole @map("member_role")
-  isPrimaryContact Boolean   @default(false) @map("is_primary_contact")
-  joinedAt        DateTime   @default(now()) @map("joined_at") @db.Timestamptz()
-  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt       DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  id               String     @id @db.Uuid
+  familyId         String     @map("family_id") @db.Uuid
+  personId         String     @unique @map("person_id") @db.Uuid
+  memberRole       MemberRole @map("member_role")
+  isPrimaryContact Boolean    @default(false) @map("is_primary_contact")
+  joinedAt         DateTime   @default(now()) @map("joined_at") @db.Timestamptz()
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   family PlatformFamily @relation(fields: [familyId], references: [id], onDelete: Cascade)
   person IamPerson      @relation(fields: [personId], references: [id])
@@ -345,17 +363,17 @@ enum MemberRole {
 // ── Volunteer Profiles (ADR-032) ─────────────────────────────
 // Cross-school visibility via direct platform schema read.
 model VolunteerProfile {
-  id                    String              @id @db.Uuid
-  personId              String              @unique @map("person_id") @db.Uuid
-  accountId             String?             @map("account_id") @db.Uuid
+  id                    String                 @id @db.Uuid
+  personId              String                 @unique @map("person_id") @db.Uuid
+  accountId             String?                @map("account_id") @db.Uuid
   phone                 String?
   backgroundCheckStatus BackgroundCheckStatus? @map("background_check_status")
-  backgroundCheckRef    String?             @map("background_check_ref")
-  backgroundCheckDate   DateTime?           @map("background_check_date") @db.Date
-  certifications        Json?               @db.JsonB
-  availabilityNotes     String?             @map("availability_notes")
-  isActive              Boolean             @default(true) @map("is_active")
-  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz()
+  backgroundCheckRef    String?                @map("background_check_ref")
+  backgroundCheckDate   DateTime?              @map("background_check_date") @db.Date
+  certifications        Json?                  @db.JsonB
+  availabilityNotes     String?                @map("availability_notes")
+  isActive              Boolean                @default(true) @map("is_active")
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz()
 
   person IamPerson @relation(fields: [personId], references: [id])
 
@@ -375,34 +393,34 @@ model VolunteerProfile {
 // overallRating, totalAssignments). maxDistanceMiles is reused as the
 // canonical max-travel column (P2-9 plan calls it max_travel_miles).
 model SubstituteProfile {
-  id                    String              @id @db.Uuid
-  personId              String              @unique @map("person_id") @db.Uuid
-  accountId             String?             @map("account_id") @db.Uuid
+  id                    String                 @id @db.Uuid
+  personId              String                 @unique @map("person_id") @db.Uuid
+  accountId             String?                @map("account_id") @db.Uuid
   phone                 String?
   backgroundCheckStatus BackgroundCheckStatus? @map("background_check_status")
-  backgroundCheckRef    String?             @map("background_check_ref")
-  backgroundCheckDate   DateTime?           @map("background_check_date") @db.Date
-  certifications        Json?               @db.JsonB
-  subjectQualifications Json?               @map("subject_qualifications") @db.JsonB
-  gradeRange            String?             @map("grade_range")
-  maxDistanceMiles      Int?                @map("max_distance_miles")
-  dailyRate             Decimal?            @map("daily_rate") @db.Decimal(8, 2)
-  isActive              Boolean             @default(true) @map("is_active")
-  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz()
+  backgroundCheckRef    String?                @map("background_check_ref")
+  backgroundCheckDate   DateTime?              @map("background_check_date") @db.Date
+  certifications        Json?                  @db.JsonB
+  subjectQualifications Json?                  @map("subject_qualifications") @db.JsonB
+  gradeRange            String?                @map("grade_range")
+  maxDistanceMiles      Int?                   @map("max_distance_miles")
+  dailyRate             Decimal?               @map("daily_rate") @db.Decimal(8, 2)
+  isActive              Boolean                @default(true) @map("is_active")
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz()
 
   // P2-9 columns
-  displayName        String?  @map("display_name")
-  bio                String?
-  gradeLevels        String[] @default([]) @map("grade_levels")
-  subjectAreas       String[] @default([]) @map("subject_areas")
-  yearsExperience    Int?     @map("years_experience")
-  isAvailable        Boolean  @default(true) @map("is_available")
-  profilePhotoS3Key  String?  @map("profile_photo_s3_key")
-  overallRating      Decimal? @map("overall_rating") @db.Decimal(2, 1)
-  totalAssignments   Int      @default(0) @map("total_assignments")
-  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  displayName       String?  @map("display_name")
+  bio               String?
+  gradeLevels       String[] @default([]) @map("grade_levels")
+  subjectAreas      String[] @default([]) @map("subject_areas")
+  yearsExperience   Int?     @map("years_experience")
+  isAvailable       Boolean  @default(true) @map("is_available")
+  profilePhotoS3Key String?  @map("profile_photo_s3_key")
+  overallRating     Decimal? @map("overall_rating") @db.Decimal(2, 1)
+  totalAssignments  Int      @default(0) @map("total_assignments")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
-  person       IamPerson                @relation(fields: [personId], references: [id])
+  person       IamPerson                 @relation(fields: [personId], references: [id])
   credentials  PlatformSubCredential[]
   availability PlatformSubAvailability[]
   preferences  PlatformSubPreference[]
@@ -415,20 +433,20 @@ model SubstituteProfile {
 // ── P2-9 Sub Marketplace platform tables ─────────────────────────────
 
 model PlatformSubCredential {
-  id                  String    @id @db.Uuid
-  substituteId        String    @map("substitute_id") @db.Uuid
-  credentialType      String    @map("credential_type")
-  credentialName      String    @map("credential_name")
-  issuingBody         String?   @map("issuing_body")
-  issueDate           DateTime? @map("issue_date") @db.Date
-  expiryDate          DateTime? @map("expiry_date") @db.Date
-  documentS3Key       String?   @map("document_s3_key")
-  verificationStatus  String    @default("PENDING") @map("verification_status")
-  verifiedBy          String?   @map("verified_by") @db.Uuid
-  verifiedAt          DateTime? @map("verified_at") @db.Timestamptz()
-  verificationNotes   String?   @map("verification_notes")
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  id                 String    @id @db.Uuid
+  substituteId       String    @map("substitute_id") @db.Uuid
+  credentialType     String    @map("credential_type")
+  credentialName     String    @map("credential_name")
+  issuingBody        String?   @map("issuing_body")
+  issueDate          DateTime? @map("issue_date") @db.Date
+  expiryDate         DateTime? @map("expiry_date") @db.Date
+  documentS3Key      String?   @map("document_s3_key")
+  verificationStatus String    @default("PENDING") @map("verification_status")
+  verifiedBy         String?   @map("verified_by") @db.Uuid
+  verifiedAt         DateTime? @map("verified_at") @db.Timestamptz()
+  verificationNotes  String?   @map("verification_notes")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   substitute SubstituteProfile @relation(fields: [substituteId], references: [id], onDelete: Cascade)
 
@@ -526,15 +544,15 @@ enum TrustLevel {
 // ── Federated Identity — IdP-to-Account Mapping ──────────────
 // Links external IdP identities to platform_users accounts.
 model FederatedIdentity {
-  id           String      @id @db.Uuid
-  userId       String      @map("user_id") @db.Uuid
-  providerId   String      @map("provider_id") @db.Uuid
-  externalId   String      @map("external_id")
+  id            String     @id @db.Uuid
+  userId        String     @map("user_id") @db.Uuid
+  providerId    String     @map("provider_id") @db.Uuid
+  externalId    String     @map("external_id")
   externalEmail String?    @map("external_email")
-  syncStatus   SyncStatus  @default(SYNCED) @map("sync_status")
-  conflictNote String?     @map("conflict_note")
-  lastSyncAt   DateTime?   @map("last_sync_at") @db.Timestamptz()
-  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz()
+  syncStatus    SyncStatus @default(SYNCED) @map("sync_status")
+  conflictNote  String?    @map("conflict_note")
+  lastSyncAt    DateTime?  @map("last_sync_at") @db.Timestamptz()
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz()
 
   user     PlatformUser     @relation(fields: [userId], references: [id])
   provider IdentityProvider @relation(fields: [providerId], references: [id])
@@ -553,7 +571,6 @@ enum SyncStatus {
   @@schema("platform")
 }
 
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // STEP 6 — IAM Core (ADR-036)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -562,11 +579,11 @@ enum SyncStatus {
 // Named collections of permissions. System roles seeded at provisioning.
 // Schools create custom roles (e.g. Department Head).
 model Role {
-  id          String  @id @db.Uuid
-  schoolId    String? @map("school_id") @db.Uuid
+  id          String   @id @db.Uuid
+  schoolId    String?  @map("school_id") @db.Uuid
   name        String
   description String?
-  isSystem    Boolean @default(false) @map("is_system")
+  isSystem    Boolean  @default(false) @map("is_system")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   rolePermissions RolePermission[]
@@ -581,8 +598,8 @@ model Role {
 // Resource:action pairs. e.g. att-001:read, att-001:write, att-001:admin
 // All @RequirePermission checks use these codes, never role names.
 model Permission {
-  id          String  @id @db.Uuid
-  code        String  @unique
+  id          String   @id @db.Uuid
+  code        String   @unique
   resource    String
   action      String
   description String?
@@ -612,11 +629,11 @@ model RolePermission {
 // ── Scope Types ──────────────────────────────────────────────
 // Fixed vocabulary: PLATFORM, DISTRICT, SCHOOL, DEPARTMENT, CLASS, ACTIVITY
 model IamScopeType {
-  id               String  @id @db.Uuid
-  code             String  @unique
-  label            String
+  id                String  @id @db.Uuid
+  code              String  @unique
+  label             String
   allowsChildScopes Boolean @default(true) @map("allows_child_scopes")
-  isSystem         Boolean @default(true) @map("is_system")
+  isSystem          Boolean @default(true) @map("is_system")
 
   scopes IamScope[]
 
@@ -637,11 +654,11 @@ model IamScope {
   isActive      Boolean  @default(true) @map("is_active")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  scopeType    IamScopeType       @relation(fields: [scopeTypeId], references: [id])
-  parentScope  IamScope?          @relation("ScopeHierarchy", fields: [parentScopeId], references: [id])
-  childScopes  IamScope[]         @relation("ScopeHierarchy")
-  assignments  IamRoleAssignment[]
-  accessCache  IamEffectiveAccessCache[]
+  scopeType   IamScopeType              @relation(fields: [scopeTypeId], references: [id])
+  parentScope IamScope?                 @relation("ScopeHierarchy", fields: [parentScopeId], references: [id])
+  childScopes IamScope[]                @relation("ScopeHierarchy")
+  assignments IamRoleAssignment[]
+  accessCache IamEffectiveAccessCache[]
 
   @@unique([scopeTypeId, entityId])
   @@index([parentScopeId])
@@ -653,19 +670,19 @@ model IamScope {
 // ── Role Assignments ─────────────────────────────────────────
 // The sole mechanism for granting access. Always scoped + time-bounded.
 model IamRoleAssignment {
-  id               String           @id @db.Uuid
-  accountId        String           @map("account_id") @db.Uuid
-  roleId           String           @map("role_id") @db.Uuid
-  scopeId          String           @map("scope_id") @db.Uuid
-  effectiveFrom    DateTime         @default(now()) @map("effective_from") @db.Timestamptz()
-  effectiveTo      DateTime?        @map("effective_to") @db.Timestamptz()
-  status           AssignmentStatus @default(ACTIVE)
-  source           AssignmentSource
-  sourceRefId      String?          @map("source_ref_id") @db.Uuid
-  assignedBy       String?          @map("assigned_by") @db.Uuid
-  approvalRequestId String?         @map("approval_request_id") @db.Uuid
-  notes            String?
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz()
+  id                String           @id @db.Uuid
+  accountId         String           @map("account_id") @db.Uuid
+  roleId            String           @map("role_id") @db.Uuid
+  scopeId           String           @map("scope_id") @db.Uuid
+  effectiveFrom     DateTime         @default(now()) @map("effective_from") @db.Timestamptz()
+  effectiveTo       DateTime?        @map("effective_to") @db.Timestamptz()
+  status            AssignmentStatus @default(ACTIVE)
+  source            AssignmentSource
+  sourceRefId       String?          @map("source_ref_id") @db.Uuid
+  assignedBy        String?          @map("assigned_by") @db.Uuid
+  approvalRequestId String?          @map("approval_request_id") @db.Uuid
+  notes             String?
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz()
 
   role  Role     @relation(fields: [roleId], references: [id])
   scope IamScope @relation(fields: [scopeId], references: [id])
@@ -700,16 +717,16 @@ enum AssignmentSource {
 // ── Role Assignment History ──────────────────────────────────
 // Immutable audit of every state change on an assignment.
 model IamRoleAssignmentHistory {
-  id                String            @id @db.Uuid
-  assignmentId      String            @map("assignment_id") @db.Uuid
-  changedBy         String?           @map("changed_by") @db.Uuid
-  changeType        AssignmentChangeType @map("change_type")
-  previousStatus    AssignmentStatus? @map("previous_status")
-  newStatus         AssignmentStatus? @map("new_status")
-  previousEffectiveTo DateTime?       @map("previous_effective_to") @db.Timestamptz()
-  newEffectiveTo    DateTime?         @map("new_effective_to") @db.Timestamptz()
-  reason            String?
-  changedAt         DateTime          @map("changed_at") @db.Timestamptz()
+  id                  String               @id @db.Uuid
+  assignmentId        String               @map("assignment_id") @db.Uuid
+  changedBy           String?              @map("changed_by") @db.Uuid
+  changeType          AssignmentChangeType @map("change_type")
+  previousStatus      AssignmentStatus?    @map("previous_status")
+  newStatus           AssignmentStatus?    @map("new_status")
+  previousEffectiveTo DateTime?            @map("previous_effective_to") @db.Timestamptz()
+  newEffectiveTo      DateTime?            @map("new_effective_to") @db.Timestamptz()
+  reason              String?
+  changedAt           DateTime             @map("changed_at") @db.Timestamptz()
 
   @@index([assignmentId, changedAt])
   @@map("iam_role_assignment_history")
@@ -748,12 +765,12 @@ model IamRelationshipAccessRule {
 // The SOLE source for hot-path permission checks (ADR-036).
 // Direct JOINs across assignment→role→permission are FORBIDDEN on request path.
 model IamEffectiveAccessCache {
-  id                   String   @id @db.Uuid
-  accountId            String   @map("account_id") @db.Uuid
-  scopeId              String   @map("scope_id") @db.Uuid
-  permissionCodes      String[] @map("permission_codes")
-  computedAt           DateTime @map("computed_at") @db.Timestamptz()
-  assignmentVersionHash String  @map("assignment_version_hash")
+  id                    String   @id @db.Uuid
+  accountId             String   @map("account_id") @db.Uuid
+  scopeId               String   @map("scope_id") @db.Uuid
+  permissionCodes       String[] @map("permission_codes")
+  computedAt            DateTime @map("computed_at") @db.Timestamptz()
+  assignmentVersionHash String   @map("assignment_version_hash")
 
   scope IamScope @relation(fields: [scopeId], references: [id])
 
@@ -766,15 +783,15 @@ model IamEffectiveAccessCache {
 // ── Access Change Events ─────────────────────────────────────
 // IAM-specific immutable audit log. Every grant, revoke, status change.
 model IamAccessChangeEvent {
-  id           String              @id @db.Uuid
-  accountId    String              @map("account_id") @db.Uuid
+  id           String                @id @db.Uuid
+  accountId    String                @map("account_id") @db.Uuid
   eventType    AccessChangeEventType @map("event_type")
-  actorId      String?             @map("actor_id") @db.Uuid
-  scopeId      String?             @map("scope_id") @db.Uuid
-  roleId       String?             @map("role_id") @db.Uuid
-  assignmentId String?             @map("assignment_id") @db.Uuid
-  metadata     Json?               @db.JsonB
-  eventAt      DateTime            @map("event_at") @db.Timestamptz()
+  actorId      String?               @map("actor_id") @db.Uuid
+  scopeId      String?               @map("scope_id") @db.Uuid
+  roleId       String?               @map("role_id") @db.Uuid
+  assignmentId String?               @map("assignment_id") @db.Uuid
+  metadata     Json?                 @db.JsonB
+  eventAt      DateTime              @map("event_at") @db.Timestamptz()
 
   @@index([accountId, eventAt(sort: Desc)])
   @@index([eventType, eventAt(sort: Desc)])
@@ -938,29 +955,45 @@ model PlatformDlqMessage {
 // worker (apps/api/src/observability/reference-health/registry.ts).
 // Adding a new soft-FK pattern is a one-line registry entry; no
 // schema change required.
+// P2-H2 Step 1.1 — restructured as registry-per-reference per the
+// hardening plan. The new shape adds `target_module` (which CampusOS
+// domain owns the target table) and `severity` (CRITICAL / WARNING /
+// INFO — drives alerting thresholds: CRITICAL refs page on any
+// orphan; WARNING refs page on > 5; INFO refs surface in the
+// dashboard but never page). The UNIQUE constraint on the source
+// triple makes this a registry: the Phase 2 SoftIntegrityHealthWorker
+// UPSERTs into a single row per registered reference. The existing
+// `scanned_at` column is retained (rather than renamed to
+// `last_checked_at`) so the in-flight worker continues to function
+// during the migration; the column is semantically the same — most
+// recent scan time per reference.
 model PlatformReferenceHealth {
-  id            String   @id @db.Uuid
+  id              String   @id @db.Uuid
   // The soft-FK source — e.g. "tenant_demo" + "fac_work_orders" +
   // "requested_by". target identifies what it should resolve to —
   // e.g. "platform" + "platform_users" + "id".
-  sourceSchema  String   @map("source_schema")
-  sourceTable   String   @map("source_table")
-  sourceColumn  String   @map("source_column")
-  targetSchema  String   @map("target_schema")
-  targetTable   String   @map("target_table")
-  targetColumn  String   @default("id") @map("target_column")
+  sourceSchema    String   @map("source_schema")
+  sourceTable     String   @map("source_table")
+  sourceColumn    String   @map("source_column")
+  targetSchema    String   @map("target_schema")
+  targetTable     String   @map("target_table")
+  targetColumn    String   @default("id") @map("target_column")
+  targetModule    String   @default("platform") @map("target_module")
+  severity        String   @default("WARNING")
   // Scan output. `total_rows` is the source-table row count at scan
   // time; `orphan_count` is the number of source rows whose
   // source_column does not resolve in target. `sample_orphan_ids` is
   // a small JSON array (capped at 20) for operator triage.
-  totalRows         Int      @map("total_rows")
-  orphanCount       Int      @map("orphan_count")
-  sampleOrphanIds   Json     @default("[]") @map("sample_orphan_ids") @db.JsonB
-  scannedAt         DateTime @default(now()) @map("scanned_at") @db.Timestamptz()
-  scanDurationMs    Int      @map("scan_duration_ms")
+  totalRows       Int      @map("total_rows")
+  orphanCount     Int      @map("orphan_count")
+  sampleOrphanIds Json     @default("[]") @map("sample_orphan_ids") @db.JsonB
+  scannedAt       DateTime @default(now()) @map("scanned_at") @db.Timestamptz()
+  scanDurationMs  Int      @map("scan_duration_ms")
 
+  @@unique([sourceSchema, sourceTable, sourceColumn], map: "platform_reference_health_source_uq")
   @@index([sourceSchema, sourceTable, scannedAt(sort: Desc)])
   @@index([orphanCount(sort: Desc), scannedAt(sort: Desc)])
+  @@index([severity, orphanCount(sort: Desc)])
   @@map("platform_reference_health")
   @@schema("platform")
 }
@@ -984,28 +1017,28 @@ model PlatformReferenceHealth {
 // next poll. The `published_at IS NULL` partial index keeps the
 // poll query fast even when millions of events have been processed.
 model PlatformOutbox {
-  id            String   @id @db.Uuid
-  topic         String
+  id           String    @id @db.Uuid
+  topic        String
   // The wire-shape ADR-057 envelope JSON. The publisher worker
   // sends this verbatim — no re-wrapping. correlation_id, event_id,
   // tenant_id, etc. are already inside.
-  envelope      Json     @db.JsonB
+  envelope     Json      @db.JsonB
   // Optional partition key (forwarded to kafkajs as the message
   // key). Falls back to a random UUID when null.
-  messageKey    String?  @map("message_key")
+  messageKey   String?   @map("message_key")
   // Tenant context for observability + admin filtering.
-  tenantId      String?  @map("tenant_id") @db.Uuid
-  sourceModule  String   @map("source_module")
+  tenantId     String?   @map("tenant_id") @db.Uuid
+  sourceModule String    @map("source_module")
   // Lifecycle. published_at is set by the worker after a successful
   // producer.send. failed_at + last_error are set when a publish
   // attempt errors; the worker bumps attempt_count and retries on
   // the next poll until MAX_OUTBOX_ATTEMPTS (default 10), at which
   // point the row stays at failed_at and an operator must intervene.
-  publishedAt   DateTime? @map("published_at") @db.Timestamptz()
-  failedAt      DateTime? @map("failed_at") @db.Timestamptz()
-  attemptCount  Int       @default(0) @map("attempt_count")
-  lastError     String?   @map("last_error")
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  publishedAt  DateTime? @map("published_at") @db.Timestamptz()
+  failedAt     DateTime? @map("failed_at") @db.Timestamptz()
+  attemptCount Int       @default(0) @map("attempt_count")
+  lastError    String?   @map("last_error")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   // Partial index so the publisher worker's poll query can prune
   // most rows efficiently. Once published_at is set, the row drops
@@ -1075,21 +1108,21 @@ model CurStandardPlatform {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 model PlatformOfficialProfile {
-  id                  String   @id @db.Uuid
-  personId            String   @unique @map("person_id") @db.Uuid
-  sports              String[] @db.Text
-  certificationLevel  String?  @map("certification_level")
-  certificationBody   String?  @map("certification_body")
+  id                  String    @id @db.Uuid
+  personId            String    @unique @map("person_id") @db.Uuid
+  sports              String[]  @db.Text
+  certificationLevel  String?   @map("certification_level")
+  certificationBody   String?   @map("certification_body")
   certificationExpiry DateTime? @map("certification_expiry") @db.Date
-  yearsExperience     Int?     @map("years_experience")
-  maxTravelMiles      Int?     @map("max_travel_miles")
-  baseFee             Decimal? @map("base_fee") @db.Decimal(8, 2)
-  isAvailable         Boolean  @default(true) @map("is_available")
+  yearsExperience     Int?      @map("years_experience")
+  maxTravelMiles      Int?      @map("max_travel_miles")
+  baseFee             Decimal?  @map("base_fee") @db.Decimal(8, 2)
+  isAvailable         Boolean   @default(true) @map("is_available")
   bio                 String?
-  contactEmail        String?  @map("contact_email")
-  contactPhone        String?  @map("contact_phone")
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  contactEmail        String?   @map("contact_email")
+  contactPhone        String?   @map("contact_phone")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   availability PlatformOfficialAvailability[]
 
@@ -1099,15 +1132,15 @@ model PlatformOfficialProfile {
 }
 
 model PlatformOfficialAvailability {
-  id                String   @id @db.Uuid
-  officialProfileId String   @map("official_profile_id") @db.Uuid
-  availableDate     DateTime @map("available_date") @db.Date
+  id                String    @id @db.Uuid
+  officialProfileId String    @map("official_profile_id") @db.Uuid
+  availableDate     DateTime  @map("available_date") @db.Date
   startTime         DateTime? @map("start_time") @db.Time(0)
   endTime           DateTime? @map("end_time") @db.Time(0)
-  isAvailable       Boolean  @default(true) @map("is_available")
+  isAvailable       Boolean   @default(true) @map("is_available")
   notes             String?
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   profile PlatformOfficialProfile @relation(fields: [officialProfileId], references: [id], onDelete: Cascade)
 
@@ -1162,5 +1195,130 @@ model AccStandardPlatform {
   @@unique([frameworkId, standardCode])
   @@index([frameworkId, domain, sortOrder])
   @@map("acc_standards_platform")
+  @@schema("platform")
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// P2-H2 Step 1.4 — Platform Signature Requests
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// Cross-module digital signature requests. Originally referenced as
+// `signature_request_id` soft FKs in IEP/504 activation, telehealth
+// consent, field-trip consent, and HR contract sign-off, but the table
+// itself was never created. This table closes those soft refs.
+//
+// Lifecycle:
+//   PENDING → SIGNED (signed_at, signed_by populated)
+//   PENDING → DECLINED (declined_at, decline_reason populated)
+//   PENDING → EXPIRED (expires_at < now() at last cron sweep)
+//   PENDING → REVOKED (admin revoke; revoked_at populated)
+//
+// Cross-tenant by design (tenant_id stamps origin) so a signer who is a
+// guardian in tenant A signing a document on a student in tenant B
+// (rare in practice — multi-school families) can still complete.
+model PlatformSignatureRequest {
+  id              String    @id @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  documentType    String    @map("document_type")
+  documentS3Key   String?   @map("document_s3_key")
+  signerPersonId  String    @map("signer_person_id") @db.Uuid
+  signerEmail     String    @map("signer_email")
+  status          String    @default("PENDING")
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz()
+  signedAt        DateTime? @map("signed_at") @db.Timestamptz()
+  signedBy        String?   @map("signed_by") @db.Uuid
+  signatureMethod String?   @map("signature_method")
+  declinedAt      DateTime? @map("declined_at") @db.Timestamptz()
+  declineReason   String?   @map("decline_reason")
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz()
+  revokedBy       String?   @map("revoked_by") @db.Uuid
+  sourceModule    String    @map("source_module")
+  sourceRefId     String    @map("source_ref_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@index([tenantId, status, createdAt(sort: Desc)])
+  @@index([signerPersonId, status])
+  @@index([sourceModule, sourceRefId])
+  @@map("platform_signature_requests")
+  @@schema("platform")
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// P2-H2 Step 1.5 — Partition Management Health (ADR-024)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// Per-partition health tracker for the ~290 partitioned tables across
+// every tenant. The partition-management worker (Phase 3 ops) writes
+// one row per (schema, parent_table, partition_name) UPSERT after each
+// scan. Operators query for stale partitions, missing future partitions,
+// and oversized partitions via the platform admin dashboard.
+//
+// Status values:
+//   ACTIVE      — partition is current; window covers today (when range)
+//   FUTURE      — partition window is entirely in the future
+//   PAST        — partition window is entirely in the past (cold storage)
+//   OVERSIZE    — partition row count > 50M (sharding signal)
+//   MISSING     — gap detected in expected window sequence
+model PartitionMgmtHealth {
+  id                String   @id @db.Uuid
+  schemaName        String   @map("schema_name")
+  parentTable       String   @map("parent_table")
+  partitionName     String   @map("partition_name")
+  partitionStrategy String   @map("partition_strategy")
+  rangeStart        String?  @map("range_start")
+  rangeEnd          String?  @map("range_end")
+  hashRemainder     Int?     @map("hash_remainder")
+  rowCount          BigInt   @default(0) @map("row_count")
+  sizeBytes         BigInt   @default(0) @map("size_bytes")
+  status            String   @default("ACTIVE")
+  scannedAt         DateTime @default(now()) @map("scanned_at") @db.Timestamptz()
+  scanDurationMs    Int      @default(0) @map("scan_duration_ms")
+
+  @@unique([schemaName, parentTable, partitionName])
+  @@index([status, scannedAt(sort: Desc)])
+  @@index([schemaName, parentTable])
+  @@map("partition_mgmt_health")
+  @@schema("platform")
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// P2-H2 Step 1.6 — Compliance FERPA Requests
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// FERPA records request log. A student / guardian / past-student can
+// formally request copies of education records under FERPA; the school
+// has 45 days to respond. Stored at the platform tier because requests
+// can span multiple schools the student attended.
+//
+// Status lifecycle:
+//   RECEIVED → IN_PROGRESS → COMPLETED (records released)
+//   RECEIVED → DENIED (with denial_reason; appealable)
+//   COMPLETED → CONTESTED (requester challenges accuracy; opens amendment workflow)
+model ComplianceFerpaRequest {
+  id                   String    @id @db.Uuid
+  tenantId             String    @map("tenant_id") @db.Uuid
+  schoolId             String?   @map("school_id") @db.Uuid
+  requesterPersonId    String    @map("requester_person_id") @db.Uuid
+  requesterRelation    String    @map("requester_relation")
+  studentPersonId      String    @map("student_person_id") @db.Uuid
+  requestType          String    @map("request_type")
+  recordsScope         String    @map("records_scope")
+  status               String    @default("RECEIVED")
+  receivedAt           DateTime  @default(now()) @map("received_at") @db.Timestamptz()
+  deadlineAt           DateTime  @map("deadline_at") @db.Timestamptz()
+  acknowledgedAt       DateTime? @map("acknowledged_at") @db.Timestamptz()
+  completedAt          DateTime? @map("completed_at") @db.Timestamptz()
+  releasedRecordsS3Key String?   @map("released_records_s3_key")
+  deniedAt             DateTime? @map("denied_at") @db.Timestamptz()
+  denialReason         String?   @map("denial_reason")
+  notes                String?
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@index([tenantId, status, deadlineAt])
+  @@index([requesterPersonId, receivedAt(sort: Desc)])
+  @@index([studentPersonId, receivedAt(sort: Desc)])
+  @@map("compliance_ferpa_requests")
   @@schema("platform")
 }

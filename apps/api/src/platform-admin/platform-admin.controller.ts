@@ -52,4 +52,22 @@ export class PlatformAdminController {
       limit: limit ? Number(limit) : undefined,
     });
   }
+
+  // P2-H2 Step 5 — soft-integrity reference health dashboard. Returns
+  // the registry-shape rows from platform_reference_health (one row
+  // per registered soft-FK ref, UPSERTed by the worker after each
+  // nightly scan). Filter by severity / module / source schema.
+  @Get('reference-health')
+  @RequirePermission('sys-001:admin')
+  @ApiOperation({
+    summary:
+      'Soft-FK reference health registry. One row per registered cross-schema reference with orphan count + last scan time. Filter by ?severity=CRITICAL|WARNING|INFO + ?module + ?sourceSchema.',
+  })
+  referenceHealth(
+    @Query('severity') severity?: 'CRITICAL' | 'WARNING' | 'INFO',
+    @Query('module') targetModule?: string,
+    @Query('sourceSchema') sourceSchema?: string,
+  ) {
+    return this.svc.listReferenceHealth({ severity, targetModule, sourceSchema });
+  }
 }

@@ -158,11 +158,28 @@ export class ReferenceHealthScannerWorker implements OnModuleInit, OnApplication
     }
 
     const durationMs = Date.now() - startedAt;
+    // P2-H2 Step 5 — registry-shape UPSERT (one row per registered
+    // reference) rather than event-log-per-scan. The UNIQUE constraint
+    // on (source_schema, source_table, source_column) from the
+    // accompanying Prisma migration backs the ON CONFLICT clause.
+    // scanned_at is refreshed on every scan via the EXCLUDED row.
     await platform.$executeRawUnsafe(
       `INSERT INTO platform.platform_reference_health
          (id, source_schema, source_table, source_column, target_schema, target_table,
-          target_column, total_rows, orphan_count, sample_orphan_ids, scan_duration_ms)
-       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)`,
+          target_column, target_module, severity, total_rows, orphan_count,
+          sample_orphan_ids, scan_duration_ms, scanned_at)
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, now())
+       ON CONFLICT ON CONSTRAINT platform_reference_health_source_uq DO UPDATE SET
+         target_schema = EXCLUDED.target_schema,
+         target_table = EXCLUDED.target_table,
+         target_column = EXCLUDED.target_column,
+         target_module = EXCLUDED.target_module,
+         severity = EXCLUDED.severity,
+         total_rows = EXCLUDED.total_rows,
+         orphan_count = EXCLUDED.orphan_count,
+         sample_orphan_ids = EXCLUDED.sample_orphan_ids,
+         scan_duration_ms = EXCLUDED.scan_duration_ms,
+         scanned_at = now()`,
       generateId(),
       sourceSchema,
       entry.sourceTable,
@@ -170,16 +187,30 @@ export class ReferenceHealthScannerWorker implements OnModuleInit, OnApplication
       entry.targetSchema,
       entry.targetTable,
       targetColumn,
+      entry.targetModule ?? 'platform',
+      entry.severity ?? 'WARNING',
       total,
       orphanCount,
       JSON.stringify(sampleIds),
       durationMs,
     );
 
+    // P2-H2 Step 5 — alert by severity. CRITICAL refs page on any
+    // orphan; WARNING pages on > 5; INFO never pages. The logger
+    // levels (error / warn / debug) drive the downstream Cycle 31
+    // SLO alerting pipeline.
+    const severity = entry.severity ?? 'WARNING';
     if (orphanCount > 0) {
-      this.logger.warn(
-        `[reference-health] ${entry.name} (${sourceSchema}) — ${orphanCount}/${total} orphans (${durationMs}ms)`,
-      );
+      const shouldPage = severity === 'CRITICAL' || (severity === 'WARNING' && orphanCount > 5);
+      if (shouldPage) {
+        this.logger.error(
+          `[reference-health] PAGE severity=${severity} ${entry.name} (${sourceSchema}) — ${orphanCount}/${total} orphans (${durationMs}ms)`,
+        );
+      } else {
+        this.logger.warn(
+          `[reference-health] ${entry.name} (${sourceSchema}) — ${orphanCount}/${total} orphans (${durationMs}ms)`,
+        );
+      }
     } else {
       this.logger.debug(
         `[reference-health] ${entry.name} (${sourceSchema}) — clean (${total} rows, ${durationMs}ms)`,

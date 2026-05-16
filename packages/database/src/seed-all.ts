@@ -40,6 +40,7 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
   { label: 'platform + tenant_demo provision', script: 'seed.ts' },
   { label: 'IAM permissions + roles + assignments', script: 'seed-iam.ts' },
   { label: 'iam_effective_access_cache rebuild', script: 'build-cache.ts' },
+  { label: 'school_config + school_feature_flags (P2-H2)', script: 'seed-config.ts' },
   { label: 'SIS — students, guardians, attendance', script: 'seed-sis.ts' },
   { label: 'Classroom — assignments, grades, snapshots', script: 'seed-classroom.ts' },
   { label: 'Messaging — threads, notifications, moderation', script: 'seed-messaging.ts' },
