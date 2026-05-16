@@ -90,6 +90,7 @@
     "seed:alumni": "tsx src/seed-alumni.ts",
     "seed:accreditation": "tsx src/seed-accreditation.ts",
     "seed:engagement": "tsx src/seed-engagement.ts",
+    "seed:commerce": "tsx src/seed-commerce.ts",
     "seed:library-advanced": "tsx src/seed-library-advanced.ts",
     "seed:publications-advanced": "tsx src/seed-publications-advanced.ts",
     "seed:publications-templates-platform": "tsx src/seed-publications-templates-platform.ts",

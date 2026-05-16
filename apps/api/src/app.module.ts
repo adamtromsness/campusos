@@ -74,6 +74,7 @@ import { CommunityModule } from './community/community.module';
 import { AlumniModule } from './alumni/alumni.module';
 import { AccreditationModule } from './accreditation/accreditation.module';
 import { EngagementModule } from './engagement/engagement.module';
+import { CommerceModule } from './commerce/commerce.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { TenantGuard } from './tenant/tenant.guard';
 import { AuthGuard } from './auth/auth.guard';
@@ -336,6 +337,16 @@ var devOnlyControllers: Type<unknown>[] =
     // endpoints + 2 Kafka emits (eng.conference.booking_open,
     // eng.survey.opened).
     EngagementModule,
+    // Phase 2 Cycle 29 sub-cycle a (P2-29a) — Commerce Bundle:
+    // Procurement Advanced (vendor catalogues, contracts, spending
+    // analytics) + Finance Extensions (departmental budgets, budget
+    // transfers with atomic from-decrement + to-increment, manual
+    // journal entry batches with balance validation on post).
+    // 6 services + 2 workers (ContractExpiryWorker,
+    // ProcurementAnalyticsWorker) + ~22 endpoints + 4 durable Kafka
+    // emits (prc.contract.expiring, prc.contract.amended,
+    // fin.budget_transfer.approved, fin.journal_batch.posted).
+    CommerceModule,
   ],
   controllers: devOnlyControllers,
   providers: [

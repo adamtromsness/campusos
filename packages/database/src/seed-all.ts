@@ -226,6 +226,11 @@ const SEED_STEPS: Array<{ label: string; script: string }> = [
       'Portfolio Advanced — sections + reflections + endorsements + readiness pathways + college apps + resume (P2-27)',
     script: 'seed-portfolio-advanced.ts',
   },
+  {
+    label:
+      'Commerce Bundle — vendor catalogues + contracts + departmental budgets + budget transfers + journal entry batches (P2-29a)',
+    script: 'seed-commerce.ts',
+  },
 ];
 
 async function main(): Promise<void> {
