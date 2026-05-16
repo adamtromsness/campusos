@@ -226,6 +226,17 @@ export class PromotionService {
         )) as PromotionRow[];
         const head = this.toDto(rows[0]!);
         const productIds = input.productIds ?? [];
+        // REVIEW-P2C29 hardening — explicit runtime cap on productIds
+        // length before the insert loop. The DTO carries
+        // @ArrayMaxSize(500) but CodeQL's js/loop-bound-injection
+        // requires a statically visible runtime check at the call
+        // site, matching the meeting-template.service.ts pattern
+        // from P2C28 MAJOR 2.
+        if (productIds.length > 500) {
+          throw new BadRequestException(
+            'productIds list too large — max 500 products per promotion',
+          );
+        }
         if (productIds.length > 0) {
           // Validate every productId belongs to the same store.
           const valid = (await tx.$queryRawUnsafe(

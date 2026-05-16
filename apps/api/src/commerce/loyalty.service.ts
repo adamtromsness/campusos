@@ -357,25 +357,33 @@ export class LoyaltyService {
           `Minimum redemption is ${config.min_redemption_points} points (requested ${input.points})`,
         );
       }
-      // Lock every transaction row for this (store, customer) tuple
-      // so concurrent redemptions serialise.
-      const ledger = (await tx.$queryRawUnsafe(
-        `SELECT transaction_type, points
-           FROM str_loyalty_transactions
-          WHERE store_id = $1::uuid AND customer_person_id = $2::uuid
-          FOR UPDATE`,
+      // REVIEW-P2C29 hardening — lock every transaction row for this
+      // (store, customer) tuple so concurrent redemptions serialise,
+      // then aggregate the balance via Postgres SUM under the lock
+      // via a CTE wrapper. This replaces the prior in-memory loop
+      // over an unbounded row set, which CodeQL flagged under
+      // js/loop-bound-injection. The aggregation runs server-side so
+      // even a customer with thousands of historical transactions
+      // returns one row from the DB, and the FOR UPDATE in the CTE
+      // still locks every contributing row to keep concurrent
+      // redemptions serialised on the customer's ledger.
+      const aggRows = (await tx.$queryRawUnsafe(
+        `WITH locked AS (
+           SELECT transaction_type, points
+             FROM str_loyalty_transactions
+            WHERE store_id = $1::uuid AND customer_person_id = $2::uuid
+            FOR UPDATE
+         )
+         SELECT
+           COALESCE(SUM(CASE WHEN transaction_type = 'EARNED' THEN points ELSE 0 END), 0)::int AS earned,
+           COALESCE(SUM(CASE WHEN transaction_type = 'REDEEMED' THEN points ELSE 0 END), 0)::int AS redeemed,
+           COALESCE(SUM(CASE WHEN transaction_type = 'ADJUSTMENT' THEN points ELSE 0 END), 0)::int AS adjusted
+         FROM locked`,
         input.storeId,
         input.customerPersonId,
-      )) as Array<{ transaction_type: string; points: number }>;
-      let earned = 0;
-      let redeemed = 0;
-      let adjusted = 0;
-      for (const r of ledger) {
-        if (r.transaction_type === 'EARNED') earned += r.points;
-        else if (r.transaction_type === 'REDEEMED') redeemed += r.points;
-        else if (r.transaction_type === 'ADJUSTMENT') adjusted += r.points;
-      }
-      const balance = earned + adjusted - redeemed;
+      )) as Array<{ earned: number; redeemed: number; adjusted: number }>;
+      const agg = aggRows[0] ?? { earned: 0, redeemed: 0, adjusted: 0 };
+      const balance = Number(agg.earned) + Number(agg.adjusted) - Number(agg.redeemed);
       if (balance < input.points) {
         throw new BadRequestException(
           `Insufficient loyalty balance (have ${balance}, need ${input.points})`,

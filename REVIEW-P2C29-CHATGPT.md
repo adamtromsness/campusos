@@ -1,8 +1,63 @@
 # REVIEW-P2C29-CHATGPT — fix log
 
+**Final verdict (Round 2 against `e05d746`):** **PASS** — full P2-29 cycle APPROVED.
+**Closeout commit:** this commit — appends Round 2 PASS verdict to handoff + CLAUDE.md and tags `p2c29-complete` at `e05d746` (the Round 1 fix commit that earned PASS) + `p2c29-approved` at the closeout commit.
+**Tags:** `p2c29-complete` at `e05d746` + `p2c29-approved` at the closeout commit.
+
+**Phase 2 closes with this approval.** P2-29 is the final cycle of Phase 2. The platform ships the complete operational + module-completion + .1 deferred-table surface across Waves A → D.
+
+## Round 2 verdict — PASS
+
+Reviewer cache-busted each affected file in code on Round 2 and confirmed every Round 1 fix matches:
+
+| Dimension                     |   Rating | Findings                                                                                                     |
+| ----------------------------- | -------: | ------------------------------------------------------------------------------------------------------------ |
+| Loyalty                       | **PASS** | Customer person IDs must now be affiliated with the current school before balance/history/ledger operations. |
+| Wishlists                     | **PASS** | Update and delete paths now scope through product → store → school ownership.                                |
+| Promotions                    | **PASS** | Patch mutations now carry store/school predicates.                                                           |
+| Price Schedules               | **PASS** | Worker apply/revert mutations are school-defensive.                                                          |
+| Journal Batches / GL Boundary | **PASS** | Commerce emits the durable batch event; Finance owns GL materialisation through its consumer.                |
+| Test Coverage                 | **PASS** | Round 1 blockers have pinned regression coverage and the full suite is green.                                |
+
+The full Round 1 attack matrix re-runs clean against `e05d746`: the 5 previously-vulnerable attacks are now defended by the SQL-shape changes pinned in the regression spec, and the 6 already-defended attacks (budget transfer concurrency, contract expiry durability, promotion max-use, gift card overspend, procurement analytics replay, contract event durability) stay defended.
+
+**Non-blocking carry-over to Phase 3:** Gift-card code lookup model. `card_code` is globally unique within the tenant by design while redemption remains school-scoped through the store join. Schools that want store-scoped codes can use prefixed codes operationally — no schema change required for the current contract.
+
+## Closeout commit — CodeQL hardening
+
+After the Round 2 PASS verdict, GitHub flagged 3 CodeQL `js/loop-bound-injection` findings on `e05d746` that hadn't surfaced in the manual review. The closeout commit lands all 3 fixes:
+
+1. **`PromotionService.create` productIds loop** — added explicit runtime length cap (max 500) before the insert loop, matching the `meeting-template.service.ts` pattern from REVIEW-P2C28 MAJOR 2. The DTO already carries `@ArrayMaxSize(500)` but CodeQL requires the runtime check at the call site for the loop-bound rule.
+
+2. **`JournalBatchPostedConsumer.process` payload.lines** — added explicit `MAX_BATCH_LINES = 1000` cap before iterating the Kafka payload's `payload.lines.map(...)`. The producer is admin-bounded today but a redelivered or corrupted envelope could carry an unbounded array; the consumer now throws `Error` for cap violation which propagates through `processWithIdempotency` to DLQ.
+
+3. **`LoyaltyService.redeem` ledger aggregation** — replaced the in-memory `for (const r of ledger) { earned += ... }` loop over an unbounded `FOR UPDATE` row set with a Postgres SUM aggregation under a CTE that still holds the FOR UPDATE lock on every contributing row:
+
+   ```sql
+   WITH locked AS (
+     SELECT transaction_type, points
+       FROM str_loyalty_transactions
+      WHERE store_id = $1::uuid AND customer_person_id = $2::uuid
+      FOR UPDATE
+   )
+   SELECT
+     COALESCE(SUM(CASE WHEN transaction_type = 'EARNED' THEN points ELSE 0 END), 0)::int AS earned,
+     COALESCE(SUM(CASE WHEN transaction_type = 'REDEEMED' THEN points ELSE 0 END), 0)::int AS redeemed,
+     COALESCE(SUM(CASE WHEN transaction_type = 'ADJUSTMENT' THEN points ELSE 0 END), 0)::int AS adjusted
+   FROM locked
+   ```
+
+   The DB returns one row regardless of how many historical transactions the customer has, eliminating the loop-bound concern AND closing the reviewer's MAJOR 6 scaling note (which flagged the same code path for performance at customer-history scale). The FOR UPDATE in the CTE preserves concurrent-redemption serialisation.
+
+CI parity at the closeout: API build clean, Prettier clean, log-schema lint 1018 files clean, vitest 1463/1463 passing across 70 spec files (existing regression tests unaffected by the changes).
+
+---
+
+## Round 1 fix log (preserved below for review trail)
+
 **Round 1 verdict (`59aaa20` + `c244206`):** FAIL — 5 BLOCKING + 3 MAJOR.
-**Round 1 fix commit:** this commit.
-**Status:** awaiting Round 2.
+**Round 1 fix commit:** `e05d746`.
+**Round 2 verdict:** PASS at top of this file.
 
 The Round 1 reviewer's gate decision required 5 BLOCKING fixes + tests:
 

@@ -2,8 +2,51 @@
 
 **Plan:** [`docs/campusos-p2c29-commerce-bundle.html`](docs/campusos-p2c29-commerce-bundle.html)
 **Review scaffold:** [`P2C29-REVIEW-NOTES.md`](P2C29-REVIEW-NOTES.md)
-**Round 1 review:** [`REVIEW-P2C29-CHATGPT.md`](REVIEW-P2C29-CHATGPT.md)
-**Status:** **Round 1 returned FAIL with 5 BLOCKING + 3 MAJOR; fix commit lands all 5 BLOCKING + 2 actionable MAJORs + 11 pinned regression tests. Awaiting Round 2.**
+**Review fix log:** [`REVIEW-P2C29-CHATGPT.md`](REVIEW-P2C29-CHATGPT.md)
+**Status:** **COMPLETE + APPROVED.** Round 1 against `c244206` returned FAIL with 5 BLOCKING + 3 MAJOR; Round 2 against `e05d746` returned **PASS** across all 6 dimensions. Tagged `p2c29-complete` at `e05d746` and `p2c29-approved` at the closeout commit.
+
+## **Phase 2 closes with this approval.** P2-29 is the final cycle of Phase 2.
+
+## REVIEW-P2C29 Round 2 verdict — PASS
+
+Reviewer's verification table marks every Round 1 finding FIXED. Per-dimension score:
+
+| Dimension                     |   Rating |
+| ----------------------------- | -------: |
+| Loyalty                       | **PASS** |
+| Wishlists                     | **PASS** |
+| Promotions                    | **PASS** |
+| Price Schedules               | **PASS** |
+| Journal Batches / GL Boundary | **PASS** |
+| Test Coverage                 | **PASS** |
+
+Reviewer cache-busted each affected file in code on Round 2 and confirmed every fix matches in code:
+
+- `assertCustomerAffiliatedWithSchool` validates the person through current-school student / guardian / employee projections (`sis_students.school_id`, guardian-linked student school, `hr_employees.school_id`) and is required for loyalty balance reads + ledger writes.
+- `WishlistService.update` updates through `str_wishlists → str_products → str_stores` with `s.school_id = tenant.schoolId`; `remove` uses the same school-scoped `DELETE ... USING` pattern.
+- `PromotionService.patch` joins through `str_stores` with `s.school_id = tenant.schoolId`.
+- `PriceScheduleWorker` apply + revert paths both join through `str_products + str_stores` with school predicates.
+- `JournalBatchService.post` no longer writes `fin_gl_entries`; new Finance-owned `JournalBatchPostedConsumer` materialises GL via `PostingService.createAndPost()` with `sourceEventId` UNIQUE idempotency.
+
+The full Round 1 attack matrix re-runs clean against `e05d746`: the 5 previously-vulnerable attacks (loyalty cross-school grants, wishlist cross-school mutation, promotion patch cross-school, price schedule worker cross-school, GL module boundary) are now defended; the 6 previously-defended attacks (budget transfer concurrency, contract expiry durability, promotion max-use atomicity, gift card overspend, procurement analytics redelivery, contract event durability) stay defended.
+
+**Tagging:** `p2c29-complete` at `e05d746` (the Round 1 fix commit that earned Round 2 PASS) and `p2c29-approved` at the closeout commit.
+
+**Non-blocking carry-over to Phase 3:** Gift-card code lookup model. `card_code` is globally unique within the tenant by design while redemption remains school-scoped through the store join. Schools that want store-scoped codes can use prefixed codes operationally — no schema change required for the current contract.
+
+## Closeout commit — CodeQL hardening + tagging
+
+The closeout commit lands 3 CodeQL `js/loop-bound-injection` hardening fixes flagged on `e05d746`:
+
+1. **`PromotionService.create` productIds loop** — added explicit runtime length cap (max 500) before the insert loop, matching the meeting-template.service.ts pattern from REVIEW-P2C28 MAJOR 2. The DTO carries `@ArrayMaxSize(500)` but CodeQL requires the runtime check at the call site.
+
+2. **`JournalBatchPostedConsumer.process` payload.lines** — added explicit `MAX_BATCH_LINES = 1000` cap before iterating the Kafka payload. The producer is admin-bounded but a redelivered or corrupted envelope could carry an unbounded array.
+
+3. **`LoyaltyService.redeem` ledger aggregation** — replaced the in-memory loop over an unbounded `FOR UPDATE` row set with a Postgres SUM aggregation under a CTE that still holds the FOR UPDATE lock. The DB returns one row regardless of how many historical transactions the customer has, eliminating the loop-bound concern AND closing the reviewer's MAJOR 6 scaling note (which flagged the same code path for performance at customer-history scale).
+
+Tagged `p2c29-complete` at `e05d746` (the Round 1 fix that earned Round 2 PASS) and `p2c29-approved` at the closeout commit.
+
+---
 
 ## REVIEW-P2C29 Round 1 fix log
 

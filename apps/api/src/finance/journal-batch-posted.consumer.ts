@@ -110,6 +110,19 @@ export class JournalBatchPostedConsumer implements OnModuleInit {
       );
       return;
     }
+    // REVIEW-P2C29 hardening — explicit cap on payload.lines length
+    // before any iteration. The producer (commerce JournalBatchService)
+    // emits with `fin_journal_entry_lines.batch_id` cardinality which
+    // is admin-bounded, but a redelivered or corrupted Kafka envelope
+    // could carry an unbounded array. CodeQL js/loop-bound-injection
+    // requires a statically visible runtime check before the maps
+    // below iterate the array.
+    const MAX_BATCH_LINES = 1000;
+    if (payload.lines.length > MAX_BATCH_LINES) {
+      throw new Error(
+        `[${CONSUMER_GROUP}] payload.lines length ${payload.lines.length} exceeds MAX_BATCH_LINES=${MAX_BATCH_LINES} for batch ${payload.batchId} — refusing to materialise GL entries`,
+      );
+    }
     const schoolId = event.tenant.schoolId;
     const cfo = await this.resolveSyntheticActor(schoolId);
     if (!cfo) {
