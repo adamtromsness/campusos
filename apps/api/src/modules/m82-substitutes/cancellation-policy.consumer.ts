@@ -3,11 +3,7 @@ import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
 import { IdempotencyService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
-import {
-  UnwrappedEvent,
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 import { generateId } from '@campusos/database';
 import { RatingService } from './rating.service';
 

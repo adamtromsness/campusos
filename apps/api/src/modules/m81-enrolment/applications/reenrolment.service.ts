@@ -9,7 +9,11 @@ import { TenantPrismaService } from '@shared/tenant';
 import { getCurrentTenant } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
 import { PermissionCheckService } from '@modules/m00-platform';
-import { CreateReenrolDto, ReenrolResponseDto, ReenrolSummaryDto } from '../withdrawals/dto/withdrawal.dto';
+import {
+  CreateReenrolDto,
+  ReenrolResponseDto,
+  ReenrolSummaryDto,
+} from '../withdrawals/dto/withdrawal.dto';
 import { WithdrawalService } from '../withdrawals/withdrawal.service';
 
 interface ReenrolRow {

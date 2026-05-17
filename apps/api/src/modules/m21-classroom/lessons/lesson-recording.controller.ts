@@ -4,7 +4,10 @@ import type { Request } from 'express';
 import { RequirePermission } from '@shared/auth';
 import { ActorContextService } from '@modules/m00-platform';
 import { LessonRecordingService } from './lesson-recording.service';
-import { CreateLessonRecordingDto, LessonRecordingResponseDto } from '../ai-tutoring/dto/ai-tutoring.dto';
+import {
+  CreateLessonRecordingDto,
+  LessonRecordingResponseDto,
+} from '../ai-tutoring/dto/ai-tutoring.dto';
 
 interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string; displayName: string; sessionId: string };

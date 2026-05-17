@@ -28,7 +28,10 @@ import {
   CreateEmployeeDocumentDto,
   EmployeeDocumentResponseDto,
 } from './dto/employee-document.dto';
-import { CertificationResponseDto, CreateCertificationDto } from '../certifications/dto/certification.dto';
+import {
+  CertificationResponseDto,
+  CreateCertificationDto,
+} from '../certifications/dto/certification.dto';
 import { EmployeeComplianceDto } from '../certifications/dto/compliance.dto';
 
 interface AuthedRequest extends Request {

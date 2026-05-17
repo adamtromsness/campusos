@@ -10,7 +10,11 @@ import { getCurrentTenant } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
 import { PermissionCheckService } from '@modules/m00-platform';
 import { OutboxService } from '@shared/kafka';
-import { assertProcurementAdmin, assertProcurementReader, isUniqueViolation } from './access-advanced';
+import {
+  assertProcurementAdmin,
+  assertProcurementReader,
+  isUniqueViolation,
+} from './access-advanced';
 import { deterministicContractAmendedEventId } from './event-ids-advanced';
 import type {
   ContractAmendmentDto,

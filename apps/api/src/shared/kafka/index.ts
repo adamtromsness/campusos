@@ -7,11 +7,7 @@ export { IdempotencyService } from './idempotency.service';
 export { OutboxService } from './outbox.service';
 export type { OutboxEnqueueOptions, OutboxTxClient } from './outbox.service';
 export { OutboxPublisherWorker } from './outbox-publisher.worker';
-export {
-  envelopeFromOptions,
-  prefixedTopic,
-  unprefixTopic,
-} from './event-envelope';
+export { envelopeFromOptions, prefixedTopic, unprefixTopic } from './event-envelope';
 export type { EventEnvelope, EnvelopeOptions } from './event-envelope';
 export { assertValidEnvelope, EnvelopeValidationError } from './envelope-validator';
 export { unwrapEnvelope, processWithIdempotency } from './envelope-consumer';

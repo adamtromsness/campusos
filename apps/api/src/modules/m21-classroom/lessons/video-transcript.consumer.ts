@@ -2,11 +2,7 @@ import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/com
 import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
 import { IdempotencyService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
-import {
-  UnwrappedEvent,
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 import { LessonRecordingService } from './lesson-recording.service';
 import { AIGatewayService } from '../ai-tutoring/ai-gateway.service';
 import { AIUsageService } from '../ai-tutoring/ai-usage.service';

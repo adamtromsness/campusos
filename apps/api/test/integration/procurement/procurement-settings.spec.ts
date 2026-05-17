@@ -141,9 +141,7 @@ describe('integration:ProcurementSettingsService', () => {
     it('rejects poNumberPrefix with bad characters', async () => {
       await withTestTenant(async () => service.get());
       await expect(
-        withTestTenant(async () =>
-          service.update(adminActor(), { poNumberPrefix: 'BAD PREFIX!' }),
-        ),
+        withTestTenant(async () => service.update(adminActor(), { poNumberPrefix: 'BAD PREFIX!' })),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -197,9 +195,7 @@ describe('integration:ProcurementSettingsService', () => {
       // Now try to bump only autoPoThreshold so the existing requireThreeQuotesAbove
       // would fall below — must be rejected.
       await expect(
-        withTestTenant(async () =>
-          service.update(adminActor(), { autoPoThreshold: 6000 }),
-        ),
+        withTestTenant(async () => service.update(adminActor(), { autoPoThreshold: 6000 })),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 

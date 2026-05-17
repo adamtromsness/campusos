@@ -3,7 +3,11 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '@shared/auth';
 import { ActorContextService } from '@modules/m00-platform';
-import { CreateReenrolDto, ReenrolResponseDto, ReenrolSummaryDto } from '../withdrawals/dto/withdrawal.dto';
+import {
+  CreateReenrolDto,
+  ReenrolResponseDto,
+  ReenrolSummaryDto,
+} from '../withdrawals/dto/withdrawal.dto';
 import { ReenrolmentService } from './reenrolment.service';
 
 interface AuthedRequest extends Request {

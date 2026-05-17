@@ -173,9 +173,9 @@ describe('ProcurementController — actor resolution', () => {
   it('throws when req.user is missing (the canonical "unauthenticated request reached controller" guard)', async () => {
     const c = makeController();
     const unauthed = {} as never;
-    await expect(
-      c.controller.listRequisitions(undefined, unauthed),
-    ).rejects.toThrow(/Unauthenticated request reached Procurement controller/);
+    await expect(c.controller.listRequisitions(undefined, unauthed)).rejects.toThrow(
+      /Unauthenticated request reached Procurement controller/,
+    );
   });
 });
 

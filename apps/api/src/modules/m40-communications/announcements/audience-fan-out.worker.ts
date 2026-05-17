@@ -6,11 +6,7 @@ import { prefixedTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
 import { getCurrentTenant } from '@shared/tenant';
 import { NotificationQueueService } from '@modules/m40-communications';
-import {
-  UnwrappedEvent,
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 
 /**
  * AudienceFanOutWorker — Cycle 3 Step 7.

@@ -14,29 +14,34 @@
 The Codex review flagged 6 adjacent-query gaps inside files already touched by the P2-H1 Round 1 fixes.
 
 **A.1.a `sis-advanced/student-note.service.ts`**
+
 - `assertStudentExists`: **RESOLVED** — `apps/api/src/sis-advanced/student-note.service.ts:101` reads `… WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`.
 - `listForStudent`: **RESOLVED** — line 163 carries `AND n.school_id = $2::uuid` in the WHERE clause.
 - `create`: **RESOLVED** — line 199 calls `assertStudentExists` inside the tenant tx; line 226 reload also carries `n.school_id = $2::uuid`.
 
 **A.1.b `curriculum/maps.service.ts`**
+
 - Unit create: **RESOLVED** — lines 668–670 validate `cur_curriculum_maps WHERE id = $1::uuid AND school_id = $2::uuid` inside the tenant tx before INSERT.
 - Unit reorder: **RESOLVED** — lines 776–805 carry `AND m.school_id = $3::uuid` on every UPDATE.
 - `alignStandard`: **RESOLVED** — lines 834–840 JOIN through curriculum_maps + filter `m.school_id`.
 - `attachLesson`: **RESOLVED** — lines 903–907 validate unit's parent map, lines 913–920 validate lesson's school.
 
 **A.1.c `store/orders.service.ts`**
+
 - `ApprovalService.approve`: **RESOLVED** — lines 1120–1127 JOIN `str_order_approvals → str_orders → str_stores` with `s.school_id = $2::uuid FOR UPDATE`.
 - `ApprovalService.decline`: **RESOLVED** — lines 1187–1194 same JOIN pattern.
 - `ApprovalService.getApproval`: **RESOLVED** — lines 1242–1247 same JOIN.
 - Helper affected-row check: **RESOLVED** — `advanceFromApprovalInTx`/`cancelFromApprovalDeclineInTx` invoked at lines 1161/1228 carry school predicate end-to-end.
 
 **A.1.d `publications/sections.service.ts`**
+
 - `ContributorService.add`: **RESOLVED** — lines 341–346 JOIN `pub_sections → pub_publications.school_id` before INSERT.
 - `ContributorService.remove`: **RESOLVED** — lines 396–401 DELETE … USING `pub_publications p WHERE p.school_id = $2::uuid`; affected-row check at line 404.
 - `CommentService.create`: **RESOLVED** — lines 485–490 JOIN through `pub_publications.school_id`.
 - `CommentService.resolve`: **RESOLVED** — lines 516–521 triple JOIN with `FOR UPDATE OF c`.
 
 **A.1.e `facilities/inspections.service.ts`**
+
 - `InspectionService.getById`: **RESOLVED** — line 142 `WHERE i.id = $1::uuid AND i.school_id = $2::uuid`.
 - `ViolationService.listForInspection`: **RESOLVED** — line 240 JOIN `fac_inspections i` with `i.school_id = $2::uuid`.
 - `ViolationService.create`: **RESOLVED** — lines 282–285 validate parent inspection in current school before INSERT.
@@ -46,9 +51,11 @@ The Codex review flagged 6 adjacent-query gaps inside files already touched by t
 - **Supply create: UNRESOLVED** — `apps/api/src/facilities/inspections.service.ts:632–647` INSERTs into `fac_supply_inventory` with `input.buildingId` without validating that building is in the current school. `adjust()` validates the JOIN through `fac_buildings.school_id`, but `create()` does not. A crafted cross-school `buildingId` lands a supply row in a foreign building.
 
 **A.1.f `sis-advanced/custom-field.service.ts`**
+
 - `upsertValues`: **RESOLVED** — lines 370–376 validate target `entityId` per `entity_type` with `school_id = $2::uuid` predicate for all four entity types (STUDENT/STAFF/GUARDIAN/CLASS).
 
 **Original P2-H1 Round 1 fixes still in place**
+
 - `family-relationship.service.ts`: **RESOLVED** — `school_id = $2::uuid` predicates at lines 76, 91–100, 110–118, 225–238, 253–259.
 - `cross-school-staff.service.ts`: **RESOLVED** — `home_school_id = $2::uuid OR visiting_school_id = $2::uuid` at lines 114, 138, 207–209.
 - `governance/erasure.service.ts` (pseudonymisation + privacy notice paths): **RESOLVED** — `school_id` predicates at lines 115, 164, 211, 310.
@@ -63,6 +70,7 @@ The Codex review flagged 6 adjacent-query gaps inside files already touched by t
 ### A.3 GuardianAuthorizationService
 
 `apps/api/src/iam/guardian-authorization.service.ts`:
+
 - Reads `sis_family_relationships.custody_arrangement`: **RESOLVED** — `loadCustodyContext()` at lines 109–125.
 - Reads court-order restrictions JSONB: **RESOLVED** — line 119 selects `court_order_restrictions`.
 - `canAuthorizePayment` validates `familyAccountId` binding: **RESOLVED** — lines 255–271 verify `fa.account_holder_id = $3 AND fas.student_id = $4`. The earlier "ignores familyAccountId" defect is closed.
@@ -115,7 +123,7 @@ The Codex review flagged 6 adjacent-query gaps inside files already touched by t
 ### C.10 Producers for the 3 BLOCKING Topics
 
 - `pay.debt.written_off`: **RESOLVED** — `apps/api/src/payments/invoice.service.ts:376` emits via `outbox.enqueueInTx(tx, { topic: 'pay.debt.written_off', … })` inside the `cancel()` tenant tx (block at lines 360–392). Durable.
-- `hlth.allergy_alert.changed`: **UNRESOLVED** — `apps/api/src/health/health-record.service.ts:137–152` defines `emitAllergyAlertChanged()` as `void this.kafka.emit({ topic: 'hlth.allergy_alert.changed', … })` (line 138). Best-effort, not outbox-durable. Called fire-and-forget from `create` (line 340) and `update` (line 403) outside any transaction context. The plan's P2-H3 Step 1 pattern explicitly required: *"Financial and safety topics (#9, #10, #11) must use the outbox pattern."* `hlth.allergy_alert.changed` is finding #10 and is a safety event (allergen exposure) — it must be outbox-durable.
+- `hlth.allergy_alert.changed`: **UNRESOLVED** — `apps/api/src/health/health-record.service.ts:137–152` defines `emitAllergyAlertChanged()` as `void this.kafka.emit({ topic: 'hlth.allergy_alert.changed', … })` (line 138). Best-effort, not outbox-durable. Called fire-and-forget from `create` (line 340) and `update` (line 403) outside any transaction context. The plan's P2-H3 Step 1 pattern explicitly required: _"Financial and safety topics (#9, #10, #11) must use the outbox pattern."_ `hlth.allergy_alert.changed` is finding #10 and is a safety event (allergen exposure) — it must be outbox-durable.
 - `fds.meal.served`: **UNRESOLVED** — `apps/api/src/food-service/pos.service.ts:447–463` emits via `await this.kafka.emit({ topic: 'fds.meal.served', … })` (line 448) outside the transaction scope (after `executeInTenantTransaction()` commits). The topic registry at `docs/kafka-topic-registry.md:223` reclassifies this as OBSERVABLE, which would justify best-effort, but the P2-H3 Step 1 plan listed it as BLOCKING finding #11 and required outbox. Either the classification is correct and the plan needs amending, or the emit needs to move to outbox; the current state is inconsistent with the original BLOCKING requirement.
 
 ### C.11 Outbox Atomicity for the 7 Financial / Safety Emits
@@ -131,6 +139,7 @@ The Codex review flagged 6 adjacent-query gaps inside files already touched by t
 ### C.12 GL Reconciliation Worker
 
 `apps/api/src/finance/gl-reconciliation.worker.ts`:
+
 - AMOUNT_MISMATCH detection: **RESOLVED** — `checkSourceVsGl()` at lines 158–244 pulls source amount (170–172) and GL aggregate via `SUM(g.debit + g.credit)` (183–195), then asserts at lines 224–240 that GL total is either 1× or 2× the source absolute amount; on miss pushes `{ issue: 'AMOUNT_MISMATCH', expected, actual }`.
 - DUPLICATE_POSTING detection: **RESOLVED** — `checkDuplicatePostings()` at lines 247–282 GROUPs by `source_event_id` and emits a row for any `batch_count > 1`.
 - ORPHAN_GL_ENTRY detection: **RESOLVED** — `checkOrphanGlEntries()` at lines 285–333 selects GL entries with `NOT EXISTS` against the referenced source row per reference type.
@@ -149,7 +158,7 @@ The Codex review flagged 6 adjacent-query gaps inside files already touched by t
 
 ### D.14 Policy Documents
 
-- `docs/ai-data-policy.md`: **RESOLVED** — 182 lines, 8 sections: Scope (line 9), Hard Categorical Exclusions (24, 11-row table for health/behaviour/counselling/wellbeing/mandatory-reports/etc.), PII Minimisation Before Provider Calls (48), Provider Configuration (99, zero-retention + training opt-out + EU/US region pinning), Opt-Out Effect (115, 24h hard-deletion of cls_ai_tutoring_*), Model Output Audit Retention (137, 90-day pseudonymisation via dpo_pseudonymisation_log), Implementation Status (156), Audit + Review (172).
+- `docs/ai-data-policy.md`: **RESOLVED** — 182 lines, 8 sections: Scope (line 9), Hard Categorical Exclusions (24, 11-row table for health/behaviour/counselling/wellbeing/mandatory-reports/etc.), PII Minimisation Before Provider Calls (48), Provider Configuration (99, zero-retention + training opt-out + EU/US region pinning), Opt-Out Effect (115, 24h hard-deletion of cls*ai_tutoring*\*), Model Output Audit Retention (137, 90-day pseudonymisation via dpo_pseudonymisation_log), Implementation Status (156), Audit + Review (172).
 - `docs/retention-pseudonymisation-matrix.md`: **RESOLVED** — 160 lines, 7 subsection tables covering 36 record classes: Operational+Academic (6 rows), Health+Safety (6), Financial (7 incl. pay_ledger_entries line 55 + GL entries line 51), Counselling+Safeguarding (3), HR+Workforce (6), Audit+Logs (11 incl. hlth_health_access_log line 83), Identity+Governance (5). Each entry carries retention duration + legal basis + pseudonymisation action.
 - `docs/migration-orchestration.md`: **RESOLVED** — 255 lines, 11 sections: cluster capacity (line 23), authoring rules (35, splitter + idempotency + expand/contract), online index creation (100, CREATE INDEX CONCURRENTLY), rollout sequencing (118, canary → prod canary → wave-of-10 → schema drift verification), is_frozen gate (188), failure rollback (205, forward-fix only), communication template (235, T-72h/T-24h/T-0/T+1h), migration_status table for resumable execution (151–161, PENDING/IN_PROGRESS/APPLIED/FAILED).
 - `docs/kafka-operations-runbook.md`: **RESOLVED** — 329 lines, 11 sections: consumer retry policy by event class (17, 15-min SRE response on financial DLQ at line 28), DLQ table shape (49), alert thresholds (75), replay procedure with event_id preservation rule (103), poison-message quarantine (151), financial SLAs for 11 topics (180), safety SLAs for 7 topics (205), GL reconciliation procedure (218), schema compatibility (269), outbox reconciliation (290), Phase 3 carry-over (319).
@@ -182,13 +191,13 @@ The Codex review flagged 6 adjacent-query gaps inside files already touched by t
 
 ## Summary
 
-| Section | Findings checked | Resolved | Unresolved |
-| ------- | ---------------- | -------- | ---------- |
-| A — Security | 31 | 29 | 2 |
-| B — Schema & immutability | 11 | 11 | 0 |
-| C — Kafka & financial | 14 | 12 | 2 |
-| D — Policy & operational | 9 | 9 | 0 |
-| **Total** | **65** | **61** | **4** |
+| Section                   | Findings checked | Resolved | Unresolved |
+| ------------------------- | ---------------- | -------- | ---------- |
+| A — Security              | 31               | 29       | 2          |
+| B — Schema & immutability | 11               | 11       | 0          |
+| C — Kafka & financial     | 14               | 12       | 2          |
+| D — Policy & operational  | 9                | 9        | 0          |
+| **Total**                 | **65**           | **61**   | **4**      |
 
 ### Unresolved Items (Inventory)
 

@@ -26,11 +26,7 @@ import {
   teacherActor,
   TEST_OFFICER_EMPLOYEE_ID,
 } from '../helpers/actor';
-import {
-  TEST_BUDGET_LINE_ID,
-  TEST_SUPPLIER_A_ID,
-  TEST_SUPPLIER_B_ID,
-} from '../fixtures/finance';
+import { TEST_BUDGET_LINE_ID, TEST_SUPPLIER_A_ID, TEST_SUPPLIER_B_ID } from '../fixtures/finance';
 
 /**
  * Loop 5 — DATABASE-BACKED integration tests for the remaining procurement
@@ -129,9 +125,7 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
     const receipt = await withTestTenant(async () =>
       receiptService.create(officerActor(), po.id, {
         inspectionOutcome:
-          quantityRejected > 0 && quantityAccepted > 0
-            ? 'ACCEPTED_WITH_DISCREPANCY'
-            : 'ACCEPTED',
+          quantityRejected > 0 && quantityAccepted > 0 ? 'ACCEPTED_WITH_DISCREPANCY' : 'ACCEPTED',
         lines: [
           {
             poLineId: po.lines[0]!.id,
@@ -226,7 +220,8 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
 
     it('distribute leaves the linked requisition (RECEIVED) flipped to DISTRIBUTED', async () => {
       // Build PO via a requisition so the linked-req auto-promote path fires
-      const reqSvc = (await import('@modules/m86-procurement/requisitions.service')).RequisitionService;
+      const reqSvc = (await import('@modules/m86-procurement/requisitions.service'))
+        .RequisitionService;
       const requisitionService = new reqSvc(
         tenantPrisma,
         kafka as unknown as KafkaProducerService,
@@ -268,7 +263,9 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
           ],
         }),
       );
-      await withTestTenant(async () => poService.transition(adminActor(), po.id, { action: 'ISSUE' }));
+      await withTestTenant(async () =>
+        poService.transition(adminActor(), po.id, { action: 'ISSUE' }),
+      );
       const receipt = await withTestTenant(async () =>
         receiptService.create(officerActor(), po.id, {
           inspectionOutcome: 'ACCEPTED',
@@ -436,9 +433,7 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
         withTestTenant(async () =>
           distService.create(studentActor(), receiptId, {
             destinationModule: 'tech',
-            lines: [
-              { receiptLineId, quantityDistributed: 1, itemDescription: 'x' },
-            ],
+            lines: [{ receiptLineId, quantityDistributed: 1, itemDescription: 'x' }],
           }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -446,9 +441,7 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
         withTestTenant(async () =>
           distService.create(parentActor(), receiptId, {
             destinationModule: 'tech',
-            lines: [
-              { receiptLineId, quantityDistributed: 1, itemDescription: 'x' },
-            ],
+            lines: [{ receiptLineId, quantityDistributed: 1, itemDescription: 'x' }],
           }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -461,9 +454,7 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
         withTestTenant(async () =>
           distService.create(adminNoEmp, receiptId, {
             destinationModule: 'tech',
-            lines: [
-              { receiptLineId, quantityDistributed: 1, itemDescription: 'x' },
-            ],
+            lines: [{ receiptLineId, quantityDistributed: 1, itemDescription: 'x' }],
           }),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -479,9 +470,7 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
       const first = await withTestTenant(async () =>
         distService.create(officerActor(), receiptId, {
           destinationModule: 'tech',
-          lines: [
-            { receiptLineId, quantityDistributed: 3, itemDescription: 'first' },
-          ],
+          lines: [{ receiptLineId, quantityDistributed: 3, itemDescription: 'first' }],
         }),
       );
       // Small delay to guarantee distinct distributed_at timestamps
@@ -489,9 +478,7 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
       const second = await withTestTenant(async () =>
         distService.create(officerActor(), receiptId, {
           destinationModule: 'fac',
-          lines: [
-            { receiptLineId, quantityDistributed: 5, itemDescription: 'second' },
-          ],
+          lines: [{ receiptLineId, quantityDistributed: 5, itemDescription: 'second' }],
         }),
       );
 
@@ -673,9 +660,7 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
 
     it('SHIP from non-INITIATED status → 400', async () => {
       const id = await seedInitiatedReturn();
-      await withTestTenant(async () =>
-        returnService.update(adminActor(), id, { action: 'SHIP' }),
-      );
+      await withTestTenant(async () => returnService.update(adminActor(), id, { action: 'SHIP' }));
       await expect(
         withTestTenant(async () => returnService.update(adminActor(), id, { action: 'SHIP' })),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -699,9 +684,7 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
 
     it('RESOLVE from SHIPPED_TO_VENDOR → RESOLVED', async () => {
       const id = await seedInitiatedReturn();
-      await withTestTenant(async () =>
-        returnService.update(adminActor(), id, { action: 'SHIP' }),
-      );
+      await withTestTenant(async () => returnService.update(adminActor(), id, { action: 'SHIP' }));
       const r = await withTestTenant(async () =>
         returnService.update(adminActor(), id, {
           action: 'RESOLVE',
@@ -797,7 +780,9 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
           quantityReturned: 1,
         }),
       );
-      const list = await withTestTenant(async () => returnService.listForReceiptLine(receiptLineId));
+      const list = await withTestTenant(async () =>
+        returnService.listForReceiptLine(receiptLineId),
+      );
       expect(list).toHaveLength(2);
       expect(list[0]!.id).toBe(second.id);
     });

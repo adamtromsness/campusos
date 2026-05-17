@@ -1,4 +1,4 @@
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import type { ResolvedActor } from '@modules/m00-platform';
 
 /**
  * Stable test actor IDs. Reserved for the integration fixture set —

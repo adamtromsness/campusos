@@ -6,7 +6,11 @@ import { RequirePermission } from '@shared/auth';
 import { ActorContextService } from '@modules/m00-platform';
 import { InventoryService, ProductService, StoreService } from '../products/products.service';
 import { ApprovalService, OrderService } from './orders.service';
-import { ExternalCustomerService, RevenueService, ShippingService } from '../products/revenue.service';
+import {
+  ExternalCustomerService,
+  RevenueService,
+  ShippingService,
+} from '../products/revenue.service';
 import {
   AdjustInventoryDto,
   CancelOrderDto,

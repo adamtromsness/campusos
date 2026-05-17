@@ -4,11 +4,7 @@ import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
 import { IdempotencyService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
-import {
-  UnwrappedEvent,
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 
 /**
  * CleaningIssueTicketConsumer — P2-18a Step 2.

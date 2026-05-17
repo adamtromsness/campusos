@@ -5,11 +5,7 @@ import { prefixedTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
 import { NotificationQueueService } from '../notification-queue.service';
 import { RedisService } from '@shared/cache';
-import {
-  UnwrappedEvent,
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 
 /**
  * MessageNotificationConsumer — listens for `msg.message.posted`, the

@@ -2,11 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
 import { IdempotencyService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
-import {
-  UnwrappedEvent,
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 import { ItemCondition, ListingType } from './dto/community.dto';
 import { SearchService } from './services/search.service';
 

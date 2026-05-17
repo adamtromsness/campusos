@@ -352,4 +352,3 @@ export class SpendingAnalyticsFilterDto {
   @IsString()
   department?: string;
 }
-

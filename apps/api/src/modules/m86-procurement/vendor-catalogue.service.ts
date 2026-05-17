@@ -9,7 +9,11 @@ import { TenantPrismaService } from '@shared/tenant';
 import { getCurrentTenant } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
 import { PermissionCheckService } from '@modules/m00-platform';
-import { assertProcurementAdmin, assertProcurementReader, isUniqueViolation } from './access-advanced';
+import {
+  assertProcurementAdmin,
+  assertProcurementReader,
+  isUniqueViolation,
+} from './access-advanced';
 import type {
   CatalogueItemDto,
   CreateCatalogueItemDto,

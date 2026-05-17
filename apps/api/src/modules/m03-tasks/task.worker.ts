@@ -7,11 +7,7 @@ import { KafkaProducerService } from '@shared/kafka';
 import { prefixedTopic, unprefixTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
 import { RedisService } from '@shared/cache';
-import {
-  UnwrappedEvent,
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 import { buildPlaceholderValues, renderTemplate } from './template-render';
 
 /**

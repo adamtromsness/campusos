@@ -226,7 +226,9 @@ describe('integration:RequisitionService', () => {
     });
 
     it('stamps requesting_person_id from actor.personId, not from input', async () => {
-      const result = await withTestTenant(async () => service.create(teacherActor(), buildCreateInput()));
+      const result = await withTestTenant(async () =>
+        service.create(teacherActor(), buildCreateInput()),
+      );
       expect(result.requestingPersonId).toBe(TEST_TEACHER_PERSON_ID);
     });
   });
@@ -288,7 +290,7 @@ describe('integration:RequisitionService', () => {
       expect(r.id).toBe(studentReqId);
     });
 
-    it('getById 404s a non-officer non-owner with collapsed don\'t-leak-existence', async () => {
+    it("getById 404s a non-officer non-owner with collapsed don't-leak-existence", async () => {
       const { officerReqId } = await seedTwoReqs();
       await expect(
         withTestTenant(async () => service.getById(officerReqId, studentActor())),
@@ -483,9 +485,7 @@ describe('integration:RequisitionService', () => {
       const created = await withTestTenant(async () =>
         service.create(officerActor(), buildCreateInput()),
       );
-      await withTestTenant(async () =>
-        service.removeLine(officerActor(), created.lines[0]!.id),
-      );
+      await withTestTenant(async () => service.removeLine(officerActor(), created.lines[0]!.id));
       await expect(
         withTestTenant(async () => service.submit(officerActor(), created.id)),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -498,7 +498,7 @@ describe('integration:RequisitionService', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it('admin can submit any owner\'s requisition', async () => {
+    it("admin can submit any owner's requisition", async () => {
       const reqId = await seedDraftWithBudget();
       const result = await withTestTenant(async () => service.submit(adminActor(), reqId));
       expect(result.status).toBe('SUBMITTED');
@@ -686,21 +686,15 @@ describe('integration:RequisitionService', () => {
     it('non-admin cannot reject', async () => {
       const reqId = await seedSubmitted();
       await expect(
-        withTestTenant(async () =>
-          service.reject(officerActor(), reqId, { reason: 'denied' }),
-        ),
+        withTestTenant(async () => service.reject(officerActor(), reqId, { reason: 'denied' })),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('rejecting a REJECTED requisition throws BadRequestException', async () => {
       const reqId = await seedSubmitted();
-      await withTestTenant(async () =>
-        service.reject(adminActor(), reqId, { reason: 'first' }),
-      );
+      await withTestTenant(async () => service.reject(adminActor(), reqId, { reason: 'first' }));
       await expect(
-        withTestTenant(async () =>
-          service.reject(adminActor(), reqId, { reason: 'again' }),
-        ),
+        withTestTenant(async () => service.reject(adminActor(), reqId, { reason: 'again' })),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 

@@ -47,10 +47,10 @@ cd apps/api && npx tsc --noEmit
 
 **Result:** ✅ **0 production-source errors.** 725 errors remain in `*.spec.ts` files — these are pre-existing strict-mode warnings (`Object is possibly 'undefined'`, `Property X does not exist on type 'never'`) that existed in `main` before the restructure. CLAUDE.md documents this baseline: "Pre-existing test typecheck noise (`schoolId does not exist on type 'never'`) is unchanged from `main` baseline."
 
-| Category                                         | Errors |
-| ------------------------------------------------ | ------ |
-| Production source (`apps/api/src/**/*.ts` except `*.spec.ts`) | **0** |
-| Spec files (pre-existing strict-mode noise)      | 725    |
+| Category                                                      | Errors |
+| ------------------------------------------------------------- | ------ |
+| Production source (`apps/api/src/**/*.ts` except `*.spec.ts`) | **0**  |
+| Spec files (pre-existing strict-mode noise)                   | 725    |
 
 The CI gate runs `nest build` (which excludes `*.spec.ts`), so this is non-blocking. The strict-mode cleanup is per-module pre-pilot work tracked in the test-coverage plan.
 
@@ -191,20 +191,20 @@ cat .claudeignore
 
 **Result:** ✅ **Every required entry is present.**
 
-| Required entry                  | Present (slash-tolerant) |
-| ------------------------------- | ------------------------ |
-| `node_modules`                  | ✓ `node_modules/`        |
-| `dist`                          | ✓ `dist/`                |
-| `.next`                         | ✓ `.next/`               |
-| `.turbo`                        | ✓ `.turbo/`              |
-| `coverage`                      | ✓ `coverage/`            |
-| `pnpm-lock.yaml`                | ✓                        |
-| `docs/reviews/cycle-reviews/`   | ✓                        |
-| `docs/reviews/handoffs/`        | ✓                        |
-| `docs/plans/phase1/`            | ✓                        |
-| `docs/plans/phase2/`            | ✓                        |
-| `infrastructure/`               | ✓                        |
-| `infra/`                        | ✓                        |
+| Required entry                | Present (slash-tolerant) |
+| ----------------------------- | ------------------------ |
+| `node_modules`                | ✓ `node_modules/`        |
+| `dist`                        | ✓ `dist/`                |
+| `.next`                       | ✓ `.next/`               |
+| `.turbo`                      | ✓ `.turbo/`              |
+| `coverage`                    | ✓ `coverage/`            |
+| `pnpm-lock.yaml`              | ✓                        |
+| `docs/reviews/cycle-reviews/` | ✓                        |
+| `docs/reviews/handoffs/`      | ✓                        |
+| `docs/plans/phase1/`          | ✓                        |
+| `docs/plans/phase2/`          | ✓                        |
+| `infrastructure/`             | ✓                        |
+| `infra/`                      | ✓                        |
 
 Full `.claudeignore`:
 
@@ -242,17 +242,17 @@ infra/
 
 ## Summary
 
-| Check | Subject                       | Status                              |
-| ----- | ----------------------------- | ----------------------------------- |
-| 1     | `pnpm build`                  | ✅ 0 errors                          |
-| 2     | `pnpm test`                   | ✅ 2858/2858 passing, 54 skipped     |
-| 3     | `tsc --noEmit` (production)   | ✅ 0 errors (725 pre-existing in specs) |
-| 4     | Orphaned files                | ✅ 0                                  |
-| 5     | Empty directories             | ✅ 0                                  |
-| 6     | Deep relative imports         | ✅ 0                                  |
-| 7     | Module registration           | ✅ 37 / 37 registered (plan said 38 — count drift, no missing module) |
-| 8     | Path alias usage              | ✅ 1,062 `@modules/` + 1,485 `@shared/` |
-| 9     | Root cleanliness              | ✅ CLAUDE.md + README.md only         |
-| 10    | `.claudeignore`               | ✅ All required entries present       |
+| Check | Subject                     | Status                                                                |
+| ----- | --------------------------- | --------------------------------------------------------------------- |
+| 1     | `pnpm build`                | ✅ 0 errors                                                           |
+| 2     | `pnpm test`                 | ✅ 2858/2858 passing, 54 skipped                                      |
+| 3     | `tsc --noEmit` (production) | ✅ 0 errors (725 pre-existing in specs)                               |
+| 4     | Orphaned files              | ✅ 0                                                                  |
+| 5     | Empty directories           | ✅ 0                                                                  |
+| 6     | Deep relative imports       | ✅ 0                                                                  |
+| 7     | Module registration         | ✅ 37 / 37 registered (plan said 38 — count drift, no missing module) |
+| 8     | Path alias usage            | ✅ 1,062 `@modules/` + 1,485 `@shared/`                               |
+| 9     | Root cleanliness            | ✅ CLAUDE.md + README.md only                                         |
+| 10    | `.claudeignore`             | ✅ All required entries present                                       |
 
 The restructure is clean. The codebase is in the post-restructure shape described in CLAUDE.md and ready for the next stage of work (per-module Tier 1–7 test coverage expansion).

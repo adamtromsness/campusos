@@ -6,14 +6,14 @@ Round 1 source: `CAMPUSOS-CODEX-PEER-REVIEW.md` (the file is at repo root, not u
 
 ## Summary
 
-| Defect | Round 2 result |
-| --- | --- |
-| 1. SCHOOL-SCOPE | RESOLVED |
-| 2. IMMUTABLE TRIGGERS - REVOKE | UNRESOLVED |
-| 3. OUTBOX - `iep.accommodation.updated` | RESOLVED |
-| 4. GUARDIAN AUTHORIZATION | RESOLVED |
-| 5. GL RECONCILIATION | RESOLVED |
-| 6. TEST QUALITY | UNRESOLVED |
+| Defect                                  | Round 2 result |
+| --------------------------------------- | -------------- |
+| 1. SCHOOL-SCOPE                         | RESOLVED       |
+| 2. IMMUTABLE TRIGGERS - REVOKE          | UNRESOLVED     |
+| 3. OUTBOX - `iep.accommodation.updated` | RESOLVED       |
+| 4. GUARDIAN AUTHORIZATION               | RESOLVED       |
+| 5. GL RECONCILIATION                    | RESOLVED       |
+| 6. TEST QUALITY                         | UNRESOLVED     |
 
 ## 1. SCHOOL-SCOPE - RESOLVED
 

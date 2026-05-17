@@ -5,7 +5,10 @@ import { getCurrentTenant } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
 import { PermissionCheckService } from '@modules/m00-platform';
 import { assertProcurementReader } from './access-advanced';
-import type { SpendingAnalyticsFilterDto, SpendingAnalyticsRowDto } from './dto/commerce-advanced.dto';
+import type {
+  SpendingAnalyticsFilterDto,
+  SpendingAnalyticsRowDto,
+} from './dto/commerce-advanced.dto';
 
 interface AnalyticsRow {
   id: string;

@@ -6,11 +6,7 @@ import { KafkaProducerService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
 import { NotificationQueueService } from '@modules/m40-communications';
-import {
-  UnwrappedEvent,
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 
 /**
  * Build a deterministic UUID for a `hr.leave.coverage_needed` republish

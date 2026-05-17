@@ -4,11 +4,7 @@ import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
 import { IdempotencyService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
-import {
-  UnwrappedEvent,
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 
 /**
  * IepAccommodationConsumer — Cycle 10 Step 7. THE ADR-030 KEYSTONE.

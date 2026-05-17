@@ -4,7 +4,11 @@ import { IamModule } from '@modules/m00-platform';
 import { KafkaModule } from '@shared/kafka';
 import { InventoryService, ProductService, StoreService } from '../products/products.service';
 import { ApprovalService, OrderService } from './orders.service';
-import { ExternalCustomerService, RevenueService, ShippingService } from '../products/revenue.service';
+import {
+  ExternalCustomerService,
+  RevenueService,
+  ShippingService,
+} from '../products/revenue.service';
 import { StoreController } from './store.controller';
 
 /**

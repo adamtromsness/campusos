@@ -2,11 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
 import { IdempotencyService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
-import {
-  processWithIdempotency,
-  unwrapEnvelope,
-  UnwrappedEvent,
-} from '@shared/kafka';
+import { processWithIdempotency, unwrapEnvelope, UnwrappedEvent } from '@shared/kafka';
 import { ReadinessPathwayService } from './readiness.service';
 
 /**

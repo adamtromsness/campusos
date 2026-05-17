@@ -4,10 +4,7 @@ import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
 import { IdempotencyService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
-import {
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 
 /**
  * VisitorMusterConsumer — REVIEW-P2C2 ROUND 1 BLOCKING fix.

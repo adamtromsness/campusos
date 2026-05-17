@@ -4,11 +4,7 @@ import { IdempotencyService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
 import { NotificationQueueService } from '../notification-queue.service';
-import {
-  UnwrappedEvent,
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 
 /**
  * GradeNotificationConsumer — listens for `cls.grade.published` (Cycle 2)

@@ -10,7 +10,11 @@ import { SisTranscriptsController } from './sis-transcripts.controller';
 import { StudentAwardService } from '../students/student-award.service';
 import { TranscriptService } from './transcript.service';
 import { TransferService } from '../transfers/transfer.service';
-import { decryptCombination, encryptCombination, generateCombination } from '../lockers/locker-crypto';
+import {
+  decryptCombination,
+  encryptCombination,
+  generateCombination,
+} from '../lockers/locker-crypto';
 
 /**
  * P2-13c vertical slice spec.

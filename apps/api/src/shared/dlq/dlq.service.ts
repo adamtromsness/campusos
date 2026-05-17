@@ -7,10 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import {
-  KafkaProducerNotConnectedError,
-  KafkaProducerService,
-} from '@shared/kafka';
+import { KafkaProducerNotConnectedError, KafkaProducerService } from '@shared/kafka';
 
 /**
  * Cycle 31 Step 7 — DLQ Service.

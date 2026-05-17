@@ -14,10 +14,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '@shared/auth';
-import {
-  ActorContextService,
-  type ResolvedActor,
-} from '@modules/m00-platform';
+import { ActorContextService, type ResolvedActor } from '@modules/m00-platform';
 import { InventoryAdjustmentService } from '../inventory/inventory-adjustment.service';
 import { PromotionService } from '../promotions/promotion.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';

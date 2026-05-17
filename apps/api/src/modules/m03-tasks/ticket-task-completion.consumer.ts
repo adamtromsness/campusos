@@ -4,11 +4,7 @@ import { IdempotencyService } from '@shared/kafka';
 import { KafkaProducerService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
-import {
-  UnwrappedEvent,
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { UnwrappedEvent, processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 
 /**
  * TicketTaskCompletionConsumer — Cycle 8 Step 6.

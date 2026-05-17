@@ -1068,10 +1068,7 @@ describe('Behaviour Advanced — P2-14', () => {
     // For the test we read the source via fs:
     const fs = await import('fs');
     const path = await import('path');
-    const src = fs.readFileSync(
-      path.resolve(__dirname, './overdue-action.worker.ts'),
-      'utf-8',
-    );
+    const src = fs.readFileSync(path.resolve(__dirname, './overdue-action.worker.ts'), 'utf-8');
     expect(src).toContain('FROM sis_restorative_justice_conferences c');
     expect(src).toContain('c.school_id = $2::uuid');
     expect(src).toContain('a.due_date < CURRENT_DATE');

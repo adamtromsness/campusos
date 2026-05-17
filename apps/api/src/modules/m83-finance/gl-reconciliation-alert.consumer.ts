@@ -4,10 +4,7 @@ import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
 import { IdempotencyService } from '@shared/kafka';
 import { prefixedTopic } from '@shared/kafka';
 import { TenantPrismaService } from '@shared/tenant';
-import {
-  processWithIdempotency,
-  unwrapEnvelope,
-} from '@shared/kafka';
+import { processWithIdempotency, unwrapEnvelope } from '@shared/kafka';
 import { NotificationQueueService } from '@modules/m40-communications';
 
 const CONSUMER_GROUP = 'gl-reconciliation-alert-consumer';

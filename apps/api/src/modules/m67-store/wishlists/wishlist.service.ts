@@ -11,7 +11,11 @@ import { getCurrentTenant } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
 import { PermissionCheckService } from '@modules/m00-platform';
 import { assertStoreCustomer, isUniqueViolation } from '../orders/access-advanced';
-import type { AddWishlistDto, UpdateWishlistDto, WishlistEntryDto } from '../orders/dto/commerce-store.dto';
+import type {
+  AddWishlistDto,
+  UpdateWishlistDto,
+  WishlistEntryDto,
+} from '../orders/dto/commerce-store.dto';
 
 interface WishlistRow {
   id: string;

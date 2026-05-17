@@ -454,7 +454,10 @@ describe('IncidentService — atomic declaration + lifecycle locks', () => {
 //
 // The stub returns 0/[] for queries unless the test handler overrides.
 
-import { DeclarationOutboxWorker, deterministicStepEventId } from '../emergency/declaration-outbox.worker';
+import {
+  DeclarationOutboxWorker,
+  deterministicStepEventId,
+} from '../emergency/declaration-outbox.worker';
 
 interface FakeOutboxRow {
   id: string;

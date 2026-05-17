@@ -287,7 +287,10 @@ describe('REVIEW-P2C19 BLOCKING 3 — CUSTOM segment joins through current-schoo
       'e.school_id = $2::uuid',
     ];
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const source = require('fs').readFileSync(__dirname + '/../broadcasts/broadcast-segment.service.ts', 'utf8');
+    const source = require('fs').readFileSync(
+      __dirname + '/../broadcasts/broadcast-segment.service.ts',
+      'utf8',
+    );
     for (const frag of expectedFragments) {
       expect(source).toContain(frag);
     }
