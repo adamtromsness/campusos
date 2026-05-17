@@ -119,6 +119,20 @@ const CONFIG_ROWS: ConfigRow[] = [
     description:
       'P2-H1 Step 5 — schools may disable the payment-component contribution to engagement scores if local policy treats payment behaviour as too sensitive. Default true preserves legacy behaviour.',
   },
+  // ── School-size preset (P2-H4 Step 5 ADV-07) ──
+  {
+    key: 'school_size_preset',
+    value: {
+      preset: 'STANDARD',
+      hideAdvancedFinance: false,
+      hideComplexProcurement: false,
+      hideAiMinutes: false,
+      hideAccreditation: false,
+      hideAdvancedAnalytics: false,
+    },
+    description:
+      'P2-H4 ADV-07 — UI navigation visibility preset. Values MICRO/SMALL/STANDARD/ADVANCED. MICRO/SMALL hide advanced finance, complex procurement, AI minutes, accreditation, advanced analytics in launchpad + sidebar — features remain reachable via direct URL. Backend permissions are unchanged.',
+  },
 ];
 
 const FLAG_ROWS: FlagRow[] = [

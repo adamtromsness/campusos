@@ -612,6 +612,12 @@ export class ElectionResultsResponseDto {
   @ApiProperty({ enum: ELECTION_STATUSES }) status!: ElectionStatus;
   @ApiProperty({ type: [VoteResultDto] }) results!: VoteResultDto[];
   @ApiProperty() totalVotersChecked!: number;
+  // P2-H4 ADV-04 — when totalVotersChecked < minVotesForResults the
+  // service returns results=[] and resultsSuppressed=true so small
+  // cohorts cannot be deanonymised by "you voted last, the remaining
+  // tally is yours" attacks.
+  @ApiProperty({ default: 5 }) minVotesForResults!: number;
+  @ApiProperty({ default: false }) resultsSuppressed!: boolean;
 }
 
 export class CanVoteResponseDto {

@@ -334,12 +334,23 @@ export class ElectionService {
    */
   async getResults(id: string): Promise<ElectionResultsResponseDto> {
     const election = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe('SELECT id, status FROM ext_elections WHERE id = $1::uuid', id);
-    })) as Array<{ id: string; status: string }>;
+      return client.$queryRawUnsafe(
+        'SELECT id, status, min_votes_for_results FROM ext_elections WHERE id = $1::uuid',
+        id,
+      );
+    })) as Array<{ id: string; status: string; min_votes_for_results: number }>;
     if (election.length === 0) throw new NotFoundException('Election not found');
     const status = election[0]!.status as ElectionStatus;
+    const minVotesForResults = election[0]!.min_votes_for_results ?? 5;
     if (status !== 'RESULTS_PUBLISHED') {
-      return { electionId: id, status, results: [], totalVotersChecked: 0 };
+      return {
+        electionId: id,
+        status,
+        results: [],
+        totalVotersChecked: 0,
+        minVotesForResults,
+        resultsSuppressed: false,
+      };
     }
     const results = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
@@ -367,6 +378,20 @@ export class ElectionService {
         id,
       );
     })) as Array<{ c: number }>;
+    const totalVotersChecked = checks[0]!.c;
+    // P2-H4 ADV-04 — suppress per-candidate counts in small cohorts.
+    // Below the threshold the public results endpoint hides the tally;
+    // admins still see the truth via direct SQL on ext_votes.
+    if (totalVotersChecked < minVotesForResults) {
+      return {
+        electionId: id,
+        status,
+        results: [],
+        totalVotersChecked,
+        minVotesForResults,
+        resultsSuppressed: true,
+      };
+    }
     const dtoResults: VoteResultDto[] = results.map((r) => ({
       position: r.position,
       candidateId: r.candidate_id,
@@ -377,7 +402,9 @@ export class ElectionService {
       electionId: id,
       status,
       results: dtoResults,
-      totalVotersChecked: checks[0]!.c,
+      totalVotersChecked,
+      minVotesForResults,
+      resultsSuppressed: false,
     };
   }
 }

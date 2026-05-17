@@ -140,15 +140,28 @@ export class MeetingNotesService {
     input: UpdateMeetingNotesDto,
     actor: ResolvedActor,
   ): Promise<MeetingNotesResponseDto> {
-    const meetingId = await this.tenantPrisma.executeInTenantContext(async (client) => {
+    const noteRow = await this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
-        'SELECT meeting_id::text AS meeting_id FROM mtg_meeting_notes WHERE id = $1::uuid',
+        'SELECT meeting_id::text AS meeting_id, is_approved FROM mtg_meeting_notes WHERE id = $1::uuid',
         notesId,
-      )) as Array<{ meeting_id: string }>;
+      )) as Array<{ meeting_id: string; is_approved: boolean }>;
       if (rows.length === 0) throw new NotFoundException('Notes not found');
-      return rows[0]!.meeting_id;
+      return rows[0]!;
     });
+    const meetingId = noteRow.meeting_id;
     await this.meetings.assertOrganiserOrAdmin(meetingId, actor);
+
+    // P2-H4 Step 3 — once notes are approved the content is locked
+    // (Code Cat 4 ADVISORY). The approve() path is irreversible by
+    // design, so the only legitimate post-approval edit is an admin
+    // un-approve (not exposed today). notes_text / is_parent_visible /
+    // parent_visible_summary mutations after approval are blocked here
+    // so the published parent-visible version cannot be silently rewritten.
+    if (noteRow.is_approved) {
+      throw new BadRequestException(
+        'Notes have been approved and are immutable. To revise approved minutes, create a follow-up meeting note rather than editing this row.',
+      );
+    }
 
     const sets: string[] = [];
     const params: unknown[] = [];
