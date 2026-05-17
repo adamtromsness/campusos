@@ -21,6 +21,11 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 - Permission catalogue — 495 codes (165 functions × 3 tiers)
 - Test users — 7 personas in seed (admin, principal, vp, counsellor, teacher, parent, student)
 
+**Accepted carry-forwards (pre-pilot ops):**
+
+1. Switch runtime DATABASE_URL to campusos_app role (non-owner DML). REVOKE DDL + LOGIN role exist in provision-tenant.ts. Ops config change, not code change.
+2. DB-backed integration tests (cross-school, trigger, outbox atomicity) will be built through Tiers 1-7 using the harness at apps/api/test/integration/.
+
 **Cycle history is preserved in:**
 
 - Git log — every cycle ships in its own commit chain with a final `cycleN-approved` / `cycleN-complete` tag after the post-cycle review verdict.
@@ -209,6 +214,8 @@ pnpm build             # turbo build across all packages
 pnpm --filter @campusos/api dev          # nest start --watch
 pnpm --filter @campusos/api build        # nest build
 pnpm --filter @campusos/api test         # vitest run
+pnpm --filter @campusos/api test:integration   # DB-backed integration tests (requires Postgres)
+pnpm --filter @campusos/api test:all           # unit + integration combined
 pnpm --filter @campusos/api exec tsc --noEmit   # strict typecheck
 
 # Database (packages/database)
