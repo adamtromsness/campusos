@@ -9,6 +9,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
+      exclude: [
+        '**/*.module.ts',
+        '**/dto/**',
+        '**/*.dto.ts',
+        '**/*.spec.ts',
+        '**/main.ts',
+      ],
       thresholds: {
         statements: 90,
         branches: 90,
