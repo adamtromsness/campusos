@@ -27,7 +27,7 @@ import { join } from 'path';
  * and is fast enough to run every commit.
  */
 
-const SERVICE_ROOT = join(__dirname, '..');
+const SERVICE_ROOT = join(__dirname, '..', '..');
 
 /**
  * Walk service-layer source files and collect those whose file path
@@ -58,15 +58,15 @@ function collectServiceFiles(): string[] {
 describe('P2-H4 Step 2 — School-scope regression suite', () => {
   describe('Service files referenced by the P2-H1 Step 1 audit must carry school_id predicates', () => {
     const auditedFiles = [
-      'sis-advanced/family-relationship.service.ts',
-      'sis-advanced/student-note.service.ts',
-      'sis-advanced/custom-field.service.ts',
-      'scheduling/cross-school-staff.service.ts',
-      'store/orders.service.ts',
-      'curriculum/maps.service.ts',
-      'facilities/inspections.service.ts',
-      'governance/erasure.service.ts',
-      'publications/sections.service.ts',
+      'modules/m20-sis/sis-advanced/family-relationship.service.ts',
+      'modules/m20-sis/sis-advanced/student-note.service.ts',
+      'modules/m20-sis/sis-advanced/custom-field.service.ts',
+      'modules/m22-scheduling/cross-school-staff.service.ts',
+      'modules/m67-store/store/orders.service.ts',
+      'modules/m25-curriculum/maps.service.ts',
+      'modules/m65-facilities/inspections.service.ts',
+      'modules/m00-platform/governance/erasure.service.ts',
+      'modules/m42-publications/sections.service.ts',
     ];
 
     for (const relPath of auditedFiles) {
@@ -94,9 +94,9 @@ describe('P2-H4 Step 2 — School-scope regression suite', () => {
 
   describe('Every service that writes pay_invoices / pay_payments / pay_refunds carries the school predicate', () => {
     const writers = [
-      'payments/invoice.service.ts',
-      'payments/payment.service.ts',
-      'payments/refund.service.ts',
+      'modules/m84-payments/invoice.service.ts',
+      'modules/m84-payments/payment.service.ts',
+      'modules/m84-payments/refund.service.ts',
     ];
     for (const relPath of writers) {
       it(`${relPath} ledger writes include schoolId`, () => {
@@ -117,11 +117,11 @@ describe('P2-H4 Step 2 — School-scope regression suite', () => {
     // Sample 5 services that are known to be tenant-scoped writers
     // from prior cycles and confirm they use the tenant helpers.
     const samples = [
-      'classroom/assignment.service.ts',
-      'classroom/grade.service.ts',
-      'sis/student.service.ts',
-      'attendance/attendance.service.ts',
-      'meetings/meeting-notes.service.ts',
+      'modules/m21-classroom/classroom/assignment.service.ts',
+      'modules/m21-classroom/classroom/grade.service.ts',
+      'modules/m20-sis/sis/student.service.ts',
+      'modules/m20-sis/attendance/attendance.service.ts',
+      'modules/m41-meetings/meetings/meeting-notes.service.ts',
     ];
     for (const relPath of samples) {
       it(`${relPath} uses tenant context helpers`, () => {
@@ -142,11 +142,11 @@ describe('P2-H4 Step 2 — School-scope regression suite', () => {
      * across raw string concatenation.
      */
     const samples = [
-      'sis-advanced/student-note.service.ts',
-      'sis-advanced/custom-field.service.ts',
-      'curriculum/maps.service.ts',
-      'facilities/inspections.service.ts',
-      'governance/erasure.service.ts',
+      'modules/m20-sis/sis-advanced/student-note.service.ts',
+      'modules/m20-sis/sis-advanced/custom-field.service.ts',
+      'modules/m25-curriculum/maps.service.ts',
+      'modules/m65-facilities/inspections.service.ts',
+      'modules/m00-platform/governance/erasure.service.ts',
     ];
     for (const relPath of samples) {
       it(`${relPath} carries school_id binding alongside its mutations`, () => {

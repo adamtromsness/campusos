@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { runWithTenantContext } from '@shared/tenant/tenant.context';
-import { AlumniProfileService, AlumniTagService } from '@modules/m00-platform/profile/.service';
+import { AlumniProfileService, AlumniTagService } from '../profile.service';
 import { CampaignService, DonationService, OutreachService } from '../campaign.service';
 import { AlumniEventService, AlumniNewsService, ReunionGroupService } from '../news.service';
 

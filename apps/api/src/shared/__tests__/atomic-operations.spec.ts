@@ -33,7 +33,7 @@ import { join } from 'path';
  *   7. Journal batch balance (PostingService.post inside one tx)
  */
 
-const API_SRC = join(__dirname, '..');
+const API_SRC = join(__dirname, '..', '..');
 
 interface AtomicCheck {
   name: string;
@@ -44,7 +44,7 @@ interface AtomicCheck {
 const ATOMIC_OPS: AtomicCheck[] = [
   {
     name: 'Ticket sale (atomic quantity_sold UPDATE)',
-    file: 'events/orders.service.ts',
+    file: 'modules/m101-events/orders.service.ts',
     patterns: [
       // The Cycle 12 keystone: single UPDATE with the cap in WHERE.
       {
@@ -55,7 +55,7 @@ const ATOMIC_OPS: AtomicCheck[] = [
   },
   {
     name: 'Conference slot booking (locked-row UPDATE)',
-    file: 'engagement/conference-booking.service.ts',
+    file: 'modules/m100-engagement/conference-booking.service.ts',
     patterns: [
       {
         name: 'FOR UPDATE inside executeInTenantTransaction',
@@ -65,7 +65,7 @@ const ATOMIC_OPS: AtomicCheck[] = [
   },
   {
     name: 'Gate scanning (atomic UPDATE WHERE token + VALID)',
-    file: 'events/gate.service.ts',
+    file: 'modules/m101-events/gate.service.ts',
     patterns: [
       {
         name: 'atomic UPDATE evt_tickets with status gate in WHERE',
@@ -75,7 +75,7 @@ const ATOMIC_OPS: AtomicCheck[] = [
   },
   {
     name: 'Gift card redemption (atomic balance UPDATE)',
-    file: 'commerce/gift-card.service.ts',
+    file: 'modules/m67-store/commerce/gift-card.service.ts',
     patterns: [
       {
         name: 'atomic UPDATE str_gift_cards with balance gate in WHERE',
@@ -85,7 +85,7 @@ const ATOMIC_OPS: AtomicCheck[] = [
   },
   {
     name: 'Budget transfer (FOR UPDATE on both budgets, ordered)',
-    file: 'finance/budgets.service.ts',
+    file: 'modules/m83-finance/budgets.service.ts',
     patterns: [
       {
         name: 'FOR UPDATE inside executeInTenantTransaction on budget rows',
@@ -95,7 +95,7 @@ const ATOMIC_OPS: AtomicCheck[] = [
   },
   {
     name: 'Promotion max_uses keystone (atomic UPDATE WHERE current < max)',
-    file: 'commerce/promotion.service.ts',
+    file: 'modules/m67-store/commerce/promotion.service.ts',
     patterns: [
       {
         name: 'atomic UPDATE str_promotions with current_uses < max_uses',
@@ -105,7 +105,7 @@ const ATOMIC_OPS: AtomicCheck[] = [
   },
   {
     name: 'Journal batch balance validation (sum(debit) = sum(credit) inside tx)',
-    file: 'finance/posting.service.ts',
+    file: 'modules/m83-finance/posting.service.ts',
     patterns: [
       {
         name: 'executeInTenantTransaction wraps the balance check + status flip',
