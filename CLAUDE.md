@@ -2,13 +2,15 @@
 
 Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected school software systems with one platform.
 
+> **Do NOT read `docs/reviews/cycle-reviews/`.** That directory holds 71 archived per-cycle review notes from Phase 1 and Phase 2 builds. They have been synthesised into `docs/reviews/campusos-phase2-completion-report.html` and are no longer active instructions. Reading them wastes context.
+
 ## Current State
+
+**Phase 2 complete, hardening done, test coverage in progress (Tier 0 harness built, Tiers 1–7 pending).** The codebase has shipped through every planned cycle of Phase 1 (Cycles 0–32) and Phase 2 (P2-1..P2-29 .1 cycles + the four hardening cycles P2-H1..P2-H4). All cycles closed with a `cycleN-approved` tag after the post-cycle architectural review verdict; the final adversarial review against the post-Cycle-32 state landed as **PILOT-READY WITH CONDITIONS** and the conditions have all been addressed in commits since. The platform is repo-ready for pilot deployment.
 
 **Codebase restructure complete.** `apps/api/src/` reorganised from 80+ cycle-by-cycle folders into 38 canonical modules under `apps/api/src/modules/m{XX}-{name}/` + cross-cutting infrastructure under `apps/api/src/shared/`. Documentation reorganised into `docs/{architecture,plans,reviews,policies,operations,design-hub}/`. Path aliases `@modules/*` and `@shared/*` are live in `tsconfig.json` and both vitest configs.
 
-**Hardening complete.** All four hardening cycles (P2-H1 through P2-H4) plus the post-H5 verification and the final adversarial review have shipped and been approved. The platform is repo-ready for pilot deployment.
-
-**Test coverage in progress.** 2858 unit tests passing across 123 spec files (54 pre-existing skips, 0 failures). Integration test harness operational at `apps/api/test/integration/`. Per-module test expansion is the active engineering work — strategy at `docs/architecture/campusos-test-coverage-plan.html`.
+**Test coverage in progress.** Tier 0 (integration test harness at `apps/api/test/integration/`) is built and operational. Tiers 1–7 (per-module unit + integration coverage targets per `docs/architecture/campusos-test-coverage-plan.html`) are the active engineering work. 2858 unit tests pass across 123 spec files (54 pre-existing skips, 0 failures) — these populate Tier 0 and feed the per-module Tier 1–7 expansion.
 
 **Build state:**
 
@@ -24,7 +26,7 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 - Git log — every cycle ships in its own commit chain with a final `cycleN-approved` / `cycleN-complete` tag after the post-cycle review verdict.
 - `docs/reviews/handoffs/` — 65 per-cycle HANDOFF-\* records with full step-by-step build trail.
 - `docs/reviews/` — architectural reviews, audits, peer reviews (CAMPUSOS-CODEX, ARCHITECTURAL-REVIEW-FINAL, ADVERSARIAL-REVIEW-RESPONSE, CAMPUSOS-POST-H5-VERIFICATION, CAMPUSOS-HARDENING-ROUND2-AUDIT, CAMPUSOS-PHASE2-CODE-AUDIT, HANDOFF-P2H{1..5}, chatgpt-review-template, plus the campusos-{phase2-completion-report, plan-level-audit, review-context-package}.html).
-- `docs/reviews/REVIEW-CYCLE{N}-*.md` / `P2C{N}-REVIEW-NOTES.md` — Per-cycle architectural review verdicts (PASS / REJECT pending fixes). Note: the repo-root layout for these specific review-note files predates the docs restructure; they continue to be authored at repo root by convention.
+- `docs/reviews/cycle-reviews/` — 71 archived per-cycle review notes (`REVIEW-CYCLE{N}-CHATGPT.md`, `REVIEW-CYCLE{N}-CLAUDE.md`, `REVIEW-CYCLE{N}-FIXES.md`, `REVIEW-P2*-CHATGPT.md`, `P2C{N}-REVIEW-NOTES.md`, `REVIEW-RESPONSE-CYCLE1.md`). These are historical PASS / REJECT verdicts from Phase 1 and Phase 2 build reviews, synthesised into `docs/reviews/campusos-phase2-completion-report.html`. Do not read them as instructions.
 - `docs/plans/phase1/` — Cycles 1–32 implementation plans + CAT scripts.
 - `docs/plans/phase2/` — P2-1..P2-29 cycle plans + CATs.
 - `docs/operations/` — Kafka topic registry, Kafka operations runbook, migration orchestration, procurement integration test harness.

@@ -5,3 +5,8 @@ dist/
 coverage/
 *.zip
 pnpm-lock.yaml
+
+# Archived per-cycle review notes from Phase 1 and Phase 2 builds.
+# Synthesised into docs/reviews/campusos-phase2-completion-report.html —
+# reading the originals wastes context.
+docs/reviews/cycle-reviews/
