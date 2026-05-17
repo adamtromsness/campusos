@@ -12,6 +12,7 @@ import {
   VendorPerformanceService,
 } from './distribution.service';
 import { ProcurementController } from './procurement.controller';
+import { ProcurementAdvancedModule } from './procurement-advanced.module';
 
 /**
  * Procurement Module — M86 Procurement (Cycle 27).
@@ -55,7 +56,7 @@ import { ProcurementController } from './procurement.controller';
  * finance manager.
  */
 @Module({
-  imports: [TenantModule, IamModule, KafkaModule, FinanceModule],
+  imports: [TenantModule, IamModule, KafkaModule, FinanceModule, ProcurementAdvancedModule],
   providers: [
     RequisitionService,
     PurchaseOrderService,
@@ -66,6 +67,6 @@ import { ProcurementController } from './procurement.controller';
     ProcurementSettingsService,
   ],
   controllers: [ProcurementController],
-  exports: [],
+  exports: [ProcurementAdvancedModule],
 })
 export class ProcurementModule {}

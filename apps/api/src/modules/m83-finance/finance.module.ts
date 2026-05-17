@@ -20,6 +20,7 @@ import { JournalBatchPostedConsumer } from './journal-batch-posted.consumer';
 import { GlReconciliationWorker } from './gl-reconciliation.worker';
 import { GlReconciliationAlertConsumer } from './gl-reconciliation-alert.consumer';
 import { FinanceController } from './finance.controller';
+import { FinanceAdvancedModule } from './finance-advanced.module';
 
 /**
  * Finance Module — M83 Finance & Accounting (Cycle 26).
@@ -44,7 +45,7 @@ import { FinanceController } from './finance.controller';
  *      to one.
  */
 @Module({
-  imports: [TenantModule, IamModule, KafkaModule, NotificationsModule],
+  imports: [TenantModule, IamModule, KafkaModule, NotificationsModule, FinanceAdvancedModule],
   providers: [
     FinanceValidationService,
     FundService,
@@ -72,6 +73,7 @@ import { FinanceController } from './finance.controller';
     BudgetService,
     FinanceValidationService,
     GlReconciliationWorker,
+    FinanceAdvancedModule,
   ],
 })
 export class FinanceModule {}
