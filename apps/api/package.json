@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -45,6 +46,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/passport": "^1.0.16",
     "@vitest/coverage-v8": "^2.0.0",
+    "dotenv": "^17.4.2",
     "eslint": "^8.57.0",
     "supertest": "^7.0.0",
     "typescript": "^5.5.0",
