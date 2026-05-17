@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Test Coverage Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#fff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--red:#dc3545;--red-bg:#fdeaea;--blue:#3d7ab5;--blue-bg:#e8f0f8}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.container{max-width:950px;margin:0 auto;padding:40px 40px 120px}
+h1{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent);margin-bottom:8px}
+h2{font-family:'DM Serif Display',serif;font-size:24px;color:var(--accent);margin:40px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;margin-top:16px}
+h3{font-size:15px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+p,li{font-size:14px;line-height:1.8}
+.sub{font-size:16px;color:var(--text-light);margin-bottom:24px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+th{background:#d5e8f0;padding:8px 10px;border:1px solid #ccc;text-align:left;font-weight:600}
+td{padding:6px 10px;border:1px solid #ddd;vertical-align:top}
+.summary-box{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:20px 0}
+.tier{border-radius:12px;padding:20px 24px;margin:16px 0;border-left:5px solid}
+.t-crit{background:var(--red-bg);border-color:var(--red)}
+.t-high{background:var(--amber-bg);border-color:var(--amber)}
+.t-med{background:var(--blue-bg);border-color:var(--blue)}
+.t-low{background:var(--green-bg);border-color:var(--green)}
+.tier h3{margin-top:0}
+.tier p{font-size:13px;margin:4px 0}
+.pct{font-family:'DM Serif Display',serif;font-size:22px}
+.pct-red{color:var(--red)}.pct-amber{color:var(--amber)}.pct-green{color:var(--green)}.pct-blue{color:var(--blue)}
+code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:12px}
+ol,ul{padding-left:20px;margin:8px 0}
+.prompt-box{background:#f8f9fa;border:1px solid #ddd;border-radius:8px;padding:16px 20px;margin:12px 0;font-size:13px;line-height:1.8}
+.prompt-box pre{white-space:pre-wrap;font-family:monospace;font-size:12px}
+</style>
+</head>
+<body>
+<div class="topbar"><span class="brand">CampusOS</span><span class="sep">|</span><a href="index.html">Design Hub</a><span class="sep">|</span><span style="color:#ffd700;font-size:13px;font-weight:600">TEST COVERAGE PLAN</span></div>
+<div class="container">
+<h1>Test Coverage Plan</h1>
+<p class="sub">Parallel workstream to bring global coverage from 22.55% to &ge;80%. Runs alongside P2-H5 and Phase 3 planning. 7 tiers, ~3&ndash;5 weeks. Each tier is a standalone Claude Code prompt.</p>
+
+<div class="summary-box">
+<h3 style="margin-top:0">Current State (Post P2-H4)</h3>
+<table>
+<tr><th>Metric</th><th>Current</th><th>Target</th><th>Gap</th></tr>
+<tr><td>Global line coverage</td><td><span class="pct pct-red">22.55%</span></td><td>80%</td><td>~57 pts / ~105,000 uncovered lines</td></tr>
+<tr><td>Tests passing</td><td>1,463 / 1,463</td><td>&mdash;</td><td>All pass ✓</td></tr>
+<tr><td>Modules at 0%</td><td>28</td><td>0</td><td>28 modules need spec files</td></tr>
+<tr><td>Financial modules</td><td>83&ndash;92%</td><td>&ge;95%</td><td>3&ndash;12 pts each</td></tr>
+<tr><td>Auth + IAM</td><td>94&ndash;96%</td><td>&ge;95%</td><td>IAM needs ~0.5 pts</td></tr>
+</table>
+</div>
+
+<h2>Strategy</h2>
+<p>Each tier is ordered by blast radius &mdash; how much damage an untested bug in that module causes. Each tier is a self-contained Claude Code prompt that can run independently. Run them sequentially or in parallel across multiple Claude Code sessions.</p>
+<p><strong>Test philosophy:</strong> Database-backed integration tests, not grep/static inspection. Every test seeds real data, calls real service methods, and asserts real outcomes. Cross-school isolation tests seed School A + School B and verify isolation. Financial tests verify actual GL entries, not just that a function was called.</p>
+
+<h2>Tier 1 &mdash; Financial to &ge;95% (~3&ndash;5 days)</h2>
+<div class="tier t-crit">
+<h3>finance: 85.82% &rarr; 95% &middot; payments: 83.03% &rarr; 95% &middot; payroll: 92.22% &rarr; 95% &middot; procurement: 0% &rarr; 80%</h3>
+<p>These modules handle money. Every untested path is a potential audit failure.</p>
+</div>
+
+<table>
+<tr><th>Module</th><th>Current</th><th>Target</th><th>Key Test Scenarios</th></tr>
+<tr><td>finance</td><td>85.82%</td><td>95%</td><td>GL posting for every source type (invoice, payment, refund, credit note, reversal, write-off). Journal batch zero-sum validation. Budget transfer atomic lock ordering. Period close. Chart of accounts hierarchy. GL reconciliation worker edge cases (amount mismatch, duplicates, orphans).</td></tr>
+<tr><td>payments</td><td>83.03%</td><td>95%</td><td>Invoice lifecycle (draft→issued→paid→closed). Payment allocation across multiple invoices. Refund + reversal (IMMUTABLE verification). Credit note issuance. Payment plan creation + installment scheduling + default detection. Lunch account debit + low balance alerting. Financial aid fund pool allocation. Late fee computation. Multi-currency handling. Stripe webhook processing.</td></tr>
+<tr><td>payroll</td><td>92.22%</td><td>95%</td><td>Wage processing + GL emit. Tax computation. Deduction application. Payslip generation. YTD accumulation. Expense claim lifecycle.</td></tr>
+<tr><td>procurement</td><td>0%</td><td>80%</td><td>PO lifecycle (draft→submitted→approved→issued). Requisition to PO conversion. Budget commitment (encumbrance). Receiving + 3-way match. Vendor management. Catalogue pricing. Contract lifecycle + renewal alerting. Distribution completed event emit.</td></tr>
+</table>
+
+<div class="prompt-box">
+<pre>
+You are writing integration tests for CampusOS financial modules.
+Target: finance ≥95%, payments ≥95%, payroll ≥95%, procurement ≥80%.
+
+Current coverage: finance 85.82%, payments 83.03%, payroll 92.22%, procurement 0%.
+
+Rules:
+1. Every test is DATABASE-BACKED. Seed real data, call real service methods,
+   assert real DB state. No mocks for DB queries.
+2. Financial tests must verify actual GL entries exist with correct amounts,
+   signs, accounts, and currencies after each operation.
+3. IMMUTABLE table tests: verify INSERT succeeds, UPDATE/DELETE throws.
+4. Atomic operation tests: run concurrent requests and verify no race conditions.
+5. Test both happy path AND error paths (insufficient funds, budget exceeded,
+   invalid state transitions, school-scope isolation).
+
+For each module, create spec files at:
+  apps/api/src/{module}/{service-name}.integration.spec.ts
+
+After writing tests, run: npx jest --config apps/api/jest.config.ts --coverage
+Report per-module coverage. Iterate until targets are met.
+
+Commit with: "test: Tier 1 financial coverage — finance/payments/payroll/procurement"
+</pre>
+</div>
+
+<h2>Tier 2 &mdash; Auth &amp; IAM to &ge;95% (~1 day)</h2>
+<div class="tier t-crit">
+<h3>auth: 95.84% ✓ &middot; iam: 94.58% &rarr; 95%</h3>
+<p>Auth is above target. IAM needs ~0.5 percentage points. Small gap but critical module.</p>
+</div>
+
+<table>
+<tr><th>Module</th><th>Current</th><th>Target</th><th>Key Test Scenarios</th></tr>
+<tr><td>iam</td><td>94.58%</td><td>95%</td><td>Permission resolution edge cases (inherited permissions, cross-school staff, Platform Admin everyFunction, permission cache invalidation). Role assignment lifecycle. Delegation pattern for coach access. GuardianAuthorizationService with custody arrangements (SOLE_A, SOLE_B, JOINT, null). @StudentOwned guard verification.</td></tr>
+</table>
+
+<div class="prompt-box">
+<pre>
+You are writing integration tests for CampusOS IAM module.
+Target: iam ≥95%. Current: 94.58%.
+
+Focus on untested edge cases:
+1. Permission resolution with inherited + delegated permissions
+2. Cross-school staff permission scoping
+3. Platform Admin everyFunction iteration
+4. Permission cache invalidation on role change
+5. GuardianAuthorizationService: SOLE_A denies guardian_b, SOLE_B denies
+   guardian_a, JOINT allows both, null custody fails closed, court-order
+   restrictions block specific capabilities
+6. @StudentOwned guard: student can write own record, other student cannot,
+   teacher cannot (without delegation), coach with delegation can
+
+Run: npx jest --config apps/api/jest.config.ts --coverage -- --testPathPattern=iam
+Commit with: "test: Tier 2 IAM coverage to ≥95%"
+</pre>
+</div>
+
+<h2>Tier 3 &mdash; Store &amp; Governance from 0% (~2&ndash;3 days)</h2>
+<div class="tier t-high">
+<h3>store: 0% &rarr; 80% &middot; governance: 0% &rarr; 80%</h3>
+<p>Store handles money (gift cards, loyalty). Governance handles GDPR breach notification (72-hour window). Both at zero coverage.</p>
+</div>
+
+<table>
+<tr><th>Module</th><th>Current</th><th>Target</th><th>Key Test Scenarios</th></tr>
+<tr><td>store</td><td>0%</td><td>80%</td><td>Order lifecycle (cart→submitted→approved→fulfilled→completed). School-scope isolation on all order mutations. Gift card atomic redemption (concurrent balance decrement). Promotion max_uses atomic enforcement. Loyalty tier computation + points earn/redeem. External customer validation. Inventory adjustment audit trail. Price schedule date-range overlap prevention. Category hierarchy.</td></tr>
+<tr><td>governance</td><td>0%</td><td>80%</td><td>Data breach lifecycle (detection→assessment→notification within 72h). SAR request processing. Erasure request with pseudonymisation of IMMUTABLE records. Privacy notice management. Consent tracking. FERPA request lifecycle. Pseudonymisation log IMMUTABLE verification.</td></tr>
+</table>
+
+<div class="prompt-box">
+<pre>
+You are writing integration tests for CampusOS store and governance modules.
+Target: both ≥80%. Current: both 0%.
+
+Store tests must cover:
+1. Order lifecycle with school-scope isolation (School A cannot modify School B orders)
+2. Gift card: concurrent redemption race test (two requests, one should fail)
+3. Promotion: max_uses atomic enforcement (concurrent application)
+4. Loyalty: tier threshold computation, points balance
+5. External customer: validate belongs to current school before order creation
+
+Governance tests must cover:
+1. Breach 72-hour notification window computation
+2. SAR cross-module query (verify data_subject_id on audit_log is used)
+3. Erasure: pseudonymise IMMUTABLE records (verify original data replaced,
+   record still exists, pseudonymisation_log entry created)
+4. Privacy notice school-scoped reads
+
+Run coverage after each module. Commit with:
+"test: Tier 3 store + governance coverage from 0% to ≥80%"
+</pre>
+</div>
+
+<h2>Tier 4 &mdash; Core Academic (&ge;80%) (~3&ndash;4 days)</h2>
+<div class="tier t-med">
+<h3>sis: 0% &middot; classroom: 0% &middot; enrollment: 0% &middot; attendance: 0% &middot; scheduling: 0% &middot; curriculum: 0%</h3>
+<p>These are the highest-usage modules. Every teacher and admin touches them daily.</p>
+</div>
+
+<table>
+<tr><th>Module</th><th>Key Test Scenarios</th></tr>
+<tr><td>sis</td><td>Student CRUD + school-scope. Family relationships with custody. Custom fields typed validation. Student notes confidentiality. Graduation audit + at-risk detection. GPA computation (weighted/unweighted). Transcript generation + freeze. Transfer records. Locker management.</td></tr>
+<tr><td>classroom</td><td>Assignment lifecycle. Rubric scoring. Grade posting + standards gradebook. AI tutoring session + opt-out enforcement. Hall pass limits + overdue detection. Peer review anonymisation. Lesson plan management.</td></tr>
+<tr><td>enrollment</td><td>Application lifecycle. Capacity check. Withdrawal + exit tasks. Re-enrollment auto-withdrawal. Mid-year admission. Tour slot booking + overbooking rejection. Document management.</td></tr>
+<tr><td>attendance</td><td>Record creation + school-scope. Absence request lifecycle. Evidence attachment. Bulk attendance marking. Attendance evidence. Daily/period attendance modes.</td></tr>
+<tr><td>scheduling</td><td>Timetable generation. Bell schedule management. Cover arrangements. Course selection. Rotation calendars. Exam scheduling + accommodation enforcement. Cross-school staff double-booking prevention.</td></tr>
+<tr><td>curriculum</td><td>Map CRUD + school-scope (Round 1 leak area). Unit lifecycle. Standards alignment. Lesson linking. Scope and sequence.</td></tr>
+</table>
+
+<div class="prompt-box">
+<pre>
+You are writing integration tests for CampusOS academic core modules.
+Target: all ≥80%. Current: all 0%.
+
+Modules: sis, classroom, enrollment, attendance, scheduling, curriculum.
+
+For EACH module, create:
+  apps/api/src/{module}/{service-name}.integration.spec.ts
+
+Priority scenarios per module:
+- Happy path CRUD with school-scope verification
+- State machine transitions (application lifecycle, assignment grading, etc.)
+- Cross-school isolation (seed School A + B, verify isolation)
+- Permission enforcement (student vs teacher vs admin access)
+- Edge cases from Round 1 audit (curriculum maps school-scope was a leak area)
+
+Run coverage per module. Commit with:
+"test: Tier 4 academic core coverage — sis/classroom/enrollment/attendance/scheduling/curriculum"
+</pre>
+</div>
+
+<h2>Tier 5 &mdash; Communications &amp; Support (&ge;80%) (~2&ndash;3 days)</h2>
+<div class="tier t-med">
+<h3>messaging: 0% &middot; notifications: 3.25% &middot; meetings: 0% &middot; wellbeing: 0% &middot; counselling: 0% &middot; discipline: 0%</h3>
+<p>Messaging is a safety surface (moderation). Counselling handles CONFIDENTIAL records.</p>
+</div>
+
+<table>
+<tr><th>Module</th><th>Key Test Scenarios</th></tr>
+<tr><td>messaging</td><td>Message creation + outbox emit for moderation. Thread management. Content moderation three-tier (platform &gt; district &gt; building). Translation caching. Broadcast delivery + analytics.</td></tr>
+<tr><td>notifications</td><td>Push token management. Notification delivery. Campaign scheduling. Engagement tracking.</td></tr>
+<tr><td>meetings</td><td>Meeting lifecycle. Notes approval guard (approved notes cannot be edited). Recording consent. AI minutes stub. Template management.</td></tr>
+<tr><td>wellbeing</td><td>Check-in creation + response. Score computation. Score-drop alerting. Longitudinal trend aggregation. School-scope on all endpoints.</td></tr>
+<tr><td>counselling</td><td>Referral lifecycle (PENDING→RESOLVED). IMMUTABLE activity log verification. CRISIS auto-escalation. Caseload capacity. Agency referrals + consent. Mandatory reports (IMMUTABLE after FILED). Session notes lock-after-approval.</td></tr>
+<tr><td>discipline</td><td>Incident lifecycle. Restorative justice conference + auto-resolution. Positive behaviour points + redemption. BIP feedback. Peer mediation.</td></tr>
+</table>
+
+<div class="prompt-box">
+<pre>
+You are writing integration tests for CampusOS communications and support modules.
+Target: all ≥80%. Current: all 0% (notifications 3.25%).
+
+Modules: messaging, notifications, meetings, wellbeing, counselling, discipline.
+
+Critical safety scenarios:
+- messaging: verify msg.message.posted uses outbox (not best-effort)
+- counselling: verify svc_referral_activity is IMMUTABLE (INSERT ok, UPDATE/DELETE fail)
+- counselling: CRISIS referral auto-escalates within configured window
+- meetings: approved notes cannot be patched (is_approved guard)
+- wellbeing: score-drop detection triggers alert
+
+Run coverage per module. Commit with:
+"test: Tier 5 communications + support coverage"
+</pre>
+</div>
+
+<h2>Tier 6 &mdash; Campus Operations (&ge;80%) (~3&ndash;4 days)</h2>
+<div class="tier t-low">
+<h3>facilities: partial &middot; transport: partial &middot; food-service: partial &middot; library: partial &middot; athletics: partial &middot; clubs: 0% &middot; groups: 0% &middot; hr: 0%</h3>
+<p>Operational modules with varying partial coverage from cycle-level stubs.</p>
+</div>
+
+<table>
+<tr><th>Module</th><th>Key Test Scenarios</th></tr>
+<tr><td>facilities</td><td>Inspection lifecycle + violation school-scope (Round 1 leak). Work order lifecycle. Cleaning route completion. Fire drill compliance. Asset lifecycle. Energy meter readings.</td></tr>
+<tr><td>transport</td><td>Route management. Vehicle position telemetry (partition verification). Fleet maintenance + safety-critical blocking. Driver hours compliance. Geofence events.</td></tr>
+<tr><td>food-service</td><td>Recipe allergen auto-compute. Inventory IMMUTABLE transactions. POS meal service + lunch account debit. Pre-order allergen cross-check. Production records.</td></tr>
+<tr><td>library</td><td>Checkout lifecycle. Class set bulk checkout. Overdue detection. ILL status tracking. Recommendation engine. Catalogue import.</td></tr>
+<tr><td>athletics</td><td>Season + roster management. Eligibility verification. Game scheduling + officials. Recruiting profiles (student-owned). Equipment checkout.</td></tr>
+<tr><td>clubs</td><td>Club lifecycle. Election anonymous voting. Poll voting. Budget tracking. Field trips. Activity completion.</td></tr>
+<tr><td>groups</td><td>Group CRUD + school-scope. Resource library + versioning. Events + RSVP. Member management. Invitations.</td></tr>
+<tr><td>hr</td><td>Employee lifecycle. Leave management. Recruitment pipeline. Training + certification expiry. Appraisal lifecycle. Payroll integration.</td></tr>
+</table>
+
+<div class="prompt-box">
+<pre>
+You are writing integration tests for CampusOS campus operations modules.
+Target: all ≥80%.
+
+Modules: facilities, transport, food-service, library, athletics, clubs, groups, hr.
+
+Priority scenarios:
+- facilities: inspection violation school-scope (was a Round 1 leak)
+- food-service: fds_inventory_transactions IMMUTABLE verification
+- clubs: election anonymous voting (no voter_id on ext_votes, verify)
+- athletics: recruiting profiles student-owned enforcement
+- groups: GRP-002/GRP-003 permissions now work (was a Round 1 dead endpoint)
+
+Run coverage per module. Commit with:
+"test: Tier 6 campus operations coverage"
+</pre>
+</div>
+
+<h2>Tier 7 &mdash; Platform &amp; Remaining (&ge;80%) (~1&ndash;2 days)</h2>
+<div class="tier t-low">
+<h3>platform: 0% &middot; configuration: 0% &middot; analytics: 0% &middot; workflows: 0% &middot; announcements: 0% &middot; profile: 0% &middot; households: 0% &middot; region: 0% &middot; tickets: 0% &middot; dlq: 28.88% &middot; kafka: 23.25%</h3>
+<p>Platform infrastructure and remaining long-tail modules.</p>
+</div>
+
+<table>
+<tr><th>Module</th><th>Key Test Scenarios</th></tr>
+<tr><td>platform</td><td>Tenant provisioning. CRM lifecycle. Marketplace transactions + 5% fee. Internal ops. Tenant access grants (4h expiry). Schema rebalancing + is_frozen gate.</td></tr>
+<tr><td>analytics</td><td>Read model materialisation. Worker frequency verification. Engagement score computation. Operations dashboards.</td></tr>
+<tr><td>workflows</td><td>Approval chain lifecycle. Escalation rules. Task auto-creation from events. Acknowledgement tracking.</td></tr>
+<tr><td>kafka / dlq</td><td>OutboxPublisherWorker drain cycle. DLQ replay procedure. Idempotency key deduplication. Consumer retry policy.</td></tr>
+<tr><td>Remaining</td><td>configuration, announcements, profile, households, region, tickets &mdash; CRUD + school-scope for each.</td></tr>
+</table>
+
+<div class="prompt-box">
+<pre>
+You are writing integration tests for CampusOS platform and remaining modules.
+Target: all ≥80%.
+
+Modules: platform, analytics, workflows, kafka, dlq, configuration,
+announcements, profile, households, region, tickets.
+
+Priority:
+- platform: tenant provisioning + is_frozen write gate
+- kafka: OutboxPublisherWorker drains outbox rows correctly
+- dlq: replay procedure delivers to original topic
+- workflows: approval escalation triggers on timeout
+
+Run coverage per module. Commit with:
+"test: Tier 7 platform + remaining modules coverage"
+
+After all tiers complete, run full coverage:
+npx jest --config apps/api/jest.config.ts --coverage
+
+Report global line coverage. Target: ≥80%.
+</pre>
+</div>
+
+<h2>Seed Data Gaps (Parallel)</h2>
+<p>Fill alongside test tiers &mdash; tests need seed data anyway. These were BLOCKING/IMPORTANT in the code audit but remain unfilled.</p>
+<table>
+<tr><th>Priority</th><th>Tables</th><th>Fill When</th></tr>
+<tr><td style="color:var(--red);font-weight:700">BLOCKING</td><td>pay_refunds, pay_payment_plans, pay_payment_plan_installments</td><td>Tier 1 (financial tests need this data)</td></tr>
+<tr><td style="color:var(--red);font-weight:700">BLOCKING</td><td>10 P2-29b Store Advanced tables (str_promotions, str_loyalty_config, str_gift_cards, etc.)</td><td>Tier 3 (store tests need this data)</td></tr>
+<tr><td style="color:var(--amber);font-weight:700">IMPORTANT</td><td>HR depth, workflow audit children, Groups Advanced, Meetings advanced, Counselling, Transportation ops, Classroom depth</td><td>Tiers 4&ndash;6 (tests for those modules need seed data)</td></tr>
+</table>
+
+<h2>Coverage Tracking</h2>
+<p>After each tier, run full coverage and record:</p>
+<div class="prompt-box">
+<pre>
+npx jest --config apps/api/jest.config.ts --coverage 2>&1 | tail -60
+
+# Or for a specific module:
+npx jest --config apps/api/jest.config.ts --coverage \
+  -- --testPathPattern="src/(finance|payments|payroll|procurement)" 2>&1 | tail -40
+</pre>
+</div>
+
+<table>
+<tr><th>Tier</th><th>Modules</th><th>Before</th><th>After</th><th>Status</th></tr>
+<tr><td>1</td><td>finance, payments, payroll, procurement</td><td>0&ndash;92%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>2</td><td>iam</td><td>94.58%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>3</td><td>store, governance</td><td>0%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>4</td><td>sis, classroom, enrollment, attendance, scheduling, curriculum</td><td>0%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>5</td><td>messaging, notifications, meetings, wellbeing, counselling, discipline</td><td>0&ndash;3%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>6</td><td>facilities, transport, food-service, library, athletics, clubs, groups, hr</td><td>0&ndash;partial</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>7</td><td>platform, analytics, workflows, kafka, dlq, remaining</td><td>0&ndash;29%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr style="font-weight:700;background:var(--accent-light)"><td></td><td>GLOBAL</td><td>22.55%</td><td>&mdash;</td><td>Target: &ge;80%</td></tr>
+</table>
+
+<div class="summary-box">
+<h3 style="margin-top:0">Execution Notes</h3>
+<p><strong>Parallelism:</strong> Each tier is a standalone Claude Code prompt. Run them sequentially in one session, or split across multiple sessions. Tiers 1&ndash;3 are highest priority. Tiers 4&ndash;7 can run in any order.</p>
+<p><strong>Seed data:</strong> Each tier's prompt should create seed data for its modules as part of the test setup. This naturally fills the seed gaps from the code audit.</p>
+<p><strong>Test style:</strong> Database-backed integration tests using the existing test infrastructure (NestJS testing module + test database). No mocks for DB. Mock only external services (Stripe, AI Gateway, Kafka broker). Use <code>beforeEach</code> to seed, <code>afterEach</code> to clean.</p>
+<p><strong>Estimated total:</strong> ~3&ndash;5 weeks if sequential. ~2 weeks if parallelised across 2&ndash;3 Claude Code sessions.</p>
+<p><strong>Gate:</strong> Phase 3 feature builds begin only after global coverage &ge;80% and financial modules &ge;95%.</p>
+</div>
+
+</div>
+</body>
+</html>
