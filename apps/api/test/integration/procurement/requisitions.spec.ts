@@ -2,10 +2,10 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
-import { RequisitionService } from '../../../src/procurement/requisitions.service';
-import { TenantPrismaService } from '../../../src/tenant/tenant-prisma.service';
-import { FinanceValidationService } from '../../../src/finance/validation';
-import type { KafkaProducerService } from '../../../src/kafka/kafka-producer.service';
+import { RequisitionService } from '@modules/m86-procurement/requisitions.service';
+import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { FinanceValidationService } from '@modules/m83-finance/validation';
+import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 import { withTestTenant, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import { resetProcurementTables } from '../helpers/reset';
@@ -31,7 +31,7 @@ import {
 import type {
   CreateRequisitionDto,
   CreateRequisitionLineDto,
-} from '../../../src/procurement/dto/procurement.dto';
+} from '@modules/m86-procurement/dto/procurement.dto';
 
 /**
  * Loop 3 — DATABASE-BACKED integration tests for RequisitionService.

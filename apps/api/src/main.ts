@@ -2,7 +2,7 @@
 // instrumented module is required. The SDK monkey-patches the
 // underlying http / pg / ioredis / kafkajs modules at require-time;
 // any import above this line would skip auto-instrumentation.
-import { bootstrapOpenTelemetry } from './observability/otel-bootstrap';
+import { bootstrapOpenTelemetry } from '@shared/observability/otel-bootstrap';
 bootstrapOpenTelemetry();
 
 import { NestFactory } from '@nestjs/core';
@@ -10,7 +10,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 var cookieParser = require('cookie-parser');
 import { AppModule } from './app.module';
-import { StructuredLogger } from './observability/structured-logger';
+import { StructuredLogger } from '@shared/observability/structured-logger';
 
 async function bootstrap() {
   // Cycle 31 Step 1 — install the structured JSON logger before

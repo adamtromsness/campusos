@@ -5,11 +5,11 @@ import { PrismaClient } from '@prisma/client';
 import {
   GoodsReceiptService,
   PurchaseOrderService,
-} from '../../../src/procurement/purchase-orders.service';
-import { RequisitionService } from '../../../src/procurement/requisitions.service';
-import { TenantPrismaService } from '../../../src/tenant/tenant-prisma.service';
-import { FinanceValidationService } from '../../../src/finance/validation';
-import type { KafkaProducerService } from '../../../src/kafka/kafka-producer.service';
+} from '@modules/m86-procurement/purchase-orders.service';
+import { RequisitionService } from '@modules/m86-procurement/requisitions.service';
+import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { FinanceValidationService } from '@modules/m83-finance/validation';
+import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 import { withTestTenant, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import { resetProcurementTables, resetEncumberedAmount } from '../helpers/reset';
@@ -36,7 +36,7 @@ import type {
   CreatePurchaseOrderDto,
   CreatePOLineDto,
   CreateGoodsReceiptDto,
-} from '../../../src/procurement/dto/procurement.dto';
+} from '@modules/m86-procurement/dto/procurement.dto';
 
 /**
  * Loop 4 — DATABASE-BACKED integration tests for PurchaseOrderService +

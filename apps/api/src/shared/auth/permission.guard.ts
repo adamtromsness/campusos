@@ -1,0 +1,115 @@
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { PERMISSIONS_KEY } from './require-permission.decorator';
+import { PLATFORM_SCOPED_KEY } from './platform-scoped.decorator';
+import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
+import { getCurrentTenant } from '@shared/tenant/tenant.context';
+
+/**
+ * PermissionGuard
+ *
+ * Enforces @RequirePermission on controller methods.
+ * Reads the authenticated user from request.user (set by AuthGuard)
+ * and checks the effective access cache for the required permissions.
+ *
+ * Guard chain (final position):
+ * TenantResolverMiddleware -> AuthGuard -> TenantGuard -> **PermissionGuard**
+ *
+ * If no @RequirePermission is set on the endpoint, the guard passes
+ * (the endpoint only requires authentication, not a specific permission).
+ *
+ * If @RequirePermission specifies multiple codes, ANY match is sufficient.
+ */
+@Injectable()
+export class PermissionGuard implements CanActivate {
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly permissionCheckService: PermissionCheckService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Get required permissions from decorator metadata
+    var requiredPermissions = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    // No @RequirePermission → endpoint only needs auth (which already passed)
+    if (!requiredPermissions || requiredPermissions.length === 0) {
+      return true;
+    }
+
+    // Get authenticated user from request (set by AuthGuard).
+    // AuthGuard must run before this guard — registration order is enforced
+    // explicitly in AppModule. Failing open here was a previous bug that let
+    // any tenant-scoped request through @RequirePermission gates.
+    var request = context.switchToHttp().getRequest();
+    var user = request.user;
+
+    if (!user || !user.sub) {
+      throw new ForbiddenException('Authentication context missing');
+    }
+
+    // REVIEW-CYCLE31 BLOCKING 2 — platform-scoped routes resolve
+    // permissions against the PLATFORM IAM scope only. A school admin
+    // with sys-001:admin at SCHOOL scope cannot reach /admin/platform
+    // or /admin/dlq via piggy-backing on the school → platform chain.
+    var isPlatformScoped = this.reflector.getAllAndOverride<boolean>(PLATFORM_SCOPED_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    var scopeIds: string[];
+    if (isPlatformScoped) {
+      var platformScopeId = await this.permissionCheckService.resolvePlatformScope();
+      if (!platformScopeId) {
+        throw new ForbiddenException('No PLATFORM IAM scope configured for this request');
+      }
+      scopeIds = [platformScopeId];
+    } else {
+      // Get current tenant scope
+      var tenant: any;
+      try {
+        tenant = getCurrentTenant();
+      } catch (e) {
+        // No tenant context — might be a platform-scoped endpoint
+        // For now, deny access without a scope
+        throw new ForbiddenException('No tenant scope for permission check');
+      }
+
+      // Resolve the scope chain for this request. Platform Admins are assigned
+      // at PLATFORM scope, school-scoped roles at SCHOOL scope, and so on. We
+      // check from most-specific (school) to least-specific (platform) so a
+      // Platform Admin acting against a tenant inherits their platform-level
+      // permissions, while school-scoped users are bounded to their school.
+      scopeIds = await this.permissionCheckService.resolveScopeChain(tenant.schoolId);
+
+      if (scopeIds.length === 0) {
+        throw new ForbiddenException('No IAM scope configured for this request');
+      }
+    }
+
+    var hasPermission = false;
+    for (var s = 0; s < scopeIds.length; s++) {
+      var ok = await this.permissionCheckService.hasAnyPermission(
+        user.sub,
+        scopeIds[s]!,
+        requiredPermissions,
+      );
+      if (ok) {
+        hasPermission = true;
+        break;
+      }
+    }
+
+    if (!hasPermission) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'INSUFFICIENT_PERMISSIONS',
+        message: 'You do not have the required permission for this action',
+        required: requiredPermissions,
+      });
+    }
+
+    return true;
+  }
+}

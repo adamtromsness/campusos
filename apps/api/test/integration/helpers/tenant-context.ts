@@ -2,7 +2,7 @@ import {
   runWithTenantContextAsync,
   type RequestContext,
   type TenantInfo,
-} from '../../../src/tenant/tenant.context';
+} from '@shared/tenant/tenant.context';
 
 /**
  * Stable, deterministic test identity constants. UUIDs are reserved

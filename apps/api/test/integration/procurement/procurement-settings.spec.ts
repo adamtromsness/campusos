@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { ProcurementSettingsService } from '../../../src/procurement/distribution.service';
-import { TenantPrismaService } from '../../../src/tenant/tenant-prisma.service';
+import { ProcurementSettingsService } from '@modules/m86-procurement/distribution.service';
+import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { withTestTenant, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import { resetProcurementTables } from '../helpers/reset';
 import { adminActor, officerActor, teacherActor } from '../helpers/actor';

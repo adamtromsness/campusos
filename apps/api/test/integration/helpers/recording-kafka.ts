@@ -1,4 +1,4 @@
-import type { EmitOptions, KafkaProducerService } from '../../../src/kafka/kafka-producer.service';
+import type { EmitOptions, KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 /**
  * Captured Kafka emit. Mirrors the EmitOptions shape but with payload

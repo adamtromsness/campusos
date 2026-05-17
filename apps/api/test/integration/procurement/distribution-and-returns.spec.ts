@@ -6,14 +6,14 @@ import {
   DistributionService,
   ReturnService,
   VendorPerformanceService,
-} from '../../../src/procurement/distribution.service';
+} from '@modules/m86-procurement/distribution.service';
 import {
   GoodsReceiptService,
   PurchaseOrderService,
-} from '../../../src/procurement/purchase-orders.service';
-import { TenantPrismaService } from '../../../src/tenant/tenant-prisma.service';
-import { FinanceValidationService } from '../../../src/finance/validation';
-import type { KafkaProducerService } from '../../../src/kafka/kafka-producer.service';
+} from '@modules/m86-procurement/purchase-orders.service';
+import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { FinanceValidationService } from '@modules/m83-finance/validation';
+import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 
 import { withTestTenant, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import { resetProcurementTables, resetEncumberedAmount } from '../helpers/reset';
@@ -226,7 +226,7 @@ describe('integration:DistributionService + ReturnService + VendorPerformanceSer
 
     it('distribute leaves the linked requisition (RECEIVED) flipped to DISTRIBUTED', async () => {
       // Build PO via a requisition so the linked-req auto-promote path fires
-      const reqSvc = (await import('../../../src/procurement/requisitions.service')).RequisitionService;
+      const reqSvc = (await import('@modules/m86-procurement/requisitions.service')).RequisitionService;
       const requisitionService = new reqSvc(
         tenantPrisma,
         kafka as unknown as KafkaProducerService,

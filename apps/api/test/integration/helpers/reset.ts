@@ -1,4 +1,4 @@
-import type { TenantPrismaService } from '../../../src/tenant/tenant-prisma.service';
+import type { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 
 /**
  * Procurement tables in dependency order — children first, then parents.
