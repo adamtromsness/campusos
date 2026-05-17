@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { RequirePermission } from '@shared/auth';
 import { OperationsReadService, type DateRangeArgs } from './operations-read.service';
 
 /**

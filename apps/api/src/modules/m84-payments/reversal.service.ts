@@ -6,10 +6,10 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { OutboxService } from '@shared/kafka/outbox.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
+import { OutboxService } from '@shared/kafka';
+import type { ResolvedActor } from '@modules/m00-platform';
 import { LedgerService } from './ledger.service';
 import {
   ListReversalsQueryDto,

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { getCurrentTenant } from '@shared/tenant';
 import { EnvelopeOptions, envelopeFromOptions, EventEnvelope } from './event-envelope';
 
 /**

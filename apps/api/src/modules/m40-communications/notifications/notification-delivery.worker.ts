@@ -1,8 +1,8 @@
 import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant/tenant.context';
-import { RedisService } from '@shared/cache/redis.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant';
+import { RedisService } from '@shared/cache';
 
 /**
  * NotificationDeliveryWorker — pulls PENDING rows out of every tenant's

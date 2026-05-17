@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant/tenant.context';
-import { OutboxService } from '@shared/kafka/outbox.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant';
+import { OutboxService } from '@shared/kafka';
 
 /**
  * P2-H3 Step 3 + P2-H5 DEFECT 5 — GLReconciliationWorker.

@@ -25,8 +25,8 @@ import {
   MinLength,
 } from 'class-validator';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
 import {
   ModerationPolicyDto,
   ModerationQueueRowDto,

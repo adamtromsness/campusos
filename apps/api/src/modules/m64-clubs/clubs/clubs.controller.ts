@@ -12,8 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
 import { ActivityService } from '../activities/activity.service';
 import { MembershipService } from './membership.service';
 import { ScheduleService } from '../activities/schedule.service';

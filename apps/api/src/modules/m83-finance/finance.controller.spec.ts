@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import 'reflect-metadata';
 import { FinanceController } from './finance.controller';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { PERMISSIONS_KEY } from '@shared/auth';
 
 /**
  * P2-H4 test coverage uplift — finance.controller.ts (464 LOC).

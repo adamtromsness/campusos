@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { AuthService } from './auth.service';
-import { AuthGuard } from '@shared/auth/auth.guard';
+import { AuthGuard } from '@shared/auth';
 import { AuthController } from './auth.controller';
 
 /**

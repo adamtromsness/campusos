@@ -1,7 +1,7 @@
 import { Controller, Get, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { RequirePermission } from '@shared/auth';
 import { UnreadCountService } from './unread-count.service';
 import { UnreadCountResponseDto } from './dto/message.dto';
 

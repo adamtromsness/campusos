@@ -1,6 +1,6 @@
 import { LoggerService, LogLevel } from '@nestjs/common';
 import { getTraceContext } from './trace-context';
-import { getRequestContext } from '@shared/tenant/tenant.context';
+import { getRequestContext } from '@shared/tenant';
 
 /**
  * Cycle 31 Step 1 — Structured JSON Logger (Architecture Review §25.2).

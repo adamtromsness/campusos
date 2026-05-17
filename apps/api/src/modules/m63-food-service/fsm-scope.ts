@@ -1,7 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { getCurrentTenant } from '@shared/tenant';
+import { PermissionCheckService } from '@modules/m00-platform';
+import type { ResolvedActor } from '@modules/m00-platform';
 
 /**
  * REVIEW-P2-10a ROUND 1 BLOCKING 4 — FSM admin scope helper.

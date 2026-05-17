@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { TenantPrismaService } from '@shared/tenant';
 import type { Prisma } from '@prisma/client';
 import { ActivityType, ReferralActivityResponseDto } from '../counselling/dto/counselling.dto';
 

@@ -1,8 +1,8 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
-import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import type { ResolvedActor } from '@modules/m00-platform';
+import { PermissionCheckService } from '@modules/m00-platform';
+import { getCurrentTenant } from '@shared/tenant';
+import { TenantPrismaService } from '@shared/tenant';
 
 export function isUniqueViolation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;

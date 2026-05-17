@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { OutboxService } from './outbox.service';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
+import { runWithTenantContext } from '@shared/tenant';
 
 const TEST_TENANT = {
   schoolId: '019dff45-1234-7000-8000-000000000001',

@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
+import { runWithTenantContext } from '@shared/tenant';
 import { VehiclePositionService } from './vehicle-position.service';
 import {
   GeofenceService,
@@ -13,7 +13,7 @@ import { ETAService } from './eta.service';
 import { DispatchService } from './dispatch.service';
 import { ParentTrackingService } from './parent-tracking.service';
 import { FleetStatusService } from './fleet-status.service';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import { GpsFleetController } from './gps-fleet.controller';
 
 const SCHOOL = {

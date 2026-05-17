@@ -9,9 +9,9 @@ import { randomUUID } from 'crypto';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { getCurrentTenant } from '@shared/tenant';
+import { KafkaProducerService } from '@shared/kafka';
+import { TenantPrismaService } from '@shared/tenant';
 
 type TxClient = Prisma.TransactionClient;
 import {

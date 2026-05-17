@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from 
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsOptional } from 'class-validator';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { RequirePermission } from '@shared/auth';
 import { CategoryService } from './category.service';
 import {
   CategoryResponseDto,

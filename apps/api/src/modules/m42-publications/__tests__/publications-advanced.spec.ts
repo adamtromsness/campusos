@@ -6,7 +6,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
+import { runWithTenantContext } from '@shared/tenant';
 import { VersionService, TemplateService } from '../versions.service';
 import { ScheduledPublishService, PublicationAnalyticsService } from '../scheduled-publish.service';
 import { deterministicPublicationPublishedEventId } from '../event-ids';

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { OutboxService } from '@shared/kafka/outbox.service';
+import { OutboxService } from '@shared/kafka';
 import { deterministicTenantAccessGrantedEventId } from '../event-ids';
 import { CreateTenantAccessGrantDto, TenantAccessGrantDto, TenantAccessType } from '../dto/ops.dto';
 import { OpsEmployeeService } from './ops-employee.service';

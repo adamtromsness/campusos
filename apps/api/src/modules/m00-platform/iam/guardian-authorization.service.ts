@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
 
 /**
  * P2-H1 Step 3 + P2-H5 DEFECT 4 — centralised, custody-aware guardian

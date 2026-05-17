@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
-import { IamModule } from '@modules/m00-platform/iam/iam.module';
-import { KafkaModule } from '@shared/kafka/kafka.module';
-import { OutboxService } from '@shared/kafka/outbox.service';
+import { TenantModule } from '@modules/m00-platform';
+import { IamModule } from '@modules/m00-platform';
+import { KafkaModule } from '@shared/kafka';
+import { OutboxService } from '@shared/kafka';
 import { LockerService } from '../lockers/locker.service';
 import { MedicalExemptionService } from '../students/medical-exemption.service';
 import { ReportingPeriodService } from './reporting-period.service';

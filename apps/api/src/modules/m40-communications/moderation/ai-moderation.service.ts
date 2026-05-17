@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { TenantPrismaService } from '@shared/tenant';
 import { AiInferenceService } from '../messaging/ai-inference.service';
 import { AiModerationResultDto } from '../messaging/dto/communications-advanced.dto';
 

@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthService } from './auth.service';
-import { Public } from '@shared/auth/public.decorator';
+import { Public } from '@shared/auth';
 
 /**
  * Auth Controller

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { GuardianAuthorizationService } from './guardian-authorization.service';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 
 /**
  * P2-H5 DEFECT 4 + DEFECT 6 — custody fixture coverage for the

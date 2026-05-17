@@ -11,11 +11,11 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { RequirePermission } from '@shared/auth';
 import {
   ActorContextService,
   type ResolvedActor,
-} from '@modules/m00-platform/iam/actor-context.service';
+} from '@modules/m00-platform';
 import { VendorCatalogueService } from './vendor-catalogue.service';
 import { ContractService } from './contract.service';
 import { SpendingAnalyticsService } from './spending-analytics.service';

@@ -1,9 +1,9 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { Public } from '@shared/auth/public.decorator';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { Public } from '@shared/auth';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
 import { InventoryService, ProductService, StoreService } from '../products/products.service';
 import { ApprovalService, OrderService } from './orders.service';
 import { ExternalCustomerService, RevenueService, ShippingService } from '../products/revenue.service';

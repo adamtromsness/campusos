@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { getCurrentTenant } from '@shared/tenant';
+import { TenantPrismaService } from '@shared/tenant';
+import type { ResolvedActor } from '@modules/m00-platform';
 import {
   CaseloadCapacityRowDto,
   CaseloadDashboardResponseDto,

@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { ConsumedMessage } from '@shared/kafka/kafka-consumer.service';
 import { IdempotencyService } from '@shared/kafka/idempotency.service';
-import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant/tenant.context';
+import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant';
 
 /**
  * Shared building blocks for the Step 5 notification consumers.

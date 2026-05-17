@@ -1,8 +1,8 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { TenantPrismaService } from '@shared/tenant';
+import type { ResolvedActor } from '@modules/m00-platform';
 import type { RouteChangeLogResponseDto, RouteChangeLogType } from './dto/transport.dto';
 
 interface RouteChangeLogRow {

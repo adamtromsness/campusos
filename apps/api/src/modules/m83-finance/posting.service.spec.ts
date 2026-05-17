@@ -5,9 +5,9 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 import { PostingService } from './posting.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import type { ResolvedActor } from '@modules/m00-platform';
 import type {
   CreateGLEntryLineDto,
   CreateJournalBatchDto,

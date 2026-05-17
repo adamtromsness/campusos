@@ -1,7 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthService } from '@modules/m00-platform/auth/auth.service';
-import { getRequestContext } from '@shared/tenant/tenant.context';
+import { getRequestContext } from '@shared/tenant';
 
 export var IS_PUBLIC_KEY = 'isPublic';
 

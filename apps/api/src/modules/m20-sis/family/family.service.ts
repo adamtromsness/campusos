@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { TenantPrismaService } from '@shared/tenant';
 import { GuardianResponseDto, StudentGuardianDto } from '../guardians/dto/guardian.dto';
 
 interface StudentGuardianRow {

@@ -1,17 +1,17 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka/kafka-consumer.service';
-import { IdempotencyService } from '@shared/kafka/idempotency.service';
-import { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
-import { prefixedTopic, unprefixTopic } from '@shared/kafka/event-envelope';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { RedisService } from '@shared/cache/redis.service';
+import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
+import { IdempotencyService } from '@shared/kafka';
+import { KafkaProducerService } from '@shared/kafka';
+import { prefixedTopic, unprefixTopic } from '@shared/kafka';
+import { TenantPrismaService } from '@shared/tenant';
+import { RedisService } from '@shared/cache';
 import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@shared/kafka/envelope-consumer';
+} from '@shared/kafka';
 import { buildPlaceholderValues, renderTemplate } from './template-render';
 
 /**

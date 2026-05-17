@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 import { AiInferenceService } from '../messaging/ai-inference.service';
 import { TranslationService } from '../messaging/translation.service';
 import { ModerationService } from '../moderation/ai-moderation-aggregate.service';

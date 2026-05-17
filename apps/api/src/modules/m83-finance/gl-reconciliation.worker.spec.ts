@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { GlReconciliationWorker } from './gl-reconciliation.worker';
-import type { TenantInfo } from '@shared/tenant/tenant.context';
+import type { TenantInfo } from '@shared/tenant';
 
 /**
  * P2-H5 DEFECT 5 + DEFECT 6 — GlReconciliationWorker behavioural tests.

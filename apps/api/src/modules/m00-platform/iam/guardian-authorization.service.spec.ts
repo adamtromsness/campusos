@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { GuardianAuthorizationService } from './guardian-authorization.service';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 
 /**
  * P2-H4 test coverage uplift — guardian-authorization.service.ts (213 LOC,

@@ -11,9 +11,9 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { Public } from '@shared/auth/public.decorator';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { Public } from '@shared/auth';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
 import { VehiclePositionService } from './vehicle-position.service';
 import { GeofenceService } from './geofence.service';
 import { ETAService } from './eta.service';

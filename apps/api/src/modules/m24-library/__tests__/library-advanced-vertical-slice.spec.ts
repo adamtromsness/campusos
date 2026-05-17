@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
+import { runWithTenantContext } from '@shared/tenant';
 import { ClassSetService } from '../class-set.service';
 import { RecommendationService } from '../recommendation.service';
 import { InterlibraryLoanService } from '../interlibrary-loan.service';

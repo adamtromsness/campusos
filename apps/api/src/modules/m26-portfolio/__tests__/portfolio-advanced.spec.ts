@@ -6,7 +6,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
+import { runWithTenantContext } from '@shared/tenant';
 import { PortfolioSectionService } from '../section.service';
 import { ReflectionService } from '../reflection.service';
 import { EndorsementService } from '../endorsement.service';

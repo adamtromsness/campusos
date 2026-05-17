@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
-import { KafkaModule } from '@shared/kafka/kafka.module';
-import { RedisModule } from '@shared/cache/redis.module';
+import { TenantModule } from '@modules/m00-platform';
+import { KafkaModule } from '@shared/kafka';
+import { RedisModule } from '@shared/cache';
 import { NotificationQueueService } from './notification-queue.service';
 import { NotificationDeliveryWorker } from './notification-delivery.worker';
 import { NotificationInboxService } from './notification-inbox.service';

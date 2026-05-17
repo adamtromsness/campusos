@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { RedisService } from '@shared/cache/redis.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { RedisService } from '@shared/cache';
 
 /**
  * NotificationInboxService — the read side of the Step 5 notification

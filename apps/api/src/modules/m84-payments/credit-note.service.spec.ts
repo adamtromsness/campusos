@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 import { CreditNoteService, deterministicCreditNoteEventId } from './credit-note.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import type { ResolvedActor } from '@modules/m00-platform';
 
 /**
  * P2-H4 test coverage uplift — payments/credit-note.service.ts (241 LOC,

@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 import { CleaningRouteService } from './cleaning-route.service';
 import { ZoneInspectionService } from './zone-inspection.service';
 import { AssetService } from './asset.service';

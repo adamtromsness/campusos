@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import { AiInferenceService } from '../messaging/ai-inference.service';
 import { ModerationService } from '../moderation/ai-moderation-aggregate.service';
 import { AppealService } from '../moderation/appeal.service';

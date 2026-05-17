@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { TenantPrismaService } from '@shared/tenant';
+import type { ResolvedActor } from '@modules/m00-platform';
 import { AiInferenceService } from '../messaging/ai-inference.service';
 import { TranslateRequestDto, TranslationDto } from './dto/communications-advanced.dto';
 

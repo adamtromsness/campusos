@@ -13,8 +13,8 @@ import { ApiBearerAuth, ApiOperation, ApiPropertyOptional, ApiTags } from '@nest
 import type { Request } from 'express';
 import { IsBoolean, IsOptional } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
 import { PositionService } from './position.service';
 import { CreatePositionDto, PositionResponseDto, UpdatePositionDto } from './dto/position.dto';
 

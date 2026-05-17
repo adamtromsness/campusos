@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
+import type { ResolvedActor } from '@modules/m00-platform';
 import type { ApproverType } from './dto/workflow.dto';
 
 export interface WorkflowTemplateStepDto {

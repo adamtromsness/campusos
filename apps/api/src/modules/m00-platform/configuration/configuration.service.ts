@@ -4,8 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
 
 /**
  * School Configuration Admin — Step 1 + Step 2 service surface.

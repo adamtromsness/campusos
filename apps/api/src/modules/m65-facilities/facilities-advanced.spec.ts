@@ -6,8 +6,8 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import { CleaningRouteService } from './cleaning-route.service';
 import { ZoneInspectionService } from './zone-inspection.service';
 import { SupplyAuditService } from './supply-audit.service';

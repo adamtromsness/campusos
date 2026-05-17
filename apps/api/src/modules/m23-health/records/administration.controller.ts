@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
 import { AdministrationService } from './administration.service';
 import {
   AdministerDoseDto,

@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Kafka, Producer } from 'kafkajs';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { getCurrentTenant } from '@shared/tenant';
 import {
   EnvelopeOptions,
   EventEnvelope,

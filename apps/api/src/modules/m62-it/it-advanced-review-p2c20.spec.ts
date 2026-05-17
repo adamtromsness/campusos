@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
+import { runWithTenantContext } from '@shared/tenant';
 import { DeviceUsageService, RemoteActionService } from './remote-actions.service';
 import { MonitoringService } from './voip-monitoring.service';
 import {

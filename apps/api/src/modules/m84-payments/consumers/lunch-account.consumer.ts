@@ -1,12 +1,12 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka/kafka-consumer.service';
-import { IdempotencyService } from '@shared/kafka/idempotency.service';
-import { prefixedTopic } from '@shared/kafka/event-envelope';
+import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
+import { IdempotencyService } from '@shared/kafka';
+import { prefixedTopic } from '@shared/kafka';
 import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@shared/kafka/envelope-consumer';
+} from '@shared/kafka';
 import { LunchAccountService } from '../lunch-account.service';
 
 /**

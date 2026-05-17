@@ -1,15 +1,15 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka/kafka-consumer.service';
-import { IdempotencyService } from '@shared/kafka/idempotency.service';
-import { prefixedTopic } from '@shared/kafka/event-envelope';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
+import { IdempotencyService } from '@shared/kafka';
+import { prefixedTopic } from '@shared/kafka';
+import { TenantPrismaService } from '@shared/tenant';
 import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@shared/kafka/envelope-consumer';
+} from '@shared/kafka';
 
 /**
  * PaymentAccountWorker (Cycle 6 Step 7).

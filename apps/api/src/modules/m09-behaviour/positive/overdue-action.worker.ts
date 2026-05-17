@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { TenantPrismaService } from '@shared/tenant';
 import { getPlatformClient } from '@campusos/database';
 
 /**

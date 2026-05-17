@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
-import { IamModule } from '@modules/m00-platform/iam/iam.module';
-import { KafkaModule } from '@shared/kafka/kafka.module';
-import { NotificationsModule } from '@modules/m40-communications/notifications/notifications.module';
-import { WorkflowsModule } from '@modules/m02-workflows/workflows.module';
+import { TenantModule } from '@modules/m00-platform';
+import { IamModule } from '@modules/m00-platform';
+import { KafkaModule } from '@shared/kafka';
+import { NotificationsModule } from '@modules/m40-communications';
+import { WorkflowsModule } from '@modules/m02-workflows';
 import { EmployeeService } from './employee.service';
 import { PositionService } from './position.service';
 import { EmployeeDocumentService } from './employee-document.service';

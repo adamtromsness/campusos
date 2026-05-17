@@ -12,10 +12,10 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
-import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
+import { PermissionCheckService } from '@modules/m00-platform';
+import { getCurrentTenant } from '@shared/tenant';
 import { DashboardService } from './dashboard.service';
 import {
   AtRiskEvaluationWorker,

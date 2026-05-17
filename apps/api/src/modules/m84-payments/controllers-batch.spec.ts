@@ -9,8 +9,8 @@ import { LunchAccountController } from './lunch-account.controller';
 import { PaymentPlanController } from './payment-plan.controller';
 import { BillingConfigController } from './billing-config.controller';
 import { FinancialAidController } from './financial-aid.controller';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { PERMISSIONS_KEY } from '@shared/auth';
+import type { ResolvedActor } from '@modules/m00-platform';
 
 /**
  * P2-H4 test coverage uplift — batched coverage for the 9 remaining

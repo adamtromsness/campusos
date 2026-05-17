@@ -2,7 +2,7 @@ import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { TenantResolverMiddleware } from '@shared/tenant/tenant-resolver.middleware';
 import { TenantGuard } from './tenant.guard';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { TenantPrismaService } from '@shared/tenant';
 
 /**
  * TenantModule

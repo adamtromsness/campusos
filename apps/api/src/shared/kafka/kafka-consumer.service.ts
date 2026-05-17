@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { Consumer, Kafka } from 'kafkajs';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { TenantPrismaService } from '@shared/tenant';
 import { assertValidEnvelope, EnvelopeValidationError } from './envelope-validator';
 import { unprefixTopic } from './event-envelope';
 

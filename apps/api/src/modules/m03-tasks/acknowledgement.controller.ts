@@ -3,8 +3,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsOptional } from 'class-validator';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
 import { AcknowledgementService } from './acknowledgement.service';
 import { AcknowledgementResponseDto, DisputeAcknowledgementDto } from './dto/task.dto';
 

@@ -1,8 +1,8 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
 import { PollService } from '../polls/poll.service';
 import { GroupMeetupService } from '../events/meetup.service';
 import { ResourceLibraryService } from '../resources/resource-library.service';

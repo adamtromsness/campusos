@@ -2,8 +2,8 @@ import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestj
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import type { Request } from 'express';
-import { PlatformScoped } from '@shared/auth/platform-scoped.decorator';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { PlatformScoped } from '@shared/auth';
+import { RequirePermission } from '@shared/auth';
 import { DlqService } from './dlq.service';
 
 interface AuthedRequest extends Request {

@@ -12,12 +12,12 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { ActorContextService } from '@modules/m00-platform';
 
 interface AuthedRequest extends Request {
   user?: { sub: string; personId: string; email: string };
 }
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { RequirePermission } from '@shared/auth';
 import { SubstituteProfileService } from './substitute-profile.service';
 import { SchoolPoolService } from './school-pool.service';
 import { JobPostingService } from './job-posting.service';

@@ -1,8 +1,8 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { runWithTenantContext } from '@shared/tenant';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import {
   AppraisalCommentService,
   AppraisalGoalService,

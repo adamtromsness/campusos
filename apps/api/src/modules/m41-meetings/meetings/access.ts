@@ -1,6 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { getCurrentTenant } from '@shared/tenant';
+import { TenantPrismaService } from '@shared/tenant';
 
 /**
  * REVIEW-P2C28 Round 1 BLOCKING 4 fix — club budget paths must scope

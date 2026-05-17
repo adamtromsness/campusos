@@ -1,6 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { RedisService } from '@shared/cache/redis.service';
+import { RedisService } from '@shared/cache';
 import { MetricsService } from '@shared/observability/metrics.service';
 
 /**

@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { OutboxService } from '@shared/kafka/outbox.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { OutboxService } from '@shared/kafka';
+import { getCurrentTenant } from '@shared/tenant';
 import { deterministicTransactionCompletedEventId } from '../event-ids';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import {

@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant/tenant.context';
+import { TenantPrismaService } from '@shared/tenant';
+import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant';
 import { PushCampaignService } from '../push/push-campaign.service';
 
 const POLL_INTERVAL_MS_DEFAULT = 30_000; // 30s

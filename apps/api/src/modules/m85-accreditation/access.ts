@@ -1,8 +1,8 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
-import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import type { ResolvedActor } from '@modules/m00-platform';
+import { PermissionCheckService } from '@modules/m00-platform';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
 
 /**
  * P2-23 — Shared access helpers for the Accreditation module.

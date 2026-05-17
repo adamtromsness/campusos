@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import { StandardGradeService } from '../grading/standard-grade.service';
 import { PeerReviewService } from '../peer-review/peer-review.service';
 import { ObservationService } from '../grading/observation.service';

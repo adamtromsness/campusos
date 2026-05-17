@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { RequirePermission } from '@shared/auth';
 import { ProfileService } from './profile.service';
 import { ProfileResponseDto, UpdateAdminProfileDto, UpdateMyProfileDto } from './dto/profile.dto';
 

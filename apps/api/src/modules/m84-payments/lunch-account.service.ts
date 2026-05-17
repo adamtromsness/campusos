@@ -6,11 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
 import { createHash } from 'crypto';
-import { OutboxService } from '@shared/kafka/outbox.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { OutboxService } from '@shared/kafka';
+import type { ResolvedActor } from '@modules/m00-platform';
 
 /**
  * REVIEW-P2-6 BLOCKING 4 — deterministic event_id for the durable

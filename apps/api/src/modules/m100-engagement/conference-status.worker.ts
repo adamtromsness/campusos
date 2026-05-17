@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { getPlatformClient } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { OutboxService } from '@shared/kafka/outbox.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { OutboxService } from '@shared/kafka';
 import { deterministicConferenceBookingOpenEventId } from './event-ids';
 
 /**

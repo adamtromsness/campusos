@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { KafkaModule } from '@shared/kafka/kafka.module';
+import { KafkaModule } from '@shared/kafka';
 import { OpsController } from './ops.controller';
 import { TenantAccessExpiryWorker } from './tenant-access-expiry.worker';
 import { AccountAssignmentService } from './services/account-assignment.service';

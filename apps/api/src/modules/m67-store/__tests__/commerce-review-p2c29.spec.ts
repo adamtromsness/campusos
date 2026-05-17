@@ -1,12 +1,12 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
+import { runWithTenantContext } from '@shared/tenant';
 import { PromotionService } from '../promotions/promotion.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { WishlistService } from '../wishlists/wishlist.service';
 import { PriceScheduleService } from '../inventory/price-schedule.service';
-import { JournalBatchService } from '@modules/m83-finance/journal-batch.service';
+import { JournalBatchService } from '@modules/m83-finance';
 
 /**
  * REVIEW-P2C29 ROUND 1 — regression tests pinning the 5 BLOCKING +

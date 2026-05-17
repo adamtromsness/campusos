@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
-import { IamModule } from '@modules/m00-platform/iam/iam.module';
-import { KafkaModule } from '@shared/kafka/kafka.module';
-import { SisModule } from '@modules/m20-sis/students/sis.module';
+import { TenantModule } from '@modules/m00-platform';
+import { IamModule } from '@modules/m00-platform';
+import { KafkaModule } from '@shared/kafka';
+import { SisModule } from '@modules/m20-sis';
 import { BellScheduleService } from './bell-schedule.service';
 import { TimetableService } from './timetable.service';
 import { RoomService } from './room.service';

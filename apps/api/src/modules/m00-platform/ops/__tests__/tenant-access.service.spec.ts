@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { TenantAccessService, rowToGrantDto } from '../services/tenant-access.service';
-import { OutboxService } from '@shared/kafka/outbox.service';
+import { OutboxService } from '@shared/kafka';
 
 /**
  * P2-21b — TenantAccessService.grant prerequisite gates.

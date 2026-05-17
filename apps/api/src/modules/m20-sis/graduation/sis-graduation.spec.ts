@@ -1,8 +1,8 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import { GraduationService } from './graduation.service';
 import { GraduationAuditWorker, deterministicAtRiskEventId } from './graduation-audit.worker';
 import { GpaService } from './gpa.service';

@@ -1,11 +1,11 @@
 import { Logger } from '@nestjs/common';
-import { ConsumedMessage } from '@shared/kafka/kafka-consumer.service';
-import { IdempotencyService } from '@shared/kafka/idempotency.service';
+import { ConsumedMessage } from '@shared/kafka';
+import { IdempotencyService } from '@shared/kafka';
 import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@shared/kafka/envelope-consumer';
+} from '@shared/kafka';
 
 /**
  * Shared scaffolding for the P2-15 read-model workers.

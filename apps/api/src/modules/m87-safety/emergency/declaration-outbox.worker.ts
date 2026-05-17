@@ -1,9 +1,9 @@
 import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant/tenant.context';
-import { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant';
+import { KafkaProducerService } from '@shared/kafka';
 
 /**
  * P2C2 Step 5 — DeclarationOutboxWorker.

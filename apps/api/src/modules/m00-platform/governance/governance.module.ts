@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
 import { IamModule } from '@modules/m00-platform/iam/iam.module';
-import { KafkaModule } from '@shared/kafka/kafka.module';
+import { KafkaModule } from '@shared/kafka';
 import { GovernanceAccess } from './access';
 import { GovernanceController } from './governance.controller';
 import { RopaService } from './ropa.service';

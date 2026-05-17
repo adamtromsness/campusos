@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 import { TimelineService } from './timeline.service';
 import { AccountabilityService } from '../reunification/accountability.service';
 import { ReunificationService } from '../reunification/reunification.service';

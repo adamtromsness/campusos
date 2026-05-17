@@ -1,7 +1,7 @@
 import { Controller, Get, HttpCode, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { RequirePermission } from '@shared/auth';
 import { NotificationInboxService } from './notification-inbox.service';
 import {
   MarkAllReadResponseDto,

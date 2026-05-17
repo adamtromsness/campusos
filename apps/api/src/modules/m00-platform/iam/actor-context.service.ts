@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { PermissionCheckService } from './permission-check.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { getCurrentTenant } from '@shared/tenant';
+import { TenantPrismaService } from '@shared/tenant';
 
 /**
  * Resolved caller identity used for row-level authorisation.

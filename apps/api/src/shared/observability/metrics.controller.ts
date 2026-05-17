@@ -1,6 +1,6 @@
 import { Controller, Get, Header, Req, Res, UnauthorizedException } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { Public } from '@shared/auth/public.decorator';
+import { Public } from '@shared/auth';
 import { MetricsService } from './metrics.service';
 
 /**

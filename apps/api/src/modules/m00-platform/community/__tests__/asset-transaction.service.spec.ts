@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AssetTransactionService } from '../services/asset-transaction.service';
 import { PLATFORM_FEE_PERCENT } from '../dto/community.dto';
-import { runWithTenantContextAsync } from '@shared/tenant/tenant.context';
+import { runWithTenantContextAsync } from '@shared/tenant';
 
 /**
  * P2-21c — AssetTransactionService.purchase tests.

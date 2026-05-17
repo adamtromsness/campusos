@@ -1,8 +1,8 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import { EventService, TierService } from './events.service';
 import { OrderService, RefundService } from './orders.service';
 import { CompListService, GateScanService, SeasonPassService } from './gate.service';

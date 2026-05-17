@@ -12,11 +12,11 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { RequirePermission } from '@shared/auth';
 import { HomeRegionRequired } from '@modules/m00-platform/region/home-region-required.decorator';
 import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { getCurrentTenant } from '@shared/tenant';
+import { TenantPrismaService } from '@shared/tenant';
 import { RopaService } from './ropa.service';
 import { DpiaService } from './dpia.service';
 import { ProcessorService } from './processors.service';

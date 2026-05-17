@@ -9,10 +9,10 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { generateId, getPlatformClient } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
-import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
+import type { ResolvedActor } from '@modules/m00-platform';
+import { PermissionCheckService } from '@modules/m00-platform';
 import { canEditPublication, isUniqueViolation } from './access';
 import { deterministicPublicationPublishedEventId } from './event-ids';
 import type {
@@ -23,8 +23,8 @@ import type {
   PublicationAnalyticsDto,
   ScheduledPublicationDto,
 } from './dto/publications.dto';
-import { OutboxService } from '@shared/kafka/outbox.service';
-import { RedisService } from '@shared/cache/redis.service';
+import { OutboxService } from '@shared/kafka';
+import { RedisService } from '@shared/cache';
 
 interface ScheduledRow {
   id: string;

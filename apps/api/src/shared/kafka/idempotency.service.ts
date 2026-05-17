@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { TenantPrismaService } from '@shared/tenant';
 import { generateId } from '@campusos/database';
 
 /**

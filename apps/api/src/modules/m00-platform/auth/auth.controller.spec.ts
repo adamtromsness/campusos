@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HttpException } from '@nestjs/common';
 import { AuthController } from './auth.controller';
-import { STUDENT_OWNED_KEY, StudentOwned } from '@shared/auth/student-owned.decorator';
+import { STUDENT_OWNED_KEY, StudentOwned } from '@shared/auth';
 
 /**
  * P2-H4 test coverage uplift — auth.controller.ts (245 LOC) +

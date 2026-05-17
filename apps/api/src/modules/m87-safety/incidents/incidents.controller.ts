@@ -11,8 +11,8 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { ActorContextService } from '@modules/m00-platform';
+import { RequirePermission } from '@shared/auth';
 import { AccountabilityService } from '../reunification/accountability.service';
 import { DrillService } from '../drills/drill.service';
 import {

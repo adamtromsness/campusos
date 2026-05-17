@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 import { SalaryReviewService } from './salary-review.service';
 
 /**

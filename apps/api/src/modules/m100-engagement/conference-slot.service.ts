@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
-import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
+import type { ResolvedActor } from '@modules/m00-platform';
+import { PermissionCheckService } from '@modules/m00-platform';
 import { assertConferenceAdmin, isUniqueViolation } from './access';
 import type {
   ConferenceSlotDto,

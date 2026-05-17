@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { RequirePermission } from '@shared/auth';
+import { TenantPrismaService } from '@shared/tenant';
 
 interface AcademicYearRow {
   id: string;

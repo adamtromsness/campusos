@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import type { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import type { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
 
 /**
  * P2-H1 Step 6 — assertPersonInTenant shared helper.

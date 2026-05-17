@@ -6,7 +6,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
+import { runWithTenantContext } from '@shared/tenant';
 import { assertCoordinatorScope, assertStaffOrAdmin, isUniqueViolation } from '../access';
 import { deterministicActionPlanOverdueEventId } from '../event-ids';
 import { FrameworkService } from '../framework.service';

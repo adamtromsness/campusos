@@ -5,9 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { KafkaProducerService } from '@shared/kafka';
+import type { ResolvedActor } from '@modules/m00-platform';
 import { GroupService } from '../groups/group.service';
 import {
   CreateEventDto,

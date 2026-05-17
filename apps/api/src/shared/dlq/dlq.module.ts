@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { KafkaModule } from '@shared/kafka/kafka.module';
+import { KafkaModule } from '@shared/kafka';
 import { DlqController } from './dlq.controller';
 import { DlqService } from './dlq.service';
 

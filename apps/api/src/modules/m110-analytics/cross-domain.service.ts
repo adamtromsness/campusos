@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
 import type { WorkerRunSummaryDto } from './dto/analytics.dto';
 import { CheckpointService } from './workers.service';
 

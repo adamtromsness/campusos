@@ -7,9 +7,9 @@ import {
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import type { PrismaClient } from '@prisma/client';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
+import type { ResolvedActor } from '@modules/m00-platform';
 import { isUniqueViolation } from './chart.service';
 import type {
   BatchStatus,

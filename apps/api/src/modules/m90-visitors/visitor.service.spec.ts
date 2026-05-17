@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { VisitorService, VisitorTypeService } from './visitor.service';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 
 /**
  * REVIEW-P2C1 ROUND 2 BLOCKING — cross-school isolation regression test.

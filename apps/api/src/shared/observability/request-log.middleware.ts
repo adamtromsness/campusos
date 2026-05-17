@@ -1,6 +1,6 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
-import { getRequestContext } from '@shared/tenant/tenant.context';
+import { getRequestContext } from '@shared/tenant';
 import { MetricsService } from './metrics.service';
 
 /**

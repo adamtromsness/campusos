@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 import { FamilyAccountService } from './family-account.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import type { ResolvedActor } from '@modules/m00-platform';
 
 /**
  * P2-H4 test coverage uplift — payments/family-account.service.ts

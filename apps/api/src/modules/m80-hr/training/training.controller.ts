@@ -10,8 +10,8 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { ActorContextService } from '@modules/m00-platform';
+import { RequirePermission } from '@shared/auth';
 import { TrainingProgrammeService } from './programme.service';
 import { TrainingEventService } from './event.service';
 import { CompletionService } from './completion.service';

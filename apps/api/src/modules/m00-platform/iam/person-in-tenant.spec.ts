@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import { assertPersonInTenant, assertAccountInTenant } from './person-in-tenant';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 
 /**
  * P2-H4 test coverage uplift — person-in-tenant.ts (79 LOC, critical-path

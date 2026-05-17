@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
-import { IamModule } from '@modules/m00-platform/iam/iam.module';
-import { KafkaModule } from '@shared/kafka/kafka.module';
-import { FinanceModule } from '@modules/m83-finance/finance.module';
+import { TenantModule } from '@modules/m00-platform';
+import { IamModule } from '@modules/m00-platform';
+import { KafkaModule } from '@shared/kafka';
+import { FinanceModule } from '@modules/m83-finance';
 import { RequisitionService } from './requisitions.service';
 import { GoodsReceiptService, PurchaseOrderService } from './purchase-orders.service';
 import {

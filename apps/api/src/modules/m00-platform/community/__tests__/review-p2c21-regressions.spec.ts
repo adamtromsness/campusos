@@ -4,14 +4,14 @@ import { MarketplaceListingService } from '../services/marketplace-listing.servi
 import { AssetTransactionService } from '../services/asset-transaction.service';
 import { WatchListService } from '../services/watch-list.service';
 import { CommunityProfileService } from '../services/community-profile.service';
-import { OutboxService } from '@shared/kafka/outbox.service';
+import { OutboxService } from '@shared/kafka';
 import { deterministicAccountLifecycleEventId } from '@modules/m00-platform/crm/event-ids';
 import { deterministicTenantAccessGrantedEventId } from '@modules/m00-platform/ops/event-ids';
 import {
   deterministicListingPublishedEventId,
   deterministicTransactionCompletedEventId,
 } from '../event-ids';
-import { runWithTenantContextAsync } from '@shared/tenant/tenant.context';
+import { runWithTenantContextAsync } from '@shared/tenant';
 
 /**
  * REVIEW-P2C21 ROUND 1 — pinned regression tests for the seven

@@ -8,7 +8,7 @@ import { ScopeService } from './scope.service';
 import { ActorContextService } from './actor-context.service';
 import { GuardianAuthorizationService } from './guardian-authorization.service';
 import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
-import { RedisModule } from '@shared/cache/redis.module';
+import { RedisModule } from '@shared/cache';
 import { ObservabilityModule } from '@shared/observability/observability.module';
 
 /**

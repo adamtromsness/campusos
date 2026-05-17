@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runWithTenantContextAsync, type RequestContext } from '@shared/tenant/tenant.context';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { runWithTenantContextAsync, type RequestContext } from '@shared/tenant';
+import type { ResolvedActor } from '@modules/m00-platform';
 import { CoTeachingService } from './coteaching.service';
 import { CoverArrangementService } from './cover-arrangement.service';
 import { CrossSchoolStaffService } from './cross-school-staff.service';

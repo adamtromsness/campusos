@@ -11,8 +11,8 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService, type ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService, type ResolvedActor } from '@modules/m00-platform';
 import type { Request } from 'express';
 import {
   CreateActionPlanDto,

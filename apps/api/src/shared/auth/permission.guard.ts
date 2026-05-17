@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from './require-permission.decorator';
 import { PLATFORM_SCOPED_KEY } from './platform-scoped.decorator';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { getCurrentTenant } from '@shared/tenant';
 
 /**
  * PermissionGuard

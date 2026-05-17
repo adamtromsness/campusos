@@ -6,10 +6,10 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { OutboxService } from '@shared/kafka/outbox.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
+import { OutboxService } from '@shared/kafka';
+import type { ResolvedActor } from '@modules/m00-platform';
 import { ContentModerationService } from '../moderation/content-moderation.service';
 import { ThreadService } from './thread.service';
 import { UnreadCountService } from './unread-count.service';

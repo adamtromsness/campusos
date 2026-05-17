@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
 import { CreateReenrolDto, ReenrolResponseDto, ReenrolSummaryDto } from '../withdrawals/dto/withdrawal.dto';
 import { ReenrolmentService } from './reenrolment.service';
 

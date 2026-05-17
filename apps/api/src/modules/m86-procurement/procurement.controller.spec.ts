@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Reflector } from '@nestjs/core';
 import { ProcurementController } from './procurement.controller';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { PERMISSIONS_KEY } from '@shared/auth';
+import type { ResolvedActor } from '@modules/m00-platform';
 
 /**
  * Loop 6 — controller-layer coverage for procurement.controller.ts.

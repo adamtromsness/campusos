@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import { AITutoringService } from '../ai-tutoring/ai-tutoring.service';
 import { AIUsageService } from '../ai-tutoring/ai-usage.service';
 import { AIOptOutService } from '../ai-tutoring/ai-opt-out.service';
@@ -140,7 +140,7 @@ function makeStubGateway() {
 }
 
 // Wrap the AsyncLocalStorage tenant context for service calls that read it.
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
+import { runWithTenantContext } from '@shared/tenant';
 const TENANT = {
   schoolId: '019e0cf8-bbb8-7556-8c81-aaaaaaaaaaaa',
   schemaName: 'tenant_demo',

@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
-import { IamModule } from '@modules/m00-platform/iam/iam.module';
-import { KafkaModule } from '@shared/kafka/kafka.module';
-import { HealthRecordsModule } from '@modules/m23-health/records/health-records.module';
+import { TenantModule } from '@modules/m00-platform';
+import { IamModule } from '@modules/m00-platform';
+import { KafkaModule } from '@shared/kafka';
+import { HealthRecordsModule } from '@modules/m23-health';
 import { HealthAdvancedController } from './health-advanced.controller';
 import { ImmunisationComplianceService } from '../immunisation/immunisation-compliance.service';
 import { ImmunisationComplianceWorker } from '../immunisation/immunisation-compliance.worker';

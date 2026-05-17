@@ -1,7 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
-import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import type { ResolvedActor } from '@modules/m00-platform';
+import { PermissionCheckService } from '@modules/m00-platform';
+import { getCurrentTenant } from '@shared/tenant';
 
 /**
  * P2-24 — Shared access helpers for the Parent Engagement module.

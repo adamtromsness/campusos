@@ -1,8 +1,8 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import { RestorativeJusticeService } from './restorative-justice.service';
 import { PeerMediationService } from './peer-mediation.service';
 import { PositiveBehaviourService } from './positive-behaviour.service';

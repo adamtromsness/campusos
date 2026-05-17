@@ -1,5 +1,5 @@
 import { generateId } from '@campusos/database';
-import { getRequestContext } from '@shared/tenant/tenant.context';
+import { getRequestContext } from '@shared/tenant';
 import { getTraceContext } from '@shared/observability/trace-context';
 
 /**

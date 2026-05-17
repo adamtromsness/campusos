@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext, type TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, type TenantInfo } from '@shared/tenant';
 import { RecipeService } from './recipe.service';
 import { InventoryService } from './inventory.service';
 import { TransferService } from './transfer.service';

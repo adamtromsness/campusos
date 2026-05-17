@@ -10,9 +10,9 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
-import { Public } from '@shared/auth/public.decorator';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { ActorContextService } from '@modules/m00-platform';
+import { Public } from '@shared/auth';
+import { RequirePermission } from '@shared/auth';
 import { ApplicationService } from './application.service';
 import { InterviewService } from './interview.service';
 import { JobPostingService } from './job-posting.service';

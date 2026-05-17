@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { AccountService, assertTransitionAllowed } from '../services/account.service';
-import { OutboxService } from '@shared/kafka/outbox.service';
+import { OutboxService } from '@shared/kafka';
 
 /**
  * P2-21a — AccountService.transitionStatus + lifecycle gate tests.

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Reflector } from '@nestjs/core';
 import { BillingOpsController } from './billing-ops.controller';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { PERMISSIONS_KEY } from '@shared/auth';
+import type { ResolvedActor } from '@modules/m00-platform';
 
 /**
  * P2-H4 test coverage uplift — payments/billing-ops.controller.ts (234 LOC,

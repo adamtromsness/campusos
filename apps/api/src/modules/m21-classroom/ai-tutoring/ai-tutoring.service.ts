@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
+import type { ResolvedActor } from '@modules/m00-platform';
 import { AIUsageService } from './ai-usage.service';
 import { AIOptOutService } from './ai-opt-out.service';
 import { AIGatewayService } from './ai-gateway.service';

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
 import { DlqService } from './dlq.service';
-import { KafkaProducerNotConnectedError } from '@shared/kafka/kafka-producer.service';
+import { KafkaProducerNotConnectedError } from '@shared/kafka';
 
 /**
  * REVIEW-FINAL G1 / V2 MAJ-3.1 — DLQ atomic-claim race regression test.

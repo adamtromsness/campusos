@@ -7,12 +7,12 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
 import { createHash } from 'crypto';
-import { OutboxService, OutboxTxClient } from '@shared/kafka/outbox.service';
-import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { OutboxService, OutboxTxClient } from '@shared/kafka';
+import { PermissionCheckService } from '@modules/m00-platform';
+import type { ResolvedActor } from '@modules/m00-platform';
 import { VehiclePositionService } from './vehicle-position.service';
 import {
   CreateGeofenceDto,

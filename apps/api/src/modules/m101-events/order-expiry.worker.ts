@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant/tenant.context';
+import { TenantPrismaService } from '@shared/tenant';
+import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant';
 
 /**
  * OrderExpiryWorker — P2-12 Step 4.

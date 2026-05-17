@@ -2,7 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
-import { Public } from '@shared/auth/public.decorator';
+import { Public } from '@shared/auth';
 import { EnrollmentSearchResultDto, EnrollmentSearchService } from './enrollment-search.service';
 
 class EnrollmentSearchQueryDto {

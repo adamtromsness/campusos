@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import { PayrollController } from './payroll.controller';
 
 /**

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ActorContextService } from './actor-context.service';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 
 /**
  * P2-H4 test coverage uplift — actor-context.service.ts (92 LOC,

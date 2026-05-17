@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { RequirePermission } from '@shared/auth';
 import { SlaService } from './sla.service';
 import { SlaPolicyResponseDto, UpsertSlaPolicyDto } from './dto/ticket.dto';
 

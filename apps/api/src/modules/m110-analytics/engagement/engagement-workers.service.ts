@@ -1,9 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka/kafka-consumer.service';
-import { IdempotencyService } from '@shared/kafka/idempotency.service';
-import { prefixedTopic } from '@shared/kafka/event-envelope';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
+import { IdempotencyService } from '@shared/kafka';
+import { prefixedTopic } from '@shared/kafka';
+import { TenantPrismaService } from '@shared/tenant';
 import { CheckpointService } from '../workers.service';
 import {
   assertPayloadSchoolMatchesEnvelope,
@@ -11,7 +11,7 @@ import {
   dispatchOperationsEvent,
   monthAnchor,
 } from '../operations/operations-worker-base';
-import type { UnwrappedEvent } from '@shared/kafka/envelope-consumer';
+import type { UnwrappedEvent } from '@shared/kafka';
 
 /* =========================================================================
    P2-15b Engagement + Performance Read-Model Workers (M110 Analytics .1).

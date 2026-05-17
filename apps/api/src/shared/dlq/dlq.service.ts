@@ -10,7 +10,7 @@ import { PrismaClient } from '@prisma/client';
 import {
   KafkaProducerNotConnectedError,
   KafkaProducerService,
-} from '@shared/kafka/kafka-producer.service';
+} from '@shared/kafka';
 
 /**
  * Cycle 31 Step 7 — DLQ Service.

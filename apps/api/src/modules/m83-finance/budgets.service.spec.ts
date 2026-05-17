@@ -5,7 +5,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 import {
   APPaymentService,
   APVoucherService,
@@ -15,7 +15,7 @@ import {
   ReconciliationService,
   SupplierService,
 } from './budgets.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import type { ResolvedActor } from '@modules/m00-platform';
 
 /**
  * P2-H4 test coverage uplift — budgets.service.ts (1137 LOC).

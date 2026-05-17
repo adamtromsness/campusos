@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
-import { IamModule } from '@modules/m00-platform/iam/iam.module';
-import { KafkaModule } from '@shared/kafka/kafka.module';
-import { GroupsModule } from '@modules/m103-groups/groups/groups.module';
+import { TenantModule } from '@modules/m00-platform';
+import { IamModule } from '@modules/m00-platform';
+import { KafkaModule } from '@shared/kafka';
+import { GroupsModule } from '@modules/m103-groups';
 import { PollService } from '../polls/poll.service';
 import { GroupMeetupService } from '../events/meetup.service';
 import { ResourceLibraryService } from '../resources/resource-library.service';

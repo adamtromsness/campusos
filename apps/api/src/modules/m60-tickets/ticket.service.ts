@@ -7,15 +7,15 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
+import { KafkaProducerService } from '@shared/kafka';
+import type { ResolvedActor } from '@modules/m00-platform';
 import { CategoryService } from './category.service';
 import { SlaService } from './sla.service';
 import { VendorService } from './vendor.service';
 import { ActivityService } from './activity.service';
-import { roleTokenToName } from '@modules/m02-workflows/workflow-engine.service';
+import { roleTokenToName } from '@modules/m02-workflows';
 import {
   AssignTicketDto,
   AssignVendorDto,

@@ -6,8 +6,8 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { runWithTenantContext } from '@shared/tenant';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import { TourSlotService } from './tour-slot.service';
 import { TourBookingService } from './tour-booking.service';
 import { WithdrawalService } from '../withdrawals/withdrawal.service';

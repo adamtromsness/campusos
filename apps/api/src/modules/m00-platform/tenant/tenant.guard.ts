@@ -6,9 +6,9 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { IS_PUBLIC_KEY } from '@shared/auth/auth.guard';
-import { PLATFORM_SCOPED_KEY } from '@shared/auth/platform-scoped.decorator';
+import { getCurrentTenant } from '@shared/tenant';
+import { IS_PUBLIC_KEY } from '@shared/auth';
+import { PLATFORM_SCOPED_KEY } from '@shared/auth';
 
 /**
  * TenantGuard

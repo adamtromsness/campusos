@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { IamModule } from '@modules/m00-platform/iam/iam.module';
-import { KafkaModule } from '@shared/kafka/kafka.module';
+import { KafkaModule } from '@shared/kafka';
 import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
 import { CommunityController } from './community.controller';
 import { SearchIndexConsumer } from './search-index.consumer';

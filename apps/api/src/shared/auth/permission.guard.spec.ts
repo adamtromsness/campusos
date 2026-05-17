@@ -4,7 +4,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { PermissionGuard } from './permission.guard';
 import { PERMISSIONS_KEY } from './require-permission.decorator';
 import { PLATFORM_SCOPED_KEY } from './platform-scoped.decorator';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 
 /**
  * P2-H4 test coverage uplift — permission.guard.ts (115 LOC, critical-path Tier 2 ≥95%).

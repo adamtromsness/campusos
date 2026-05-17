@@ -1,6 +1,6 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { RequirePermission } from '@shared/auth';
 import { SubstitutionService } from './substitution.service';
 import { ListSubstitutionsQueryDto, SubstitutionResponseDto } from './dto/coverage.dto';
 

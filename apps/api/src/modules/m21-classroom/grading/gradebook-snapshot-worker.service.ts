@@ -1,10 +1,10 @@
 import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { KafkaConsumerService, ConsumedMessage } from '@shared/kafka/kafka-consumer.service';
-import { IdempotencyService } from '@shared/kafka/idempotency.service';
-import { prefixedTopic } from '@shared/kafka/event-envelope';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant/tenant.context';
+import { KafkaConsumerService, ConsumedMessage } from '@shared/kafka';
+import { IdempotencyService } from '@shared/kafka';
+import { prefixedTopic } from '@shared/kafka';
+import { TenantPrismaService } from '@shared/tenant';
+import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant';
 
 /**
  * GradebookSnapshotWorker — first Kafka consumer in CampusOS.

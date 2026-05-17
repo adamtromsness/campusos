@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { assertStudentOwnsRecord } from './student-owned.guard';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 
 /**
  * P2-H4 test coverage uplift — student-owned.guard.ts (82 LOC, critical-path Tier 2 ≥95%).

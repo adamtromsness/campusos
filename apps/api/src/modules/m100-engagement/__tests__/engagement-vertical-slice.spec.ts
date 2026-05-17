@@ -35,7 +35,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
+import { runWithTenantContext } from '@shared/tenant';
 import { ConferenceBookingService } from '../conference-booking.service';
 import { ConferenceEventService } from '../conference-event.service';
 import { ConferenceSlotService } from '../conference-slot.service';

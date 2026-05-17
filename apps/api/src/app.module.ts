@@ -5,9 +5,9 @@ import { APP_GUARD } from '@nestjs/core';
 // ── Cross-cutting infrastructure ─────────────────────────────────────
 import { ObservabilityModule } from '@shared/observability/observability.module';
 import { DlqModule } from '@shared/dlq/dlq.module';
-import { KafkaModule } from '@shared/kafka/kafka.module';
-import { AuthGuard } from '@shared/auth/auth.guard';
-import { PermissionGuard } from '@shared/auth/permission.guard';
+import { KafkaModule } from '@shared/kafka';
+import { AuthGuard } from '@shared/auth';
+import { PermissionGuard } from '@shared/auth';
 
 // ── 37 canonical modules (M-numbered, one per module directory) ──────
 import { M00PlatformModule } from '@modules/m00-platform/m00-platform.module';

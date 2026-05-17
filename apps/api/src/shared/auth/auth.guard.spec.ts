@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Reflector } from '@nestjs/core';
 import { UnauthorizedException } from '@nestjs/common';
 import { AuthGuard, IS_PUBLIC_KEY } from './auth.guard';
-import { runWithTenantContext, getRequestContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, getRequestContext, TenantInfo } from '@shared/tenant';
 
 /**
  * P2-H4 test coverage uplift — auth.guard.ts (73 LOC, critical-path Tier 2 ≥95%).

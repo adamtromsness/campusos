@@ -12,8 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { PlatformScoped } from '@shared/auth/platform-scoped.decorator';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
+import { PlatformScoped } from '@shared/auth';
+import { RequirePermission } from '@shared/auth';
 import {
   CreateAccountDto,
   CreateContactDto,

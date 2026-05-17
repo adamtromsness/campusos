@@ -10,7 +10,7 @@ import {
   PublicationsReadModelWorker,
   WellbeingReadModelWorker,
 } from './engagement-workers.service';
-import type { UnwrappedEvent } from '@shared/kafka/envelope-consumer';
+import type { UnwrappedEvent } from '@shared/kafka';
 
 /**
  * P2-15b engagement workers — unit tests.

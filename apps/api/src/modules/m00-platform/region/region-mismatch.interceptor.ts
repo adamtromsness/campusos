@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { getCurrentTenant } from '@shared/tenant';
 import { HOME_REGION_REQUIRED_KEY } from './home-region-required.decorator';
 
 /**

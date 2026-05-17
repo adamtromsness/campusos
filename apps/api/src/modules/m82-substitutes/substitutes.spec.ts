@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext, type TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, type TenantInfo } from '@shared/tenant';
 import { SubstituteProfileService } from './substitute-profile.service';
 import { SchoolPoolService } from './school-pool.service';
 import { JobPostingService } from './job-posting.service';

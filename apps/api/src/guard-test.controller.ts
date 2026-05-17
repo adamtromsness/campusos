@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { Public } from '@shared/auth/public.decorator';
+import { RequirePermission } from '@shared/auth';
+import { Public } from '@shared/auth';
 
 /**
  * Guard Test Controller

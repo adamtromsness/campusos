@@ -9,7 +9,7 @@ import {
   StoreReadModelWorker,
   TransportReadModelWorker,
 } from './operations-workers.service';
-import type { UnwrappedEvent } from '@shared/kafka/envelope-consumer';
+import type { UnwrappedEvent } from '@shared/kafka';
 
 /**
  * P2-15a operations workers — unit tests.

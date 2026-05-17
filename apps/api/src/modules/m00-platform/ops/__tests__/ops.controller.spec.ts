@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { describe, it, expect } from 'vitest';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
-import { PLATFORM_SCOPED_KEY } from '@shared/auth/platform-scoped.decorator';
+import { PERMISSIONS_KEY } from '@shared/auth';
+import { PLATFORM_SCOPED_KEY } from '@shared/auth';
 import { OpsController } from '../ops.controller';
 
 /**

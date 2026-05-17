@@ -7,10 +7,10 @@ import {
 } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import type { PrismaClient } from '@prisma/client';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
-import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
+import { KafkaProducerService } from '@shared/kafka';
+import type { ResolvedActor } from '@modules/m00-platform';
 import type {
   AdjustInventoryDto,
   CreateProductDto,

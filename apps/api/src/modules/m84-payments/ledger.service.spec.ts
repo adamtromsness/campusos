@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
+import { runWithTenantContext, TenantInfo } from '@shared/tenant';
 import { LedgerService } from './ledger.service';
 
 /**

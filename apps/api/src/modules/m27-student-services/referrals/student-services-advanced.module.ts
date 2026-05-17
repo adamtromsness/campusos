@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
-import { IamModule } from '@modules/m00-platform/iam/iam.module';
-import { KafkaModule } from '@shared/kafka/kafka.module';
+import { TenantModule } from '@modules/m00-platform';
+import { IamModule } from '@modules/m00-platform';
+import { KafkaModule } from '@shared/kafka';
 import { AgencyReferralService } from './agency-referral.service';
 import { CaseloadDashboardService } from '../caseload/caseload-dashboard.service';
 import { CrisisEscalationService } from './crisis-escalation.service';

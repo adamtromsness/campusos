@@ -2,9 +2,9 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req } from '@
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
 import type { Request } from 'express';
-import { Public } from '@shared/auth/public.decorator';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { Public } from '@shared/auth';
+import { RequirePermission } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
 import {
   CreateTourBookingDto,
   CreateTourSlotDto,

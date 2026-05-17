@@ -12,9 +12,9 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RequirePermission } from '@shared/auth/require-permission.decorator';
-import { Public } from '@shared/auth/public.decorator';
-import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
+import { RequirePermission } from '@shared/auth';
+import { Public } from '@shared/auth';
+import { ActorContextService } from '@modules/m00-platform';
 import { PortfolioService } from './portfolio.service';
 import { ShareService } from './share.service';
 import { AchievementService } from './achievement.service';

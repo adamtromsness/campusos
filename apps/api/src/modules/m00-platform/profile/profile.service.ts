@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaClient } from '@prisma/client';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { TenantPrismaService } from '@shared/tenant';
 import {
   EmergencyContactDto,
   GuardianEmploymentDto,

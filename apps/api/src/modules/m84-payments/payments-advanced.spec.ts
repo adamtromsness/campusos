@@ -1,8 +1,8 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { runWithTenantContext } from '@shared/tenant/tenant.context';
-import { PERMISSIONS_KEY } from '@shared/auth/require-permission.decorator';
+import { runWithTenantContext } from '@shared/tenant';
+import { PERMISSIONS_KEY } from '@shared/auth';
 import { FinancialAidService } from './financial-aid.service';
 import { DiscountRuleService } from './discount-rule.service';
 import { AutoInvoiceService } from './auto-invoice.service';

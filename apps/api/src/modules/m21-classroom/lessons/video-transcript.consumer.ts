@@ -1,16 +1,16 @@
 import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka/kafka-consumer.service';
-import { IdempotencyService } from '@shared/kafka/idempotency.service';
-import { prefixedTopic } from '@shared/kafka/event-envelope';
+import { ConsumedMessage, KafkaConsumerService } from '@shared/kafka';
+import { IdempotencyService } from '@shared/kafka';
+import { prefixedTopic } from '@shared/kafka';
 import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@shared/kafka/envelope-consumer';
+} from '@shared/kafka';
 import { LessonRecordingService } from './lesson-recording.service';
 import { AIGatewayService } from '../ai-tutoring/ai-gateway.service';
 import { AIUsageService } from '../ai-tutoring/ai-usage.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
+import { getCurrentTenant } from '@shared/tenant';
 
 interface TranscribedPayload {
   recordingId?: string;

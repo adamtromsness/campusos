@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
+import { TenantPrismaService } from '@shared/tenant';
 import { KafkaProducerNotConnectedError, KafkaProducerService } from './kafka-producer.service';
 import { prefixedTopic } from './event-envelope';
 

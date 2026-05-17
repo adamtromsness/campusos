@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { generateId } from '@campusos/database';
-import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { OutboxService } from '@shared/kafka/outbox.service';
+import { TenantPrismaService } from '@shared/tenant';
+import { getCurrentTenant } from '@shared/tenant';
+import { OutboxService } from '@shared/kafka';
 import { GpaService } from './gpa.service';
 import { deterministicAtRiskEventId } from './event-ids';
 
