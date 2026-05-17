@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req } from '@
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { StudentOwned } from '../auth/student-owned.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
 import { AITutoringService } from './ai-tutoring.service';
 import {
@@ -29,9 +30,10 @@ export class AITutoringController {
 
   @Post('ai-tutoring/sessions')
   @RequirePermission('tch-007:write')
+  @StudentOwned({ studentIdBody: 'studentId', allowAdminOverride: true })
   @ApiOperation({
     summary:
-      'Start an AI tutoring session. Service checks the cls_ai_tutoring_opt_outs table BEFORE the AI Gateway is contacted — opted-out students receive 403 with the canonical message. STUDENT actors must omit studentId or pass own id.',
+      'STUDENT-OWNED (cls_ai_tutoring_sessions) — start an AI tutoring session. Service checks the cls_ai_tutoring_opt_outs table BEFORE the AI Gateway is contacted — opted-out students receive 403 with the canonical message. STUDENT actors must omit studentId or pass own id.',
   })
   async start(
     @Body() body: StartAITutoringSessionDto,

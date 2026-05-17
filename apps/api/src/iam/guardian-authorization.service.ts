@@ -84,13 +84,21 @@ export class GuardianAuthorizationService {
   }
 
   /**
-   * P2-H5 DEFECT 4: load every family-relationship row that names this
-   * guardian (on either side, since guardian_a / guardian_b ordering is
-   * arbitrary at write time) and return the custody decision + any
-   * court-order restrictions that apply. Missing rows return a permissive
-   * record (no court-order restrictions, no custody arrangement) so a
-   * family that has not yet recorded a relationship is not denied access
-   * via a paper-trail gap.
+   * P2-H5 DEFECT 4 + P2-H6 FIX 1: load every family-relationship row that
+   * names this guardian (guardian_a / guardian_b ordering is arbitrary at
+   * write time) and return the custody decision + any court-order
+   * restrictions that apply.
+   *
+   * Fail-closed contract (P2-H6 FIX 1):
+   *   - No `familyId` on the link row → deny. A guardian without a family
+   *     record cannot legally authorise on behalf of the household.
+   *   - Zero relationship rows in `sis_family_relationships` → deny.
+   *     Absence is unknown; unknown is not "permissive". Schools must
+   *     record the custody row before the guardian can act.
+   *   - `custody_arrangement IS NULL` on a relationship row → deny on
+   *     that row. SOLE_A / SOLE_B drive the directional exclusion;
+   *     JOINT / OTHER are explicit allow-states; NULL is unknown and
+   *     unknown fails closed.
    */
   private async loadCustodyContext(
     guardianId: string,
@@ -100,10 +108,7 @@ export class GuardianAuthorizationService {
     courtOrderRestrictions: Record<string, unknown>;
   }> {
     if (!familyId) {
-      // No family record means no custody arrangement — fail closed on the
-      // custody invariant per the P2-H5 reviewer note "Null/missing custody
-      // data must fail closed". A guardian without a family record cannot
-      // legally authorise on behalf of the household.
+      // No family record means no custody arrangement — fail closed.
       return { custodyAllows: false, courtOrderRestrictions: {} };
     }
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
@@ -124,17 +129,18 @@ export class GuardianAuthorizationService {
       ),
     );
     if (rows.length === 0) {
-      // No relationship recorded means there is no court order blocking the
-      // guardian. custody_arrangement absence is treated as "no exclusion".
-      return { custodyAllows: true, courtOrderRestrictions: {} };
+      // P2-H6 FIX 1a: no recorded relationship — unknown custody is not a
+      // permissive default. Deny until the school records the row.
+      return { custodyAllows: false, courtOrderRestrictions: {} };
     }
     const mergedRestrictions: Record<string, unknown> = {};
     let custodyAllows = true;
     for (const row of rows) {
       const isA = row.guardian_a_id === guardianId;
-      // SOLE_A names guardian_a as the sole custodial parent; the OTHER
-      // guardian (guardian_b) is denied. SOLE_B is the mirror. JOINT and
-      // OTHER do not block either side.
+      // P2-H6 FIX 1b: custody_arrangement NULL is unknown → deny. Only
+      // JOINT / OTHER explicitly allow both sides; SOLE_A / SOLE_B drive
+      // directional exclusion.
+      if (row.custody_arrangement === null) custodyAllows = false;
       if (row.custody_arrangement === 'SOLE_A' && !isA) custodyAllows = false;
       if (row.custody_arrangement === 'SOLE_B' && isA) custodyAllows = false;
       if (row.court_order_restrictions) {

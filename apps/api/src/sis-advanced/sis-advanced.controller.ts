@@ -13,6 +13,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { StudentOwned } from '../auth/student-owned.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
 import { StudentProfileService } from './student-profile.service';
 import { CustomFieldService } from './custom-field.service';
@@ -73,9 +74,10 @@ export class SisAdvancedController {
 
   @Patch('sis/students/:id/profile')
   @RequirePermission('stu-002:write')
+  @StudentOwned({ studentIdParam: 'id', allowAdminOverride: true })
   @ApiOperation({
     summary:
-      'Update bio + interests + motto. Student-owned: only the owning student or an admin may edit.',
+      'STUDENT-OWNED (sis_student_profiles.bio / interests / motto) — only the owning student or an admin may edit. Avatar uploads are a separate endpoint with their own review workflow.',
   })
   async updateProfile(
     @Param('id', ParseUUIDPipe) id: string,

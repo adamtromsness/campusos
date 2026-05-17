@@ -81,14 +81,31 @@ async function applyImmutableRevokes(schemaName: string): Promise<void> {
   if (!/^[a-z_][a-z0-9_]{0,62}$/.test(appRole)) {
     throw new Error('Invalid DATABASE_APP_ROLE: ' + appRole);
   }
+  // P2-H6 FIX 7 — the runtime app connects as this role via DATABASE_APP_URL.
+  // Previously NOLOGIN, which meant the role existed only as a privilege
+  // boundary and the runtime fell back to the owner role (`campusos`),
+  // negating the lockdown. We now create the role with LOGIN + a password
+  // sourced from DATABASE_APP_PASSWORD (default 'campusos_app_dev' for
+  // local dev — operators MUST override in staging/production). The
+  // password is hard-quoted via standard SQL string escaping; the regex
+  // guard above ensures the role name itself is safe to interpolate.
+  var appPassword = (process.env.DATABASE_APP_PASSWORD || 'campusos_app_dev').replace(/'/g, "''");
   // Idempotent role creation. DO block lives in a single statement so the
-  // SQL splitter never sees the semicolons inside.
+  // SQL splitter never sees the semicolons inside. We ALTER on every run
+  // so the password / LOGIN attribute drift caused by older provisions
+  // (NOLOGIN) is reconciled to LOGIN-with-password.
   await executePlatformSQL(
     "DO $body$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" +
       appRole +
       "') THEN CREATE ROLE " +
       appRole +
-      ' NOLOGIN; END IF; END $body$',
+      " LOGIN PASSWORD '" +
+      appPassword +
+      "'; ELSE ALTER ROLE " +
+      appRole +
+      " WITH LOGIN PASSWORD '" +
+      appPassword +
+      "'; END IF; END $body$",
   );
   // Allow USAGE on the schema + baseline DML on every existing table.
   var schemaIdent = escapeIdent(schemaName);

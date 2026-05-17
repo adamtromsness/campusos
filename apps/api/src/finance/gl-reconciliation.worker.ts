@@ -150,10 +150,26 @@ export class GlReconciliationWorker {
   }
 
   /**
-   * P2-H5 DEFECT 5: source-vs-GL check that detects BOTH missing entries
-   * AND amount mismatches. Pre-fix only MISSING_GL_ENTRY was detected; a
-   * source row with a GL trail whose total didn't match the source amount
-   * was silently classed as CLEAN.
+   * P2-H5 DEFECT 5 + P2-H6 FIX 2: source-vs-GL check that detects MISSING
+   * entries, AMOUNT mismatches, ACCOUNT mismatches (wrong chart-of-accounts
+   * code on the debit or credit leg), SIGN mismatches (debit/credit legs
+   * flipped — e.g. an invoice that should DR AR / CR Revenue but instead
+   * CR AR / DR Revenue), SCHOOL mismatches (GL batch posted under a
+   * different school than the source row's tenant), and reserves CURRENCY
+   * mismatches as a forward-compatible no-op (the financial path is
+   * single-currency-per-school today; the framework lands so adding a
+   * `currency` column to `fin_gl_entries` and pay_* tables is a one-line
+   * service-side change).
+   *
+   * The GL aggregate query JOINs:
+   *   - fin_chart_of_accounts → account_code so the debit / credit legs
+   *     can be matched against the expected code per source type.
+   *   - fin_journal_batches → school_id so a cross-school posting (a GL
+   *     batch under school B referencing a source row in school A) is
+   *     flagged as SCHOOL_MISMATCH.
+   * Adding both to GROUP BY ensures the aggregate is keyed at
+   * (reference_id, account_code, batch_school_id) — the finest grain
+   * needed to detect every defect class.
    */
   private async checkSourceVsGl(
     checkType: SourceCheckType,
@@ -166,43 +182,110 @@ export class GlReconciliationWorker {
 
     const filter = meta.sourceFilter;
     const filterClause = filter ? ` WHERE ${filter}` : '';
+    const sourceSchoolCol = meta.sourceSchoolColumn ?? 's.school_id';
     const sourceRows = (await this.tenantPrisma.executeInTenantContext(async (client) =>
-      client.$queryRawUnsafe<Array<{ id: string; amount: string | number | null }>>(
-        `SELECT s.id::text AS id, ${meta.amountExpr} AS amount FROM ${meta.sourceTable} s${filterClause}`,
+      client.$queryRawUnsafe<
+        Array<{
+          id: string;
+          amount: string | number | null;
+          school_id: string | null;
+          currency: string | null;
+        }>
+      >(
+        `SELECT s.id::text AS id, ${meta.amountExpr} AS amount, ` +
+          `${sourceSchoolCol}::text AS school_id, ` +
+          // CampusOS pay_* tables do not carry a currency column today
+          // (single-currency-per-school). Surface a NULL placeholder so
+          // the CURRENCY_MISMATCH branch is a deterministic no-op until
+          // the multi-currency schema migration lands.
+          `NULL::text AS currency ` +
+          `FROM ${meta.sourceTable} s${filterClause}`,
       ),
-    )) as Array<{ id: string; amount: string | number | null }>;
+    )) as Array<{
+      id: string;
+      amount: string | number | null;
+      school_id: string | null;
+      currency: string | null;
+    }>;
 
     const totalSource = sourceRows.length;
     if (totalSource === 0) {
       return { totalSource: 0, matched: 0, discrepancies: [] };
     }
 
-    // Pull the GL aggregate keyed by reference_id in one shot for every
-    // source row, then walk the source list comparing totals.
+    // Pull the GL aggregate keyed by (reference_id, account_code,
+    // batch_school_id) in one shot for every source row. The JOINs are
+    // load-bearing: account_code comes from fin_chart_of_accounts, and
+    // batch_school_id comes from fin_journal_batches. GROUP BY all three
+    // so a row split across multiple batches or multiple accounts shows up
+    // as multiple aggregate rows we can analyse per-leg.
     const sourceIds = sourceRows.map((r) => r.id);
     const glRows = (await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<
-        Array<{ reference_id: string; gl_total: string | number; line_count: number }>
+        Array<{
+          reference_id: string;
+          account_code: string;
+          batch_school_id: string;
+          debit_total: string | number;
+          credit_total: string | number;
+          line_count: number;
+        }>
       >(
         'SELECT g.reference_id::text AS reference_id, ' +
-          'SUM(g.debit + g.credit)::text AS gl_total, ' +
+          'acc.account_code AS account_code, ' +
+          'b.school_id::text AS batch_school_id, ' +
+          'SUM(g.debit)::text AS debit_total, ' +
+          'SUM(g.credit)::text AS credit_total, ' +
           'COUNT(*)::int AS line_count ' +
           'FROM fin_gl_entries g ' +
+          'JOIN fin_journal_batches b ON b.id = g.batch_id ' +
+          'JOIN fin_chart_of_accounts acc ON acc.id = g.account_id ' +
           'WHERE g.reference_type = $1 AND g.reference_id = ANY($2::uuid[]) ' +
-          'GROUP BY g.reference_id',
+          'GROUP BY g.reference_id, acc.account_code, b.school_id',
         meta.referenceType,
         sourceIds,
       ),
-    )) as Array<{ reference_id: string; gl_total: string | number; line_count: number }>;
+    )) as Array<{
+      reference_id: string;
+      account_code: string;
+      batch_school_id: string;
+      debit_total: string | number;
+      credit_total: string | number;
+      line_count: number;
+    }>;
 
-    const glMap = new Map<string, { total: number; lineCount: number }>();
+    interface LegAggregate {
+      debit: number;
+      credit: number;
+      lineCount: number;
+    }
+    interface RefAggregate {
+      // account_code → leg totals
+      legs: Map<string, LegAggregate>;
+      // distinct batch school ids touched by this reference
+      batchSchoolIds: Set<string>;
+      // total of debit + credit across every account
+      total: number;
+    }
+    const glMap = new Map<string, RefAggregate>();
     for (const r of glRows) {
-      glMap.set(r.reference_id, {
-        total: Number(r.gl_total),
+      let agg = glMap.get(r.reference_id);
+      if (!agg) {
+        agg = { legs: new Map(), batchSchoolIds: new Set(), total: 0 };
+        glMap.set(r.reference_id, agg);
+      }
+      const debit = Number(r.debit_total);
+      const credit = Number(r.credit_total);
+      agg.legs.set(r.account_code, {
+        debit,
+        credit,
         lineCount: Number(r.line_count),
       });
+      agg.batchSchoolIds.add(r.batch_school_id);
+      agg.total += debit + credit;
     }
 
+    const cents = (v: number) => Math.round(v * 100);
     const discrepancies: DiscrepancyEntry[] = [];
     let matched = 0;
     for (const s of sourceRows) {
@@ -215,19 +298,16 @@ export class GlReconciliationWorker {
         });
         continue;
       }
-      // The GL entry for a balanced double-entry batch carries BOTH the
-      // debit AND the credit leg referencing the same source row, so the
-      // SUM(debit + credit) is 2× the source amount (one debit + one
-      // credit). Single-line postings (rare — only in reversal compensation
-      // batches) sum to 1× the source amount. The reconciliation rule:
-      // the GL total must be EITHER 1× OR 2× the source absolute amount.
+
       const sourceAmount = Number(s.amount ?? 0);
       const expectedSingle = Math.abs(sourceAmount);
       const expectedDouble = expectedSingle * 2;
-      const cents = (v: number) => Math.round(v * 100);
       const glTotalCents = cents(gl.total);
       const matchesSingle = glTotalCents === cents(expectedSingle);
       const matchesDouble = glTotalCents === cents(expectedDouble);
+      let dropped = false;
+
+      // ── AMOUNT_MISMATCH ──
       if (!matchesSingle && !matchesDouble) {
         discrepancies.push({
           sourceId: s.id,
@@ -236,9 +316,92 @@ export class GlReconciliationWorker {
           expected: expectedDouble,
           actual: gl.total,
         });
-        continue;
+        dropped = true;
       }
-      matched += 1;
+
+      // ── SCHOOL_MISMATCH ──
+      // Source row's school_id vs each GL batch's school_id. Any mismatch
+      // (or a GL batch under a different school than the source row) is a
+      // cross-school posting hazard.
+      if (s.school_id) {
+        for (const batchSchoolId of gl.batchSchoolIds) {
+          if (batchSchoolId !== s.school_id) {
+            discrepancies.push({
+              sourceId: s.id,
+              sourceTable: meta.sourceTable,
+              issue: 'SCHOOL_MISMATCH',
+              expectedSchoolId: s.school_id,
+              actualSchoolId: batchSchoolId,
+            });
+            dropped = true;
+            break;
+          }
+        }
+      }
+
+      // ── ACCOUNT_MISMATCH + SIGN_MISMATCH ──
+      // Compare the actual debit/credit legs against the expected codes.
+      // A balanced double-entry posting carries exactly one debit leg on
+      // the expected debit account AND one credit leg on the expected
+      // credit account. If the expected debit account exists in the GL
+      // but on the credit side (or vice versa), that's a SIGN_MISMATCH.
+      // If the expected account is missing entirely (and there's no sign
+      // flip), that's an ACCOUNT_MISMATCH.
+      const expectedDebitCode = meta.expectedDebitAccountCode;
+      const expectedCreditCode = meta.expectedCreditAccountCode;
+      const debitLeg = gl.legs.get(expectedDebitCode);
+      const creditLeg = gl.legs.get(expectedCreditCode);
+      const debitOnExpectedAccount = debitLeg ? cents(debitLeg.debit) > 0 : false;
+      const creditOnExpectedAccount = creditLeg ? cents(creditLeg.credit) > 0 : false;
+      // Sign flip: the expected debit account is being credited, or the
+      // expected credit account is being debited.
+      const expectedDebitGotCredited = debitLeg ? cents(debitLeg.credit) > 0 : false;
+      const expectedCreditGotDebited = creditLeg ? cents(creditLeg.debit) > 0 : false;
+      if (expectedDebitGotCredited || expectedCreditGotDebited) {
+        discrepancies.push({
+          sourceId: s.id,
+          sourceTable: meta.sourceTable,
+          issue: 'SIGN_MISMATCH',
+          expectedDebitAccount: expectedDebitCode,
+          expectedCreditAccount: expectedCreditCode,
+          actualLegs: Array.from(gl.legs.entries()).map(([code, leg]) => ({
+            accountCode: code,
+            debit: leg.debit,
+            credit: leg.credit,
+          })),
+        });
+        dropped = true;
+      } else if (!debitOnExpectedAccount || !creditOnExpectedAccount) {
+        // The expected debit OR credit account isn't being posted to with
+        // any positive amount — the legs landed on a different account.
+        // Skip when the GL total is zero (already caught as AMOUNT_MISMATCH
+        // above) to avoid double-reporting.
+        if (gl.total > 0) {
+          discrepancies.push({
+            sourceId: s.id,
+            sourceTable: meta.sourceTable,
+            issue: 'ACCOUNT_MISMATCH',
+            expectedDebitAccount: expectedDebitCode,
+            expectedCreditAccount: expectedCreditCode,
+            actualAccountCodes: Array.from(gl.legs.keys()),
+          });
+          dropped = true;
+        }
+      }
+
+      // ── CURRENCY_MISMATCH ──
+      // CampusOS is single-currency-per-school today (no `currency` column
+      // on fin_gl_entries or pay_*). The check is a structured no-op until
+      // the multi-currency migration adds the column; the framework lands
+      // here so the only thing future-cycle work needs to do is widen the
+      // SELECT projection above. When source.currency is non-null AND
+      // doesn't match the GL currency, this branch will fire.
+      if (s.currency != null) {
+        // Future: pull GL currency from fin_journal_batches.currency once
+        // the column exists, and compare. No-op today.
+      }
+
+      if (!dropped) matched += 1;
     }
     return { totalSource, matched, discrepancies };
   }
@@ -481,6 +644,13 @@ interface DiscrepancyEntry {
   referenceType?: string;
   referenceId?: string;
   error?: string;
+  // P2-H6 FIX 2 — account / sign / school mismatch payloads.
+  expectedDebitAccount?: string;
+  expectedCreditAccount?: string;
+  actualLegs?: Array<{ accountCode: string; debit: number; credit: number }>;
+  actualAccountCodes?: string[];
+  expectedSchoolId?: string;
+  actualSchoolId?: string;
 }
 
 interface SourceCheckMeta {
@@ -488,6 +658,17 @@ interface SourceCheckMeta {
   referenceType: string;
   amountExpr: string;
   sourceFilter: string | null;
+  // P2-H6 FIX 2 — expected chart-of-accounts codes for the balanced
+  // double-entry posting. The reconciliation worker compares actual
+  // GL legs against these codes to detect SIGN_MISMATCH (legs flipped)
+  // and ACCOUNT_MISMATCH (wrong code entirely). Source-vs-GLConsumer
+  // mapping documented at apps/api/src/finance/gl.consumer.ts:236-344.
+  expectedDebitAccountCode: string;
+  expectedCreditAccountCode: string;
+  // Optional override for the column on the source table that carries
+  // the school binding. Most pay_* tables use `s.school_id`; the
+  // reversal table references the parent payment instead.
+  sourceSchoolColumn?: string;
 }
 
 const SOURCE_CHECK_META: Record<SourceCheckType, SourceCheckMeta> = {
@@ -496,30 +677,52 @@ const SOURCE_CHECK_META: Record<SourceCheckType, SourceCheckMeta> = {
     referenceType: 'pay_invoices',
     amountExpr: 's.total_amount',
     sourceFilter: "s.status NOT IN ('DRAFT', 'CANCELLED')",
+    // Invoice issuance: DR AR (1100), CR Tuition Revenue (4000).
+    expectedDebitAccountCode: '1100',
+    expectedCreditAccountCode: '4000',
   },
   PAYMENT_CASH: {
     sourceTable: 'pay_payments',
     referenceType: 'pay_payments',
     amountExpr: 's.amount',
     sourceFilter: "s.status IN ('COMPLETED', 'REFUNDED')",
+    // Payment receipt: DR Cash (1000), CR AR (1100).
+    expectedDebitAccountCode: '1000',
+    expectedCreditAccountCode: '1100',
   },
   REFUND_REVERSAL: {
     sourceTable: 'pay_refunds',
     referenceType: 'pay_refunds',
     amountExpr: 's.amount',
     sourceFilter: "s.status = 'COMPLETED'",
+    // Refund issuance: DR AR (1100, refund-credit owed back to family),
+    // CR Cash (1000).
+    expectedDebitAccountCode: '1100',
+    expectedCreditAccountCode: '1000',
   },
   CREDIT_NOTE: {
     sourceTable: 'pay_credit_notes',
     referenceType: 'pay_credit_notes',
     amountExpr: 's.amount',
     sourceFilter: null,
+    // Credit note: DR Tuition Revenue (4000), CR AR (1100) — reverses
+    // the original invoice's revenue recognition.
+    expectedDebitAccountCode: '4000',
+    expectedCreditAccountCode: '1100',
   },
   PAYMENT_REVERSAL: {
     sourceTable: 'pay_payment_reversals',
     referenceType: 'pay_payment_reversals',
     amountExpr: 's.amount',
     sourceFilter: null,
+    // Payment reversal: DR AR (1100), CR Cash (1000) — mirrors the
+    // refund leg, restoring AR while cash flows out.
+    expectedDebitAccountCode: '1100',
+    expectedCreditAccountCode: '1000',
+    // Reversal table doesn't carry school_id directly; derived via the
+    // parent payment in tests. Default behaviour falls back to
+    // `s.school_id` when present in the table, so leave the column
+    // override unset and let the SELECT inherit the table's column.
   },
 };
 

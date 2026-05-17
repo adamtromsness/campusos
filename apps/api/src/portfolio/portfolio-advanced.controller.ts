@@ -13,6 +13,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { StudentOwned } from '../auth/student-owned.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
 import { PortfolioSectionService } from './section.service';
 import { ReflectionService } from './reflection.service';
@@ -144,9 +145,10 @@ export class PortfolioAdvancedController {
 
   @Post('portfolio/items/:itemId/reflections')
   @RequirePermission('ach-002:write')
+  @StudentOwned({ studentIdBody: 'studentId', allowAdminOverride: true })
   @ApiOperation({
     summary:
-      'STUDENT-OWNED — only the student can write their own reflection. Teachers cannot author reflections.',
+      'STUDENT-OWNED (pfl_reflections) — only the student can write their own reflection. Teachers cannot author reflections; service-layer ReflectionService.create enforces.',
   })
   async createReflection(
     @Param('itemId') itemId: string,
@@ -158,6 +160,7 @@ export class PortfolioAdvancedController {
 
   @Patch('portfolio/reflections/:reflectionId')
   @RequirePermission('ach-002:write')
+  @StudentOwned({ allowAdminOverride: true })
   async patchReflection(
     @Param('reflectionId') reflectionId: string,
     @Body() dto: UpdateReflectionDto,
@@ -353,6 +356,11 @@ export class PortfolioAdvancedController {
 
   @Post('portfolio/college-applications')
   @RequirePermission('ach-003:write')
+  @StudentOwned({ studentIdBody: 'studentId', allowAdminOverride: true })
+  @ApiOperation({
+    summary:
+      'STUDENT-OWNED (pfl_college_applications) — student authors their own application list; counsellor/admin can override.',
+  })
   async createCollegeApplication(
     @Body() dto: CreateCollegeApplicationDto,
     @Req() req: AuthedRequest,
@@ -362,6 +370,7 @@ export class PortfolioAdvancedController {
 
   @Patch('portfolio/college-applications/:applicationId')
   @RequirePermission('ach-003:write')
+  @StudentOwned({ allowAdminOverride: true })
   async patchCollegeApplication(
     @Param('applicationId') applicationId: string,
     @Body() dto: UpdateCollegeApplicationDto,
@@ -372,6 +381,7 @@ export class PortfolioAdvancedController {
 
   @Delete('portfolio/college-applications/:applicationId')
   @RequirePermission('ach-003:write')
+  @StudentOwned({ allowAdminOverride: true })
   @HttpCode(204)
   async removeCollegeApplication(
     @Param('applicationId') applicationId: string,
@@ -403,6 +413,7 @@ export class PortfolioAdvancedController {
 
   @Patch('portfolio/resume/students/:studentId')
   @RequirePermission('ach-003:write')
+  @StudentOwned({ studentIdParam: 'studentId', allowAdminOverride: true })
   async patchResume(
     @Param('studentId') studentId: string,
     @Body() dto: UpdateResumeDto,
@@ -413,9 +424,10 @@ export class PortfolioAdvancedController {
 
   @Post('portfolio/resume/students/:studentId/generate-pdf')
   @RequirePermission('ach-003:write')
+  @StudentOwned({ studentIdParam: 'studentId', allowAdminOverride: true })
   @ApiOperation({
     summary:
-      'Assembles the resume PDF from the profile + portfolio data + endorsement skills + service hours + achievements + extracurriculars.',
+      'STUDENT-OWNED (pfl_resume_profiles) — assembles the resume PDF from the profile + portfolio data + endorsement skills + service hours + achievements + extracurriculars.',
   })
   async generateResumePdf(
     @Param('studentId') studentId: string,

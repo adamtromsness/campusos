@@ -10,7 +10,7 @@ import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import { GuardianAuthorizationService } from '../iam/guardian-authorization.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import { HealthAccessLogService } from './health-access-log.service';
 import {
   AllergyEntryDto,
@@ -123,19 +123,28 @@ export class HealthRecordService {
     private readonly accessLog: HealthAccessLogService,
     private readonly permCheck: PermissionCheckService,
     private readonly guardianAuthz: GuardianAuthorizationService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   /**
-   * P2-H3 Step 1 — best-effort emit. Notifies the food-service module's
-   * AllergyAlertConsumer (Cycle 20 ADR-030 read model) that allergens
-   * for a student have changed. The downstream consumer reconciles
-   * `fds_student_allergen_alerts`; canonical truth remains the JSONB
-   * column on hlth_student_health_records.allergies so an emit drop
-   * is recoverable via a manual sync sweep.
+   * P2-H3 Step 1 + P2-H6 FIX 4 — durable outbox emit. Notifies the
+   * food-service module's AllergyAlertConsumer (Cycle 20 ADR-030 read
+   * model) that allergens for a student have changed. Allergen exposure
+   * is a safety event so the emit MUST be durable: pre-fix this was
+   * best-effort `void this.kafka.emit(...)` outside any transaction —
+   * a broker outage between the domain commit and the post-commit emit
+   * could drop the alert silently. P2-H6 FIX 4 moves the emit into
+   * `outbox.enqueueInTx(tx, ...)` inside the SAME tenant transaction
+   * that writes the allergies JSONB column, so the OutboxPublisherWorker
+   * delivers when the broker recovers and a redelivered allergy update
+   * is naturally deduped by the consumer-group idempotency claim.
    */
-  private emitAllergyAlertChanged(studentId: string, allergies: AllergyEntryDto[]): void {
-    void this.kafka.emit({
+  private async emitAllergyAlertChangedInTx(
+    tx: unknown,
+    studentId: string,
+    allergies: AllergyEntryDto[],
+  ): Promise<void> {
+    await this.outbox.enqueueInTx(tx as never, {
       topic: 'hlth.allergy_alert.changed',
       key: studentId,
       sourceModule: 'health',
@@ -313,8 +322,11 @@ export class HealthRecordService {
     const tenant = getCurrentTenant();
     const id = generateId();
     try {
-      await this.tenantPrisma.executeInTenantContext(async (client) => {
-        await client.$executeRawUnsafe(
+      // P2-H6 FIX 4 — wrap the INSERT + outbox emit in a single tenant tx
+      // so the safety-critical allergy alert lands durably together with
+      // the canonical JSONB column update.
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        await tx.$executeRawUnsafe(
           'INSERT INTO hlth_student_health_records ' +
             '(id, school_id, student_id, blood_type, allergies, emergency_medical_notes, physician_name, physician_phone) ' +
             'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::jsonb, $6, $7, $8)',
@@ -327,6 +339,9 @@ export class HealthRecordService {
           input.physicianName ?? null,
           input.physicianPhone ?? null,
         );
+        if (input.allergies && input.allergies.length > 0) {
+          await this.emitAllergyAlertChangedInTx(tx, studentId, input.allergies);
+        }
       });
     } catch (err) {
       if (this.isUniqueViolation(err)) {
@@ -335,9 +350,6 @@ export class HealthRecordService {
         );
       }
       throw err;
-    }
-    if (input.allergies && input.allergies.length > 0) {
-      this.emitAllergyAlertChanged(studentId, input.allergies);
     }
     return this.getFullRecord(studentId, actor);
   }
@@ -386,22 +398,28 @@ export class HealthRecordService {
     sets.push('updated_at = now()');
     params.push(studentId);
 
-    const result = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$executeRawUnsafe(
+    // P2-H6 FIX 4 — UPDATE + outbox emit run together in one tenant tx so
+    // a broker outage cannot drop the safety-critical allergy alert after
+    // the JSONB column update has already committed.
+    const result = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const updated = (await tx.$executeRawUnsafe(
         'UPDATE hlth_student_health_records SET ' +
           sets.join(', ') +
           ' WHERE student_id = $' +
           idx +
           '::uuid',
         ...params,
-      );
+      )) as unknown as number;
+      if (updated === 0) {
+        // Throw inside the tx so the rollback drops the (unwritten) outbox row.
+        throw new NotFoundException('No health record exists for student ' + studentId);
+      }
+      if (input.allergies !== undefined) {
+        await this.emitAllergyAlertChangedInTx(tx, studentId, input.allergies ?? []);
+      }
+      return updated;
     });
-    if (result === 0) {
-      throw new NotFoundException('No health record exists for student ' + studentId);
-    }
-    if (input.allergies !== undefined) {
-      this.emitAllergyAlertChanged(studentId, input.allergies ?? []);
-    }
+    void result;
     return this.getFullRecord(studentId, actor);
   }
 

@@ -14,6 +14,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { StudentOwned } from '../auth/student-owned.decorator';
 import { ActorContextService } from '../iam/actor-context.service';
 import { RecruitingService } from './recruiting.service';
 import {
@@ -78,9 +79,14 @@ export class RecruitingController {
 
   @Post('recruiting')
   @RequirePermission('ath-001:read')
+  @StudentOwned({
+    studentIdBody: 'studentId',
+    allowAdminOverride: true,
+    allowCoachDelegation: true,
+  })
   @ApiOperation({
     summary:
-      'Create a recruiting profile. STUDENT-OWNED — only the owning student or a coach/admin can create one.',
+      'STUDENT-OWNED (ath_recruiting_profiles) — only the owning student or a coach/admin can create one. Coach delegation honoured per IMP-11.',
   })
   async createProfile(
     @Req() req: AuthedRequest,
@@ -92,9 +98,10 @@ export class RecruitingController {
 
   @Patch('recruiting/:id')
   @RequirePermission('ath-001:read')
+  @StudentOwned({ allowAdminOverride: true, allowCoachDelegation: true })
   @ApiOperation({
     summary:
-      'Update a recruiting profile. Students edit own; coaches edit and add the recommendation. Publishing snapshots GPA from rpt_student_academic_summary.',
+      'STUDENT-OWNED (ath_recruiting_profiles) — students edit own; coaches edit and add the recommendation. Publishing snapshots GPA from rpt_student_academic_summary.',
   })
   async updateProfile(
     @Req() req: AuthedRequest,

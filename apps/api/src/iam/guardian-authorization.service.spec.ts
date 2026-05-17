@@ -48,26 +48,47 @@ interface CustodyRow {
 }
 
 /**
- * P2-H5 DEFECT 4 — fake tenant prisma that returns different rows by query
- * shape. Link query (FROM sis_student_guardians) → linkRows. Custody query
- * (FROM sis_family_relationships) → custodyRows. Account binding (FROM
- * pay_family_accounts) → accountRows. getPlatformClient returns an auditLog
- * stub that records each access decision.
+ * P2-H5 DEFECT 4 + P2-H6 FIX 1 — fake tenant prisma that returns different
+ * rows by query shape. Link query (FROM sis_student_guardians) → linkRows.
+ * Custody query (FROM sis_family_relationships) → custodyRows. Account
+ * binding (FROM pay_family_accounts) → accountRows. getPlatformClient
+ * returns an auditLog stub that records each access decision.
+ *
+ * P2-H6 FIX 1: when `custodyRows` is omitted, the default is a JOINT
+ * relationship row that matches the first linkRow's guardian_id. This
+ * preserves the happy-path semantics of the existing tests (which all
+ * exercise the demo-seed shape where every guardian has full JOINT custody)
+ * while the new contract — empty `custodyRows` is fail-closed — is verified
+ * by passing an explicit `[]`. Tests that need to exercise the fail-closed
+ * contract pass an empty array directly.
  */
 function makeTenantPrisma(
   linkRows: LinkRow[],
-  custodyRows: CustodyRow[] = [],
+  custodyRows?: CustodyRow[],
   accountRows: Array<{ ok: number }> = [],
 ) {
   const captures: Array<{ sql: string; args: unknown[] }> = [];
   const auditCaptures: Array<{ data: Record<string, unknown> }> = [];
+  const effectiveCustody: CustodyRow[] =
+    custodyRows !== undefined
+      ? custodyRows
+      : linkRows.length > 0
+        ? [
+            {
+              guardian_a_id: linkRows[0]!.guardian_id,
+              guardian_b_id: 'guardian-other-id',
+              custody_arrangement: 'JOINT',
+              court_order_restrictions: null,
+            },
+          ]
+        : [];
   const tenantPrisma = {
     executeInTenantContext: async <T>(fn: (client: unknown) => Promise<T>) =>
       fn({
         $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
           captures.push({ sql, args });
           if (sql.includes('FROM sis_student_guardians')) return linkRows;
-          if (sql.includes('FROM sis_family_relationships')) return custodyRows;
+          if (sql.includes('FROM sis_family_relationships')) return effectiveCustody;
           if (sql.includes('FROM pay_family_accounts')) return accountRows;
           return [];
         },
@@ -259,14 +280,40 @@ describe('canAuthorizePayment — custodial-only gate', () => {
   it('accepts the optional familyAccountId argument when it binds to (guardian, student)', async () => {
     // P2-H5 DEFECT 4 — familyAccountId is now validated. accountRows
     // = [{ ok: 1 }] simulates the pay_family_accounts row resolving in
-    // the binding query.
-    const { tenantPrisma } = makeTenantPrisma([FULL_CUSTODIAL_LINK], [], [{ ok: 1 }]);
+    // the binding query. P2-H6 FIX 1 — custody arrangement is now
+    // load-bearing for the upstream predicate, so we supply a JOINT row
+    // explicitly to keep the test focused on the binding behaviour.
+    const { tenantPrisma } = makeTenantPrisma(
+      [FULL_CUSTODIAL_LINK],
+      [
+        {
+          guardian_a_id: FULL_CUSTODIAL_LINK.guardian_id,
+          guardian_b_id: 'guardian-other-id',
+          custody_arrangement: 'JOINT',
+          court_order_restrictions: null,
+        },
+      ],
+      [{ ok: 1 }],
+    );
     const svc = new GuardianAuthorizationService(tenantPrisma as never);
     expect(await inTenant(() => svc.canAuthorizePayment('g', 's', 'family-1'))).toBe(true);
   });
 
   it('rejects a familyAccountId that does NOT bind to (guardian, student) — P2-H5 DEFECT 4', async () => {
-    const { tenantPrisma } = makeTenantPrisma([FULL_CUSTODIAL_LINK], [], []);
+    // P2-H6 FIX 1 — supply JOINT custody so the upstream gate passes and the
+    // binding check is the only thing the test exercises.
+    const { tenantPrisma } = makeTenantPrisma(
+      [FULL_CUSTODIAL_LINK],
+      [
+        {
+          guardian_a_id: FULL_CUSTODIAL_LINK.guardian_id,
+          guardian_b_id: 'guardian-other-id',
+          custody_arrangement: 'JOINT',
+          court_order_restrictions: null,
+        },
+      ],
+      [],
+    );
     const svc = new GuardianAuthorizationService(tenantPrisma as never);
     expect(await inTenant(() => svc.canAuthorizePayment('g', 's', 'unrelated-family'))).toBe(false);
   });
@@ -392,6 +439,65 @@ describe('resolveLink — capability-snapshot helper', () => {
     const { tenantPrisma } = makeTenantPrisma([]);
     const svc = new GuardianAuthorizationService(tenantPrisma as never);
     expect(await inTenant(() => svc.resolveLink('g', 's'))).toBeNull();
+  });
+});
+
+describe('P2-H6 FIX 1 — loadCustodyContext fail-closed contract', () => {
+  it('refuses access when sis_family_relationships returns zero rows (unknown custody is not permissive)', async () => {
+    // Demo seed link with FULL custody flags, but NO custody row recorded
+    // in sis_family_relationships. Pre-fix this returned permissive; the
+    // P2-H6 contract is fail-closed.
+    const { tenantPrisma } = makeTenantPrisma([FULL_CUSTODIAL_LINK], []);
+    const svc = new GuardianAuthorizationService(tenantPrisma as never);
+    expect(await inTenant(() => svc.canViewAcademicRecord('g', 's'))).toBe(false);
+    expect(await inTenant(() => svc.canViewHealthRecord('g', 's'))).toBe(false);
+    expect(await inTenant(() => svc.canAuthorizePayment('g', 's'))).toBe(false);
+    expect(await inTenant(() => svc.canReceiveTransportInfo('g', 's'))).toBe(false);
+    expect(await inTenant(() => svc.canViewCommunications('g', 's'))).toBe(false);
+    expect(await inTenant(() => svc.canAttendConference('g', 's'))).toBe(false);
+  });
+
+  it('refuses access when custody_arrangement IS NULL on the relationship row (unknown arrangement)', async () => {
+    const { tenantPrisma } = makeTenantPrisma(
+      [FULL_CUSTODIAL_LINK],
+      [
+        {
+          guardian_a_id: FULL_CUSTODIAL_LINK.guardian_id,
+          guardian_b_id: 'guardian-other-id',
+          custody_arrangement: null, // ← unknown, not JOINT
+          court_order_restrictions: null,
+        },
+      ],
+    );
+    const svc = new GuardianAuthorizationService(tenantPrisma as never);
+    expect(await inTenant(() => svc.canViewAcademicRecord('g', 's'))).toBe(false);
+    expect(await inTenant(() => svc.canViewHealthRecord('g', 's'))).toBe(false);
+    expect(await inTenant(() => svc.canAuthorizePayment('g', 's'))).toBe(false);
+  });
+
+  it('grants access when custody_arrangement = JOINT (explicit allow)', async () => {
+    const { tenantPrisma } = makeTenantPrisma(
+      [FULL_CUSTODIAL_LINK],
+      [
+        {
+          guardian_a_id: FULL_CUSTODIAL_LINK.guardian_id,
+          guardian_b_id: 'guardian-other-id',
+          custody_arrangement: 'JOINT',
+          court_order_restrictions: null,
+        },
+      ],
+    );
+    const svc = new GuardianAuthorizationService(tenantPrisma as never);
+    expect(await inTenant(() => svc.canViewAcademicRecord('g', 's'))).toBe(true);
+  });
+
+  it('refuses access when familyId on the link row is null (cannot resolve custody chain)', async () => {
+    const { tenantPrisma } = makeTenantPrisma(
+      [{ ...FULL_CUSTODIAL_LINK, family_id: null }],
+      undefined,
+    );
+    const svc = new GuardianAuthorizationService(tenantPrisma as never);
+    expect(await inTenant(() => svc.canViewAcademicRecord('g', 's'))).toBe(false);
   });
 });
 

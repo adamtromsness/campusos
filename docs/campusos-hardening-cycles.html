@@ -254,7 +254,7 @@ ol,ul{padding-left:20px;margin:8px 0}
 <ol>
 <li><strong>pay.debt.written_off</strong> (#9, highest priority) — add producer in PaymentService when invoice is written off. GLConsumer already wired.</li>
 <li><strong>hlth.allergy_alert.changed</strong> (#10) — add producer in HealthAllergyService on allergy INSERT/UPDATE/DELETE. AllergyAlertConsumer in food-service already wired.</li>
-<li><strong>fds.meal.served</strong> (#11) — add producer in FoodService.MealSessionService on meal transaction creation. LunchAccountConsumer + readmodel already wired.</li>
+<li><strong>fds.meal.served</strong> (#11) — add producer in FoodService.MealSessionService on meal transaction creation. LunchAccountConsumer + readmodel already wired. <em>P2-H6 reclassification:</em> the topic registry (<code>docs/kafka-topic-registry.md</code>) now classifies this as OBSERVABLE rather than COMMAND/SAFETY, so the producer is best-effort via <code>KafkaProducerService.emit</code> (not outbox). Justification: the LunchAccountConsumer dedupes via <code>source_event_id</code> + the partial UNIQUE on <code>pay_lunch_transactions(source_event_id)</code>, so transient drops are recoverable on the next meal event; canonical truth is the <code>fds_meal_transactions</code> row written inside the POS tenant tx. Operators who want stronger durability can elevate to outbox in a single-line service change (replace <code>kafka.emit</code> with <code>outbox.enqueueInTx(tx, ...)</code> at <code>pos.service.ts:448</code>) without consumer changes.</li>
 <li><strong>ath.game.completed</strong> (#12) — add producer in AthleticsGameService on game status → COMPLETED.</li>
 <li><strong>ext.activity.completed</strong> (#13) — add producer in ClubsActivityService on activity session completion.</li>
 <li><strong>fac.inspection.completed / fac.work_order.completed</strong> (#14) — add producers in FacilitiesInspectionService + WorkOrderService.</li>
@@ -266,7 +266,7 @@ ol,ul{padding-left:20px;margin:8px 0}
 <li><strong>tech.device.provisioned / .deprovisioned / .incident</strong> (#20) — add producers in ITAssetService.</li>
 <li><strong>trn.run.completed</strong> (#21) — add producer in TransportRunService on run completion.</li>
 </ol>
-<p><strong>Pattern:</strong> All new producers must use the ADR-057 envelope via <code>EventEnvelope&lt;P&gt;</code>. Financial and safety topics (#9, #10, #11) must use the outbox pattern. Read-model topics can use best-effort emit.</p>
+<p><strong>Pattern:</strong> All new producers must use the ADR-057 envelope via <code>EventEnvelope&lt;P&gt;</code>. Financial and safety topics (#9, #10) must use the outbox pattern. Read-model and OBSERVABLE topics (including #11 <code>fds.meal.served</code> per the P2-H6 reclassification above) can use best-effort emit.</p>
 <div class="produces">Produces → 0 consumer-without-producer gaps. All analytics read-model pipelines active.</div>
 </div>
 

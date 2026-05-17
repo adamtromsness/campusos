@@ -631,10 +631,24 @@ export class SupplyService {
 
   async create(input: CreateSupplyDto, actor: ResolvedActor): Promise<SupplyResponseDto> {
     await assertCanManage(actor, this.permCheck);
+    // P2-H6 FIX 3: validate the parent building belongs to the current school
+    // BEFORE the INSERT, mirroring the JOIN-based school predicate in adjust()
+    // at lines 674-680. Without this check a crafted cross-school buildingId
+    // would land a supply row in a foreign building (sibling of the original
+    // Codex adjacent-query defect class).
+    const tenant = getCurrentTenant();
     const id = generateId();
     try {
-      await this.tenantPrisma.executeInTenantContext(async (client) => {
-        await client.$executeRawUnsafe(
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        const buildingRows = (await tx.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM fac_buildings WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+          input.buildingId,
+          tenant.schoolId,
+        )) as Array<{ ok: number }>;
+        if (buildingRows.length === 0) {
+          throw new NotFoundException('Building not found');
+        }
+        await tx.$executeRawUnsafe(
           'INSERT INTO fac_supply_inventory (id, building_id, item_name, unit, current_quantity, reorder_threshold, preferred_supplier) ' +
             'VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7)',
           id,

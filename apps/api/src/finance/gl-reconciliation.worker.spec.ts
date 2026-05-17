@@ -34,8 +34,10 @@ interface SqlCapture {
 }
 
 interface FakeOpts {
-  // P2-H5 source→GL: source rows + their amounts, plus the GL aggregate
-  // per reference_id (sum of debit+credit + line count).
+  // P2-H5 source→GL: source rows + their amounts. The fake auto-stamps
+  // a default `school_id` matching `TENANT.schoolId` on every source row
+  // so the SCHOOL_MISMATCH branch is a no-op unless a per-source override
+  // is supplied via `sourcesWithSchool`.
   sources?: {
     invoiceAr?: Array<{ id: string; amount: number }>;
     paymentCash?: Array<{ id: string; amount: number }>;
@@ -43,9 +45,30 @@ interface FakeOpts {
     creditNote?: Array<{ id: string; amount: number }>;
     paymentReversal?: Array<{ id: string; amount: number }>;
   };
+  // P2-H6 FIX 2 — per-source school_id override. When provided, the
+  // fake stamps these school_ids onto the SELECT projection so the
+  // SCHOOL_MISMATCH check fires against fake batch_school_ids.
+  sourceSchoolOverrides?: Record<string, string>;
+  // P2-H6 FIX 2 — GL aggregate now returns one row per
+  // (reference_id, account_code, batch_school_id). Legacy callers that
+  // pass `glAggregates` (gl_total shape) get an automatic split into
+  // 50/50 legs across the expected debit + credit accounts for the
+  // source type (preserves pre-fix test semantics). Tests that exercise
+  // SIGN_MISMATCH or ACCOUNT_MISMATCH pass `glAggregatesByLeg` directly.
   glAggregates?: Record<
     string,
     Array<{ reference_id: string; gl_total: number; line_count: number }>
+  >;
+  glAggregatesByLeg?: Record<
+    string,
+    Array<{
+      reference_id: string;
+      account_code: string;
+      batch_school_id: string;
+      debit_total: number;
+      credit_total: number;
+      line_count: number;
+    }>
   >;
   duplicates?: Array<{ source_event_id: string; batch_count: number; batch_ids: string[] }>;
   orphans?: Record<string, Array<{ id: string; reference_id: string }>>;
@@ -61,6 +84,17 @@ interface FakeOpts {
   shouldThrowOnQuery?: (sql: string, args: unknown[]) => boolean;
 }
 
+// Expected debit / credit chart-of-accounts codes per source type —
+// mirrors SOURCE_CHECK_META in gl-reconciliation.worker.ts so the fake
+// can split a legacy gl_total aggregate into the right legs.
+const EXPECTED_LEGS: Record<string, { debitCode: string; creditCode: string }> = {
+  pay_invoices: { debitCode: '1100', creditCode: '4000' },
+  pay_payments: { debitCode: '1000', creditCode: '1100' },
+  pay_refunds: { debitCode: '1100', creditCode: '1000' },
+  pay_credit_notes: { debitCode: '4000', creditCode: '1100' },
+  pay_payment_reversals: { debitCode: '1100', creditCode: '1000' },
+};
+
 function makeFakes(opts: FakeOpts = {}) {
   const captures: SqlCapture[] = [];
   const sources = opts.sources ?? {};
@@ -71,6 +105,71 @@ function makeFakes(opts: FakeOpts = {}) {
   const distinct = opts.distinctPostedEvents ?? 0;
 
   const exists = (table: string) => !missing.has(table);
+
+  const tenantSchoolId = TENANT.schoolId;
+  const overrides = opts.sourceSchoolOverrides ?? {};
+  const stampSchool = (rows: Array<{ id: string; amount: number }>) =>
+    rows.map((r) => ({
+      id: r.id,
+      amount: r.amount,
+      school_id: overrides[r.id] ?? tenantSchoolId,
+      currency: null,
+    }));
+
+  // P2-H6 FIX 2 — split a legacy gl_total aggregate into per-leg rows
+  // so existing tests using the simple {reference_id, gl_total} shape
+  // still drive the new query path. The split puts half the total on
+  // the expected debit account and half on the expected credit account,
+  // each on a leg matching tenantSchoolId so SCHOOL_MISMATCH stays
+  // quiet by default.
+  const legAggregatesByRefType: Record<
+    string,
+    Array<{
+      reference_id: string;
+      account_code: string;
+      batch_school_id: string;
+      debit_total: number;
+      credit_total: number;
+      line_count: number;
+    }>
+  > = {};
+  for (const [refType, rows] of Object.entries(glAggregates)) {
+    const legs = EXPECTED_LEGS[refType];
+    if (!legs) continue;
+    const out: Array<{
+      reference_id: string;
+      account_code: string;
+      batch_school_id: string;
+      debit_total: number;
+      credit_total: number;
+      line_count: number;
+    }> = [];
+    for (const r of rows) {
+      const half = r.gl_total / 2;
+      out.push({
+        reference_id: r.reference_id,
+        account_code: legs.debitCode,
+        batch_school_id: tenantSchoolId,
+        debit_total: half,
+        credit_total: 0,
+        line_count: Math.max(1, Math.floor(r.line_count / 2)),
+      });
+      out.push({
+        reference_id: r.reference_id,
+        account_code: legs.creditCode,
+        batch_school_id: tenantSchoolId,
+        debit_total: 0,
+        credit_total: half,
+        line_count: Math.max(1, Math.ceil(r.line_count / 2)),
+      });
+    }
+    legAggregatesByRefType[refType] = out;
+  }
+  // Per-leg overrides take precedence so tests can exercise
+  // SIGN_MISMATCH / ACCOUNT_MISMATCH / SCHOOL_MISMATCH directly.
+  for (const [refType, rows] of Object.entries(opts.glAggregatesByLeg ?? {})) {
+    legAggregatesByRefType[refType] = rows;
+  }
 
   const client = {
     $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
@@ -94,10 +193,16 @@ function makeFakes(opts: FakeOpts = {}) {
         const refType = args[0] as string;
         return [{ n: orphanCounts[refType] ?? 0 }];
       }
-      // GL aggregate
-      if (sql.includes('FROM fin_gl_entries g') && sql.includes('SUM(g.debit + g.credit)')) {
+      // GL aggregate (P2-H6 FIX 2 — new SQL shape with separate
+      // SUM(g.debit) + SUM(g.credit) and JOINs through
+      // fin_journal_batches + fin_chart_of_accounts).
+      if (
+        sql.includes('FROM fin_gl_entries g') &&
+        sql.includes('SUM(g.debit)') &&
+        sql.includes('JOIN fin_chart_of_accounts')
+      ) {
         const refType = args[0] as string;
-        return glAggregates[refType] ?? [];
+        return legAggregatesByRefType[refType] ?? [];
       }
       // Duplicate postings
       if (sql.includes('FROM fin_journal_batches') && sql.includes('HAVING COUNT(*) > 1')) {
@@ -107,12 +212,14 @@ function makeFakes(opts: FakeOpts = {}) {
       if (sql.includes('COUNT(DISTINCT source_event_id)')) {
         return [{ n: distinct }];
       }
-      // Source-row scans
-      if (sql.includes('FROM pay_invoices s')) return sources.invoiceAr ?? [];
-      if (sql.includes('FROM pay_payments s')) return sources.paymentCash ?? [];
-      if (sql.includes('FROM pay_refunds s')) return sources.refundReversal ?? [];
-      if (sql.includes('FROM pay_credit_notes s')) return sources.creditNote ?? [];
-      if (sql.includes('FROM pay_payment_reversals s')) return sources.paymentReversal ?? [];
+      // Source-row scans — the new SELECT projects `school_id` + `currency`
+      // alongside id + amount, so stamp default school + null currency.
+      if (sql.includes('FROM pay_invoices s')) return stampSchool(sources.invoiceAr ?? []);
+      if (sql.includes('FROM pay_payments s')) return stampSchool(sources.paymentCash ?? []);
+      if (sql.includes('FROM pay_refunds s')) return stampSchool(sources.refundReversal ?? []);
+      if (sql.includes('FROM pay_credit_notes s')) return stampSchool(sources.creditNote ?? []);
+      if (sql.includes('FROM pay_payment_reversals s'))
+        return stampSchool(sources.paymentReversal ?? []);
       return [];
     },
     $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
@@ -280,6 +387,127 @@ describe('source→GL — AMOUNT_MISMATCH discrepancies (P2-H5 DEFECT 5)', () =>
     await worker.runForTenant(TENANT);
     const refund = findInsert(fakes.captures).find((c) => c.args[2] === 'REFUND_REVERSAL')!;
     expect(refund.args[7]).toBe('CLEAN');
+  });
+});
+
+describe('P2-H6 FIX 2 — SIGN_MISMATCH discrepancies', () => {
+  it('flags an invoice posting whose debit/credit legs are flipped (DR Revenue / CR AR instead of DR AR / CR Revenue)', async () => {
+    const fakes = makeFakes({
+      sources: { invoiceAr: [{ id: 'inv-flip', amount: 100 }] },
+      glAggregatesByLeg: {
+        // Legs are flipped: expected debit on 1100 (AR), credit on 4000 (Revenue).
+        // Here we have debit on 4000 (the expected credit account!) and credit on 1100.
+        pay_invoices: [
+          {
+            reference_id: 'inv-flip',
+            account_code: '4000', // expected as the credit account
+            batch_school_id: TENANT.schoolId,
+            debit_total: 100, // ← being DEBITED instead of credited
+            credit_total: 0,
+            line_count: 1,
+          },
+          {
+            reference_id: 'inv-flip',
+            account_code: '1100', // expected as the debit account
+            batch_school_id: TENANT.schoolId,
+            debit_total: 0,
+            credit_total: 100, // ← being CREDITED instead of debited
+            line_count: 1,
+          },
+        ],
+      },
+    });
+    const { outbox, enqueued } = makeOutbox();
+    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
+    await worker.runForTenant(TENANT);
+    const invoice = findInsert(fakes.captures).find((c) => c.args[2] === 'INVOICE_AR')!;
+    expect(invoice.args[7]).toBe('DISCREPANCIES_FOUND');
+    const discrepancies = JSON.parse(invoice.args[6] as string);
+    const signMismatch = discrepancies.find((d: { issue: string }) => d.issue === 'SIGN_MISMATCH');
+    expect(signMismatch).toBeDefined();
+    expect(signMismatch.expectedDebitAccount).toBe('1100');
+    expect(signMismatch.expectedCreditAccount).toBe('4000');
+    expect(enqueued.find((e) => e.payload.checkType === 'INVOICE_AR')).toBeDefined();
+  });
+});
+
+describe('P2-H6 FIX 2 — ACCOUNT_MISMATCH discrepancies', () => {
+  it('flags a payment posting that lands on the wrong chart-of-accounts code', async () => {
+    const fakes = makeFakes({
+      sources: { paymentCash: [{ id: 'pay-wrong', amount: 50 }] },
+      glAggregatesByLeg: {
+        // Expected for payments: DR 1000 (Cash) / CR 1100 (AR). Here both
+        // legs land on a totally unrelated account (e.g. 9999 Suspense).
+        pay_payments: [
+          {
+            reference_id: 'pay-wrong',
+            account_code: '9999',
+            batch_school_id: TENANT.schoolId,
+            debit_total: 50,
+            credit_total: 50,
+            line_count: 2,
+          },
+        ],
+      },
+    });
+    const { outbox, enqueued } = makeOutbox();
+    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
+    await worker.runForTenant(TENANT);
+    const payment = findInsert(fakes.captures).find((c) => c.args[2] === 'PAYMENT_CASH')!;
+    expect(payment.args[7]).toBe('DISCREPANCIES_FOUND');
+    const discrepancies = JSON.parse(payment.args[6] as string);
+    const accountMismatch = discrepancies.find(
+      (d: { issue: string }) => d.issue === 'ACCOUNT_MISMATCH',
+    );
+    expect(accountMismatch).toBeDefined();
+    expect(accountMismatch.expectedDebitAccount).toBe('1000');
+    expect(accountMismatch.expectedCreditAccount).toBe('1100');
+    expect(accountMismatch.actualAccountCodes).toContain('9999');
+    expect(enqueued.find((e) => e.payload.checkType === 'PAYMENT_CASH')).toBeDefined();
+  });
+});
+
+describe('P2-H6 FIX 2 — SCHOOL_MISMATCH discrepancies', () => {
+  it('flags a GL batch posted under a school different from the source row tenant', async () => {
+    const otherSchoolId = '019e03f8-cf0b-7444-92d2-ffffffffffff';
+    const fakes = makeFakes({
+      sources: { invoiceAr: [{ id: 'inv-cross', amount: 100 }] },
+      // Source row stamped with TENANT.schoolId (default), but the GL
+      // batch landed under a different school.
+      glAggregatesByLeg: {
+        pay_invoices: [
+          {
+            reference_id: 'inv-cross',
+            account_code: '1100',
+            batch_school_id: otherSchoolId,
+            debit_total: 100,
+            credit_total: 0,
+            line_count: 1,
+          },
+          {
+            reference_id: 'inv-cross',
+            account_code: '4000',
+            batch_school_id: otherSchoolId,
+            debit_total: 0,
+            credit_total: 100,
+            line_count: 1,
+          },
+        ],
+      },
+    });
+    const { outbox, enqueued } = makeOutbox();
+    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
+    await worker.runForTenant(TENANT);
+    const invoice = findInsert(fakes.captures).find((c) => c.args[2] === 'INVOICE_AR')!;
+    expect(invoice.args[7]).toBe('DISCREPANCIES_FOUND');
+    const discrepancies = JSON.parse(invoice.args[6] as string);
+    const schoolMismatch = discrepancies.find(
+      (d: { issue: string }) => d.issue === 'SCHOOL_MISMATCH',
+    );
+    expect(schoolMismatch).toBeDefined();
+    expect(schoolMismatch.expectedSchoolId).toBe(TENANT.schoolId);
+    expect(schoolMismatch.actualSchoolId).toBe(otherSchoolId);
+    expect(enqueued.find((e) => e.payload.checkType === 'INVOICE_AR')).toBeDefined();
   });
 });
 
