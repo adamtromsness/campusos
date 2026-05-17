@@ -17,7 +17,7 @@ import {
   ProcedureStepDto,
   ProcedureType,
   UpdateProcedureDto,
-} from '../incidents/dto/incident.dto';
+} from '../common/dto/incident.dto';
 import { isUniqueViolation } from '../incidents/incident-type.service';
 
 interface ProcedureRow {

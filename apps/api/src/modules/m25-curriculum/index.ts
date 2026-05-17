@@ -1,1 +1,1 @@
-export { CurriculumModule } from './curriculum.module';
+export { CurriculumModule } from './m25-curriculum.module';

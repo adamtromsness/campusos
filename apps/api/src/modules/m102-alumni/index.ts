@@ -1,1 +1,1 @@
-export { AlumniModule } from './alumni.module';
+export { AlumniModule } from './m102-alumni.module';

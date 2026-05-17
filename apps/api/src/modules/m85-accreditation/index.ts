@@ -1,1 +1,1 @@
-export { AccreditationModule } from './accreditation.module';
+export { AccreditationModule } from './m85-accreditation.module';

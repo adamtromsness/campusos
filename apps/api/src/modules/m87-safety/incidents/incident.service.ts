@@ -19,7 +19,7 @@ import {
   ListIncidentsQueryDto,
   OutboxStatusDto,
   ResolveIncidentDto,
-} from './dto/incident.dto';
+} from '../common/dto/incident.dto';
 
 interface IncidentRow {
   id: string;

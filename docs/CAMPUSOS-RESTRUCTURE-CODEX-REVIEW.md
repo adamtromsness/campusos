@@ -17,14 +17,14 @@ Verification performed:
 
 ## Summary
 
-| Check | Result |
-| --- | --- |
+| Check                                | Result               |
+| ------------------------------------ | -------------------- |
 | 1. Import breakage / stale old paths | Partially unresolved |
-| 2. Module boundary violations | Resolved |
-| 3. Circular dependencies | Resolved |
-| 4. Shared placement | Partially unresolved |
-| 5. Misplaced files | Partially unresolved |
-| 6. NestJS module wiring | Partially unresolved |
+| 2. Module boundary violations        | Resolved             |
+| 3. Circular dependencies             | Resolved             |
+| 4. Shared placement                  | Partially unresolved |
+| 5. Misplaced files                   | Partially unresolved |
+| 6. NestJS module wiring              | Partially unresolved |
 
 ## 1. Import Breakage / Stale Old Paths
 
@@ -150,4 +150,3 @@ Remaining issues:
 - Several one-leaf canonical directories still use historical module filenames rather than a matching `mXX-name.module.ts` file, for example `apps/api/src/modules/m83-finance/finance.module.ts` instead of `m83-finance.module.ts`, and `apps/api/src/modules/m86-procurement/procurement.module.ts` instead of `m86-procurement.module.ts`. This does not break Nest wiring, but it weakens the "one canonical module per directory" convention.
 
 Recommendation: reconcile the canonical module inventory to either 37 or 38 modules, and standardize top-level module filenames if the intended contract is `m{XX}-{name}/m{XX}-{name}.module.ts`.
-

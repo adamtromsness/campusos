@@ -47,7 +47,7 @@ import {
   UpdateIncidentTypeDto,
   UpdateNonDisciplineDto,
   UpdateProcedureDto,
-} from './dto/incident.dto';
+} from '../common/dto/incident.dto';
 import { IncidentService } from './incident.service';
 import { IncidentTypeService } from './incident-type.service';
 import { NonDisciplineIncidentService } from './non-discipline.service';

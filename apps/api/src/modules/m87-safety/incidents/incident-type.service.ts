@@ -14,7 +14,7 @@ import {
   IncidentSeverity,
   IncidentTypeDto,
   UpdateIncidentTypeDto,
-} from './dto/incident.dto';
+} from '../common/dto/incident.dto';
 
 interface TypeRow {
   id: string;

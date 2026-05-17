@@ -1,1 +1,1 @@
-export { LibraryModule } from './library.module';
+export { LibraryModule } from './m24-library.module';

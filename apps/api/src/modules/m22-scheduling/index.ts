@@ -1,1 +1,1 @@
-export { SchedulingModule } from './scheduling.module';
+export { SchedulingModule } from './m22-scheduling.module';

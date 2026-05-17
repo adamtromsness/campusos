@@ -1,1 +1,1 @@
-export { VisitorsModule } from './visitors.module';
+export { VisitorsModule } from './m90-visitors.module';

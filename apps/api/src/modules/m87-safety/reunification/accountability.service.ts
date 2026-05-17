@@ -16,7 +16,7 @@ import {
   AccountabilitySummaryDto,
   BulkUpdateAccountabilityDto,
   UpdateAccountabilityDto,
-} from '../incidents/dto/incident.dto';
+} from '../common/dto/incident.dto';
 
 interface AccountabilityRow {
   id: string;

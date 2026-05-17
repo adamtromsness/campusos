@@ -1,1 +1,1 @@
-export { TicketsModule } from './tickets.module';
+export { TicketsModule } from './m60-tickets.module';

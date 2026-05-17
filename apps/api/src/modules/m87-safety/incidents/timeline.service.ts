@@ -4,7 +4,7 @@ import { TenantPrismaService } from '@shared/tenant';
 import { getCurrentTenant } from '@shared/tenant';
 import type { ResolvedActor } from '@modules/m00-platform';
 import { PermissionCheckService } from '@modules/m00-platform';
-import { CreateTimelineEntryDto, TimelineEntryDto } from './dto/incident.dto';
+import { CreateTimelineEntryDto, TimelineEntryDto } from '../common/dto/incident.dto';
 
 interface TimelineRow {
   id: string;

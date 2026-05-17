@@ -1,1 +1,1 @@
-export { ProcurementModule } from './procurement.module';
+export { ProcurementModule } from './m86-procurement.module';

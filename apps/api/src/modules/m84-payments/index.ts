@@ -1,1 +1,1 @@
-export { PaymentsModule } from './payments.module';
+export { PaymentsModule } from './m84-payments.module';

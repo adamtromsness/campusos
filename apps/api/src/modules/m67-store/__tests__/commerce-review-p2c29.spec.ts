@@ -6,19 +6,19 @@ import { PromotionService } from '../promotions/promotion.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { WishlistService } from '../wishlists/wishlist.service';
 import { PriceScheduleService } from '../inventory/price-schedule.service';
-import { JournalBatchService } from '@modules/m83-finance';
 
 /**
- * REVIEW-P2C29 ROUND 1 — regression tests pinning the 5 BLOCKING +
- * 2 actionable MAJOR fixes so future maintenance cannot regress them.
+ * REVIEW-P2C29 ROUND 1 — store-side regression tests pinning the
+ * 4 BLOCKING + 2 actionable MAJOR fixes that touch str_* services.
  *
  *   R-B1  Loyalty customerPersonId affiliation
  *   R-B2  Wishlist update/remove school-scope through product → store
  *   R-B3  Promotion patch UPDATE joins through str_stores.school_id
  *   R-B4  PriceScheduleWorker apply/revert UPDATEs carry school predicate
- *   R-B5  JournalBatchService.post no longer writes fin_gl_entries
- *         directly; finance JournalBatchPostedConsumer owns the GL
- *         materialisation via PostingService.createAndPost
+ *
+ * R-B5 (`JournalBatchService.post` is emit-only) lives next to the
+ * finance code it pins:
+ *   apps/api/src/modules/m83-finance/__tests__/journal-batch-post.spec.ts
  */
 
 const SCHOOL = {
@@ -405,149 +405,6 @@ describe('R-B4 — REVIEW-P2C29 BLOCKING 4: price schedule worker UPDATEs join t
     expect(revertStamp!.sql).toContain('JOIN str_stores s');
     expect(revertStamp!.sql).toMatch(/s\.school_id = \$1::uuid/);
     expect(revertStamp!.args[0]).toBe(SCHOOL.schoolId);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────
-// R-B5 — JournalBatchService.post emits-only, no direct GL write
-// ─────────────────────────────────────────────────────────────
-
-describe('R-B5 — REVIEW-P2C29 BLOCKING 5: post() no longer writes fin_gl_entries', () => {
-  it('post() emits fin.journal_batch.posted with lines payload + does NOT insert fin_gl_entries', async () => {
-    const fake = makeFake((call) => {
-      // batch lock + status
-      if (call.sql.includes('FROM fin_journal_entry_batches') && call.sql.includes('FOR UPDATE')) {
-        return [
-          {
-            id: 'batch-1',
-            status: 'DRAFT',
-            entry_count: 2,
-            total_debits: '100.00',
-            total_credits: '100.00',
-            is_balanced: true,
-          },
-        ];
-      }
-      // fresh re-aggregation
-      if (
-        call.sql.includes('COUNT(*)::int AS n') &&
-        call.sql.includes('FROM fin_journal_entry_lines')
-      ) {
-        return [{ n: 2, d: '100', c: '100' }];
-      }
-      // lines read
-      if (
-        call.sql.includes('FROM fin_journal_entry_lines') &&
-        call.sql.includes('ORDER BY line_order')
-      ) {
-        return [
-          {
-            id: 'line-1',
-            account_id: 'account-cash',
-            debit: '100',
-            credit: '0',
-            description: 'Cash',
-            line_order: 0,
-          },
-          {
-            id: 'line-2',
-            account_id: 'account-revenue',
-            debit: '0',
-            credit: '100',
-            description: 'Revenue',
-            line_order: 1,
-          },
-        ];
-      }
-      // status flip UPDATE returning
-      if (call.sql.includes('UPDATE fin_journal_entry_batches') && call.sql.includes('POSTED')) {
-        return [
-          {
-            id: 'batch-1',
-            school_id: SCHOOL.schoolId,
-            batch_name: 'Test batch',
-            description: null,
-            entry_count: 2,
-            total_debits: '100',
-            total_credits: '100',
-            is_balanced: true,
-            status: 'POSTED',
-            created_by: ADMIN_ACTOR.employeeId,
-            posted_by: ADMIN_ACTOR.employeeId,
-            posted_at: '2026-05-16',
-            voided_by: null,
-            voided_at: null,
-            void_reason: null,
-            created_at: '2026-05-16',
-            updated_at: '2026-05-16',
-          },
-        ];
-      }
-      return [];
-    });
-    const { outbox, enqueued } = makeOutbox();
-    const svc = new JournalBatchService(
-      fake.tenantPrisma as never,
-      makePermCheck(),
-      outbox as never,
-    );
-    await withTenant(() => svc.post(ADMIN_ACTOR as never, 'batch-1'));
-
-    // KEYSTONE — post() must NOT issue INSERT INTO fin_gl_entries.
-    const ledgerInsert = fake.capture.find((c) => c.sql.includes('INSERT INTO fin_gl_entries'));
-    expect(ledgerInsert).toBeUndefined();
-
-    // post() must also NOT insert a companion fin_journal_batches row.
-    const companionBatch = fake.capture.find((c) =>
-      c.sql.includes('INSERT INTO fin_journal_batches'),
-    );
-    expect(companionBatch).toBeUndefined();
-
-    // Outbox emit must fire with topic + the line shape the Finance
-    // consumer needs to materialise GL entries.
-    expect(enqueued).toHaveLength(1);
-    const emit = enqueued[0]!;
-    expect(emit.topic).toBe('fin.journal_batch.posted');
-    expect(emit.sourceModule).toBe('commerce');
-    expect(Array.isArray((emit.payload as { lines: unknown }).lines)).toBe(true);
-    const lines = (
-      emit.payload as { lines: Array<{ accountId: string; debit: number; credit: number }> }
-    ).lines;
-    expect(lines.length).toBe(2);
-    expect(lines[0]).toMatchObject({ accountId: 'account-cash', debit: 100, credit: 0 });
-    expect(lines[1]).toMatchObject({ accountId: 'account-revenue', debit: 0, credit: 100 });
-  });
-
-  it('post() rejects unbalanced batches before any UPDATE fires', async () => {
-    const fake = makeFake((call) => {
-      if (call.sql.includes('FROM fin_journal_entry_batches') && call.sql.includes('FOR UPDATE')) {
-        return [
-          {
-            id: 'batch-1',
-            status: 'DRAFT',
-            entry_count: 2,
-            total_debits: '100.00',
-            total_credits: '50.00', // unbalanced
-            is_balanced: false,
-          },
-        ];
-      }
-      return [];
-    });
-    const { outbox, enqueued } = makeOutbox();
-    const svc = new JournalBatchService(
-      fake.tenantPrisma as never,
-      makePermCheck(),
-      outbox as never,
-    );
-    await expect(withTenant(() => svc.post(ADMIN_ACTOR as never, 'batch-1'))).rejects.toThrow(
-      BadRequestException,
-    );
-    expect(enqueued).toHaveLength(0);
-    const statusFlip = fake.capture.find(
-      (c) => c.sql.includes('UPDATE fin_journal_entry_batches') && c.sql.includes('POSTED'),
-    );
-    expect(statusFlip).toBeUndefined();
   });
 });
 

@@ -1,1 +1,1 @@
-export { PortfolioModule } from './portfolio.module';
+export { PortfolioModule } from './m26-portfolio.module';

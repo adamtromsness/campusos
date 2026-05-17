@@ -1,1 +1,1 @@
-export { PublicationsModule } from './publications.module';
+export { PublicationsModule } from './m42-publications.module';

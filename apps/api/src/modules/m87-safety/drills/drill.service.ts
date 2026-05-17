@@ -18,7 +18,7 @@ import {
   OverdueDrillDto,
   ProcedureType,
   PROCEDURE_TYPES,
-} from '../incidents/dto/incident.dto';
+} from '../common/dto/incident.dto';
 
 interface DrillRow {
   id: string;

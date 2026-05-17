@@ -1,1 +1,1 @@
-export { ItModule } from './it.module';
+export { ItModule } from './m62-it.module';

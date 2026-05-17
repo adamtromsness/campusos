@@ -19,7 +19,7 @@ import {
   NonDisciplineSeverity,
   NonDisciplineStatus,
   UpdateNonDisciplineDto,
-} from './dto/incident.dto';
+} from '../common/dto/incident.dto';
 
 interface NonDiscRow {
   id: string;

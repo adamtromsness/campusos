@@ -1,1 +1,1 @@
-export { FacilitiesModule } from './facilities.module';
+export { FacilitiesModule } from './m65-facilities.module';

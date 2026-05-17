@@ -1,1 +1,1 @@
-export { AthleticsModule } from './athletics.module';
+export { AthleticsModule } from './m66-athletics.module';

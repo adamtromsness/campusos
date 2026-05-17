@@ -52,11 +52,13 @@ These are foundational decisions for the web app. New views must follow them; ex
 
 ## Architecture
 
-- **~840 tables** across 38 modules, governed by 76 ADRs (Architecture Decision Records)
+- **~840 tables** across 38 logical modules (ERD v11), implemented as **37 runtime modules** in the API — see "Module-count drift" below.
 - Schema-per-tenant multi-tenancy (PostgreSQL `search_path` switching)
 - Modular monolith (NestJS) with planned extraction of 6 services
 - Event-driven via Kafka (ADR-057 canonical envelope; `prefixedTopic()` for `KAFKA_TOPIC_ENV` prefix; outbox-backed durable emits for safety-critical events)
 - Path aliases: `@modules/*` → `apps/api/src/modules/*`, `@shared/*` → `apps/api/src/shared/*`
+
+**Module-count drift (38 logical vs 37 runtime).** ERD v11 catalogues **38** logical modules including `M3 Calendar` (7 tables, `cal_` prefix per the original v11 prefix map). The API registers **37** runtime modules because M3 was implemented as part of M22 Academic Scheduling — every calendar table ships under the `sch_` prefix (`sch_calendar_events`, `sch_calendar_day_overrides` in `packages/database/prisma/tenant/migrations/017_sch_calendar_and_coverage.sql`) and the request-side surface lives at `apps/api/src/modules/m22-scheduling/calendar.{controller,service}.ts`. Calendar events are a scheduling concern (they share rooms, periods, bell schedules, and coverage workflow with the rest of M22), so a separate canonical module would have duplicated that machinery without owning any independent data domain. No code or migration ever creates a `cal_*` table.
 
 ## Tech Stack
 
@@ -342,6 +344,7 @@ Dev login: `POST /api/v1/auth/dev-login` with `{"email":"..."}` and `X-Tenant-Su
 - **Web auth gating uses `personType` + permission codes from `/auth/me`** for menu visibility and persona routing only. Backend `PermissionGuard` is the authoritative access check on every request.
 - **Web fetch wrapper (`apps/web/src/lib/api-client.ts`)** sends `X-Tenant-Subdomain: demo` (override via `NEXT_PUBLIC_TENANT_SUBDOMAIN`) and Bearer token. On 401 it single-flights `/auth/refresh` and retries once; on terminal 401 it calls the registered `onUnauthenticated` handler which clears state and routes to `/login`.
 - **Imports.** Cross-module imports use `@modules/m{XX}-{name}/…` or `@shared/…` aliases. Within-module imports (sibling files inside the same canonical module) stay relative (`./foo.service`). Test files use the same aliases for source-under-test references.
+- **`shared/` boundary.** `apps/api/src/shared/` may contain infrastructure primitives, framework adapters, guards, decorators, cache/event abstractions, and test harness utilities — code that's truly cross-cutting and module-agnostic. It MUST NOT contain domain workflow logic, table-specific business rules, or module-owned DTOs (those belong inside the owning canonical module). Root bootstrapping infrastructure that ships in `shared/` even though it's only wired in one place (e.g. `shared/observability/otel-bootstrap.ts`, `shared/observability/structured-logger.ts`, `shared/dlq/dlq.module.ts`, `shared/tenant/tenant-resolver.middleware.ts`) is **exempt from the informal "used by 3+ modules" placement rule** — they're framework-level entry points the AppModule wires once, and moving them into a single canonical module would make every other module appear to depend on that one's surface for no reason.
 
 ## Claude Code Operating Rules
 

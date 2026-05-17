@@ -15,7 +15,7 @@ import {
   CreateReunificationDto,
   ReunificationCorrectionDto,
   ReunificationRecordDto,
-} from '../incidents/dto/incident.dto';
+} from '../common/dto/incident.dto';
 
 interface ReunificationRow {
   id: string;
