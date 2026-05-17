@@ -36,6 +36,21 @@ export default defineConfig({
     },
     testTimeout: 30_000, // DB round trips are slower than unit tests
     hookTimeout: 60_000, // First-run setup may shell out to provision-tenant
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      // Match the unit suite's exclude so module coverage compares cleanly
+      // (DTOs are class-validator decorators, *.module.ts is NestJS DI wiring;
+      // neither carries executable business logic worth measuring).
+      exclude: [
+        '**/*.module.ts',
+        '**/dto/**',
+        '**/*.dto.ts',
+        '**/*.spec.ts',
+        '**/main.ts',
+        'test/**',
+      ],
+    },
   },
   resolve: {
     alias: {

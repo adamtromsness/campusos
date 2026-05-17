@@ -5,10 +5,7 @@ import { resolve } from 'path';
 // the integration suite from apps/api/, so `../..` resolves to the
 // monorepo root.
 dotenvConfig({
-  path: [
-    resolve(__dirname, '../../../../.env.local'),
-    resolve(__dirname, '../../../../.env'),
-  ],
+  path: [resolve(__dirname, '../../../../.env.local'), resolve(__dirname, '../../../../.env')],
 });
 
 import { PrismaClient } from '@prisma/client';
