@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-6: Payments Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave B &mdash; Pilot Enhancement</div>
+    <h1>P2-6: Payments Advanced</h1>
+    <div class="sub">Financial aid programmes with parent applications and fund pool tracking, fee categories with configurable schedules and grade-level targeting, student lunch accounts with POS-integrated balance management and sibling transfers, payment plans with instalment tracking, automatic invoice generation rules, sibling and early-payment discount rules, credit notes and payment reversals with offsetting ledger entries, late fee automation, and multi-invoice payment allocation. The business office's complete billing toolkit.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M84 Payments .1 (17 tables) &middot; FIN-001 + FIN-002 &middot; Phase 2 Cycle 6</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+  <p class="body-text">Phase 2 Cycle 6 builds the deferred tables from Cycle 6's M84 Payments &amp; Billing module &mdash; 17 new tables across 4 domains: financial aid (3), fee management + auto-invoicing (5), lunch accounts (3), and billing operations (6: payment plans, credit notes, reversals, allocations, discounts, late fees). Cycle 6 built the core billing engine (family accounts, invoices, payments, ledger entries, Stripe integration). This cycle adds the operational depth that a school business office needs for day-to-day billing: "How do we handle siblings who get 10% off? What happens when a family can't pay the full amount at once? How do we charge lunch automatically?"</p>
+
+  <p class="body-text">Every financial table in this cycle follows the M84 event contract: mutations that affect the ledger emit Kafka events (<code>pay.credit_note.issued</code>, <code>pay.refund.issued</code>, <code>pay.debt.written_off</code>) that the Cycle 26 GLConsumer auto-posts as balanced journal entries. The lunch account POS integration connects to Cycle 20's food service module &mdash; when a student scans their ID at the cafeteria, <code>fds.meal.served</code> debits the lunch account.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Financial Integrity &mdash; IMMUTABLE Tables</div>
+    <p style="font-size:15px;line-height:1.8;"><code>pay_credit_notes</code>, <code>pay_payment_reversals</code>, and <code>pay_lunch_account_balance_transfers</code> are all <strong>IMMUTABLE</strong> &mdash; no UPDATE, no DELETE at the service layer. Financial corrections are made by creating new offsetting entries, never by modifying existing ones. This is the same pattern as <code>fin_gl_entries</code> from Cycle 26 and ensures the ledger is an append-only audit trail.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin creates fee categories (Tuition, Activity Fee, Exam Fee) &rarr; creates fee schedules: Tuition $10K/year ANNUAL all grades, Activity Fee $500/term TERM all grades, GCSE Exam Fee $200 ONE_TIME grade_level="10" &rarr; configures auto-invoice rule: TERM_START trigger, 14 days before term, generates Tuition + Activity invoices &rarr; configures sibling discount: 2nd child 10%, 3rd child 20% &rarr; AutoInvoiceWorker fires at term start: 200 invoices generated in batch, sibling discounts auto-applied, generation run tracked &rarr; parent David Chen receives $10,000 tuition invoice &rarr; requests payment plan: 10 monthly instalments of $1,000 &rarr; plan ACTIVE, first instalment due date set &rarr; David also applies for financial aid (BAND_C household income, uploads tax return) &rarr; finance admin reviews, approves 15% reduction ($1,500 award from "Need-Based Aid" programme, fund_remaining decremented) &rarr; award applied to next invoice as credit &rarr; separately, Maya's lunch account loaded with $50 deposit &rarr; Maya scans ID at cafeteria 3 times this week ($4.50 each) &rarr; lunch balance = $36.50 &rarr; balance hits low_balance_threshold ($10) &rarr; parent notified &rarr; end of year: Maya's remaining $6.50 transferred to sibling Ethan's lunch account &rarr; meanwhile, a parent's payment bounces &rarr; pay_payment_reversals created (BOUNCED_CHEQUE, IMMUTABLE) &rarr; invoice reinstated to OVERDUE &rarr; 7-day grace period passes &rarr; LateFeesWorker adds $25 late fee line item &rarr; admin issues credit note for the late fee as a goodwill gesture &rarr; pay_credit_notes created (IMMUTABLE) with offsetting ledger entry.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (17 tables):</strong> pay_financial_aid_programs, pay_financial_aid_awards, pay_financial_aid_applications, pay_fee_categories, pay_fee_schedules, pay_auto_invoice_rules, pay_invoice_generation_runs, pay_discount_rules, pay_lunch_accounts, pay_lunch_transactions, pay_lunch_account_balance_transfers, pay_payment_plans, pay_credit_notes, pay_payment_reversals, pay_payment_allocations, pay_late_payment_policies, pay_saved_payment_methods. Functions FIN-001 extended + FIN-002.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Stripe ACH/direct debit for auto-pay instalment collection. Saved payment method tokenisation (schema ready; Stripe SetupIntent integration deferred). Financial aid means-testing calculator. Lunch account auto-replenishment via Stripe. Sibling discount matrix UI builder. Multi-currency support. Tax receipt generation for donations. NSLP free/reduced meal eligibility integration.</p>
+  </div>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Financial Aid Schema (3 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>pay_financial_aid_programs</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>reduction_type TEXT NOT NULL</code> 2-value CHECK (PERCENTAGE, FIXED_AMOUNT), <code>reduction_value NUMERIC(8,2)</code>, <code>total_fund_amount NUMERIC(12,2)</code> nullable (null=uncapped), <code>fund_remaining NUMERIC(12,2)</code> nullable (materialised: total - SUM active awards). UNIQUE(school_id, name).</li>
+      <li><strong>pay_financial_aid_awards</strong> &mdash; <code>student_id UUID FK</code>, <code>program_id UUID FK</code>, <code>academic_year_id UUID FK</code>, <code>award_amount NUMERIC(10,2)</code>, <code>approved_by UUID FK</code>, <code>effective_from DATE</code>, <code>effective_to DATE</code>. UNIQUE(student_id, program_id, academic_year_id). On INSERT: program.fund_remaining decremented.</li>
+      <li><strong>pay_financial_aid_applications</strong> &mdash; <code>school_id UUID</code>, <code>student_id UUID FK</code>, <code>program_id UUID FK</code>, <code>guardian_id UUID FK</code>, <code>academic_year_id UUID FK</code>, <code>household_income_band TEXT</code> 5-value CHECK (BAND_A..BAND_E), <code>supporting_documents JSONB</code>, <code>application_statement TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 6-value CHECK (DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, WITHDRAWN), <code>reviewed_by UUID FK</code>, <code>reviewer_notes TEXT</code>, <code>award_id UUID FK</code> nullable. INDEX(school_id, academic_year_id, status).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>108_pay_financial_aid.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Fee Management + Auto-Invoicing Schema (5 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>pay_fee_categories</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>is_mandatory BOOLEAN</code>. UNIQUE(school_id, name).</li>
+      <li><strong>pay_fee_schedules</strong> &mdash; <code>school_id UUID</code>, <code>fee_category_id UUID FK</code>, <code>academic_year_id UUID FK</code>, <code>name TEXT</code>, <code>amount NUMERIC(10,2)</code>, <code>due_date DATE</code>, <code>frequency TEXT</code> 4-value CHECK (ONE_TIME, MONTHLY, TERM, ANNUAL), <code>grade_level TEXT</code> nullable, <code>applies_to_student_ids UUID[]</code> nullable.</li>
+      <li><strong>pay_auto_invoice_rules</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>trigger_type TEXT NOT NULL</code> 4-value CHECK (ENROLMENT_CONFIRMED, TERM_START, DATE_OF_MONTH, ACADEMIC_YEAR_START), <code>fee_schedule_id UUID FK</code>, <code>trigger_day_of_month INT</code>, <code>trigger_term_offset_days INT</code>, <code>applies_to_grade_level TEXT</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name).</li>
+      <li><strong>pay_invoice_generation_runs</strong> &mdash; <code>school_id UUID</code>, <code>run_type TEXT</code> 3-value CHECK (MANUAL_BATCH, AUTO_RULE_TRIGGERED, FEE_SCHEDULE_BULK), <code>fee_schedule_id UUID FK</code>, <code>auto_rule_id UUID FK</code>, <code>academic_year_id UUID FK</code>, <code>initiated_by UUID FK</code>, <code>total_families_targeted INT</code>, <code>invoices_created INT</code>, <code>invoices_skipped INT</code>, <code>invoices_failed INT</code>, <code>status TEXT NOT NULL DEFAULT 'QUEUED'</code> 4-value CHECK (QUEUED, RUNNING, COMPLETED, FAILED), <code>started_at TIMESTAMPTZ</code>, <code>completed_at TIMESTAMPTZ</code>. INDEX(school_id, status).</li>
+      <li><strong>pay_discount_rules</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>discount_type TEXT</code> 6-value CHECK (SIBLING, EARLY_PAYMENT, LOYALTY, BURSARY, STAFF_CHILD, CUSTOM), <code>calculation_method TEXT</code> 2-value CHECK (PERCENTAGE, FIXED_AMOUNT), <code>value NUMERIC(8,2)</code>, <code>applies_to_fee_category_id UUID FK</code>, <code>sibling_order INT</code> nullable, <code>minimum_invoice_amount NUMERIC(8,2)</code>, <code>academic_year_id UUID FK</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 5 tables. Migration: <code>109_pay_fees_invoicing.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Lunch Accounts Schema (3 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>pay_lunch_accounts</strong> &mdash; <code>student_id UUID FK UNIQUE</code>, <code>school_id UUID</code>, <code>balance NUMERIC(8,2) DEFAULT 0</code>, <code>low_balance_threshold NUMERIC(6,2)</code>, <code>auto_replenish_enabled BOOLEAN DEFAULT false</code>.</li>
+      <li><strong>pay_lunch_transactions</strong> &mdash; <code>lunch_account_id UUID FK</code>, <code>amount NUMERIC(6,2)</code>, <code>transaction_type TEXT</code> 4-value CHECK (MEAL_CHARGE, DEPOSIT, REFUND, ADJUSTMENT), <code>meal_date DATE</code>, <code>pos_device_id UUID FK</code> nullable. INDEX(lunch_account_id, meal_date DESC).</li>
+      <li><strong>pay_lunch_account_balance_transfers</strong> &mdash; <strong>IMMUTABLE.</strong> <code>school_id UUID</code>, <code>from_account_id UUID FK</code>, <code>to_account_id UUID FK</code> nullable (null=REFUND_TO_FAMILY), <code>transfer_type TEXT</code> 3-value CHECK (SIBLING_TRANSFER, NEXT_YEAR_ROLLOVER, REFUND_TO_FAMILY), <code>amount NUMERIC(8,2)</code>, <code>reason TEXT</code>, <code>processed_by UUID FK</code>, <code>processed_at TIMESTAMPTZ</code>. NO UPDATE, NO DELETE.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>110_pay_lunch_accounts.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Billing Operations Schema (6 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>pay_payment_plans</strong> &mdash; <code>invoice_id UUID FK</code>, <code>total_instalments INT</code>, <code>installment_amount NUMERIC(10,2)</code>, <code>next_due_date DATE</code>, <code>status TEXT</code> 3-value CHECK (ACTIVE, COMPLETED, DEFAULTED).</li>
+      <li><strong>pay_credit_notes</strong> &mdash; <strong>IMMUTABLE.</strong> <code>school_id UUID</code>, <code>invoice_id UUID FK</code>, <code>line_item_id UUID FK</code> nullable, <code>credit_amount NUMERIC(10,2)</code>, <code>reason TEXT NOT NULL</code>, <code>issued_by UUID FK</code>, <code>issued_at TIMESTAMPTZ</code>. On INSERT: pay_ledger_entries CREDIT row. Emits <code>pay.credit_note.issued</code>. NO UPDATE, NO DELETE.</li>
+      <li><strong>pay_payment_reversals</strong> &mdash; <strong>IMMUTABLE.</strong> <code>school_id UUID</code>, <code>payment_id UUID FK UNIQUE</code>, <code>reversal_type TEXT</code> 5-value CHECK (BOUNCED_CHEQUE, RECALLED_TRANSFER, CHARGEBACK, DUPLICATE_PAYMENT, OTHER), <code>reversal_reason TEXT NOT NULL</code>, <code>bank_reference TEXT</code>, <code>reversed_by UUID FK</code>, <code>reversed_at TIMESTAMPTZ</code>. On INSERT: payment.status=FAILED, invoice reinstated. NO UPDATE, NO DELETE.</li>
+      <li><strong>pay_payment_allocations</strong> &mdash; <code>payment_id UUID FK</code>, <code>invoice_id UUID FK</code>, <code>allocated_amount NUMERIC(10,2)</code>. UNIQUE(payment_id, invoice_id). SUM(allocated) must equal payment.amount.</li>
+      <li><strong>pay_late_payment_policies</strong> &mdash; <code>school_id UUID UNIQUE</code>, <code>is_active BOOLEAN DEFAULT false</code>, <code>grace_period_days INT DEFAULT 7</code>, <code>fee_type TEXT</code> 2-value CHECK (FIXED, PERCENTAGE_MONTHLY), <code>fee_amount NUMERIC(8,2)</code>, <code>fee_percentage NUMERIC(5,4)</code>, <code>max_late_fee_amount NUMERIC(8,2)</code>, <code>applies_to_fee_category_id UUID FK</code>. LateFeesWorker runs nightly.</li>
+      <li><strong>pay_saved_payment_methods</strong> &mdash; <code>family_account_id UUID FK</code>, <code>stripe_payment_method_id TEXT NOT NULL</code>, <code>card_last_four TEXT</code>, <code>card_brand TEXT</code>, <code>is_default BOOLEAN DEFAULT false</code>, <code>added_at TIMESTAMPTZ</code>. INDEX(family_account_id). Token-only &mdash; no card numbers stored.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 6 tables. Migration: <code>111_pay_billing_ops.sql</code>. Total P2-6 tables: 17.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li><strong>Financial aid:</strong> 1 programme ("Need-Based Aid" PERCENTAGE 15%, fund $50K, remaining $35K). 2 awards (Maya $1,500 APPROVED, Ethan $750 APPROVED). 1 application (SUBMITTED, under review).</li>
+      <li><strong>Fees:</strong> 3 fee categories (Tuition mandatory, Activity Fee mandatory, Exam Fee optional). 3 fee schedules. 1 auto-invoice rule (TERM_START). 1 generation run (COMPLETED, 50 invoices). 2 discount rules (SIBLING 2nd child 10%, EARLY_PAYMENT 5%).</li>
+      <li><strong>Lunch accounts:</strong> 3 student accounts (Maya $36.50, Ethan $22.00, Aiden $5.00 below threshold). 10 lunch transactions (mix of MEAL_CHARGE + DEPOSIT). 1 balance transfer (year-end sibling transfer $6.50).</li>
+      <li><strong>Billing ops:</strong> 1 payment plan (10 instalments, 3 paid, ACTIVE). 1 credit note ($25 goodwill, IMMUTABLE). 1 reversal (BOUNCED_CHEQUE). 2 payment allocations. 1 late payment policy (FIXED $25, 7-day grace, active). 1 saved payment method (Visa ending 4242).</li>
+      <li><strong>Permissions:</strong> FIN-001 extended: fee schedules, auto-invoicing, discounts, late fees, payment plans, credit notes, reversals (admin). Lunch accounts (admin + parent view own). FIN-002: financial aid programmes + applications (admin review), applications (parent submit).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich payments demo data across all 17 tables. FIN-001..002 permissions extended.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Financial Aid + Fee Management NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>FinancialAidService</strong> &mdash; <code>GET /payments/financial-aid/programs</code>, <code>POST /payments/financial-aid/programs</code>. <code>POST /payments/financial-aid/applications</code> (parent submits with documents), <code>GET /payments/financial-aid/applications</code> (admin: all; parent: own), <code>PATCH /payments/financial-aid/applications/:id</code> (approve → creates award, decrements fund_remaining). <code>GET /payments/financial-aid/awards/:studentId</code>.</li>
+      <li><strong>FeeScheduleService</strong> &mdash; CRUD for fee categories + fee schedules. <code>POST /payments/fee-schedules/:id/generate-invoices</code> (manual batch generation via pay_invoice_generation_runs).</li>
+      <li><strong>AutoInvoiceService</strong> &mdash; CRUD for auto-invoice rules. AutoInvoiceWorker: polls rules by trigger_type, generates invoices via pay_invoice_generation_runs, applies discount rules at generation time (sibling detection from sis_student_guardians), tracks created/skipped/failed.</li>
+      <li><strong>DiscountRuleService</strong> &mdash; CRUD for discount rules. Applied automatically during invoice generation. Sibling order computed from sis_student_guardians + enrolment dates.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services + 1 worker, ~16 endpoints.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Lunch Accounts + Billing Operations NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>LunchAccountService</strong> &mdash; <code>GET /payments/lunch-accounts/:studentId</code> (balance + recent transactions), <code>POST /payments/lunch-accounts/:id/deposit</code> (parent adds funds), <code>POST /payments/lunch-accounts/:id/charge</code> (POS debit on fds.meal.served consumer), <code>POST /payments/lunch-accounts/transfer</code> (sibling transfer or year-end rollover, IMMUTABLE). <code>GET /payments/lunch-accounts/low-balance</code> (admin: students below threshold). Emits <code>pay.lunch.low_balance</code> for parent notification.</li>
+      <li><strong>PaymentPlanService</strong> &mdash; <code>POST /payments/invoices/:id/payment-plan</code> (create plan with instalment schedule), <code>GET /payments/payment-plans</code>, <code>PATCH /payments/payment-plans/:id</code> (record instalment payment, advance next_due_date). InstalmentsWorker: nightly check for overdue instalments → mark DEFAULTED after configurable threshold.</li>
+      <li><strong>CreditNoteService</strong> &mdash; <code>POST /payments/invoices/:id/credit-note</code> (IMMUTABLE: creates credit + offsetting ledger entry; emits <code>pay.credit_note.issued</code>). <code>GET /payments/credit-notes</code>.</li>
+      <li><strong>ReversalService</strong> &mdash; <code>POST /payments/payments/:id/reverse</code> (IMMUTABLE: payment.status=FAILED, invoice reinstated; emits <code>pay.payment.reversed</code>). <code>GET /payments/reversals</code>.</li>
+      <li><strong>PaymentAllocationService</strong> &mdash; <code>POST /payments/payments/:id/allocate</code> (split payment across multiple invoices; validates SUM = payment.amount).</li>
+      <li><strong>LateFeeService</strong> &mdash; CRUD for late payment policy. LateFeesWorker: nightly scan for invoices past due_date + grace_period → creates pay_invoice_line_items with late fee amount (capped at max).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 6 services + 2 workers, ~18 endpoints, 3 Kafka emits. Total P2-6 endpoints: ~34.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Payments Advanced UI</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Financial Aid Manager</strong> <code>/payments/financial-aid</code> &mdash; admin: programme list with fund remaining gauge. Application queue (SUBMITTED → UNDER_REVIEW → APPROVED/REJECTED). Award history per student. Parent: apply for aid form with document upload.</li>
+      <li><strong>Fee Schedule Manager</strong> <code>/payments/fees</code> &mdash; admin: fee categories + schedules. Auto-invoice rule builder (trigger type, fee schedule, grade filter). Discount rule configuration (sibling order, percentage, minimum). Generation run history with created/skipped/failed counts.</li>
+      <li><strong>Lunch Account Dashboard</strong> <code>/payments/lunch</code> &mdash; admin: all student accounts with balances + low-balance alerts. Per-student: transaction history, deposit button. Parent: child's balance + deposit + transaction history. End-of-year transfer form.</li>
+      <li><strong>Payment Plan Manager</strong> <code>/payments/plans</code> &mdash; admin: active plans with instalment schedule. Per-plan: paid/remaining progress bar. Record instalment button. Defaulted plans highlighted.</li>
+      <li><strong>Billing Operations</strong> <code>/payments/operations</code> &mdash; credit note issuance form. Payment reversal form (BOUNCED_CHEQUE etc). Late fee policy configuration. Payment allocation split view.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Financial aid, fee schedules, lunch accounts, payment plans, billing operations.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <ol class="detail-list">
+      <li><strong>Financial aid lifecycle:</strong> Create programme ($50K fund). Parent applies. Admin approves (15% = $1,500 award). Verify fund_remaining decremented. Verify award linked to application. Attempt award exceeding fund_remaining → 400.</li>
+      <li><strong>Fee schedule + auto-invoicing:</strong> Create fee schedule (Tuition $10K ANNUAL). Create auto-invoice rule (TERM_START). Trigger worker. Verify invoices generated for all eligible students. Verify generation run tracks created/skipped/failed.</li>
+      <li><strong>Sibling discount:</strong> 2nd child enrolled. Invoice generated. Verify 10% sibling discount auto-applied. 3rd child: verify 20% applied. 1st child: no discount.</li>
+      <li><strong>Lunch account lifecycle:</strong> Create account for Maya. Deposit $50. Charge $4.50 (MEAL_CHARGE). Verify balance=$45.50. Charge until below threshold. Verify <code>pay.lunch.low_balance</code> fires. End-of-year: transfer remaining to sibling (IMMUTABLE). Attempt UPDATE on transfer → rejected.</li>
+      <li><strong>Payment plan:</strong> Create 10-instalment plan for $10K invoice. Record 3 instalments. Verify next_due_date advances. Miss 2 instalments past threshold. Verify DEFAULTED.</li>
+      <li><strong>Credit note (IMMUTABLE):</strong> Issue $25 credit on invoice. Verify pay_ledger_entries CREDIT row. Verify <code>pay.credit_note.issued</code> fires. Attempt UPDATE → rejected. Attempt DELETE → rejected.</li>
+      <li><strong>Payment reversal (IMMUTABLE):</strong> Reverse a payment (BOUNCED_CHEQUE). Verify payment.status=FAILED. Verify invoice reinstated to OVERDUE. Verify <code>pay.payment.reversed</code> fires.</li>
+      <li><strong>Late fees:</strong> Configure policy ($25 fixed, 7-day grace). Create overdue invoice (8 days past due). Run LateFeesWorker. Verify late fee line item added. Verify max cap respected.</li>
+      <li><strong>Multi-invoice allocation:</strong> Parent makes $500 payment. Allocate $300 to invoice A + $200 to invoice B. Verify SUM = $500. Attempt allocation where SUM ≠ payment.amount → 400.</li>
+      <li><strong>Visibility:</strong> Parent sees own family's accounts, lunch balances, aid applications. Cannot see other families. Admin manages all. Finance staff can process but not configure policies.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified payments advanced: aid → fees → auto-invoicing → discounts → lunch → plans → credit notes → reversals → late fees → allocations.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">Kafka Consumer: fds.meal.served → Lunch Account Debit</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>LunchAccountConsumer</strong> &mdash; Subscribes to <code>dev.fds.meal.served</code> from Cycle 20 Food Service. On event: looks up pay_lunch_accounts for the student_id, creates pay_lunch_transactions (MEAL_CHARGE), decrements balance. If balance ≤ low_balance_threshold: emits <code>pay.lunch.low_balance</code>. Idempotent via transaction dedup on (lunch_account_id, meal_date, pos_device_id, served_at).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 1 new Kafka consumer (LunchAccountConsumer on fds.meal.served). Lunch account auto-debited on cafeteria POS scan.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 17 new tables. Tenant table count: ~498.</li>
+      <li>Payments API: ~34 new endpoints + 3 workers + 1 Kafka consumer.</li>
+      <li>Financial aid: programme + application + award with fund pool tracking.</li>
+      <li>Fee schedules with auto-invoice generation + sibling/early-payment discounts.</li>
+      <li>Lunch accounts with POS-integrated debit + low-balance alerting + sibling transfers.</li>
+      <li>Payment plans with instalment tracking + default detection.</li>
+      <li>Credit notes + payment reversals (IMMUTABLE, append-only).</li>
+      <li>Late fee automation with grace period + cap.</li>
+      <li>LunchAccountConsumer on fds.meal.served for POS integration.</li>
+      <li><code>pay.credit_note.issued</code> + <code>pay.payment.reversed</code> + <code>pay.lunch.low_balance</code> Kafka emits.</li>
+      <li>HANDOFF-P2C6.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 6 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M84 Payments deferred tables). Functions: FIN-001 Family Billing + FIN-002 Financial Aid. Cross-cycle: Cycle 6 pay_invoices + pay_payments + pay_ledger_entries, Cycle 20 fds.meal.served, Cycle 26 GLConsumer for credit note + reversal GL posting.</p>
+  </div>
+</div>
+</body>
+</html>

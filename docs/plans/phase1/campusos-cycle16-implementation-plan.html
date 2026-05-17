@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 16 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../../design-hub/index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../../design-hub/index.html">Design Hub</a>
+  <a href="../../architecture/campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 3 &middot; Communications &amp; Community</div>
+    <h1>Cycle 16: Enrolment &amp;<br>Admissions</h1>
+    <div class="sub">The student lifecycle gate: enrolment periods with parallel admission streams, configurable application forms with multi-stage review pipelines, scored waitlists with automatic queue advancement, conditional and unconditional offers with deadline enforcement, and structured onboarding checklists that ensure every new student is ready before their first day. The first parent-facing application submission surface.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M81 Enrolment (25 tables &mdash; 16 core in scope, 9 deferred) &middot; STU-003 + STU-004</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 16 builds the M81 Enrolment module &mdash; 16 of the 25 ERD tables. This is the first module where <strong>prospective families</strong> (people who do not yet have a student record) interact with the platform. The Enrolment Officer (EO) is the fifth specialist operator persona. The module bridges the gap between "interested family" and "enrolled student" &mdash; once an offer is accepted and onboarding completes, the <code>enr.student.enrolled</code> Kafka emit triggers downstream systems (Cycle 6 PaymentAccountWorker creates the family account, Cycle 1 SIS creates the student record).</p>
+
+  <p class="body-text">The module spans 4 domains: (1) enrolment periods + admission streams + intake capacities, (2) the application pipeline with multi-stage review + scoring + documents + notes, (3) offers + waitlist with queue management, and (4) onboarding checklists with per-student progress tracking. This is the third parent-active surface (after Cycle 14 messaging and Cycle 15 conference booking) &mdash; but uniquely, the parent is a <strong>prospective</strong> applicant who may not have any existing CampusOS identity beyond the initial <code>iam_person</code> created at account provisioning.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin creates "2026-2027 Admissions" enrolment period with "Standard Intake" + "Music Scholarship" streams &rarr; sets intake capacity (Grade 5: 30 places, 2 reserved for looked-after children) &rarr; prospective parent submits an application for their child to Grade 5 Standard Intake with supporting documents &rarr; EO reviews the application, advances it through SUBMITTED &rarr; UNDER_REVIEW &rarr; INTERVIEW stages, logs confidential interview notes and an assessment score &rarr; EO issues an unconditional offer with a 14-day response deadline &rarr; parent accepts the offer within the deadline &rarr; <code>enr.offer.accepted</code> fires &rarr; system generates the onboarding checklist (8 tasks: uniform ordered, bus route assigned, medical form returned, etc.) &rarr; EO and school nurse complete tasks collaboratively &rarr; when all mandatory tasks are done, <code>enr.student.enrolled</code> fires &rarr; downstream: SIS creates the student record, PaymentAccountWorker creates the family account &rarr; a second applicant for an oversubscribed grade enters the waitlist at position #1 &rarr; when another family declines their offer, the waitlisted family auto-advances to OFFERED.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (16 tables):</strong> enr_enrollment_periods, enr_admission_streams, enr_intake_capacities, enr_capacity_summary, enr_applications, enr_application_stages, enr_application_scores, enr_application_documents, enr_application_notes, enr_application_form_responses, enr_offers, enr_waitlist_entries, enr_onboarding_checklists, enr_onboarding_tasks, enr_student_onboarding_progress, enr_student_onboarding_task_completions. Functions STU-003 (Enrolment &amp; Admissions).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to Cycle 16.1 (9 tables):</strong> enr_tour_slots + enr_tour_bookings (prospective family tour booking system), enr_withdrawal_requests + enr_exit_tasks (withdrawal pipeline, STU-004), enr_transfer_packages (outbound record transfers), enr_reenrollment_confirmations (returning student re-enrolment), enr_lottery_runs + enr_lottery_results + enr_lottery_criteria (oversubscription lottery engine).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Also deferred:</strong> Cycle 6 PaymentAccountWorker consumer on <code>enr.student.enrolled</code> (emit lands; no consumer wired). Cycle 1 SIS student record auto-creation on enrolment (manual this cycle). Application form builder UI (form_responses schema ships; the dynamic-field builder is Phase 2). Offer letter PDF generation (placeholder S3 key). Conditional offer evaluation workflow (schema ready; the auto-evaluate-conditions path is future).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Period + Stream + Capacity Schema</td><td>Schema</td><td>enr_enrollment_periods, enr_admission_streams, enr_intake_capacities, enr_capacity_summary</td></tr>
+    <tr><td><strong>2</strong></td><td>Application Pipeline Schema</td><td>Schema</td><td>enr_applications, enr_application_stages, enr_application_scores, enr_application_documents, enr_application_notes, enr_application_form_responses</td></tr>
+    <tr><td><strong>3</strong></td><td>Offers + Waitlist + Onboarding Schema</td><td>Schema</td><td>enr_offers, enr_waitlist_entries, enr_onboarding_checklists, enr_onboarding_tasks, enr_student_onboarding_progress, enr_student_onboarding_task_completions</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Period, Applications, Offers, Onboarding, Permissions</td><td>Seed</td><td>1 period + 2 streams + capacities, 3 applications at different stages, 1 offer + 1 waitlist entry, 1 onboarding checklist + progress, STU-003 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Period + Capacity NestJS Module</td><td>Code</td><td>EnrolmentPeriodService, AdmissionStreamService, IntakeCapacityService. Capacity dashboard with live counts.</td></tr>
+    <tr><td><strong>6</strong></td><td>Application Pipeline NestJS Module</td><td>Code</td><td>ApplicationService, StageService, ScoringService, DocumentService, NoteService. Multi-stage review. <code>enr.application.submitted</code> Kafka emit.</td></tr>
+    <tr><td><strong>7</strong></td><td>Offers + Waitlist + Onboarding NestJS Module</td><td>Code</td><td>OfferService, WaitlistService, OnboardingService. Offer lifecycle. Waitlist auto-advance. <code>enr.offer.accepted</code> + <code>enr.student.enrolled</code> Kafka emits.</td></tr>
+    <tr><td><strong>8</strong></td><td>Enrolment UI &mdash; Admin Pipeline + Capacity</td><td>UI</td><td>"Enrolment" app tile, admissions pipeline board, capacity dashboard, application review, offer management</td></tr>
+    <tr><td><strong>9</strong></td><td>Enrolment UI &mdash; Parent Application + Onboarding</td><td>UI</td><td>Parent application portal, application status tracker, offer response page, onboarding progress dashboard</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Period &rarr; application &rarr; review stages &rarr; offer &rarr; accept &rarr; onboarding &rarr; enrolled &rarr; waitlist advance</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Period + Stream + Capacity Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The admissions infrastructure: enrolment periods defining application windows, parallel admission streams within periods (standard intake, scholarships, specialist provision), and per-grade intake capacities with reserved places.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>enr_enrollment_periods</strong> &mdash; <code>school_id UUID</code>, <code>academic_year_id UUID FK(sis_academic_years)</code>, <code>name TEXT NOT NULL</code>, <code>opens_at TIMESTAMPTZ NOT NULL</code>, <code>closes_at TIMESTAMPTZ NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 5-value CHECK (DRAFT, OPEN, CLOSED, OFFERS_ISSUED, COMPLETED), <code>decision_date DATE</code> nullable, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name, academic_year_id). The period is the top-level container for an admissions cycle.</li>
+      <li><strong>enr_admission_streams</strong> &mdash; Parallel intake tracks. <code>enrollment_period_id UUID FK NOT NULL</code>, <code>name TEXT NOT NULL</code> (e.g., "Standard Intake", "Music Scholarship", "SEND Specialist"), <code>description TEXT</code>, <code>grade_level TEXT</code> nullable (null = all grades), <code>opens_at TIMESTAMPTZ</code>, <code>closes_at TIMESTAMPTZ</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(enrollment_period_id, name).</li>
+      <li><strong>enr_intake_capacities</strong> &mdash; Places per grade per period per stream. <code>enrollment_period_id UUID FK NOT NULL</code>, <code>stream_id UUID FK</code> nullable (null = general intake), <code>grade_level TEXT NOT NULL</code>, <code>total_places INT NOT NULL</code>, <code>reserved_places INT NOT NULL DEFAULT 0</code> (for looked-after children, EHCP holders, etc.), <code>notes TEXT</code>. UNIQUE(enrollment_period_id, COALESCE(stream_id, sentinel), grade_level) &mdash; the COALESCE-sentinel pattern from Cycle 6 + Cycle 12.</li>
+      <li><strong>enr_capacity_summary</strong> &mdash; Materialised dashboard. <code>enrollment_period_id UUID FK NOT NULL</code>, <code>grade_level TEXT NOT NULL</code>, <code>total_places INT</code>, <code>reserved_places INT</code>, <code>applications_received INT DEFAULT 0</code>, <code>offers_issued INT DEFAULT 0</code>, <code>offers_accepted INT DEFAULT 0</code>, <code>waitlisted INT DEFAULT 0</code>, <code>places_remaining INT</code>. UNIQUE(enrollment_period_id, grade_level). Updated on every application status change via the Step 6 service.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>053_enr_periods_capacity.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Application Pipeline Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The application itself with multi-stage review progression, scoring criteria for ranked selection, document uploads, confidential staff notes, and structured form responses.</p>
+
+    <div class="detail-heading">Tables (6)</div>
+    <ol class="detail-list">
+      <li><strong>enr_applications</strong> &mdash; <code>school_id UUID</code>, <code>enrollment_period_id UUID FK NOT NULL</code>, <code>stream_id UUID FK</code> nullable, <code>applicant_person_id UUID NOT NULL</code> (soft to iam_person &mdash; the parent/guardian submitting), <code>child_first_name TEXT NOT NULL</code>, <code>child_last_name TEXT NOT NULL</code>, <code>child_date_of_birth DATE NOT NULL</code>, <code>applying_for_grade TEXT NOT NULL</code>, <code>current_school TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'SUBMITTED'</code> 8-value CHECK (DRAFT, SUBMITTED, UNDER_REVIEW, INTERVIEW, ASSESSMENT, OFFERED, WAITLISTED, REJECTED, WITHDRAWN), <code>submitted_at TIMESTAMPTZ</code>, <code>decision_at TIMESTAMPTZ</code>, <code>decision_notes TEXT</code>. INDEX(school_id, status). INDEX(enrollment_period_id, applying_for_grade). Emits <code>enr.application.submitted</code> on submit.</li>
+      <li><strong>enr_application_stages</strong> &mdash; Audit trail of stage progression. <code>application_id UUID FK NOT NULL</code>, <code>from_status TEXT</code> nullable (null on initial submission), <code>to_status TEXT NOT NULL</code>, <code>changed_by UUID NOT NULL</code>, <code>notes TEXT</code>, <code>changed_at TIMESTAMPTZ NOT NULL DEFAULT now()</code>. INDEX(application_id, changed_at ASC). IMMUTABLE &mdash; no UPDATE, no DELETE.</li>
+      <li><strong>enr_application_scores</strong> &mdash; Scored criteria for ranked selection. <code>application_id UUID FK NOT NULL</code>, <code>criterion_name TEXT NOT NULL</code>, <code>score NUMERIC(5,2) NOT NULL</code>, <code>max_score NUMERIC(5,2)</code>, <code>scored_by UUID NOT NULL</code>, <code>notes TEXT</code>. UNIQUE(application_id, criterion_name). The total score feeds waitlist priority_score.</li>
+      <li><strong>enr_application_documents</strong> &mdash; <code>application_id UUID FK NOT NULL</code>, <code>document_type TEXT NOT NULL</code>, <code>s3_key TEXT NOT NULL</code>, <code>uploaded_at TIMESTAMPTZ</code>. Signed S3 URLs at read time.</li>
+      <li><strong>enr_application_notes</strong> &mdash; Staff-only observations. <code>application_id UUID FK NOT NULL</code>, <code>note_type TEXT NOT NULL</code> 6-value CHECK (INTERVIEW_NOTES, ASSESSMENT_RESULT, STAFF_OBSERVATION, REFERENCE_CHECK, VISIT_NOTES, GENERAL), <code>note_text TEXT NOT NULL</code>, <code>is_confidential BOOLEAN DEFAULT false</code> (when true: EO + admin only), <code>created_by UUID FK NOT NULL</code>, <code>created_at TIMESTAMPTZ</code>. INDEX(application_id, created_at DESC).</li>
+      <li><strong>enr_application_form_responses</strong> &mdash; Structured form field responses. <code>application_id UUID FK NOT NULL</code>, <code>field_name TEXT NOT NULL</code>, <code>response_value JSONB</code>. UNIQUE(application_id, field_name). The dynamic form builder is deferred; the schema supports it.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 6 new tables. Migration: <code>054_enr_applications.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Offers + Waitlist + Onboarding Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Formal offer issuance with deadline enforcement, scored waitlist with automatic queue advancement, and the onboarding checklist system that ensures every new student is operationally ready before day one.</p>
+
+    <div class="detail-heading">Tables (6)</div>
+    <ol class="detail-list">
+      <li><strong>enr_offers</strong> &mdash; <code>application_id UUID FK UNIQUE NOT NULL</code> (one offer per application), <code>school_id UUID</code>, <code>offer_type TEXT NOT NULL DEFAULT 'UNCONDITIONAL'</code> 2-value CHECK (UNCONDITIONAL, CONDITIONAL), <code>offer_conditions TEXT[]</code> nullable, <code>conditions_met BOOLEAN</code> nullable, <code>offer_letter_s3_key TEXT</code> nullable, <code>issued_at TIMESTAMPTZ NOT NULL</code>, <code>response_deadline TIMESTAMPTZ NOT NULL</code>, <code>family_response TEXT</code> nullable 3-value CHECK (ACCEPTED, DECLINED, DEFERRED), <code>family_responded_at TIMESTAMPTZ</code>, <code>status TEXT NOT NULL DEFAULT 'ISSUED'</code> 6-value CHECK (ISSUED, ACCEPTED, DECLINED, EXPIRED, WITHDRAWN, CONDITIONS_NOT_MET). INDEX(school_id, status). Partial INDEX(response_deadline) WHERE status='ISSUED' for the expiry sweep. Emits <code>enr.offer.accepted</code> on family acceptance.</li>
+      <li><strong>enr_waitlist_entries</strong> &mdash; <code>application_id UUID FK UNIQUE NOT NULL</code>, <code>enrollment_period_id UUID FK NOT NULL</code>, <code>grade_level TEXT NOT NULL</code>, <code>queue_position INT NOT NULL</code>, <code>priority_score NUMERIC(8,2)</code> nullable (from enr_application_scores), <code>waitlisted_at TIMESTAMPTZ NOT NULL</code>, <code>offered_at TIMESTAMPTZ</code>, <code>offer_expires_at TIMESTAMPTZ</code>, <code>status TEXT NOT NULL DEFAULT 'WAITING'</code> 6-value CHECK (WAITING, OFFERED, ACCEPTED, DECLINED, EXPIRED, REMOVED). Partial UNIQUE(enrollment_period_id, grade_level, queue_position) WHERE status='WAITING'. On DECLINED or EXPIRED: EnrolmentWorker advances next WAITING entry.</li>
+      <li><strong>enr_onboarding_checklists</strong> &mdash; School-level template. <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>admission_type TEXT NOT NULL DEFAULT 'STANDARD_INTAKE'</code> 5-value CHECK (STANDARD_INTAKE, MID_YEAR_ADMISSION, TRANSFER_IN, RETURNING_STUDENT, INTERNATIONAL), <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name, admission_type).</li>
+      <li><strong>enr_onboarding_tasks</strong> &mdash; Template tasks. <code>checklist_id UUID FK NOT NULL</code>, <code>task_name TEXT NOT NULL</code>, <code>task_category TEXT NOT NULL</code> 7-value CHECK (ADMINISTRATIVE, HEALTH, IT, FACILITIES, TRANSPORT, COMMUNICATIONS, FINANCE), <code>is_mandatory BOOLEAN DEFAULT true</code>, <code>responsible_role TEXT</code> nullable, <code>sort_order INT NOT NULL</code>, <code>due_days_before_start INT NOT NULL DEFAULT 0</code>. UNIQUE(checklist_id, task_name). INDEX(checklist_id, sort_order).</li>
+      <li><strong>enr_student_onboarding_progress</strong> &mdash; Per-student checklist tracking. <code>application_id UUID FK NOT NULL</code>, <code>checklist_id UUID FK NOT NULL</code>, <code>student_id UUID FK(sis_students)</code> nullable (populated when SIS record created), <code>started_date DATE NOT NULL</code>, <code>target_start_date DATE NOT NULL</code>, <code>overall_status TEXT NOT NULL DEFAULT 'IN_PROGRESS'</code> 3-value CHECK (IN_PROGRESS, COMPLETE, OVERDUE), <code>tasks_total INT NOT NULL</code>, <code>tasks_completed INT NOT NULL DEFAULT 0</code>. UNIQUE(application_id, checklist_id). Emits <code>enr.student.enrolled</code> when overall_status flips to COMPLETE and all mandatory tasks done.</li>
+      <li><strong>enr_student_onboarding_task_completions</strong> &mdash; Per-task tracking. <code>progress_id UUID FK NOT NULL</code>, <code>task_id UUID FK NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 4-value CHECK (PENDING, COMPLETED, WAIVED, OVERDUE), <code>completed_by UUID FK</code> nullable, <code>completed_at TIMESTAMPTZ</code>, <code>notes TEXT</code>. UNIQUE(progress_id, task_id). INDEX(progress_id, status) WHERE status != 'COMPLETED'.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 6 new tables. Migration: <code>055_enr_offers_onboarding.sql</code>. Total Cycle 16 tables: 16.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Seed Data &mdash; Period, Applications, Offers, Onboarding</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>1 enrolment period + 2 streams:</strong> "2026-2027 Admissions" (OPEN, opens Jan 15 &ndash; closes Mar 31). Streams: "Standard Intake" + "Music Scholarship".</li>
+      <li><strong>2 intake capacities + 1 capacity summary:</strong> Grade 5: 30 places, 2 reserved. Grade 6: 25 places, 1 reserved. Summary materialised with live counts.</li>
+      <li><strong>3 applications at different stages:</strong> (1) "Emma Wilson" Grade 5 Standard &mdash; OFFERED (interview notes + assessment score + documents). (2) "James Park" Grade 5 Standard &mdash; WAITLISTED at position #1 (scored lower). (3) "Sophia Martinez" Grade 5 Music Scholarship &mdash; SUBMITTED (fresh application).</li>
+      <li><strong>1 offer:</strong> Unconditional offer to Emma Wilson, response_deadline in 7 days, status=ISSUED.</li>
+      <li><strong>1 waitlist entry:</strong> James Park WAITING at position #1 with priority_score from his application scores.</li>
+      <li><strong>1 onboarding checklist + 8 tasks:</strong> "Standard New Student Checklist" (STANDARD_INTAKE) with: Uniform ordered (ADMINISTRATIVE), Bus route assigned (TRANSPORT), Medical form returned (HEALTH), Locker allocated (FACILITIES), IT account created (IT), Library card issued (ADMINISTRATIVE), Emergency contacts confirmed (COMMUNICATIONS), Enrolment deposit paid (FINANCE).</li>
+      <li><strong>Permissions:</strong> STU-003:read to Parent (view own application status), STU-003:write to Staff (EO processes applications), STU-003:admin to Admin (configure periods, capacities, checklists). Admin gets all via everyFunction.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Rich admissions demo data across all 16 tables + STU-003 permissions.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Period + Capacity NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>EnrolmentPeriodService</strong> &mdash; <code>GET /enrolment/periods</code>, <code>GET /enrolment/periods/:id</code> (with streams + capacity summary inlined), <code>POST /enrolment/periods</code>, <code>PATCH /enrolment/periods/:id</code> (status transitions with FOR UPDATE).</li>
+      <li><strong>AdmissionStreamService</strong> &mdash; <code>GET /enrolment/periods/:id/streams</code>, <code>POST /enrolment/periods/:id/streams</code>, <code>PATCH /enrolment/streams/:id</code>.</li>
+      <li><strong>IntakeCapacityService</strong> &mdash; <code>GET /enrolment/periods/:id/capacities</code>, <code>POST /enrolment/periods/:id/capacities</code>, <code>PATCH /enrolment/capacities/:id</code>. <code>GET /enrolment/periods/:id/dashboard</code> (the capacity summary with live application/offer/waitlist counts).</li>
+    </ol>
+    <div class="produces">Produces &rarr; EnrolmentModule with 3 services, ~12 endpoints.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Application Pipeline NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>ApplicationService</strong> &mdash; <code>GET /enrolment/applications</code> (EO: all in period; parent: own), <code>GET /enrolment/applications/:id</code> (with stages + scores + documents + notes inlined), <code>POST /enrolment/applications</code> (<strong>PARENT SUBMISSION KEYSTONE:</strong> validates period is OPEN + capacity not exceeded; emits <code>enr.application.submitted</code>; auto-creates SUBMITTED stage row), <code>PATCH /enrolment/applications/:id/advance</code> (EO advances through review stages; writes stage row; updates capacity_summary).</li>
+      <li><strong>ScoringService</strong> &mdash; <code>GET /enrolment/applications/:id/scores</code>, <code>POST /enrolment/applications/:id/scores</code> (EO scores criteria), <code>PATCH /enrolment/scores/:id</code>.</li>
+      <li><strong>DocumentService</strong> &mdash; <code>GET /enrolment/applications/:id/documents</code>, <code>POST /enrolment/applications/:id/documents</code> (parent or EO uploads; signed S3 URL return).</li>
+      <li><strong>NoteService</strong> &mdash; <code>GET /enrolment/applications/:id/notes</code> (confidential notes filtered for non-EO staff), <code>POST /enrolment/applications/:id/notes</code> (EO/admin).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~12 endpoints, 1 Kafka emit (<code>enr.application.submitted</code>).</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Offers + Waitlist + Onboarding NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>OfferService</strong> &mdash; <code>POST /enrolment/applications/:id/offer</code> (EO issues offer; creates enr_offers row; application status &rarr; OFFERED; capacity_summary.offers_issued++), <code>POST /enrolment/offers/:id/respond</code> (<strong>PARENT RESPONSE KEYSTONE:</strong> parent accepts/declines/defers; on ACCEPTED: emits <code>enr.offer.accepted</code>, generates onboarding checklist, capacity_summary.offers_accepted++; on DECLINED: triggers waitlist advance), <code>GET /enrolment/offers</code> (EO: all; parent: own). Offer expiry sweep: a future cron flips ISSUED &rarr; EXPIRED past deadline.</li>
+      <li><strong>WaitlistService</strong> &mdash; <code>GET /enrolment/waitlist</code> (EO: full queue; parent: own position), <code>POST /enrolment/applications/:id/waitlist</code> (EO adds to waitlist at next position; application status &rarr; WAITLISTED). Internal <code>advanceNext(periodId, gradeLevel)</code> called when an offer is declined &mdash; flips next WAITING entry to OFFERED with a deadline, emits notification.</li>
+      <li><strong>OnboardingService</strong> &mdash; <code>GET /enrolment/onboarding-checklists</code> (admin: templates), <code>POST /enrolment/onboarding-checklists</code> (admin), <code>GET /enrolment/onboarding/:progressId</code> (with task completions inlined), <code>PATCH /enrolment/onboarding-tasks/:id/complete</code> (any staff completes their assigned task; bumps tasks_completed; when all mandatory=done: overall_status=COMPLETE, emits <code>enr.student.enrolled</code>).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services, ~12 endpoints, 2 Kafka emits (<code>enr.offer.accepted</code>, <code>enr.student.enrolled</code>). Total Cycle 16 endpoints: ~36.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Enrolment UI &mdash; Admin Pipeline + Capacity</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Enrolment Dashboard</strong> <code>/enrolment</code> &mdash; "Enrolment" app tile gated on STU-003:read. Capacity summary cards per grade (total/received/offered/accepted/waitlisted/remaining). Active period status. Application pipeline counts by stage.</li>
+      <li><strong>Application Pipeline</strong> <code>/enrolment/applications</code> &mdash; Kanban-style board grouped by status (SUBMITTED &rarr; UNDER_REVIEW &rarr; INTERVIEW &rarr; ASSESSMENT &rarr; OFFERED &rarr; WAITLISTED). Per-card: child name, grade, stream, submitted date. Click to detail.</li>
+      <li><strong>Application Detail</strong> <code>/enrolment/applications/:id</code> &mdash; Applicant info card. Stage timeline (immutable audit). Scores table with criterion/score/max. Documents list with signed-URL download. Notes section (confidential gated on EO/admin). Issue-offer button. Add-to-waitlist button.</li>
+      <li><strong>Period + Capacity Manager</strong> <code>/enrolment/periods/:id</code> &mdash; Period header with status + dates. Streams list. Capacity grid (grade &times; stream) with editable places + reserved. Live summary row.</li>
+    </ol>
+    <div class="produces">Produces &rarr; "Enrolment" app tile + dashboard, pipeline board, application detail, period/capacity manager.</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Enrolment UI &mdash; Parent Application + Onboarding</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Parent Application Portal</strong> <code>/apply</code> &mdash; <strong>PROSPECTIVE PARENT KEYSTONE.</strong> Open periods with available streams. Application form: child details + grade + stream + document upload. Submit button with confirmation.</li>
+      <li><strong>Application Status Tracker</strong> <code>/apply/status</code> &mdash; parent sees: application stage pill progression, documents uploaded, offer (when issued) with Accept/Decline/Defer buttons, waitlist position (when waitlisted).</li>
+      <li><strong>Offer Response Page</strong> <code>/apply/offers/:id</code> &mdash; offer details, conditions (if conditional), response deadline countdown, Accept/Decline/Defer buttons with confirmation modals.</li>
+      <li><strong>Onboarding Progress</strong> <code>/enrolment/onboarding/:id</code> &mdash; EO view: per-task completion with responsible role + status + complete button. Parent view (once linked): progress bar + completed/pending pills per task.</li>
+      <li><strong>Waitlist View</strong> <code>/apply/waitlist</code> &mdash; parent sees queue position + estimated wait. EO sees full queue with reorder + manual offer buttons.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Parent application portal (first prospective-parent surface), status tracker, offer response, onboarding progress, waitlist view.</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Period + capacity setup:</strong> Admin creates period with 2 streams + Grade 5 capacity (30 places, 2 reserved). Verify capacity summary initialised.</li>
+      <li><strong>Parent submits application:</strong> Prospective parent submits for Grade 5 Standard Intake. Verify <code>enr.application.submitted</code> fires. Verify capacity_summary.applications_received++. Parent sees application in status tracker.</li>
+      <li><strong>Multi-stage review:</strong> EO advances SUBMITTED &rarr; UNDER_REVIEW &rarr; INTERVIEW. Stage audit rows created (immutable). EO logs confidential interview notes. EO scores 3 criteria.</li>
+      <li><strong>Offer issuance:</strong> EO issues unconditional offer with 14-day deadline. Application status &rarr; OFFERED. Capacity_summary.offers_issued++.</li>
+      <li><strong>Parent accepts:</strong> Parent accepts offer. <code>enr.offer.accepted</code> fires. Onboarding checklist auto-generated (8 tasks). Capacity_summary.offers_accepted++.</li>
+      <li><strong>Onboarding completion:</strong> EO + nurse + IT complete tasks. When all mandatory tasks done: overall_status=COMPLETE, <code>enr.student.enrolled</code> fires.</li>
+      <li><strong>Waitlist lifecycle:</strong> EO adds a second applicant to waitlist at position #1. First family declines their offer. <code>advanceNext</code> auto-offers to waitlisted family. Waitlist entry status WAITING &rarr; OFFERED.</li>
+      <li><strong>Offer expiry:</strong> Simulate deadline passing on an ISSUED offer. Verify status flips to EXPIRED.</li>
+      <li><strong>Visibility:</strong> Parent sees own application + offer + waitlist position. Cannot see other applications. EO sees all applications in the period. Teacher cannot access enrolment endpoints.</li>
+      <li><strong>Confidential notes:</strong> EO logs is_confidential=true note. Non-EO staff with STU-003:read cannot see it. Admin can.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified admissions lifecycle: period &rarr; application &rarr; multi-stage review &rarr; offer &rarr; accept &rarr; onboarding &rarr; enrolled &rarr; waitlist advance.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 16 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 16 new tables (4 period/capacity + 6 application + 6 offer/waitlist/onboarding). Tenant table count: ~245.</li>
+      <li>Enrolment API: ~36 endpoints with parent application submission + EO review pipeline + offer lifecycle.</li>
+      <li>Multi-stage application review with immutable stage audit trail.</li>
+      <li>Scored waitlist with automatic queue advancement on offer decline/expiry.</li>
+      <li>Onboarding checklist with per-task completion tracking across staff roles.</li>
+      <li><code>enr.application.submitted</code> + <code>enr.offer.accepted</code> + <code>enr.student.enrolled</code> Kafka emits.</li>
+      <li>Capacity summary materialised view updated on every pipeline state change.</li>
+      <li>Parent application portal &mdash; first prospective-parent surface.</li>
+      <li>HANDOFF-CYCLE16.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 16 delivers the student lifecycle gate &mdash; the pipeline from prospective family inquiry through accepted offer to operationally-ready enrolled student. The <code>enr.student.enrolled</code> Kafka emit is the cross-system trigger that downstream modules (SIS, Payments, Communications) will consume to create the student's operational identity. Cycle 16.1 adds tours, withdrawals, transfers, and the lottery engine. Cycle 17 (Clubs &amp; Student Life) continues Wave 3.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 16 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M81 Enrolment, 25 tables &mdash; 16 core in scope), Function Library (STU-003 Enrolment &amp; Admissions, STU-004 Withdrawal &amp; Transfer deferred to 16.1).</p>
+  </div>
+</div>
+
+</body>
+</html>

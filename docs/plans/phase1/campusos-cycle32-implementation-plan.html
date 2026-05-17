@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 32 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-ops{background:#f0f0f0;color:#475569;border:1px solid #cbd5e1}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../../design-hub/index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../../design-hub/index.html">Design Hub</a>
+  <a href="../../architecture/campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 8 &middot; Hardening</div>
+    <h1>Cycle 32: Multi-Region &amp;<br>Disaster Recovery</h1>
+    <div class="sub">Active-passive cross-region replication with &lt;15 min RTO and &lt;30 sec RPO, automated backup validation with weekly integrity checks, S3 cross-region replication for data residency compliance, Kafka MirrorMaker2 for event stream replication, Redis sentinel failover, tenant-region affinity with GDPR data residency enforcement, the complete DR runbook with quarterly tabletop exercises, and the chaos engineering programme that proves it all works. The final cycle of the core roadmap. Closes Wave 8.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; Ops Cycle &mdash; 0 new business tables &middot; ADR-042/048 &middot; Architecture Review Sections 21 + 25 &middot; Closes Wave 8 + Core Roadmap</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 32 is the second and final hardening cycle. Like Cycle 31, it adds <strong>zero new business tables</strong>. The deliverable is the infrastructure that keeps CampusOS operational when things go wrong &mdash; from a single instance failure to a full regional outage. This is the operational guarantee that a school district needs before signing a multi-year contract: "If your primary data centre goes down, we're back within 15 minutes with less than 30 seconds of data loss."</p>
+
+  <p class="body-text">The cycle spans 4 domains: (1) database replication &mdash; RDS Global Database with cross-region read replica and automated failover, backup validation, and point-in-time recovery testing, (2) event + cache replication &mdash; Kafka MirrorMaker2 for cross-region topic replication, Redis sentinel with cross-AZ failover, (3) storage + data residency &mdash; S3 cross-region replication with region-specific bucket policies for GDPR/data residency, tenant-region affinity enforcement at the API gateway, and (4) operational readiness &mdash; the DR runbook, automated failover testing, chaos engineering programme, and quarterly tabletop exercise framework.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Architecture &mdash; Active-Passive, Not Active-Active</div>
+    <p style="font-size:15px;line-height:1.8;">Per the Architecture Review Section 21.2, the first multi-region step is <strong>active-passive</strong> (warm standby in a secondary region). Active-active requires cross-region tenant routing at the API gateway, cross-region identity resolution, and a conflict resolution strategy for financial data &mdash; last-write-wins is not acceptable for GL entries. Active-active is a future consideration when single-region scale is exhausted. This cycle builds active-passive with DNS failover.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Cycle Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">RDS Global Database configured: primary us-east-1, warm standby us-west-2 with &lt;30 sec replication lag &rarr; weekly automated backup validation: restore latest snapshot to temporary instance, run schema validator (migration version match, table count match, row count range check), alert on failure &rarr; Kafka MirrorMaker2 replicates all operational topics from primary MSK cluster to standby &rarr; Redis ElastiCache Global Datastore replicates IAM cache + tenant routing across regions &rarr; S3 cross-region replication enabled for all buckets; EU/UK tenant buckets pinned to eu-west-2 with replication only within EU (GDPR data residency) &rarr; platform_tenant_routing.home_region enforced at API gateway: requests for EU tenants route to EU infrastructure only &rarr; DNS failover configured via Route 53 health checks: primary health check fails 3 consecutive times &rarr; automatic failover to standby &rarr; DR runbook authored: 6 failure scenarios with step-by-step procedures, responsible parties, communication templates &rarr; automated failover test: monthly synthetic primary failure, verify traffic shifts to standby within 15 min, verify Kafka consumers resume from last committed offset, verify Redis cache rebuilt from DB on cold start &rarr; chaos engineering: Chaos Monkey random instance kills in staging, Availability Zone failure simulation, network partition injection, DB failover drills &rarr; quarterly tabletop exercise: full team walks through a scenario (regional outage, data breach during failover, partial replication failure) with decision log and lessons learned.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:42%">Deliverable</th><th style="width:12%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>RDS Global Database + Cross-Region Replication</td><td>Ops</td><td>Primary us-east-1, standby us-west-2, &lt;30s replication lag, automated failover</td></tr>
+    <tr><td><strong>2</strong></td><td>Automated Backup Validation</td><td>Ops</td><td>Weekly snapshot restore, schema validation, row count range check, PITR testing</td></tr>
+    <tr><td><strong>3</strong></td><td>Kafka MirrorMaker2 + Event Replication</td><td>Ops</td><td>Cross-region topic replication, consumer offset sync, idempotency record replication</td></tr>
+    <tr><td><strong>4</strong></td><td>Redis Sentinel + Cache Failover</td><td>Ops</td><td>ElastiCache Global Datastore, cross-AZ failover, cold-start rebuild strategy</td></tr>
+    <tr><td><strong>5</strong></td><td>S3 Cross-Region Replication + Data Residency</td><td>Ops</td><td>CRR for all buckets, EU/UK data residency pinning, CloudFront PII cache restrictions</td></tr>
+    <tr><td><strong>6</strong></td><td>Tenant-Region Affinity + API Gateway Routing</td><td>Code</td><td>home_region enforcement at gateway, GDPR data residency routing, DPO regional workflow routing</td></tr>
+    <tr><td><strong>7</strong></td><td>DR Runbook + Communication Templates</td><td>Ops</td><td>6 failure scenario procedures, escalation matrix, school notification templates, post-incident review framework</td></tr>
+    <tr><td><strong>8</strong></td><td>Automated Failover Testing</td><td>Test</td><td>Monthly synthetic failover, traffic shift verification, consumer resume verification, cache rebuild verification</td></tr>
+    <tr><td><strong>9</strong></td><td>Chaos Engineering Programme</td><td>Test</td><td>Chaos Monkey instance kills, AZ failure simulation, network partition injection, DB failover drills</td></tr>
+    <tr><td><strong>10</strong></td><td>DR Readiness Review + Quarterly Tabletop Framework</td><td>Test</td><td>Full DR checklist signed, tabletop exercise framework, first exercise conducted, core roadmap complete</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">RDS Global Database + Cross-Region Replication</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Configure AWS RDS Global Database for cross-region replication of both the platform schema and all tenant schemas, with automated failover capability.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>RDS Global Database:</strong> Primary cluster in us-east-1. Secondary cluster in us-west-2 (warm standby). Storage-level replication with typical lag &lt;1 second, worst-case &lt;30 seconds. Global database supports up to 5 secondary regions (only 1 deployed this cycle).</li>
+      <li><strong>Schema replication verification:</strong> All platform tables + all tenant schemas replicate automatically (Global Database replicates at the storage level, not logical). Verify: migration version on standby matches primary, table counts match, UNIQUE constraints hold on both sides.</li>
+      <li><strong>Automated failover:</strong> RDS Global Database managed failover: promote secondary to primary in &lt;1 minute. Configure AWS-managed failover with RPO &lt;1 second for planned failover, &lt;30 seconds for unplanned. Application reconnection via PgBouncer + DNS update.</li>
+      <li><strong>Read replica routing:</strong> Cycle 31's read replica routing (platform_read_replica_routing, platform_read_replica_health) extended to include the cross-region standby as a read replica during normal operations. Analytics queries can optionally route to the standby to offload the primary.</li>
+    </ol>
+    <div class="produces">Produces &rarr; RDS Global Database with &lt;30s RPO, automated failover, cross-region read routing.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Automated Backup Validation</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Automated weekly validation that backups are restorable and data-intact. A backup you can't restore is not a backup.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>Weekly snapshot restore job:</strong> GitHub Actions workflow (Sunday 04:00 UTC): restore the latest automated RDS snapshot to a temporary instance, run Flyway validation (migration version matches primary), run table count check per schema (within ±1% of primary), run row count spot-checks on 10 critical tables (sis_students, iam_person, fin_gl_entries, audit_log, msg_messages, pay_ledger_entries, trn_ridership_records, fds_meal_transactions, pfl_portfolios, dpo_data_breach_records), tear down the temporary instance. Alert on any failure.</li>
+      <li><strong>Point-in-time recovery (PITR) test:</strong> Monthly: restore to a specific timestamp (15 minutes ago), verify data consistency at that point, document recovery time. Target: PITR complete within 30 minutes for the full database.</li>
+      <li><strong>Cross-region backup replication:</strong> RDS automated snapshot copy to us-west-2. Retention: 35 days in primary, 7 days in secondary. Verified: secondary snapshots are independently restorable (test quarterly).</li>
+      <li><strong>Backup monitoring:</strong> Prometheus metric: backup_validation_last_success_timestamp. Alert if more than 8 days since last successful validation.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Weekly automated backup validation, monthly PITR test, cross-region snapshot copy, backup monitoring alert.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Kafka MirrorMaker2 + Event Replication</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Replicate the Kafka event stream to the standby region so consumers in the standby can resume from the correct offset after failover.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>MirrorMaker2 configuration:</strong> Replicate all operational topics from primary MSK cluster (us-east-1) to standby MSK cluster (us-west-2). Topic naming: source topic <code>dev.pay.payment.received</code> becomes <code>us-east-1.dev.pay.payment.received</code> in the standby cluster. Consumer group offset sync enabled.</li>
+      <li><strong>Consumer offset translation:</strong> MM2 translates consumer group offsets from primary to standby. On failover: consumers in us-west-2 resume from the translated offset, not from earliest. Verified: simulate failover, confirm consumers process only events after the last committed offset in primary.</li>
+      <li><strong>Idempotency record replication:</strong> <code>platform_event_consumer_idempotency</code> replicates via Global Database. On failover: consumers that reprocess events near the boundary will find the idempotency key and skip duplicates. No double-processing of financial events.</li>
+      <li><strong>DLQ replication:</strong> DLQ topics replicate. DLQ dashboard in standby shows replicated dead letters. Replay in standby routes to standby consumers.</li>
+      <li><strong>Replication lag monitoring:</strong> MM2 checkpoint lag metric exported to Prometheus. Alert if replication lag exceeds 5 minutes sustained.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Cross-region Kafka replication with offset translation, idempotency dedup, DLQ sync, lag monitoring.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Redis Sentinel + Cache Failover</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Redis cross-region replication for the IAM cache and tenant routing cache, with documented cold-start rebuild strategy for the standby region.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>ElastiCache Global Datastore:</strong> Primary Redis cluster in us-east-1, read replica in us-west-2. IAM effective access cache + tenant routing cache replicate automatically. Typical lag &lt;1 second.</li>
+      <li><strong>Cross-AZ failover:</strong> Within us-east-1: Multi-AZ with automatic failover. ElastiCache promotes replica on primary failure. Application reconnects via the primary endpoint (unchanged).</li>
+      <li><strong>Cold-start rebuild strategy:</strong> If Redis is completely lost in the standby region (no replication data): IAM cache rebuilt from iam_role_assignment → roles → role_permissions. Tenant routing rebuilt from platform_tenant_routing. Cycle 31's caching layer (unread counts, catalogue copies, gap summaries) rebuilds on first cache miss. Documented warm-up time: ~5 minutes for a 500-student school.</li>
+      <li><strong>Suspension propagation:</strong> Account suspension (iam.account.suspended) propagates via Redis Pub/Sub within the primary region (&lt;1s). Cross-region: the Global Datastore replicates the SUSPENDED_ACCOUNTS set. On failover: the standby has the suspension list. Verified: suspend an account in primary, verify suspension effective in standby within 5 seconds.</li>
+    </ol>
+    <div class="produces">Produces &rarr; ElastiCache Global Datastore, cross-AZ failover, cold-start rebuild strategy, suspension propagation verification.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">S3 Cross-Region Replication + Data Residency</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>Cross-region replication for all S3 buckets with GDPR data residency enforcement for EU/UK tenants.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>S3 CRR (Cross-Region Replication):</strong> All S3 buckets in us-east-1 replicate to us-west-2. Includes: lesson videos, uploaded documents, paystub PDFs, profile images, credential vault documents, DPA documents, privacy notice documents, report outputs, export files.</li>
+      <li><strong>EU/UK data residency:</strong> EU/UK tenants get dedicated S3 buckets in eu-west-2 (London). Replication stays within EU: eu-west-2 ↔ eu-west-1 (Ireland), never to us-east-1. Bucket policy denies PutObject from non-EU principals. Verified: upload a document as an EU tenant, confirm it lands in eu-west-2, confirm it does NOT replicate to us-east-1.</li>
+      <li><strong>CloudFront PII restriction:</strong> CloudFront distribution configured with geo-restriction for PII-bearing content: EU tenant content served only from EU edge locations. Static assets (JS, CSS, public images) cached globally. Signed URLs for all PII content with 1-hour expiry.</li>
+      <li><strong>S3 versioning + lifecycle:</strong> Versioning enabled on all buckets (deletion protection). Lifecycle: current versions retained indefinitely, non-current versions expired after 90 days, incomplete multipart uploads aborted after 7 days.</li>
+    </ol>
+    <div class="produces">Produces &rarr; S3 CRR for all buckets, EU data residency pinning, CloudFront PII restrictions, versioning + lifecycle.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Tenant-Region Affinity + API Gateway Routing</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <p>Enforce tenant-region affinity at the API gateway so a tenant's requests always route to their home region's infrastructure.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>home_region enforcement:</strong> <code>platform_tenant_routing.home_region</code> (added in Cycle 0, defaulted to primary region) now actively enforced. TenantRoutingDataSource (ADR-042) reads home_region from Redis cache and selects the regional DB endpoint. A US tenant in us-east-1 never touches the eu-west-2 database.</li>
+      <li><strong>API gateway region routing:</strong> Route 53 latency-based routing + API Gateway regional endpoints. EU tenants resolve to the EU API Gateway endpoint. US tenants resolve to the US endpoint. The gateway validates that the resolved region matches platform_tenant_routing.home_region. Mismatch returns 421 Misdirected Request.</li>
+      <li><strong>DPO regional workflow routing:</strong> dpo_subject_access_requests and dpo_erasure_requests processed in the tenant's home_region. The DPO Governance API (Cycle 30) validates that the executing worker is in the correct region before processing. Cross-region DPO operations documented in dpo_data_processing_agreements.</li>
+      <li><strong>Tenant region migration procedure:</strong> Documented procedure for moving a tenant from one region to another (e.g., US school opens a UK campus). Steps: provision tenant schema in target region, replicate data via pg_dump/pg_restore, update platform_tenant_routing.home_region, verify, cut over DNS, decommission source schema. Estimated downtime: &lt;30 minutes per tenant.</li>
+    </ol>
+    <div class="produces">Produces &rarr; home_region enforcement at gateway, regional DPO routing, tenant migration procedure.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">DR Runbook + Communication Templates</span></div>
+    <div class="step-meta"><span class="step-tag tag-ops">Ops</span></div>
+    <p>The disaster recovery runbook that the on-call team follows when infrastructure fails.</p>
+    <div class="detail-heading">6 Failure Scenarios</div>
+    <ol class="detail-list">
+      <li><strong>Scenario 1 &mdash; Single instance failure:</strong> ECS task dies. Auto-replaced by ECS service scheduler. No manual action. Verify health check + auto-replacement within 2 minutes.</li>
+      <li><strong>Scenario 2 &mdash; Availability Zone failure:</strong> One AZ in us-east-1 goes down. Multi-AZ RDS fails over automatically (&lt;30s). ECS tasks redistribute to healthy AZs. ElastiCache sentinel promotes replica. Verify all services operational within 5 minutes. No manual action required.</li>
+      <li><strong>Scenario 3 &mdash; Primary database failure:</strong> RDS primary instance unresponsive. Global Database promotes standby. PgBouncer reconnects to new primary endpoint. Kafka consumers pause and resume. Verify: &lt;5 minute RTO, &lt;1 second RPO. On-call validates data integrity post-failover.</li>
+      <li><strong>Scenario 4 &mdash; Full regional failure:</strong> us-east-1 completely unavailable. Route 53 health check fails 3× → DNS failover to us-west-2. Global Database promotes us-west-2 to primary. Kafka consumers in us-west-2 resume from translated offsets. Redis cold-start rebuild (~5 min). S3 serves from replicated buckets. Verify: &lt;15 minute RTO, &lt;30 second RPO. Communication template: notify all school admins via emergency SMS (pre-cached phone numbers in standby).</li>
+      <li><strong>Scenario 5 &mdash; Kafka cluster failure:</strong> MSK cluster unresponsive. Producers buffer in-memory (30s). MSK auto-recovers brokers. Consumer offsets recovered from coordination topic. If full cluster loss: consumers replay from earliest available offset, idempotency records prevent duplicates. Verify: &lt;10 minute recovery.</li>
+      <li><strong>Scenario 6 &mdash; Data corruption:</strong> Logical data corruption detected (bad migration, application bug). Immediate: isolate affected tenants (feature flag kill-switch). PITR: restore from point-in-time before corruption. Selective restore: pg_dump affected schemas from PITR instance, pg_restore into production. Verify: data integrity checks on restored schemas. Communication: notify affected schools with timeline.</li>
+    </ol>
+    <div class="detail-heading">Communication Templates</div>
+    <ol class="detail-list">
+      <li><strong>Incident notification (to schools):</strong> "CampusOS is experiencing a service disruption. Our team is actively working to restore service. We expect resolution within [ETA]. Your data is safe. We will update you every 30 minutes."</li>
+      <li><strong>Resolution notification:</strong> "Service has been fully restored as of [time]. No data was lost. A detailed incident report will be shared within 48 hours."</li>
+      <li><strong>Post-incident report template:</strong> Timeline, root cause, impact (tenants affected, duration), remediation actions, preventive measures, follow-up items.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 6-scenario DR runbook, escalation matrix, 3 communication templates, post-incident review framework.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Automated Failover Testing</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <p>Monthly automated failover exercises that prove the DR infrastructure works without waiting for a real incident.</p>
+    <div class="detail-heading">Deliverables</div>
+    <ol class="detail-list">
+      <li><strong>Monthly synthetic failover:</strong> Automated workflow (first Sunday of each month, 02:00 UTC staging): trigger RDS Global Database failover from primary to standby. Verify: application reconnects within target RTO (&lt;15 min). Kafka consumers resume from correct offsets. Redis cache available (replicated or rebuilt). S3 objects accessible from standby region. Run smoke test suite against standby. Fail back to primary after verification.</li>
+      <li><strong>Consumer resume verification:</strong> During failover: verify each of the 17+ consumers resumes from the last committed offset. No events skipped. No events double-processed (idempotency check). GL consumer specifically verified: no duplicate financial postings.</li>
+      <li><strong>Cache rebuild verification:</strong> Kill Redis in standby before failover. Verify: IAM cache rebuilds from DB within 5 minutes. Tenant routing resolves correctly. First request for each user experiences cache-miss latency (~200ms), subsequent requests hit cache (&lt;10ms).</li>
+      <li><strong>Failover metrics:</strong> Record per failover exercise: actual RTO (minutes), actual RPO (seconds of data lag), consumer resume lag (seconds), cache rebuild time (seconds), total smoke test pass rate. Trend over time in Grafana.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Monthly automated failover exercise, consumer/cache verification, failover metrics tracking.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">Chaos Engineering Programme</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <p>Proactive failure injection in staging to find weaknesses before they find you in production.</p>
+    <div class="detail-heading">Experiments</div>
+    <ol class="detail-list">
+      <li><strong>Instance kills (Chaos Monkey):</strong> Randomly terminate ECS tasks in staging during business hours. Verify: ECS service scheduler replaces within 2 minutes. No user-visible errors (load balancer health check routes around). Metric: mean time to replacement.</li>
+      <li><strong>AZ failure simulation:</strong> Block all network traffic to one AZ in staging. Verify: Multi-AZ RDS fails over. ECS tasks redistribute. No user-visible downtime beyond ~30s. Metric: failover duration.</li>
+      <li><strong>Network partition injection:</strong> Introduce 5-second network latency between application and database. Verify: circuit breakers open. Requests fail fast (not hang). Health check reports degraded. When partition heals: circuit closes. Requests resume. No data corruption.</li>
+      <li><strong>DB failover drill:</strong> Force RDS failover in staging. Verify: PgBouncer reconnects. Consumers pause and resume. No orphaned transactions. Metric: application recovery time.</li>
+      <li><strong>Kafka broker kill:</strong> Terminate one MSK broker. Verify: producers and consumers continue with remaining brokers. Replication factor ensures no data loss. MSK auto-replaces the broker. Metric: producer/consumer impact duration.</li>
+      <li><strong>Redis eviction pressure:</strong> Fill Redis to 90% capacity in staging. Verify: eviction policy (volatile-lru) evicts correct keys. IAM cache misses fall back to DB. No application errors. Metric: cache hit rate under pressure.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 6 chaos experiments with documented results, weakness identification, remediation tracking.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">DR Readiness Review + Quarterly Tabletop Framework</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <p>The final review that certifies the platform is disaster-ready, plus the framework for ongoing quarterly exercises.</p>
+    <div class="detail-heading">DR Readiness Checklist</div>
+    <ol class="detail-list">
+      <li><strong>Database:</strong> Global Database replicating with &lt;30s lag. Weekly backup validation passing. Monthly PITR test successful. Cross-region snapshots verified restorable.</li>
+      <li><strong>Kafka:</strong> MirrorMaker2 replicating all topics with &lt;5 min lag. Consumer offset translation verified. Idempotency records replicating. DLQ sync confirmed.</li>
+      <li><strong>Redis:</strong> Global Datastore replicating IAM + routing caches. Cold-start rebuild tested and documented. Suspension propagation verified cross-region.</li>
+      <li><strong>S3:</strong> CRR active for all buckets. EU data residency verified (no leakage to US). CloudFront PII restrictions active. Versioning enabled.</li>
+      <li><strong>Tenant routing:</strong> home_region enforced at API gateway. Regional DPO routing verified. Tenant migration procedure documented and tested.</li>
+      <li><strong>Runbook:</strong> All 6 scenarios documented. Communication templates reviewed by school relations team. Escalation matrix current.</li>
+      <li><strong>Failover testing:</strong> At least 2 successful monthly failover exercises completed. RTO &lt;15 min achieved. RPO &lt;30s achieved. Consumer resume verified. Cache rebuild verified.</li>
+      <li><strong>Chaos engineering:</strong> All 6 experiments completed in staging. Weaknesses identified and remediated. No critical findings outstanding.</li>
+    </ol>
+    <div class="detail-heading">Quarterly Tabletop Exercise Framework</div>
+    <ol class="detail-list">
+      <li><strong>Format:</strong> 2-hour facilitated exercise with the full engineering + ops team. One scenario presented (rotating quarterly through the 6 runbook scenarios + novel scenarios). Team walks through the runbook steps, identifies gaps, makes decisions, logs actions.</li>
+      <li><strong>Deliverable per exercise:</strong> Decision log (who decided what, when), gap identification (runbook steps that were unclear or incomplete), action items (remediation with owners + deadlines), updated runbook (incorporate lessons learned).</li>
+      <li><strong>First exercise:</strong> Conducted as part of Cycle 32. Scenario: "It's Tuesday 10:30 AM. us-east-1 reports a major outage affecting all services. 200 schools are in the middle of morning attendance. The Emergency Alert service was processing a lockdown drill when the outage began. Walk through the response."</li>
+    </ol>
+    <div class="produces">Produces &rarr; Signed DR readiness checklist. First quarterly tabletop exercise completed. <strong>Core roadmap complete. CampusOS is pilot-ready.</strong></div>
+  </div>
+
+  <h2 class="section-heading">Cycle 32 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 0 new tables. Tenant table count: ~418 (unchanged).</li>
+      <li>RDS Global Database: active-passive, &lt;30s RPO, &lt;15 min RTO for regional failover.</li>
+      <li>Automated backup validation: weekly snapshot restore + schema check + row count verification.</li>
+      <li>Monthly PITR test: restore to specific timestamp within 30 minutes.</li>
+      <li>Kafka MirrorMaker2: cross-region topic replication with consumer offset translation.</li>
+      <li>Redis Global Datastore: IAM + routing cache replicated, cold-start rebuild documented.</li>
+      <li>S3 CRR: all buckets replicated, EU data residency enforced, CloudFront PII restrictions active.</li>
+      <li>Tenant-region affinity: home_region enforced at API gateway, DPO regional routing verified.</li>
+      <li>DR runbook: 6 failure scenarios documented with communication templates.</li>
+      <li>Monthly automated failover exercise: at least 2 successful runs with metrics.</li>
+      <li>Chaos engineering: 6 experiments completed, no critical findings outstanding.</li>
+      <li>First quarterly tabletop exercise completed with decision log + action items.</li>
+      <li>HANDOFF-CYCLE32.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave 8 complete. Core roadmap complete. CampusOS is pilot-ready.</strong></li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 32 closes Wave 8 (Hardening) and the entire core roadmap. CampusOS is now a fully operational, multi-module, multi-tenant School Operating System with 418 tables across 38 modules, ~970 endpoints, observability instrumentation, load-tested performance baselines, GDPR/FERPA compliance, and a proven disaster recovery capability. The platform is ready for pilot deployment. Phase 2 (.1 cycles for the remaining ~420 deferred tables) begins after pilot feedback.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 32 Implementation Plan &mdash; May 2026. Ops cycle: 0 new business tables. Derived from: Architecture Review v10 (Section 21 Multi-Region, Section 25 Observability), Development &amp; Deployment Plan (Section 21 DR Strategy). Closes Wave 8 + Core Roadmap.</p>
+  </div>
+</div>
+
+</body>
+</html>

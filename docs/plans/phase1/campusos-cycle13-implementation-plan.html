@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 13 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.topbar .brand{font-weight:600;color:white;font-size:15px}
+.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}
+.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}
+.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}
+.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
+.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}
+.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}
+.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}
+.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}
+.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}
+.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}
+.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:0.4}
+.step-title{font-size:19px;font-weight:700;color:var(--accent)}
+.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}
+.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}
+.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}
+.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}
+.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}
+.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}
+.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}
+.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}
+.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}
+.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../../design-hub/index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../../design-hub/index.html">Design Hub</a>
+  <a href="../../architecture/campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 2 &middot; Athletics</div>
+    <h1>Cycle 13: Athletics</h1>
+    <div class="sub">Sports programmes with seasonal rosters, GPA-based eligibility verification, game scheduling with cross-school proposals, results and player statistics with season records, coaching assignments, and injury tracking with a 6-step concussion return-to-play protocol. The Athletic Director is the new operator persona.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M66 Athletics (32 tables &mdash; 14 core in scope, 18 deferred) &middot; Completes Wave 2</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 13 builds the M66 Athletics module &mdash; 14 of the 32 ERD tables. This is a clean greenfield with a new table prefix (<code>ath_*</code>). The Athletic Director (AD) is the fourth specialist operator persona alongside the nurse (Cycle 10), counsellor (Cycle 11), and librarian (Cycle 12). The module touches existing systems through <code>sis_students</code> (roster membership + eligibility), <code>hr_employees</code> (coaching assignments), and <code>sis_academic_years</code> (seasons). The GPA-based eligibility check is the first read-back into the Cycle 2 gradebook data.</p>
+
+  <p class="body-text">The module spans 4 domains: (1) programme + season + roster infrastructure with eligibility tracking, (2) game scheduling with cross-school proposal workflow (ADR-069), results, player statistics, and season records, (3) coaching assignments, and (4) injury tracking with the 6-step concussion return-to-play protocol and physician clearance documents. M64 Clubs &amp; Student Life (22 tables) moves to Wave 3 alongside Communications.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Safety &mdash; Concussion Return-to-Play Protocol</div>
+    <p style="font-size:15px;line-height:1.8;">The <code>ath_concussion_protocol_steps</code> table enforces a mandatory 6-step graduated return-to-play process (per CDC guidelines). Each step has a minimum 24-hour duration, and step N+1 cannot start until step N is completed AND the minimum duration has elapsed. A student with <code>return_to_play_status=CONCUSSION_PROTOCOL</code> on their injury record is INELIGIBLE to play until they receive a physician clearance via <code>ath_medical_clearances</code> and the injury status flips to <code>CLEARED</code>.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">AD creates "Basketball" programme (WINTER season, levels [VARSITY, JV], min_gpa=2.0) &rarr; opens the 2025-2026 season &rarr; creates VARSITY roster with Coach Rivera as head coach &rarr; adds Maya to the roster (eligibility check passes: GPA 3.5 &ge; 2.0, no active suspension) &rarr; AD schedules a home game vs Jefferson High (CONFIRMED, Jan 15 7pm) &rarr; after the game, enters result (Lincoln 52, Jefferson 48, WIN) and Maya's stats (12 points, 5 rebounds) &rarr; season record auto-updates to 1-0 &rarr; during practice, Maya sustains a head injury &rarr; AD logs the injury (MODERATE, CONCUSSION_PROTOCOL) &rarr; the 6-step concussion protocol begins (step 1: complete rest, 24hr minimum) &rarr; Maya's roster eligibility flips to INJURED_NOT_CLEARED &rarr; after completing all 6 steps, physician uploads clearance document &rarr; AD reviews and accepts clearance &rarr; Maya's eligibility returns to ELIGIBLE.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (14 tables):</strong> ath_programmes, ath_seasons, ath_rosters, ath_roster_members, ath_games, ath_game_proposals (ADR-069), ath_game_results, ath_player_game_stats, ath_season_records, ath_all_time_records, ath_coaching_assignments, ath_injuries, ath_concussion_protocol_steps, ath_medical_clearances. Functions ATH-001 through ATH-005.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to Cycle 13.1 (18 tables):</strong> ath_equipment_inventory + ath_equipment_assignments (equipment tracking), ath_official_assignments + ath_official_ratings (officials marketplace, ADR-063), ath_game_streams + ath_highlight_clips (live streaming, ADR-068), ath_conferences + ath_conference_memberships (conference management). M64 Clubs &amp; Student Life (22 ext_* tables) moves entirely to Wave 3.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Also deferred:</strong> Live GPA eligibility re-check via gradebook Kafka consumer (manual check this cycle; the read-back query is in place). Cross-school game proposal acceptance flow (ADR-069 schema ready; the receiving school's UI for accepting proposals is a polish item). Season record auto-update via DB trigger (service-side update this cycle). All-time record auto-detection (manual entry this cycle).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Programme + Season + Roster Schema</td><td>Schema</td><td>ath_programmes, ath_seasons, ath_rosters, ath_roster_members</td></tr>
+    <tr><td><strong>2</strong></td><td>Game + Results + Records Schema</td><td>Schema</td><td>ath_games, ath_game_proposals, ath_game_results, ath_player_game_stats, ath_season_records, ath_all_time_records</td></tr>
+    <tr><td><strong>3</strong></td><td>Coaching + Injuries + Safety Schema</td><td>Schema</td><td>ath_coaching_assignments, ath_injuries, ath_concussion_protocol_steps, ath_medical_clearances</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Programme, Season, Roster, Games, Injury</td><td>Seed</td><td>Basketball programme + VARSITY roster with Maya + 3 games + 1 injury with concussion protocol + ATH-001..005 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Programme + Roster NestJS Module</td><td>Code</td><td>ProgrammeService, SeasonService, RosterService. GPA eligibility check. Roster certification.</td></tr>
+    <tr><td><strong>6</strong></td><td>Game + Results NestJS Module</td><td>Code</td><td>GameService, GameProposalService, ResultService, StatsService. Season record auto-update. <code>ath.game.result.entered</code> Kafka emit.</td></tr>
+    <tr><td><strong>7</strong></td><td>Coaching + Injury + Safety NestJS Module</td><td>Code</td><td>CoachingService, InjuryService, ConcussionProtocolService, MedicalClearanceService. 6-step protocol enforcement.</td></tr>
+    <tr><td><strong>8</strong></td><td>Athletics UI &mdash; Programmes + Rosters + Games</td><td>UI</td><td>"Athletics" app tile, AD dashboard, programme/season/roster management, game schedule, results entry</td></tr>
+    <tr><td><strong>9</strong></td><td>Athletics UI &mdash; Stats + Injuries + Student Portal</td><td>UI</td><td>Player stats, season records, injury log, concussion protocol tracker, student athletics portal</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Programme &rarr; roster + eligibility &rarr; game &rarr; result &rarr; season record &rarr; injury &rarr; concussion protocol &rarr; clearance</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Programme + Season + Roster Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The athletics foundation: sport programme definitions, per-year season instances, team rosters at different levels (Varsity/JV/Freshman/Club), and individual roster membership with eligibility tracking.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>ath_programmes</strong> &mdash; <code>school_id UUID</code>, <code>sport_name TEXT NOT NULL</code>, <code>season TEXT NOT NULL</code> 4-value CHECK (FALL, WINTER, SPRING, YEAR_ROUND), <code>levels_offered TEXT[] NOT NULL</code>, <code>max_roster_size_per_level JSONB</code> nullable, <code>min_gpa NUMERIC(3,2)</code> nullable (the eligibility threshold the Step 5 service checks against live gradebook data), <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, sport_name). The programme is the sport definition; each year gets a season instance.</li>
+      <li><strong>ath_seasons</strong> &mdash; <code>programme_id UUID FK NOT NULL</code>, <code>academic_year TEXT NOT NULL</code>, <code>first_practice_date DATE</code>, <code>first_game_date DATE</code>, <code>last_game_date DATE</code>, <code>playoff_cutoff_date DATE</code>, <code>status TEXT NOT NULL DEFAULT 'UPCOMING'</code> 4-value CHECK (UPCOMING, ACTIVE, POSTSEASON, COMPLETED). UNIQUE(programme_id, academic_year). The season is the year-specific instance of a programme.</li>
+      <li><strong>ath_rosters</strong> &mdash; <code>season_id UUID FK NOT NULL</code>, <code>level TEXT NOT NULL</code> 4-value CHECK (VARSITY, JV, FRESHMAN, CLUB), <code>head_coach_id UUID FK(hr_employees)</code> nullable, <code>is_certified BOOLEAN DEFAULT false</code>, <code>certified_at TIMESTAMPTZ</code> nullable. UNIQUE(season_id, level). Certification means the AD has reviewed eligibility for all members and signed off.</li>
+      <li><strong>ath_roster_members</strong> &mdash; <code>roster_id UUID FK NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>jersey_number TEXT</code>, <code>position TEXT</code>, <code>eligibility_status TEXT NOT NULL</code> 6-value CHECK (ELIGIBLE, INELIGIBLE, PENDING_PHYSICAL, PENDING_CONSENT, PENDING_TRANSFER_WAIVER, INJURED_NOT_CLEARED), <code>joined_at DATE NOT NULL</code>, <code>removed_at DATE</code> nullable, <code>removal_reason TEXT</code> nullable. UNIQUE(roster_id, student_id). The eligibility_status is the live state the AD tracks &mdash; the Step 5 service checks GPA against the programme's min_gpa on add and on manual re-check.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>046_ath_programmes_rosters.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Game + Results + Records Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The competitive surface: game scheduling with cross-school proposal workflow, results with score-by-period breakdown, per-player per-game statistics with sport-configurable categories, season W/L/D records, and school all-time records.</p>
+
+    <div class="detail-heading">Tables (6)</div>
+    <ol class="detail-list">
+      <li><strong>ath_games</strong> &mdash; <code>season_id UUID FK NOT NULL</code>, <code>roster_id UUID FK NOT NULL</code>, <code>game_date DATE NOT NULL</code>, <code>game_time TIME NOT NULL</code>, <code>opponent_name TEXT NOT NULL</code>, <code>opponent_school_id UUID</code> nullable (soft to platform entity cache for CampusOS opponents), <code>location TEXT NOT NULL</code> 3-value CHECK (HOME, AWAY, NEUTRAL), <code>facility_booking_id UUID</code> nullable (soft to fac_space_bookings), <code>transport_request_id UUID</code> nullable (soft to trn_), <code>status TEXT NOT NULL DEFAULT 'SCHEDULED'</code> 6-value CHECK (SCHEDULED, CONFIRMED, IN_PROGRESS, COMPLETED, POSTPONED, CANCELLED), <code>is_conference_game BOOLEAN DEFAULT false</code>, <code>is_ticketed BOOLEAN DEFAULT false</code>, <code>event_id UUID</code> nullable (soft to evt_events). INDEX(season_id, game_date).</li>
+      <li><strong>ath_game_proposals</strong> &mdash; Cross-school game scheduling (ADR-069). <code>proposing_school_id UUID NOT NULL</code>, <code>receiving_school_id UUID NOT NULL</code>, <code>sport TEXT NOT NULL</code>, <code>proposed_date DATE NOT NULL</code>, <code>proposed_time TIME</code>, <code>proposed_location TEXT NOT NULL</code> 3-value CHECK (HOME_PROPOSING, HOME_RECEIVING, NEUTRAL), <code>level TEXT NOT NULL</code>, <code>notes TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'PROPOSED'</code> 5-value CHECK (PROPOSED, ACCEPTED, COUNTER_PROPOSED, DECLINED, CONFIRMED), <code>counter_proposal_data JSONB</code> nullable, <code>confirmed_game_id UUID</code> nullable. Cross-tenant via platform entity cache.</li>
+      <li><strong>ath_game_results</strong> &mdash; <code>game_id UUID FK UNIQUE NOT NULL</code> (one result per game), <code>home_score INT NOT NULL</code>, <code>away_score INT NOT NULL</code>, <code>score_by_period JSONB</code> nullable, <code>outcome TEXT NOT NULL</code> 4-value CHECK (WIN, LOSS, DRAW, FORFEIT), <code>entered_by UUID FK NOT NULL</code>, <code>entered_at TIMESTAMPTZ</code>. On INSERT: service updates ath_season_records. Emits <code>ath.game.result.entered</code>.</li>
+      <li><strong>ath_player_game_stats</strong> &mdash; Per-player per-game statistics. <code>game_id UUID FK NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>stat_category TEXT NOT NULL</code> (sport-configurable: points, rebounds, assists, goals, etc.), <code>stat_value NUMERIC(10,2) NOT NULL</code>, <code>entered_by UUID FK NOT NULL</code>. INDEX(game_id, student_id). Multiple rows per (game, student) &mdash; one per stat category.</li>
+      <li><strong>ath_season_records</strong> &mdash; W/L/D rollup per roster. <code>roster_id UUID FK UNIQUE NOT NULL</code>, <code>wins INT DEFAULT 0</code>, <code>losses INT DEFAULT 0</code>, <code>draws INT DEFAULT 0</code>, <code>conference_wins INT DEFAULT 0</code>, <code>conference_losses INT DEFAULT 0</code>, <code>conference_draws INT DEFAULT 0</code>. Service-side update on game result entry (trigger deferred to Phase 3).</li>
+      <li><strong>ath_all_time_records</strong> &mdash; School athletic records. <code>school_id UUID</code>, <code>sport TEXT NOT NULL</code>, <code>record_type TEXT NOT NULL</code> 3-value CHECK (SINGLE_GAME, SEASON, CAREER), <code>stat_category TEXT NOT NULL</code>, <code>record_value NUMERIC(10,2) NOT NULL</code>, <code>holder_student_id UUID FK(sis_students)</code> nullable, <code>set_date DATE</code>, <code>set_season_id UUID FK</code> nullable. UNIQUE(school_id, sport, record_type, stat_category).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 6 new tables. Migration: <code>047_ath_games_results.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Coaching + Injuries + Safety Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Coaching staff assignments per roster, injury tracking with concussion protocol, and physician clearance documents for return-to-play.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>ath_coaching_assignments</strong> &mdash; <code>roster_id UUID FK NOT NULL</code>, <code>coach_person_id UUID FK(iam_person) NOT NULL</code> (uses the universal person identity so both staff coaches and volunteer coaches are covered), <code>role TEXT NOT NULL</code> 4-value CHECK (HEAD_COACH, ASSISTANT_COACH, VOLUNTEER_COACH, SPECIALIST), <code>stipend_amount NUMERIC(8,2)</code> nullable, <code>is_active BOOLEAN DEFAULT true</code>. INDEX(roster_id, is_active).</li>
+      <li><strong>ath_injuries</strong> &mdash; <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>game_id UUID FK(ath_games)</code> nullable (null for practice injuries), <code>practice_date DATE</code> nullable, <code>injury_date DATE NOT NULL</code>, <code>body_part TEXT NOT NULL</code>, <code>injury_description TEXT NOT NULL</code>, <code>initial_assessment TEXT</code>, <code>action_taken TEXT</code>, <code>severity TEXT NOT NULL</code> 4-value CHECK (MINOR, MODERATE, SEVERE, EMERGENCY), <code>health_record_id UUID</code> nullable (soft to hlth_ for cross-module linking), <code>incident_report_id UUID</code> nullable (soft to inc_), <code>return_to_play_status TEXT DEFAULT 'SIDELINED'</code> 4-value CHECK (ACTIVE, SIDELINED, CONCUSSION_PROTOCOL, CLEARED), <code>logged_by UUID FK NOT NULL</code>. INDEX(student_id, injury_date DESC). On CONCUSSION_PROTOCOL: the roster member's eligibility_status flips to INJURED_NOT_CLEARED.</li>
+      <li><strong>ath_concussion_protocol_steps</strong> &mdash; <strong>SAFETY KEYSTONE.</strong> <code>injury_id UUID FK NOT NULL</code>, <code>step_number INT NOT NULL</code> CHECK(1&ndash;6), <code>step_name TEXT NOT NULL</code>, <code>started_at TIMESTAMPTZ NOT NULL</code>, <code>minimum_duration_hours INT DEFAULT 24</code>, <code>completed_at TIMESTAMPTZ</code> nullable, <code>symptom_free BOOLEAN DEFAULT false</code>, <code>notes TEXT</code>, <code>cleared_by UUID FK</code> nullable. UNIQUE(injury_id, step_number). <strong>System enforces:</strong> step N+1 cannot start until step N is completed AND minimum duration has elapsed. The 6 steps are: (1) complete rest, (2) light aerobic activity, (3) sport-specific exercise, (4) non-contact training drills, (5) full contact practice, (6) return to competition.</li>
+      <li><strong>ath_medical_clearances</strong> &mdash; <code>injury_id UUID FK NOT NULL</code>, <code>document_s3_key TEXT NOT NULL</code>, <code>physician_name TEXT</code>, <code>clearance_date DATE NOT NULL</code>, <code>uploaded_by UUID FK NOT NULL</code>, <code>review_status TEXT NOT NULL DEFAULT 'PENDING'</code> 5-value CHECK (PENDING, ACCEPTED, REJECTED, NOT_SUBMITTED, EXPIRED), <code>reviewed_by UUID FK</code> nullable, <code>reviewed_at TIMESTAMPTZ</code> nullable. Required before return_to_play_status can flip to CLEARED.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>048_ath_coaching_injuries.sql</code>. Total Cycle 13 tables: 14.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Seed Data &mdash; Programme, Season, Roster, Games, Injury</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>2 programmes:</strong> "Basketball" (WINTER, [VARSITY, JV], min_gpa=2.0) and "Track &amp; Field" (SPRING, [VARSITY], min_gpa=2.0).</li>
+      <li><strong>2 seasons:</strong> Basketball 2025-2026 (ACTIVE, first_game=Jan 8, last_game=Mar 1). Track 2025-2026 (UPCOMING, first_practice=Mar 15).</li>
+      <li><strong>2 rosters:</strong> Basketball VARSITY (Coach Rivera, is_certified=true). Basketball JV (uncertified).</li>
+      <li><strong>3 roster members:</strong> Maya (VARSITY, #23, Guard, ELIGIBLE, joined Sept 1). Ethan (VARSITY, #11, Forward, ELIGIBLE). A third student on JV.</li>
+      <li><strong>3 games + 2 results + stats:</strong> Game 1: vs Jefferson (HOME, COMPLETED, WIN 52-48). Game 2: vs Washington (AWAY, COMPLETED, LOSS 41-55). Game 3: vs Roosevelt (HOME, SCHEDULED, Jan 22). Results for Games 1+2 with score_by_period JSONB. Maya's stats: Game 1 (12 pts, 5 reb, 3 ast), Game 2 (8 pts, 4 reb, 2 ast).</li>
+      <li><strong>1 season record:</strong> Basketball VARSITY: 1W-1L-0D, 1CW-1CL-0CD (both games are conference).</li>
+      <li><strong>1 coaching assignment:</strong> Rivera HEAD_COACH on VARSITY roster, active.</li>
+      <li><strong>1 injury + 3 concussion protocol steps + 0 clearances:</strong> Maya, practice injury 2 weeks ago, head contact, MODERATE, CONCUSSION_PROTOCOL. Steps 1-2 completed (24hr each), step 3 started. Maya's roster eligibility = INJURED_NOT_CLEARED. No clearance yet (she's mid-protocol).</li>
+      <li><strong>Permissions:</strong> ATH-001:read to Teacher, Student, Parent (view programmes + rosters). ATH-001:write to Staff (AD manages programmes). ATH-002:read to Teacher, Student, Parent (view game schedule + results). ATH-002:write to Staff (AD enters results + stats). ATH-003:read+write to Staff (coaching). ATH-004:read to Teacher, Student (view injury status). ATH-004:write to Staff (log injuries, manage protocol). ATH-005:read+write to Staff (medical clearances). Admin gets all via everyFunction.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Rich athletics demo data with a mid-concussion-protocol injury. ATH-001..005 permissions.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Programme + Roster NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>ProgrammeService</strong> &mdash; <code>GET /athletics/programmes</code> (all active; filters season, sport), <code>GET /athletics/programmes/:id</code>, <code>POST /athletics/programmes</code> (AD/admin), <code>PATCH /athletics/programmes/:id</code>.</li>
+      <li><strong>SeasonService</strong> &mdash; <code>GET /athletics/programmes/:id/seasons</code>, <code>POST /athletics/programmes/:id/seasons</code>, <code>PATCH /athletics/seasons/:id</code> (status transitions with FOR UPDATE).</li>
+      <li><strong>RosterService</strong> &mdash; <code>GET /athletics/seasons/:id/rosters</code>, <code>GET /athletics/rosters/:id</code> (with inlined members + coaching + season record), <code>POST /athletics/seasons/:id/rosters</code>, <code>PATCH /athletics/rosters/:id</code> (certify), <code>POST /athletics/rosters/:id/members</code> (<strong>GPA ELIGIBILITY CHECK KEYSTONE:</strong> reads live GPA from cls_gradebook or sis_grades and compares against programme.min_gpa; sets eligibility_status accordingly), <code>PATCH /athletics/roster-members/:id</code> (update eligibility, jersey, position), <code>POST /athletics/rosters/:id/check-eligibility</code> (bulk re-check all members against current gradebook data).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; AthleticsModule with 3 services, ~14 endpoints. GPA eligibility check reads back into Cycle 2 gradebook.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Game + Results NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>GameService</strong> &mdash; <code>GET /athletics/games</code> (filters season, roster, status, date range), <code>GET /athletics/games/:id</code>, <code>POST /athletics/games</code> (AD schedules), <code>PATCH /athletics/games/:id</code> (reschedule/cancel/confirm). <code>GET /athletics/schedule</code> (public-facing calendar view of upcoming games across all sports).</li>
+      <li><strong>GameProposalService</strong> &mdash; <code>GET /athletics/game-proposals</code> (AD: sent + received), <code>POST /athletics/game-proposals</code> (propose to another school via platform entity cache), <code>PATCH /athletics/game-proposals/:id/accept</code>, <code>PATCH /athletics/game-proposals/:id/decline</code>, <code>PATCH /athletics/game-proposals/:id/counter</code>. On CONFIRMED: auto-creates an ath_games row.</li>
+      <li><strong>ResultService</strong> &mdash; <code>POST /athletics/games/:id/result</code> (enters result + auto-updates season record in same tx; emits <code>ath.game.result.entered</code>), <code>PATCH /athletics/game-results/:id</code> (correction).</li>
+      <li><strong>StatsService</strong> &mdash; <code>GET /athletics/games/:id/stats</code> (box score), <code>POST /athletics/games/:id/stats</code> (bulk entry per player), <code>GET /athletics/players/:studentId/stats</code> (career stats across seasons). <code>GET /athletics/season-records/:rosterId</code>. <code>GET /athletics/all-time-records</code> (school records board).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 services, ~16 endpoints, 1 Kafka emit (<code>ath.game.result.entered</code>).</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Coaching + Injury + Safety NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>CoachingService</strong> &mdash; <code>GET /athletics/rosters/:id/coaches</code>, <code>POST /athletics/rosters/:id/coaches</code>, <code>PATCH /athletics/coaching-assignments/:id</code> (deactivate/reactivate).</li>
+      <li><strong>InjuryService</strong> &mdash; <code>GET /athletics/injuries</code> (AD: all school; coach: own roster students), <code>GET /athletics/injuries/:id</code> (with inlined protocol steps + clearances), <code>POST /athletics/injuries</code> (logs injury; when severity indicates head contact and AD marks CONCUSSION_PROTOCOL, auto-flips roster member eligibility to INJURED_NOT_CLEARED), <code>PATCH /athletics/injuries/:id</code> (update return_to_play_status; CLEARED requires an ACCEPTED medical clearance).</li>
+      <li><strong>ConcussionProtocolService</strong> &mdash; <strong>SAFETY KEYSTONE.</strong> <code>GET /athletics/injuries/:id/protocol</code> (6-step timeline), <code>POST /athletics/injuries/:id/protocol/steps</code> (start next step; <strong>enforces:</strong> step N must be completed, minimum_duration_hours elapsed since step N started_at, symptom_free=true on step N), <code>PATCH /athletics/concussion-steps/:id</code> (mark completed + symptom_free).</li>
+      <li><strong>MedicalClearanceService</strong> &mdash; <code>GET /athletics/injuries/:id/clearances</code>, <code>POST /athletics/injuries/:id/clearances</code> (upload document + physician info), <code>PATCH /athletics/medical-clearances/:id/review</code> (AD accepts/rejects; on ACCEPTED + all 6 protocol steps completed: injury flips to CLEARED, roster member eligibility restored to ELIGIBLE).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 services, ~12 endpoints. Total Cycle 13 endpoints: ~42. Concussion protocol step-sequencing is the safety keystone.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Athletics UI &mdash; Programmes + Rosters + Games</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Athletics Dashboard</strong> <code>/athletics</code> &mdash; "Athletics" app tile. AD view: programme cards with active season status, upcoming games, roster certification status, open injuries count. Student/parent view: "My sports" (rosters I'm on + next game + my eligibility status).</li>
+      <li><strong>Programme Detail</strong> <code>/athletics/programmes/:id</code> &mdash; sport info + seasons list + level pills. Season detail: roster links, game schedule, W/L record.</li>
+      <li><strong>Roster Manager</strong> <code>/athletics/rosters/:id</code> &mdash; member list with eligibility pills (ELIGIBLE emerald / INELIGIBLE rose / INJURED_NOT_CLEARED amber / PENDING_* gray). Add member with GPA check. Certify roster button. Coaching staff list.</li>
+      <li><strong>Game Schedule</strong> <code>/athletics/schedule</code> &mdash; public calendar view. Filter by sport, level. Per-game: opponent, date/time, location pill (HOME emerald / AWAY rose / NEUTRAL gray), status pill, result when completed.</li>
+      <li><strong>Game Detail + Result Entry</strong> <code>/athletics/games/:id</code> &mdash; game info + Enter Result form (home/away scores, score by period, outcome). Box score table with per-player stats.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; "Athletics" app tile + dashboard, programme detail, roster manager with eligibility, game schedule + result entry.</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Athletics UI &mdash; Stats + Injuries + Student Portal</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Player Stats</strong> <code>/athletics/players/:studentId</code> &mdash; career stats across seasons. Per-season breakdown table. Per-game log.</li>
+      <li><strong>Season Records</strong> <code>/athletics/records</code> &mdash; school records board grouped by sport. SINGLE_GAME / SEASON / CAREER tabs. Record holder + date + value.</li>
+      <li><strong>Injury Log</strong> <code>/athletics/injuries</code> &mdash; AD view: all injuries filtered by status (ACTIVE/SIDELINED/CONCUSSION_PROTOCOL/CLEARED). Log injury form. Per-injury: severity pill + return-to-play status pill + linked concussion protocol progress.</li>
+      <li><strong>Concussion Protocol Tracker</strong> <code>/athletics/injuries/:id</code> &mdash; <strong>SAFETY KEYSTONE UI.</strong> 6-step visual timeline with step status pills (complete emerald / active amber / locked gray). Per-step: start time, minimum wait countdown, symptom-free toggle, completion button. Medical clearance upload + review panel. Overall return-to-play status banner.</li>
+      <li><strong>Student Athletics Portal</strong> <code>/athletics/my</code> &mdash; student-only: my rosters + eligibility status, my game schedule, my stats, my injury history (if any).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Player stats, school records, injury log, concussion protocol tracker (safety keystone UI), student portal.</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Programme + season creation:</strong> AD creates "Soccer" programme (FALL, [VARSITY], min_gpa=2.5). Opens 2025-2026 season. Creates VARSITY roster.</li>
+      <li><strong>Roster + GPA eligibility keystone:</strong> Add Maya (GPA 3.5 &ge; 2.5 &rarr; ELIGIBLE). Add a student with GPA 2.0 &lt; 2.5 &rarr; INELIGIBLE. Bulk re-check eligibility.</li>
+      <li><strong>Game scheduling:</strong> AD schedules 2 games (HOME + AWAY). Verify schedule endpoint returns both sorted by date.</li>
+      <li><strong>Result entry + season record auto-update:</strong> Enter Game 1 result (WIN 3-1). Verify season_records updates to 1-0-0. Enter Game 2 result (DRAW 2-2). Verify 1-0-1. Verify <code>ath.game.result.entered</code> fires.</li>
+      <li><strong>Player stats:</strong> Enter Maya's Game 1 stats (2 goals, 1 assist). Verify box score + career stats endpoints.</li>
+      <li><strong>Coaching assignment:</strong> Assign Rivera as HEAD_COACH. Verify roster detail shows coaching staff.</li>
+      <li><strong>Injury + concussion protocol keystone:</strong> Log Maya head injury during practice (MODERATE, CONCUSSION_PROTOCOL). Verify roster eligibility auto-flips to INJURED_NOT_CLEARED. Start step 1. Verify step 2 cannot start before step 1 is completed + 24hr elapsed. Complete steps 1&ndash;6 in sequence (simulated timing). Verify each step enforces minimum_duration_hours.</li>
+      <li><strong>Medical clearance + return to play:</strong> Upload clearance document. AD reviews and ACCEPTS. Verify injury flips to CLEARED. Verify roster eligibility returns to ELIGIBLE.</li>
+      <li><strong>Visibility:</strong> Student sees own roster membership + eligibility + game schedule + stats. Parent sees child's roster + game schedule. Teacher sees game schedule. None can enter results or manage rosters.</li>
+      <li><strong>Roster certification:</strong> AD certifies the roster (all members ELIGIBLE after clearance). Verify is_certified=true + certified_at stamped.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Verified athletics lifecycle: programme &rarr; roster + eligibility &rarr; game &rarr; result &rarr; season record &rarr; stats &rarr; injury &rarr; concussion protocol &rarr; clearance &rarr; return to play.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 13 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 14 new tables (4 programme/roster + 6 game/results + 4 coaching/safety). Tenant table count: ~203.</li>
+      <li>Athletics API: ~42 endpoints with GPA eligibility verification + concussion protocol enforcement.</li>
+      <li>Roster management with 6-value eligibility tracking. GPA check reads back into Cycle 2 gradebook.</li>
+      <li>Game scheduling with cross-school proposal workflow. Results with season record auto-update.</li>
+      <li>Player stats with sport-configurable categories. School all-time records board.</li>
+      <li>6-step concussion return-to-play protocol with step-sequencing enforcement + minimum duration.</li>
+      <li>Medical clearance workflow: upload &rarr; review &rarr; accept &rarr; return to play.</li>
+      <li><code>ath.game.result.entered</code> Kafka emit for future analytics.</li>
+      <li>HANDOFF-CYCLE13.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave 2 complete.</strong></li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 13 completes Wave 2 (Student Services &amp; Enrichment). The platform now covers the full student experience: academic core (SIS, classroom, scheduling), student support (health, counselling, wellbeing), library, and athletics. Wave 3 begins with Communications &amp; Community (messaging, meetings, enrolment, clubs, groups).</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 13 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M66 Athletics, 32 tables &mdash; 14 core in scope), Function Library (ATH-001 through ATH-005), Architecture Review (ADR-069 cross-school game proposals). Completes Wave 2.</p>
+  </div>
+</div>
+
+</body>
+</html>

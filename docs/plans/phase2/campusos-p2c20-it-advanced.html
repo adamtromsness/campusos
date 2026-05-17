@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-20: IT Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave D &mdash; Module Completion</div>
+    <h1>P2-20: IT Advanced</h1>
+    <div class="sub">MDM remote actions (lock, wipe, restart, locate) with immutable audit trail and mandatory justification, software licence renewal tracking with cost history, device usage analytics from MDM sync, formal physical inventory audits with per-asset verification and discrepancy reporting, VOIP phone extension directory with assignment management, versioned IT configuration documentation, infrastructure uptime monitoring with configurable check intervals and alert thresholds, and network infrastructure item tracking. No split needed.</div>
+    <span class="version">May 2026 &middot; 8 Steps &middot; ERD v11 &middot; M62 IT Infrastructure .1 (10 tables) &middot; IT-001..009 &middot; Phase 2 Cycle 20</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+  <p class="body-text">Phase 2 Cycle 20 builds the deferred tables from Cycle 22's M62 IT Infrastructure module &mdash; 10 new tables. Cycle 22 built the core IT surface (device fleet, MDM sync, assignments, damage reports, repair tracking, software licensing, credential vault). This cycle adds the operational depth: remote MDM actions, inventory audits, usage analytics, licence renewals, VOIP, documentation, and monitoring.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Security &mdash; Remote Actions Are IMMUTABLE</div>
+    <p style="font-size:14px;line-height:1.8;"><code>tech_remote_actions</code> is <strong>IMMUTABLE</strong> &mdash; no UPDATE, no DELETE at the service layer. Every remote MDM command (LOCK, WIPE, RESTART, LOCATE, UNENROLL) is an auditable, permanent record with mandatory justification (minimum 20 characters). A WIPE action auto-sets tech_assets.status=AVAILABLE on completion (device reset). MDM provider integration is stubbed this cycle &mdash; the command is recorded and status is manually updated. Live MDM integration (Jamf/Intune API) is a future enhancement.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">IT admin discovers a lost student iPad &rarr; issues LOCK remote action with justification "Student reported iPad lost at bus stop, locking to prevent unauthorized access" &rarr; tech_remote_actions IMMUTABLE row created (PENDING) &rarr; MDM sends lock command (stubbed) &rarr; status → COMPLETED &rarr; parent finds iPad next day → IT admin issues DISABLE_LOST_MODE &rarr; separately, IT admin schedules annual device audit for Building A &rarr; starts audit: system lists 45 expected devices in Building A &rarr; auditor scans each device barcode → found/not-found per asset &rarr; 42 found, 2 missing, 1 unrecorded device discovered &rarr; completes audit → discrepancy report generated &rarr; meanwhile, Photoshop licence approaching 80% seat usage → alert fires &rarr; IT admin renews licence → tech_licence_renewals row created, expiry_date extended, cost recorded &rarr; IT admin documents the school's network topology in tech_config_documentation with a Visio diagram upload &rarr; configures uptime monitoring for 3 critical systems (SIS API, payment gateway, email) with 5-minute intervals &rarr; MonitoringWorker checks every 5 min → SIS API returns 200 → HEALTHY &rarr; payment gateway timeout → DEGRADED → alert fires after 2 consecutive failures.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (10 tables):</strong> tech_remote_actions, tech_licence_renewals, tech_device_usage_summaries, tech_inventory_audits, tech_inventory_audit_items, tech_phone_extensions, tech_config_documentation, tech_monitoring_checks, tech_monitoring_alerts, tech_infrastructure_items. Functions IT-001..009 extended.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Live MDM API integration (Jamf/Intune/Mosyle — manual status update this cycle). Automated device usage analytics from MDM sync (manual entry this cycle). Real HTTP health check execution (manual status recording; live ping from MonitoringWorker is a future enhancement requiring egress to monitored URLs). Network topology auto-discovery. Content filtering rule management. Guest WiFi provisioning.</p>
+  </div>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema &mdash; Remote Actions + Licence Renewals + Usage + Inventory (5 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>tech_remote_actions</strong> &mdash; <strong>IMMUTABLE.</strong> <code>asset_id UUID FK(tech_assets) NOT NULL</code>, <code>action_type TEXT NOT NULL</code> 7-value CHECK (LOCK, WIPE, RESTART, LOCATE, UNENROLL, ENABLE_LOST_MODE, DISABLE_LOST_MODE), <code>initiated_by UUID FK NOT NULL</code>, <code>initiated_at TIMESTAMPTZ NOT NULL</code>, <code>justification TEXT NOT NULL</code> CHECK(length(trim(justification)) &ge; 20), <code>mdm_command_ref TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 4-value CHECK (PENDING, SENT, COMPLETED, FAILED), <code>completed_at TIMESTAMPTZ</code>, <code>failure_reason TEXT</code>. NO UPDATE, NO DELETE. INDEX(asset_id, initiated_at DESC). On WIPE + COMPLETED: tech_assets.status = AVAILABLE.</li>
+      <li><strong>tech_licence_renewals</strong> &mdash; <code>licence_id UUID FK(tech_software_licences) NOT NULL</code>, <code>previous_expiry_date DATE NOT NULL</code>, <code>new_expiry_date DATE NOT NULL</code>, <code>renewal_cost NUMERIC(10,2)</code>, <code>renewed_by UUID FK NOT NULL</code>, <code>renewed_at TIMESTAMPTZ NOT NULL</code>, <code>notes TEXT</code>. INDEX(licence_id, renewed_at DESC). On INSERT: tech_software_licences.expiry_date updated to new_expiry_date.</li>
+      <li><strong>tech_device_usage_summaries</strong> &mdash; <code>asset_id UUID FK(tech_assets) NOT NULL</code>, <code>summary_date DATE NOT NULL</code>, <code>screen_time_minutes INT</code>, <code>apps_used TEXT[]</code>, <code>flagged_activity BOOLEAN DEFAULT false</code>, <code>summary_source TEXT</code>. UNIQUE(asset_id, summary_date). Populated from MDM provider data (manual this cycle).</li>
+      <li><strong>tech_inventory_audits</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>audit_name TEXT NOT NULL</code>, <code>conducted_by UUID FK NOT NULL</code>, <code>audit_date DATE NOT NULL</code>, <code>total_assets_expected INT NOT NULL</code>, <code>total_assets_found INT NOT NULL</code>, <code>total_assets_missing INT NOT NULL</code>, <code>total_assets_unrecorded INT NOT NULL</code>, <code>audit_notes TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'IN_PROGRESS'</code> 2-value CHECK (IN_PROGRESS, COMPLETED), <code>completed_at TIMESTAMPTZ</code>. INDEX(school_id, audit_date DESC).</li>
+      <li><strong>tech_inventory_audit_items</strong> &mdash; <code>audit_id UUID FK NOT NULL</code>, <code>asset_id UUID FK</code> (null for unrecorded assets), <code>asset_tag TEXT NOT NULL</code>, <code>found BOOLEAN NOT NULL</code>, <code>condition_observed TEXT</code> 4-value CHECK (EXCELLENT, GOOD, FAIR, DAMAGED) nullable, <code>location_observed TEXT</code>, <code>discrepancy_notes TEXT</code>. UNIQUE(audit_id, asset_tag). INDEX(audit_id, found).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 5 tables. Migration: <code>140_tech_remote_actions_audit.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Schema &mdash; VOIP + Documentation + Monitoring + Infrastructure (5 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>tech_phone_extensions</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>extension_number TEXT NOT NULL</code>, <code>assigned_to UUID FK</code> (soft to hr_employees), <code>location TEXT</code>, <code>department TEXT</code>, <code>extension_type TEXT NOT NULL</code> 5-value CHECK (DESK, CLASSROOM, OFFICE, COMMON_AREA, FAX), <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, extension_number). INDEX(school_id, assigned_to).</li>
+      <li><strong>tech_config_documentation</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>category TEXT NOT NULL</code> 7-value CHECK (NETWORK_TOPOLOGY, SERVER_CONFIG, WIFI, VOIP, FIREWALL, BACKUP, OTHER), <code>content_markdown TEXT NOT NULL</code>, <code>version INT NOT NULL DEFAULT 1</code>, <code>diagram_s3_key TEXT</code>, <code>last_updated_by UUID FK NOT NULL</code>, <code>last_updated_at TIMESTAMPTZ NOT NULL</code>. UNIQUE(school_id, title). Versioned: updates increment version, previous versions accessible.</li>
+      <li><strong>tech_monitoring_checks</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>system_name TEXT NOT NULL</code>, <code>check_url TEXT</code>, <code>check_type TEXT NOT NULL</code> 4-value CHECK (HTTP, PING, TCP, MANUAL), <code>interval_minutes INT NOT NULL DEFAULT 5</code>, <code>expected_status_code INT DEFAULT 200</code>, <code>timeout_seconds INT DEFAULT 10</code>, <code>consecutive_failures_to_alert INT DEFAULT 2</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, system_name).</li>
+      <li><strong>tech_monitoring_alerts</strong> &mdash; <code>check_id UUID FK NOT NULL</code>, <code>alert_type TEXT NOT NULL</code> 3-value CHECK (DOWN, DEGRADED, RECOVERED), <code>detected_at TIMESTAMPTZ NOT NULL</code>, <code>resolved_at TIMESTAMPTZ</code>, <code>response_time_ms INT</code>, <code>status_code INT</code>, <code>error_message TEXT</code>, <code>acknowledged_by UUID FK</code>, <code>acknowledged_at TIMESTAMPTZ</code>. INDEX(check_id, detected_at DESC). Partial INDEX WHERE resolved_at IS NULL for active alerts.</li>
+      <li><strong>tech_infrastructure_items</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>item_name TEXT NOT NULL</code>, <code>item_type TEXT NOT NULL</code> 9-value CHECK (SWITCH, ACCESS_POINT, SERVER, ROUTER, FIREWALL, PRINTER, NAS, UPS, OTHER), <code>location TEXT NOT NULL</code>, <code>ip_address TEXT</code>, <code>mac_address TEXT</code>, <code>make TEXT</code>, <code>model TEXT</code>, <code>serial_number TEXT</code>, <code>purchase_date DATE</code>, <code>warranty_expiry DATE</code>, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, MAINTENANCE, DECOMMISSIONED), <code>last_checked_at TIMESTAMPTZ</code>. UNIQUE(school_id, serial_number) WHERE serial_number IS NOT NULL.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 5 tables. Migration: <code>141_tech_voip_monitoring.sql</code>. Total P2-20 tables: 10.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li><strong>Remote actions:</strong> 3 rows (1 LOCK COMPLETED, 1 WIPE COMPLETED with asset reset, 1 LOCATE PENDING). All with justification &ge;20 chars.</li>
+      <li><strong>Licence renewals:</strong> 2 rows (Photoshop renewed, Google Workspace renewed). Previous + new expiry dates + cost.</li>
+      <li><strong>Device usage:</strong> 10 summary rows across 3 devices (1 with flagged_activity=true).</li>
+      <li><strong>Inventory audit:</strong> 1 COMPLETED audit (45 expected, 42 found, 2 missing, 1 unrecorded). 8 audit items (5 found GOOD, 2 found FAIR, 1 not found).</li>
+      <li><strong>VOIP:</strong> 10 extensions (5 DESK, 3 CLASSROOM, 1 OFFICE, 1 FAX). 7 assigned, 3 unassigned.</li>
+      <li><strong>Config docs:</strong> 3 documents (NETWORK_TOPOLOGY v2 with diagram, WIFI v1, BACKUP v3).</li>
+      <li><strong>Monitoring:</strong> 3 checks (SIS API HTTP 5min, Payment Gateway HTTP 5min, Email Server PING 10min). 5 alerts (2 active DOWN, 1 RECOVERED, 1 DEGRADED acknowledged, 1 RECOVERED).</li>
+      <li><strong>Infrastructure:</strong> 8 items (2 SWITCH, 3 ACCESS_POINT, 1 SERVER, 1 FIREWALL, 1 PRINTER). 1 MAINTENANCE.</li>
+      <li><strong>Permissions:</strong> IT-001..009 extended: remote actions (IT admin only with mandatory justification), inventory audits (IT staff conduct, IT admin review), VOIP (IT admin), documentation (IT staff write, all IT read), monitoring (IT admin configure, all IT view).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich IT advanced demo data across all 10 tables.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Remote Actions + Inventory Audit NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>RemoteActionService</strong> &mdash; <code>POST /it/devices/:assetId/remote-action</code> (<strong>IMMUTABLE:</strong> creates tech_remote_actions with mandatory justification &ge;20 chars; validates action_type against device type; emits <code>tech.remote_action.issued</code>), <code>GET /it/devices/:assetId/remote-actions</code> (action history), <code>PATCH /it/remote-actions/:id/status</code> (MDM callback updates status; on WIPE+COMPLETED: auto-sets tech_assets.status=AVAILABLE). NO update or delete on the remote action row itself.</li>
+      <li><strong>InventoryAuditService</strong> &mdash; <code>POST /it/inventory-audits</code> (start audit: computes total_assets_expected from tech_assets for the building), <code>POST /it/inventory-audits/:id/scan</code> (record per-asset: asset_tag + found + condition; if asset_tag not in system: asset_id=null, counted as unrecorded), <code>POST /it/inventory-audits/:id/complete</code> (finalize: computes found/missing/unrecorded counts), <code>GET /it/inventory-audits</code>, <code>GET /it/inventory-audits/:id/report</code> (discrepancy report: missing assets + unrecorded assets + condition changes).</li>
+      <li><strong>LicenceRenewalService</strong> &mdash; <code>POST /it/licences/:id/renew</code> (creates renewal record + updates licence expiry_date), <code>GET /it/licences/:id/renewals</code> (renewal history + cost chart).</li>
+      <li><strong>DeviceUsageService</strong> &mdash; <code>POST /it/devices/:assetId/usage</code> (record daily summary), <code>GET /it/devices/:assetId/usage</code> (usage trends), <code>GET /it/device-usage/flagged</code> (devices with flagged_activity=true).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~16 endpoints, 1 Kafka emit.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">VOIP + Documentation + Monitoring + Infrastructure NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>PhoneExtensionService</strong> &mdash; CRUD for extensions. <code>GET /it/phone-extensions</code> (directory searchable by name/department/extension), <code>POST /it/phone-extensions/:id/assign</code>, <code>POST /it/phone-extensions/:id/unassign</code>.</li>
+      <li><strong>ConfigDocumentationService</strong> &mdash; CRUD with versioning. <code>GET /it/documentation</code> (by category), <code>POST /it/documentation</code> (creates v1), <code>PATCH /it/documentation/:id</code> (increments version), <code>GET /it/documentation/:id/history</code> (version history). Diagram upload to S3.</li>
+      <li><strong>MonitoringService</strong> &mdash; CRUD for checks. <code>GET /it/monitoring</code> (all checks with latest status), <code>POST /it/monitoring/:checkId/result</code> (record check result; if DOWN and consecutive failures &ge; threshold → create tech_monitoring_alerts; if RECOVERED → resolve active alert), <code>GET /it/monitoring/alerts</code> (active alerts), <code>PATCH /it/monitoring-alerts/:id/acknowledge</code>. Emits <code>tech.monitoring.alert</code> for IT admin notification.</li>
+      <li><strong>InfrastructureService</strong> &mdash; CRUD for infrastructure items. <code>GET /it/infrastructure</code> (with status filter), <code>GET /it/infrastructure/warranty-expiring</code> (30-day lookahead).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~18 endpoints, 1 Kafka emit. Total P2-20 endpoints: ~34.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">IT Advanced UI</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Remote Actions</strong> (extends device detail) &mdash; action buttons (Lock, Wipe, Restart, Locate) with mandatory justification textarea (min 20 chars). Action history log. Status indicator (PENDING spinner, COMPLETED green, FAILED red).</li>
+      <li><strong>Inventory Audit</strong> <code>/it/inventory-audits</code> &mdash; start audit by building. Barcode scanner input for per-asset verification. Real-time found/missing counter. Discrepancy report on completion.</li>
+      <li><strong>Licence Dashboard</strong> (extends existing licence view) &mdash; renewal button with cost entry. Renewal history chart. Seat usage gauge with 80% alert threshold.</li>
+      <li><strong>VOIP Directory</strong> <code>/it/phone-extensions</code> &mdash; searchable extension directory. Assign/unassign. Department filter.</li>
+      <li><strong>IT Documentation</strong> <code>/it/documentation</code> &mdash; document list by category. Markdown editor with diagram upload. Version history with diff.</li>
+      <li><strong>Uptime Monitor</strong> <code>/it/monitoring</code> &mdash; system status board (green/amber/red per check). Active alerts with acknowledge button. Configuration form (URL, interval, failure threshold).</li>
+      <li><strong>Infrastructure Registry</strong> <code>/it/infrastructure</code> &mdash; network equipment list with status pills. Warranty expiry alerts. Location mapping.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Remote actions, inventory audit, licence dashboard, VOIP directory, documentation, uptime monitor, infrastructure registry.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <ol class="detail-list">
+      <li><strong>Remote action IMMUTABLE:</strong> Issue LOCK with justification. Verify row created. Attempt UPDATE → rejected. Attempt DELETE → rejected. Verify justification &lt;20 chars → 400.</li>
+      <li><strong>WIPE auto-reset:</strong> Issue WIPE. Update status to COMPLETED. Verify tech_assets.status = AVAILABLE. Verify previous assignment ended.</li>
+      <li><strong>Inventory audit lifecycle:</strong> Start audit (45 expected). Scan 42 (found). Scan 1 unknown tag (unrecorded). Complete. Verify totals: 42 found, 2 missing, 1 unrecorded. Verify discrepancy report lists missing asset_tags.</li>
+      <li><strong>Licence renewal:</strong> Licence expires 2026-12-31. Renew to 2027-12-31 at $500. Verify tech_software_licences.expiry_date updated. Verify renewal history shows previous + new dates.</li>
+      <li><strong>Monitoring alert:</strong> Configure check (HTTP, 5 min, 2 consecutive failures). Record 2 consecutive failures. Verify alert created (DOWN). Record success. Verify alert resolved (RECOVERED). Verify <code>tech.monitoring.alert</code> fires on DOWN.</li>
+      <li><strong>Config documentation versioning:</strong> Create doc v1. Update → v2. Verify version incremented. Verify v1 accessible via history.</li>
+      <li><strong>Visibility:</strong> IT admin can issue remote actions + configure monitoring. IT staff can conduct audits + manage extensions. Teachers cannot access IT module. All IT staff can view documentation.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified IT advanced: remote actions (IMMUTABLE) → WIPE auto-reset → inventory audit → licence renewal → monitoring alerts → documentation versioning.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Device Usage Flagged Activity Alert</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li>When tech_device_usage_summaries is recorded with flagged_activity=true: emits <code>tech.usage.flagged</code> for IT admin notification. Dashboard highlights flagged devices in the usage report. IT admin reviews apps_used list for the flagged day and decides whether to issue a remote action or escalate to the student's teacher/parent.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Flagged activity alert + dashboard highlighting. Total Kafka emits: 3.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 10 new tables. Tenant table count: ~710.</li>
+      <li>IT API: ~34 new endpoints across remote actions, audits, renewals, VOIP, docs, monitoring.</li>
+      <li>Remote actions IMMUTABLE with mandatory justification (≥20 chars).</li>
+      <li>WIPE action auto-resets tech_assets.status on completion.</li>
+      <li>Inventory audits with per-asset verification + discrepancy reporting.</li>
+      <li>Licence renewals with cost tracking + expiry update.</li>
+      <li>VOIP extension directory with assignment management.</li>
+      <li>Versioned configuration documentation with diagram upload.</li>
+      <li>Uptime monitoring with consecutive-failure alerting + acknowledgement.</li>
+      <li>Infrastructure registry with warranty expiry tracking.</li>
+      <li><code>tech.remote_action.issued</code> + <code>tech.monitoring.alert</code> + <code>tech.usage.flagged</code> Kafka emits.</li>
+      <li>HANDOFF-P2C20.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 20 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M62 IT Infrastructure deferred tables, 10 tables). Functions: IT-001..009 extended. Cross-cycle: Cycle 22 tech_assets + tech_software_licences + tech_assignments. No split needed.</p>
+  </div>
+</div>
+</body>
+</html>

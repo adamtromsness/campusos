@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 17 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../../design-hub/index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../../design-hub/index.html">Design Hub</a>
+  <a href="../../architecture/campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 3 &middot; Communications &amp; Community</div>
+    <h1>Cycle 17: Clubs &amp;<br>Student Life</h1>
+    <div class="sub">Club and activity management with membership rosters, field trips with digital parent consent collection, student government elections with structurally anonymous voting, and community service hour logging with supervisor approval. The third student-input surface (students register for clubs, vote in elections, and log service hours).</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M64 Clubs &amp; Student Life (22 tables &mdash; 16 core in scope, 6 deferred) &middot; CLB-001 through CLB-004</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 17 builds the M64 Clubs &amp; Student Life module &mdash; 16 of the 22 ERD tables. This is a clean greenfield with a new table prefix (<code>ext_</code>). The module is distinctive because it introduces <strong>structurally anonymous voting</strong> &mdash; the <code>ext_votes</code> table has NO voter_id column, and <code>ext_election_voter_check</code> records WHO voted without linking to HOW they voted. This is the strongest privacy guarantee in the platform, enforced at the schema level.</p>
+
+  <p class="body-text">The module spans 4 domains: (1) activity types + clubs/activities with membership rosters and schedules, (2) field trips with digital parent consent collection and chaperone assignments, (3) student government elections with candidate registration + anonymous ballot, and (4) community service programmes with student hour logging and supervisor approval. Students are active participants: they register for clubs, vote in elections, and log service hours &mdash; making this the third student-input surface after wellbeing check-ins (Cycle 11.1) and library reading logs/reviews (Cycle 12).</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Privacy &mdash; Structurally Anonymous Voting</div>
+    <p style="font-size:15px;line-height:1.8;">The election voting system enforces ballot secrecy at the schema level, not the application level. <code>ext_votes</code> contains <code>election_id + position + candidate_id + voted_at</code> but <strong>NO voter identity column</strong>. The separate <code>ext_election_voter_check</code> table records <code>(election_id, student_id)</code> as a primary key to prevent double-voting, but this table has NO reference to any vote row. There is no JOIN path from a vote to a voter &mdash; the anonymity is structural and cannot be reversed even by a database administrator.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Advisor creates "Chess Club" (ACADEMIC, max 20 members, Coach Rivera) &rarr; Maya and Ethan register as members &rarr; advisor schedules weekly meetings (Tuesdays 3:30&ndash;4:30 PM) &rarr; teacher plans a "Natural History Museum" field trip for Grade 5 &rarr; system generates consent forms for each participant &rarr; David Chen (parent) digitally signs Maya's consent &rarr; teacher assigns 2 chaperones &rarr; trip executes &rarr; admin creates "Student Council Election 2026" with President + VP positions &rarr; Maya registers as a candidate for President with a campaign statement &rarr; voting opens &rarr; Ethan casts an anonymous ballot (vote row has no voter ID; voter_check row prevents double-vote) &rarr; voting closes &rarr; results published &rarr; admin creates "Community Impact 2026" service programme (target: 20 hours) &rarr; Maya logs 3 hours of "Park Cleanup" with a supervisor signature &rarr; advisor approves the hours &rarr; progress updates to 3/20 hours.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (16 tables):</strong> ext_activity_types, ext_activities, ext_activity_members, ext_activity_schedules, ext_field_trips, ext_field_trip_participants, ext_field_trip_consent_records, ext_field_trip_chaperones, ext_elections, ext_candidates, ext_votes, ext_election_voter_check, ext_service_programmes, ext_service_hours, ext_service_hour_approvals, ext_service_progress. Functions CLB-001 through CLB-004.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to Cycle 17.1 (6 tables):</strong> ext_club_charters + ext_charter_amendments (formal club chartering with approval workflow), ext_club_budgets + ext_budget_transactions (club financial management), ext_student_government_positions + ext_government_members (ongoing governance structure beyond elections). These require the M2 Approval Workflows integration and M84 Payments tie-in.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Also deferred:</strong> Activity schedule sync with Cycle 3 calendar (schema ready; bi-directional sync is future). Field trip transport request integration with M61 Transportation (soft FK ready). Activity group link to M103 Groups (soft FK ready). Club equipment tracking (moved to M66 Athletics equipment pattern). Ranked-choice voting (simple plurality this cycle).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Activities + Membership Schema</td><td>Schema</td><td>ext_activity_types, ext_activities, ext_activity_members, ext_activity_schedules</td></tr>
+    <tr><td><strong>2</strong></td><td>Field Trips + Consent Schema</td><td>Schema</td><td>ext_field_trips, ext_field_trip_participants, ext_field_trip_consent_records, ext_field_trip_chaperones</td></tr>
+    <tr><td><strong>3</strong></td><td>Elections + Service Schema</td><td>Schema</td><td>ext_elections, ext_candidates, ext_votes, ext_election_voter_check, ext_service_programmes, ext_service_hours, ext_service_hour_approvals, ext_service_progress</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Clubs, Field Trip, Election, Service Programme</td><td>Seed</td><td>3 activities + members, 1 field trip with consent, 1 election with candidates + votes, 1 service programme + hours, CLB-001..004 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Activities + Membership NestJS Module</td><td>Code</td><td>ActivityService, MembershipService, ScheduleService. Student self-registration. Max-participants enforcement.</td></tr>
+    <tr><td><strong>6</strong></td><td>Field Trips + Consent NestJS Module</td><td>Code</td><td>FieldTripService, ConsentService, ChaperoneService. Digital consent with parent signature. <code>ext.consent.received</code> Kafka emit.</td></tr>
+    <tr><td><strong>7</strong></td><td>Elections + Service NestJS Module</td><td>Code</td><td>ElectionService, VoteService (anonymous ballot keystone), ServiceProgrammeService, ServiceHourService. <code>ext.election.results.published</code> Kafka emit.</td></tr>
+    <tr><td><strong>8</strong></td><td>Clubs UI &mdash; Activities + Field Trips</td><td>UI</td><td>"Clubs" app tile, activity browser, membership roster, field trip planner, consent collection dashboard, parent consent portal</td></tr>
+    <tr><td><strong>9</strong></td><td>Clubs UI &mdash; Elections + Service + Student Portal</td><td>UI</td><td>Election ballot page (anonymous), results board, service hour logger, service progress tracker, student clubs portal</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Activity &rarr; membership &rarr; field trip + consent &rarr; election + anonymous vote &rarr; service hours &rarr; approval</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Activities + Membership Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Club and activity definitions, membership rosters with role tracking, and recurring schedule entries.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>ext_activity_types</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>category TEXT NOT NULL</code> 6-value CHECK (SPORT, ARTS, ACADEMIC, LEADERSHIP, COMMUNITY, OTHER). UNIQUE(school_id, name).</li>
+      <li><strong>ext_activities</strong> &mdash; <code>school_id UUID</code>, <code>activity_type_id UUID FK</code>, <code>name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>academic_year_id UUID FK</code>, <code>advisor_id UUID FK(hr_employees)</code>, <code>max_participants INT</code> nullable (null = unlimited), <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, INACTIVE, COMPLETED), <code>meeting_location TEXT</code>, <code>group_id UUID</code> nullable (soft to grp_groups for future M103 integration). INDEX(school_id, academic_year_id, status).</li>
+      <li><strong>ext_activity_members</strong> &mdash; <code>activity_id UUID FK NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>role TEXT NOT NULL DEFAULT 'MEMBER'</code> 4-value CHECK (MEMBER, OFFICER, PRESIDENT, SECRETARY), <code>joined_at DATE NOT NULL</code>, <code>left_at DATE</code> nullable, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(activity_id, student_id). INDEX(student_id, is_active) for "my clubs" view.</li>
+      <li><strong>ext_activity_schedules</strong> &mdash; <code>activity_id UUID FK NOT NULL</code>, <code>day_of_week SMALLINT NOT NULL</code> CHECK(0&ndash;6), <code>start_time TIME NOT NULL</code>, <code>end_time TIME NOT NULL</code>, <code>location TEXT</code>, <code>is_active BOOLEAN DEFAULT true</code>. INDEX(activity_id, is_active).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>056_ext_activities.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Field Trips + Consent Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Field trip planning with participant tracking, digital parent consent collection with signature timestamps, and chaperone assignments with background-check status.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>ext_field_trips</strong> &mdash; <code>school_id UUID</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>destination TEXT NOT NULL</code>, <code>trip_date DATE NOT NULL</code>, <code>departure_time TIME</code>, <code>return_time TIME</code>, <code>grade_levels TEXT[]</code>, <code>max_participants INT</code>, <code>cost_per_student NUMERIC(6,2)</code> nullable, <code>transport_request_id UUID</code> nullable (soft to trn_ for future M61 integration), <code>organiser_id UUID FK(hr_employees) NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'PLANNING'</code> 5-value CHECK (PLANNING, APPROVED, CONFIRMED, COMPLETED, CANCELLED), <code>consent_deadline DATE</code>. INDEX(school_id, trip_date DESC).</li>
+      <li><strong>ext_field_trip_participants</strong> &mdash; <code>field_trip_id UUID FK NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>attendance_status TEXT DEFAULT 'REGISTERED'</code> 4-value CHECK (REGISTERED, ATTENDED, ABSENT, WITHDRAWN). UNIQUE(field_trip_id, student_id).</li>
+      <li><strong>ext_field_trip_consent_records</strong> &mdash; <strong>PARENT CONSENT KEYSTONE.</strong> <code>field_trip_id UUID FK NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>guardian_person_id UUID NOT NULL</code> (soft to iam_person), <code>consent_given BOOLEAN NOT NULL</code>, <code>signed_at TIMESTAMPTZ NOT NULL</code>, <code>ip_address TEXT</code>, <code>emergency_contact_override TEXT</code> nullable, <code>medical_notes_override TEXT</code> nullable, <code>notes TEXT</code>. UNIQUE(field_trip_id, student_id, guardian_person_id). Emits <code>ext.consent.received</code> on sign.</li>
+      <li><strong>ext_field_trip_chaperones</strong> &mdash; <code>field_trip_id UUID FK NOT NULL</code>, <code>person_id UUID NOT NULL</code> (soft to iam_person &mdash; covers staff and parent volunteers), <code>role TEXT NOT NULL DEFAULT 'CHAPERONE'</code> 3-value CHECK (LEAD, CHAPERONE, DRIVER), <code>background_check_status TEXT DEFAULT 'NOT_REQUIRED'</code> 4-value CHECK (NOT_REQUIRED, PENDING, CLEARED, FAILED), <code>confirmed BOOLEAN DEFAULT false</code>. UNIQUE(field_trip_id, person_id).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>057_ext_field_trips.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Elections + Service Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Student government elections with structurally anonymous voting, and community service programmes with student hour logging and supervisor approval.</p>
+
+    <div class="detail-heading">Tables (8)</div>
+    <ol class="detail-list">
+      <li><strong>ext_elections</strong> &mdash; <code>school_id UUID</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>voting_start TIMESTAMPTZ NOT NULL</code>, <code>voting_end TIMESTAMPTZ NOT NULL</code>, <code>eligible_voters_filter JSONB NOT NULL</code> (structured: grade levels, year groups, or custom student list), <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 4-value CHECK (DRAFT, OPEN, CLOSED, RESULTS_PUBLISHED), <code>created_by UUID FK NOT NULL</code>. INDEX(school_id, status).</li>
+      <li><strong>ext_candidates</strong> &mdash; <code>election_id UUID FK NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>position TEXT NOT NULL</code>, <code>statement TEXT</code>, <code>photo_s3_key TEXT</code>, <code>is_approved BOOLEAN DEFAULT true</code>, <code>registered_at TIMESTAMPTZ</code>. UNIQUE(election_id, student_id, position).</li>
+      <li><strong>ext_votes</strong> &mdash; <strong>ANONYMITY KEYSTONE.</strong> <code>election_id UUID FK NOT NULL</code>, <code>position TEXT NOT NULL</code>, <code>candidate_id UUID FK(ext_candidates) NOT NULL</code>, <code>voted_at TIMESTAMPTZ NOT NULL</code>. <strong>NO voter_id column.</strong> The vote cannot be traced to a voter at the schema level.</li>
+      <li><strong>ext_election_voter_check</strong> &mdash; Anti-double-vote ledger. <code>election_id UUID FK NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>. <strong>PRIMARY KEY(election_id, student_id).</strong> Records WHO voted but has NO reference to any ext_votes row. There is no JOIN path from vote to voter.</li>
+      <li><strong>ext_service_programmes</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>academic_year_id UUID FK</code>, <code>target_hours NUMERIC(6,1) NOT NULL</code>, <code>start_date DATE</code>, <code>end_date DATE</code>, <code>is_active BOOLEAN DEFAULT true</code>, <code>eligible_grade_levels TEXT[]</code>. UNIQUE(school_id, name, academic_year_id).</li>
+      <li><strong>ext_service_hours</strong> &mdash; <strong>STUDENT-INPUT.</strong> <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>programme_id UUID FK</code> nullable, <code>organisation TEXT NOT NULL</code>, <code>description TEXT NOT NULL</code>, <code>service_date DATE NOT NULL</code>, <code>hours NUMERIC(4,1) NOT NULL</code> CHECK(&gt; 0), <code>supervisor_name TEXT</code>, <code>supervisor_contact TEXT</code>, <code>evidence_s3_key TEXT</code> nullable. INDEX(student_id, service_date DESC).</li>
+      <li><strong>ext_service_hour_approvals</strong> &mdash; <code>service_hour_id UUID FK UNIQUE NOT NULL</code>, <code>approved_by UUID FK(hr_employees) NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, APPROVED, REJECTED), <code>notes TEXT</code>, <code>reviewed_at TIMESTAMPTZ</code>. The advisor approves student-submitted hours.</li>
+      <li><strong>ext_service_progress</strong> &mdash; Per-(programme, student) running total. <code>programme_id UUID FK NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>approved_hours NUMERIC(6,1) DEFAULT 0</code>, <code>pending_hours NUMERIC(6,1) DEFAULT 0</code>, <code>is_complete BOOLEAN DEFAULT false</code>. UNIQUE(programme_id, student_id). Updated on every approval.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 8 new tables. Migration: <code>058_ext_elections_service.sql</code>. Total Cycle 17 tables: 16.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Seed Data &mdash; Clubs, Field Trip, Election, Service Programme</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>4 activity types + 3 activities:</strong> Types: Chess (ACADEMIC), Drama (ARTS), Student Council (LEADERSHIP), Debate (ACADEMIC). Activities: Chess Club (Rivera advisor, max 20, ACTIVE, Tuesdays 3:30), Drama Club (Mitchell, ACTIVE), Student Council (Hayes, ACTIVE).</li>
+      <li><strong>5 activity members:</strong> Maya + Ethan in Chess Club (Maya as PRESIDENT, Ethan MEMBER). Maya in Student Council (OFFICER). 2 students in Drama Club.</li>
+      <li><strong>1 field trip + participants + consent + chaperones:</strong> "Natural History Museum" Grade 5, CONFIRMED, next month. Maya + Ethan as participants. David Chen signed consent for Maya (consent_given=true). Rivera as LEAD chaperone (CLEARED). Mitchell as CHAPERONE.</li>
+      <li><strong>1 election + 2 candidates + 3 votes + 2 voter checks:</strong> "Student Council Election 2026" status=CLOSED. President position: Maya + another candidate. 3 anonymous votes (2 for Maya, 1 for other). 2 voter_check rows (Ethan + a third student voted). Results not yet published.</li>
+      <li><strong>1 service programme + 2 service hours + 1 approval + 1 progress:</strong> "Community Impact 2026" target 20 hours. Maya logged 3 hours "Park Cleanup" (APPROVED) + 2 hours "Library Volunteer" (PENDING). Progress: approved_hours=3, pending_hours=2, is_complete=false.</li>
+      <li><strong>Permissions:</strong> CLB-001:read to Teacher, Student, Parent (view activities + memberships). CLB-001:write to Teacher, Staff (manage activities + rosters). CLB-002:read to Student (view elections + results), CLB-002:write to Staff (manage elections). CLB-003:read to Teacher, Parent (view field trips + consent status), CLB-003:write to Teacher, Staff (plan trips). CLB-004:read to Student (view own hours + progress), CLB-004:write to Student (log hours) + Staff (approve). Admin gets all via everyFunction.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Rich clubs + elections + service demo data across all 16 tables. CLB-001..004 permissions.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Activities + Membership NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>ActivityService</strong> &mdash; <code>GET /clubs/activities</code> (browse: all active for the school; filters type, category, year), <code>GET /clubs/activities/:id</code> (with members + schedule inlined), <code>POST /clubs/activities</code> (teacher/staff), <code>PATCH /clubs/activities/:id</code>.</li>
+      <li><strong>MembershipService</strong> &mdash; <code>POST /clubs/activities/:id/join</code> (<strong>STUDENT SELF-REGISTRATION:</strong> validates max_participants not exceeded + student not already active member; uses FOR UPDATE on the activity row to serialise concurrent joins), <code>POST /clubs/activities/:id/members</code> (teacher adds student), <code>PATCH /clubs/activity-members/:id</code> (update role, leave). <code>GET /clubs/my-activities</code> (student's active memberships).</li>
+      <li><strong>ScheduleService</strong> &mdash; <code>GET /clubs/activities/:id/schedule</code>, <code>POST /clubs/activities/:id/schedule</code>, <code>PATCH /clubs/activity-schedules/:id</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; ClubsModule with 3 services, ~12 endpoints.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Field Trips + Consent NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>FieldTripService</strong> &mdash; <code>GET /clubs/field-trips</code> (upcoming trips; parent sees child's trips), <code>GET /clubs/field-trips/:id</code> (with participants + consent status + chaperones inlined), <code>POST /clubs/field-trips</code> (teacher plans), <code>PATCH /clubs/field-trips/:id</code> (status transitions). <code>POST /clubs/field-trips/:id/participants</code> (add students, bulk from class enrolment). <code>GET /clubs/field-trips/:id/consent-status</code> (dashboard: signed/pending/declined per student).</li>
+      <li><strong>ConsentService</strong> &mdash; <code>POST /clubs/field-trips/:id/consent</code> (<strong>PARENT CONSENT KEYSTONE:</strong> parent signs for own child; stamps guardian_person_id + IP + timestamp; emits <code>ext.consent.received</code>; UNIQUE(trip, student, guardian) prevents duplicate signatures). <code>GET /clubs/field-trips/:id/my-consent</code> (parent sees own consent status for their child).</li>
+      <li><strong>ChaperoneService</strong> &mdash; <code>POST /clubs/field-trips/:id/chaperones</code> (assign staff or parent volunteer), <code>PATCH /clubs/field-trip-chaperones/:id</code> (confirm, update background check status).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services, ~10 endpoints, 1 Kafka emit (<code>ext.consent.received</code>).</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Elections + Service NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>ElectionService</strong> &mdash; <code>GET /clubs/elections</code> (active + closed elections), <code>GET /clubs/elections/:id</code> (with candidates; vote counts only when RESULTS_PUBLISHED), <code>POST /clubs/elections</code> (admin), <code>PATCH /clubs/elections/:id</code> (open/close/publish results). <code>POST /clubs/elections/:id/candidates</code> (student registers; admin approves).</li>
+      <li><strong>VoteService</strong> &mdash; <strong>ANONYMITY KEYSTONE.</strong> <code>POST /clubs/elections/:id/vote</code> (student casts ballot: validates election OPEN + student in eligible_voters_filter + voter_check doesn't already exist; inside one tx: INSERTs ext_votes row with NO student identity + INSERTs ext_election_voter_check row with student identity but NO vote reference). <code>GET /clubs/elections/:id/results</code> (public after RESULTS_PUBLISHED: aggregate vote counts per position per candidate). <code>GET /clubs/elections/:id/can-vote</code> (student checks eligibility + has-voted status).</li>
+      <li><strong>ServiceProgrammeService</strong> &mdash; <code>GET /clubs/service-programmes</code>, <code>POST /clubs/service-programmes</code> (admin/teacher), <code>GET /clubs/service-programmes/:id</code> (with student progress). <code>GET /clubs/service-programmes/:id/leaderboard</code>.</li>
+      <li><strong>ServiceHourService</strong> &mdash; <strong>STUDENT-INPUT.</strong> <code>GET /clubs/service-hours</code> (student: own; teacher: all), <code>POST /clubs/service-hours</code> (student logs hours), <code>PATCH /clubs/service-hours/:id</code> (student edits pending only). <code>PATCH /clubs/service-hour-approvals/:id</code> (teacher approves/rejects; on APPROVED: auto-upsert ext_service_progress). <code>GET /clubs/my-service-progress</code> (student's progress across programmes).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~14 endpoints, 1 Kafka emit (<code>ext.election.results.published</code>). Total Cycle 17 endpoints: ~36.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Clubs UI &mdash; Activities + Field Trips</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Clubs Dashboard</strong> <code>/clubs</code> &mdash; "Clubs &amp; Activities" app tile. Activity browser with category filter chips. Student view: "My clubs" with role pills + upcoming schedules. Teacher: managed activities with roster counts.</li>
+      <li><strong>Activity Detail</strong> <code>/clubs/activities/:id</code> &mdash; activity card (type, advisor, schedule, description). Membership roster with role pills. Join button for students (max-participants enforcement). Schedule table.</li>
+      <li><strong>Field Trip Planner</strong> <code>/clubs/field-trips</code> &mdash; upcoming trips list. Create trip form. Per-trip: consent collection dashboard with signed/pending/declined progress bar. Chaperone assignments.</li>
+      <li><strong>Parent Consent Portal</strong> <code>/children/:id/field-trips</code> &mdash; parent sees child's upcoming field trips with "Sign consent" button. Consent form with emergency contact override + medical notes + digital signature timestamp.</li>
+    </ol>
+    <div class="produces">Produces &rarr; "Clubs" app tile + activity browser, activity detail, field trip planner, parent consent portal.</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Clubs UI &mdash; Elections + Service + Student Portal</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Election Ballot</strong> <code>/clubs/elections/:id/vote</code> &mdash; <strong>ANONYMOUS VOTING UI.</strong> Candidates grouped by position with statements + photos. One selection per position. Submit button with "Your vote is anonymous and cannot be changed" confirmation. Post-submit: "Thank you for voting" with no indication of who was selected. The UI never stores or displays the voter's choice after submission.</li>
+      <li><strong>Election Results</strong> <code>/clubs/elections/:id</code> &mdash; before RESULTS_PUBLISHED: candidate list only, no counts. After: vote counts per candidate per position with winner indicator. Admin: Open/Close/Publish buttons.</li>
+      <li><strong>Service Hour Logger</strong> <code>/clubs/service-hours</code> &mdash; <strong>STUDENT-INPUT.</strong> Log form: organisation, description, date, hours, supervisor, optional evidence upload. My hours list with status pills (PENDING amber / APPROVED emerald / REJECTED rose). Teacher view: approval queue with Approve/Reject per row.</li>
+      <li><strong>Service Progress</strong> <code>/clubs/service-progress</code> &mdash; student sees progress bars per programme (approved_hours / target_hours). Leaderboard per programme.</li>
+      <li><strong>Student Clubs Portal</strong> <code>/clubs/my</code> &mdash; student landing: my activities + upcoming schedules, my field trips + consent status, active elections (vote button when OPEN), service progress summary.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Anonymous ballot page, election results, service hour logger (student input), service progress, student clubs portal.</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Activity lifecycle:</strong> Teacher creates "Coding Club" ACADEMIC. Maya joins (max_participants check passes). Second join attempt rejected (UNIQUE). Concurrent join with FOR UPDATE serialisation verified.</li>
+      <li><strong>Field trip + consent:</strong> Teacher plans "Science Center" trip. Adds Maya + Ethan. David signs consent for Maya. Verify <code>ext.consent.received</code> fires. Consent dashboard shows 1 signed / 1 pending. Duplicate consent attempt rejected (UNIQUE).</li>
+      <li><strong>Chaperone assignment:</strong> Rivera assigned as LEAD (CLEARED). Parent volunteer assigned as CHAPERONE (PENDING background check).</li>
+      <li><strong>Election + anonymous vote keystone:</strong> Admin creates election with President position. Maya registers as candidate. Ethan casts vote for Maya. Verify ext_votes row has NO student identity. Verify ext_election_voter_check row has student identity. Ethan attempts second vote &rarr; 400 (PK violation caught). <strong>Verify no JOIN path exists from ext_votes to ext_election_voter_check.</strong></li>
+      <li><strong>Election results:</strong> Close election. Publish results. Verify aggregate counts exposed. Verify individual votes never exposed (no voter identity on any API response).</li>
+      <li><strong>Service hour logging + approval:</strong> Maya logs 3 hours "Park Cleanup". Status=PENDING. Teacher approves. ext_service_progress auto-upserts (approved_hours=3). Maya logs 2 more. Teacher rejects with reason.</li>
+      <li><strong>Service progress:</strong> Maya's progress shows 3/20 approved hours. Verify the rejected hours don't count toward progress.</li>
+      <li><strong>Visibility:</strong> Student sees own clubs + elections + service hours. Parent sees child's field trips + consent forms. Teacher sees managed activities + approval queue. Student cannot manage elections or create activities.</li>
+      <li><strong>Parent consent portal:</strong> Parent sees child's upcoming trips. Signs consent with digital timestamp + IP. Cannot sign for another family's child.</li>
+      <li><strong>Max participants:</strong> Set Chess Club to max=2. Third student join attempt rejected with 400.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified clubs lifecycle: activity + membership &rarr; field trip + consent &rarr; anonymous election &rarr; service hours + approval.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 17 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 16 new tables (4 activities + 4 field trips + 8 elections/service). Tenant table count: ~261.</li>
+      <li>Clubs API: ~36 endpoints with student self-registration + parent consent + anonymous voting.</li>
+      <li>Structurally anonymous voting: NO voter_id on ext_votes. voter_check PK prevents double-vote without linking to ballot.</li>
+      <li>Field trip consent with digital parent signature + IP + timestamp.</li>
+      <li>Service hour logging with supervisor approval + auto-progress tracking.</li>
+      <li>Student self-registration for clubs with max-participants enforcement.</li>
+      <li><code>ext.consent.received</code> + <code>ext.election.results.published</code> Kafka emits.</li>
+      <li>HANDOFF-CYCLE17.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 17 delivers the full co-curricular experience: clubs, field trips, elections, and community service. The structurally anonymous voting system is the strongest privacy guarantee in the platform. Cycle 18 (Groups &amp; Communities) closes Wave 3, then Wave 4 (Campus Operations) begins with Transportation.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 17 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M64 Clubs &amp; Student Life, 22 tables &mdash; 16 core in scope), Function Library (CLB-001 through CLB-004).</p>
+  </div>
+</div>
+
+</body>
+</html>

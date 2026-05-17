@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — School Configuration Admin</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.sec{font-family:'DM Serif Display',serif;font-size:24px;color:var(--accent);margin:40px 0 12px;font-weight:400;padding-top:20px;border-top:1px solid var(--border)}h2.sec:first-of-type{border-top:none;margin-top:0}
+p.body{font-size:14px;line-height:1.8;margin-bottom:12px}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../design-hub/index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../design-hub/index.html">Design Hub</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Admin Configuration</div>
+    <h1>School Configuration<br>Admin</h1>
+    <div class="sub">Three organizational structures with full CRUD, hierarchy visualization, and cross-structure assignment views. The admin surfaces that make a school operational before the first bell rings. No new schema &mdash; UI layer on existing tables from Cycles 0, 1, 4, 5, 21.</div>
+    <span class="version">May 2026 &middot; 7 Steps &middot; 0 new tables &middot; ~12 new pages &middot; Admin-gated</span>
+  </div>
+
+  <h2 class="sec">The Three Structures</h2>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Design Principle</div>
+    <p style="font-size:14px;line-height:1.8;">Each structure is a self-contained hierarchy that the admin builds independently. Then the admin connects them through assignments. The UI reflects this: three separate tree views (Facility, Academic, Position), plus an Assignments view that shows how they link. Every node in every tree is clickable for detail, editable in-place, and deletable with dependency warnings.</p>
+  </div>
+
+  <p class="body"><strong>Structure 1 &mdash; Facility:</strong> Campus &rarr; Building &rarr; Floor/Wing &rarr; Room. Tables: <code>fac_buildings</code> (building_id, name, code, year_built, total_floors), <code>fac_spaces</code> (building_id FK, name, floor, space_type, sch_room_id cross-link). The school itself is the implicit campus. Buildings contain floors (the <code>floor</code> column on fac_spaces). Rooms are spaces with type=CLASSROOM.</p>
+
+  <p class="body"><strong>Structure 2 &mdash; Academic / Operational:</strong> District &rarr; School &rarr; Grade Bands &rarr; Classes. Tables: <code>organisations</code> (district/MAT), <code>schools</code> (school unit, subdomain, timezone), <code>sis_academic_years</code> + <code>sis_terms</code> (time structure), <code>sis_classes</code> (grade_level, subject, teacher). Grade bands are derived from the grade_level values on classes and students &mdash; the admin configures which grade levels belong to which division.</p>
+
+  <p class="body"><strong>Structure 3 &mdash; Position:</strong> Organisation &rarr; Department &rarr; Position &rarr; Person. Tables: <code>hr_positions</code> (title, department, reports_to), <code>hr_employees</code> (person fills position). The org chart is built from the reports_to self-referential FK on positions.</p>
+
+  <h2 class="sec">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Configuration Hub Landing Page</span></div>
+    <p>The entry point for all school configuration. Admin-gated. Provides navigation to the three structures + assignments + a setup completeness indicator.</p>
+    <div class="detail-heading">Page: /admin/configuration</div>
+    <ol class="detail-list">
+      <li><strong>Three structure cards:</strong> "Facility Structure" (building icon, count of buildings + rooms), "Academic Structure" (graduation cap icon, count of grade levels + classes), "Position Structure" (org chart icon, count of positions + staff). Each card links to its manager page.</li>
+      <li><strong>Assignments card:</strong> "Connections" (link icon) &mdash; shows how the three structures connect. Links to the assignments view.</li>
+      <li><strong>Setup completeness indicator:</strong> Checklist-style progress: "Buildings defined" (check/x), "Rooms created" (check/x), "Academic year configured" (check/x), "Classes created" (check/x), "Staff positions defined" (check/x), "Staff assigned to positions" (check/x), "Classes assigned to rooms" (check/x). Green when complete, amber when partial, gray when not started. This is computed on render from existing data &mdash; no new tracking table.</li>
+      <li><strong>Quick actions:</strong> "Add Building", "Add Class", "Add Position" &mdash; shortcuts that jump into the relevant structure's create form.</li>
+    </ol>
+    <div class="produces">Produces &rarr; /admin/configuration hub page with structure cards + setup completeness.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Facility Structure Manager</span></div>
+    <p>Interactive tree view of the entire physical plant: buildings, floors/wings within buildings, and rooms/spaces within floors. Full CRUD at every level.</p>
+    <div class="detail-heading">Page: /admin/configuration/facilities</div>
+    <ol class="detail-list">
+      <li><strong>Tree view (left panel):</strong> Collapsible tree rooted at the school name. Level 1: buildings (expandable). Level 2: floors/wings (grouped from fac_spaces.floor values within each building). Level 3: rooms/spaces (individual fac_spaces rows). Each node shows: name, type pill (CLASSROOM emerald / GYM purple / CAFETERIA amber / OFFICE blue / STORAGE gray), active/inactive status. Click a node to select it and load detail in the right panel.</li>
+      <li><strong>Detail panel (right):</strong> When a <strong>building</strong> is selected: name, code, year built, total floors, active toggle, total room count, room breakdown by type (pie chart or bar). Edit button opens inline form. Delete button with dependency check ("This building has 12 rooms &mdash; remove all rooms first or archive the building").</li>
+      <li>When a <strong>room/space</strong> is selected: name, floor, space_type dropdown, area (sqft), sch_room cross-link status ("Linked to Scheduling" green pill or "Not linked" gray pill &mdash; shows the sch_rooms.id it maps to), active toggle. For CLASSROOM type: shows which classes are scheduled here (from sch_timetable_slots). Edit inline. Delete with dependency warning.</li>
+      <li><strong>Add actions:</strong> "Add Building" button (top of tree) opens create form: name, code, year built, floors. "Add Room" button (on building node) opens create form: name, floor (dropdown from building floors or free-text for new floor), space_type dropdown, area. On create: emits <code>fac.space.created</code> which auto-creates the sch_rooms draft entry.</li>
+      <li><strong>Bulk import:</strong> "Import Rooms" button with CSV template: building_name, room_name, floor, space_type, area_sqft. Validates building exists, creates rooms in batch.</li>
+    </ol>
+    <div class="produces">Produces &rarr; /admin/configuration/facilities with interactive tree + detail panel + CRUD + bulk import.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Academic Structure Manager</span></div>
+    <p>Hierarchical view of the academic organization: district (if applicable), school, academic years with terms, grade levels grouped by division/band, and classes within each grade level.</p>
+    <div class="detail-heading">Page: /admin/configuration/academic</div>
+    <ol class="detail-list">
+      <li><strong>Tree view (left panel):</strong> Level 0 (if district): organisation name. Level 1: school name + academic year selector (dropdown, current year default). Level 2: grade bands/divisions &mdash; admin-configurable groupings (e.g., "Lower School PK&ndash;2", "Middle School 3&ndash;5", "Upper School 6&ndash;8"). These are stored as a JSONB config on <code>platform_tenant_configs</code> with key <code>grade_band_definitions</code>. Level 3: individual grade levels within each band. Level 4: classes within each grade level. Each class node shows: name, subject, teacher name, student count, room assignment.</li>
+      <li><strong>Detail panel (right):</strong> When <strong>academic year</strong> selected: year name, start/end dates, terms list with date ranges, status (ACTIVE/FUTURE/ARCHIVED). Add/edit terms inline.</li>
+      <li>When a <strong>grade band</strong> selected: band name, grade levels included (drag-reorder or multi-select), division head (staff member), total students in band, total classes.</li>
+      <li>When a <strong>class</strong> selected: class name, subject, grade level, assigned teacher(s), student count with "View Roster" link, assigned room with "Change Room" dropdown (pulls from sch_rooms), schedule summary (from sch_timetable_slots). Edit inline. "Add Students" button links to the SIS student assignment flow.</li>
+      <li><strong>Add actions:</strong> "Add Academic Year" (name, dates). "Configure Grade Bands" (opens modal: define band names + assign grade levels to bands). "Add Class" (name, subject, grade level, teacher dropdown, room dropdown).</li>
+      <li><strong>Grade band configuration modal:</strong> List of grade levels (PK, K, 1&ndash;12). Drag each into a named band. Save writes to platform_tenant_configs. This is the only new configuration surface &mdash; everything else uses existing tables.</li>
+    </ol>
+    <div class="produces">Produces &rarr; /admin/configuration/academic with year/term/grade/class tree + grade band configuration.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Position Structure Manager</span></div>
+    <p>Organizational chart view of the position hierarchy with department grouping, reports-to chains, and person-to-position assignment.</p>
+    <div class="detail-heading">Page: /admin/configuration/positions</div>
+    <ol class="detail-list">
+      <li><strong>Org chart view (primary):</strong> Visual organizational chart rendering the reports-to hierarchy. Root: school head (Principal/Head of School). Each node: position title, department pill, person name (or "Vacant" in amber), person avatar. Lines connect each position to its reports_to parent. Zoom + pan for large orgs. Click a node to select and load detail.</li>
+      <li><strong>List view (toggle):</strong> Table view with columns: position title, department, reports to, filled by, status (Filled emerald / Vacant amber). Sortable + filterable by department.</li>
+      <li><strong>Detail panel:</strong> When a <strong>position</strong> selected: title, department, reports to (dropdown of other positions), description, currently filled by (employee name + link to HR profile), assignment history (who held this position previously). Edit inline. "Assign Person" button opens employee selector.</li>
+      <li><strong>Add actions:</strong> "Add Position" (title, department from predefined list or free-text, reports_to dropdown, description). "Add Department" (name, code). Positions auto-appear in the org chart on create.</li>
+      <li><strong>Drag-reassign:</strong> Drag a position node in the org chart to a new parent to change the reports_to relationship. Confirmation modal: "Move [Art Teacher] to report to [Department Head - Arts]?"</li>
+      <li><strong>Vacancy dashboard:</strong> Summary card at top: total positions, filled, vacant. List of vacant positions with "Assign" buttons. Links to the Cycle 4.1 HR recruitment pipeline when built.</li>
+    </ol>
+    <div class="produces">Produces &rarr; /admin/configuration/positions with org chart + list view + CRUD + drag-reassign.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Assignments &amp; Connections View</span></div>
+    <p>The view that shows how the three structures connect: which buildings serve which school units, which positions are assigned where, which people fill which positions, and which classes meet in which rooms.</p>
+    <div class="detail-heading">Page: /admin/configuration/connections</div>
+    <ol class="detail-list">
+      <li><strong>Four assignment sections</strong> rendered as interactive tables with inline editing:</li>
+      <li><strong>School &harr; Facility:</strong> Table showing each building and which school unit it serves. Most single-campus schools have one row. Multi-campus: multiple rows. Add/remove building-to-school linkages. Derived from <code>fac_buildings.school_id</code>.</li>
+      <li><strong>Position &harr; School:</strong> Table showing positions grouped by school unit. Each row: position title, department, school, filled-by. Filter by department. Derived from <code>hr_positions.school_id</code>.</li>
+      <li><strong>Person &harr; Position:</strong> Table showing all staff with their position(s). Columns: person name, position(s), department, start date. "Assign" button for unassigned staff. "Change Position" for reassignment. Derived from <code>hr_employees.position_id</code>.</li>
+      <li><strong>Class &harr; Room:</strong> Table showing class-to-room assignments from the schedule. Columns: class name, grade, teacher, room, building, schedule (days/times). "Change Room" dropdown. "Unassigned" rows highlighted in amber for classes without a room. Derived from <code>sch_timetable_slots.room_id</code>.</li>
+      <li><strong>Sankey diagram (visual):</strong> A single visual showing the flow: Buildings → Rooms → Classes → Teachers → Departments. Hovering over any node highlights its connections across all three structures. This is the "big picture" view that shows the admin how everything connects.</li>
+    </ol>
+    <div class="produces">Produces &rarr; /admin/configuration/connections with 4 assignment tables + Sankey diagram.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Setup Wizard (First-Time Onboarding)</span></div>
+    <p>A guided step-by-step flow for first-time school setup. Walks the admin through creating all three structures in dependency order, then connecting them. Resumable &mdash; the admin can leave and come back.</p>
+    <div class="detail-heading">Page: /admin/setup-wizard</div>
+    <ol class="detail-list">
+      <li><strong>Step 1 &mdash; School Identity:</strong> School name, address, timezone, phone, website, logo upload. Writes to <code>schools</code>. Pre-filled from tenant provisioning if available.</li>
+      <li><strong>Step 2 &mdash; Academic Calendar:</strong> Academic year name + start/end dates. Add terms (Fall, Spring or Term 1/2/3). Define grade levels offered (checkboxes PK through 12). Configure grade bands (drag grades into named divisions). Writes to <code>sis_academic_years</code> + <code>sis_terms</code> + <code>platform_tenant_configs.grade_band_definitions</code>.</li>
+      <li><strong>Step 3 &mdash; Buildings &amp; Rooms:</strong> Add building(s) with name + floors. Per building: add rooms (name, floor, type). Bulk CSV import available. Writes to <code>fac_buildings</code> + <code>fac_spaces</code>. Auto-creates <code>sch_rooms</code> via <code>fac.space.created</code>.</li>
+      <li><strong>Step 4 &mdash; Departments &amp; Positions:</strong> Define departments (Administration, English, Math, Science, etc.). Per department: add positions (Principal, Department Head, Teacher, Aide, etc.) with reports-to chain. Writes to <code>hr_positions</code>.</li>
+      <li><strong>Step 5 &mdash; Staff Import:</strong> CSV upload: first_name, last_name, email, position_title, department. Creates <code>iam_person</code> + <code>platform_users</code> + <code>hr_employees</code> + position assignment. Sends welcome email via IdP. Bulk operation.</li>
+      <li><strong>Step 6 &mdash; Student Import:</strong> CSV upload: first_name, last_name, grade_level, guardian_name, guardian_email. Creates <code>iam_person</code> + <code>platform_students</code> + <code>sis_students</code> + <code>sis_guardians</code> + <code>sis_student_guardians</code>. Creates parent accounts. Bulk operation.</li>
+      <li><strong>Step 7 &mdash; Classes &amp; Assignments:</strong> Create classes (name, subject, grade_level, teacher, room). Or CSV: class_name, subject, grade_level, teacher_email, room_name. Assigns students to classes. Writes to <code>sis_classes</code> + <code>sis_enrolments</code>.</li>
+      <li><strong>Step 8 &mdash; Review &amp; Launch:</strong> Summary page showing everything created: X buildings, Y rooms, Z staff, W students, N classes. Completeness check (any missing assignments highlighted). "Complete Setup" button marks the school as fully configured. Confetti animation.</li>
+      <li><strong>Resumability:</strong> Each step saves progress. The wizard shows completed steps with green checkmarks. The admin can jump to any completed step to edit. Incomplete steps show the "Continue" prompt. Progress stored in <code>platform_tenant_configs</code> with key <code>setup_wizard_progress</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; /admin/setup-wizard with 8-step guided onboarding, CSV imports, resumable progress.</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">API Endpoints for Structure Views</span></div>
+    <p>New API endpoints that return the hierarchical data in the format the tree views and org chart need. These are read-only aggregate endpoints &mdash; individual CRUD uses the existing module APIs.</p>
+    <div class="detail-heading">New Endpoints</div>
+    <ol class="detail-list">
+      <li><code>GET /admin/configuration/facility-tree</code> &mdash; Returns the full facility hierarchy: buildings with nested floors with nested spaces, including sch_room cross-links and scheduled class counts per room. Single query with joins.</li>
+      <li><code>GET /admin/configuration/academic-tree</code> &mdash; Returns the full academic hierarchy: academic year with terms, grade bands (from tenant config), grade levels with nested classes, including teacher names, student counts, and room assignments per class.</li>
+      <li><code>GET /admin/configuration/position-tree</code> &mdash; Returns the position hierarchy as a tree rooted at the top position (reports_to IS NULL). Each node includes: position, department, filling employee (or null for vacant). Recursive CTE query for arbitrary depth.</li>
+      <li><code>GET /admin/configuration/connections-summary</code> &mdash; Returns the cross-structure assignment summary: building-school links, position-school links, person-position links (with vacancies), class-room links (with unassigned classes).</li>
+      <li><code>GET /admin/configuration/setup-status</code> &mdash; Returns the setup completeness checklist: boolean per step (buildings_defined, rooms_created, academic_year_configured, classes_created, positions_defined, staff_assigned, classes_assigned_rooms).</li>
+      <li><code>POST /admin/configuration/import/staff</code> &mdash; Bulk CSV import: validates, creates iam_person + platform_users + hr_employees + position assignments in one transaction.</li>
+      <li><code>POST /admin/configuration/import/students</code> &mdash; Bulk CSV import: validates, creates iam_person + platform_students + sis_students + guardians in one transaction.</li>
+      <li><code>POST /admin/configuration/import/rooms</code> &mdash; Bulk CSV import: validates building exists, creates fac_spaces in batch.</li>
+      <li><code>PATCH /admin/configuration/grade-bands</code> &mdash; Saves the grade band definitions to platform_tenant_configs.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 9 new endpoints (5 reads + 3 imports + 1 config). All admin-gated. No new tables.</div>
+  </div>
+
+  <h2 class="sec">Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:14px;line-height:2.2;padding-left:20px;">
+      <li>Configuration hub at /admin/configuration with setup completeness indicator.</li>
+      <li>Facility tree view with building → floor → room hierarchy, full CRUD, bulk CSV import.</li>
+      <li>Academic tree view with year → term → grade band → grade → class hierarchy, grade band configuration modal.</li>
+      <li>Position org chart with visual reports-to hierarchy, drag-reassign, vacancy dashboard.</li>
+      <li>Connections view with 4 assignment tables + Sankey diagram showing cross-structure linkages.</li>
+      <li>Setup wizard with 8 resumable steps, CSV import for staff + students + rooms, progress tracking.</li>
+      <li>9 new API endpoints for tree views + imports + configuration.</li>
+      <li>Zero new tables &mdash; all data stored in existing schema.</li>
+    </ol>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">Claude Code Prompt</div>
+    <p style="font-size:14px;line-height:1.8;font-family:monospace;background:#f8f9fa;padding:12px;border-radius:6px;margin-top:8px;">Read docs/campusos-school-configuration-admin.html. This is a UI + API feature — no new database tables. Build the 7 steps in order. Start with Step 1 — the Configuration Hub landing page at /admin/configuration with three structure cards, assignments card, setup completeness indicator, and quick actions. Use the existing CampusOS design system (Tailwind + shadcn/ui). All pages are admin-gated via @RequirePermission('SYS-001:admin').</p>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS School Configuration Admin &mdash; May 2026. UI + API feature: 0 new tables, ~12 new pages, 9 new API endpoints. Surfaces existing data from Cycles 0, 1, 4, 5, 21 in three organizational hierarchies with full CRUD, visualization, and a guided setup wizard.</p>
+  </div>
+</div>
+
+</body>
+</html>

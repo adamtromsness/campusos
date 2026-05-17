@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-10: Food Service Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.split-card{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:16px 0}
+.split-card h3{font-size:16px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.split-card p{font-size:14px;line-height:1.8;margin:0}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave B &mdash; Pilot Enhancement</div>
+    <h1>P2-10: Food Service<br>Advanced</h1>
+    <div class="sub">Recipe costing engine with ingredient-level allergen aggregation, multi-group food inventory with immutable stock movement audit trail and inter-group transfer workflow, student meal pre-ordering with parent/student selection and production planning reports, USDA production records for federal compliance, staff meal accounts, and the Kafka consumer that wires hlth.allergy_alert.changed into the POS allergen read model live. Closes Wave B.</div>
+    <span class="version">May 2026 &middot; 2 Sub-Cycles &middot; ERD v11 &middot; M63 Food Service .1 (15 tables) &middot; FDS-003..005 &middot; Phase 2 Cycle 10 &middot; Closes Wave B</span>
+  </div>
+
+  <h2 class="section-heading">Sub-Cycle Structure</h2>
+  <p class="body-text">15 tables split into 2 independently shippable sub-cycles. P2-10a covers recipes + full inventory management (the kitchen ops backbone). P2-10b covers pre-orders + production records + staff meals + the health-to-food allergen consumer (the service delivery layer). Peer review happens after both are complete.</p>
+
+  <div class="split-card">
+    <h3>P2-10a &mdash; Recipes + Inventory (8 tables)</h3>
+    <p>Recipe definitions linked to menu items with ingredient-level allergen auto-computation and cost-per-serving calculation, multi-group inventory pools (Main Kitchen, Breakfast, Concessions), inventory items with reorder thresholds, current stock levels, immutable stock movement transactions (RANGE partitioned monthly), and inter-group transfer requests with approval workflow.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-10b &mdash; Pre-Orders + Production + Staff + Allergen Consumer (7 tables)</h3>
+    <p>Student meal pre-ordering with time-windowed selection and allergen cross-check, pre-order production planning reports (JSONB item totals + dietary breakdown), USDA production records for federal compliance documentation, staff meal accounts with payroll deduction, and the AllergenAlertConsumer that wires hlth.allergy_alert.changed into fds_student_allergen_alerts live (replacing the seed-only sync from Cycle 20).</p>
+  </div>
+
+  <h2 class="section-heading">P2-10a: Recipes + Inventory</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema (8 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>fds_recipes</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>category TEXT NOT NULL</code> 9-value CHECK (ENTREE, SIDE, VEGETABLE, FRUIT, GRAIN, DAIRY, BEVERAGE, SNACK, DESSERT), <code>serving_yield INT NOT NULL</code>, <code>prep_time_minutes INT</code>, <code>cook_time_minutes INT</code>, <code>instructions TEXT</code>, <code>allergens TEXT[]</code> (auto-computed: UNION of all ingredient allergens), <code>cost_per_serving NUMERIC(6,2)</code> (auto-computed: SUM ingredient costs / serving_yield), <code>menu_item_id UUID FK(fds_menu_items)</code> nullable, <code>is_active BOOLEAN DEFAULT true</code>. INDEX(school_id, category).</li>
+      <li><strong>fds_recipe_ingredients</strong> &mdash; <code>recipe_id UUID FK NOT NULL</code>, <code>inventory_item_id UUID FK(fds_inventory_items)</code> nullable (linked when ingredient maps to a tracked inventory item), <code>ingredient_name TEXT NOT NULL</code>, <code>quantity NUMERIC(8,3) NOT NULL</code>, <code>unit TEXT NOT NULL</code>, <code>allergens TEXT[] DEFAULT '{}'</code>, <code>unit_cost NUMERIC(6,3)</code>, <code>notes TEXT</code>. UNIQUE(recipe_id, ingredient_name). On INSERT/UPDATE: recompute parent recipe.allergens + recipe.cost_per_serving.</li>
+      <li><strong>fds_inventory_groups</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>group_type TEXT NOT NULL</code> 6-value CHECK (LUNCH, BREAKFAST, SNACK, CONCESSIONS, CATERING, OTHER), <code>location TEXT</code>, <code>is_active BOOLEAN DEFAULT true</code>, <code>managed_by UUID FK(hr_employees)</code>. UNIQUE(school_id, name).</li>
+      <li><strong>fds_inventory_items</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>unit TEXT NOT NULL</code>, <code>category TEXT NOT NULL</code> 9-value CHECK (PROTEIN, DAIRY, GRAIN, VEGETABLE, FRUIT, CONDIMENT, BEVERAGE, PACKAGING, OTHER), <code>allergen_codes TEXT[] DEFAULT '{}'</code>, <code>reorder_threshold NUMERIC(8,2)</code>, <code>preferred_vendor_id UUID</code> (soft to fin_suppliers), <code>unit_cost NUMERIC(8,4)</code>. UNIQUE(school_id, name).</li>
+      <li><strong>fds_inventory_levels</strong> &mdash; <code>group_id UUID FK NOT NULL</code>, <code>item_id UUID FK NOT NULL</code>, <code>quantity_on_hand NUMERIC(10,3) NOT NULL DEFAULT 0</code> CHECK(&ge;0), <code>last_counted_at TIMESTAMPTZ</code>. UNIQUE(group_id, item_id). INDEX(group_id, quantity_on_hand) WHERE quantity_on_hand=0. When quantity_on_hand &le; reorder_threshold: emit <code>fds.inventory.low</code>.</li>
+      <li><strong>fds_inventory_transactions</strong> &mdash; <strong>IMMUTABLE.</strong> <code>school_id UUID NOT NULL</code>, <code>group_id UUID FK NOT NULL</code>, <code>item_id UUID FK NOT NULL</code>, <code>transaction_type TEXT NOT NULL</code> 7-value CHECK (RECEIPT, USAGE, WASTE, ADJUSTMENT, TRANSFER_IN, TRANSFER_OUT, STOCKTAKE), <code>quantity_delta NUMERIC(10,3) NOT NULL</code> (positive for IN, negative for OUT), <code>performed_by UUID FK NOT NULL</code>, <code>transaction_at TIMESTAMPTZ NOT NULL</code>, <code>transfer_reference_id UUID</code> (links paired TRANSFER_OUT + TRANSFER_IN), <code>related_session_id UUID FK(fds_meal_service_sessions)</code>, <code>notes TEXT</code>. NO UPDATE, NO DELETE. RANGE partition by transaction_at MONTHLY, 3-year retention. INDEX(group_id, item_id, transaction_at DESC).</li>
+      <li><strong>fds_inventory_transfer_requests</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>from_group_id UUID FK NOT NULL</code>, <code>to_group_id UUID FK NOT NULL</code>, <code>item_id UUID FK NOT NULL</code>, <code>quantity NUMERIC(10,3) NOT NULL</code>, <code>reason TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 5-value CHECK (PENDING, APPROVED, COMPLETED, REJECTED, CANCELLED), <code>requested_by UUID FK NOT NULL</code>, <code>reviewed_by UUID FK</code>, <code>reviewed_at TIMESTAMPTZ</code>, <code>completed_at TIMESTAMPTZ</code>, <code>transfer_reference_id UUID</code> (set on COMPLETED). INDEX(school_id, status) WHERE status IN ('PENDING','APPROVED'). On COMPLETED: creates paired TRANSFER_OUT + TRANSFER_IN fds_inventory_transactions rows with shared transfer_reference_id.</li>
+      <li><strong>fds_staff_meal_accounts</strong> &mdash; <code>employee_id UUID FK(hr_employees) NOT NULL UNIQUE</code>, <code>school_id UUID</code>, <code>balance NUMERIC(8,2) DEFAULT 0</code>, <code>deduction_method TEXT NOT NULL DEFAULT 'PAYROLL'</code> 3-value CHECK (PAYROLL, PREPAID, COMPLIMENTARY), <code>daily_limit NUMERIC(6,2)</code>. Staff meal charges deducted via payroll integration (P2-4) or prepaid balance.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 8 tables. Migration: <code>121_fds_recipes_inventory.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Seed + Services + UI + Tests (P2-10a)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>3 recipes (Chicken Tenders with 5 ingredients, Veggie Wrap with 4 ingredients, Fruit Salad with 3 ingredients). Auto-computed allergens + cost_per_serving. 2 inventory groups (Main Kitchen LUNCH, Breakfast Programme BREAKFAST). 10 inventory items across categories. 10 inventory levels. 15 inventory transactions (mix of RECEIPT, USAGE, WASTE, 1 paired TRANSFER). 1 transfer request (COMPLETED). 2 staff meal accounts (1 PAYROLL, 1 COMPLIMENTARY).</li>
+    </ol>
+    <div class="detail-heading">Services (~22 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>RecipeService</strong> &mdash; CRUD for recipes + ingredients. <code>GET /food-service/recipes/:id/cost</code> (cost breakdown). On ingredient change: recompute allergens (UNION of all ingredient allergens) + cost_per_serving (SUM unit_cost × quantity / serving_yield). <code>GET /food-service/recipes/:id/scaling</code> (given target servings, compute ingredient quantities).</li>
+      <li><strong>InventoryService</strong> &mdash; <code>GET /food-service/inventory/groups</code>, <code>POST /food-service/inventory/groups</code>. <code>GET /food-service/inventory/items</code>, <code>POST /food-service/inventory/items</code>. <code>GET /food-service/inventory/levels/:groupId</code> (current stock). <code>POST /food-service/inventory/receive</code> (RECEIPT transaction + level increment). <code>POST /food-service/inventory/usage</code> (USAGE transaction + level decrement). <code>POST /food-service/inventory/waste</code> (WASTE + decrement). <code>POST /food-service/inventory/stocktake</code> (STOCKTAKE adjustment to actual count). All create IMMUTABLE fds_inventory_transactions rows. Emits <code>fds.inventory.low</code> when level hits reorder_threshold.</li>
+      <li><strong>TransferService</strong> &mdash; <code>POST /food-service/inventory/transfers</code> (request), <code>PATCH /food-service/inventory/transfers/:id</code> (approve/reject), <code>POST /food-service/inventory/transfers/:id/complete</code> (creates paired TRANSFER_OUT + TRANSFER_IN transactions with shared reference). <code>GET /food-service/inventory/transfers</code>.</li>
+      <li><strong>StaffMealService</strong> &mdash; <code>GET /food-service/staff-meals/:employeeId</code>, <code>POST /food-service/staff-meals</code> (create account), <code>POST /food-service/staff-meals/:id/charge</code> (POS charges staff meal). <code>GET /food-service/staff-meals/payroll-deductions</code> (monthly summary for payroll integration).</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Recipe Manager</strong> <code>/food-service/recipes</code> &mdash; recipe list with category filter. Per-recipe: ingredients editor (add/remove/edit quantities), auto-computed allergen tags, cost breakdown, scaling calculator.</li>
+      <li><strong>Inventory Dashboard</strong> <code>/food-service/inventory</code> &mdash; group selector. Per-group: item list with current levels, colour-coded (green=good, amber=low, rose=out). Receive/usage/waste/stocktake forms. Transfer request form + approval queue.</li>
+      <li><strong>Staff Meals</strong> <code>/food-service/staff-meals</code> &mdash; account list. Charge form. Monthly deduction report for payroll.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-10a: 8 tables, ~22 endpoints. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-10b: Pre-Orders + Production + Allergen Consumer</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Schema (7 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>fds_preorder_windows</strong> &mdash; <code>school_id UUID</code>, <code>opens_at TIMESTAMPTZ</code>, <code>closes_at TIMESTAMPTZ</code>, <code>service_date DATE</code>, <code>meal_type TEXT NOT NULL</code> 4-value CHECK (BREAKFAST, LUNCH, DINNER, SNACK). UNIQUE(school_id, service_date, meal_type). Defines when students/parents can pre-order for a given service date.</li>
+      <li><strong>fds_meal_preorders</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>preorder_window_id UUID FK NOT NULL</code>, <code>ordered_by UUID FK NOT NULL</code> (student or parent), <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, CONFIRMED, CANCELLED), <code>allergen_check_passed BOOLEAN NOT NULL DEFAULT true</code> (false if any selected item conflicts with fds_student_allergen_alerts &mdash; order blocked until conflict resolved). UNIQUE(student_id, preorder_window_id).</li>
+      <li><strong>fds_meal_preorder_items</strong> &mdash; <code>preorder_id UUID FK NOT NULL</code>, <code>menu_item_id UUID FK(fds_menu_items) NOT NULL</code>, <code>quantity INT DEFAULT 1</code>. UNIQUE(preorder_id, menu_item_id).</li>
+      <li><strong>fds_preorder_production_reports</strong> &mdash; <code>school_id UUID</code>, <code>service_date DATE</code>, <code>meal_type TEXT NOT NULL</code>, <code>generated_at TIMESTAMPTZ</code>, <code>report_data JSONB NOT NULL</code> (item totals per menu item, dietary restriction breakdown, estimated ingredient usage from recipes, staffing estimate). UNIQUE(school_id, service_date, meal_type). Generated from aggregating confirmed pre-orders.</li>
+      <li><strong>fds_production_records</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>meal_service_date DATE NOT NULL</code>, <code>meal_type TEXT NOT NULL</code>, <code>menu_item_id UUID FK(fds_menu_items) NOT NULL</code>, <code>recipe_id UUID FK(fds_recipes)</code>, <code>quantity_prepared INT NOT NULL</code>, <code>quantity_served INT NOT NULL</code>, <code>quantity_leftover INT DEFAULT 0</code>, <code>quantity_wasted INT DEFAULT 0</code>, <code>meets_meal_pattern BOOLEAN NOT NULL</code>. UNIQUE(school_id, meal_service_date, meal_type, menu_item_id). USDA compliance: documents what was prepared vs served vs wasted.</li>
+      <li><strong>fds_usda_reimbursement_claims</strong> &mdash; <code>school_id UUID</code>, <code>academic_year_id UUID FK</code>, <code>month_year DATE</code>, <code>free_meals_count INT</code>, <code>reduced_meals_count INT</code>, <code>paid_meals_count INT</code>, <code>reimbursement_amount NUMERIC(10,2)</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 4-value CHECK (DRAFT, SUBMITTED, APPROVED, REJECTED), <code>submitted_at TIMESTAMPTZ</code>. Monthly federal reimbursement claims for NSLP/SBP.</li>
+      <li><strong>fds_eligibility_applications</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>student_id UUID FK NOT NULL</code>, <code>academic_year_id UUID FK</code>, <code>submitted_by UUID FK NOT NULL</code> (guardian), <code>household_size INT NOT NULL</code>, <code>household_income NUMERIC(10,2)</code>, <code>income_frequency TEXT NOT NULL</code> 4-value CHECK (WEEKLY, BIWEEKLY, MONTHLY, ANNUAL), <code>snap_benefits BOOLEAN DEFAULT false</code>, <code>tanf_benefits BOOLEAN DEFAULT false</code>, <code>foster_child BOOLEAN DEFAULT false</code>, <code>migrant_worker BOOLEAN DEFAULT false</code>, <code>homeless_status BOOLEAN DEFAULT false</code>, <code>status TEXT NOT NULL DEFAULT 'SUBMITTED'</code> 4-value CHECK (SUBMITTED, APPROVED, DENIED, EXPIRED), <code>determined_category TEXT</code> 4-value CHECK (FREE, REDUCED, PAID, DENIED) nullable, <code>effective_from DATE</code>, <code>effective_to DATE</code>, <code>reviewed_by UUID FK</code>, <code>reviewed_at TIMESTAMPTZ</code>. INDEX(school_id, academic_year_id, status).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 7 tables. Migration: <code>122_fds_preorders_production.sql</code>. Total P2-10 tables: 15.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed + Services + UI + Tests + Allergen Consumer (P2-10b)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>2 preorder windows (tomorrow LUNCH open, next week BREAKFAST opens in 3 days). 5 preorders (3 CONFIRMED, 1 PENDING, 1 CANCELLED) with 12 preorder items. 1 production report (JSONB with item totals). 3 production records (today's lunch service). 1 USDA reimbursement claim (DRAFT). 2 eligibility applications (1 APPROVED FREE, 1 SUBMITTED).</li>
+    </ol>
+    <div class="detail-heading">Services (~18 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>PreorderService</strong> &mdash; <code>GET /food-service/preorders/windows</code> (open windows for student/parent), <code>POST /food-service/preorders</code> (student/parent selects items within window; <strong>ALLERGEN CROSS-CHECK:</strong> cross-reference selected menu_item allergen_codes against fds_student_allergen_alerts &mdash; CRITICAL severity blocks, WARNING alerts; allergen_check_passed set accordingly), <code>PATCH /food-service/preorders/:id</code> (cancel), <code>POST /food-service/preorders/windows</code> (admin creates), <code>POST /food-service/preorders/production-report</code> (generate: aggregates confirmed preorders into item totals + dietary breakdown + ingredient usage from recipes).</li>
+      <li><strong>ProductionRecordService</strong> &mdash; <code>POST /food-service/production-records</code> (FSM records what was prepared/served/wasted per item; links to recipe if available), <code>GET /food-service/production-records</code> (date range filter for USDA reporting).</li>
+      <li><strong>USDAClaimService</strong> &mdash; <code>POST /food-service/usda-claims</code> (generate monthly claim from fds_meal_transactions aggregated by eligibility category), <code>GET /food-service/usda-claims</code>, <code>PATCH /food-service/usda-claims/:id</code> (submit).</li>
+      <li><strong>EligibilityService</strong> &mdash; <code>POST /food-service/eligibility</code> (parent submits), <code>GET /food-service/eligibility</code> (admin: all; parent: own), <code>PATCH /food-service/eligibility/:id</code> (admin reviews: APPROVED with category + effective dates → updates fds_student_dietary_profiles.free_meal_eligible).</li>
+      <li><strong>AllergenAlertConsumer</strong> &mdash; <strong>KAFKA CONSUMER KEYSTONE.</strong> Subscribes to <code>dev.hlth.allergy_alert.changed</code>. On event: upserts fds_student_allergen_alerts (the POS read model from Cycle 20) with current allergen data from the health module. This replaces the seed-only sync from Cycle 20 with live event-driven sync. Emits <code>fds.allergen_alert.synced</code>.</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Pre-Order Portal</strong> <code>/food-service/preorders</code> &mdash; student/parent: browse today's menu for open preorder windows. Select items. Allergen warning if conflict detected. Confirm order.</li>
+      <li><strong>Production Planning</strong> <code>/food-service/production</code> &mdash; FSM: generate production report from preorders. View item totals + dietary breakdown. Record actual production (prepared/served/leftover/wasted). USDA compliance indicator.</li>
+      <li><strong>USDA Claims</strong> <code>/food-service/usda</code> &mdash; admin: monthly claim generator. Free/reduced/paid meal counts. Reimbursement calculation. Submit workflow.</li>
+      <li><strong>Eligibility Manager</strong> <code>/food-service/eligibility</code> &mdash; parent: application form (household income, benefits). Admin: review queue. Approval with category assignment.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-10b: 7 tables, ~18 endpoints, 1 new Kafka consumer (AllergenAlertConsumer). Create all peer review docs after this sub-cycle. Total P2-10 endpoints: ~40.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist (Full P2-10)</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 15 new tables. Tenant table count: ~568.</li>
+      <li>Food Service API: ~40 new endpoints across recipes, inventory, preorders, production, USDA, eligibility.</li>
+      <li>Recipe costing with auto-computed allergens (UNION of ingredients) + cost_per_serving.</li>
+      <li>Multi-group inventory with immutable transaction log (RANGE partitioned monthly).</li>
+      <li>Inter-group transfer workflow with paired TRANSFER_OUT + TRANSFER_IN rows.</li>
+      <li>Student pre-ordering with allergen cross-check against POS read model.</li>
+      <li>Production planning reports from confirmed preorders.</li>
+      <li>USDA production records + monthly reimbursement claims.</li>
+      <li>Free/reduced meal eligibility applications with category determination.</li>
+      <li>AllergenAlertConsumer wiring hlth.allergy_alert.changed → fds_student_allergen_alerts live.</li>
+      <li><code>fds.inventory.low</code> + <code>fds.allergen_alert.synced</code> Kafka emits.</li>
+      <li>HANDOFF-P2C10.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave B (Pilot Enhancement) complete.</strong></li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 10 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M63 Food Service deferred tables). Functions: FDS-003 Menu &amp; Recipes + FDS-004 Food Inventory + FDS-005 Production Records. Cross-cycle: Cycle 20 fds_menu_items + fds_meal_service_sessions + fds_student_allergen_alerts, Cycle 10 hlth.allergy_alert.changed, Cycle 27 procurement for reorder, P2-4 payroll for staff meal deductions. Closes Wave B.</p>
+  </div>
+</div>
+</body>
+</html>

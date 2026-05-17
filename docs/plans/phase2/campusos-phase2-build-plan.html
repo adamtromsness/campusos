@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Phase 2 Build Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea;--teal:#0d9488;--teal-bg:#ccfbf1}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:960px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.sec{font-family:'DM Serif Display',serif;font-size:24px;color:var(--accent);margin:40px 0 12px;font-weight:400;padding-top:20px;border-top:1px solid var(--border)}h2.sec:first-of-type{border-top:none;margin-top:0}
+p.body{font-size:14px;line-height:1.8;margin-bottom:12px}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:20px 0}
+.sum-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}
+.sum-card .num{font-family:'DM Serif Display',serif;font-size:32px;color:var(--accent-mid)}
+.sum-card .label{font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.5px}
+.pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.3px;vertical-align:middle}
+.pill-green{background:var(--green-bg);color:var(--green)}.pill-blue{background:var(--blue-bg);color:var(--blue)}.pill-amber{background:var(--amber-bg);color:var(--amber)}.pill-red{background:var(--red-bg);color:var(--red)}.pill-purple{background:var(--purple-bg);color:var(--purple)}.pill-gray{background:#f1f5f9;color:#64748b}.pill-teal{background:var(--teal-bg);color:var(--teal)}
+.wave{margin:24px 0;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.wave-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.wave-header h3{font-size:16px;font-weight:700}
+.wave-header .wave-meta{font-size:12px;color:var(--text-light)}
+.wave-header .chevron{transition:transform .2s;font-size:14px;color:var(--text-light)}
+.wave.open .chevron{transform:rotate(180deg)}
+.wave-body{padding:0 20px 16px;display:none}
+.wave.open .wave-body{display:block}
+.w-red .wave-header{background:var(--red-bg)}.w-red .wave-header h3{color:var(--red)}
+.w-amber .wave-header{background:var(--amber-bg)}.w-amber .wave-header h3{color:var(--amber)}
+.w-blue .wave-header{background:var(--blue-bg)}.w-blue .wave-header h3{color:var(--blue)}
+.w-gray .wave-header{background:#f1f5f9}.w-gray .wave-header h3{color:#475569}
+.cycle-row{display:grid;grid-template-columns:60px 1fr 90px 80px 120px;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);align-items:center;font-size:13px}
+.cycle-row:last-child{border-bottom:none}
+.cycle-num{font-family:'DM Serif Display',serif;font-size:18px;color:var(--accent-mid);opacity:.5}
+.cycle-title{font-weight:600}
+.cycle-tables{color:var(--text-light);font-size:12px}
+.cycle-type{font-size:11px;color:var(--text-light)}
+.cycle-links{display:flex;gap:6px;flex-wrap:wrap}
+.cycle-links a{font-size:11px;padding:2px 8px;border-radius:4px;text-decoration:none;font-weight:600}
+.cl-plan{background:var(--accent-light);color:var(--accent)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{font-size:14px;font-weight:700;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{font-size:14px;font-weight:700;color:#9a7b1a;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.dep-table{width:100%;border-collapse:collapse;font-size:12px;margin:12px 0}
+.dep-table th{background:var(--accent-light);padding:6px 10px;text-align:left;font-weight:600;color:var(--accent);border:1px solid var(--border)}
+.dep-table td{padding:6px 10px;border:1px solid var(--border);vertical-align:top}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:28px}.cycle-row{grid-template-columns:40px 1fr;gap:4px}.cycle-tables,.cycle-type,.cycle-links{grid-column:1/-1}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../../design-hub/index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../../design-hub/index.html">Design Hub</a>
+  <a href="../../architecture/campusos-erd-v11.html">ERD v11</a>
+  <a href="campusos-phase2-backlog.html">Phase 2 Backlog</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 Roadmap</div>
+    <h1>Phase 2: Full Build Plan</h1>
+    <div class="sub">30 cycles across 4 waves completing the remaining ~422 tables. Organised by pilot impact: Wave A ships before pilot day one, Wave B enriches the pilot experience, Wave C adds operational depth, Wave D completes every module in the ERD.</div>
+    <span class="version">May 2026 &middot; 30 cycles &middot; 4 waves &middot; ~422 tables &middot; Follows Phase 1 (Cycles 0&ndash;32)</span>
+  </div>
+
+  <div class="summary">
+    <div class="sum-card"><div class="num">418</div><div class="label">Phase 1 Tables</div></div>
+    <div class="sum-card"><div class="num">422</div><div class="label">Phase 2 Tables</div></div>
+    <div class="sum-card"><div class="num">840</div><div class="label">ERD Total</div></div>
+    <div class="sum-card"><div class="num">30</div><div class="label">Phase 2 Cycles</div></div>
+    <div class="sum-card"><div class="num">4</div><div class="label">Waves</div></div>
+  </div>
+
+  <h2 class="sec">Wave Structure</h2>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Sequencing Principle</div>
+    <p style="font-size:14px;line-height:1.8;"><strong>Wave A (Pilot Critical)</strong> ships before the first school logs in &mdash; without these, the school can't operate safely. <strong>Wave B (Pilot Enhancement)</strong> ships in the first 90 days of pilot &mdash; these are features the school expects but can wait a few weeks for. <strong>Wave C (Operational Depth)</strong> ships during the pilot year &mdash; deepening modules based on pilot feedback. <strong>Wave D (Module Completion)</strong> completes every module in the ERD for product maturity. Each cycle within a wave can be built in any order &mdash; all Phase 1 dependencies are satisfied.</p>
+  </div>
+
+  <!-- ═══════ WAVE A ═══════ -->
+  <div class="wave w-red open">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave A &mdash; Pilot Critical</h3>
+      <span class="wave-meta">4 cycles &middot; ~53 tables &middot; Build before pilot day 1</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <p style="font-size:13px;color:var(--text-light);margin:8px 0 12px;">Schools cannot operate without visitor sign-in, incident logging, immunisation compliance, and core HR. These ship before the first bell rings.</p>
+      <div class="cycle-row"><span class="cycle-num">P2-1</span><span class="cycle-title">Visitor Management <span class="pill pill-blue">Next</span></span><span class="cycle-tables">9 tables</span><span class="cycle-type">New module</span><span class="cycle-links"><a href="campusos-p2c1-visitor-management.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-2</span><span class="cycle-title">Incident &amp; Emergency</span><span class="cycle-tables">11 tables</span><span class="cycle-type">New module</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-3</span><span class="cycle-title">Health Advanced (10.1)</span><span class="cycle-tables">3 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-4</span><span class="cycle-title">HR Advanced (4.1)</span><span class="cycle-tables">30 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- ═══════ WAVE B ═══════ -->
+  <div class="wave w-amber open">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave B &mdash; Pilot Enhancement</h3>
+      <span class="wave-meta">6 cycles &middot; ~92 tables &middot; First 90 days of pilot</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <p style="font-size:13px;color:var(--text-light);margin:8px 0 12px;">Features pilot schools expect within the first semester: admissions depth, payment flexibility, classroom enrichment, substitute coverage, athletics gear, and food service inventory.</p>
+      <div class="cycle-row"><span class="cycle-num">P2-5</span><span class="cycle-title">Enrolment Advanced (16.1)</span><span class="cycle-tables">9 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-6</span><span class="cycle-title">Payments Advanced (6.1)</span><span class="cycle-tables">17 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-7</span><span class="cycle-title">Classroom Advanced (2.1)</span><span class="cycle-tables">24 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-8</span><span class="cycle-title">Athletics Advanced (13.1)</span><span class="cycle-tables">18 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-9</span><span class="cycle-title">Sub Marketplace (M82)</span><span class="cycle-tables">9 tables</span><span class="cycle-type">New module</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-10</span><span class="cycle-title">Food Service Advanced (20.1)</span><span class="cycle-tables">15 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- ═══════ WAVE C ═══════ -->
+  <div class="wave w-blue">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave C &mdash; Operational Depth</h3>
+      <span class="wave-meta">9 cycles &middot; ~105 tables &middot; During pilot year</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <p style="font-size:13px;color:var(--text-light);margin:8px 0 12px;">Deepens operational modules based on pilot feedback: transport fleet, SIS completion, events, behaviour, analytics read models, scheduling solver, and IT operations.</p>
+      <div class="cycle-row"><span class="cycle-num">P2-11</span><span class="cycle-title">Transportation Advanced (19.1)</span><span class="cycle-tables">22 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-12</span><span class="cycle-title">Events &amp; Ticketing (M101)</span><span class="cycle-tables">9 tables</span><span class="cycle-type">New module</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-13</span><span class="cycle-title">SIS Advanced (1.1)</span><span class="cycle-tables">24 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-14</span><span class="cycle-title">Behaviour Advanced (9.1)</span><span class="cycle-tables">5 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-15</span><span class="cycle-title">Analytics Read Models (29.1)</span><span class="cycle-tables">18 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-16</span><span class="cycle-title">HR Appraisals (M87)</span><span class="cycle-tables">7 tables</span><span class="cycle-type">New module</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-17</span><span class="cycle-title">Scheduling Advanced (5.1)</span><span class="cycle-tables">20 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <!-- ═══════ WAVE D ═══════ -->
+  <div class="wave w-gray">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave D &mdash; Module Completion</h3>
+      <span class="wave-meta">13 cycles &middot; ~172 tables &middot; Post-pilot / product maturity</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <p style="font-size:13px;color:var(--text-light);margin:8px 0 12px;">Completes every remaining module in the ERD. Advanced features, alumni, accreditation, platform marketplace, and full module depth across all domains.</p>
+      <div class="cycle-row"><span class="cycle-num">P2-18</span><span class="cycle-title">Facilities Advanced (21.1)</span><span class="cycle-tables">21 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-19</span><span class="cycle-title">Communications Advanced (14.1)</span><span class="cycle-tables">13 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-20</span><span class="cycle-title">IT Advanced (22.1)</span><span class="cycle-tables">10 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-21</span><span class="cycle-title">Platform Advanced (0.1)</span><span class="cycle-tables">26 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-22</span><span class="cycle-title">Alumni (M102)</span><span class="cycle-tables">8 tables</span><span class="cycle-type">New module</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-23</span><span class="cycle-title">Accreditation (M85)</span><span class="cycle-tables">8 tables</span><span class="cycle-type">New module</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-24</span><span class="cycle-title">Parent Engagement (M100)</span><span class="cycle-tables">5 tables</span><span class="cycle-type">New module</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-25</span><span class="cycle-title">Library Advanced (12.1)</span><span class="cycle-tables">6 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-26</span><span class="cycle-title">Publications Advanced (25.1)</span><span class="cycle-tables">4 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-27</span><span class="cycle-title">Portfolio Advanced (24.1)</span><span class="cycle-tables">8 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-28</span><span class="cycle-title">Remaining .1 Bundle</span><span class="cycle-tables">~27 tables</span><span class="cycle-type">Bundle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-29</span><span class="cycle-title">Remaining Commerce .1 Bundle</span><span class="cycle-tables">~19 tables</span><span class="cycle-type">Bundle</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-30</span><span class="cycle-title">Student Services + Wellbeing .1</span><span class="cycle-tables">2 tables</span><span class="cycle-type">.1 cycle</span><span class="cycle-links"></span></div>
+    </div>
+  </div>
+
+  <h2 class="sec">Cycle Detail — Wave A (Pilot Critical)</h2>
+
+  <div class="dep-table" style="margin:16px 0">
+    <table class="dep-table">
+      <tr><th style="width:8%">Cycle</th><th style="width:22%">Module</th><th style="width:8%">Tables</th><th style="width:30%">Key Deliverables</th><th style="width:32%">Dependencies + Notes</th></tr>
+      <tr><td>P2-1</td><td>M90 Visitor Management</td><td>9</td><td>Kiosk sign-in/out with encrypted PII + HMAC lookup, banned persons HMAC screening, pre-registration QR codes, recurring visitor schedules, emergency muster snapshots with accountability</td><td>Platform (Cycle 0). ADR-015 transient safeguarding data. ADR-032 volunteer sign-in. <strong>Plan ready.</strong></td></tr>
+      <tr><td>P2-2</td><td>M91 Incident &amp; Emergency</td><td>11</td><td>Non-discipline incident logging (injury, medical, property, environmental), emergency declarations with type-specific protocols, student/staff/visitor accountability tracking, reunification workflow with parent release, post-incident review with lessons learned, immutable incident timeline</td><td>Cycle 14 (Emergency Alerts extend into incidents). Cycle P2-1 (vis_emergency_muster links to inc_incidents). SAF-002 + SAF-003 functions.</td></tr>
+      <tr><td>P2-3</td><td>Health Advanced (10.1)</td><td>3</td><td>Immunisation compliance dashboard with state requirement matching (hlth_immunisation_compliance), telehealth session scheduling (hlth_telehealth_sessions), detailed vision/hearing screening tracking (hlth_screening_details)</td><td>Cycle 10 (built). Immunisation compliance is a state reporting mandate &mdash; schools must report % compliant. Tiny scope, huge regulatory impact.</td></tr>
+      <tr><td>P2-4</td><td>HR Advanced (4.1)</td><td>30</td><td>Payroll processing (runs, payslips, deductions, benefits), recruitment pipeline (postings, applications, interviews, offers), training management (events, completions, certifications), performance appraisals (frameworks, cycles, self/peer reviews, goals), absence management (policies, balances), employee documents</td><td>Cycle 4 (built) + Cycle 26 GL for salary journal entries. Largest single .1 cycle. Can be split into 4.1a (Payroll, 10 tables) + 4.1b (Recruitment + Training, 10 tables) + 4.1c (Appraisals, 10 tables) if needed.</td></tr>
+    </table>
+  </div>
+
+  <h2 class="sec">Cycle Detail — Wave B (Pilot Enhancement)</h2>
+
+  <div class="dep-table" style="margin:16px 0">
+    <table class="dep-table">
+      <tr><th style="width:8%">Cycle</th><th style="width:22%">Module</th><th style="width:8%">Tables</th><th style="width:30%">Key Deliverables</th><th style="width:32%">Dependencies + Notes</th></tr>
+      <tr><td>P2-5</td><td>Enrolment Advanced (16.1)</td><td>9</td><td>Campus tour scheduling + registration, student withdrawal workflow with clearance, lottery-based admissions with randomisation audit, re-enrolment campaigns, sibling priority scoring</td><td>Cycle 16 (built). Tour scheduling is the first impression for prospective families.</td></tr>
+      <tr><td>P2-6</td><td>Payments Advanced (6.1)</td><td>17</td><td>Financial aid awards + disbursements, fee schedule management, lunch account balances, payment plans with instalments, automatic recurring billing, refund processing, debt write-off, credit notes, late fee automation, saved payment methods</td><td>Cycle 6 (built). Stripe advanced features for ACH + recurring. Financial aid is critical for private/charter schools.</td></tr>
+      <tr><td>P2-7</td><td>Classroom Advanced (2.1)</td><td>24</td><td>AI tutoring sessions + messages, hall passes with location tracking, rubrics engine with criteria + scoring, peer review assignments, standards-based gradebook, lesson video processing + transcription + AI summaries</td><td>Cycle 2 (built). AI tutoring requires AI Inference extracted service. Video requires Video Processing extracted service. The highest teacher-engagement features.</td></tr>
+      <tr><td>P2-8</td><td>Athletics Advanced (13.1)</td><td>18</td><td>Equipment management + assignments, game streaming/recording, athletic conferences + schedules, officials marketplace (platform-level portable profiles per ADR-063), team media, advanced statistics + leaders, recruiting profiles</td><td>Cycle 13 (built). Officials marketplace requires platform-schema additions.</td></tr>
+      <tr><td>P2-9</td><td>Sub Marketplace (M82)</td><td>9</td><td>Substitute teacher job postings from scheduling gaps, matching engine (availability × credentials × preference), substitute availability management, session notes, pay rate configuration, ratings + feedback, platform-level portable substitute profiles</td><td>Cycle 5 Scheduling + Cycle 4 HR + Cycle 14 Comms. Platform + tenant hybrid schema. Daily operational need for substitute coverage.</td></tr>
+      <tr><td>P2-10</td><td>Food Service Advanced (20.1)</td><td>15</td><td>Recipe costing engine, full inventory management (groups, items, levels, transactions, transfers), student pre-order system with production reports, staff meal accounts. Also: live Kafka consumer for hlth.allergy_alert.changed</td><td>Cycle 20 (built). Pre-orders are a parent convenience feature. Inventory management enables food cost tracking.</td></tr>
+    </table>
+  </div>
+
+  <h2 class="sec">Cycle Detail — Wave C (Operational Depth)</h2>
+
+  <div class="dep-table" style="margin:16px 0">
+    <table class="dep-table">
+      <tr><th style="width:8%">Cycle</th><th style="width:22%">Module</th><th style="width:8%">Tables</th><th style="width:30%">Key Deliverables</th><th style="width:32%">Dependencies + Notes</th></tr>
+      <tr><td>P2-11</td><td>Transportation Advanced (19.1)</td><td>22</td><td>Real-time GPS telemetry (requires Transport Dispatch extracted service), deep fleet maintenance (repairs, parts, components, fuel), driver hours regulatory compliance, route optimisation engine (requires Scheduling Solver), materialised fleet dashboard</td><td>Cycle 19 (built). Two extracted services required. This is the most infrastructure-heavy .1 cycle.</td></tr>
+      <tr><td>P2-12</td><td>Events &amp; Ticketing (M101)</td><td>9</td><td>School events with ticket sales, gate scanning, season passes, comp lists, venue management linked to fac_spaces. Revenue flows through Cycle 6 payments</td><td>Cycle 6 Payments + Cycle 21 Facilities for venues. Sports + arts + fundraising events.</td></tr>
+      <tr><td>P2-13</td><td>SIS Advanced (1.1)</td><td>24</td><td>Staff-guardian links, advanced reporting periods, transfer records, custom fields framework, graduation requirements tracking, GPA calculation configurations, transcript generation, advanced enrolment workflows</td><td>Cycle 1 (built). Custom fields is the most requested SIS feature by schools with unique data needs.</td></tr>
+      <tr><td>P2-14</td><td>Behaviour Advanced (9.1)</td><td>5</td><td>Restorative justice workflows, advanced BIP progress monitoring, peer mediation, positive behaviour rewards marketplace</td><td>Cycle 9 (built). Restorative justice is increasingly mandated by districts.</td></tr>
+      <tr><td>P2-15</td><td>Analytics Read Models (29.1)</td><td>18</td><td>Per-module materialised read models (procurement, store, fleet, ridership, meal counts, NSLP, IT fleet, circulation, enrolment funnel, athletics, groups, publications, clubs, communications). Also: wire all read models to live Kafka consumers</td><td>Cycle 29 (built) + each source domain cycle. Replaces nightly batch with live consumer materialisation.</td></tr>
+      <tr><td>P2-16</td><td>HR Appraisals (M87)</td><td>7</td><td>Appraisal frameworks, cycles, self-assessments, peer reviews, goals, competency ratings. Can be combined with P2-4 if HR Advanced hasn't shipped yet</td><td>Cycle 4 (built). Standalone if 4.1 already shipped; bundle with 4.1c if not.</td></tr>
+      <tr><td>P2-17</td><td>Scheduling Advanced (5.1)</td><td>20</td><td>Rotation calendars, exam scheduling with conflict detection, co-teaching models, pull-out intervention scheduling, cross-school staff assignments, constraint-solver automated scheduling (requires Scheduling Solver extracted service)</td><td>Cycle 5 (built). Constraint solver is the most complex extracted service.</td></tr>
+    </table>
+  </div>
+
+  <h2 class="sec">Cycle Detail — Wave D (Module Completion)</h2>
+
+  <div class="dep-table" style="margin:16px 0">
+    <table class="dep-table">
+      <tr><th style="width:8%">Cycle</th><th style="width:22%">Module</th><th style="width:8%">Tables</th><th style="width:30%">Key Deliverables</th><th style="width:32%">Dependencies + Notes</th></tr>
+      <tr><td>P2-18</td><td>Facilities Advanced (21.1)</td><td>21</td><td>Cleaning routes + completions, supervisor spot checks, supply audit trail + stocktakes, work order attachments + parts, fire drill compliance, facilities assets lifecycle, energy/sustainability tracking, space utilisation analytics</td><td>Cycle 21 (built).</td></tr>
+      <tr><td>P2-19</td><td>Communications Advanced (14.1)</td><td>13</td><td>Message translation (AI), broadcast analytics + segments, message templates, advanced moderation (rules, AI, appeals), push notification campaigns + analytics</td><td>Cycle 14 (built). Translation requires AI Inference service.</td></tr>
+      <tr><td>P2-20</td><td>IT Advanced (22.1)</td><td>10</td><td>MDM remote actions (lock/wipe), licence renewals, device usage analytics, inventory audits, VOIP directory, system documentation, uptime monitoring</td><td>Cycle 22 (built). MDM remote actions require live MDM provider integration.</td></tr>
+      <tr><td>P2-21</td><td>Platform Advanced (0.1)</td><td>26</td><td>Community Exchange (6 listing types, marketplace), forums, reviews, advanced tenant provisioning, data import framework (ADR-040), platform CRM tables</td><td>Cycle 0 (built). The Community Exchange is a future revenue stream.</td></tr>
+      <tr><td>P2-22</td><td>Alumni (M102)</td><td>8</td><td>Alumni directory, networking, mentorship matching, fundraising campaigns, giving history, alumni events</td><td>Cycle 0 Platform + Cycle 6 Payments for donations.</td></tr>
+      <tr><td>P2-23</td><td>Accreditation (M85)</td><td>8</td><td>Accreditation standards, evidence collection from all modules, self-study documents, site visit scheduling, compliance tracking, accreditation cycle management</td><td>Cycle 23 Curriculum + Cycle 29 Analytics for evidence data.</td></tr>
+      <tr><td>P2-24</td><td>Parent Engagement (M100)</td><td>5</td><td>Engagement metrics, parent-teacher conference scheduling (extends Cycle 15), parent satisfaction surveys, engagement scoring</td><td>Cycle 15 Meetings. Some overlap &mdash; may merge with 15.1.</td></tr>
+      <tr><td>P2-25</td><td>Library Advanced (12.1)</td><td>6</td><td>AI reading recommendations, barcode/ISBN AI scan, class sets + textbook management, acquisitions workflow</td><td>Cycle 12 (built). AI requires AI Inference service.</td></tr>
+      <tr><td>P2-26</td><td>Publications Advanced (25.1)</td><td>4</td><td>Version history with diff, shared media library, reusable templates, approval delegation</td><td>Cycle 25 (built).</td></tr>
+      <tr><td>P2-27</td><td>Portfolio Advanced (24.1)</td><td>8</td><td>ACH-003 Post-Secondary Readiness: pathways, milestones, resume builder, certifications</td><td>Cycle 24 (built) + M85 Accreditation for certifications.</td></tr>
+      <tr><td>P2-28</td><td>Remaining .1 Bundle</td><td>~27</td><td>Groups Advanced (6: discussion threads, file sharing, auto-dissolve worker), Clubs Advanced (6: equipment, budgets, fundraising), Meetings Advanced (7: AI minutes, recording transcription, external participants), Student Services .1 (2: longitudinal wellbeing, external agency referrals), Wellbeing score-drop alerts</td><td>Various parent cycles (all built). Small tables bundled for efficiency.</td></tr>
+      <tr><td>P2-29</td><td>Remaining Commerce .1 Bundle</td><td>~19</td><td>Procurement Advanced (8: three-way matching, blanket POs, competitive bidding, GL encumbrance), Finance Advanced (6: multi-fund transfers, grant drawdowns, 1099, bank feeds), Store Advanced (5: cart persistence, product variants, discounts, Stripe Checkout)</td><td>Cycles 26+27+28 (all built). Financial depth for larger districts.</td></tr>
+      <tr><td>P2-30</td><td>Student Services + Wellbeing .1</td><td>2</td><td>Longitudinal wellbeing score comparison across deployments, external agency referral tracking. SIGNIFICANT_SCORE_DROP + PERSISTENT_LOW_SCORE alert types</td><td>Cycle 11.1 (built). Smallest .1 cycle.</td></tr>
+    </table>
+  </div>
+
+  <h2 class="sec">Timeline Estimate</h2>
+
+  <div class="callout callout-note">
+    <div class="callout-title">Build Time Estimates</div>
+    <p style="font-size:14px;line-height:1.8;">Based on Phase 1 velocity (~2&ndash;3 days per cycle with Claude Code), assuming a single developer with Claude Max:</p>
+    <p style="font-size:14px;line-height:1.8;"><strong>Wave A (4 cycles, 53 tables):</strong> ~2 weeks. Ship before pilot day 1.</p>
+    <p style="font-size:14px;line-height:1.8;"><strong>Wave B (6 cycles, 92 tables):</strong> ~3 weeks. Ship within first 90 days of pilot.</p>
+    <p style="font-size:14px;line-height:1.8;"><strong>Wave C (7 cycles, 105 tables):</strong> ~3 weeks. Ship during pilot year based on feedback priority.</p>
+    <p style="font-size:14px;line-height:1.8;"><strong>Wave D (13 cycles, 172 tables):</strong> ~5 weeks. Ship post-pilot for product maturity.</p>
+    <p style="font-size:14px;line-height:1.8;"><strong>Total Phase 2:</strong> ~13 weeks (~3 months). Combined with Phase 1 (~6 months), the complete 840-table ERD ships in ~9 months.</p>
+  </div>
+
+  <h2 class="sec">Table Coverage Projection</h2>
+
+  <div class="dep-table">
+    <table class="dep-table">
+      <tr><th>Milestone</th><th>Tables Built</th><th>% of ERD</th><th>Modules with Core Surface</th></tr>
+      <tr><td>Phase 1 Complete (Cycle 32)</td><td>418</td><td>50%</td><td>38 of 38</td></tr>
+      <tr><td>Phase 2 Wave A</td><td>471</td><td>56%</td><td>40 of 40 (+M90, M91)</td></tr>
+      <tr><td>Phase 2 Wave B</td><td>563</td><td>67%</td><td>41 of 41 (+M82)</td></tr>
+      <tr><td>Phase 2 Wave C</td><td>668</td><td>80%</td><td>43 of 43 (+M101, M87)</td></tr>
+      <tr><td>Phase 2 Wave D</td><td>840</td><td>100%</td><td>46 of 46 (+M102, M85, M100)</td></tr>
+    </table>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Build Plan &mdash; May 2026. 30 cycles across 4 waves completing the remaining 422 tables from ERD v11. Follows Phase 1 (Cycles 0&ndash;32, 418 tables, 8 waves). Priority sequenced for pilot readiness. Implementation plans generated per cycle as each is reached.</p>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.wave-header').forEach(h => {
+  h.addEventListener('click', () => h.parentElement.classList.toggle('open'));
+});
+</script>
+</body>
+</html>

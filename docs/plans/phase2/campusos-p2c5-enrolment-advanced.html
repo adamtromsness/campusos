@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-5: Enrolment Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave B &mdash; Pilot Enhancement</div>
+    <h1>P2-5: Enrolment Advanced</h1>
+    <div class="sub">Campus tour scheduling with public slot booking and guest tracking, formal student withdrawal workflow with multi-department exit task checklist, mid-year admission requests with capacity checking, and returning student re-enrolment confirmations with automatic withdrawal initiation on non-continuation. The admissions office's complete lifecycle &mdash; from first tour visit to final withdrawal. Opens Wave B.</div>
+    <span class="version">May 2026 &middot; 8 Steps &middot; ERD v11 &middot; M81 Enrolment .1 (7 tables) &middot; STU-003 + STU-004 &middot; Phase 2 Cycle 5 &middot; Opens Wave B</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+  <p class="body-text">Phase 2 Cycle 5 builds the deferred tables from Cycle 16's M81 Enrolment module &mdash; 7 new tables across 3 domains: campus tours (3 tables), student withdrawal (2 tables), and re-enrolment + mid-year admission (2 tables). Cycle 16 built the admissions pipeline (applications, waitlists, offers, onboarding). This cycle adds the bookends: what happens before a family applies (tour) and what happens when a student leaves (withdrawal) or continues (re-enrolment).</p>
+
+  <p class="body-text">The tour system is the first public-facing booking surface beyond the enrolment application portal. Prospective families browse available tour slots and book without needing a CampusOS account &mdash; an <code>iam_person</code> is created at booking per ADR-055, and if the family later submits an application, the tour booking links to the application via <code>linked_application_id</code>. The withdrawal system orchestrates exit tasks across 6 departments (library books returned, device returned, locker cleared, fees resolved, records prepared, bus cancelled) with per-task status tracking.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin creates 4 tour slots for Open Day Saturday (group tour, max 10 families each) + 6 individual family tour slots across the next 2 weeks &rarr; publishes slots &rarr; prospective parent Sarah books the Saturday group tour with 2 guests (herself + prospective student age 10) &rarr; confirmation email sent &rarr; slot current_bookings increments to 1/10 &rarr; Sarah attends, completes tour, later submits a full enrolment application (linked_application_id populated) &rarr; separately, the Chen family notifies the school that Maya will not return next year &rarr; re-enrolment confirmation submitted: confirmed_continuing=false, reason="relocating" &rarr; EnrollmentWorker auto-initiates enr_withdrawal_requests &rarr; 7 exit tasks auto-created: library books (PENDING), device return (PENDING), locker cleared (PENDING), fees resolved (PENDING), records package (PENDING), bus cancelled (PENDING), lunch account closed (PENDING) &rarr; librarian marks books returned (COMPLETED), IT marks device returned (COMPLETED), facilities marks locker cleared (COMPLETED), finance marks fees resolved with $50 credit refunded (COMPLETED), registrar prepares records package (COMPLETED), transport cancels assignment (COMPLETED), food service closes lunch account (COMPLETED) &rarr; all tasks COMPLETED &rarr; withdrawal status &rarr; COMPLETED &rarr; sis_students.enrollment_status = WITHDRAWN &rarr; meanwhile, a family relocating mid-year submits a mid-year admission request for Grade 4 &rarr; EO checks capacity (enr_capacity_summary shows 2 places remaining) &rarr; offer made &rarr; family accepts &rarr; linked to full application pipeline from Cycle 16.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (7 tables):</strong> enr_tour_slots, enr_tour_bookings, enr_tour_booking_guests, enr_withdrawal_requests, enr_withdrawal_exit_tasks, enr_reenrollment_confirmations, enr_mid_year_admission_requests. Functions STU-003 (Enrolment &amp; Admissions) + STU-004 (Withdrawal &amp; Transfer).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Virtual tour integration (meeting_url field ready; video integration deferred). Tour feedback surveys. Automated records transfer to receiving school (manual preparation this cycle). Withdrawal appeal process. Re-enrolment deposit collection. Mid-year admissions assessment scheduling.</p>
+  </div>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Tours Schema (3 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>enr_tour_slots</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>tour_date DATE NOT NULL</code>, <code>start_time TIME NOT NULL</code>, <code>end_time TIME NOT NULL</code>, <code>max_bookings INT NOT NULL DEFAULT 1</code> (1=individual; &gt;1=group), <code>current_bookings INT NOT NULL DEFAULT 0</code>, <code>tour_type TEXT NOT NULL DEFAULT 'INDIVIDUAL_FAMILY_TOUR'</code> 4-value CHECK (GENERAL_OPEN_DAY, INDIVIDUAL_FAMILY_TOUR, VIRTUAL_TOUR, SPECIALIST_TOUR), <code>led_by UUID FK(hr_employees)</code> nullable, <code>meeting_point TEXT</code>, <code>notes TEXT</code>, <code>is_published BOOLEAN DEFAULT false</code>, <code>is_cancelled BOOLEAN DEFAULT false</code>. UNIQUE(school_id, tour_date, start_time). INDEX(school_id, tour_date, is_published) WHERE is_published=true AND is_cancelled=false.</li>
+      <li><strong>enr_tour_bookings</strong> &mdash; <code>slot_id UUID FK NOT NULL</code>, <code>booked_by UUID FK(iam_person) NOT NULL</code>, <code>family_name TEXT NOT NULL</code>, <code>contact_email TEXT NOT NULL</code>, <code>contact_phone TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'CONFIRMED'</code> 4-value CHECK (CONFIRMED, CANCELLED, NO_SHOW, COMPLETED), <code>booked_at TIMESTAMPTZ NOT NULL</code>, <code>cancelled_at TIMESTAMPTZ</code>, <code>cancellation_reason TEXT</code>, <code>linked_application_id UUID FK(enr_applications)</code> nullable, <code>notes TEXT</code>. UNIQUE(slot_id, booked_by). INDEX(booked_by, booked_at DESC). On INSERT: slot.current_bookings++. On current_bookings=max_bookings: slot marked full.</li>
+      <li><strong>enr_tour_booking_guests</strong> &mdash; <code>booking_id UUID FK NOT NULL</code>, <code>guest_type TEXT NOT NULL</code> 3-value CHECK (ADULT, CHILD, PROSPECTIVE_STUDENT), <code>first_name TEXT NOT NULL</code>, <code>last_name TEXT NOT NULL</code>, <code>age INT</code> nullable, <code>notes TEXT</code>. INDEX(booking_id).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>106_enr_tours.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Withdrawal + Re-enrolment + Mid-Year Schema (4 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>enr_withdrawal_requests</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>initiated_by TEXT NOT NULL</code> 2-value CHECK (FAMILY, SCHOOL), <code>requested_by UUID FK NOT NULL</code>, <code>withdrawal_reason_category TEXT NOT NULL</code> 10-value CHECK (FAMILY_RELOCATION, TRANSFER_TO_OTHER_SCHOOL, HOME_EDUCATION, EXCLUSION, MEDICAL, FEE_DEFAULT, SAFEGUARDING, GRADUATION, DECEASED, OTHER), <code>withdrawal_reason_detail TEXT</code>, <code>last_attendance_date DATE NOT NULL</code>, <code>requested_at TIMESTAMPTZ NOT NULL</code>, <code>destination_school_name TEXT</code>, <code>destination_school_country TEXT</code>, <code>records_release_consented BOOLEAN DEFAULT false</code>, <code>records_sent_at DATE</code>, <code>status TEXT NOT NULL DEFAULT 'REQUESTED'</code> 4-value CHECK (REQUESTED, IN_PROGRESS, COMPLETED, CANCELLED), <code>completed_at TIMESTAMPTZ</code>, <code>completed_by UUID FK</code>, <code>re_enrollment_hold_placed BOOLEAN DEFAULT false</code>, <code>re_enrollment_hold_reason TEXT</code>. INDEX(school_id, status). On COMPLETED: sis_students.enrollment_status=WITHDRAWN, sis_family_school_links.is_active=false, emits <code>enr.student.withdrawn</code>.</li>
+      <li><strong>enr_withdrawal_exit_tasks</strong> &mdash; <code>withdrawal_id UUID FK NOT NULL</code>, <code>task_name TEXT NOT NULL</code>, <code>task_category TEXT NOT NULL</code> 6-value CHECK (ADMINISTRATIVE, FINANCE, IT, FACILITIES, TRANSPORT, RECORDS), <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 4-value CHECK (PENDING, COMPLETED, WAIVED, NOT_APPLICABLE), <code>completed_by UUID FK</code>, <code>completed_at TIMESTAMPTZ</code>, <code>notes TEXT</code>. INDEX(withdrawal_id, status) WHERE status='PENDING'.</li>
+      <li><strong>enr_reenrollment_confirmations</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>academic_year_id UUID FK NOT NULL</code>, <code>submitted_by UUID FK NOT NULL</code> (guardian), <code>confirmed_continuing BOOLEAN NOT NULL</code>, <code>withdrawal_reason TEXT</code> (required when false), <code>submitted_at TIMESTAMPTZ NOT NULL</code>, <code>processed_by UUID FK</code>, <code>processed_at TIMESTAMPTZ</code>. UNIQUE(student_id, academic_year_id). INDEX(school_id, academic_year_id, confirmed_continuing). On confirmed_continuing=false: auto-initiates enr_withdrawal_requests.</li>
+      <li><strong>enr_mid_year_admission_requests</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>requested_by UUID FK NOT NULL</code>, <code>student_first_name TEXT NOT NULL</code>, <code>student_last_name TEXT NOT NULL</code>, <code>student_date_of_birth DATE NOT NULL</code>, <code>applying_for_grade_level TEXT NOT NULL</code>, <code>requested_start_date DATE NOT NULL</code>, <code>admission_reason TEXT NOT NULL</code> 6-value CHECK (FAMILY_RELOCATION, TRANSFER_FROM_OTHER_SCHOOL, RETURNING_FROM_ABROAD, HOME_EDUCATION_ENDING, LOOKED_AFTER_CHILD, OTHER), <code>previous_school_name TEXT</code>, <code>previous_school_country TEXT</code>, <code>records_requested BOOLEAN DEFAULT false</code>, <code>status TEXT NOT NULL DEFAULT 'RECEIVED'</code> 6-value CHECK (RECEIVED, CAPACITY_CHECKED, OFFER_MADE, ENROLLED, DECLINED, WITHDRAWN), <code>capacity_available BOOLEAN</code>, <code>linked_application_id UUID FK(enr_applications)</code> nullable, <code>notes TEXT</code>. INDEX(school_id, status, requested_start_date).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 tables. Migration: <code>107_enr_withdrawal_reenrol.sql</code>. Total P2-5 tables: 7.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li><strong>Tours:</strong> 3 published slots (1 group Open Day max 10, 2 individual tours). 2 bookings (1 COMPLETED with linked application, 1 CONFIRMED upcoming). 3 guests across the bookings.</li>
+      <li><strong>Withdrawal:</strong> 1 COMPLETED withdrawal (Maya Chen transfer — all 7 exit tasks COMPLETED). 1 IN_PROGRESS withdrawal (3 tasks PENDING, 4 COMPLETED).</li>
+      <li><strong>Re-enrolment:</strong> 5 confirmations for next year: 4 confirmed_continuing=true, 1 confirmed_continuing=false (auto-initiated withdrawal).</li>
+      <li><strong>Mid-year:</strong> 1 ENROLLED mid-year admission (linked to Cycle 16 application). 1 RECEIVED request (capacity not yet checked).</li>
+      <li><strong>Permissions:</strong> STU-003 extended: tour slot management (admin), tour booking (public/parent). STU-004: withdrawal initiation (parent, admin), exit task completion (per-department staff), re-enrolment (parent), mid-year admission (parent, EO).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Tour, withdrawal, re-enrolment, mid-year demo data. STU-003..004 permissions extended.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Tours NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>TourSlotService</strong> &mdash; <code>GET /enrolment/tours</code> (public: published, non-cancelled, with availability count), <code>POST /enrolment/tours</code> (admin creates slots), <code>PATCH /enrolment/tours/:id</code> (publish/cancel), <code>GET /enrolment/tours/admin</code> (all slots with booking details).</li>
+      <li><strong>TourBookingService</strong> &mdash; <code>POST /enrolment/tours/:slotId/book</code> (public: creates iam_person if needed per ADR-055, creates booking + guests, increments current_bookings, sends confirmation email; rejects if slot full), <code>GET /enrolment/tour-bookings</code> (admin: all bookings), <code>PATCH /enrolment/tour-bookings/:id</code> (cancel/no-show/complete), <code>POST /enrolment/tour-bookings/:id/link-application</code> (EO links a booking to a later application).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 services, ~8 endpoints. Emits <code>enr.tour.booked</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Withdrawal + Re-enrolment + Mid-Year NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>WithdrawalService</strong> &mdash; <code>POST /enrolment/withdrawals</code> (initiate: auto-creates 7 exit tasks per department template), <code>GET /enrolment/withdrawals</code>, <code>GET /enrolment/withdrawals/:id</code> (with exit tasks inlined), <code>PATCH /enrolment/withdrawals/:id/complete</code> (all tasks must be COMPLETED or WAIVED; sets sis_students.enrollment_status=WITHDRAWN; emits <code>enr.student.withdrawn</code>).</li>
+      <li><strong>ExitTaskService</strong> &mdash; <code>PATCH /enrolment/exit-tasks/:id</code> (department staff marks COMPLETED/WAIVED with notes), <code>GET /enrolment/exit-tasks/my-department</code> (staff: pending tasks for my department).</li>
+      <li><strong>ReenrolmentService</strong> &mdash; <code>POST /enrolment/reenrolment</code> (parent submits for next year), <code>GET /enrolment/reenrolment</code> (admin: all confirmations for a year), <code>GET /enrolment/reenrolment/summary</code> (continuing vs departing counts per grade). On confirmed_continuing=false: auto-calls WithdrawalService.</li>
+      <li><strong>MidYearAdmissionService</strong> &mdash; <code>POST /enrolment/mid-year</code> (parent/EO submits), <code>GET /enrolment/mid-year</code>, <code>PATCH /enrolment/mid-year/:id</code> (EO: check capacity, make offer, link to Cycle 16 application pipeline).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~14 endpoints, 2 Kafka emits. Total P2-5 endpoints: ~22.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Enrolment Advanced UI</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Tour Manager</strong> <code>/enrolment/tours</code> &mdash; admin: slot calendar with availability counts. Create slot form (date, time, type, max bookings, leader, meeting point). Publish toggle. Per-slot: booking list with guest details.</li>
+      <li><strong>Public Tour Booking</strong> <code>/enrolment/tours/public</code> &mdash; prospective families: available slots calendar. Book button with name, email, phone, guest details form. Confirmation page.</li>
+      <li><strong>Withdrawal Manager</strong> <code>/enrolment/withdrawals</code> &mdash; admin: withdrawal list with status. Per-withdrawal: exit task checklist with department assignments. Task completion by department staff. "Complete Withdrawal" button (requires all tasks done).</li>
+      <li><strong>Re-enrolment Dashboard</strong> <code>/enrolment/reenrolment</code> &mdash; admin: response summary per grade (continuing vs departing). Outstanding responses highlighted. Parent: "Confirm your child's place for next year" form.</li>
+      <li><strong>Mid-Year Admissions</strong> <code>/enrolment/mid-year</code> &mdash; admin: request queue with capacity check. Link to full application pipeline. Parent: request form.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Tour manager + public booking, withdrawal manager, re-enrolment dashboard, mid-year admissions.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <ol class="detail-list">
+      <li><strong>Tour lifecycle:</strong> Admin creates group slot (max 10). Publishes. Prospective parent books with 2 guests. Verify current_bookings=1. Book 9 more. Verify slot full. 11th attempt → 409 Conflict. Cancel a booking. Verify current_bookings decrements. Complete tour. Link to application.</li>
+      <li><strong>Withdrawal lifecycle:</strong> Parent initiates withdrawal (FAMILY_RELOCATION). Verify 7 exit tasks auto-created (1 per department template). Librarian marks books returned. IT marks device returned. Attempt "Complete Withdrawal" with 5 tasks still PENDING → 400. Complete remaining tasks. Complete withdrawal. Verify sis_students.enrollment_status=WITHDRAWN. Verify <code>enr.student.withdrawn</code> fires.</li>
+      <li><strong>Re-enrolment + auto-withdrawal:</strong> Parent submits confirmed_continuing=false with reason. Verify enr_withdrawal_requests auto-initiated. Verify exit tasks created. Parent submits confirmed_continuing=true. Verify no withdrawal created.</li>
+      <li><strong>Mid-year admission:</strong> Parent submits request for Grade 4. EO checks capacity (enr_capacity_summary shows places). EO links to Cycle 16 application pipeline. Application → offer → enrolment.</li>
+      <li><strong>Re-enrolment hold:</strong> Admin places re_enrollment_hold on a withdrawn student. Verify future re-enrolment blocked for that student.</li>
+      <li><strong>Visibility:</strong> Public can browse published tour slots + book. Parent can submit re-enrolment + withdrawal. Department staff can complete their own department's exit tasks only. Admin manages all.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified enrolment advanced: tour booking → withdrawal + exit tasks → re-enrolment → mid-year admission.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Exit Task Template Configuration</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><code>GET /enrolment/withdrawal-task-templates</code> + <code>POST /enrolment/withdrawal-task-templates</code> &mdash; admin configures the default exit task checklist (which tasks auto-create on withdrawal initiation). Stored in <code>platform_tenant_configs</code> with key <code>withdrawal_exit_task_template</code>. Default: 7 tasks across 6 departments. Schools can customise: add tasks, remove tasks, change department assignments.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Configurable exit task template. Schools customise the withdrawal checklist.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 7 new tables. Tenant table count: ~481.</li>
+      <li>Enrolment API: ~22 new endpoints extending the Cycle 16 enrolment module.</li>
+      <li>Campus tour scheduling with public booking + guest tracking + application linking.</li>
+      <li>Withdrawal workflow with auto-created multi-department exit task checklist.</li>
+      <li>Re-enrolment confirmation with auto-withdrawal on non-continuation.</li>
+      <li>Mid-year admission with capacity checking + Cycle 16 pipeline linking.</li>
+      <li>Configurable exit task template per school.</li>
+      <li><code>enr.tour.booked</code> + <code>enr.student.withdrawn</code> Kafka emits.</li>
+      <li>HANDOFF-P2C5.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave B open.</strong></li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 5 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M81 Enrolment deferred tables). Functions: STU-003 Enrolment &amp; Admissions + STU-004 Withdrawal &amp; Transfer. Cross-cycle: Cycle 16 enr_applications pipeline, Cycle 1 sis_students.enrollment_status. Opens Wave B.</p>
+  </div>
+</div>
+</body>
+</html>

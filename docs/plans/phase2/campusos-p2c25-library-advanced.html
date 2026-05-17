@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-25: Library Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave D &mdash; Module Completion</div>
+    <h1>P2-25: Library Advanced</h1>
+    <div class="sub">AI-powered reading recommendations with collaborative filtering, curated reading lists with curriculum unit linkage, class set bulk checkouts with per-copy tracking, interlibrary loans with cross-institution status tracking, bulk catalogue import (ISBN batch, MARC records, CSV upload), and student book reviews with librarian moderation. No split needed.</div>
+    <span class="version">May 2026 &middot; 8 Steps &middot; ERD v11 &middot; M24 Library .1 (6 tables) &middot; LIB-002..003 &middot; Phase 2 Cycle 25</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+  <p class="body-text">Phase 2 Cycle 25 builds the deferred tables from Cycle 12's M24 Library module &mdash; 6 new tables. Cycle 12 built the core library surface (catalogue, items, patrons, checkouts, holds, fines, reading programmes, study rooms, maker space). This cycle adds the advanced features librarians need for a complete media centre: AI-driven recommendations, curated reading lists that link to curriculum units, class set bulk checkouts for novels studied in English class, interlibrary loan tracking for district partnerships, and bulk import tools for librarians onboarding existing catalogues.</p>
+
+  <p class="body-text">The recommendation engine (lib_recommendations) uses 5 scoring strategies: collaborative filtering (students who read X also read Y), reading level match (Lexile/AR level alignment), subject match (from catalogue subject tags), new arrivals (recently catalogued items in the student's interest areas), and staff picks (librarian-curated selections). The LibraryRecommendationWorker regenerates recommendations weekly for all active patrons. When the AI Inference Service (P3-A1) is deployed, it enhances collaborative filtering with embedding-based similarity; until then, the collaborative filtering uses simple co-checkout frequency counts.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Librarian creates reading list "Grade 5 Historical Fiction" (list_type=CURRICULUM_UNIT, linked to Cycle 23 cur_units US History unit) with 8 books: 3 REQUIRED, 4 RECOMMENDED, 1 EXTENSION &rarr; publishes list &rarr; students + parents see it in the library portal &rarr; teacher requests class set of "Number the Stars" for 25 students &rarr; librarian processes: lib_class_set_checkouts created (copy_count=25), 25 individual lib_checkouts auto-created linking specific barcodes &rarr; teacher returns 23 copies after 3 weeks (returned_count=23, status=PARTIALLY_RETURNED) &rarr; 2 copies still out → overdue notifications &rarr; separately, student Maya searches for her next book &rarr; lib_recommendations shows 5 books: "Island of the Blue Dolphins" (COLLABORATIVE_FILTERING, score 0.92 &mdash; students who read "Number the Stars" also read this), "Esperanza Rising" (READING_LEVEL_MATCH, Lexile 750), "New Moon" (NEW_ARRIVAL), "Code Talker" (SUBJECT_MATCH, historical fiction), "The Giver" (STAFF_PICK) &rarr; Maya checks out "Island of the Blue Dolphins" and writes a review (4 stars, "I loved the survival parts") &rarr; librarian approves review → visible on catalogue page &rarr; meanwhile, a student requests "The Outsiders" which is not in the catalogue &rarr; librarian submits interlibrary loan request to Eastside Elementary (BORROWED, status=REQUESTED) &rarr; book arrives (IN_TRANSIT → ACTIVE) &rarr; due in 4 weeks.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (6 tables):</strong> lib_reading_lists, lib_reading_list_items, lib_class_set_checkouts, lib_interlibrary_loans, lib_recommendations, lib_catalogue_import_jobs. Functions LIB-002 (Circulation extended) + LIB-003 (Reading Programmes extended).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> AI embedding-based recommendation enhancement (requires P3-A1 AI Inference Service). MARC record Z39.50/SRU live lookup (manual import this cycle). WorldCat API integration for catalogue enrichment. Automated Lexile/AR level assignment from AI text analysis. Reading list sharing across schools in a district. Interlibrary loan request approval workflow between schools. Class set reservation calendar. Digital resource lending (ebooks/audiobooks).</p>
+  </div>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Reading Lists + Class Sets Schema (3 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>lib_reading_lists</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>list_type TEXT NOT NULL</code> 5-value CHECK (CLASS, YEAR_GROUP, CURRICULUM_UNIT, GENERAL, NEW_ARRIVALS), <code>created_by UUID FK NOT NULL</code>, <code>target_class_id UUID</code> (SOFT INTEGRITY → sis_classes), <code>target_grade_level TEXT</code>, <code>curriculum_unit_id UUID</code> (SOFT INTEGRITY → cur_units), <code>academic_year_id UUID FK</code>, <code>is_published BOOLEAN DEFAULT false</code>, <code>published_at TIMESTAMPTZ</code>. UNIQUE(school_id, name, academic_year_id). INDEX(school_id, list_type, is_published).</li>
+      <li><strong>lib_reading_list_items</strong> &mdash; <code>reading_list_id UUID FK NOT NULL</code>, <code>catalogue_item_id UUID FK(lib_catalogue_items) NOT NULL</code>, <code>item_type TEXT NOT NULL DEFAULT 'RECOMMENDED'</code> 4-value CHECK (REQUIRED, RECOMMENDED, EXTENSION, REFERENCE), <code>sort_order INT NOT NULL</code>, <code>added_by UUID FK NOT NULL</code>, <code>notes TEXT</code>. UNIQUE(reading_list_id, catalogue_item_id). INDEX(reading_list_id, sort_order).</li>
+      <li><strong>lib_class_set_checkouts</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>catalogue_item_id UUID FK(lib_catalogue_items) NOT NULL</code>, <code>teacher_patron_id UUID FK(iam_person) NOT NULL</code>, <code>class_id UUID</code> (SOFT INTEGRITY → sis_classes), <code>copy_count INT NOT NULL</code>, <code>checkout_date DATE NOT NULL</code>, <code>due_date DATE NOT NULL</code>, <code>returned_count INT NOT NULL DEFAULT 0</code>, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 4-value CHECK (ACTIVE, PARTIALLY_RETURNED, RETURNED, OVERDUE), <code>notes TEXT</code>. INDEX(school_id, status). INDEX(teacher_patron_id, checkout_date DESC). On INSERT: creates copy_count individual lib_checkouts rows linking specific barcodes via class_set_checkout_id. On returned_count = copy_count: status → RETURNED. On due_date passed + returned_count &lt; copy_count: status → OVERDUE.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables + ALTER lib_checkouts ADD class_set_checkout_id UUID FK. Migration: <code>153_lib_reading_lists_classsets.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Recommendations + ILL + Import Schema (3 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>lib_recommendations</strong> &mdash; <code>student_id UUID FK(sis_students) NOT NULL</code>, <code>recommended_item_id UUID FK(lib_items) NOT NULL</code>, <code>reason_type TEXT NOT NULL</code> 5-value CHECK (COLLABORATIVE_FILTERING, READING_LEVEL_MATCH, SUBJECT_MATCH, NEW_ARRIVAL, STAFF_PICK), <code>score NUMERIC(5,3)</code>, <code>generated_at TIMESTAMPTZ NOT NULL</code>. INDEX(student_id, score DESC). Regenerated weekly by LibraryRecommendationWorker — full replace, not upsert (DROP + INSERT for each student's recommendations). Maximum 20 recommendations per student.</li>
+      <li><strong>lib_interlibrary_loans</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>loan_direction TEXT NOT NULL</code> 2-value CHECK (BORROWED, LENT), <code>partner_institution TEXT NOT NULL</code>, <code>catalogue_item_id UUID FK(lib_catalogue_items)</code> nullable (for LENT: references our catalogue; for BORROWED: may not exist in our catalogue), <code>title TEXT NOT NULL</code>, <code>isbn TEXT</code>, <code>request_date DATE NOT NULL</code>, <code>received_date DATE</code>, <code>sent_date DATE</code>, <code>due_date DATE</code>, <code>returned_date DATE</code>, <code>status TEXT NOT NULL DEFAULT 'REQUESTED'</code> 6-value CHECK (REQUESTED, IN_TRANSIT, ACTIVE, RETURNED, OVERDUE, LOST). INDEX(school_id, status). INDEX(school_id, loan_direction, status).</li>
+      <li><strong>lib_catalogue_import_jobs</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>import_type TEXT NOT NULL</code> 4-value CHECK (ISBN_BATCH, MARC_IMPORT, CSV_UPLOAD, WORLDCAT_SYNC), <code>source_file_s3_key TEXT</code>, <code>total_records INT</code>, <code>records_imported INT NOT NULL DEFAULT 0</code>, <code>records_skipped INT NOT NULL DEFAULT 0</code> (duplicates by ISBN), <code>records_failed INT NOT NULL DEFAULT 0</code>, <code>status TEXT NOT NULL DEFAULT 'QUEUED'</code> 5-value CHECK (QUEUED, PARSING, IMPORTING, COMPLETED, FAILED), <code>initiated_by UUID FK NOT NULL</code>, <code>error_log_s3_key TEXT</code>, <code>started_at TIMESTAMPTZ</code>, <code>completed_at TIMESTAMPTZ</code>. INDEX(school_id, status). CatalogueImportWorker processes asynchronously.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>154_lib_recommendations_ill.sql</code>. Total P2-25 tables: 6.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li><strong>2 reading lists:</strong> "Grade 5 Historical Fiction" CURRICULUM_UNIT (linked to cur_units, published, 8 items: 3 REQUIRED, 4 RECOMMENDED, 1 EXTENSION), "New Arrivals March 2026" GENERAL (5 items).</li>
+      <li><strong>1 class set checkout:</strong> "Number the Stars" 25 copies, PARTIALLY_RETURNED (23 returned, 2 outstanding).</li>
+      <li><strong>15 recommendations:</strong> across 3 students, mix of all 5 reason types with scores.</li>
+      <li><strong>2 interlibrary loans:</strong> 1 BORROWED (ACTIVE, due in 3 weeks), 1 LENT (RETURNED).</li>
+      <li><strong>1 import job:</strong> ISBN_BATCH COMPLETED (50 total, 45 imported, 3 skipped as duplicates, 2 failed).</li>
+      <li><strong>Permissions:</strong> LIB-002 extended: class set checkouts (librarian write, teacher request). LIB-003 extended: reading lists (librarian + teacher write, student + parent read), recommendations (student read), reviews (student write, librarian approve). ILL (librarian manage). Import (librarian + admin).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Library advanced demo data across all 6 tables.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Reading Lists + Class Sets NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>ReadingListService</strong> &mdash; CRUD. <code>GET /library/reading-lists</code> (published lists, filterable by type + grade + curriculum unit), <code>POST /library/reading-lists</code> (librarian/teacher creates), <code>POST /library/reading-lists/:id/items</code> (add item with type + sort order), <code>PATCH /library/reading-lists/:id/publish</code> (sets is_published=true, published_at). <code>GET /library/reading-lists/:id</code> (with items + catalogue details inlined).</li>
+      <li><strong>ClassSetService</strong> &mdash; <code>POST /library/class-sets</code> (creates checkout + auto-creates copy_count individual lib_checkouts linked via class_set_checkout_id; validates copy_count ≤ available copies of that catalogue item), <code>GET /library/class-sets</code> (active class sets), <code>POST /library/class-sets/:id/return</code> (return N copies; increments returned_count; if all returned → RETURNED). ClassSetOverdueWorker: nightly checks due_date with returned_count &lt; copy_count → OVERDUE + notifies teacher.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 services + 1 worker, ~10 endpoints.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Recommendations + ILL + Import NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>RecommendationService</strong> &mdash; <code>GET /library/recommendations/:studentId</code> (up to 20, sorted by score DESC), <code>POST /library/recommendations/:recommendationId/dismiss</code> (student dismisses — excluded from future runs). LibraryRecommendationWorker: weekly, for each active student patron: (1) COLLABORATIVE_FILTERING: find students with ≥3 shared checkouts, recommend their other checkouts not yet read by this student, scored by co-checkout frequency. (2) READING_LEVEL_MATCH: match catalogue items within ±50 Lexile of student's reading level. (3) SUBJECT_MATCH: match catalogue subject tags to student's checkout history tags. (4) NEW_ARRIVAL: items catalogued in last 30 days matching student's subject preferences. (5) STAFF_PICK: librarian-flagged items from lib_reading_lists WHERE list_type='GENERAL'. Top 20 by score inserted per student.</li>
+      <li><strong>InterlibraryLoanService</strong> &mdash; CRUD. <code>POST /library/ill</code> (librarian creates BORROWED or LENT request), <code>GET /library/ill</code> (all loans with status filter), <code>PATCH /library/ill/:id</code> (status transitions: REQUESTED → IN_TRANSIT → ACTIVE → RETURNED; ACTIVE past due_date → OVERDUE). <code>GET /library/ill/overdue</code>.</li>
+      <li><strong>CatalogueImportService</strong> &mdash; <code>POST /library/imports</code> (upload CSV/MARC file or submit ISBN list; creates job QUEUED), <code>GET /library/imports/:id</code> (job status + counts). CatalogueImportWorker: parses file → for each record: ISBN lookup against existing catalogue (skip if duplicate), create lib_catalogue_items + lib_items, increment counters. On failure: log to error CSV, increment records_failed. On complete: generate error_log_s3_key if any failures. Emits <code>lib.import.completed</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services + 2 workers, ~12 endpoints, 1 Kafka emit. Total P2-25 endpoints: ~22.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Library Advanced UI</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Reading Lists</strong> <code>/library/reading-lists</code> &mdash; librarian/teacher: create list with type selector + curriculum unit link. Drag-add items from catalogue search. Publish toggle. Student/parent: browse published lists by type, grade, curriculum unit. Per-list: book covers + availability + item type badges.</li>
+      <li><strong>Class Sets</strong> <code>/library/class-sets</code> &mdash; librarian: active class sets with return tracking (progress bar: 23/25 returned). Checkout form (teacher, title, copy count). Return form (how many copies returned). Overdue sets highlighted.</li>
+      <li><strong>Recommendations</strong> (inline on student library portal) &mdash; student: "Recommended For You" shelf with 5 reason-typed cards. Dismiss button. Click → catalogue detail.</li>
+      <li><strong>Interlibrary Loans</strong> <code>/library/ill</code> &mdash; librarian: loan list with direction (BORROWED/LENT) + status. Request form. Status update buttons. Overdue tracking.</li>
+      <li><strong>Catalogue Import</strong> <code>/library/imports</code> &mdash; librarian: upload CSV/MARC or paste ISBN list. Progress tracker (imported/skipped/failed). Error log download for failed records.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Reading lists, class sets, recommendations shelf, ILL manager, catalogue import.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <ol class="detail-list">
+      <li><strong>Reading list lifecycle:</strong> Create CURRICULUM_UNIT list linked to cur_units. Add 3 items (REQUIRED, RECOMMENDED, EXTENSION). Publish. Verify visible to students. Verify UNIQUE(reading_list_id, catalogue_item_id) prevents duplicate items.</li>
+      <li><strong>Class set checkout:</strong> Check out 25 copies. Verify 25 individual lib_checkouts created with class_set_checkout_id. Return 23. Verify returned_count=23, status=PARTIALLY_RETURNED. Return remaining 2. Verify status=RETURNED. Attempt checkout exceeding available copies → 400.</li>
+      <li><strong>Class set overdue:</strong> Create class set with due_date=yesterday. Run ClassSetOverdueWorker. Verify status → OVERDUE.</li>
+      <li><strong>Recommendations:</strong> Student A has checked out 5 books. Student B has checked out 3 of the same + 2 different. Run RecommendationWorker. Verify Student A gets Student B's 2 different books as COLLABORATIVE_FILTERING recommendations. Verify max 20 per student. Student dismisses 1. Run again. Verify dismissed book excluded.</li>
+      <li><strong>Interlibrary loan:</strong> Create BORROWED request. Transition REQUESTED → IN_TRANSIT → ACTIVE. Pass due_date. Verify OVERDUE. Return. Verify RETURNED. Create LENT request with catalogue_item_id. Verify our catalogue linked.</li>
+      <li><strong>Catalogue import:</strong> Upload CSV with 10 ISBNs (8 new, 2 existing). Run worker. Verify 8 imported, 2 skipped, 0 failed. Upload CSV with invalid row. Verify 1 failed + error log generated.</li>
+      <li><strong>Visibility:</strong> Student sees own recommendations + published reading lists. Cannot see other students' recommendations. Librarian manages all. Teacher can create reading lists + request class sets. Parent sees published lists.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified library advanced: reading lists → class sets → recommendations → ILL → catalogue import.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Recommendation Engine Configuration</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li>Recommendation weights stored in <code>platform_tenant_configs</code> with key <code>library_recommendation_weights</code> (JSONB: {collaborative_filtering: 30, reading_level_match: 25, subject_match: 20, new_arrival: 15, staff_pick: 10}). Librarian configures via <code>GET/PATCH /library/recommendation-config</code>. Schools that prioritise reading level alignment can increase that weight. The worker normalises scores within each strategy, then applies weights to produce the final ranked list.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Configurable recommendation weights via tenant config.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 6 new tables + ALTER lib_checkouts. Tenant table count: ~763.</li>
+      <li>Library API: ~22 endpoints + 3 workers.</li>
+      <li>Reading lists with curriculum unit linkage + 4 item types.</li>
+      <li>Class set bulk checkouts with per-copy tracking + overdue detection.</li>
+      <li>AI-ready recommendation engine with 5 scoring strategies.</li>
+      <li>Interlibrary loans with cross-institution status tracking.</li>
+      <li>Bulk catalogue import (CSV, MARC, ISBN batch) with error reporting.</li>
+      <li>Configurable recommendation weights per school.</li>
+      <li><code>lib.import.completed</code> Kafka emit.</li>
+      <li>HANDOFF-P2C25.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 25 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M24 Library deferred tables, 6 tables). Functions: LIB-002 Circulation extended + LIB-003 Reading Programmes extended. Cross-cycle: Cycle 12 lib_catalogue_items + lib_items + lib_checkouts, Cycle 23 cur_units for curriculum linkage. No split needed.</p>
+  </div>
+</div>
+</body>
+</html>

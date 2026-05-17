@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 27 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../../design-hub/index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../../design-hub/index.html">Design Hub</a>
+  <a href="../../architecture/campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 6 &middot; Finance &amp; Commerce</div>
+    <h1>Cycle 27: Procurement</h1>
+    <div class="sub">Purchase requisitions with multi-level approval workflow, formal purchase orders to the fin_suppliers directory, budget commitment tracking that reserves funds before payment, goods receipt with inspection and discrepancy logging, automated inventory distribution to 8 operational modules via Kafka events, returns and warranty claims, and vendor performance tracking. The purchasing backbone that feeds every campus operations inventory.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M86 Procurement (12 tables &mdash; all in scope) &middot; ADR-054/061 &middot; PRC-001 through PRC-003</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 27 builds the M86 Procurement module &mdash; all 12 ERD tables. Per ADR-061, this is the <strong>basic procurement scope</strong>: requisitions, POs, receiving, distribution, and vendor management. The full procurement scope (three-way matching, blanket POs, catalogue purchasing, encumbrance accounting, competitive bidding) is deferred to Phase 2 per ADR-054, now that Cycle 26 has the GL live to support it.</p>
+
+  <p class="body-text">Procurement is the <strong>cross-module supply chain hub</strong>. When goods are received and distributed, <code>prc.distribution.completed</code> fires with a <code>destination_module</code> payload. Each destination module's inventory worker consumes the event and creates the appropriate record: <code>tech_assets</code> (IT), <code>trn_parts_inventory</code> (Transportation), <code>fds_inventory</code> (Food Service), <code>lib_catalogue_items</code> (Library), <code>ath_equipment</code> (Athletics), <code>ext_equipment_items</code> (Clubs), <code>fac_supply_inventory</code> (Facilities), <code>str_product_inventory</code> (School Store). Procurement never writes directly to another module's tables.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Rivera submits a requisition for 10 Chromebooks ($300 each, $3,000 total, destination=tech, budget line=Technology $35K) &rarr; wsk_approval_requests routes to department head &rarr; department head approves &rarr; admin approves &rarr; status ADMIN_APPROVED &rarr; <strong>budget commitment created:</strong> fin_budget_lines.encumbered_amount += $3,000, remaining drops by $3,000 &rarr; admin converts requisition to PO #2026-047 issued to "Dell Technologies" (from fin_suppliers) &rarr; PO issued to vendor &rarr; vendor ships &rarr; receiving clerk inspects delivery: 10 Chromebooks received, 1 with cosmetic damage &rarr; discrepancy logged &rarr; admin distributes 9 good units to IT department &rarr; <code>prc.distribution.completed</code> fires with destination_module=tech &rarr; (future: IT module's worker would create 9 tech_assets rows) &rarr; admin initiates a return/warranty claim for the damaged unit &rarr; vendor performance score updated (98% quality, 95% on-time) &rarr; requisition status walks through to CLOSED.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (all 12 tables):</strong> prc_requisitions, prc_requisition_lines, prc_purchase_orders, prc_purchase_order_lines, prc_goods_receipts, prc_goods_receipt_lines, prc_budget_commitments, prc_distributions, prc_distribution_lines, prc_returns, prc_vendor_performance, prc_procurement_settings. Functions PRC-001 (Requisitions), PRC-002 (Purchase Orders + Receiving), PRC-003 (Distribution + Returns).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to Phase 2 (post-M83 full scope per ADR-054):</strong> Three-way matching (PO vs receipt vs supplier invoice with tolerance thresholds). Blanket purchase orders (standing orders for recurring purchases). Catalogue-based purchasing (pre-negotiated vendor catalogues). Formal GL encumbrance entries (prc_budget_commitments is the lightweight mechanism; proper encumbrance journal entries are Phase 2). Competitive bidding workflow (RFQ/RFP with vendor comparison scoring). Contract lifecycle management.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Requisitions + Lines Schema</td><td>Schema</td><td>prc_requisitions, prc_requisition_lines</td></tr>
+    <tr><td><strong>2</strong></td><td>Purchase Orders + Goods Receipt Schema</td><td>Schema</td><td>prc_purchase_orders, prc_purchase_order_lines, prc_goods_receipts, prc_goods_receipt_lines</td></tr>
+    <tr><td><strong>3</strong></td><td>Budget Commitments + Distribution + Returns + Vendor Performance Schema</td><td>Schema</td><td>prc_budget_commitments, prc_distributions, prc_distribution_lines, prc_returns, prc_vendor_performance, prc_procurement_settings</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Requisitions, POs, Receipts, Commitments, Distribution</td><td>Seed</td><td>2 requisitions, 1 PO + receipt, 1 budget commitment, 1 distribution, vendor performance, PRC-001..003 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Requisitions NestJS Module</td><td>Code</td><td>RequisitionService, RequisitionLineService. Multi-level approval via wsk_approval_requests. <code>prc.requisition.submitted</code> Kafka emit.</td></tr>
+    <tr><td><strong>6</strong></td><td>Purchase Orders + Receiving NestJS Module</td><td>Code</td><td>PurchaseOrderService, GoodsReceiptService. PO generation from requisition. Inspection + discrepancy. Budget commitment on PO issue.</td></tr>
+    <tr><td><strong>7</strong></td><td>Distribution + Returns + Vendor NestJS Module</td><td>Code</td><td>DistributionService, ReturnService, VendorPerformanceService. <code>prc.distribution.completed</code> Kafka emit to 8 modules. Vendor scoring.</td></tr>
+    <tr><td><strong>8</strong></td><td>Procurement UI &mdash; Requisitions + POs + Receiving</td><td>UI</td><td>"Procurement" app tile, requisition form, approval queue, PO manager, receiving inspection form</td></tr>
+    <tr><td><strong>9</strong></td><td>Procurement UI &mdash; Distribution + Returns + Vendor + Budget</td><td>UI</td><td>Distribution dashboard, return/warranty form, vendor scorecard, budget commitment tracker</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Requisition &rarr; approval &rarr; PO &rarr; budget commitment &rarr; receive + inspect &rarr; distribute &rarr; Kafka emit &rarr; return &rarr; vendor score</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Requisitions + Lines Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Staff-initiated purchase requests with multi-line item detail, destination module tagging, budget line reference, and integration with the Cycle 7 approval workflow.</p>
+    <div class="detail-heading">Tables (2)</div>
+    <ol class="detail-list">
+      <li><strong>prc_requisitions</strong> &mdash; <code>school_id UUID</code>, <code>requesting_person_id UUID FK(iam_person) NOT NULL</code>, <code>requesting_department TEXT</code>, <code>urgency TEXT NOT NULL DEFAULT 'ROUTINE'</code> 3-value CHECK (ROUTINE, URGENT, EMERGENCY), <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 10-value CHECK (DRAFT, SUBMITTED, DEPT_APPROVED, ADMIN_APPROVED, DISTRICT_APPROVED, ORDERED, RECEIVED, DISTRIBUTED, CLOSED, REJECTED), <code>approval_request_id UUID</code> (soft to wsk_approval_requests), <code>total_estimated_cost NUMERIC(12,2)</code>, <code>budget_line_id UUID</code> (soft to fin_budget_lines), <code>justification TEXT NOT NULL</code>, <code>submitted_at TIMESTAMPTZ</code>. INDEX(school_id, status).</li>
+      <li><strong>prc_requisition_lines</strong> &mdash; <code>requisition_id UUID FK NOT NULL</code>, <code>item_description TEXT NOT NULL</code>, <code>quantity INT NOT NULL</code>, <code>unit TEXT</code>, <code>estimated_unit_cost NUMERIC(10,2)</code>, <code>specifications TEXT</code>, <code>preferred_vendor_id UUID</code> (soft to fin_suppliers), <code>destination_module TEXT NOT NULL</code> 9-value CHECK (tech, trn, fds, lib, ath, ext, fac, str, general). INDEX(requisition_id).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 tables. Migration: <code>083_prc_requisitions.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Purchase Orders + Goods Receipt Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Formal POs with sequential numbering issued to fin_suppliers, PO line items linked to requisition lines, goods receipt headers with inspection outcome, and per-line receipt with quantity/condition tracking and discrepancy logging.</p>
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>prc_purchase_orders</strong> &mdash; <code>school_id UUID</code>, <code>po_number TEXT NOT NULL UNIQUE</code>, <code>vendor_id UUID FK(fin_suppliers) NOT NULL</code>, <code>requisition_id UUID FK</code> nullable (POs can be standalone), <code>delivery_address TEXT NOT NULL</code>, <code>expected_delivery_date DATE</code>, <code>payment_terms TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 8-value CHECK (DRAFT, ISSUED, ACKNOWLEDGED, SHIPPED, PARTIALLY_RECEIVED, RECEIVED, CLOSED, CANCELLED), <code>total_amount NUMERIC(12,2) NOT NULL</code>, <code>issued_by UUID FK NOT NULL</code>, <code>issued_at TIMESTAMPTZ</code>. INDEX(school_id, status).</li>
+      <li><strong>prc_purchase_order_lines</strong> &mdash; <code>purchase_order_id UUID FK NOT NULL</code>, <code>requisition_line_id UUID FK</code> nullable, <code>item_description TEXT NOT NULL</code>, <code>quantity_ordered INT NOT NULL</code>, <code>unit_cost NUMERIC(10,2) NOT NULL</code>, <code>line_total NUMERIC(12,2) NOT NULL</code>, <code>gl_account_id UUID</code> (soft to fin_chart_of_accounts for GL coding), <code>destination_module TEXT NOT NULL</code>. INDEX(purchase_order_id).</li>
+      <li><strong>prc_goods_receipts</strong> &mdash; <code>purchase_order_id UUID FK NOT NULL</code>, <code>received_by UUID FK NOT NULL</code>, <code>received_at TIMESTAMPTZ NOT NULL</code>, <code>inspection_outcome TEXT NOT NULL</code> 3-value CHECK (ACCEPTED, ACCEPTED_WITH_DISCREPANCY, REJECTED), <code>notes TEXT</code>. INDEX(purchase_order_id).</li>
+      <li><strong>prc_goods_receipt_lines</strong> &mdash; <code>receipt_id UUID FK NOT NULL</code>, <code>po_line_id UUID FK NOT NULL</code>, <code>quantity_received INT NOT NULL</code>, <code>quantity_accepted INT NOT NULL</code>, <code>quantity_rejected INT DEFAULT 0</code>, <code>condition TEXT NOT NULL DEFAULT 'GOOD'</code> 3-value CHECK (GOOD, DAMAGED, DEFECTIVE), <code>discrepancy_notes TEXT</code>. INDEX(receipt_id). CHECK(quantity_accepted + quantity_rejected = quantity_received).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 tables. Migration: <code>084_prc_purchase_orders.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Budget Commitments + Distribution + Returns + Vendor Performance</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Lightweight budget commitment that reserves funds on PO issuance, distribution records routing received items to destination modules via Kafka events, return/warranty claims, vendor quality + delivery performance scoring, and school-level procurement configuration.</p>
+    <div class="detail-heading">Tables (6)</div>
+    <ol class="detail-list">
+      <li><strong>prc_budget_commitments</strong> &mdash; <code>purchase_order_id UUID FK NOT NULL</code>, <code>budget_line_id UUID NOT NULL</code> (soft to fin_budget_lines), <code>committed_amount NUMERIC(12,2) NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'COMMITTED'</code> 3-value CHECK (COMMITTED, PARTIALLY_RELEASED, RELEASED), <code>released_amount NUMERIC(12,2) DEFAULT 0</code>. On PO ISSUED: committed_amount encumbers the budget line (fin_budget_lines.encumbered_amount += committed_amount). On PO CLOSED: released, encumbered decremented.</li>
+      <li><strong>prc_distributions</strong> &mdash; <code>receipt_id UUID FK NOT NULL</code>, <code>distributed_by UUID FK NOT NULL</code>, <code>distributed_at TIMESTAMPTZ NOT NULL</code>, <code>destination_module TEXT NOT NULL</code> 8-value CHECK (tech, trn, fds, lib, ath, ext, fac, str), <code>destination_department TEXT</code>, <code>notes TEXT</code>. Emits <code>prc.distribution.completed</code> per distribution.</li>
+      <li><strong>prc_distribution_lines</strong> &mdash; <code>distribution_id UUID FK NOT NULL</code>, <code>receipt_line_id UUID FK NOT NULL</code>, <code>quantity_distributed INT NOT NULL</code>, <code>item_description TEXT NOT NULL</code>, <code>unit_cost NUMERIC(10,2)</code>. INDEX(distribution_id).</li>
+      <li><strong>prc_returns</strong> &mdash; <code>receipt_line_id UUID FK NOT NULL</code>, <code>return_type TEXT NOT NULL</code> 3-value CHECK (DAMAGED, DEFECTIVE, WARRANTY_CLAIM), <code>quantity_returned INT NOT NULL</code>, <code>return_reference TEXT</code>, <code>vendor_rma_number TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'INITIATED'</code> 4-value CHECK (INITIATED, SHIPPED_TO_VENDOR, RESOLVED, CANCELLED), <code>resolution TEXT</code> nullable 3-value CHECK (REPLACED, REFUNDED, CREDITED) when resolved, <code>initiated_by UUID FK NOT NULL</code>, <code>initiated_at TIMESTAMPTZ</code>.</li>
+      <li><strong>prc_vendor_performance</strong> &mdash; <code>vendor_id UUID FK(fin_suppliers) NOT NULL</code>, <code>school_id UUID</code>, <code>total_orders INT DEFAULT 0</code>, <code>on_time_deliveries INT DEFAULT 0</code>, <code>late_deliveries INT DEFAULT 0</code>, <code>accepted_count INT DEFAULT 0</code>, <code>rejected_count INT DEFAULT 0</code>, <code>average_quality_score NUMERIC(3,2)</code>, <code>average_delivery_score NUMERIC(3,2)</code>, <code>last_updated_at TIMESTAMPTZ</code>. UNIQUE(vendor_id, school_id). Updated on every goods receipt.</li>
+      <li><strong>prc_procurement_settings</strong> &mdash; <code>school_id UUID UNIQUE</code>, <code>auto_po_threshold NUMERIC(12,2)</code> nullable (requisitions below this auto-convert to PO without admin approval), <code>default_payment_terms TEXT DEFAULT 'NET_30'</code>, <code>po_number_prefix TEXT DEFAULT 'PO'</code>, <code>po_number_next_seq INT DEFAULT 1</code>, <code>require_three_quotes_above NUMERIC(12,2)</code> nullable.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 6 tables. Migration: <code>085_prc_distribution_vendor.sql</code>. Total Cycle 27 tables: 12.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>2 requisitions + 5 lines:</strong> Req #1: Rivera requests 10 Chromebooks (tech, $300 each, ADMIN_APPROVED). Req #2: Cafeteria manager requests food supplies (fds, SUBMITTED, 3 lines).</li>
+      <li><strong>1 PO + 2 lines:</strong> PO-2026-001 to Dell Technologies for the Chromebook requisition. 10 × Chromebook $300 + 10 × protective case $25. Total $3,250. Status=RECEIVED.</li>
+      <li><strong>1 goods receipt + 2 lines:</strong> 10 Chromebooks received (9 GOOD, 1 DAMAGED). 10 cases all GOOD. Inspection: ACCEPTED_WITH_DISCREPANCY.</li>
+      <li><strong>1 budget commitment:</strong> $3,250 committed against Technology budget line. Status=COMMITTED.</li>
+      <li><strong>1 distribution + 1 line:</strong> 9 Chromebooks distributed to tech module.</li>
+      <li><strong>1 return:</strong> 1 damaged Chromebook WARRANTY_CLAIM, INITIATED.</li>
+      <li><strong>1 vendor performance:</strong> Dell: 1 order, 1 on-time, 0 late, 9 accepted, 1 rejected. Quality 90%, delivery 100%.</li>
+      <li><strong>1 procurement settings:</strong> PO prefix "PO", next seq 2, default NET_30.</li>
+      <li><strong>Permissions:</strong> PRC-001:read to Teacher, Staff (view requisitions). PRC-001:write to Teacher, Staff (submit requisitions). PRC-002:read+write to Staff (PO management + receiving). PRC-003:read+write to Staff (distribution + returns). Admin gets all via everyFunction.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich procurement demo data across all 12 tables. PRC-001..003 permissions.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Requisitions NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>RequisitionService</strong> &mdash; <code>GET /procurement/requisitions</code> (staff: own + approval queue; admin: all), <code>GET /procurement/requisitions/:id</code> (with lines + approval status + linked PO inlined), <code>POST /procurement/requisitions</code> (creates DRAFT; validates budget_line_id resolves to an active fin_budget_lines row with sufficient remaining balance), <code>PATCH /procurement/requisitions/:id/submit</code> (DRAFT &rarr; SUBMITTED; creates wsk_approval_requests entry for multi-level routing; emits <code>prc.requisition.submitted</code>), <code>PATCH /procurement/requisitions/:id/approve</code> (advances through DEPT_APPROVED &rarr; ADMIN_APPROVED &rarr; DISTRICT_APPROVED per approval chain).</li>
+      <li><strong>RequisitionLineService</strong> &mdash; <code>POST /procurement/requisitions/:id/lines</code>, <code>PATCH /procurement/requisition-lines/:id</code>, <code>DELETE /procurement/requisition-lines/:id</code> (only on DRAFT requisitions).</li>
+    </ol>
+    <div class="produces">Produces &rarr; ProcurementModule with 2 services, ~10 endpoints, 1 Kafka emit (<code>prc.requisition.submitted</code>).</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Purchase Orders + Receiving NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>PurchaseOrderService</strong> &mdash; <code>GET /procurement/purchase-orders</code>, <code>GET /procurement/purchase-orders/:id</code> (with lines + receipts + commitment inlined), <code>POST /procurement/purchase-orders</code> (standalone or from requisition; auto-generates po_number from prc_procurement_settings sequence; <strong>BUDGET COMMITMENT KEYSTONE:</strong> on ISSUED, creates prc_budget_commitments row + increments fin_budget_lines.encumbered_amount inside one tx), <code>PATCH /procurement/purchase-orders/:id</code> (status transitions). <code>POST /procurement/purchase-orders/from-requisition/:reqId</code> (converts approved requisition to PO, copying lines).</li>
+      <li><strong>GoodsReceiptService</strong> &mdash; <code>POST /procurement/purchase-orders/:id/receipts</code> (log receipt with per-line inspection; auto-updates PO status to PARTIALLY_RECEIVED or RECEIVED based on cumulative quantities; updates prc_vendor_performance atomically), <code>GET /procurement/purchase-orders/:id/receipts</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 services, ~8 endpoints. Budget commitment on PO issuance is the keystone.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Distribution + Returns + Vendor NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>DistributionService</strong> &mdash; <code>POST /procurement/receipts/:id/distribute</code> (<strong>CROSS-MODULE KEYSTONE:</strong> creates distribution + lines; emits <code>prc.distribution.completed</code> with destination_module + item details + quantity + cost; each destination module's future worker consumes and creates inventory records), <code>GET /procurement/distributions</code>.</li>
+      <li><strong>ReturnService</strong> &mdash; <code>POST /procurement/receipt-lines/:id/return</code> (initiate return/warranty claim), <code>PATCH /procurement/returns/:id</code> (status transitions: INITIATED &rarr; SHIPPED_TO_VENDOR &rarr; RESOLVED; resolution: REPLACED/REFUNDED/CREDITED), <code>GET /procurement/returns</code>.</li>
+      <li><strong>VendorPerformanceService</strong> &mdash; <code>GET /procurement/vendor-performance</code> (scorecard: quality % + delivery % per vendor), <code>GET /procurement/vendor-performance/:vendorId</code> (with order history). Auto-updated on every goods receipt.</li>
+      <li><strong>ProcurementSettingsService</strong> &mdash; <code>GET /procurement/settings</code>, <code>PATCH /procurement/settings</code> (admin configures thresholds, PO prefix, payment terms).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~10 endpoints, 1 Kafka emit (<code>prc.distribution.completed</code>). Total Cycle 27 endpoints: ~28.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Procurement UI &mdash; Requisitions + POs + Receiving</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Procurement Dashboard</strong> <code>/procurement</code> &mdash; "Procurement" app tile. Open requisitions by status. POs by status (ISSUED/SHIPPED/PARTIALLY_RECEIVED). Budget commitment summary. Pending approvals count.</li>
+      <li><strong>Requisition Form</strong> <code>/procurement/requisitions/new</code> &mdash; requester info (auto-filled). Line items with destination module picker + quantity + estimated cost + specs + preferred vendor. Budget line selector with remaining balance indicator. Justification. Submit for approval.</li>
+      <li><strong>PO Manager</strong> <code>/procurement/purchase-orders</code> &mdash; PO list with status workflow pills. Create from requisition button. Per-PO: vendor, lines, total, expected delivery, budget commitment. Issue / Cancel buttons.</li>
+      <li><strong>Receiving Inspection</strong> <code>/procurement/purchase-orders/:id/receive</code> &mdash; per-line: quantity received + quantity accepted + quantity rejected + condition picker + discrepancy notes. Inspection outcome auto-computed. Submit receipt.</li>
+    </ol>
+    <div class="produces">Produces &rarr; "Procurement" app tile, requisition form, PO manager, receiving inspection.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">Procurement UI &mdash; Distribution + Returns + Vendor + Budget</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Distribution Dashboard</strong> <code>/procurement/distributions</code> &mdash; received items pending distribution. Distribute form: select receipt lines + destination module + department. Distribution history with destination module pills.</li>
+      <li><strong>Returns &amp; Warranty</strong> <code>/procurement/returns</code> &mdash; initiate return from receipt line. Status tracker (INITIATED &rarr; SHIPPED &rarr; RESOLVED). Resolution recording (REPLACED/REFUNDED/CREDITED).</li>
+      <li><strong>Vendor Scorecard</strong> <code>/procurement/vendors</code> &mdash; vendor list with quality % + delivery % gauges. Per-vendor: order history, receipt history, return history. Links to fin_suppliers detail.</li>
+      <li><strong>Budget Commitment Tracker</strong> <code>/procurement/commitments</code> &mdash; active commitments by budget line. Committed vs released amounts. Impact on fin_budget_lines.remaining_amount shown inline.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Distribution dashboard, returns/warranty, vendor scorecard, budget commitment tracker.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Requisition + approval:</strong> Rivera submits requisition for 5 iPads (tech, $500 each). Verify wsk_approval_requests entry created. Dept head approves. Admin approves. Status=ADMIN_APPROVED. Verify <code>prc.requisition.submitted</code> fires.</li>
+      <li><strong>Budget commitment keystone:</strong> Convert requisition to PO. On ISSUED: verify prc_budget_commitments row created ($2,500). Verify fin_budget_lines.encumbered_amount incremented by $2,500. Verify remaining_amount decremented.</li>
+      <li><strong>PO + vendor:</strong> PO issued to Apple (fin_suppliers). Verify po_number auto-generated from settings sequence. Verify vendor_id links correctly.</li>
+      <li><strong>Receiving + inspection:</strong> Log receipt: 5 iPads, 4 GOOD + 1 DEFECTIVE. Verify inspection_outcome=ACCEPTED_WITH_DISCREPANCY. Verify prc_vendor_performance updated (quality=80%).</li>
+      <li><strong>Distribution + Kafka emit:</strong> Distribute 4 good iPads to tech. Verify <code>prc.distribution.completed</code> fires with destination_module=tech + 4 items + unit cost.</li>
+      <li><strong>Return/warranty:</strong> Initiate WARRANTY_CLAIM for 1 defective iPad. Status=INITIATED. Ship to vendor. Vendor resolves as REPLACED. Verify resolution recorded.</li>
+      <li><strong>Vendor performance:</strong> Verify vendor scorecard shows: 1 order, 1 on-time delivery, 4 accepted, 1 rejected, quality 80%, delivery 100%.</li>
+      <li><strong>Requisition rejection:</strong> Teacher submits requisition exceeding budget remaining. Verify 400 "Insufficient budget remaining on this line." Teacher submits within budget. Admin rejects with reason. Status=REJECTED.</li>
+      <li><strong>Visibility:</strong> Teacher sees own requisitions + can submit new. Cannot manage POs or receive goods. Admin sees all. Staff (procurement clerk) manages POs + receiving + distribution.</li>
+      <li><strong>Budget commitment release:</strong> Close the PO. Verify commitment status=RELEASED. Verify fin_budget_lines.encumbered_amount decremented. Verify remaining_amount re-increased.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified procurement lifecycle: requisition &rarr; approval &rarr; PO + budget commitment &rarr; receive + inspect &rarr; distribute + Kafka &rarr; return &rarr; vendor score &rarr; commitment release.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 27 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 12 new tables. Tenant table count: ~381.</li>
+      <li>Procurement API: ~28 endpoints with requisition approval + PO lifecycle + receiving inspection + distribution.</li>
+      <li>Budget commitment: PO issuance encumbers fin_budget_lines; PO closure releases.</li>
+      <li>Multi-level requisition approval via Cycle 7 wsk_approval_requests.</li>
+      <li>Goods receipt with per-line inspection + discrepancy logging.</li>
+      <li>Distribution to 8 operational modules via <code>prc.distribution.completed</code> Kafka emit.</li>
+      <li>Vendor performance scoring (quality % + delivery %) auto-updated on receipt.</li>
+      <li>Returns/warranty claims with resolution tracking.</li>
+      <li><code>prc.requisition.submitted</code> + <code>prc.distribution.completed</code> Kafka emits.</li>
+      <li>HANDOFF-CYCLE27.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 27 delivers the purchasing backbone that feeds every campus operations inventory. The <code>prc.distribution.completed</code> Kafka emit is the cross-module supply chain event &mdash; when items are distributed, each destination module receives an event to create its own inventory records without procurement writing to foreign tables. Cycle 28 (School Store) closes Wave 6.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 27 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M86 Procurement, 12 tables), ADR-054/061. Cross-cycle: Cycle 7 wsk_approval_requests, Cycle 26 fin_budget_lines + fin_suppliers, 8 destination modules via Kafka distribution.</p>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-18: Facilities Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.split-card{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:16px 0}
+.split-card h3{font-size:16px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.split-card p{font-size:14px;line-height:1.8;margin:0}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave D &mdash; Module Completion</div>
+    <h1>P2-18: Facilities Advanced</h1>
+    <div class="sub">Cleaning routes with ordered stop sequences and per-stop task completion tracking, custodial zone inspections with supervisor spot checks, supply audit trail with formal stocktakes and discrepancy adjustment, work order attachments (before/after photos) and parts consumption tracking, fire drill compliance logging, facilities asset lifecycle from installation through maintenance to disposal, energy meter readings with consumption trending, and space utilisation analytics. Opens Wave D.</div>
+    <span class="version">May 2026 &middot; 2 Sub-Cycles &middot; ERD v11 &middot; M65 Facilities .1 (21 tables) &middot; FAC-001..005 &middot; Phase 2 Cycle 18 &middot; Opens Wave D</span>
+  </div>
+
+  <h2 class="section-heading">Sub-Cycle Structure</h2>
+
+  <div class="split-card">
+    <h3>P2-18a &mdash; Cleaning Routes + Supply Audit + Work Order Depth (11 tables)</h3>
+    <p>Cleaning route definitions with ordered stops and task lists, custodian route assignments (one-off + recurring), route completion tracking with per-stop status and photographic evidence, issue detection → auto-ticket, supervisor zone inspections (PASS/NEEDS_IMPROVEMENT/FAIL), supply stocktakes with expected vs actual count and discrepancy adjustments, supply transaction audit trail, work order attachments (before/after photos, quotes, invoices), work order parts consumption with cost tracking.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-18b &mdash; Fire Drills + Assets + Energy + Space Utilisation (10 tables)</h3>
+    <p>Fire drill compliance logging with evacuation time tracking and building-level compliance alerting, facilities asset categories with depreciation configuration, individual asset lifecycle from installation through maintenance to decommission/disposal, asset maintenance records with cost tracking, asset disposals with value recovery, utility meters with type configuration, energy readings per meter with consumption computation, space utilisation records (occupancy counting), and space utilisation analytics.</p>
+  </div>
+
+  <h2 class="section-heading">P2-18a: Cleaning + Supply + Work Order Depth</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema (11 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>fac_cleaning_routes</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>shift TEXT NOT NULL</code> 4-value CHECK (MORNING, AFTERNOON, EVENING, OVERNIGHT), <code>zone_id UUID FK(fac_zones)</code> nullable, <code>estimated_duration_minutes INT</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name).</li>
+      <li><strong>fac_cleaning_route_stops</strong> &mdash; <code>route_id UUID FK NOT NULL</code>, <code>space_id UUID FK(fac_spaces) NOT NULL</code>, <code>stop_order INT NOT NULL</code>, <code>estimated_minutes INT</code>, <code>cleaning_tasks TEXT[] NOT NULL DEFAULT '{}'</code>. UNIQUE(route_id, stop_order). UNIQUE(route_id, space_id).</li>
+      <li><strong>fac_cleaning_route_assignments</strong> &mdash; <code>route_id UUID FK NOT NULL</code>, <code>employee_id UUID</code> (soft to hr_employees), <code>assignment_date DATE</code>, <code>is_recurring BOOLEAN DEFAULT false</code>, <code>recurrence_days INT[]</code>, <code>effective_from DATE</code>, <code>effective_to DATE</code>, <code>assigned_by UUID FK NOT NULL</code>. UNIQUE(route_id, assignment_date) WHERE is_recurring=false AND assignment_date IS NOT NULL.</li>
+      <li><strong>fac_cleaning_route_completions</strong> &mdash; <code>route_id UUID FK NOT NULL</code>, <code>assignment_id UUID FK NOT NULL</code>, <code>employee_id UUID NOT NULL</code>, <code>completion_date DATE NOT NULL</code>, <code>started_at TIMESTAMPTZ</code>, <code>completed_at TIMESTAMPTZ</code>, <code>overall_status TEXT NOT NULL DEFAULT 'NOT_STARTED'</code> 4-value CHECK (NOT_STARTED, IN_PROGRESS, COMPLETED, PARTIAL). UNIQUE(route_id, employee_id, completion_date).</li>
+      <li><strong>fac_cleaning_route_stop_completions</strong> &mdash; <code>completion_id UUID FK NOT NULL</code>, <code>stop_id UUID FK NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, COMPLETED, SKIPPED), <code>completed_at TIMESTAMPTZ</code>, <code>skip_reason TEXT</code>, <code>tasks_completed TEXT[]</code>, <code>photo_s3_keys TEXT[]</code>, <code>issues_noted TEXT</code>. UNIQUE(completion_id, stop_id). On issues_noted IS NOT NULL: emit <code>fac.route_stop.issue_noted</code> → Task Worker creates tkt_ticket.</li>
+      <li><strong>fac_zone_inspections</strong> &mdash; <code>zone_id UUID FK(fac_zones) NOT NULL</code>, <code>inspector_id UUID NOT NULL</code>, <code>inspection_date DATE NOT NULL</code>, <code>overall_rating TEXT NOT NULL</code> 3-value CHECK (PASS, NEEDS_IMPROVEMENT, FAIL), <code>notes TEXT</code>, <code>follow_up_required BOOLEAN DEFAULT false</code>, <code>follow_up_work_order_id UUID</code> (soft to fac_work_orders). INDEX(zone_id, inspection_date DESC). On FAIL: auto-creates follow-up work order.</li>
+      <li><strong>fac_supply_transactions</strong> &mdash; <code>building_id UUID FK NOT NULL</code>, <code>inventory_id UUID FK(fac_supply_inventory) NOT NULL</code>, <code>transaction_type TEXT NOT NULL</code> 5-value CHECK (RECEIPT, USAGE, ADJUSTMENT, TRANSFER, WRITE_OFF), <code>quantity_delta NUMERIC(8,2) NOT NULL</code>, <code>performed_by UUID FK NOT NULL</code>, <code>transaction_at TIMESTAMPTZ NOT NULL</code>, <code>reference_id UUID</code>, <code>notes TEXT</code>. INDEX(inventory_id, transaction_at DESC). Audit trail for all supply movements.</li>
+      <li><strong>fac_supply_stocktakes</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>building_id UUID FK NOT NULL</code>, <code>conducted_by UUID FK NOT NULL</code>, <code>stocktake_date DATE NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'IN_PROGRESS'</code> 2-value CHECK (IN_PROGRESS, COMPLETED), <code>completed_at TIMESTAMPTZ</code>. INDEX(building_id, stocktake_date DESC).</li>
+      <li><strong>fac_supply_stocktake_items</strong> &mdash; <code>stocktake_id UUID FK NOT NULL</code>, <code>inventory_id UUID FK(fac_supply_inventory) NOT NULL</code>, <code>expected_quantity NUMERIC(8,2) NOT NULL</code>, <code>actual_quantity NUMERIC(8,2) NOT NULL</code>, <code>discrepancy_notes TEXT</code>. UNIQUE(stocktake_id, inventory_id). On COMPLETED: creates ADJUSTMENT transactions for discrepancies.</li>
+      <li><strong>fac_work_order_attachments</strong> &mdash; <code>work_order_id UUID FK NOT NULL</code>, <code>s3_key TEXT NOT NULL</code>, <code>filename TEXT NOT NULL</code>, <code>attachment_type TEXT NOT NULL DEFAULT 'OTHER'</code> 6-value CHECK (PHOTO_BEFORE, PHOTO_AFTER, QUOTE, INVOICE, REPORT, OTHER), <code>uploaded_by UUID FK NOT NULL</code>, <code>uploaded_at TIMESTAMPTZ NOT NULL</code>. INDEX(work_order_id, attachment_type).</li>
+      <li><strong>fac_work_order_parts</strong> &mdash; <code>work_order_id UUID FK NOT NULL</code>, <code>part_name TEXT NOT NULL</code>, <code>quantity NUMERIC(8,2) NOT NULL</code>, <code>unit TEXT</code>, <code>unit_cost NUMERIC(8,2)</code>, <code>total_cost NUMERIC(10,2)</code>, <code>supplier TEXT</code>. INDEX(work_order_id).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 11 tables. Migration: <code>136_fac_cleaning_supply.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Seed + Services + UI + Tests (P2-18a)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>2 cleaning routes ("North Wing Evening" 6 stops, "Gymnasium AM" 3 stops). 2 assignments (1 recurring weekdays, 1 one-off). 2 completions (1 COMPLETED, 1 PARTIAL with 1 skipped stop). 8 stop completions (6 COMPLETED, 1 SKIPPED with reason, 1 with issue_noted). 2 zone inspections (1 PASS, 1 FAIL with follow-up work order). 10 supply transactions. 1 stocktake COMPLETED with 8 items (2 with discrepancies → adjustments created). 3 work order attachments (PHOTO_BEFORE, PHOTO_AFTER, INVOICE). 4 work order parts.</li>
+    </ol>
+    <div class="detail-heading">Services (~24 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>CleaningRouteService</strong> &mdash; CRUD for routes + stops (drag-reorder). <code>POST /facilities/cleaning-routes/:id/assignments</code> (assign custodian). <code>POST /facilities/cleaning-completions</code> (start route run). <code>PATCH /facilities/cleaning-completions/:id/stops/:stopId</code> (complete/skip stop with tasks + photos). On stop issue_noted: emit <code>fac.route_stop.issue_noted</code>. <code>GET /facilities/cleaning-completions</code> (daily dashboard).</li>
+      <li><strong>ZoneInspectionService</strong> &mdash; <code>POST /facilities/zone-inspections</code> (supervisor spot check), <code>GET /facilities/zone-inspections</code>. On FAIL: auto-create follow-up work order.</li>
+      <li><strong>SupplyAuditService</strong> &mdash; <code>POST /facilities/supply-transactions</code> (record receipt/usage/write-off), <code>GET /facilities/supply-transactions/:inventoryId</code>. <code>POST /facilities/stocktakes</code>, <code>POST /facilities/stocktakes/:id/items</code> (record counts), <code>POST /facilities/stocktakes/:id/complete</code> (creates ADJUSTMENT transactions for discrepancies).</li>
+      <li><strong>WorkOrderDepthService</strong> &mdash; <code>POST /facilities/work-orders/:id/attachments</code>, <code>POST /facilities/work-orders/:id/parts</code>, <code>GET /facilities/work-orders/:id/cost-summary</code> (parts + labour total).</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Cleaning Routes Manager</strong> <code>/facilities/cleaning</code> &mdash; route builder with drag-reorder stops. Assignment calendar. Custodian: mobile-friendly route completion flow (swipe through stops, mark tasks, take photos). Dashboard: completion rates, skipped stops, issues raised.</li>
+      <li><strong>Zone Inspections</strong> <code>/facilities/inspections</code> &mdash; supervisor: spot check form with rating + notes. History per zone. FAIL auto-creates work order.</li>
+      <li><strong>Supply Stocktake</strong> <code>/facilities/stocktakes</code> &mdash; start stocktake by building. Per-item: expected vs actual. Discrepancy report. Complete → adjustments applied.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-18a: 11 tables, ~24 endpoints, 1 Kafka emit. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-18b: Fire Drills + Assets + Energy + Utilisation</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Schema (10 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>fac_fire_drills</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>building_id UUID FK NOT NULL</code>, <code>drill_date DATE NOT NULL</code>, <code>drill_time TIME NOT NULL</code>, <code>duration_seconds INT NOT NULL</code>, <code>total_occupants INT NOT NULL</code>, <code>evacuation_time_seconds INT NOT NULL</code>, <code>issues_noted TEXT</code>, <code>met_target BOOLEAN</code>, <code>target_evacuation_seconds INT</code>, <code>conducted_by UUID FK NOT NULL</code>. INDEX(building_id, drill_date DESC). Alert: if no drill for a building in 90 days.</li>
+      <li><strong>fac_asset_categories</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>depreciation_years INT</code>, <code>maintenance_interval_months INT</code>. UNIQUE(school_id, name). Categories: HVAC, Plumbing, Electrical, Elevator, Fire Safety, etc.</li>
+      <li><strong>fac_assets</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>category_id UUID FK NOT NULL</code>, <code>building_id UUID FK NOT NULL</code>, <code>space_id UUID FK</code>, <code>name TEXT NOT NULL</code>, <code>make TEXT</code>, <code>model TEXT</code>, <code>serial_number TEXT</code>, <code>install_date DATE</code>, <code>warranty_expiry DATE</code>, <code>expected_lifespan_years INT</code>, <code>replacement_cost_estimate NUMERIC(10,2)</code>, <code>replacement_priority TEXT</code> 4-value CHECK (LOW, MEDIUM, HIGH, CRITICAL), <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, UNDER_MAINTENANCE, DECOMMISSIONED). UNIQUE(school_id, serial_number) WHERE serial_number IS NOT NULL. INDEX(school_id, status).</li>
+      <li><strong>fac_asset_maintenance_records</strong> &mdash; <code>asset_id UUID FK NOT NULL</code>, <code>maintenance_type TEXT NOT NULL</code> 4-value CHECK (SCHEDULED, CORRECTIVE, EMERGENCY, INSPECTION), <code>performed_date DATE NOT NULL</code>, <code>performed_by TEXT NOT NULL</code>, <code>cost NUMERIC(10,2)</code>, <code>description TEXT NOT NULL</code>, <code>next_maintenance_date DATE</code>. INDEX(asset_id, performed_date DESC). Alert: overdue maintenance when next_maintenance_date &lt; today.</li>
+      <li><strong>fac_asset_disposals</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>asset_id UUID FK NOT NULL UNIQUE</code>, <code>disposal_method TEXT NOT NULL</code> 6-value CHECK (AUCTION, DONATION, SKIP, TRADE_IN, SCRAP, TRANSFER), <code>disposal_date DATE NOT NULL</code>, <code>value_recovered NUMERIC(10,2)</code>, <code>recipient_name TEXT</code>, <code>disposed_by UUID FK NOT NULL</code>, <code>authorised_by UUID FK NOT NULL</code>, <code>notes TEXT</code>. On INSERT: fac_assets.status must be DECOMMISSIONED.</li>
+      <li><strong>fac_utility_meters</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>building_id UUID FK NOT NULL</code>, <code>meter_name TEXT NOT NULL</code>, <code>utility_type TEXT NOT NULL</code> 5-value CHECK (ELECTRICITY, GAS, WATER, HEATING_OIL, SOLAR), <code>meter_reference TEXT</code>, <code>unit TEXT NOT NULL</code> (kWh, therms, gallons, litres), <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, meter_name).</li>
+      <li><strong>fac_energy_readings</strong> &mdash; <code>meter_id UUID FK NOT NULL</code>, <code>reading_date DATE NOT NULL</code>, <code>reading_value NUMERIC(12,2) NOT NULL</code>, <code>recorded_by UUID FK NOT NULL</code>, <code>consumption NUMERIC(10,2)</code> (auto-computed: current reading minus previous reading for this meter), <code>cost_estimate NUMERIC(10,2)</code>. UNIQUE(meter_id, reading_date). INDEX(meter_id, reading_date DESC).</li>
+      <li><strong>fac_energy_targets</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>utility_type TEXT NOT NULL</code>, <code>target_period TEXT NOT NULL</code> 2-value CHECK (MONTHLY, ANNUAL), <code>target_value NUMERIC(12,2) NOT NULL</code>, <code>academic_year TEXT</code>. UNIQUE(school_id, utility_type, target_period, academic_year). Baseline targets for consumption trending.</li>
+      <li><strong>fac_space_utilization_records</strong> &mdash; <code>space_id UUID FK(fac_spaces) NOT NULL</code>, <code>record_date DATE NOT NULL</code>, <code>period_id UUID FK(sch_periods)</code>, <code>occupancy_count INT</code>, <code>capacity INT</code>, <code>utilisation_rate NUMERIC(5,4)</code> (occupancy/capacity). UNIQUE(space_id, record_date, period_id). Populated from attendance data or manual counts.</li>
+      <li><strong>fac_sustainability_initiatives</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>category TEXT NOT NULL</code> 5-value CHECK (ENERGY, WATER, WASTE, TRANSPORT, BIODIVERSITY), <code>start_date DATE NOT NULL</code>, <code>target_reduction_percent NUMERIC(5,2)</code>, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, COMPLETED, CANCELLED), <code>outcome_notes TEXT</code>. UNIQUE(school_id, name).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 10 tables. Migration: <code>137_fac_assets_energy.sql</code>. Total P2-18 tables: 21.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed + Services + UI + Tests (P2-18b)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>2 fire drills (1 met target, 1 did not — issues noted). 3 asset categories (HVAC, Electrical, Elevator). 8 assets (5 ACTIVE, 2 UNDER_MAINTENANCE, 1 DECOMMISSIONED). 5 maintenance records (1 overdue next maintenance). 1 disposal (DECOMMISSIONED elevator → SCRAP). 3 utility meters (electricity, gas, water). 12 energy readings across 3 meters with auto-computed consumption. 2 energy targets. 10 space utilisation records. 2 sustainability initiatives.</li>
+    </ol>
+    <div class="detail-heading">Services (~22 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>FireDrillService</strong> &mdash; <code>POST /facilities/fire-drills</code>, <code>GET /facilities/fire-drills</code>, <code>GET /facilities/fire-drills/compliance</code> (buildings with no drill in 90 days). Emits <code>fac.fire_drill.overdue</code>.</li>
+      <li><strong>AssetService</strong> &mdash; CRUD for categories + assets. <code>POST /facilities/assets/:id/maintenance</code> (record maintenance + set next_maintenance_date). <code>PATCH /facilities/assets/:id/decommission</code> (ACTIVE → DECOMMISSIONED). <code>POST /facilities/assets/:id/dispose</code> (creates disposal record; validates status=DECOMMISSIONED). <code>GET /facilities/assets/maintenance-overdue</code>. <code>GET /facilities/assets/replacement-planning</code> (approaching end of lifespan, sorted by priority).</li>
+      <li><strong>EnergyService</strong> &mdash; CRUD for meters + targets. <code>POST /facilities/energy-readings</code> (record reading; auto-compute consumption from previous reading). <code>GET /facilities/energy/:meterId/trend</code> (consumption chart). <code>GET /facilities/energy/summary</code> (school-wide: actual vs target by utility type).</li>
+      <li><strong>SpaceUtilisationService</strong> &mdash; <code>POST /facilities/space-utilisation</code> (record occupancy), <code>GET /facilities/space-utilisation/:spaceId</code> (utilisation trend), <code>GET /facilities/space-utilisation/underused</code> (spaces consistently below 50% utilisation — opportunities for consolidation).</li>
+      <li><strong>SustainabilityService</strong> &mdash; CRUD for initiatives. <code>GET /facilities/sustainability/dashboard</code> (active initiatives with progress).</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Fire Drill Log</strong> <code>/facilities/fire-drills</code> &mdash; drill history per building. Compliance status (green=recent, rose=overdue). Log new drill with evacuation timer.</li>
+      <li><strong>Asset Lifecycle Manager</strong> <code>/facilities/assets</code> &mdash; asset registry with status pills. Per-asset: maintenance history, warranty status, replacement planning. Decommission + disposal workflow.</li>
+      <li><strong>Energy Dashboard</strong> <code>/facilities/energy</code> &mdash; consumption charts per meter. Actual vs target gauges. Cost trending. Annual comparison.</li>
+      <li><strong>Space Utilisation</strong> <code>/facilities/utilisation</code> &mdash; heatmap: rooms × periods with utilisation rate colour coding. Underused space report.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-18b: 10 tables, ~22 endpoints, 1 Kafka emit. Create all peer review docs. Total P2-18: 21 tables, ~46 endpoints.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist (Full P2-18)</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 21 new tables. Tenant table count: ~687.</li>
+      <li>Facilities API: ~46 new endpoints across cleaning, supply, assets, energy, utilisation.</li>
+      <li>Cleaning routes with ordered stops, per-stop task completion, issue → auto-ticket.</li>
+      <li>Zone inspections with FAIL → auto-work-order.</li>
+      <li>Supply stocktakes with expected vs actual + discrepancy adjustments.</li>
+      <li>Work order attachments (before/after photos) + parts cost tracking.</li>
+      <li>Fire drill compliance with 90-day building-level alerting.</li>
+      <li>Asset lifecycle: install → maintain → decommission → dispose with value recovery.</li>
+      <li>Energy readings with auto-computed consumption + target comparison.</li>
+      <li>Space utilisation analytics with underused room detection.</li>
+      <li><code>fac.route_stop.issue_noted</code> + <code>fac.fire_drill.overdue</code> Kafka emits.</li>
+      <li>HANDOFF-P2C18.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave D open.</strong></li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 18 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M65 Facilities deferred tables, 21 tables). Functions: FAC-001..005. Cross-cycle: Cycle 21 fac_buildings + fac_spaces + fac_zones + fac_supply_inventory + fac_work_orders, Cycle 8 tkt_tickets for auto-ticket from cleaning issues. Pre-split into 2 sub-cycles. Opens Wave D.</p>
+  </div>
+</div>
+</body>
+</html>

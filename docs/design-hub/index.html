@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Design Hub</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--bg:#f7f8fa;--surface:#fff;--text:#1e1e2e;--text-muted:#64748b;--border:#e2e6ea;--accent:#1a5276;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--green:#16a34a;--green-bg:#dcfce7;--amber:#d97706;--amber-bg:#fef3c7;--blue:#2563eb;--blue-bg:#dbeafe;--red:#dc2626;--red-bg:#fee2e2;--purple:#7c3aed;--purple-bg:#ede9fe;--teal:#0d9488;--teal-bg:#ccfbf1;--nav-h:52px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;line-height:1.6}
+.topbar{background:var(--accent);height:var(--nav-h);display:flex;align-items:center;padding:0 32px;position:sticky;top:0;z-index:100;gap:24px}
+.topbar .brand{font-family:'DM Serif Display',serif;color:#fff;font-size:17px;letter-spacing:.5px}
+.topbar .gh{color:rgba(255,255,255,.7);font-size:13px;text-decoration:none;margin-left:auto}
+.topbar .gh:hover{color:#fff}
+.hero{background:linear-gradient(135deg,#1a5276 0%,#2e86c1 60%,#3d7ab5 100%);color:#fff;padding:48px 32px 32px;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;right:-80px;top:-80px;width:320px;height:320px;border-radius:50%;background:rgba(255,255,255,.04)}
+.hero h1{font-family:'DM Serif Display',serif;font-size:36px;font-weight:400;margin-bottom:6px}
+.hero .tagline{font-size:15px;color:rgba(255,255,255,.75);max-width:600px;margin-bottom:20px}
+.stats-row{display:flex;flex-wrap:wrap;gap:10px}
+.stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;backdrop-filter:blur(4px)}
+.stat .num{font-family:'DM Serif Display',serif;font-size:22px;display:block;line-height:1.1}
+.stat .label{font-weight:400;color:rgba(255,255,255,.7);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.tab-bar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 32px;gap:0;position:sticky;top:var(--nav-h);z-index:90;overflow-x:auto}
+.tab-btn{background:none;border:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;color:var(--text-muted);padding:14px 20px;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tab-content{display:none;padding:32px;max-width:1100px;margin:0 auto}
+.tab-content.active{display:block}
+h2.sec{font-family:'DM Serif Display',serif;font-size:22px;color:var(--accent);margin:32px 0 12px;font-weight:400}
+h2.sec:first-child{margin-top:0}
+p.body{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:12px}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:16px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;transition:box-shadow .15s}
+.card:hover{box-shadow:0 4px 12px rgba(0,0,0,.06)}
+.card h4{font-size:15px;font-weight:600;margin-bottom:4px}
+.card .desc{font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:8px}
+.card .meta{font-size:11px;color:var(--accent-mid);font-weight:600}
+a.card{text-decoration:none;color:inherit}
+.pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.3px;vertical-align:middle}
+.pill-green{background:var(--green-bg);color:var(--green)}
+.pill-blue{background:var(--blue-bg);color:var(--blue)}
+.pill-amber{background:var(--amber-bg);color:var(--amber)}
+.pill-red{background:var(--red-bg);color:var(--red)}
+.pill-purple{background:var(--purple-bg);color:var(--purple)}
+.pill-teal{background:var(--teal-bg);color:var(--teal)}
+.pill-gray{background:#f1f5f9;color:#64748b}
+.status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:16px 0}
+.status-card{border-radius:10px;padding:18px 20px;border-left:4px solid}
+.status-card h4{font-size:14px;font-weight:700;margin-bottom:4px}
+.status-card p{font-size:13px;line-height:1.6;color:var(--text)}
+.sc-green{background:var(--green-bg);border-color:var(--green)}.sc-green h4{color:var(--green)}
+.sc-blue{background:var(--blue-bg);border-color:var(--blue)}.sc-blue h4{color:var(--blue)}
+.sc-amber{background:var(--amber-bg);border-color:var(--amber)}.sc-amber h4{color:var(--amber)}
+.progress-wrap{margin:16px 0}
+.progress-label{display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px}
+.progress-bar{height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden}
+.progress-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--accent),var(--accent-mid));transition:width .4s}
+.mod-group{margin:20px 0}
+.mod-group-header{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.mod-group-header h3{font-size:16px;font-weight:600;color:var(--accent)}
+.mod-group-header .count{font-size:12px;color:var(--text-muted)}
+.mod-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}
+.mod-table th{background:var(--accent-light);padding:8px 12px;text-align:left;font-weight:600;color:var(--accent);border:1px solid var(--border)}
+.mod-table td{padding:8px 12px;border:1px solid var(--border);vertical-align:top}
+.mod-table code{font-size:11px;background:#f0f0f0;padding:1px 4px;border-radius:3px}
+.wave{margin:24px 0;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.wave-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.wave-header h3{font-size:16px;font-weight:700}
+.wave-header .wave-meta{font-size:12px;color:var(--text-muted)}
+.wave-header .chevron{transition:transform .2s;font-size:14px;color:var(--text-muted)}
+.wave.open .chevron{transform:rotate(180deg)}
+.wave-body{padding:0 20px 16px;display:none}
+.wave.open .wave-body{display:block}
+.w-green .wave-header{background:var(--green-bg)}.w-green .wave-header h3{color:var(--green)}
+.w-blue .wave-header{background:var(--blue-bg)}.w-blue .wave-header h3{color:var(--blue)}
+.w-amber .wave-header{background:var(--amber-bg)}.w-amber .wave-header h3{color:var(--amber)}
+.w-purple .wave-header{background:var(--purple-bg)}.w-purple .wave-header h3{color:var(--purple)}
+.w-teal .wave-header{background:var(--teal-bg)}.w-teal .wave-header h3{color:var(--teal)}
+.w-red .wave-header{background:var(--red-bg)}.w-red .wave-header h3{color:var(--red)}
+.w-gray .wave-header{background:#f1f5f9}.w-gray .wave-header h3{color:#475569}
+.cycle-row{display:grid;grid-template-columns:60px 1fr 100px 140px;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);align-items:center;font-size:13px}
+.cycle-row:last-child{border-bottom:none}
+.cycle-num{font-family:'DM Serif Display',serif;font-size:18px;color:var(--accent-mid);opacity:.5}
+.cycle-title{font-weight:600}
+.cycle-tables{color:var(--text-muted);font-size:12px}
+.cycle-links{display:flex;gap:6px;flex-wrap:wrap}
+.cycle-links a{font-size:11px;padding:2px 8px;border-radius:4px;text-decoration:none;font-weight:600}
+.cl-plan{background:var(--accent-light);color:var(--accent)}
+.cl-cat{background:var(--green-bg);color:var(--green)}
+.log-entry{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin:12px 0}
+.log-entry h4{font-size:15px;font-weight:600;margin-bottom:6px}
+.log-entry .log-meta{font-size:12px;color:var(--text-muted);margin-bottom:8px}
+.log-entry .log-desc{font-size:13px;line-height:1.7}
+.log-links{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.log-links a{font-size:12px;padding:4px 12px;border-radius:6px;text-decoration:none;font-weight:600;border:1px solid var(--border);color:var(--accent);background:var(--surface)}
+.log-links a:hover{background:var(--accent-light)}
+@media(max-width:768px){
+  .hero{padding:32px 20px 24px}.hero h1{font-size:28px}
+  .tab-bar{padding:0 16px}.tab-btn{padding:12px 14px;font-size:13px}
+  .tab-content{padding:20px 16px}
+  .cycle-row{grid-template-columns:40px 1fr;gap:4px}.cycle-tables,.cycle-links{grid-column:1/-1}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand">CampusOS</span>
+  <a class="gh" href="https://github.com/adamtromsness/campusos" target="_blank">github.com/adamtromsness/campusos</a>
+</div>
+
+<div class="hero">
+  <h1>Design Hub</h1>
+  <p class="tagline">Cloud-native, multi-tenant School Operating System. 840 tables, 38+ modules, 76 ADRs. Phase 1 complete (34 cycles). Phase 2 complete (29 cycles). Hardening sprint in progress (4 cycles).</p>
+  <div class="stats-row">
+    <div class="stat"><span class="num">~840</span><span class="label">Tables Built</span></div>
+    <div class="stat"><span class="num">2,333</span><span class="label">Endpoints</span></div>
+    <div class="stat"><span class="num">600+</span><span class="label">UI Pages</span></div>
+    <div class="stat"><span class="num">73</span><span class="label">Kafka Consumers</span></div>
+    <div class="stat"><span class="num">63</span><span class="label">Cycles Complete</span></div>
+    <div class="stat"><span class="num">840</span><span class="label">ERD Tables</span></div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="overview">Overview</button>
+  <button class="tab-btn" data-tab="architecture">Architecture</button>
+  <button class="tab-btn" data-tab="modules">Modules</button>
+  <button class="tab-btn" data-tab="roadmap">Roadmap</button>
+  <button class="tab-btn" data-tab="buildlog">Build Log</button>
+</div>
+
+<!-- ═══════ OVERVIEW ═══════ -->
+<div id="overview" class="tab-content active">
+  <div class="status-grid">
+    <div class="status-card sc-green">
+      <h4>Phase 1 + Phase 2 Complete &mdash; 63 Cycles</h4>
+      <p>~840 tables (100%), 2,333 endpoints, 600+ pages, 149 Kafka topics. All 38 modules built. Three-review audit completed (Claude + ChatGPT + Claude Code).</p>
+    </div>
+    <div class="status-card" style="background:#fee2e2;border-color:#dc2626">
+      <h4 style="color:#dc2626">Hardening Sprint &mdash; P2-H1 through P2-H4</h4>
+      <p>114 audit findings mapped across 4 hardening cycles. Security, schema, Kafka, financial integrity, test coverage. No new feature tables. <a href="../campusos-hardening-cycles.html" style="color:#dc2626;font-weight:600;">Hardening Plan &rarr;</a></p>
+    </div>
+    <div class="status-card sc-amber">
+      <h4>Gate: Phase 3 blocked until hardening passes re-review</h4>
+      <p>Second-round three-review audit after P2-H4. Target: 0 BLOCKING, test coverage &ge;80%, all IMMUTABLE triggers live. <a href="../campusos-phase3-roadmap.html" style="color:var(--accent);font-weight:600;">Phase 3 Roadmap &rarr;</a></p>
+    </div>
+  </div>
+
+  <h2 class="sec">Build Progress</h2>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>Tables Built</span><span>~840 / 840 (100%)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>Phase 1 Cycles</span><span>34 / 34 (100% &mdash; Complete)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>Phase 2 Cycles</span><span>29 / 29 (100% &mdash; Complete)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>Hardening Sprint</span><span>0 / 4 (P2-H1 next)</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:0%;background:linear-gradient(90deg,#dc2626,#ef4444)"></div></div>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-label"><span>Three-Review Audit</span><span>Round 1 complete &middot; Round 2 after P2-H4</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:50%;background:linear-gradient(90deg,#d97706,#f59e0b)"></div></div>
+  </div>
+
+  <h2 class="sec">What is CampusOS?</h2>
+  <p class="body">CampusOS is a cloud-native, multi-tenant School Operating System designed to replace the patchwork of disconnected tools that schools use today. It covers the complete operational surface of a K-12 school: student information, classroom management, scheduling, health records, counselling, library, athletics, transportation, food service, finance, communications, and more &mdash; all in one platform with a unified identity model, shared permission framework, and event-driven architecture.</p>
+  <p class="body">The system is built as a modular monolith (NestJS + Next.js + PostgreSQL + Kafka) with 6 extracted services for compute-intensive workloads (video processing, AI inference, scheduling solver, transport dispatch, notification push, emergency alert). Multi-tenancy uses schema-per-tenant PostgreSQL with a platform schema for shared identity and routing.</p>
+  <p class="body"><strong>Phase 1 (34 cycles, 8 waves) is complete</strong> &mdash; 418 tables covering every core module, plus observability instrumentation and multi-region disaster recovery. <strong>Phase 2 (29 cycles, 4 waves) is complete</strong> &mdash; all remaining ERD tables built across .1 cycles and new modules (visitor management, incident &amp; emergency, HR depth, events &amp; ticketing, alumni, accreditation, parent engagement). A <strong>three-review audit</strong> (Claude plan audit + ChatGPT architectural review + Claude Code audit) identified 114 findings, now being addressed in a <strong>4-cycle hardening sprint</strong> (P2-H1 through P2-H4) before Phase 3 begins.</p>
+</div>
+
+<!-- ═══════ ARCHITECTURE ═══════ -->
+<div id="architecture" class="tab-content">
+  <h2 class="sec">Frozen Design Documents</h2>
+  <p class="body">These documents are the authoritative design baseline. They are frozen at v10/v11 and drive all implementation cycles.</p>
+  <div class="card-grid">
+    <a href="../architecture/campusos-erd-v11.html" class="card"><span class="pill pill-blue">v11 BUILD BASELINE</span><h4>Entity-Relationship Design</h4><div class="desc">Complete unified schema: 840 tables across 38 modules with full column definitions, constraints, indexes, partitioning strategies, and Kafka event contracts.</div><div class="meta">840 tables &middot; 38 modules &middot; 76 ADRs</div></a>
+    <a href="../architecture/campusos-architecture-review-v10.html" class="card"><span class="pill pill-gray">FROZEN</span><h4>Architecture Design Review</h4><div class="desc">30 sections covering system architecture, multi-tenancy, IAM, event model, scheduling engine, finance backbone, scalability, and security posture.</div><div class="meta">30 sections &middot; Modular monolith + 6 extracted services</div></a>
+    <a href="../architecture/campusos-function-library-v11.html" class="card"><span class="pill pill-gray">FROZEN</span><h4>Function Library</h4><div class="desc">Every permission-gated function across all 38 modules. 150 function codes with 3-tier access (read / write / admin) defining the IAM surface.</div><div class="meta">150 functions &middot; 450 permission codes</div></a>
+    <a href="../architecture/campusos-business-strategy.html" class="card"><span class="pill pill-gray">FROZEN</span><h4>Business Strategy</h4><div class="desc">Market analysis, competitive positioning, go-to-market strategy, and product vision for the CampusOS platform.</div><div class="meta">Strategy &middot; Market &middot; GTM</div></a>
+    <a href="../campusos-phase3-roadmap.html" class="card"><span class="pill pill-blue">NEW</span><h4>Phase 3 Roadmap</h4><div class="desc">Infrastructure, Integration &amp; Ecosystem. 6 extracted services, full finance, DPO compliance, multi-region, mobile apps, marketplace launch. 4 themes, 15 projects.</div><div class="meta">~12 months &middot; Post Phase 2</div></a>
+    <a href="../architecture/campusos-dev-deployment-plan.html" class="card"><span class="pill pill-gray">FROZEN</span><h4>Development &amp; Deployment Plan</h4><div class="desc">Infrastructure architecture, CI/CD pipeline, environment strategy, and operational runbook for the CampusOS platform.</div><div class="meta">DevOps &middot; Infrastructure &middot; CI/CD</div></a>
+    <a href="../plans/phase2/campusos-phase2-build-plan.html" class="card"><span class="pill pill-purple">PHASE 2</span><h4>Phase 2 Build Plan</h4><div class="desc">30 cycles across 4 waves completing the remaining 422 tables. Visitor management, incidents, HR depth, payments, classroom AI, and full module completion.</div><div class="meta">30 cycles &middot; 4 waves &middot; 422 tables</div></a>
+    <a href="../architecture/campusos-school-configuration-admin.html" class="card"><span class="pill pill-teal">ADMIN</span><h4>School Configuration Admin</h4><div class="desc">Three organizational structures (Facility, Academic, Position) with CRUD, hierarchy views, assignments, and an 8-step setup wizard for onboarding.</div><div class="meta">12 pages &middot; 9 endpoints &middot; 0 new tables</div></a>
+    <a href="../reviews/campusos-phase2-completion-report.html" class="card"><span class="pill pill-red">AUDIT</span><h4>Phase 2 Completion Report</h4><div class="desc">Merged findings from Claude Plan Audit + ChatGPT Architectural Review + Claude Code Audit. 0 BLOCKING plan-level, 11 IMPORTANT, 8 ADVISORY. Code audit: 41 BLOCKING, 35 MAJOR.</div><div class="meta">3 reviewers &middot; 114 findings &middot; PASS WITH CONDITIONS</div></a>
+    <a href="../campusos-hardening-cycles.html" class="card"><span class="pill pill-red">HARDENING</span><h4>Hardening Cycles (P2-H1–H4)</h4><div class="desc">4 hardening cycles addressing all 114 findings: school-scope leaks, IMMUTABLE triggers, Kafka wiring, financial integrity, test coverage pyramid. No new feature tables.</div><div class="meta">~6–8 weeks &middot; Gate for Phase 3</div></a>
+    <a href="../reviews/campusos-review-context-package.html" class="card"><span class="pill pill-gray">REVIEW</span><h4>Review Context Package</h4><div class="desc">Comprehensive system summary for external reviewers. Cross-module event map, IMMUTABLE tables, atomic operations, platform/tenant schema split, ChatGPT review checklist.</div><div class="meta">For ChatGPT &middot; Claude Code audit prompt</div></a>
+  </div>
+
+  <h2 class="sec">Key Architectural Decisions</h2>
+  <div class="card-grid">
+    <div class="card"><h4>ADR-001: Soft Cross-Schema Refs</h4><div class="desc">Tenant tables reference platform schema via application-layer validation, not DB-enforced FKs. Enables independent schema evolution.</div></div>
+    <div class="card"><h4>ADR-008: CQRS-Lite</h4><div class="desc">Domain modules write to operational tables. Background workers materialise read models into rpt_* tables for dashboards and analytics.</div></div>
+    <div class="card"><h4>ADR-010: Immutable Audit</h4><div class="desc">Audit tables (referral_activity, health_access_log, etc.) have no UPDATE/DELETE at the service layer. Service-side discipline, not schema triggers.</div></div>
+    <div class="card"><h4>ADR-030: IEP Accommodation Read Model</h4><div class="desc">Teachers read sis_student_active_accommodations populated by Kafka consumer. They never touch hlth_* tables directly.</div></div>
+    <div class="card"><h4>ADR-055: Universal Person Identity</h4><div class="desc">iam_person is the universal human identity. Domain tables use FK(iam_person) for human refs, FK(platform_users) only for auth/audit.</div></div>
+    <div class="card"><h4>ADR-057: Platform Event Model</h4><div class="desc">Standard Kafka envelope with event_id, event_type, tenant_id, source_module, correlation_id, payload. All emits follow this shape.</div></div>
+  </div>
+
+  <h2 class="sec">Technology Stack</h2>
+  <p class="body"><strong>Backend:</strong> NestJS (Node.js 22) &middot; <strong>Frontend:</strong> Next.js 14 (App Router) + React + Tailwind &middot; <strong>Database:</strong> PostgreSQL 16 (schema-per-tenant) &middot; <strong>Events:</strong> Kafka (Redpanda in dev) &middot; <strong>Cache:</strong> Redis &middot; <strong>Monorepo:</strong> pnpm workspaces &middot; <strong>CI:</strong> GitHub Actions &middot; <strong>Infra:</strong> Docker Desktop (dev), AWS ECS (prod target)</p>
+</div>
+
+<!-- ═══════ MODULES ═══════ -->
+<div id="modules" class="tab-content">
+  <h2 class="sec">38 Modules by Domain Group</h2>
+  <p class="body">CampusOS is organised into 9 domain groups. Each module has a dedicated table prefix and belongs to a delivery wave. Modules in green are fully built; blue are in progress; gray are planned.</p>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Platform &amp; Identity</h3><span class="count">1 module &middot; 48 tables</span></div>
+    <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M10 Platform</td><td><code>platform.*</code></td><td>48</td><td><span class="pill pill-green">Built</span></td><td>Tenant routing, IAM, entity cache, families, district policies</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Academic Core</h3><span class="count">5 modules &middot; 139 tables</span></div>
+    <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M20 SIS</td><td><code>sis_</code></td><td>42</td><td><span class="pill pill-green">Built</span></td><td>Students, enrolments, attendance, grades, guardians, discipline</td></tr>
+      <tr><td>M21 Classroom</td><td><code>cls_</code></td><td>38</td><td><span class="pill pill-green">Built</span></td><td>Lessons, assignments, grading, AI tutoring, hall passes</td></tr>
+      <tr><td>M22 Scheduling</td><td><code>sch_</code></td><td>32</td><td><span class="pill pill-green">Built</span></td><td>Timetables, bell schedules, cover arrangements, course selection</td></tr>
+      <tr><td>M25 Curriculum</td><td><code>cur_</code></td><td>14</td><td><span class="pill pill-green">Built (11/11)</span></td><td>Curriculum maps, units, standards alignment</td></tr>
+      <tr><td>M26 Portfolio</td><td><code>pfl_</code></td><td>13</td><td><span class="pill pill-green">Built (5/5)</span></td><td>Student portfolios, achievements, sharing</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Student Support</h3><span class="count">2 modules &middot; 42 tables</span></div>
+    <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M23 Health</td><td><code>hlth_</code></td><td>17</td><td><span class="pill pill-green">Built (14/17)</span></td><td>Health records, medications, IEP/504, nurse visits, screenings, dietary</td></tr>
+      <tr><td>M27 Student Services</td><td><code>svc_</code></td><td>25</td><td><span class="pill pill-green">Built (23/25)</span></td><td>Counselling, referrals, MTSS/RTI, behaviour plans, wellbeing, care, reporting</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Library &amp; Enrichment</h3><span class="count">3 modules &middot; 74 tables</span></div>
+    <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M24 Library</td><td><code>lib_</code></td><td>20</td><td><span class="pill pill-green">Built (14/20)</span></td><td>Catalogue, circulation, reading programmes, reviews</td></tr>
+      <tr><td>M64 Clubs &amp; Student Life</td><td><code>ext_</code></td><td>22</td><td><span class="pill pill-green">Built (16/22)</span></td><td>Clubs, student government, elections, field trips</td></tr>
+      <tr><td>M66 Athletics</td><td><code>ath_</code></td><td>32</td><td><span class="pill pill-green">Built (14/32)</span></td><td>Sports, seasons, rosters, eligibility, officials, game scheduling</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Communications</h3><span class="count">3 modules &middot; 57 tables</span></div>
+    <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M40 Communications</td><td><code>msg_</code></td><td>28</td><td><span class="pill pill-green">Built (Cycle 3+14)</span></td><td>Messaging, announcements, notifications, push tokens, content moderation</td></tr>
+      <tr><td>M41 Meetings</td><td><code>mtg_</code></td><td>18</td><td><span class="pill pill-green">Built (11/13)</span></td><td>Video meetings, AI minutes, parent-teacher conferences</td></tr>
+      <tr><td>M42 Publications</td><td><code>pub_</code></td><td>11</td><td><span class="pill pill-green">Built (11/15)</span></td><td>School publications, newsletters, collaborative publishing</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Campus Operations</h3><span class="count">5 modules &middot; 145 tables</span></div>
+    <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M60 Service Tickets</td><td><code>tkt_</code></td><td>14</td><td><span class="pill pill-green">Built</span></td><td>Shared reactive ticketing &mdash; IT, facilities, HR</td></tr>
+      <tr><td>M61 Transportation</td><td><code>trn_</code></td><td>38</td><td><span class="pill pill-green">Built (16/38)</span></td><td>Routes, vehicles, driver app, fleet management, trip logs</td></tr>
+      <tr><td>M62 IT Infrastructure</td><td><code>tech_</code></td><td>34</td><td><span class="pill pill-green">Built (16/26)</span></td><td>Device fleet, MDM, licensing, credential vault, VOIP</td></tr>
+      <tr><td>M63 Food Service</td><td><code>fds_</code></td><td>32</td><td><span class="pill pill-green">Built (16/31)</span></td><td>POS, menus, dietary profiles, NSLP eligibility, production</td></tr>
+      <tr><td>M65 Facilities</td><td><code>fac_</code></td><td>27</td><td><span class="pill pill-green">Built (16/37)</span></td><td>Spaces, work orders, inspections, safety, occupancy</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>HR &amp; Staffing</h3><span class="count">1 module &middot; 42 tables</span></div>
+    <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M17 Human Resources</td><td><code>hr_</code></td><td>42</td><td><span class="pill pill-green">Partial (Cycle 4)</span></td><td>Employee records, leave, recruitment, training, certifications, appraisals</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Commerce &amp; Finance</h3><span class="count">4 modules &middot; 77 tables</span></div>
+    <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M81 Enrolment</td><td><code>enr_</code></td><td>28</td><td><span class="pill pill-green">Built (16/25)</span></td><td>Applications, tours, admission workflow, lottery, waitlist</td></tr>
+      <tr><td>M84 Payments &amp; Billing</td><td><code>pay_</code></td><td>28</td><td><span class="pill pill-green">Partial (Cycle 6)</span></td><td>Family accounts, invoices, payments, fee schedules, Stripe</td></tr>
+      <tr><td>M83 Finance &amp; Accounting</td><td><code>fin_</code></td><td>9</td><td><span class="pill pill-green">Built (14/14)</span></td><td>GL, AP, AR, fund accounting, budget management</td></tr>
+      <tr><td>M86 Procurement</td><td><code>prc_</code></td><td>12</td><td><span class="pill pill-green">Built (12/12)</span></td><td>Requisitions, POs, goods receipt, budget commitments</td></tr>
+    </table>
+  </div>
+
+  <div class="mod-group">
+    <div class="mod-group-header"><h3>Platform Services</h3><span class="count">4 modules &middot; 73 tables</span></div>
+    <table class="mod-table"><tr><th>Module</th><th>Prefix</th><th>Tables</th><th>Status</th><th>Scope</th></tr>
+      <tr><td>M15 Task Management</td><td><code>wsk_</code></td><td>12</td><td><span class="pill pill-green">Built</span></td><td>Tasks, workflows, approval chains, SLA tracking</td></tr>
+      <tr><td>M67 School Store</td><td><code>str_</code></td><td>14</td><td><span class="pill pill-green">Built (9/9)</span></td><td>Products, inventory, orders, fulfilment</td></tr>
+      <tr><td>M103 Groups &amp; Communities</td><td><code>grp_</code></td><td>13</td><td><span class="pill pill-green">Built (7/13)</span></td><td>Groups, announcements, events, communities</td></tr>
+      <tr><td>M110 Analytics</td><td><code>rpt_</code></td><td>34</td><td><span class="pill pill-green">Built (16/34)</span></td><td>Read models, dashboards, district analytics, reporting</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════ ROADMAP ═══════ -->
+<div id="roadmap" class="tab-content">
+  <h2 class="sec">Phase 1 &mdash; Core Roadmap (Complete)</h2>
+  <p class="body">34 cycles across 8 waves. All complete. Click any wave to expand and view cycles.</p>
+
+  <!-- WAVE 1 -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 1 &mdash; Core Operations</h3>
+      <span class="wave-meta">9 cycles &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">0</span><span class="cycle-title">Platform Bootstrap <span class="pill pill-green">Done</span></span><span class="cycle-tables">48 platform</span><span class="cycle-links"><a href="campusos-cycle0-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">1</span><span class="cycle-title">SIS Core <span class="pill pill-green">Done</span></span><span class="cycle-tables">18 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle1-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">2</span><span class="cycle-title">Classroom &amp; Grades <span class="pill pill-green">Done</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle2-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">3</span><span class="cycle-title">Notifications &amp; Calendar <span class="pill pill-green">Done</span></span><span class="cycle-tables">12 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle3-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">4</span><span class="cycle-title">HR &amp; Employee Records <span class="pill pill-green">Done</span></span><span class="cycle-tables">10 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle4-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">5</span><span class="cycle-title">Academic Scheduling <span class="pill pill-green">Done</span></span><span class="cycle-tables">12 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle5-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">6</span><span class="cycle-title">Payments &amp; Billing <span class="pill pill-green">Done</span></span><span class="cycle-tables">11 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle6-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">7</span><span class="cycle-title">Task Management &amp; Workflows <span class="pill pill-green">Done</span></span><span class="cycle-tables">6 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle7-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">8</span><span class="cycle-title">Service Tickets <span class="pill pill-green">Done</span></span><span class="cycle-tables">8 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle8-implementation-plan.html" class="cl-plan">Plan</a></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 2 -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 2 &mdash; Student Services &amp; Enrichment</h3>
+      <span class="wave-meta">6 cycles &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">9</span><span class="cycle-title">Behaviour &amp; Discipline <span class="pill pill-green">Done</span></span><span class="cycle-tables">7 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle9-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle9-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">10</span><span class="cycle-title">Health &amp; Wellness <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle10-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle10-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">11</span><span class="cycle-title">Counselling &amp; Student Support <span class="pill pill-green">Done</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle11-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle11-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">11.1</span><span class="cycle-title">Wellbeing Check-Ins <span class="pill pill-green">Done</span></span><span class="cycle-tables">6 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle11.1-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle11.1-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">12</span><span class="cycle-title">Library <span class="pill pill-green">Done</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle12-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle12-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">13</span><span class="cycle-title">Athletics <span class="pill pill-green">Done</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle13-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle13-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 3 -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 3 &mdash; Communications &amp; Community</h3>
+      <span class="wave-meta">5 cycles &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">14</span><span class="cycle-title">Communications &amp; Messaging <span class="pill pill-green">Done</span></span><span class="cycle-tables">15 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle14-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle14-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">15</span><span class="cycle-title">Meetings &amp; Conferences <span class="pill pill-green">Done</span></span><span class="cycle-tables">11 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle15-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle15-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">16</span><span class="cycle-title">Enrolment &amp; Admissions <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle16-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle16-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">17</span><span class="cycle-title">Clubs &amp; Student Life <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle17-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle17-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">18</span><span class="cycle-title">Groups &amp; Communities <span class="pill pill-green">Done</span></span><span class="cycle-tables">7 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle18-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle18-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 4 -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 4 &mdash; Campus Operations</h3>
+      <span class="wave-meta">4 cycles &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">19</span><span class="cycle-title">Transportation <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle19-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle19-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">20</span><span class="cycle-title">Food Service <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle20-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle20-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">21</span><span class="cycle-title">Facilities Management <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle21-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle21-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">22</span><span class="cycle-title">IT Infrastructure <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle22-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle22-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 5 -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 5 &mdash; Academic Advanced</h3>
+      <span class="wave-meta">3 cycles &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">23</span><span class="cycle-title">Curriculum &amp; Standards <span class="pill pill-green">Done</span></span><span class="cycle-tables">11 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle23-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle23-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">24</span><span class="cycle-title">Student Portfolio <span class="pill pill-green">Done</span></span><span class="cycle-tables">5 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle24-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle24-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">25</span><span class="cycle-title">Publications <span class="pill pill-green">Done</span></span><span class="cycle-tables">11 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle25-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle25-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 6 -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 6 &mdash; Finance &amp; Commerce</h3>
+      <span class="wave-meta">3 cycles &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">26</span><span class="cycle-title">Finance &amp; Accounting <span class="pill pill-green">Done</span></span><span class="cycle-tables">14 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle26-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle26-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">27</span><span class="cycle-title">Procurement <span class="pill pill-green">Done</span></span><span class="cycle-tables">12 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle27-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle27-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">28</span><span class="cycle-title">School Store <span class="pill pill-green">Done</span></span><span class="cycle-tables">9 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle28-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle28-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 7 -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 7 &mdash; Analytics &amp; Governance</h3>
+      <span class="wave-meta">2 cycles &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">29</span><span class="cycle-title">Analytics &amp; Reporting <span class="pill pill-green">Done</span></span><span class="cycle-tables">16 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle29-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle29-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">30</span><span class="cycle-title">Data Governance &amp; Compliance <span class="pill pill-green">Done</span></span><span class="cycle-tables">12 tenant</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle30-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle30-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <!-- WAVE 8 -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Wave 8 &mdash; Hardening</h3>
+      <span class="wave-meta">2 cycles &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">31</span><span class="cycle-title">Performance &amp; Observability <span class="pill pill-green">Done</span></span><span class="cycle-tables">Ops</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle31-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle31-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">32</span><span class="cycle-title">Multi-Region &amp; Disaster Recovery <span class="pill pill-green">Done</span></span><span class="cycle-tables">Ops</span><span class="cycle-links"><a href="../plans/phase1/campusos-cycle32-implementation-plan.html" class="cl-plan">Plan</a> <a href="../plans/phase1/cycle32-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <h2 class="sec">Phase 2 &mdash; 422 Tables (COMPLETE)</h2>
+  <p class="body">29 cycles across 4 waves completing every table in the ERD. All feature cycles done. Hardening sprint in progress. <a href="../plans/phase2/campusos-phase2-build-plan.html" style="color:var(--accent-mid);font-weight:600;">Full Phase 2 Build Plan &rarr;</a></p>
+
+  <!-- P2 WAVE A — COMPLETE -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>P2 Wave A &mdash; Pilot Critical</h3>
+      <span class="wave-meta">4 cycles &middot; 56 tables &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">P2-1</span><span class="cycle-title">Visitor Management <span class="pill pill-green">Done</span></span><span class="cycle-tables">9 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c1-visitor-management.html" class="cl-plan">Plan</a> <a href="../plans/phase2/p2c1-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-2</span><span class="cycle-title">Incident &amp; Emergency <span class="pill pill-green">Done</span></span><span class="cycle-tables">11 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c2-incident-emergency.html" class="cl-plan">Plan</a> <a href="../plans/phase2/p2c2-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-3</span><span class="cycle-title">Health Advanced (10.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">6 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c3-health-advanced.html" class="cl-plan">Plan</a> <a href="../plans/phase2/p2c3-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-4</span><span class="cycle-title">HR Advanced (4.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">30 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c4-hr-advanced.html" class="cl-plan">Plan</a> <a href="p2c4-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <!-- P2 WAVE B — COMPLETE -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>P2 Wave B &mdash; Pilot Enhancement</h3>
+      <span class="wave-meta">6 cycles &middot; 92 tables &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">P2-5</span><span class="cycle-title">Enrolment Advanced (16.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">7 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c5-enrolment-advanced.html" class="cl-plan">Plan</a> <a href="p2c5-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-6</span><span class="cycle-title">Payments Advanced (6.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">17 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c6-payments-advanced.html" class="cl-plan">Plan</a> <a href="../plans/phase2/p2c6-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-7</span><span class="cycle-title">Classroom Advanced (2.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">24 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c7-classroom-advanced.html" class="cl-plan">Plan</a> <a href="p2c7-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-8</span><span class="cycle-title">Athletics Advanced (13.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">18 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c8-athletics-advanced.html" class="cl-plan">Plan</a> <a href="p2c8-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-9</span><span class="cycle-title">Sub Marketplace (M82) <span class="pill pill-green">Done</span></span><span class="cycle-tables">13 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c9-sub-marketplace.html" class="cl-plan">Plan</a> <a href="p2c9-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-10</span><span class="cycle-title">Food Service Advanced (20.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">15 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c10-food-service-advanced.html" class="cl-plan">Plan</a> <a href="p2c10-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <!-- P2 WAVE C — COMPLETE -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>P2 Wave C &mdash; Operational Depth</h3>
+      <span class="wave-meta">7 cycles &middot; 105 tables &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">P2-11</span><span class="cycle-title">Transportation Advanced (19.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">22 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c11-transportation-advanced.html" class="cl-plan">Plan</a> <a href="p2c11-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-12</span><span class="cycle-title">Events &amp; Ticketing (M101) <span class="pill pill-green">Done</span></span><span class="cycle-tables">9 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c12-events-ticketing.html" class="cl-plan">Plan</a> <a href="p2c12-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-13</span><span class="cycle-title">SIS Advanced (1.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">24 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c13-sis-advanced.html" class="cl-plan">Plan</a> <a href="p2c13-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-14</span><span class="cycle-title">Behaviour Advanced (9.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">5 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c14-behaviour-advanced.html" class="cl-plan">Plan</a> <a href="p2c14-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-15</span><span class="cycle-title">Analytics Read Models (29.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">18 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c15-analytics-readmodels.html" class="cl-plan">Plan</a> <a href="p2c15-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-16</span><span class="cycle-title">HR Appraisals (M87) <span class="pill pill-gray">Bundled into P2-4</span></span><span class="cycle-tables">0 tables</span><span class="cycle-links"></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-17</span><span class="cycle-title">Scheduling Advanced (5.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">20 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c17-scheduling-advanced.html" class="cl-plan">Plan</a> <a href="p2c17-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <!-- P2 WAVE D — COMPLETE -->
+  <div class="wave w-green">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>P2 Wave D &mdash; Module Completion</h3>
+      <span class="wave-meta">12 cycles &middot; 170 tables &middot; COMPLETE</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">P2-18</span><span class="cycle-title">Facilities Advanced (21.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">21 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c18-facilities-advanced.html" class="cl-plan">Plan</a> <a href="p2c18-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-19</span><span class="cycle-title">Communications Advanced (14.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">13 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c19-communications-advanced.html" class="cl-plan">Plan</a> <a href="p2c19-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-20</span><span class="cycle-title">IT Advanced (22.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">10 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c20-it-advanced.html" class="cl-plan">Plan</a> <a href="p2c20-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-21</span><span class="cycle-title">Platform Advanced (0.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">26 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c21-platform-advanced.html" class="cl-plan">Plan</a> <a href="p2c21-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-22</span><span class="cycle-title">Alumni (M102) <span class="pill pill-green">Done</span></span><span class="cycle-tables">8 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c22-alumni.html" class="cl-plan">Plan</a> <a href="p2c22-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-23</span><span class="cycle-title">Accreditation (M85) <span class="pill pill-green">Done</span></span><span class="cycle-tables">8 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c23-accreditation.html" class="cl-plan">Plan</a> <a href="p2c23-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-24</span><span class="cycle-title">Parent Engagement (M100) <span class="pill pill-green">Done</span></span><span class="cycle-tables">5 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c24-parent-engagement.html" class="cl-plan">Plan</a> <a href="p2c24-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-25</span><span class="cycle-title">Library Advanced (12.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">6 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c25-library-advanced.html" class="cl-plan">Plan</a> <a href="p2c25-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-26</span><span class="cycle-title">Publications Advanced (25.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">4 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c26-publications-advanced.html" class="cl-plan">Plan</a> <a href="p2c26-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-27</span><span class="cycle-title">Portfolio Advanced (24.1) <span class="pill pill-green">Done</span></span><span class="cycle-tables">8 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c27-portfolio-advanced.html" class="cl-plan">Plan</a> <a href="p2c27-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-28</span><span class="cycle-title">Community .1 Bundle <span class="pill pill-green">Done</span></span><span class="cycle-tables">27 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c28-community-bundle.html" class="cl-plan">Plan</a> <a href="p2c28-cat-script.md" class="cl-cat">CAT</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-29</span><span class="cycle-title">Commerce .1 Bundle <span class="pill pill-green">Done</span></span><span class="cycle-tables">19 tables</span><span class="cycle-links"><a href="../plans/phase2/campusos-p2c29-commerce-bundle.html" class="cl-plan">Plan</a> <a href="p2c29-cat-script.md" class="cl-cat">CAT</a></span></div>
+    </div>
+  </div>
+
+  <!-- HARDENING SPRINT -->
+  <div class="wave w-red open">
+    <div class="wave-header" onclick="this.parentElement.classList.toggle('open')">
+      <h3>Hardening Sprint &mdash; Pre-Production</h3>
+      <span class="wave-meta">4 cycles &middot; 0 new tables &middot; IN PROGRESS</span>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="wave-body">
+      <div class="cycle-row"><span class="cycle-num">P2-H1</span><span class="cycle-title">Security &amp; Access Control <span class="pill pill-amber">Next</span></span><span class="cycle-tables">0 tables</span><span class="cycle-links"><a href="../campusos-hardening-cycles.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-H2</span><span class="cycle-title">Schema, Data &amp; Immutability</span><span class="cycle-tables">0 tables</span><span class="cycle-links"><a href="../campusos-hardening-cycles.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-H3</span><span class="cycle-title">Kafka &amp; Financial Integrity</span><span class="cycle-tables">0 tables</span><span class="cycle-links"><a href="../campusos-hardening-cycles.html" class="cl-plan">Plan</a></span></div>
+      <div class="cycle-row"><span class="cycle-num">P2-H4</span><span class="cycle-title">Test Coverage &amp; Production Readiness</span><span class="cycle-tables">0 tables</span><span class="cycle-links"><a href="../campusos-hardening-cycles.html" class="cl-plan">Plan</a></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ PHASE 3 — UPCOMING ═══════ -->
+<div class="phase3-upcoming" style="margin-top:32px;padding:24px;background:linear-gradient(135deg,#f0f4f8 0%,#e8f0f8 100%);border:2px solid #b5d4f4;border-radius:14px;">
+  <h2 class="sec" style="margin-top:0;padding-top:0;border-top:none;">Phase 3 &mdash; Infrastructure, Integration &amp; Ecosystem <span class="pill pill-gray" style="font-size:11px;vertical-align:middle;">Blocked on Hardening</span></h2>
+  <p class="body" style="margin-bottom:16px;">Phase 3 begins after the hardening sprint (P2-H1 through P2-H4) passes the second-round three-review audit. Not more tables &mdash; live service deployment, real integrations, compliance certification, mobile apps, and the marketplace ecosystem. <a href="../campusos-phase3-roadmap.html" style="color:var(--accent);font-weight:600;">Full Phase 3 Roadmap &rarr;</a></p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+    <div style="background:white;border:1px solid #e2e6ea;border-left:4px solid #3d7ab5;border-radius:8px;padding:14px;">
+      <h4 style="font-size:14px;color:#1a3a5c;margin-bottom:4px;">Theme A: Extracted Services</h4>
+      <p style="font-size:12px;color:#6b7280;line-height:1.6;margin:0;">6 services: AI Inference, Video Processing, Notification/Push, Scheduling Solver, Transport Dispatch, Emergency Alert.</p>
+    </div>
+    <div style="background:white;border:1px solid #e2e6ea;border-left:4px solid #28a745;border-radius:8px;padding:14px;">
+      <h4 style="font-size:14px;color:#1a3a5c;margin-bottom:4px;">Theme B: Full Finance</h4>
+      <p style="font-size:12px;color:#6b7280;line-height:1.6;margin:0;">M83 chart of accounts, GL period close, AP three-way matching, grants, advanced procurement.</p>
+    </div>
+    <div style="background:white;border:1px solid #e2e6ea;border-left:4px solid #8b4fc6;border-radius:8px;padding:14px;">
+      <h4 style="font-size:14px;color:#1a3a5c;margin-bottom:4px;">Theme C: Compliance</h4>
+      <p style="font-size:12px;color:#6b7280;line-height:1.6;margin:0;">DPO suite (13 tables), GDPR/FERPA tooling, multi-region EU/UK deployment.</p>
+    </div>
+    <div style="background:white;border:1px solid #e2e6ea;border-left:4px solid #0d9488;border-radius:8px;padding:14px;">
+      <h4 style="font-size:14px;color:#1a3a5c;margin-bottom:4px;">Theme D: Ecosystem</h4>
+      <p style="font-size:12px;color:#6b7280;line-height:1.6;margin:0;">SIS migration toolkit, MDM integration, LMS sync, state reporting, native mobile apps, marketplace launch.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ BUILD LOG ═══════ -->
+<div id="buildlog" class="tab-content">
+  <h2 class="sec">Build Log &mdash; Completed Cycles</h2>
+  <p class="body">Each cycle ships schema + seed + API + UI + integration test, then goes through adversarial architecture review by ChatGPT. Links to implementation plans, CAT scripts, and review records.</p>
+
+  <div class="log-entry" style="border-left:4px solid #dc2626">
+    <h4>Hardening Sprint Planned (P2-H1 through P2-H4) <span class="pill pill-red">Next</span></h4>
+    <div class="log-meta">0 tables &middot; 114 findings &middot; 4 cycles &middot; ~6&ndash;8 weeks</div>
+    <div class="log-desc">P2-H1 (Security): close 22 school-scope leaks, fix 2 permission gaps, build GuardianAuthorizationService, standardise @StudentOwned decorator, restrict engagement scores. P2-H2 (Schema): fix 11 schema drift issues, add DB IMMUTABLE triggers on 12 tables (REVOKE + triggers + CI tests), create 3 missing platform tables, fill all seed data gaps, build soft-integrity health monitor. P2-H3 (Kafka): wire 15 consumer-without-producer topics, migrate 7 financial emits to outbox, build GL reconciliation jobs, classify all orphan events, create Kafka operations runbook. P2-H4 (Tests): integration test pyramid (financial &ge;95%, auth/IAM &ge;95%, all modules &ge;80%), school-scope regression suite, 3 policy documents (AI Data Policy, Retention Matrix, Migration Orchestration), JSONB read models, worker jitter, election threshold, school-size presets.</div>
+    <div class="log-links"><a href="../campusos-hardening-cycles.html">Plan</a></div>
+  </div>
+
+  <div class="log-entry" style="border-left:4px solid #d97706">
+    <h4>Phase 2 Completion Report <span class="pill pill-amber">Pass with Conditions</span></h4>
+    <div class="log-meta">3 reviewers &middot; 0 BLOCKING (plan) &middot; 41 BLOCKING (code) &middot; 11 IMPORTANT (merged)</div>
+    <div class="log-desc">Three-review audit: Claude plan audit (0 BLOCKING, 4 IMP, 7 ADV), ChatGPT architectural review (0 BLOCKING, 11 IMP, 6 ADV), Claude Code audit (41 BLOCKING, 35 MAJOR, 38 ADV). Clean passes: IMMUTABLE service discipline (12/12), atomic operations (7/7), ADR compliance (10/10). Critical findings: 18 school-scope leaks, 15 consumer-without-producer Kafka topics, 6 schema drift issues, test coverage 18.3% (target 90%). Verdict: architecturally sound, code needs hardening sprint before pilot.</div>
+    <div class="log-links"><a href="../reviews/campusos-phase2-completion-report.html">Report</a> <a href="../reviews/campusos-plan-level-audit.html">Claude Audit</a> <a href="../reviews/campusos-review-context-package.html">Context Package</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-29: Commerce .1 Bundle <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">19 tables &middot; ~40 endpoints &middot; 2 sub-cycles &middot; 3 Kafka emits &middot; Final Phase 2 cycle</div>
+    <div class="log-desc">P2-29a: procurement catalogues with tiered pricing + vendor item catalogue, supplier contracts with renewal tracking + compliance documents, departmental budgets with budget transfer workflow (atomic: lock both in id-ascending order), spending analytics with category/department/vendor breakdown. P2-29b: store promotions with 6 discount types + max_uses atomic enforcement, loyalty points with configurable earn/redeem rules + tier thresholds, gift cards with atomic balance management (UPDATE WHERE balance&ge;amount), wishlists, price schedules with date-range pricing, inventory adjustments with audit trail, hierarchical product categories.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c29-commerce-bundle.html">Plan</a> <a href="p2c29-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-28: Community .1 Bundle <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">27 tables &middot; ~60 endpoints &middot; 3 sub-cycles &middot; 1 Kafka emit</div>
+    <div class="log-desc">P2-28a: group polls with anonymous voting, group events + RSVP, resource library with versioning, invitations, engagement analytics. P2-28b: student elections with structural anonymity (no voter_id on ext_votes), club budgets + transactions, field trip evaluation, service partner orgs, meeting templates, AI-generated minutes (stub). P2-28c: counsellor caseloads with capacity, referral workflow (PENDING→RESOLVED) with IMMUTABLE activity log, CRISIS auto-escalation, external agency referrals with consent, longitudinal wellbeing trends, MTSS team meeting coordination.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c28-community-bundle.html">Plan</a> <a href="p2c28-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-27: Portfolio Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">8 tables &middot; ~26 endpoints &middot; 1 worker &middot; 1 Kafka emit</div>
+    <div class="log-desc">Portfolio sections with drag-reorder, student reflections with prompted self-assessment (student-owned), teacher/counsellor endorsements with skill tagging + student visibility control, post-secondary readiness pathways with milestone checklists + auto-check from cross-module events, college application tracking with deadline management, resume builder with cross-module auto-population + PDF export.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c27-portfolio-advanced.html">Plan</a> <a href="p2c27-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-26: Publications Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">4 tables &middot; ~18 endpoints &middot; 2 workers &middot; 1 Kafka emit</div>
+    <div class="log-desc">Immutable publication version history with auto-creation on status transitions + manual checkpoints (append-only revert), reusable publication templates with platform-seeded + school-custom, scheduled publishing with timezone-aware ScheduledPublishWorker, per-publication engagement analytics with atomic counter increments for views/opens/clicks.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c26-publications-advanced.html">Plan</a> <a href="p2c26-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-25: Library Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">6 tables &middot; ~22 endpoints &middot; 3 workers &middot; 1 Kafka emit</div>
+    <div class="log-desc">AI-powered reading recommendations with 5 scoring strategies (collaborative filtering, reading level match, subject match, new arrivals, staff picks), curated reading lists with curriculum unit linkage, class set bulk checkouts with per-copy tracking + overdue detection, interlibrary loans with cross-institution status tracking, bulk catalogue import (ISBN batch, MARC, CSV) with error reporting, configurable recommendation weights.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c25-library-advanced.html">Plan</a> <a href="p2c25-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-24: Parent Engagement <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">5 tables &middot; ~24 endpoints &middot; 2 workers &middot; 2 Kafka emits</div>
+    <div class="log-desc">PTC conference scheduling with teacher availability slots + parent self-booking (atomic: UPDATE WHERE status='AVAILABLE'), conference outcome documentation with follow-up action tracking, composite engagement scoring from 5 cross-module sources (attendance, communications, conferences, volunteering, payments) with configurable weights, anonymous parent satisfaction surveys with aggregated-only results.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c24-parent-engagement.html">Plan</a> <a href="p2c24-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-23: Accreditation <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">8 tables (6 tenant + 2 platform) &middot; ~22 endpoints &middot; 1 worker &middot; 1 Kafka emit</div>
+    <div class="log-desc">Platform-seeded frameworks (AdvancED, IB MYP, CIS) with ~70 standards, school framework adoption, standard-by-standard evidence collection with 5 types + approval workflow, self-study ratings with rationale, improvement action plans with JSONB actions + overdue detection, site visit preparation with auto-computed readiness score, SOFT INTEGRITY for standard_id across platform/tenant boundary.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c23-accreditation.html">Plan</a> <a href="p2c23-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-22: Alumni <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">8 tables &middot; ~28 endpoints &middot; 2 Kafka emits</div>
+    <div class="log-desc">Self-maintained alumni profiles with opt-in directory + tag-based segmentation, fundraising campaigns with multi-currency donation tracking (FX at charge time, Redis-cached totals), campaign recipient outreach with open/respond/donate funnel, anonymous donation support, alumni news feed, reunion group planning with RSVP, alumni events with optional P2-12 Events linkage (soft reference, graceful fallback).</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c22-alumni.html">Plan</a> <a href="p2c22-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-21: Platform Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">26 platform tables &middot; ~64 endpoints &middot; 3 sub-cycles &middot; 4 workers &middot; 3 Kafka emits</div>
+    <div class="log-desc">P2-21a: CRM with customer lifecycle, subscriptions, onboarding checklists, weekly health scoring, renewal pipeline. P2-21b: internal ops with employee management + FERPA/GDPR-audited tenant access grants (4h max + justification), internal ticketing, pricing bands + support tiers. P2-21c: Community Exchange marketplace with 6 listing types, school-to-school transactions with 5% platform fee, condition reports, watch lists, community profiles with reputation, ratings, unified tsvector search.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c21-platform-advanced.html">Plan</a> <a href="p2c21-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-20: IT Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">10 tables &middot; ~34 endpoints &middot; 3 Kafka emits</div>
+    <div class="log-desc">MDM remote actions (IMMUTABLE with mandatory justification ≥20 chars, WIPE auto-resets device), licence renewal tracking with cost history, device usage analytics, physical inventory audits with per-asset verification + discrepancy reporting, VOIP phone extension directory, versioned IT configuration documentation, uptime monitoring with consecutive-failure alerting, network infrastructure item registry.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c20-it-advanced.html">Plan</a> <a href="p2c20-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-19: Communications Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">13 tables &middot; ~34 endpoints &middot; 2 sub-cycles &middot; 5 workers</div>
+    <div class="log-desc">P2-19a: on-demand message translation via AI with caching + user language preferences, reusable templates with variable interpolation + role-based access, broadcast segments for targeted delivery, broadcast analytics with delivery/open/click tracking. P2-19b: three-tier content moderation (platform + district + building, most restrictive wins) with keyword detection + AI sensitivity scoring, appeal workflow with uphold/overturn, push notification campaigns with scheduled delivery + engagement analytics, device token management.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c19-communications-advanced.html">Plan</a> <a href="p2c19-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-18: Facilities Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">21 tables &middot; ~46 endpoints &middot; 2 sub-cycles &middot; 2 Kafka emits &middot; Opens Wave D</div>
+    <div class="log-desc">P2-18a: cleaning routes with ordered stops + per-stop task completion + issue auto-ticketing, custodial zone inspections with FAIL auto-work-order, supply audit trail with formal stocktakes + discrepancy adjustments, work order attachments (before/after photos) + parts cost tracking. P2-18b: fire drill compliance logging with 90-day building alerting, facilities asset lifecycle (install → maintain → decommission → dispose), energy meter readings with consumption trending + targets, space utilisation analytics with underused room detection, sustainability initiatives.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c18-facilities-advanced.html">Plan</a> <a href="p2c18-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-17: Scheduling Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">20 tables &middot; ~46 endpoints &middot; 2 sub-cycles &middot; 2 workers &middot; Closes Wave C</div>
+    <div class="log-desc">P2-17a: rotation calendars (A/B week + multi-day cycle), constraint-solver schedule generation with CP-SAT/heuristic selection (ADR-060), student subject choice collection, candidate review with clash highlighting + promotion lifecycle, room change requests. P2-17b: exam scheduling with room junction + seating + accommodation enforcement, co-teaching with 5 models + EXCLUSION relaxation, pull-out interventions with attendance pre-marking, cross-school staff with person-level double-booking prevention, complex cover arrangements with class splits.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c17-scheduling-advanced.html">Plan</a> <a href="p2c17-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-15: Analytics Read Models <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">18 tables &middot; ~18 endpoints &middot; 15 workers (18 Kafka consumers) &middot; 2 sub-cycles</div>
+    <div class="log-desc">P2-15a: operations read models — procurement, store, food service (meal counts + NSLP), transportation ridership, facilities (condition + KPI), IT fleet, library circulation. P2-15b: engagement read models — enrolment funnel, athletics season, officials marketplace, game results, groups engagement, publications, clubs, communications, wellbeing trends (no individual attribution). All wired to live Kafka consumers replacing nightly batch. Single-writer + idempotent + replica-routed.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c15-analytics-readmodels.html">Plan</a> <a href="p2c15-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-14: Behaviour Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">5 tables &middot; ~20 endpoints &middot; 1 worker &middot; 2 Kafka emits</div>
+    <div class="log-desc">Restorative justice conferences with structured harm-repair agreements and follow-through tracking (auto-resolution when all actions complete), peer mediation with trained student mediators, positive behaviour points with configurable categories + student rewards marketplace with balance validation, BIP teacher feedback collection via existing svc_bip_teacher_feedback, overdue agreement action detection worker.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c14-behaviour-advanced.html">Plan</a> <a href="p2c14-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-13: SIS Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">24 tables &middot; ~62 endpoints &middot; 3 sub-cycles &middot; 2 workers &middot; 1 Kafka emit</div>
+    <div class="log-desc">P2-13a: student profiles with avatar approval, school-defined custom fields with typed values, parent-initiated info update requests with configurable auto-approval, student notes with confidentiality, family relationships with custody arrangements. P2-13b: graduation requirements with nightly credit audit + at-risk alerting, service learning hours, GPA calculation (weighted/unweighted), course prerequisites, grade scales. P2-13c: official transcript generation with frozen course history, transcript requests with fee collection, transfer records, locker management with encrypted combinations, reporting periods, student awards.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c13-sis-advanced.html">Plan</a> <a href="p2c13-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-12: Events &amp; Ticketing <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">9 tables &middot; ~28 endpoints &middot; 1 worker &middot; 3 Kafka emits</div>
+    <div class="log-desc">Multi-tier ticket sales with atomic concurrency control (UPDATE WHERE quantity_sold+$qty&le;quantity — never SELECT-then-UPDATE), Stripe payment integration with pending order expiry cleanup, QR-code ticket generation with atomic gate scanning (every attempt logged), season passes with event inclusion validation, comp lists with athletic roster auto-population, event volunteer signup, revenue reporting with GL journal posting on event completion.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c12-events-ticketing.html">Plan</a> <a href="p2c12-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-11: Transportation Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">22 tables &middot; ~62 endpoints &middot; 3 sub-cycles &middot; 4 Kafka emits &middot; Opens Wave C</div>
+    <div class="log-desc">P2-11a: fleet maintenance with safety-critical repair blocking, parts inventory, vehicle component lifecycle, fuel logging with efficiency computation, driver hours regulatory compliance. P2-11b: route generation pipeline with constraint profiles + candidate review workflow, ad-hoc trip requests, contracted routes, route change requests. P2-11c: real-time GPS vehicle position telemetry (RANGE partitioned daily), geofence enter/exit events, ETA computation, parent live-tracking view, dispatch event log, materialised rpt_fleet_status dashboard.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c11-transportation-advanced.html">Plan</a> <a href="p2c11-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-10: Food Service Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">15 tables &middot; ~40 endpoints &middot; 2 sub-cycles &middot; 1 Kafka consumer &middot; Closes Wave B</div>
+    <div class="log-desc">P2-10a: recipe costing with auto-computed allergens + cost_per_serving, multi-group inventory with immutable transaction log (RANGE partitioned), inter-group transfer workflow, staff meal accounts. P2-10b: student meal pre-ordering with allergen cross-check, production planning reports, USDA production records, reimbursement claims, eligibility applications, AllergenAlertConsumer wiring hlth.allergy_alert.changed live.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c10-food-service-advanced.html">Plan</a> <a href="p2c10-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-9: Sub Marketplace <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">13 tables (4 platform + 9 tenant) &middot; ~42 endpoints &middot; 3 Kafka emits &middot; 3 workers</div>
+    <div class="log-desc">Platform-portable substitute profiles with credential verification + configurable availability, per-school substitute pools with preferred/blocked lists, tiered job notification (pool first → marketplace), acceptance windows with auto-expiry, check-in/check-out tracking, bidirectional ratings, session handover notes, configurable cancellation policies with late-cancellation consequences, pay rates with EXCLUDE gist date-range exclusion, cover arrangement integration.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c9-sub-marketplace.html">Plan</a> <a href="p2c9-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-8: Athletics Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">18 tables (16 tenant + 2 platform) &middot; ~42 endpoints &middot; 2 sub-cycles &middot; 1 Kafka emit</div>
+    <div class="log-desc">P2-8a: equipment inventory with student checkout + safety compliance certification + damage tracking, athletic conferences with memberships + cross-conference scheduling, team photos + media asset library, equipment maintenance. P2-8b: game streaming with access control + highlight clip extraction for portfolios (ADR-068), officials marketplace with platform-portable profiles + bidirectional ratings (ADR-063), configurable advanced statistics, student-athlete recruiting profiles.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c8-athletics-advanced.html">Plan</a> <a href="p2c8-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-7: Classroom Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">24 tables &middot; ~52 endpoints &middot; 3 sub-cycles &middot; 2 Kafka consumers &middot; 5 Kafka emits</div>
+    <div class="log-desc">P2-7a: hall passes with configurable limits + overdue detection, rubrics engine with weighted criteria + performance levels, class moments photo feed. P2-7b: standards-based gradebook with evidence linking, peer review with anonymised feedback, formative assessments with real-time responses. P2-7c: AI tutoring with conversation history + learning signal extraction + opt-out, lesson video recording with transcription pipeline + AI-generated summaries, per-tenant AI usage logging + quota enforcement.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c7-classroom-advanced.html">Plan</a> <a href="p2c7-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-6: Payments Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">17 tables &middot; ~34 endpoints &middot; 3 Kafka emits &middot; 1 Kafka consumer &middot; 3 workers</div>
+    <div class="log-desc">Financial aid programmes with parent applications + fund pool tracking, fee categories with auto-invoice generation + sibling/early-payment discounts, student lunch accounts with POS-integrated debit + low-balance alerting + sibling transfers, payment plans with instalment tracking, credit notes + payment reversals (IMMUTABLE append-only), late fee automation, multi-invoice payment allocation, LunchAccountConsumer on fds.meal.served.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c6-payments-advanced.html">Plan</a> <a href="../plans/phase2/p2c6-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-5: Enrolment Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">7 tables &middot; ~22 endpoints &middot; 2 Kafka emits &middot; ~5 web routes &middot; Wave B open</div>
+    <div class="log-desc">Campus tour scheduling with public slot booking + guest tracking + application linking, formal student withdrawal workflow with auto-created multi-department exit task checklist (7 tasks across 6 departments), re-enrolment confirmation with auto-withdrawal on non-continuation, mid-year admission requests with capacity checking + Cycle 16 pipeline linking.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c5-enrolment-advanced.html">Plan</a> <a href="p2c5-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-4: HR Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">30 tables &middot; ~54 endpoints &middot; 4 Kafka emits &middot; ~12 web routes &middot; Wave A complete</div>
+    <div class="log-desc">Full HR lifecycle: payroll processing with salary scales + deductions + GL journal integration, recruitment pipeline (posting → application → interview panel → evaluation → offer → auto-hire), training programme management with certification tracking + renewal alerting, performance appraisals with lesson observations + goal tracking + sign-off workflow, expense claims. Largest single cycle in the roadmap.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c4-hr-advanced.html">Plan</a> <a href="p2c4-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-3: Health Advanced <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">6 tables &middot; ~20 endpoints &middot; 1 Kafka emit &middot; ~3 web routes</div>
+    <div class="log-desc">Telehealth provider registry with session scheduling + HIPAA-logged document exchange, state immunisation requirements with nightly compliance computation + overdue parent notification, state compliance CSV report export for annual reporting mandate, screening referrals with follow-up tracking + overdue detection.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c3-health-advanced.html">Plan</a> <a href="../plans/phase2/p2c3-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-2: Incident &amp; Emergency <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">11 tables &middot; ~24 endpoints &middot; 2 Kafka emits &middot; ~9 web routes</div>
+    <div class="log-desc">Emergency declarations with atomic outbox pattern (tasks → muster → alerts, crash-recoverable, 5-min PAGE on stall), immutable incident timeline (legal record, no UPDATE/DELETE), real-time accountability summary materialisation, reunification with identity-verified release + correction audit trail, emergency drills with participation tracking, non-discipline incident logging with follow-up ticket linking.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c2-incident-emergency.html">Plan</a> <a href="../plans/phase2/p2c2-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>P2-1: Visitor Management <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">9 tables &middot; ~28 endpoints &middot; 3 Kafka emits &middot; ~7 web routes &middot; Phase 2 Wave A</div>
+    <div class="log-desc">Kiosk sign-in/out with AES-256 encrypted PII + HMAC blind index returning-visitor lookup, configurable visitor types with per-type safeguarding requirements, banned persons HMAC screening with real-time kiosk blocking (ADR-015 transient registry data), staff pre-registration with QR-code expedited sign-in, recurring visitor schedules, emergency muster snapshots with per-visitor accountability.</div>
+    <div class="log-links"><a href="../plans/phase2/campusos-p2c1-visitor-management.html">Plan</a> <a href="../plans/phase2/p2c1-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 32: Multi-Region &amp; Disaster Recovery <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">0 new tables &middot; Ops cycle &middot; Wave 8 complete &middot; Phase 1 complete</div>
+    <div class="log-desc">Active-passive cross-region replication (RDS Global Database &lt;30s RPO, &lt;15 min RTO), automated weekly backup validation with schema + row count checks, Kafka MirrorMaker2 cross-region topic replication with consumer offset translation, Redis Global Datastore, S3 CRR with EU data residency pinning, tenant-region affinity enforcement at API gateway, 6-scenario DR runbook, monthly automated failover exercises, chaos engineering programme (6 experiments), quarterly tabletop exercise framework.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle32-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle32-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 31: Performance &amp; Observability <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">0 new tables &middot; Ops cycle &middot; Wave 8 open</div>
+    <div class="log-desc">Structured logging with trace_id on every log line (CI-enforced), OpenTelemetry distributed tracing across HTTP → DB → Kafka → consumer, Prometheus /metrics + 5 Grafana dashboards, 12 critical hot paths load tested with p95 baselines, pg_stat_statements top-10 query optimisation, 10 high-volume tables partitioned (HASH + RANGE monthly), PgBouncer schema-per-tenant + 4 Redis cache layers, DLQ dashboard with replay, consumer envelope validation, circuit breakers, error budget SLOs (CRITICAL 99.9% / STANDARD 99.5% / BACKGROUND 99.0%).</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle31-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle31-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 30: Data Governance &amp; Compliance <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">12 tables &middot; ~34 endpoints &middot; 1 Kafka emit &middot; ~11 web routes &middot; Wave 7 complete</div>
+    <div class="log-desc">DPO compliance suite: GDPR Article 30 ROPA with DPIA gap detection, Article 28 processor register with DPA tracking, 72-hour breach notification countdown with URGENT task escalation, data subject access requests with 30/45-day deadline, erasure requests with legal hold checks + audit_log field-level pseudonymisation, processing consent records, privacy notice versioning, age-18 rights transfer.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle30-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle30-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 29: Analytics &amp; Reporting <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">16 tables &middot; ~30 endpoints &middot; 7 nightly workers &middot; 1 Kafka emit &middot; ~12 web routes &middot; Wave 7 open</div>
+    <div class="log-desc">Materialised read models (attendance, academic, class performance, staff, school summary), configurable at-risk detection with threshold-based flagging, district-level aggregation for superintendent dashboards (nightly 03:00 UTC), report engine with on-demand + scheduled delivery + state compliance templates, FROM_SNAPSHOT incremental rebuild capability (ADR-049).</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle29-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle29-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 28: School Store <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">9 tables &middot; ~26 endpoints &middot; 2 Kafka emits &middot; ~8 web routes &middot; Wave 6 complete</div>
+    <div class="log-desc">Dual-mode school store (STUDENT with parent approval gate + PUBLIC with external customers and shipping), product catalogue with SKU + multi-location inventory, order lifecycle with backorder support, parent approve/decline before family account billing, inventory reorder threshold signalling for procurement, StoreRevenueWorker materialised revenue summaries.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle28-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle28-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 27: Procurement <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">12 tables &middot; ~28 endpoints &middot; 2 Kafka emits &middot; ~8 web routes</div>
+    <div class="log-desc">Purchase requisitions with multi-level approval via wsk_approval_requests, formal POs with budget commitment on issuance (encumbers fin_budget_lines), goods receipt with per-line inspection + discrepancy logging, automated inventory distribution to 8 operational modules via prc.distribution.completed Kafka event, returns/warranty claims, vendor performance scoring.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle27-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle27-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 26: Finance &amp; Accounting <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">14 tables &middot; ~34 endpoints &middot; 1 Kafka consumer (GLConsumer on 5 pay.* topics) &middot; ~10 web routes &middot; Wave 6 open</div>
+    <div class="log-desc">Double-entry GL with DB-validated balanced batches (validate_batch_balance procedure, ADR-059), Kafka consumer auto-posting from Cycle 6 payment events with idempotent source_event_id, permanently lockable accounting periods, budget management with variance tracking, accounts payable lifecycle, bank reconciliation, board-ready financial report snapshots.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle26-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle26-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 25: Publications <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">11 tables &middot; ~34 endpoints &middot; 1 Kafka emit &middot; ~9 web routes &middot; Wave 5 complete</div>
+    <div class="log-desc">Recurring series with auto-incremented editions, collaborative multi-section authoring with contributor attribution, ADR-035 approval gate (staff direct / student requires approval), rule-based targeted distribution with subscription opt-out, delivery tracking with open/bounce status, editorial comment threads.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle25-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle25-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 24: Student Portfolio <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">5 tables &middot; ~20 endpoints &middot; 1 Kafka emit &middot; ~7 web routes</div>
+    <div class="log-desc">Student-owned digital portfolios with multi-source item collection (classroom submissions, grades, achievements, reflections, external files), 4-tier visibility controls, time-limited share links with view tracking, cross-module achievements aggregating from Library + Athletics + Clubs, teacher achievement awards. Fourth student-input surface.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle24-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle24-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 23: Curriculum &amp; Standards <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">11 tables (9 tenant + 2 platform) &middot; ~32 endpoints &middot; 1 Kafka emit &middot; ~8 web routes &middot; Wave 5 open</div>
+    <div class="log-desc">Platform/tenant dual-resolution standards frameworks (CCSS, NGSS + custom), curriculum maps with scope-and-sequence unit planning, standards-to-unit alignment, lesson-to-unit linking back into Cycle 2 classroom, nightly materialised delivery gap analysis (ADR-018), teaching resources with teacher-only gating. Cross-cycle: Cycle 2 cls_lessons + Cycle 12 lib_reading_lists.curriculum_unit_id.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle23-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle23-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 22: IT Infrastructure <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">16 tables &middot; ~38 endpoints &middot; 1 Kafka emit &middot; ~10 web routes &middot; Wave 4 complete</div>
+    <div class="log-desc">Device fleet with asset tagging + lifecycle tracking, device-to-person assignments with condition recording, software licence seat tracking with capacity alerts, encrypted credential vault (ADR-065) with tiered access + immutable audit log, MDM compliance alerts, device damage + repair workflow, procurement orders, device selection for onboarding (ADR-066).</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle22-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle22-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 21: Facilities Management <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">16 tables &middot; ~38 endpoints &middot; 5 Kafka emits &middot; ~10 web routes</div>
+    <div class="log-desc">Building + space registry with scheduling cross-link, space bookings with EXCLUDE USING gist schema-level conflict prevention, work orders with immutable activity timelines and vendor assignment, preventive maintenance with checklist-driven tasks (FAIL auto-creates work order), compliance inspections with violation tracking + escalation, custodial zone assignments, supply inventory with reorder alerts.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle21-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle21-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 20: Food Service <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">16 tables &middot; ~38 endpoints &middot; 1 Kafka emit &middot; ~10 web routes</div>
+    <div class="log-desc">Menu planning with rotating cycles, POS transactions with real-time allergen safety enforcement (CRITICAL blocks sale, requires supervisor override), NSLP eligibility with USDA reimbursement claims, student dietary profiles with health-module read model, food safety temperature logging, cash drawer reconciliation, parent dietary update portal.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle20-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle20-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 19: Transportation <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">16 tables &middot; ~38 endpoints &middot; 2 Kafka emits &middot; ~10 web routes &middot; Wave 4 open</div>
+    <div class="log-desc">Route planning with ordered stops and student assignments, fleet management with pre-trip inspections, driver credential tracking with expiry alerts, QR-code bus pass ridership scanning, no-show detection worker with parent notification, parent route-change requests with one-day overrides, immutable route change audit log (FERPA safeguarding).</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle19-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle19-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 18: Groups &amp; Communities <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">7 tables &middot; ~28 endpoints &middot; 2 Kafka emits &middot; ~7 web routes &middot; Wave 3 complete</div>
+    <div class="log-desc">Cross-role community groups with 5 scope types (CLASS/YEAR_GROUP/SCHOOL/CUSTOM/ACTIVITY), 3-tier membership hierarchy with OWNER/ADMIN/MEMBER, two-party ownership transfer handshake, group-scoped announcements with read tracking + pinning, group events with RSVP.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle18-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle18-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 17: Clubs &amp; Student Life <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">16 tables &middot; ~36 endpoints &middot; 2 Kafka emits &middot; ~10 web routes</div>
+    <div class="log-desc">Club management with membership rosters, field trips with digital parent consent, structurally anonymous student government elections (NO voter_id on ext_votes), community service hour logging with supervisor approval. Third student-input surface.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle17-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle17-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 16: Enrolment &amp; Admissions <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">16 tables &middot; ~36 endpoints &middot; 3 Kafka emits &middot; ~10 web routes</div>
+    <div class="log-desc">Admissions pipeline with multi-stage review, scored waitlists with auto-advance, conditional/unconditional offers with deadline enforcement, onboarding checklists with cross-staff task completion, enr.student.enrolled lifecycle trigger. First prospective-parent surface.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle16-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle16-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 15: Meetings &amp; Conferences <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">11 tables &middot; ~32 endpoints &middot; 1 Kafka emit &middot; ~9 web routes</div>
+    <div class="log-desc">Conference scheduling with parent self-service slot booking (FOR UPDATE double-book prevention), meeting notes with two-layer parent-visibility gate, action items with cross-persona assignees, recording consent tracking, IEP meeting records linking to Cycle 10 health plans.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle15-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle15-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 14: Communications &amp; Messaging <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">15 tables &middot; ~28 endpoints &middot; 2 Kafka emits &middot; 1 consumer &middot; ~10 web routes &middot; Wave 3 open</div>
+    <div class="log-desc">Threaded messaging with role-based thread types, school-wide announcements with pre-computed audience fan-out, emergency alerts with multi-channel delivery + acknowledgement tracking, three-tier content moderation (platform + district + building). First universal-participation surface.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle14-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle14-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 13: Athletics <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">14 tables &middot; ~42 endpoints &middot; 1 Kafka emit &middot; ~10 web routes &middot; Wave 2 complete</div>
+    <div class="log-desc">Sports programmes with seasonal rosters, GPA-based eligibility verification, game scheduling with cross-school proposals, results + player statistics + season records, coaching assignments, injury tracking with 6-step concussion return-to-play protocol.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle13-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle13-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 12: Library <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">14 tables &middot; 46 endpoints &middot; 1 Kafka emit &middot; 11 web routes &middot; Review: 4 BLOCKING fixed</div>
+    <div class="log-desc">Catalogue with GIN full-text search, barcode circulation (checkout/return/renew), holds with auto-fulfilment, overdue fines with Kafka emit, reading programmes with progress tracking, curated reading lists, student book reviews. Second student-input surface.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle12-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle12-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 11.1: Wellbeing Check-Ins <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">6 tables &middot; 20 endpoints &middot; 1 Kafka emit &middot; 7 web routes &middot; Review: 2 BLOCKING fixed</div>
+    <div class="log-desc">First student-input surface. Pulse surveys with counsellor-deployed targeting, auto-alert with SELF_HARM_INDICATOR auto-escalation. Completes M27 Student Services.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle11.1-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle11.1-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 11: Counselling &amp; Student Support <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">14 tables &middot; 48 endpoints &middot; 2 Kafka emits &middot; 8 web routes &middot; Review: 2 BLOCKING fixed</div>
+    <div class="log-desc">Caseloads, referral triage pipeline, FERPA session notes with irreversible locking, MTSS/RTI tiered interventions, coordinated care, mandatory reporting.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle11-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle11-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 10: Health &amp; Wellness <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">16 tables &middot; 48 endpoints &middot; 3 Kafka emits &middot; 1 consumer &middot; 8 web routes &middot; Review: 1 BLOCKING fixed</div>
+    <div class="log-desc">Health records, medications with missed-dose tracking, nurse visits with live roster, IEP/504 with ADR-030 accommodation sync, screenings, dietary profiles. HIPAA access log on every read.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle10-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle10-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycle 9: Behaviour &amp; Discipline <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">7 tables &middot; 28 endpoints &middot; 1 consumer &middot; Review: 1 BLOCKING fixed</div>
+    <div class="log-desc">Discipline incidents, consequences with parent notification, behaviour intervention plans with goals and teacher feedback.</div>
+    <div class="log-links"><a href="../plans/phase1/campusos-cycle9-implementation-plan.html">Plan</a> <a href="../plans/phase1/cycle9-cat-script.md">CAT</a></div>
+  </div>
+
+  <div class="log-entry">
+    <h4>Cycles 0&ndash;8: Wave 1 Core Operations <span class="pill pill-green">Approved</span></h4>
+    <div class="log-meta">~131 tables &middot; ~188 endpoints &middot; 13 consumers &middot; 65+ pages</div>
+    <div class="log-desc">Platform bootstrap, SIS core, classroom &amp; grades, notifications &amp; calendar, HR, academic scheduling, payments &amp; billing, task management, service tickets.</div>
+    <div class="log-links">
+      <a href="campusos-cycle0-implementation-plan.html">C0</a>
+      <a href="../plans/phase1/campusos-cycle1-implementation-plan.html">C1</a>
+      <a href="../plans/phase1/campusos-cycle2-implementation-plan.html">C2</a>
+      <a href="../plans/phase1/campusos-cycle3-implementation-plan.html">C3</a>
+      <a href="../plans/phase1/campusos-cycle4-implementation-plan.html">C4</a>
+      <a href="../plans/phase1/campusos-cycle5-implementation-plan.html">C5</a>
+      <a href="../plans/phase1/campusos-cycle6-implementation-plan.html">C6</a>
+      <a href="../plans/phase1/campusos-cycle7-implementation-plan.html">C7</a>
+      <a href="../plans/phase1/campusos-cycle8-implementation-plan.html">C8</a>
+    </div>
+  </div>
+
+  <h2 class="sec">CAT Scripts</h2>
+  <p class="body">Customer Acceptance Tests are reproducible end-to-end walkthroughs verified live on <code>tenant_demo</code>. Each CAT covers a schema preamble + 8&ndash;10 plan scenarios + cleanup.</p>
+  <div class="card-grid">
+    <a href="../plans/phase1/cycle9-cat-script.md" class="card"><h4>Cycle 9 CAT</h4><div class="desc">Discipline incidents, consequences, BIP with goals + feedback.</div><div class="meta">8 scenarios</div></a>
+    <a href="../plans/phase1/cycle10-cat-script.md" class="card"><h4>Cycle 10 CAT</h4><div class="desc">Health record, medication, nurse visit, ADR-030 IEP sync, screening, dietary, HIPAA log.</div><div class="meta">9 scenarios</div></a>
+    <a href="../plans/phase1/cycle11-cat-script.md" class="card"><h4>Cycle 11 CAT</h4><div class="desc">Referral pipeline, caseload, FERPA notes + lock, MTSS tier, intervention, coordinated care, mandatory report.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle11.1-cat-script.md" class="card"><h4>Cycle 11.1 CAT</h4><div class="desc">Survey template, deploy, student check-in, WANTS_TO_TALK + SELF_HARM_INDICATOR alerts, triage.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle12-cat-script.md" class="card"><h4>Cycle 12 CAT</h4><div class="desc">Catalogue + GIN search, barcode checkout, max-checkouts, hold queue, overdue auto-fine, reading log + programme progress, reviews, reading lists.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle13-cat-script.md" class="card"><h4>Cycle 13 CAT</h4><div class="desc">Programme + roster + GPA eligibility, game schedule + results + stats, season records, concussion protocol 6-step, medical clearance, return-to-play.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle14-cat-script.md" class="card"><h4>Cycle 14 CAT</h4><div class="desc">Thread creation, message send + moderation pipeline, read receipts, announcement publish + audience, emergency alert lifecycle, admin review queue.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle15-cat-script.md" class="card"><h4>Cycle 15 CAT</h4><div class="desc">Conference + slot grid, parent booking, meeting lifecycle, notes parent-visibility, action items, IEP meeting record, recording consent.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle16-cat-script.md" class="card"><h4>Cycle 16 CAT</h4><div class="desc">Enrolment period, parent application, multi-stage review, offer + accept, onboarding checklist, waitlist auto-advance, enr.student.enrolled.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle17-cat-script.md" class="card"><h4>Cycle 17 CAT</h4><div class="desc">Activity + membership, field trip + consent, anonymous election vote, service hours + approval, max-participants, scope gating.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle18-cat-script.md" class="card"><h4>Cycle 18 CAT</h4><div class="desc">Group creation + scope binding, membership lifecycle, ownership transfer handshake, announcements + reads, events + RSVP, cross-module group_id resolution.</div><div class="meta">8 scenarios</div></a>
+    <a href="../plans/phase1/cycle19-cat-script.md" class="card"><h4>Cycle 19 CAT</h4><div class="desc">Route + stops, fleet + inspection, driver credentials, QR scan ridership, no-show detection, route change request, immutable audit log.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle20-cat-script.md" class="card"><h4>Cycle 20 CAT</h4><div class="desc">Menu cycle, POS scan + allergen block + supervisor override, free meal, cash reconciliation, temperature log, dietary update, NSLP eligibility, USDA claim.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle21-cat-script.md" class="card"><h4>Cycle 21 CAT</h4><div class="desc">Building + spaces, booking conflict (EXCLUDE gist), space closure, work order + timeline, PM checklist + FAIL auto-escalation, inspection + violation, zone assignments, supply reorder.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle22-cat-script.md" class="card"><h4>Cycle 22 CAT</h4><div class="desc">Asset lifecycle, damage + repair, licence seats + capacity alert, credential vault tier enforcement + immutable audit, MDM alerts, procurement, device selection (ADR-066).</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle23-cat-script.md" class="card"><h4>Cycle 23 CAT</h4><div class="desc">Framework adoption + GIN search, curriculum map + units, dual-resolution standards alignment, lesson linking (Cycle 2), delivery gap materialisation, resources, lib cross-link (Cycle 12).</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle24-cat-script.md" class="card"><h4>Cycle 24 CAT</h4><div class="desc">Portfolio creation (student-owned), item sourcing from Cycle 2, featured items, 4-tier visibility, share link + view tracking, teacher achievement award, cross-module achievement resolution, transfer privacy reset.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle25-cat-script.md" class="card"><h4>Cycle 25 CAT</h4><div class="desc">Series + edition, collaborative authoring, ADR-035 section approval, editorial comments, distribution rules + audience, publish + delivery tracking, subscription opt-out.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle26-cat-script.md" class="card"><h4>Cycle 26 CAT</h4><div class="desc">Chart of accounts, GL posting + balance validation, Kafka GLConsumer, budget variance, AP lifecycle, bank reconciliation, board report, period lock permanence.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle27-cat-script.md" class="card"><h4>Cycle 27 CAT</h4><div class="desc">Requisition + approval, budget commitment on PO, receiving + inspection, distribution + Kafka emit, return/warranty, vendor performance, commitment release.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle28-cat-script.md" class="card"><h4>Cycle 28 CAT</h4><div class="desc">Dual-mode store, student order + parent approval, fulfilment + inventory, external order + shipping, backorder, reorder threshold signal, revenue materialisation.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle29-cat-script.md" class="card"><h4>Cycle 29 CAT</h4><div class="desc">Worker materialisation, attendance + academic dashboards, at-risk detection + threshold config, school/district aggregation, report engine + scheduled delivery, FROM_SNAPSHOT rebuild.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle30-cat-script.md" class="card"><h4>Cycle 30 CAT</h4><div class="desc">ROPA + DPIA gap, processor DPA gap, 72-hour breach countdown, SAR deadline, erasure + pseudonymisation, consent lifecycle, privacy notice, age-18 transfer.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle31-cat-script.md" class="card"><h4>Cycle 31 CAT</h4><div class="desc">Structured logging verified, tracing end-to-end, metrics baseline, load test targets met, partitions active, caching tuned, DLQ replay, envelope validation, circuit breakers, SLO alerts firing.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase1/cycle32-cat-script.md" class="card"><h4>Cycle 32 CAT</h4><div class="desc">RDS Global Database replication, backup validation, PITR test, Kafka MirrorMaker2, Redis failover, S3 CRR + EU data residency, tenant routing, DR runbook, automated failover, chaos engineering.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase2/p2c1-cat-script.md" class="card"><h4>P2-1 CAT</h4><div class="desc">Kiosk sign-in, returning visitor HMAC lookup, pre-reg QR scan, banned person HMAC block, safeguarding bypass audit, muster snapshot + accountability, sign-out, auto sign-out.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase2/p2c2-cat-script.md" class="card"><h4>P2-2 CAT</h4><div class="desc">Declaration + outbox fan-out, outbox crash recovery, 5-min PAGE alert, accountability lifecycle, timeline immutability, reunification + correction, drill scheduling, non-discipline incident.</div><div class="meta">10 scenarios</div></a>
+    <a href="../plans/phase2/p2c3-cat-script.md" class="card"><h4>P2-3 CAT</h4><div class="desc">Telehealth session + consent + HIPAA logging, immunisation compliance computation, state report CSV, screening referral + overdue detection.</div><div class="meta">7 scenarios</div></a>
+    <a href="p2c4-cat-script.md" class="card"><h4>P2-4 CAT</h4><div class="desc">Payroll processing + GL emit, recruitment pipeline + auto-hire, training + certification expiry alert, appraisal + lesson observation + sign-off, salary review, expense claims.</div><div class="meta">12 scenarios</div></a>
+    <a href="p2c5-cat-script.md" class="card"><h4>P2-5 CAT</h4><div class="desc">Tour slot booking + overbooking rejection, withdrawal + exit task lifecycle, re-enrolment auto-withdrawal, mid-year admission + capacity check, application linking.</div><div class="meta">7 scenarios</div></a>
+    <a href="../plans/phase2/p2c6-cat-script.md" class="card"><h4>P2-6 CAT</h4><div class="desc">Financial aid + fund pool, auto-invoicing + sibling discount, lunch account + POS debit + low balance, payment plan + default, credit note + reversal (IMMUTABLE), late fees, multi-invoice allocation.</div><div class="meta">10 scenarios</div></a>
+    <a href="p2c7-cat-script.md" class="card"><h4>P2-7 CAT</h4><div class="desc">Hall pass limits + overdue, rubric scoring, class moments, standards gradebook + evidence, peer review anonymisation, formative assessment, AI tutoring + opt-out + quota, lesson video pipeline, AI safety rules.</div><div class="meta">12 scenarios</div></a>
+    <a href="p2c8-cat-script.md" class="card"><h4>P2-8 CAT</h4><div class="desc">Equipment checkout + damage, safety compliance, conference scheduling, game streaming + highlight clips, officials marketplace bidirectional ratings, recruiting profiles (student-owned).</div><div class="meta">10 scenarios</div></a>
+    <a href="p2c9-cat-script.md" class="card"><h4>P2-9 CAT</h4><div class="desc">Profile + credentials, availability BLOCKED override, school pool + preferences, tiered notification, accept + assignment, check-in/out + session notes, late cancellation + policy, bidirectional ratings, pay rate resolution.</div><div class="meta">10 scenarios</div></a>
+    <a href="p2c10-cat-script.md" class="card"><h4>P2-10 CAT</h4><div class="desc">Recipe allergen auto-compute + cost, inventory receive/usage/waste/stocktake (IMMUTABLE), transfer workflow, preorder allergen cross-check, production records, USDA claims, eligibility, AllergenAlertConsumer.</div><div class="meta">10 scenarios</div></a>
+    <a href="p2c11-cat-script.md" class="card"><h4>P2-11 CAT</h4><div class="desc">Repair + safety-critical blocking, parts low-stock, component end-of-life, fuel efficiency, driver hours approaching limit, route generation + candidate review, ad-hoc trips, GPS telemetry partitioning, geofence events, parent tracking token, fleet status materialisation.</div><div class="meta">12 scenarios</div></a>
+    <a href="p2c12-cat-script.md" class="card"><h4>P2-12 CAT</h4><div class="desc">Atomic ticket sale + concurrent race, event capacity CHECK, order expiry + tier rollback, gate scan atomic + audit log, season pass validation, comp list, refund + tier decrement, auto SOLD_OUT, Stripe + GL revenue posting.</div><div class="meta">10 scenarios</div></a>
+    <a href="p2c13-cat-script.md" class="card"><h4>P2-13 CAT</h4><div class="desc">Student profile + avatar approval, custom fields typed validation, parent update auto-approval, graduation audit + at-risk alert, service learning + verification, GPA weighted/unweighted, prerequisite validation, transcript snapshot freeze, locker combination encryption.</div><div class="meta">12 scenarios</div></a>
+    <a href="p2c14-cat-script.md" class="card"><h4>P2-14 CAT</h4><div class="desc">RJ conference lifecycle + auto-resolution, overdue agreement action detection, peer mediation CHECK constraints, positive points award + redemption balance validation, reward quantity decrement, BIP teacher feedback request + submission.</div><div class="meta">6 scenarios</div></a>
+    <a href="p2c15-cat-script.md" class="card"><h4>P2-15 CAT</h4><div class="desc">Worker idempotency (replay same event → same result), single-writer enforcement, read replica routing, wellbeing trends no-attribution, consumer checkpoint management, rebuild procedure validation, nightly vs live consumer.</div><div class="meta">8 scenarios</div></a>
+    <a href="p2c17-cat-script.md" class="card"><h4>P2-17 CAT</h4><div class="desc">Rotation calendar mapping, solver algorithm selection (CP-SAT vs heuristic), candidate clash detection + promotion blocking, exam accommodation auto-population, co-teaching EXCLUSION relaxation, pull-out PULL_OUT attendance pre-mark, cross-school person-level double-booking, cover split student assignment.</div><div class="meta">10 scenarios</div></a>
+    <a href="p2c18-cat-script.md" class="card"><h4>P2-18 CAT</h4><div class="desc">Cleaning route stop completion + issue auto-ticket, zone inspection FAIL auto-work-order, stocktake discrepancy adjustments, fire drill 90-day compliance, asset disposal requires DECOMMISSIONED, energy consumption auto-compute, space utilisation underused detection.</div><div class="meta">8 scenarios</div></a>
+    <a href="p2c19-cat-script.md" class="card"><h4>P2-19 CAT</h4><div class="desc">Translation caching (duplicate returns cached), template variable validation, broadcast segment resolution, three-tier moderation most-restrictive-wins, AI sensitivity threshold, appeal overturn releases message, push campaign scheduled delivery, device token lifecycle.</div><div class="meta">9 scenarios</div></a>
+    <a href="p2c20-cat-script.md" class="card"><h4>P2-20 CAT</h4><div class="desc">Remote action IMMUTABLE + justification ≥20 chars, WIPE auto-reset, inventory audit discrepancy report, licence renewal expiry update, monitoring consecutive-failure alerting, config documentation versioning, infrastructure warranty expiry.</div><div class="meta">7 scenarios</div></a>
+    <a href="p2c21-cat-script.md" class="card"><h4>P2-21 CAT</h4><div class="desc">Account lifecycle transitions, onboarding auto-complete, health score computation, tenant access 4h expiry + justification, pricing history audit, marketplace 5% fee CHECK, parent listing block, tsvector search, watch list matching, reputation scoring.</div><div class="meta">12 scenarios</div></a>
+    <a href="p2c22-cat-script.md" class="card"><h4>P2-22 CAT</h4><div class="desc">Profile opt-in/out directory visibility, tag segmentation + bulk recipient add, multi-currency FX donation, anonymous donation privacy, Redis cache invalidation, outreach funnel tracking, events module graceful fallback.</div><div class="meta">7 scenarios</div></a>
+    <a href="p2c23-cat-script.md" class="card"><h4>P2-23 CAT</h4><div class="desc">Framework adoption + duplicate rejection, evidence lifecycle + SOFT INTEGRITY resolution, self-study UNIQUE per standard/school/cycle, action plan overdue detection, readiness score computation, platform seeder idempotency.</div><div class="meta">7 scenarios</div></a>
+    <a href="p2c24-cat-script.md" class="card"><h4>P2-24 CAT</h4><div class="desc">Atomic conference slot booking, booking window enforcement, engagement score cross-module computation, configurable weights, anonymous survey respondent_id NOT stored, follow-up action tracking.</div><div class="meta">6 scenarios</div></a>
+    <a href="p2c25-cat-script.md" class="card"><h4>P2-25 CAT</h4><div class="desc">Reading list curriculum linkage, class set auto-checkout creation + overdue, recommendation collaborative filtering + dismiss, ILL status tracking, catalogue import dedup + error log, recommendation weight configuration.</div><div class="meta">7 scenarios</div></a>
+    <a href="p2c26-cat-script.md" class="card"><h4>P2-26 CAT</h4><div class="desc">Version history IMMUTABLE + auto-creation on status change, revert creates new version (append-only), is_system template edit blocked, scheduled publish with timezone, analytics atomic increments, concurrent safety.</div><div class="meta">5 scenarios</div></a>
+    <a href="p2c27-cat-script.md" class="card"><h4>P2-27 CAT</h4><div class="desc">Section drag-reorder, reflection student-owned enforcement, endorsement role restriction (students blocked), milestone auto-check from cross-module events, readiness progress recomputation, resume cross-module auto-populate + PDF generation.</div><div class="meta">7 scenarios</div></a>
+    <a href="p2c28-cat-script.md" class="card"><h4>P2-28 CAT</h4><div class="desc">Poll anonymous voting, RSVP max_attendees enforcement, election structural anonymity (no voter_id), double-vote prevention, club budget balance computation, referral IMMUTABLE activity log, CRISIS auto-escalation, agency consent tracking, wellbeing longitudinal aggregation.</div><div class="meta">10 scenarios</div></a>
+    <a href="p2c29-cat-script.md" class="card"><h4>P2-29 CAT</h4><div class="desc">Procurement catalogue + tiered pricing, supplier contract renewal, budget transfer atomic lock ordering, spending analytics, promotion max_uses atomic enforcement, loyalty tier computation, gift card atomic balance + depletion, wishlist notifications, price schedule overlap prevention, category hierarchy.</div><div class="meta">10 scenarios</div></a>
+  </div>
+
+  <h2 class="sec">Phase 1 Punch List Status</h2>
+  <p class="body">Architectural items deferred from cycle reviews. Items resolved in Cycle 31 marked as done.</p>
+  <div class="card-grid">
+    <div class="card"><h4>DLQ Dashboard <span class="pill pill-green">Resolved</span></h4><div class="desc">Shipped in Cycle 31 Step 7. Dead-letter-queue dashboard with replay at /admin/dlq.</div></div>
+    <div class="card"><h4>Consumer Envelope Validation <span class="pill pill-green">Resolved</span></h4><div class="desc">Shipped in Cycle 31 Step 7. All 17+ consumers validate ADR-057 envelope before processing.</div></div>
+    <div class="card"><h4>Transactional Outbox <span class="pill pill-green">Resolved</span></h4><div class="desc">Evaluated in Cycle 31 Step 7. Decision documented — implement or defer with rationale.</div></div>
+    <div class="card"><h4>Role Split <span class="pill pill-amber">Phase 2</span></h4><div class="desc">Split Staff role into Nurse / Counsellor / VP / AD / Librarian / EO. Tracked in Phase 2 Wave A.</div></div>
+    <div class="card"><h4>Scheduled-Dose Dedup <span class="pill pill-amber">Phase 2</span></h4><div class="desc">Advisory lock or partial UNIQUE on medication administrations. Tracked in P2-3 Health Advanced.</div></div>
+    <div class="card"><h4>Wellbeing Score-Drop Alerts <span class="pill pill-green">Resolved</span></h4><div class="desc">SIGNIFICANT_SCORE_DROP + PERSISTENT_LOW_SCORE. Absorbed into P2-28c Community Bundle (Student Services .1 scope).</div></div>
+  </div>
+
+  <h2 class="sec">Phase 2 Build Plan (COMPLETE)</h2>
+  <p class="body">29 cycles across 4 waves — all complete. Now in hardening sprint. <a href="../plans/phase2/campusos-phase2-build-plan.html" style="color:var(--accent-mid);font-weight:600;">View the full Phase 2 Build Plan &rarr;</a></p>
+  <div class="card-grid">
+    <div class="card" style="border-left:4px solid var(--red)"><h4>Wave A &mdash; Pilot Critical <span class="pill pill-green" style="font-size:9px">Done</span></h4><div class="desc">Visitor Management, Incident &amp; Emergency, Health Advanced, HR Advanced.</div><div class="meta" style="color:var(--green)">4 cycles &middot; 56 tables &middot; COMPLETE</div></div>
+    <div class="card" style="border-left:4px solid var(--amber)"><h4>Wave B &mdash; Pilot Enhancement <span class="pill pill-green" style="font-size:9px">Done</span></h4><div class="desc">Enrolment, Payments, Classroom AI, Athletics, Sub Marketplace, Food Service depth.</div><div class="meta" style="color:var(--green)">6 cycles &middot; 92 tables &middot; COMPLETE</div></div>
+    <div class="card" style="border-left:4px solid var(--blue)"><h4>Wave C &mdash; Operational Depth <span class="pill pill-green" style="font-size:9px">Done</span></h4><div class="desc">Transport fleet, Events, SIS completion, Behaviour, Analytics live consumers, Scheduling solver.</div><div class="meta" style="color:var(--green)">7 cycles &middot; 105 tables &middot; COMPLETE</div></div>
+    <div class="card" style="border-left:4px solid #64748b"><h4>Wave D &mdash; Module Completion <span class="pill pill-green" style="font-size:9px">Done</span></h4><div class="desc">Facilities, Comms, IT, Platform marketplace, Alumni, Accreditation, remaining .1 bundles.</div><div class="meta" style="color:var(--green)">12 cycles &middot; 170 tables &middot; COMPLETE</div></div>
+    <div class="card" style="border-left:4px solid #dc2626"><h4>Hardening Sprint <span class="pill pill-amber" style="font-size:9px">In Progress</span></h4><div class="desc">P2-H1 Security, P2-H2 Schema, P2-H3 Kafka, P2-H4 Tests. 114 findings from three-review audit. No new tables.</div><div class="meta" style="color:#dc2626">4 cycles &middot; 0 tables &middot; <a href="../campusos-hardening-cycles.html">Plan &rarr;</a></div></div>
+    <div class="card" style="border-left:4px solid #0d9488"><h4>Phase 3 &mdash; Infrastructure &amp; Ecosystem</h4><div class="desc">Blocked on hardening re-review. 6 extracted services, full finance, DPO compliance, SIS migration, mobile apps, marketplace.</div><div class="meta" style="color:#0d9488">4 themes &middot; 15 projects &middot; <a href="../campusos-phase3-roadmap.html">Roadmap &rarr;</a></div></div>
+  </div>
+</div>
+
+<!-- ── FOOTER ── -->
+<div style="max-width:1100px;margin:40px auto;padding:0 32px 60px;font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:20px;">
+  CampusOS Design Hub &mdash; May 2026 &middot; <a href="https://github.com/adamtromsness/campusos" style="color:var(--accent-mid)">GitHub</a> &middot; ERD v11 &middot; Architecture v10
+</div>
+
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-23: Accreditation</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave D &mdash; Module Completion</div>
+    <h1>P2-23: Accreditation</h1>
+    <div class="sub">Platform-seeded accreditation frameworks (AdvancED, IB, CIS, NEASC, WASC) with school adoption, standard-by-standard evidence collection with multi-type artifacts (documents, URLs, metrics, observations, surveys), self-study ratings with rationale, improvement action plans with responsible party assignment and overdue detection, site visit preparation tracking with readiness scoring, and a readiness dashboard that shows the school's accreditation posture at a glance. No split needed.</div>
+    <span class="version">May 2026 &middot; 8 Steps &middot; ERD v11 &middot; M85 Accreditation (6 tenant + 2 platform = 8 tables) &middot; TCH-008 extended &middot; Phase 2 Cycle 23</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+  <p class="body-text">Phase 2 Cycle 23 builds the entire M85 Accreditation module &mdash; 6 tenant tables + 2 platform tables. This is a tenant + platform hybrid module: platform-standard frameworks (AdvancED, IB, CIS, etc.) and their standards live in the platform schema, seeded once and shared across all schools. Each school adopts one or more frameworks, then collects evidence against the standards, rates itself in a self-study, creates improvement action plans, and prepares for site visits.</p>
+
+  <p class="body-text">The evidence system uses <strong>SOFT INTEGRITY</strong> for standard_id — evidence can link to either a platform standard (acc_standards_platform) or a school-created custom standard (within acc_frameworks). The service layer resolves the reference at query time. This avoids a hard FK that would span schemas.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Platform admin seeds AdvancED framework with 7 domains and 30 standards (platform schema, shared across all schools) &rarr; Lincoln Academy adopts AdvancED (acc_school_framework_adoptions created) &rarr; accreditation coordinator begins self-study: rates Standard 1.1 "Purpose and Direction" as ACCOMPLISHED with rationale "Clear mission statement reviewed annually" &rarr; uploads 3 evidence items: school mission document (DOCUMENT), strategic plan URL (URL), parent survey results (SURVEY) &rarr; rates Standard 2.3 "Learning Environment" as DEVELOPING with rationale "Classroom observation data shows inconsistent implementation" &rarr; creates action plan: goal "Implement consistent classroom management framework", responsible: VP Academic, target date 6 months, actions: [{description: "Select framework", due: "2 weeks"}, {description: "Staff training", due: "2 months"}, {description: "Classroom observation cycle", due: "4 months"}] &rarr; ActionPlanOverdueWorker detects action past target → status OVERDUE, coordinator notified &rarr; site visit scheduled: visit_date June 15, accreditor_org "AdvancED Southern Region", lead contact "Dr. Smith" → status PREPARING → readiness_score computed: 24/30 standards rated, 18 with evidence, 3 action plans COMPLETE → readiness_score = 75 → coordinator pushes to close gaps → all 30 rated + evidenced → readiness_score = 95 → status READY &rarr; site visit occurs → status VISIT_COMPLETE.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (8 tables):</strong> Platform: acc_frameworks_platform, acc_standards_platform. Tenant: acc_school_framework_adoptions, acc_frameworks (custom), acc_evidence_items, acc_self_study_ratings, acc_action_plans, acc_site_visit_prep. Function TCH-008 extended.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Site visit team member management (visiting evaluators). Site visit schedule/agenda builder. Evidence auto-linking from other modules (e.g., auto-attach attendance data as evidence for a relevant standard). Multi-cycle comparison (how ratings changed between accreditation cycles). External accreditor portal (read-only view for visiting team). Peer school benchmarking.</p>
+  </div>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Platform Schema &mdash; Frameworks + Standards (2 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p><strong>PLATFORM SCHEMA</strong> &mdash; seeded once, shared across all schools.</p>
+    <ol class="detail-list">
+      <li><strong>acc_frameworks_platform</strong> &mdash; <code>name TEXT NOT NULL UNIQUE</code>, <code>abbreviation TEXT NOT NULL UNIQUE</code>, <code>organisation TEXT NOT NULL</code>, <code>description TEXT</code>, <code>version TEXT</code>, <code>is_active BOOLEAN DEFAULT true</code>. Seeded: AdvancED/Cognia, IB (PYP/MYP/DP), CIS, NEASC, WASC, SACS, MSA.</li>
+      <li><strong>acc_standards_platform</strong> &mdash; <code>framework_id UUID FK NOT NULL</code>, <code>standard_code TEXT NOT NULL</code>, <code>domain TEXT NOT NULL</code>, <code>standard_text TEXT NOT NULL</code>, <code>guidance_notes TEXT</code>, <code>sort_order INT NOT NULL</code>. UNIQUE(framework_id, standard_code). INDEX(framework_id, domain, sort_order). AdvancED: 7 domains × ~5 standards = ~35 rows. IB: varies by programme.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 platform tables. Migration: <code>149_platform_acc_frameworks.sql</code> (platform schema).</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Tenant Schema &mdash; Adoptions + Custom Frameworks + Evidence + Self-Study + Action Plans + Site Visit (6 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>acc_school_framework_adoptions</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>platform_framework_id UUID FK(acc_frameworks_platform) NOT NULL</code>, <code>adopted_at DATE NOT NULL</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, platform_framework_id). A school can adopt multiple frameworks (e.g., AdvancED + IB).</li>
+      <li><strong>acc_frameworks</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name). School-created custom frameworks only. CHECK(school_id IS NOT NULL) — platform frameworks live in acc_frameworks_platform, never here.</li>
+      <li><strong>acc_evidence_items</strong> &mdash; <code>standard_id UUID NOT NULL</code> (SOFT INTEGRITY — resolves to acc_standards_platform OR custom standard within acc_frameworks), <code>school_id UUID NOT NULL</code>, <code>evidence_type TEXT NOT NULL</code> 5-value CHECK (DOCUMENT, URL, METRIC, OBSERVATION, SURVEY), <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>s3_key TEXT</code>, <code>url TEXT</code>, <code>metric_value TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 4-value CHECK (DRAFT, SUBMITTED, APPROVED, REJECTED), <code>submitted_by UUID FK NOT NULL</code>, <code>submitted_at TIMESTAMPTZ</code>, <code>reviewed_by UUID FK</code>, <code>reviewed_at TIMESTAMPTZ</code>, <code>reviewer_notes TEXT</code>. INDEX(standard_id, school_id, status). INDEX(school_id, status).</li>
+      <li><strong>acc_self_study_ratings</strong> &mdash; <code>standard_id UUID NOT NULL</code> (SOFT INTEGRITY), <code>school_id UUID NOT NULL</code>, <code>cycle_id TEXT NOT NULL</code> (e.g., "2025-2026"), <code>rating TEXT NOT NULL</code> 4-value CHECK (EXEMPLARY, ACCOMPLISHED, DEVELOPING, NOT_MET), <code>rationale TEXT NOT NULL</code>, <code>rated_by UUID FK NOT NULL</code>, <code>rated_at TIMESTAMPTZ NOT NULL</code>. UNIQUE(standard_id, school_id, cycle_id). INDEX(school_id, cycle_id, rating).</li>
+      <li><strong>acc_action_plans</strong> &mdash; <code>standard_id UUID NOT NULL</code> (SOFT INTEGRITY), <code>school_id UUID NOT NULL</code>, <code>goal TEXT NOT NULL</code>, <code>actions JSONB NOT NULL</code> (array of {description, due_date, status: PENDING|COMPLETED|OVERDUE}), <code>responsible_party UUID FK(hr_employees) NOT NULL</code>, <code>target_date DATE NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'PLANNED'</code> 4-value CHECK (PLANNED, IN_PROGRESS, COMPLETE, OVERDUE). INDEX(school_id, status). ActionPlanOverdueWorker: nightly checks target_date → flips IN_PROGRESS to OVERDUE + notifies responsible party. Emits <code>acc.action_plan.overdue</code>.</li>
+      <li><strong>acc_site_visit_prep</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>visit_date DATE NOT NULL</code>, <code>accreditor_org TEXT NOT NULL</code>, <code>lead_contact_name TEXT</code>, <code>lead_contact_email TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'PREPARING'</code> 3-value CHECK (PREPARING, READY, VISIT_COMPLETE), <code>readiness_score NUMERIC(3,0)</code> (0-100, computed: % of standards with both a rating AND at least one APPROVED evidence item), <code>notes TEXT</code>, <code>created_by UUID FK NOT NULL</code>. INDEX(school_id, visit_date).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 6 tenant tables. Migration: <code>150_acc_evidence_selfstudy.sql</code>. Total P2-23 tables: 8.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li><strong>Platform seed:</strong> 3 frameworks (AdvancED with 7 domains + 30 standards, IB MYP with 4 domains + 16 standards, CIS with 8 domains + 24 standards). Total ~70 acc_standards_platform rows.</li>
+      <li><strong>Tenant seed:</strong> 1 adoption (Lincoln Academy adopts AdvancED). 1 custom framework ("Lincoln Teaching Excellence" with 5 custom standards). 8 evidence items (3 DOCUMENT, 2 URL, 1 METRIC, 1 OBSERVATION, 1 SURVEY; mix of APPROVED + SUBMITTED + DRAFT). 10 self-study ratings (cycle "2025-2026"; 4 ACCOMPLISHED, 3 DEVELOPING, 2 EXEMPLARY, 1 NOT_MET). 2 action plans (1 IN_PROGRESS, 1 OVERDUE). 1 site visit prep (PREPARING, readiness_score=75).</li>
+      <li><strong>Permissions:</strong> TCH-008 extended: accreditation read (all staff), accreditation write (accreditation coordinator + admin), evidence submission (all staff), evidence approval (coordinator + admin), action plan management (coordinator + admin).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Platform frameworks seeded. Tenant accreditation demo data.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Accreditation NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>FrameworkService</strong> &mdash; <code>GET /accreditation/frameworks</code> (platform frameworks available for adoption), <code>POST /accreditation/adoptions</code> (school adopts framework), <code>GET /accreditation/adoptions</code> (school's adopted frameworks with standards). <code>POST /accreditation/custom-frameworks</code> (school creates custom), <code>GET /accreditation/standards/:frameworkId</code> (all standards for a framework, platform or custom).</li>
+      <li><strong>EvidenceService</strong> &mdash; <code>POST /accreditation/evidence</code> (staff submits evidence linked to a standard; S3 upload for DOCUMENT), <code>GET /accreditation/evidence/:standardId</code> (all evidence for a standard), <code>PATCH /accreditation/evidence/:id</code> (coordinator reviews: SUBMITTED → APPROVED/REJECTED). <code>GET /accreditation/evidence/by-status</code> (coordinator: pending review queue).</li>
+      <li><strong>SelfStudyService</strong> &mdash; <code>POST /accreditation/self-study-ratings</code> (coordinator rates standard with rationale), <code>GET /accreditation/self-study/:cycle</code> (all ratings for a cycle, grouped by domain), <code>GET /accreditation/self-study/:cycle/summary</code> (rating distribution: how many EXEMPLARY/ACCOMPLISHED/DEVELOPING/NOT_MET).</li>
+      <li><strong>ActionPlanService</strong> &mdash; CRUD. <code>PATCH /accreditation/action-plans/:id/actions</code> (update individual action status within the JSONB array). ActionPlanOverdueWorker: nightly → flips IN_PROGRESS to OVERDUE when target_date past; emits <code>acc.action_plan.overdue</code>.</li>
+      <li><strong>SiteVisitService</strong> &mdash; CRUD. <code>GET /accreditation/site-visit/:id/readiness</code> (computes readiness_score: % of adopted standards with rating + APPROVED evidence; updates acc_site_visit_prep.readiness_score). <code>PATCH /accreditation/site-visit/:id</code> (status transitions: PREPARING → READY → VISIT_COMPLETE).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 5 services + 1 worker, ~22 endpoints, 1 Kafka emit.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Accreditation UI</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Accreditation Dashboard</strong> <code>/accreditation</code> &mdash; coordinator: adopted frameworks with progress. Per-framework: domain breakdown with rating pills (green EXEMPLARY → red NOT_MET). Evidence count per standard. Action plan status. Readiness score gauge for upcoming site visit.</li>
+      <li><strong>Standards Explorer</strong> <code>/accreditation/standards</code> &mdash; standard list grouped by domain. Per-standard: current rating + rationale + evidence list + action plan (if any). Quick-rate form. Evidence upload form.</li>
+      <li><strong>Evidence Manager</strong> <code>/accreditation/evidence</code> &mdash; coordinator: pending review queue (SUBMITTED items). Approve/reject with notes. Staff: upload evidence form (type selector, S3 upload, link to standard).</li>
+      <li><strong>Self-Study Report</strong> <code>/accreditation/self-study</code> &mdash; coordinator: full self-study view for a cycle. Rating distribution chart. Export as PDF for submission to accrediting body.</li>
+      <li><strong>Action Plans</strong> <code>/accreditation/action-plans</code> &mdash; Kanban board by status (PLANNED → IN_PROGRESS → COMPLETE). Overdue highlighted. Per-plan: actions checklist with due dates.</li>
+      <li><strong>Site Visit Prep</strong> <code>/accreditation/site-visit</code> &mdash; visit details + readiness score. Checklist of gaps (standards without rating or evidence). Status progression.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Dashboard, standards explorer, evidence manager, self-study report, action plans, site visit prep.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <ol class="detail-list">
+      <li><strong>Framework adoption:</strong> School adopts AdvancED. Verify 30 standards accessible via adoption. Adopt IB. Verify both frameworks' standards returned. Attempt duplicate adoption → 409.</li>
+      <li><strong>Evidence lifecycle:</strong> Staff submits DOCUMENT evidence for Standard 1.1. Status=DRAFT. Submit → SUBMITTED. Coordinator approves → APPROVED. Upload to S3. Verify s3_key populated. Submit URL evidence. Verify url populated.</li>
+      <li><strong>Self-study rating:</strong> Coordinator rates Standard 1.1 as ACCOMPLISHED with rationale. Verify UNIQUE(standard_id, school_id, cycle_id). Attempt duplicate → 409. Rate all 30 standards. Verify summary distribution correct.</li>
+      <li><strong>Action plan + overdue:</strong> Create action plan for Standard 2.3 (DEVELOPING), target_date = yesterday. Run ActionPlanOverdueWorker. Verify status → OVERDUE. Verify <code>acc.action_plan.overdue</code> fires. Complete all actions in JSONB → status → COMPLETE.</li>
+      <li><strong>Readiness score:</strong> 30 standards adopted. 24 rated + evidenced. Verify readiness_score = 80. Rate + evidence remaining 6. Verify readiness_score = 100.</li>
+      <li><strong>SOFT INTEGRITY:</strong> Evidence links to platform standard_id. Verify resolves correctly. Evidence links to custom standard. Verify resolves correctly. Evidence links to non-existent standard_id → 404.</li>
+      <li><strong>Visibility:</strong> All staff can view standards + submit evidence. Only coordinator + admin can rate, approve evidence, manage action plans. Students/parents cannot access accreditation module.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified accreditation: adopt → evidence → self-study → action plans → readiness → site visit.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Readiness Score Computation</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li>Readiness score formula: <code>(standards_with_rating_AND_approved_evidence / total_adopted_standards) × 100</code>. A standard is "ready" when it has at least one self-study rating for the current cycle AND at least one APPROVED evidence item. The score updates on every evidence approval + every self-study rating submission. Cached on acc_site_visit_prep.readiness_score for dashboard rendering.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Readiness score auto-computation.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Platform Framework Seeder</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li>Idempotent platform seeder for accreditation frameworks. On platform boot: upserts acc_frameworks_platform + acc_standards_platform with the 3 initial frameworks (AdvancED, IB MYP, CIS). Future frameworks added by extending the seed file — no schema changes needed. Schools see new frameworks automatically on next adoption page load.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Idempotent platform framework seeder.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Schema: 6 tenant + 2 platform = 8 new tables. Tenant table count: ~752.</li>
+      <li>Accreditation API: ~22 endpoints + 1 worker (ActionPlanOverdueWorker).</li>
+      <li>Platform-seeded frameworks (AdvancED, IB MYP, CIS) with ~70 standards.</li>
+      <li>School framework adoption with multi-framework support.</li>
+      <li>Evidence collection with 5 types + approval workflow.</li>
+      <li>Self-study ratings with UNIQUE per standard/school/cycle.</li>
+      <li>Action plans with JSONB actions array + overdue detection.</li>
+      <li>Site visit preparation with auto-computed readiness score.</li>
+      <li>SOFT INTEGRITY for standard_id (resolves to platform or tenant).</li>
+      <li><code>acc.action_plan.overdue</code> Kafka emit.</li>
+      <li>HANDOFF-P2C23.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 23 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M85 Accreditation, 6 tenant + 2 platform tables). Functions: TCH-008 extended. Cross-cycle: Cycle 0 platform schema, Cycle 4 hr_employees for responsible_party. No split needed.</p>
+  </div>
+</div>
+</body>
+</html>

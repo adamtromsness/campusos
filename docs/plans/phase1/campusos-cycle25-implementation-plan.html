@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 25 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../../design-hub/index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../../design-hub/index.html">Design Hub</a>
+  <a href="../../architecture/campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 5 &middot; Academic Advanced</div>
+    <h1>Cycle 25: Publications</h1>
+    <div class="sub">Recurring publication series with numbered editions, collaborative content authoring with multi-section publications and contributor attribution, role-based approval workflow (ADR-035: staff publish directly, students require approval), targeted distribution lists with rule-based audience resolution, series subscriptions with opt-out, and delivery tracking. The school newsletter as a first-class platform object. Closes Wave 5.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M42 Publications (15 tables &mdash; 11 core in scope, 4 deferred) &middot; ADR-035 &middot; Closes Wave 5</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 25 builds the M42 Publications module &mdash; 11 of the 15 ERD tables. This is the final Academic Advanced module, closing Wave 5. Publications turns the school newsletter, principal's bulletin, student magazine, and athletic programme into structured, version-tracked, collaboratively-authored platform objects with targeted distribution &mdash; replacing the patchwork of Mailchimp, Google Docs, and BCC'd email blasts that schools use today.</p>
+
+  <p class="body-text">The module spans 3 domains: (1) series + editions + publications with multi-section content structure and collaborator roles, (2) sections with contributor attribution and the section-level content model, and (3) distribution lists with rule-based audience targeting, per-recipient delivery tracking, and series subscriptions with opt-out. Per ADR-035, staff-authored publications publish directly; student-authored contributions require approval via the Cycle 7 <code>wsk_approval_requests</code> integration.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin creates "The Weekly Eagle" newsletter series (NEWSLETTER, WEEKLY) &rarr; editor creates Edition #12 "Spring 2026" with cover image + editorial note &rarr; adds 4 sections: "Principal's Message" (Rivera), "Sports Roundup" (Coach Martinez), "Student Spotlight" (Maya's submission &mdash; requires approval per ADR-035), "Upcoming Events" (admin) &rarr; Rivera contributes to the "Principal's Message" section as EDITOR &rarr; Maya submits "Student Spotlight" content as CONTRIBUTOR &rarr; admin approves Maya's section via wsk_approval_requests &rarr; edition status: DRAFT &rarr; IN_REVIEW &rarr; APPROVED &rarr; PUBLISHED &rarr; distribution list targets ALL_PARENTS + ALL_STAFF via rules &rarr; audience resolved to ~200 recipients &rarr; <code>pub.publication.published</code> fires &rarr; Cycle 14 Communications fans out delivery &rarr; delivery tracking shows 180 delivered, 150 opened &rarr; David Chen (parent) receives the newsletter, reads it, clicks "Unsubscribe from The Weekly Eagle" &rarr; subscription status flips to UNSUBSCRIBED &rarr; next edition skips David.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (11 tables):</strong> pub_series, pub_edition, pub_publications, pub_publication_collaborators, pub_sections, pub_section_contributors, pub_distribution_lists, pub_distribution_rules, pub_distribution_recipients, pub_series_subscriptions, pub_section_comments. Functions PUB-001 (Series &amp; Editions) + PUB-002 (Content Authoring) + PUB-003 (Distribution).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to Cycle 25.1 (4 tables):</strong> pub_publication_versions (full version history with diff tracking), pub_media_assets (shared media library across publications), pub_approval_delegations (delegation of approval authority during absences), pub_templates (reusable publication templates with pre-built section layouts).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Also deferred:</strong> PDF rendering of publications for print distribution. Email HTML template builder (plain-text delivery this cycle). Analytics dashboard (open rates, click tracking). District-level publications (school-level only this cycle). Scheduled future publishing (schema ready with scheduled_publish_at; the cron worker is Phase 3).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Series + Editions + Publications Schema</td><td>Schema</td><td>pub_series, pub_edition, pub_publications, pub_publication_collaborators</td></tr>
+    <tr><td><strong>2</strong></td><td>Sections + Contributors + Comments Schema</td><td>Schema</td><td>pub_sections, pub_section_contributors, pub_section_comments</td></tr>
+    <tr><td><strong>3</strong></td><td>Distribution + Subscriptions Schema</td><td>Schema</td><td>pub_distribution_lists, pub_distribution_rules, pub_distribution_recipients, pub_series_subscriptions</td></tr>
+    <tr><td><strong>4</strong></td><td>Seed Data &mdash; Series, Edition, Publication, Sections, Distribution</td><td>Seed</td><td>1 series + 2 editions, 2 publications with sections + contributors, 1 distribution list with rules + recipients, subscriptions, PUB-001..003 permissions</td></tr>
+    <tr><td><strong>5</strong></td><td>Series + Publications NestJS Module</td><td>Code</td><td>SeriesService, EditionService, PublicationService, CollaboratorService. Edition numbering. ADR-035 approval gate.</td></tr>
+    <tr><td><strong>6</strong></td><td>Sections + Contributors NestJS Module</td><td>Code</td><td>SectionService, ContributorService, CommentService. Multi-section authoring. Contributor attribution.</td></tr>
+    <tr><td><strong>7</strong></td><td>Distribution + Subscriptions NestJS Module</td><td>Code</td><td>DistributionService, SubscriptionService. Rule-based audience resolution. Delivery tracking. <code>pub.publication.published</code> Kafka emit.</td></tr>
+    <tr><td><strong>8</strong></td><td>Publications UI &mdash; Series + Editor + Authoring</td><td>UI</td><td>"Publications" app tile, series manager, edition editor, section authoring, collaborator management, comment threads</td></tr>
+    <tr><td><strong>9</strong></td><td>Publications UI &mdash; Distribution + Reader + Subscriptions</td><td>UI</td><td>Distribution list builder, audience preview, delivery dashboard, reader view, subscription management</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Series &rarr; edition &rarr; sections + approval &rarr; distribution rules &rarr; audience resolution &rarr; publish + delivery &rarr; subscription opt-out</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Series + Editions + Publications Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Recurring publication series (the brand), numbered editions (specific issues), individual publications (content documents that may be standalone or belong to an edition), and collaborator roles.</p>
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>pub_series</strong> &mdash; <code>school_id UUID</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>publication_type TEXT NOT NULL</code> 6-value CHECK (NEWSLETTER, BULLETIN, ANNOUNCEMENT, MAGAZINE, PROGRAM, REPORT), <code>frequency TEXT NOT NULL</code> 7-value CHECK (DAILY, WEEKLY, FORTNIGHTLY, MONTHLY, TERMLY, ANNUAL, IRREGULAR), <code>series_logo_s3_key TEXT</code>, <code>is_active BOOLEAN DEFAULT true</code>, <code>created_by UUID FK</code>. UNIQUE(school_id, title). A series is the container; editions are instances.</li>
+      <li><strong>pub_edition</strong> &mdash; <code>series_id UUID FK NOT NULL</code>, <code>edition_number INT NOT NULL</code> (auto-incremented per series), <code>edition_label TEXT</code> (e.g., "Vol. 3 Issue 12"), <code>theme TEXT</code>, <code>cover_image_s3_key TEXT</code>, <code>editorial_note TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 5-value CHECK (DRAFT, IN_REVIEW, APPROVED, PUBLISHED, ARCHIVED), <code>scheduled_publish_at TIMESTAMPTZ</code>, <code>published_at TIMESTAMPTZ</code>, <code>editor_id UUID FK</code>, <code>approval_request_id UUID</code> nullable (soft to wsk_approval_requests per ADR-035). UNIQUE(series_id, edition_number).</li>
+      <li><strong>pub_publications</strong> &mdash; <code>school_id UUID</code>, <code>title TEXT NOT NULL</code>, <code>publication_type TEXT NOT NULL</code> same 6-value CHECK, <code>series_id UUID FK</code> nullable (NULL for standalone), <code>edition_id UUID FK</code> nullable, <code>created_by UUID FK</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 5-value CHECK (DRAFT, IN_REVIEW, APPROVED, PUBLISHED, ARCHIVED), <code>scheduled_publish_at TIMESTAMPTZ</code>, <code>published_at TIMESTAMPTZ</code>, <code>approval_request_id UUID</code> nullable (soft to wsk_approval_requests). CHECK(edition_id IS NULL OR series_id IS NOT NULL). INDEX(school_id, status, published_at DESC).</li>
+      <li><strong>pub_publication_collaborators</strong> &mdash; <code>publication_id UUID FK NOT NULL</code>, <code>user_id UUID FK NOT NULL</code> (soft to platform_users), <code>role TEXT NOT NULL</code> 4-value CHECK (EDITOR, CONTRIBUTOR, REVIEWER, VIEWER), <code>invited_by UUID FK</code>, <code>invited_at TIMESTAMPTZ</code>, <code>accepted_at TIMESTAMPTZ</code>. UNIQUE(publication_id, user_id).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>077_pub_series_publications.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Sections + Contributors + Comments Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Content sections within a publication (each section is a named content block with an owner), contributor attribution per section, and threaded editorial comments for collaborative review.</p>
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>pub_sections</strong> &mdash; <code>publication_id UUID FK NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>body TEXT</code>, <code>section_type TEXT NOT NULL DEFAULT 'ARTICLE'</code> 5-value CHECK (ARTICLE, ANNOUNCEMENT, PHOTO_GALLERY, CALENDAR, CUSTOM), <code>owner_id UUID FK NOT NULL</code> (the person responsible for this section's content), <code>sort_order INT NOT NULL</code>, <code>is_approved BOOLEAN DEFAULT false</code> (per ADR-035: student-owned sections require admin approval). INDEX(publication_id, sort_order).</li>
+      <li><strong>pub_section_contributors</strong> &mdash; <code>section_id UUID FK NOT NULL</code>, <code>contributor_id UUID FK NOT NULL</code> (soft to platform_users), <code>contribution_note TEXT</code>, <code>contributed_at TIMESTAMPTZ</code>. UNIQUE(section_id, contributor_id). Attribution tracking beyond the section owner.</li>
+      <li><strong>pub_section_comments</strong> &mdash; <code>section_id UUID FK NOT NULL</code>, <code>author_id UUID FK NOT NULL</code>, <code>body TEXT NOT NULL</code>, <code>is_resolved BOOLEAN DEFAULT false</code>, <code>resolved_by UUID</code> nullable, <code>resolved_at TIMESTAMPTZ</code>, <code>parent_comment_id UUID FK</code> nullable (threaded replies). INDEX(section_id, is_resolved, created_at ASC).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 new tables. Migration: <code>078_pub_sections.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Distribution + Subscriptions Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Distribution lists with rule-based audience targeting, per-recipient delivery tracking with open/bounce status, and series-level subscriptions with opt-out.</p>
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>pub_distribution_lists</strong> &mdash; <code>publication_id UUID FK NOT NULL</code>, <code>list_name TEXT NOT NULL</code>, <code>is_active BOOLEAN DEFAULT true</code>. A publication can have multiple lists combined at send time.</li>
+      <li><strong>pub_distribution_rules</strong> &mdash; <code>distribution_list_id UUID FK NOT NULL</code>, <code>rule_type TEXT NOT NULL</code> 4-value CHECK (ROLE, GRADE, CLASS, GROUP_MEMBERSHIP), <code>rule_value TEXT NOT NULL</code> (e.g., "PARENT", "5", class UUID, group UUID). Multiple rules per list are OR'd &mdash; matching any rule includes the recipient.</li>
+      <li><strong>pub_distribution_recipients</strong> &mdash; Pre-computed delivery rows (same pattern as msg_announcement_audiences). <code>publication_id UUID FK NOT NULL</code>, <code>recipient_id UUID NOT NULL</code> (soft to platform_users), <code>delivery_status TEXT NOT NULL DEFAULT 'PENDING'</code> 4-value CHECK (PENDING, DELIVERED, OPENED, BOUNCED), <code>delivered_at TIMESTAMPTZ</code>, <code>opened_at TIMESTAMPTZ</code>. UNIQUE(publication_id, recipient_id). INDEX(publication_id, delivery_status).</li>
+      <li><strong>pub_series_subscriptions</strong> &mdash; <code>series_id UUID FK NOT NULL</code>, <code>subscriber_id UUID NOT NULL</code> (soft to platform_users), <code>status TEXT NOT NULL DEFAULT 'SUBSCRIBED'</code> 2-value CHECK (SUBSCRIBED, UNSUBSCRIBED), <code>subscribed_at TIMESTAMPTZ</code>, <code>unsubscribed_at TIMESTAMPTZ</code>. UNIQUE(series_id, subscriber_id). Unsubscribed recipients are excluded from distribution even when rules match.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>079_pub_distribution.sql</code>. Total Cycle 25 tables: 11.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>1 series + 2 editions:</strong> "The Weekly Eagle" (NEWSLETTER, WEEKLY). Edition #11 (PUBLISHED, last week) + Edition #12 "Spring 2026" (DRAFT, in progress).</li>
+      <li><strong>2 publications:</strong> Edition #11 newsletter (PUBLISHED, 4 sections). A standalone BULLETIN "End of Year Reminders" (PUBLISHED).</li>
+      <li><strong>4 collaborators:</strong> Edition #12: Mitchell EDITOR, Rivera CONTRIBUTOR, Hayes REVIEWER, Maya CONTRIBUTOR (student &mdash; requires approval).</li>
+      <li><strong>4 sections + 3 contributors:</strong> "Principal's Message" (Mitchell, ARTICLE, approved), "Sports Roundup" (Rivera, ARTICLE, approved), "Student Spotlight" (Maya, ARTICLE, is_approved=false pending), "Upcoming Events" (admin, CALENDAR, approved). Rivera + Hayes as section contributors on "Sports Roundup".</li>
+      <li><strong>2 comments:</strong> Hayes comments on "Student Spotlight" with feedback. Threaded reply from Maya.</li>
+      <li><strong>1 distribution list + 2 rules + 50 recipients:</strong> "All Parents + Staff" list with ROLE=PARENT + ROLE=STAFF rules. 50 pre-computed recipients (30 DELIVERED + 15 OPENED + 5 PENDING).</li>
+      <li><strong>3 subscriptions:</strong> David Chen SUBSCRIBED. Rivera SUBSCRIBED. A third parent UNSUBSCRIBED (opted out).</li>
+      <li><strong>Permissions:</strong> PUB-001:read to Teacher, Parent, Student, Staff (view published). PUB-001:write to Teacher, Staff (create series + editions). PUB-002:read+write to Teacher, Student, Staff (author content; student sections require approval per ADR-035). PUB-003:read+write to Staff (manage distribution). Admin gets all via everyFunction.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich publications demo with collaborative authoring, student content pending approval, and distribution tracking. PUB-001..003 permissions.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Series + Publications NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>SeriesService</strong> &mdash; <code>GET /publications/series</code>, <code>GET /publications/series/:id</code> (with editions + subscription count), <code>POST /publications/series</code>, <code>PATCH /publications/series/:id</code>.</li>
+      <li><strong>EditionService</strong> &mdash; <code>GET /publications/series/:id/editions</code>, <code>POST /publications/series/:id/editions</code> (auto-increments edition_number), <code>PATCH /publications/editions/:id</code> (status transitions: DRAFT &rarr; IN_REVIEW &rarr; APPROVED &rarr; PUBLISHED).</li>
+      <li><strong>PublicationService</strong> &mdash; <code>GET /publications</code> (published feed for the caller; filters type, series), <code>GET /publications/:id</code> (with sections + collaborators + distribution stats inlined), <code>POST /publications</code> (standalone or edition-linked), <code>PATCH /publications/:id</code> (status transitions; <strong>ADR-035 gate:</strong> student-authored publications require approval_request_id resolution before APPROVED).</li>
+      <li><strong>CollaboratorService</strong> &mdash; <code>POST /publications/:id/collaborators</code> (invite with role), <code>PATCH /publication-collaborators/:id</code> (accept invitation), <code>DELETE /publication-collaborators/:id</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; PublicationsModule with 4 services, ~14 endpoints.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Sections + Contributors NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>SectionService</strong> &mdash; <code>GET /publications/:id/sections</code> (ordered by sort_order), <code>POST /publications/:id/sections</code> (add section with owner + type), <code>PATCH /publication-sections/:id</code> (edit content, reorder), <code>DELETE /publication-sections/:id</code>. <code>PATCH /publication-sections/:id/approve</code> (editor/admin approves student section; ADR-035).</li>
+      <li><strong>ContributorService</strong> &mdash; <code>POST /publication-sections/:id/contributors</code>, <code>DELETE /publication-section-contributors/:id</code>.</li>
+      <li><strong>CommentService</strong> &mdash; <code>GET /publication-sections/:id/comments</code> (with threaded replies), <code>POST /publication-sections/:id/comments</code>, <code>PATCH /publication-comments/:id/resolve</code>.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services, ~10 endpoints.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Distribution + Subscriptions NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>DistributionService</strong> &mdash; <code>POST /publications/:id/distribution-lists</code> (create list + rules), <code>GET /publications/:id/distribution-lists</code>. <code>POST /publications/:id/distribute</code> (<strong>PUBLISH + DISTRIBUTE KEYSTONE:</strong> resolves audience from rules, excludes UNSUBSCRIBED, pre-computes recipient rows, emits <code>pub.publication.published</code> for Cycle 14 fan-out). <code>GET /publications/:id/distribution-status</code> (delivery stats: pending/delivered/opened/bounced). <code>POST /publications/:id/audience-preview</code> (dry-run audience resolution without actually distributing &mdash; returns count + sample names).</li>
+      <li><strong>SubscriptionService</strong> &mdash; <code>GET /publications/series/:id/subscriptions</code> (admin: subscriber list), <code>POST /publications/series/:id/subscribe</code> (self-service), <code>POST /publications/series/:id/unsubscribe</code> (self-service opt-out). <code>GET /publications/my-subscriptions</code> (user: series I'm subscribed to).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 services, ~10 endpoints, 1 Kafka emit (<code>pub.publication.published</code>). Total Cycle 25 endpoints: ~34.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Publications UI &mdash; Series + Editor + Authoring</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Publications Dashboard</strong> <code>/publications</code> &mdash; "Publications" app tile. Staff: series list with edition counts + create series. Reader: published newsletter feed.</li>
+      <li><strong>Series Manager</strong> <code>/publications/series/:id</code> &mdash; series header with logo + frequency pill. Edition list (numbered, status pills). Create new edition. Subscription stats.</li>
+      <li><strong>Edition Editor</strong> <code>/publications/editions/:id</code> &mdash; edition header with cover + editorial note. Section list with drag-reorder. Per-section: owner + approval status pill (approved emerald / pending amber). Collaborator panel. Status workflow buttons (Submit for Review / Approve / Publish).</li>
+      <li><strong>Section Authoring</strong> (inline on edition editor) &mdash; rich text editor per section. Contributor attribution list. Comment thread panel with resolve button. Student sections show "Pending Approval" banner until approved.</li>
+    </ol>
+    <div class="produces">Produces &rarr; "Publications" app tile, series manager, edition editor, section authoring with comments.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">Publications UI &mdash; Distribution + Reader + Subscriptions</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Distribution Builder</strong> (inline on edition editor) &mdash; distribution list with rule chips (ROLE=PARENT, GRADE=5, etc.). Audience preview showing estimated count. Distribute button with confirmation.</li>
+      <li><strong>Delivery Dashboard</strong> <code>/publications/:id/delivery</code> &mdash; stats: total recipients, delivered, opened, bounced. Per-recipient status table.</li>
+      <li><strong>Reader View</strong> <code>/publications/:id</code> &mdash; published newsletter rendered for the reader. Sections in order. Cover image header. Series branding. "Unsubscribe" link at footer.</li>
+      <li><strong>My Subscriptions</strong> <code>/publications/subscriptions</code> &mdash; user sees: series I'm subscribed to with toggle to unsubscribe. Recent publications from my subscribed series.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Distribution builder, delivery dashboard, reader view, subscription management.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Series + edition:</strong> Admin creates "The Weekly Eagle" NEWSLETTER WEEKLY. Creates Edition #1. Verify auto-increment edition_number.</li>
+      <li><strong>Collaborative authoring:</strong> Admin invites Rivera (CONTRIBUTOR) + Maya (CONTRIBUTOR) + Hayes (REVIEWER). Rivera accepts. Maya accepts. Verify collaborator roles.</li>
+      <li><strong>Sections + ADR-035 approval:</strong> Admin adds "Principal's Message" section (ARTICLE, approved). Maya adds "Student Spotlight" (is_approved=false). Admin approves Maya's section. Verify status flip.</li>
+      <li><strong>Editorial comments:</strong> Hayes comments on Maya's section with feedback. Maya replies (threaded). Hayes resolves the comment.</li>
+      <li><strong>Publication status workflow:</strong> DRAFT &rarr; IN_REVIEW &rarr; APPROVED &rarr; PUBLISHED. Verify each transition. Student cannot advance to PUBLISHED without all sections approved.</li>
+      <li><strong>Distribution rules + audience:</strong> Create distribution list with ROLE=PARENT + ROLE=STAFF. Preview audience (count + samples). Verify unsubscribed parents excluded.</li>
+      <li><strong>Publish + delivery:</strong> Distribute the edition. Verify <code>pub.publication.published</code> fires. Verify recipient rows created. Verify delivery stats endpoint returns correct counts.</li>
+      <li><strong>Subscription lifecycle:</strong> David subscribes to "The Weekly Eagle". Verify SUBSCRIBED. David unsubscribes. Verify UNSUBSCRIBED. Next distribution excludes David.</li>
+      <li><strong>Standalone publication:</strong> Admin creates a standalone BULLETIN (no series). Verify series_id=NULL. Distribute directly.</li>
+      <li><strong>Visibility:</strong> Parent sees published publications. Cannot author sections or manage distribution. Teacher can author sections + collaborate. Student can contribute sections (pending approval). Admin manages all.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified publications lifecycle: series &rarr; edition &rarr; sections + approval &rarr; comments &rarr; distribution &rarr; delivery &rarr; subscriptions. Wave 5 complete.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 25 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 11 new tables (4 series/publications + 3 sections + 4 distribution). Tenant table count: ~357.</li>
+      <li>Publications API: ~34 endpoints with collaborative authoring + ADR-035 approval + targeted distribution.</li>
+      <li>Recurring series with auto-incremented edition numbering.</li>
+      <li>Multi-section publications with per-section ownership + contributor attribution.</li>
+      <li>ADR-035 approval gate: staff publish directly; student sections require approval.</li>
+      <li>Rule-based distribution with ROLE/GRADE/CLASS/GROUP targeting + subscription opt-out.</li>
+      <li>Delivery tracking with pending/delivered/opened/bounced status per recipient.</li>
+      <li><code>pub.publication.published</code> Kafka emit for Cycle 14 Communications fan-out.</li>
+      <li>HANDOFF-CYCLE25.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave 5 complete.</strong></li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 25 closes Wave 5 (Academic Advanced). The platform now covers the complete academic lifecycle: curriculum planning, classroom delivery, student portfolios, and school publications. Wave 6 (Finance &amp; Commerce) begins with Finance &amp; Accounting.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 25 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M42 Publications, 15 tables &mdash; 11 core in scope), ADR-035 Publication Approval Model. Cross-cycle: Cycle 7 wsk_approval_requests, Cycle 14 Communications fan-out. Closes Wave 5.</p>
+  </div>
+</div>
+
+</body>
+</html>

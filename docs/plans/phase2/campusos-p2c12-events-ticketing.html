@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-12: Events &amp; Ticketing</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave C &mdash; Operational Depth</div>
+    <h1>P2-12: Events &amp; Ticketing</h1>
+    <div class="sub">School event creation with multi-tier pricing, atomic ticket sales with race-condition-proof inventory (UPDATE WHERE quantity_sold+$qty&le;quantity &mdash; never SELECT-then-UPDATE), Stripe payment integration with pending order expiry cleanup, QR-code ticket generation with gate scanning and audit log, season passes with multi-event inclusion, complimentary entry lists by type (athlete, coach, official, media, VIP), event volunteer signup, and revenue reporting linked to Cycle 6 payments. Sports games, arts performances, fundraisers, and school dances &mdash; one ticketing engine for all.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M101 Events &amp; Ticketing (9 tables) &middot; ATH-010 + EVT-001 &middot; Phase 2 Cycle 12</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+  <p class="body-text">Phase 2 Cycle 12 builds the entire M101 Events &amp; Ticketing module &mdash; 9 tables. This is a new module (not a .1 cycle) that provides the school's unified ticketing platform for all event types: athletic games, theatre performances, school dances, fundraiser galas, and graduation ceremonies. Revenue flows through the existing Cycle 6 Payments engine via Stripe.</p>
+
+  <p class="body-text">The technical keystone is the <strong>atomic ticket sale</strong>: the tier's quantity_sold is incremented inside a single UPDATE WHERE clause, not a SELECT-then-UPDATE pattern. If the row matches (quantity_sold + requested ≤ quantity), the sale succeeds. If zero rows match, the tier is sold out. This eliminates the race condition where two concurrent buyers both see "2 remaining" and both succeed. The event-level CHECK constraint (total_tier_quantity ≤ total_capacity) provides a second layer of venue-level oversell protection maintained by a trigger on evt_ticket_tiers.</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Concurrency &mdash; Atomic Ticket Sales</div>
+    <p style="font-size:15px;line-height:1.8;">The ERD explicitly mandates: <code>UPDATE evt_ticket_tiers SET quantity_sold = quantity_sold + $qty WHERE id = $tier_id AND quantity_sold + $qty &le; quantity</code>. <strong>Never SELECT-then-UPDATE.</strong> If the UPDATE returns 0 rows, the tier is sold out &mdash; return 409 Conflict. The event-level <code>CHECK(total_capacity IS NULL OR total_tier_quantity &le; total_capacity)</code> is enforced by a trigger that recalculates total_tier_quantity on every tier change. Gate scanning uses the same pattern: <code>UPDATE evt_tickets SET status='USED', scanned_at=now() WHERE qr_code_token=$1 AND status='VALID'</code>. 0 rows = already scanned or invalid.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin creates "Spring Musical: Grease" event (May 15, 7pm, Auditorium, capacity 300) &rarr; 3 tiers: "General Admission" ($10, 200 qty, on sale now), "Reserved Seating" ($15, 80 qty, on sale now), "VIP Front Row" ($25, 20 qty, sale starts May 1) &rarr; event status ON_SALE &rarr; admin creates comp list: all drama club students (STUDENT), director (STAFF), 2 reviewers (MEDIA) &rarr; admin creates "All Sports Season Pass" ($50, includes all home athletic games this year, ACTIVE) &rarr; parent purchases 2 General Admission tickets &rarr; atomic sale: quantity_sold 0→2, order PENDING with Stripe PaymentIntent, 15-min expiry &rarr; Stripe webhook confirms payment &rarr; order CONFIRMED &rarr; 2 QR-code tickets generated &rarr; parent tries to buy 199 more General Admission → atomic UPDATE succeeds for 198 (quantity 200, sold 200) → 199th attempt: 0 rows → 409 Sold Out → event auto-flips to SOLD_OUT &rarr; event night: gate volunteer scans QR → atomic UPDATE → VALID → evt_ticket_scans logged &rarr; same QR scanned again → 0 rows → ALREADY_SCANNED → logged &rarr; comp list person arrives → name on list → waved through, scan logged as COMP &rarr; season pass holder arrives → pass validated (event in events_included array) → admitted &rarr; meanwhile, another parent's PENDING order expires (15 min) → OrderExpiryWorker: cancel order, decrement quantity_sold, cancel Stripe intent → tier reopens &rarr; after event: admin marks COMPLETED → revenue report: $X gross, $Y Stripe fees, $Z net &rarr; <code>evt.event.completed</code> fires → GLConsumer posts revenue journal entry.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (9 tables):</strong> evt_events, evt_ticket_tiers, evt_orders, evt_tickets, evt_volunteers, evt_ticket_scans, evt_season_passes, evt_comp_lists, evt_refunds. Functions ATH-010 (Athletic Ticketing) + EVT-001 (School Events).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Reserved seating map (seat picker UI). Multi-date recurring events (series). Ticket transfer between holders. Waitlist for sold-out tiers. Third-party ticketing platform integration (Eventbrite). Digital wallet ticket (Apple/Google Wallet pass). Event promotion via Cycle 14 Communications. Event-linked fundraising goals.</p>
+  </div>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Events + Tiers + Orders Schema (5 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>evt_events</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>event_type TEXT NOT NULL</code> 8-value CHECK (ATHLETIC_GAME, PERFORMANCE, DANCE, FUNDRAISER, GRADUATION, ASSEMBLY, COMMUNITY, OTHER), <code>event_date DATE NOT NULL</code>, <code>start_time TIME NOT NULL</code>, <code>end_time TIME</code>, <code>venue_id UUID FK(fac_spaces)</code> nullable, <code>venue_name TEXT</code>, <code>total_capacity INT</code>, <code>total_tier_quantity INT DEFAULT 0</code> (maintained by trigger on evt_ticket_tiers), <code>linked_game_id UUID</code> (soft to ath_games), <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 5-value CHECK (DRAFT, ON_SALE, SOLD_OUT, COMPLETED, CANCELLED), <code>created_by UUID FK NOT NULL</code>. CHECK(total_capacity IS NULL OR total_tier_quantity &le; total_capacity). INDEX(school_id, event_date, status).</li>
+      <li><strong>evt_ticket_tiers</strong> &mdash; <code>event_id UUID FK NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>price NUMERIC(8,2) NOT NULL</code>, <code>quantity INT NOT NULL</code>, <code>quantity_sold INT NOT NULL DEFAULT 0</code>, <code>sale_starts_at TIMESTAMPTZ</code>, <code>sale_ends_at TIMESTAMPTZ</code>, <code>is_active BOOLEAN DEFAULT true</code>. Partial INDEX(event_id, sale_starts_at, sale_ends_at) WHERE is_active=true. <strong>ATOMIC SALE: UPDATE SET quantity_sold=quantity_sold+$qty WHERE id=$1 AND quantity_sold+$qty&le;quantity.</strong> Trigger: on INSERT/UPDATE/DELETE → recalculate parent event.total_tier_quantity = SUM(quantity).</li>
+      <li><strong>evt_orders</strong> &mdash; <code>event_id UUID FK NOT NULL</code>, <code>purchaser_id UUID FK(iam_person) NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 4-value CHECK (PENDING, CONFIRMED, CANCELLED, REFUNDED), <code>total_amount NUMERIC(8,2) NOT NULL</code>, <code>stripe_payment_intent_id TEXT</code>, <code>expires_at TIMESTAMPTZ</code> (PENDING orders expire; OrderExpiryWorker every 5 min), <code>confirmed_at TIMESTAMPTZ</code>, <code>cancelled_at TIMESTAMPTZ</code>. Partial INDEX(expires_at) WHERE status='PENDING'. On CANCEL: decrement tier.quantity_sold for each ticket. Emits <code>evt.order.confirmed</code>.</li>
+      <li><strong>evt_tickets</strong> &mdash; <code>order_id UUID FK NOT NULL</code>, <code>tier_id UUID FK NOT NULL</code>, <code>holder_name TEXT</code>, <code>qr_code_token TEXT NOT NULL UNIQUE</code>, <code>status TEXT NOT NULL DEFAULT 'VALID'</code> 4-value CHECK (VALID, USED, CANCELLED, REFUNDED), <code>scanned_at TIMESTAMPTZ</code>. <strong>GATE SCAN ATOMIC: UPDATE SET status='USED', scanned_at=now() WHERE qr_code_token=$1 AND status='VALID'.</strong> 0 rows = already used or invalid. INDEX(qr_code_token).</li>
+      <li><strong>evt_refunds</strong> &mdash; <code>order_id UUID FK NOT NULL</code>, <code>refund_amount NUMERIC(8,2) NOT NULL</code>, <code>reason TEXT NOT NULL</code>, <code>stripe_refund_id TEXT</code>, <code>refunded_by UUID FK NOT NULL</code>, <code>refunded_at TIMESTAMPTZ NOT NULL</code>. On INSERT: order.status=REFUNDED, tickets.status=REFUNDED, tier.quantity_sold decremented. Emits <code>evt.refund.issued</code> for GL posting.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 5 tables + tier quantity trigger. Migration: <code>126_evt_events_orders.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Scans + Season Passes + Comp Lists + Volunteers Schema (4 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>evt_ticket_scans</strong> &mdash; <code>ticket_id UUID FK(evt_tickets) NOT NULL</code>, <code>scanned_at TIMESTAMPTZ NOT NULL</code>, <code>scanned_by UUID FK NOT NULL</code>, <code>scan_result TEXT NOT NULL</code> 4-value CHECK (VALID, ALREADY_SCANNED, INVALID, EXPIRED). RANGE partition by scanned_at MONTHLY. Gate audit log &mdash; every scan attempt recorded regardless of result.</li>
+      <li><strong>evt_season_passes</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>person_id UUID FK(iam_person) NOT NULL</code>, <code>pass_type TEXT NOT NULL</code>, <code>events_included UUID[]</code> (array of evt_event IDs; null = all events of matching type), <code>price NUMERIC(8,2) NOT NULL</code>, <code>purchased_at TIMESTAMPTZ</code>, <code>stripe_payment_intent_id TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, EXPIRED, REVOKED), <code>academic_year TEXT NOT NULL</code>. INDEX(school_id, person_id, academic_year). At gate: verify pass ACTIVE + event in events_included (or null = all).</li>
+      <li><strong>evt_comp_lists</strong> &mdash; <code>event_id UUID FK(evt_events) NOT NULL</code>, <code>comp_type TEXT NOT NULL</code> 8-value CHECK (ATHLETE, COACH, OFFICIAL, MEDIA, STAFF, STUDENT, VIP, OTHER), <code>person_id UUID FK(iam_person)</code>, <code>added_by UUID FK NOT NULL</code>. UNIQUE(event_id, comp_type, person_id). Comp list members bypass ticketing at the gate.</li>
+      <li><strong>evt_volunteers</strong> &mdash; <code>event_id UUID FK NOT NULL</code>, <code>person_id UUID FK(iam_person) NOT NULL</code>, <code>role TEXT</code> (gate volunteer, usher, concessions, setup, cleanup), <code>status TEXT NOT NULL DEFAULT 'SIGNED_UP'</code> 3-value CHECK (SIGNED_UP, CONFIRMED, CANCELLED), <code>check_in_at TIMESTAMPTZ</code>. UNIQUE(event_id, person_id).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 tables. Migration: <code>127_evt_scans_passes.sql</code>. Total P2-12 tables: 9.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li><strong>2 events:</strong> "Spring Musical: Grease" (PERFORMANCE, ON_SALE, capacity 300), "Varsity Basketball vs Eastside" (ATHLETIC_GAME, COMPLETED, linked to ath_games).</li>
+      <li><strong>5 tiers:</strong> Musical: General $10 qty 200 sold 180, Reserved $15 qty 80 sold 65, VIP $25 qty 20 sold 20 (sold out). Basketball: Adult $8 qty 150 sold 120, Student $5 qty 100 sold 95.</li>
+      <li><strong>4 orders:</strong> 2 CONFIRMED with Stripe intent, 1 PENDING (expires in 10 min), 1 REFUNDED.</li>
+      <li><strong>8 tickets:</strong> 5 VALID, 2 USED (scanned), 1 REFUNDED. Each with unique QR token.</li>
+      <li><strong>1 refund:</strong> $15 for cancelled Reserved ticket.</li>
+      <li><strong>10 ticket scans:</strong> 6 VALID + 2 ALREADY_SCANNED + 1 INVALID + 1 EXPIRED.</li>
+      <li><strong>1 season pass:</strong> "All Sports 2025-26" $50 ACTIVE, events_included = all athletic events.</li>
+      <li><strong>5 comp list entries:</strong> 3 ATHLETE + 1 COACH + 1 MEDIA for basketball game.</li>
+      <li><strong>3 volunteers:</strong> 2 CONFIRMED gate volunteers + 1 SIGNED_UP usher.</li>
+      <li><strong>Permissions:</strong> EVT-001:read to Parent, Staff (view events + buy tickets). EVT-001:write to Staff (create events, manage tiers, process gate scans). EVT-001:admin to Admin (configure pricing, comp lists, season passes, revenue reports). ATH-010 extended for athletic event ticketing.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich events + ticketing demo data across all 9 tables.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Event + Tier + Order NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>EventService</strong> &mdash; CRUD for events. <code>GET /events</code> (public: ON_SALE events with tier availability), <code>POST /events</code>, <code>PATCH /events/:id</code> (status transitions: DRAFT → ON_SALE → SOLD_OUT → COMPLETED). Auto-detect SOLD_OUT: when all tiers have quantity_sold = quantity. <code>POST /events/:id/complete</code> (emits <code>evt.event.completed</code> for GL revenue posting).</li>
+      <li><strong>TierService</strong> &mdash; <code>POST /events/:id/tiers</code>, <code>PATCH /events/tiers/:id</code>. Trigger maintains event.total_tier_quantity.</li>
+      <li><strong>OrderService</strong> &mdash; <code>POST /events/:eventId/purchase</code> (<strong>ATOMIC:</strong> for each tier/qty pair: UPDATE quantity_sold WHERE +$qty ≤ quantity → 0 rows = 409 Sold Out; creates order PENDING with expires_at = now()+15min; creates Stripe PaymentIntent; creates tickets with QR tokens), <code>GET /events/orders/my</code> (purchaser: own orders + tickets), <code>POST /events/orders/:id/confirm</code> (Stripe webhook callback). OrderExpiryWorker: every 5 min, finds PENDING WHERE expires_at &lt; now() → cancel order, decrement tier.quantity_sold, cancel Stripe intent.</li>
+      <li><strong>RefundService</strong> &mdash; <code>POST /events/orders/:id/refund</code> (full or partial; Stripe refund; tickets → REFUNDED; tier.quantity_sold decremented; emits <code>evt.refund.issued</code>).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services + 1 worker (OrderExpiryWorker), ~14 endpoints, 3 Kafka emits.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Gate Scanning + Season Pass + Comp List + Volunteer NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>GateScanService</strong> &mdash; <code>POST /events/gate/scan</code> (<strong>ATOMIC:</strong> UPDATE evt_tickets SET status='USED' WHERE qr_code_token=$1 AND status='VALID'; if 0 rows: check if ALREADY_SCANNED (status='USED'), INVALID (no such token), or EXPIRED; log every attempt to evt_ticket_scans regardless of result; return scan_result). Rate-limited per event per scanner device.</li>
+      <li><strong>SeasonPassService</strong> &mdash; <code>POST /events/season-passes</code> (purchase with Stripe), <code>GET /events/season-passes/my</code>, <code>POST /events/gate/season-pass-check</code> (at gate: verify pass ACTIVE + event in events_included or events_included IS NULL; log scan).</li>
+      <li><strong>CompListService</strong> &mdash; <code>GET /events/:id/comp-list</code>, <code>POST /events/:id/comp-list</code> (bulk add by type), <code>DELETE /events/:id/comp-list/:entryId</code>. <code>POST /events/gate/comp-check</code> (at gate: verify person on comp list for this event).</li>
+      <li><strong>VolunteerService</strong> &mdash; <code>POST /events/:id/volunteers</code> (sign up), <code>GET /events/:id/volunteers</code>, <code>PATCH /events/volunteers/:id</code> (confirm/cancel/check-in).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 4 services, ~14 endpoints. Total P2-12 endpoints: ~28.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Events UI &mdash; Public + Admin</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Event Calendar</strong> <code>/events</code> &mdash; public: upcoming events calendar/list with type pills (Athletic green, Performance purple, Dance amber, Fundraiser blue). Per-event: description, date/time, venue, tier availability ("12 of 200 remaining"), buy button.</li>
+      <li><strong>Ticket Purchase Flow</strong> <code>/events/:id/buy</code> &mdash; tier selector with pricing + availability. Quantity picker. Stripe checkout. Order confirmation with QR ticket display. Email confirmation with QR attachment.</li>
+      <li><strong>My Tickets</strong> <code>/events/my-tickets</code> &mdash; parent: order history. Per-order: tickets with QR codes (enlargeable for scanning). Refund request button.</li>
+      <li><strong>Gate Scanner</strong> <code>/events/gate</code> &mdash; staff: full-screen scanner interface (camera QR reader or manual token entry). Large VALID/ALREADY_SCANNED/INVALID result display. Season pass check. Comp list lookup by name. Running admission count.</li>
+      <li><strong>Event Admin</strong> <code>/events/admin</code> &mdash; event list with sales summary per event. Create/edit event form. Tier manager. Comp list manager. Volunteer manager. Revenue report (gross, Stripe fees, refunds, net). Attendance report (tickets scanned, season passes, comps).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Event calendar, purchase flow, my tickets, gate scanner, event admin.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <ol class="detail-list">
+      <li><strong>Atomic ticket sale:</strong> Create tier qty=5. Purchase 3 (quantity_sold=3). Purchase 3 more → only 2 succeed (atomic UPDATE: 3+3&gt;5 → 0 rows for 1 ticket). Verify 409 returned. Verify quantity_sold=5.</li>
+      <li><strong>Concurrent sale race condition:</strong> Tier qty=1. Two simultaneous purchases. Exactly one succeeds, one gets 409. No oversell.</li>
+      <li><strong>Event capacity CHECK:</strong> Event capacity=10. Create tiers totalling 12 → trigger should prevent (total_tier_quantity &gt; total_capacity).</li>
+      <li><strong>Order expiry:</strong> Create PENDING order with 1-minute expiry. Wait. OrderExpiryWorker fires. Verify order CANCELLED, quantity_sold decremented, Stripe intent cancelled.</li>
+      <li><strong>Gate scan atomic:</strong> Scan valid QR → VALID, status=USED, scanned_at stamped. Scan same QR → ALREADY_SCANNED. Scan unknown QR → INVALID. All 3 logged to evt_ticket_scans.</li>
+      <li><strong>Season pass:</strong> Purchase pass with events_included=[event_A, event_B]. Gate check for event_A → admitted. Gate check for event_C (not included) → denied.</li>
+      <li><strong>Comp list:</strong> Add 3 athletes to comp list. Gate comp-check for athlete → admitted. Gate comp-check for non-listed person → denied.</li>
+      <li><strong>Refund:</strong> Refund confirmed order. Verify tickets REFUNDED, tier.quantity_sold decremented, Stripe refund created, <code>evt.refund.issued</code> fires.</li>
+      <li><strong>Auto SOLD_OUT:</strong> Sell all tickets across all tiers. Verify event status auto-flips to SOLD_OUT.</li>
+      <li><strong>Visibility:</strong> Public sees ON_SALE events. Parent buys tickets + views own. Gate volunteer scans (EVT-001:write). Admin manages all + views revenue.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified events lifecycle: create → sell (atomic) → expire → gate scan (atomic) → season pass → comp list → refund → complete → GL posting.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Stripe Integration</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li>Ticket purchases create Stripe PaymentIntents via the existing Cycle 6 StripeService. On <code>payment_intent.succeeded</code> webhook: order → CONFIRMED. On <code>payment_intent.payment_failed</code>: order → CANCELLED, tier decremented. Season pass purchases use the same flow. Refunds use Stripe Refund API. All Stripe interactions route through the existing pay_ledger_entries for financial audit trail.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Stripe integration via Cycle 6 StripeService. No new Stripe code — reuses existing payment infrastructure.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">09</span><span class="step-title">Athletic Game Linking</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li>When creating an event with event_type=ATHLETIC_GAME: optionally link to an ath_games record via linked_game_id. Auto-populate comp list from the game's roster (ATHLETE type) + coaching staff (COACH type) + assigned officials from P2-8 (OFFICIAL type). Emits <code>evt.athletic_event.created</code> for athletics module awareness.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Athletic game → event linking with auto-populated comp lists.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">10</span><span class="step-title">Revenue Report + GL Integration</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><code>GET /events/:id/revenue</code> &mdash; per-event: gross ticket sales (SUM confirmed orders), Stripe fees, refunds issued, net revenue, tickets sold by tier, attendance (scanned count), season pass admissions, comp admissions. <code>GET /events/revenue/summary</code> &mdash; school-wide: revenue by event type, by month. On <code>evt.event.completed</code>: GLConsumer posts revenue journal entry (DEBIT Cash, CREDIT Event Revenue).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Revenue reporting + GL journal integration.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 9 new tables. Tenant table count: ~599.</li>
+      <li>Events API: ~28 endpoints + 1 worker (OrderExpiryWorker).</li>
+      <li>Atomic ticket sales: UPDATE WHERE quantity_sold+$qty ≤ quantity. NEVER SELECT-then-UPDATE.</li>
+      <li>Atomic gate scanning: UPDATE WHERE status='VALID'. Every attempt logged.</li>
+      <li>Event capacity CHECK enforced by trigger on evt_ticket_tiers.</li>
+      <li>Pending order expiry with tier quantity_sold rollback.</li>
+      <li>Season passes with event inclusion validation at gate.</li>
+      <li>Comp lists with type-based bulk population from athletic rosters.</li>
+      <li>Stripe integration via existing Cycle 6 StripeService.</li>
+      <li>Revenue reporting + GL journal posting on event completion.</li>
+      <li><code>evt.order.confirmed</code> + <code>evt.refund.issued</code> + <code>evt.event.completed</code> Kafka emits.</li>
+      <li>HANDOFF-P2C12.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 12 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M101 Events &amp; Ticketing, 9 tables). Functions: ATH-010 Athletic Ticketing + EVT-001 School Events. Cross-cycle: Cycle 6 StripeService + pay_ledger_entries, Cycle 13 ath_games + ath_rosters, Cycle 21 fac_spaces for venues, Cycle 26 GLConsumer for revenue posting.</p>
+  </div>
+</div>
+</body>
+</html>

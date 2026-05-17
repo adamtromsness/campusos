@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-15: Analytics Read Models</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.split-card{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:16px 0}
+.split-card h3{font-size:16px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.split-card p{font-size:14px;line-height:1.8;margin:0}
+.rm-table{width:100%;border-collapse:collapse;font-size:12px;margin:12px 0}
+.rm-table th{background:#d5e8f0;padding:6px 10px;text-align:left;font-weight:600;color:var(--accent);border:1px solid var(--border)}
+.rm-table td{padding:6px 10px;border:1px solid var(--border);vertical-align:top}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave C &mdash; Operational Depth</div>
+    <h1>P2-15: Analytics<br>Read Models</h1>
+    <div class="sub">18 domain-specific materialised read models covering every module built in Phases 1 and 2, wired to live Kafka consumers replacing the nightly batch materialisation from Cycle 29. Each read model has a documented source topic, owning worker, rebuild procedure, and single-writer guarantee. All queries route to the read replica &mdash; zero impact on the primary database. Pre-split into 2 sub-cycles.</div>
+    <span class="version">May 2026 &middot; 2 Sub-Cycles &middot; ERD v11 &middot; M110 Analytics .1 (18 tables) &middot; RPT-001..003 &middot; Phase 2 Cycle 15</span>
+  </div>
+
+  <h2 class="section-heading">Design Principles</h2>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Read Model Ownership Rules (Architecture Review §19)</div>
+    <p style="font-size:14px;line-height:1.8;"><strong>Single-writer:</strong> Each rpt_* table is written by exactly one worker. No table has two writers. <strong>Consumer-owned:</strong> The analytics module owns all rpt_* tables. Source modules never write to or read from rpt_* tables (CI enforced). <strong>Idempotent:</strong> Every worker uses INSERT ON CONFLICT DO UPDATE on the table's UNIQUE constraint. Replaying the same event produces the same result. <strong>Replica-routed:</strong> All rpt_* reads go to the read replica, never the primary. <strong>Rebuildable:</strong> Any rpt_* table can be fully rebuilt by resetting the Kafka consumer group offset and replaying events from the beginning. No rpt_* table stores data that can't be reconstructed from events.</p>
+  </div>
+
+  <h2 class="section-heading">Sub-Cycle Structure</h2>
+
+  <div class="split-card">
+    <h3>P2-15a &mdash; Operations Read Models (9 tables + 9 Kafka consumers)</h3>
+    <p>Read models for operational modules: procurement, store, food service (meal counts + NSLP), transportation (ridership), facilities (condition + KPI), IT fleet, library circulation, communications metrics.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-15b &mdash; Engagement + Performance Read Models (9 tables + 9 Kafka consumers)</h3>
+    <p>Read models for engagement and performance modules: enrolment funnel, athletics season, officials marketplace, game results, groups engagement, publications distribution, extracurricular services, wellbeing trends, event revenue. Plus: live Kafka consumer wiring to replace nightly batch for all 18 read models.</p>
+  </div>
+
+  <h2 class="section-heading">P2-15a: Operations Read Models</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema (9 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <table class="rm-table">
+      <tr><th>Table</th><th>Source</th><th>Update Trigger</th><th>Key Columns</th></tr>
+      <tr><td><code>rpt_procurement_summary</code></td><td>prc.po.issued, prc.receipt.completed</td><td>Live consumer</td><td>school_id, period (month), department, vendor_id, total_pos INT, total_spend NUMERIC, avg_lead_time_days NUMERIC. UNIQUE(school_id, period, department, vendor_id).</td></tr>
+      <tr><td><code>rpt_store_sales</code></td><td>str.order.completed</td><td>Live consumer</td><td>school_id, period, product_id, units_sold INT, revenue NUMERIC, cost_of_goods NUMERIC, profit_margin NUMERIC. UNIQUE(school_id, period, product_id).</td></tr>
+      <tr><td><code>rpt_fds_meal_counts</code></td><td>fds.meal.served</td><td>Live consumer</td><td>school_id, service_date DATE, meal_type TEXT, total_served INT, free_count INT, reduced_count INT, paid_count INT, waste_count INT. UNIQUE(school_id, service_date, meal_type).</td></tr>
+      <tr><td><code>rpt_fds_nslp_summary</code></td><td>fds.meal.served + eligibility changes</td><td>Live consumer</td><td>school_id, month_year DATE, free_meals INT, reduced_meals INT, paid_meals INT, total_reimbursement_estimate NUMERIC. UNIQUE(school_id, month_year). Federal compliance reporting surface.</td></tr>
+      <tr><td><code>rpt_trn_ridership_summary</code></td><td>trn.run.completed</td><td>Live consumer</td><td>school_id, route_id, period, total_runs INT, total_riders INT, avg_riders_per_run NUMERIC, on_time_rate NUMERIC, avg_duration_minutes NUMERIC. UNIQUE(school_id, route_id, period).</td></tr>
+      <tr><td><code>rpt_facilities_condition</code></td><td>fac.inspection.completed, fac.work_order.completed</td><td>Live consumer</td><td>school_id, building_id, space_id, last_inspection_date DATE, condition_score NUMERIC(3,1), open_work_orders INT, overdue_work_orders INT. UNIQUE(school_id, building_id, space_id).</td></tr>
+      <tr><td><code>rpt_facilities_kpi</code></td><td>fac.work_order.created/completed + fac.energy.*</td><td>Nightly</td><td>school_id, period, total_work_orders INT, completed_on_time INT, avg_resolution_days NUMERIC, energy_cost NUMERIC, cost_per_sqft NUMERIC. UNIQUE(school_id, period).</td></tr>
+      <tr><td><code>rpt_tech_fleet_status</code></td><td>tech.device.provisioned/deprovisioned/incident</td><td>Live consumer</td><td>school_id, device_type TEXT, total_devices INT, active INT, in_repair INT, decommissioned INT, avg_age_months NUMERIC, incident_rate NUMERIC. UNIQUE(school_id, device_type).</td></tr>
+      <tr><td><code>rpt_lib_circulation_summary</code></td><td>lib.checkout.created, lib.return.completed</td><td>Live consumer</td><td>school_id, period, total_checkouts INT, total_returns INT, overdue_count INT, popular_titles JSONB (top 10), avg_loan_duration_days NUMERIC. UNIQUE(school_id, period).</td></tr>
+    </table>
+    <div class="produces">Produces &rarr; 9 tables. Migration: <code>132_rpt_operations_readmodels.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Seed + Workers + Endpoints + Tests (P2-15a)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>1 row per table with representative data (procurement: 3 months of spending; store: 5 products; meal counts: 5 days; ridership: 2 routes; facilities: 3 buildings; IT: 4 device types; library: 2 months).</li>
+    </ol>
+    <div class="detail-heading">Workers (9 Kafka consumers)</div>
+    <ol class="detail-list">
+      <li><strong>ProcurementReadModelWorker</strong> &mdash; consumes prc.po.issued + prc.receipt.completed → upserts rpt_procurement_summary.</li>
+      <li><strong>StoreReadModelWorker</strong> &mdash; consumes str.order.completed → upserts rpt_store_sales.</li>
+      <li><strong>FoodServiceReadModelWorker</strong> &mdash; consumes fds.meal.served → upserts rpt_fds_meal_counts + rpt_fds_nslp_summary.</li>
+      <li><strong>TransportReadModelWorker</strong> &mdash; consumes trn.run.completed → upserts rpt_trn_ridership_summary.</li>
+      <li><strong>FacilitiesReadModelWorker</strong> &mdash; consumes fac.inspection.completed + fac.work_order.* → upserts rpt_facilities_condition. Nightly: materialises rpt_facilities_kpi.</li>
+      <li><strong>ITReadModelWorker</strong> &mdash; consumes tech.device.* → upserts rpt_tech_fleet_status.</li>
+      <li><strong>LibraryReadModelWorker</strong> &mdash; consumes lib.checkout.created + lib.return.completed → upserts rpt_lib_circulation_summary.</li>
+    </ol>
+    <div class="detail-heading">Endpoints (~9)</div>
+    <ol class="detail-list">
+      <li>One GET endpoint per read model: <code>GET /analytics/procurement</code>, <code>GET /analytics/store-sales</code>, <code>GET /analytics/meal-counts</code>, <code>GET /analytics/nslp</code>, <code>GET /analytics/ridership</code>, <code>GET /analytics/facilities-condition</code>, <code>GET /analytics/facilities-kpi</code>, <code>GET /analytics/tech-fleet</code>, <code>GET /analytics/library-circulation</code>. All with date range + school_id filters. All routed to read replica.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-15a: 9 tables, 7 workers (9 consumers), ~9 endpoints. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-15b: Engagement + Performance Read Models</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Schema (9 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <table class="rm-table">
+      <tr><th>Table</th><th>Source</th><th>Update Trigger</th><th>Key Columns</th></tr>
+      <tr><td><code>rpt_enr_funnel_summary</code></td><td>enr.application.*, enr.offer.*, enr.tour.booked</td><td>Live consumer</td><td>school_id, academic_year TEXT, applications_received INT, tours_booked INT, offers_made INT, offers_accepted INT, enrolled INT, waitlisted INT, conversion_rate NUMERIC. UNIQUE(school_id, academic_year).</td></tr>
+      <tr><td><code>rpt_ath_season_summary</code></td><td>ath.game.completed, ath.roster.updated</td><td>Live consumer</td><td>school_id, season_id, programme_id, games_played INT, wins INT, losses INT, draws INT, win_rate NUMERIC, total_roster_size INT, injury_count INT. UNIQUE(school_id, season_id, programme_id).</td></tr>
+      <tr><td><code>rpt_officials_marketplace</code></td><td>ath.official.assignment.completed</td><td>Weekly batch</td><td>school_id, period, total_assignments INT, fill_rate NUMERIC, avg_cost_per_game NUMERIC, avg_official_rating NUMERIC, avg_school_rating NUMERIC. UNIQUE(school_id, period).</td></tr>
+      <tr><td><code>rpt_game_results</code></td><td>ath.game.completed</td><td>Live consumer</td><td>school_id, game_id UNIQUE, sport TEXT, home_score INT, away_score INT, result TEXT (WIN/LOSS/DRAW), season_id, statistical_leaders JSONB. UNIQUE(school_id, game_id).</td></tr>
+      <tr><td><code>rpt_grp_engagement_summary</code></td><td>grp.post.created, grp.member.joined</td><td>Live consumer</td><td>school_id, group_id, period, total_members INT, active_members INT, posts_count INT, comments_count INT, engagement_rate NUMERIC. UNIQUE(school_id, group_id, period).</td></tr>
+      <tr><td><code>rpt_pub_distribution_summary</code></td><td>pub.publication.published</td><td>Live consumer</td><td>school_id, period, publications_count INT, total_views INT, total_downloads INT, avg_time_to_publish_days NUMERIC. UNIQUE(school_id, period).</td></tr>
+      <tr><td><code>rpt_ext_service_summary</code></td><td>ext.activity.completed</td><td>Live consumer</td><td>school_id, academic_year TEXT, club_id, total_members INT, attendance_rate NUMERIC, events_held INT, budget_spent NUMERIC. UNIQUE(school_id, academic_year, club_id).</td></tr>
+      <tr><td><code>rpt_msg_communication_metrics</code></td><td>msg.message.sent, msg.broadcast.sent</td><td>Live consumer</td><td>school_id, period, messages_sent INT, broadcasts_sent INT, delivery_rate NUMERIC, read_rate NUMERIC, avg_response_time_hours NUMERIC. UNIQUE(school_id, period).</td></tr>
+      <tr><td><code>rpt_wellbeing_trends</code></td><td>svc.wellbeing.response.submitted</td><td>Live consumer</td><td>school_id, period, grade_level TEXT, domain TEXT (ACADEMIC/SOCIAL/EMOTIONAL/PHYSICAL/SAFETY), avg_score NUMERIC(3,1), response_count INT, below_threshold_count INT. UNIQUE(school_id, period, grade_level, domain). No individual attribution.</td></tr>
+    </table>
+    <div class="produces">Produces &rarr; 9 tables. Migration: <code>133_rpt_engagement_readmodels.sql</code>. Total P2-15 tables: 18.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed + Workers + Endpoints + Dashboard + Tests (P2-15b)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Workers (9 Kafka consumers)</div>
+    <ol class="detail-list">
+      <li><strong>EnrolmentReadModelWorker</strong> &mdash; consumes enr.application.* + enr.offer.* + enr.tour.booked → upserts rpt_enr_funnel_summary.</li>
+      <li><strong>AthleticsReadModelWorker</strong> &mdash; consumes ath.game.completed → upserts rpt_ath_season_summary + rpt_game_results.</li>
+      <li><strong>OfficialsReadModelWorker</strong> &mdash; weekly: aggregates ath_official_assignments → upserts rpt_officials_marketplace.</li>
+      <li><strong>GroupsReadModelWorker</strong> &mdash; consumes grp.post.created + grp.member.joined → upserts rpt_grp_engagement_summary.</li>
+      <li><strong>PublicationsReadModelWorker</strong> &mdash; consumes pub.publication.published → upserts rpt_pub_distribution_summary.</li>
+      <li><strong>ClubsReadModelWorker</strong> &mdash; consumes ext.activity.completed → upserts rpt_ext_service_summary.</li>
+      <li><strong>CommsReadModelWorker</strong> &mdash; consumes msg.message.sent + msg.broadcast.sent → upserts rpt_msg_communication_metrics.</li>
+      <li><strong>WellbeingReadModelWorker</strong> &mdash; consumes svc.wellbeing.response.submitted → upserts rpt_wellbeing_trends. <strong>No individual attribution</strong> — aggregates by school + grade + domain only.</li>
+    </ol>
+    <div class="detail-heading">Endpoints (~9)</div>
+    <ol class="detail-list">
+      <li><code>GET /analytics/enrolment-funnel</code>, <code>GET /analytics/athletics-season</code>, <code>GET /analytics/officials</code>, <code>GET /analytics/game-results</code>, <code>GET /analytics/groups-engagement</code>, <code>GET /analytics/publications</code>, <code>GET /analytics/clubs</code>, <code>GET /analytics/communications</code>, <code>GET /analytics/wellbeing-trends</code>. All read-replica routed.</li>
+    </ol>
+    <div class="detail-heading">Analytics Dashboard UI</div>
+    <ol class="detail-list">
+      <li><strong>School Analytics Hub</strong> <code>/analytics</code> &mdash; admin: grid of module cards, each showing key metric (attendance rate, meal counts, ridership, circulation, enrolment funnel conversion, win rate, etc.). Click any card → detailed view with chart + date range filter + export CSV. Wellbeing trends: aggregated only, no individual student data.</li>
+      <li><strong>District Dashboard</strong> <code>/analytics/district</code> (if district tenant) &mdash; cross-school comparison. All read models aggregated by school for district-level view.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-15b: 9 tables, 8 workers (9 consumers), ~9 endpoints, analytics dashboard UI. Create all peer review docs. Total P2-15: 18 tables, ~18 endpoints, 15 workers (18 consumers).</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist (Full P2-15)</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 18 new rpt_* tables. Tenant table count: ~646.</li>
+      <li>Analytics API: ~18 read-only endpoints, all routed to read replica.</li>
+      <li>15 workers consuming 18+ Kafka topics across all domain modules.</li>
+      <li>Every worker idempotent via INSERT ON CONFLICT DO UPDATE.</li>
+      <li>Every rpt_* table has documented source topic + rebuild procedure.</li>
+      <li>Single-writer guarantee: no table written by more than one worker (CI enforced).</li>
+      <li>rpt_wellbeing_trends aggregated only — no individual student attribution.</li>
+      <li>Nightly batch replaced by live Kafka consumers for 16 of 18 tables (rpt_facilities_kpi nightly, rpt_officials_marketplace weekly remain batch).</li>
+      <li>Analytics dashboard with per-module cards + detail views + export.</li>
+      <li>HANDOFF-P2C15.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 15 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M110 Analytics deferred tables). Architecture Review §19 Read Model Ownership. Functions: RPT-001..003. Cross-cycle: consumes events from every domain module built in Cycles 0&ndash;32 + P2-1 through P2-14. Pre-split into 2 sub-cycles (P2-15a/b).</p>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-27: Portfolio Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave D &mdash; Module Completion</div>
+    <h1>P2-27: Portfolio Advanced</h1>
+    <div class="sub">Portfolio sections with drag-reorder organisation, student reflections with prompted self-assessment, teacher and counsellor endorsements with skill tagging, post-secondary readiness pathways with milestone checklists and completion tracking, college application tracking with deadline management, career readiness self-assessments, portfolio templates for grade-level scaffolding, and student resume builder with PDF export. The student&rsquo;s lifelong record of growth.</div>
+    <span class="version">May 2026 &middot; 8 Steps &middot; ERD v11 &middot; M26 Portfolio .1 (8 tables) &middot; ACH-002 + ACH-003 &middot; Phase 2 Cycle 27</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+  <p class="body-text">Phase 2 Cycle 27 builds the deferred tables from Cycle 24&rsquo;s M26 Portfolio module &mdash; 8 new tables. Cycle 24 built the core portfolio surface (portfolios, portfolio items, portfolio shares, achievements, achievement shares). This cycle adds the structure and depth that makes a portfolio more than a collection of files: organised sections, reflective writing, endorsements from trusted adults, post-secondary readiness tracking, and a resume builder that synthesises the portfolio into a shareable document.</p>
+
+  <p class="body-text">The post-secondary readiness system (ACH-003) is the highest-value addition. Schools define readiness pathways (College Prep, Career &amp; Technical, Arts Conservatory) with milestone checklists. Students track progress against their chosen pathway. Counsellors see at a glance which students are on-track vs at-risk for their post-secondary goals. College application tracking integrates with P2-13&rsquo;s transcript generation for a complete admissions workflow.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Student Maya organises her portfolio into 4 sections (Academic Work, Art Portfolio, Community Service, Athletic Highlights) with drag-reorder &rarr; adds a reflection to her best English essay: &ldquo;This essay taught me to structure arguments with evidence. I revised 3 times before I was satisfied.&rdquo; (prompted: What did you learn? What would you do differently?) &rarr; English teacher Mrs Rivera endorses Maya&rsquo;s portfolio with skills: [Critical Thinking, Written Communication, Perseverance] and comment: &ldquo;Maya demonstrates exceptional analytical writing&rdquo; &rarr; counsellor assigns Maya to &ldquo;College Prep&rdquo; readiness pathway &rarr; pathway has 12 milestones: SAT taken (COMPLETED), 3 AP courses (IN_PROGRESS, 2 of 3 done), community service 40hrs (COMPLETED via P2-13 service learning), college essay drafted (NOT_STARTED), 3 teacher recommendations (IN_PROGRESS, 1 of 3), transcript requested (COMPLETED via P2-13), FAFSA filed (NOT_STARTED) &rarr; Maya adds 3 target colleges to her application tracker: Stanford (RESEARCHING, deadline Jan 2), MIT (APPLYING, essay submitted), State U (ACCEPTED) &rarr; Maya builds resume from portfolio: pulls academic highlights, achievements, service hours, athletic highlight clips, endorsement quotes &rarr; exports as PDF for college applications &rarr; counsellor views readiness dashboard: Maya 8/12 milestones complete (67%), on-track.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What&rsquo;s In / What&rsquo;s Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (8 tables):</strong> pfl_portfolio_sections, pfl_reflections, pfl_endorsements, pfl_readiness_pathways, pfl_student_pathway_assignments, pfl_pathway_milestones, pfl_college_applications, pfl_resume_profiles. Functions ACH-002 (Student Portfolio extended) + ACH-003 (Post-Secondary Readiness).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> AI-generated portfolio summary narrative. Common App / UCAS integration for college applications. Career aptitude assessment integration. Employer portal for career-track students. Portfolio analytics (which items get the most views from share links). Portfolio comparison across academic years. Video portfolio items with transcription. LinkedIn profile sync for graduating students.</p>
+  </div>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Sections + Reflections + Endorsements Schema (3 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>pfl_portfolio_sections</strong> &mdash; <code>portfolio_id UUID FK NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>sort_order INT NOT NULL</code>, <code>cover_image_s3_key TEXT</code>. UNIQUE(portfolio_id, sort_order). INDEX(portfolio_id). Portfolio items (pfl_portfolio_items) gain a section_id FK (nullable &mdash; unsectioned items remain valid). ALTER pfl_portfolio_items ADD section_id UUID FK(pfl_portfolio_sections) nullable.</li>
+      <li><strong>pfl_reflections</strong> &mdash; <code>portfolio_item_id UUID FK(pfl_portfolio_items) NOT NULL</code>, <code>student_id UUID FK NOT NULL</code>, <code>prompt TEXT</code> (optional guided prompt: &ldquo;What did you learn?&rdquo;, &ldquo;What would you do differently?&rdquo;, &ldquo;How does this connect to your goals?&rdquo;), <code>reflection_text TEXT NOT NULL</code>, <code>written_at TIMESTAMPTZ NOT NULL</code>. UNIQUE(portfolio_item_id, student_id). Student-owned &mdash; only the student can write or edit their own reflections.</li>
+      <li><strong>pfl_endorsements</strong> &mdash; <code>portfolio_id UUID FK NOT NULL</code>, <code>endorsed_by UUID FK NOT NULL</code> (teacher or counsellor), <code>endorser_role TEXT NOT NULL</code> 3-value CHECK (TEACHER, COUNSELLOR, MENTOR), <code>skills TEXT[] NOT NULL</code> (tagged skills: Critical Thinking, Communication, Leadership, etc.), <code>comment TEXT NOT NULL</code>, <code>is_visible_on_share BOOLEAN DEFAULT true</code> (student controls whether endorsement appears on shared portfolio), <code>endorsed_at TIMESTAMPTZ NOT NULL</code>. UNIQUE(portfolio_id, endorsed_by). INDEX(portfolio_id). Students cannot endorse themselves or other students.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables + ALTER pfl_portfolio_items ADD section_id. Migration: <code>156_pfl_sections_reflections.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Post-Secondary Readiness Schema (3 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>pfl_readiness_pathways</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>pathway_type TEXT NOT NULL</code> 5-value CHECK (COLLEGE_PREP, CAREER_TECHNICAL, ARTS_CONSERVATORY, MILITARY, GENERAL), <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name). School defines which post-secondary pathways are offered.</li>
+      <li><strong>pfl_pathway_milestones</strong> &mdash; <code>pathway_id UUID FK NOT NULL</code>, <code>milestone_name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>category TEXT NOT NULL</code> 6-value CHECK (ACADEMIC, TESTING, SERVICE, APPLICATION, FINANCIAL_AID, OTHER), <code>sort_order INT NOT NULL</code>, <code>is_required BOOLEAN DEFAULT true</code>, <code>auto_check_source TEXT</code> (when set: milestone auto-completes from another module &mdash; e.g., &ldquo;graduation_audit:SERVICE_HOURS&rdquo; auto-checks when P2-13 service learning requirement is met; &ldquo;transcript:GENERATED&rdquo; auto-checks when P2-13 transcript is created). UNIQUE(pathway_id, milestone_name). INDEX(pathway_id, sort_order).</li>
+      <li><strong>pfl_student_pathway_assignments</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>pathway_id UUID FK NOT NULL</code>, <code>assigned_by UUID FK NOT NULL</code> (counsellor), <code>assigned_at TIMESTAMPTZ NOT NULL</code>, <code>milestone_statuses JSONB NOT NULL DEFAULT '[]'</code> (array of {milestone_id, status: NOT_STARTED|IN_PROGRESS|COMPLETED, completed_at, notes, progress_detail} &mdash; one entry per milestone), <code>overall_progress NUMERIC(5,2)</code> (computed: completed_required / total_required &times; 100), <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, COMPLETED, WITHDRAWN). UNIQUE(student_id, pathway_id). INDEX(student_id). On milestone_statuses change: recompute overall_progress. Emits <code>pfl.pathway.milestone_completed</code> when a milestone transitions to COMPLETED.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 tables. Migration: <code>157_pfl_readiness_pathways.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">College Applications + Resume Schema (2 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>pfl_college_applications</strong> &mdash; <code>student_id UUID FK NOT NULL</code>, <code>college_name TEXT NOT NULL</code>, <code>application_type TEXT NOT NULL</code> 4-value CHECK (EARLY_DECISION, EARLY_ACTION, REGULAR, ROLLING), <code>deadline DATE</code>, <code>status TEXT NOT NULL DEFAULT 'RESEARCHING'</code> 7-value CHECK (RESEARCHING, PREPARING, SUBMITTED, INTERVIEW_SCHEDULED, ACCEPTED, REJECTED, WAITLISTED), <code>essay_s3_key TEXT</code>, <code>recommendation_count INT DEFAULT 0</code>, <code>transcript_sent BOOLEAN DEFAULT false</code>, <code>financial_aid_applied BOOLEAN DEFAULT false</code>, <code>notes TEXT</code>, <code>decision_date DATE</code>. INDEX(student_id, deadline). INDEX(student_id, status). Student-owned with counsellor read access.</li>
+      <li><strong>pfl_resume_profiles</strong> &mdash; <code>student_id UUID FK NOT NULL UNIQUE</code>, <code>objective_statement TEXT</code>, <code>skills TEXT[]</code> (aggregated from endorsement skills + self-reported), <code>work_experience JSONB</code> (array of {employer, role, start_date, end_date, description}), <code>extracurriculars JSONB</code> (auto-populated from ext_activity_enrollments if available; manually editable), <code>awards JSONB</code> (auto-populated from pfl_achievements; manually editable), <code>service_hours_total NUMERIC(5,1)</code> (auto-populated from P2-13 sis_service_learning_hours), <code>references JSONB</code> (array of {name, title, relationship, email}), <code>pdf_s3_key TEXT</code>, <code>last_generated_at TIMESTAMPTZ</code>. Student-owned. Resume PDF generated on demand from profile + portfolio data.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 tables. Migration: <code>158_pfl_college_resume.sql</code>. Total P2-27 tables: 8.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <ol class="detail-list">
+      <li><strong>4 sections</strong> for Maya's portfolio (Academic, Art, Community Service, Athletics) with sort_order. 3 portfolio items reassigned to sections via section_id.</li>
+      <li><strong>2 reflections</strong> (Maya reflects on English essay + art project with prompted questions).</li>
+      <li><strong>2 endorsements</strong> (Mrs Rivera TEACHER with skills [Critical Thinking, Written Communication], counsellor COUNSELLOR with skills [Leadership, Self-Direction]).</li>
+      <li><strong>2 pathways:</strong> "College Prep" (12 milestones: SAT, AP courses, service hours, essay, recommendations, transcript, FAFSA, etc.) and "Career &amp; Technical" (8 milestones). 2 milestone auto-check sources configured.</li>
+      <li><strong>2 pathway assignments:</strong> Maya on College Prep (8/12 milestones, 67% progress, ACTIVE). Ethan on Career &amp; Technical (3/8, 38%, ACTIVE).</li>
+      <li><strong>3 college applications:</strong> Stanford RESEARCHING, MIT SUBMITTED, State U ACCEPTED.</li>
+      <li><strong>1 resume profile</strong> for Maya with objective, skills, extracurriculars, service hours, 1 reference.</li>
+      <li><strong>Permissions:</strong> ACH-002 extended: sections + reflections (student write own), endorsements (teacher/counsellor write). ACH-003: pathways (admin define), assignments (counsellor assign), milestone tracking (counsellor + student update), college applications (student write, counsellor read), resume (student write).</li>
+    </ol>
+    <div class="produces">Produces &rarr; Portfolio advanced demo data across all 8 tables.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Portfolio Organisation + Endorsements NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>PortfolioSectionService</strong> &mdash; CRUD with drag-reorder. <code>POST /portfolios/:id/sections</code>, <code>PATCH /portfolios/sections/:id</code> (reorder), <code>PATCH /portfolios/items/:itemId</code> (assign item to section via section_id). <code>GET /portfolios/:id</code> (returns sections with items nested, unsectioned items separate).</li>
+      <li><strong>ReflectionService</strong> &mdash; <code>POST /portfolios/items/:itemId/reflections</code> (student writes; optional prompt), <code>GET /portfolios/items/:itemId/reflections</code>, <code>PATCH /portfolios/reflections/:id</code> (student edits own only). Reflection prompts configurable via <code>platform_tenant_configs</code> key <code>portfolio_reflection_prompts</code>.</li>
+      <li><strong>EndorsementService</strong> &mdash; <code>POST /portfolios/:id/endorsements</code> (teacher/counsellor endorses with skills + comment; students cannot endorse), <code>GET /portfolios/:id/endorsements</code>, <code>PATCH /portfolios/endorsements/:id/visibility</code> (student toggles is_visible_on_share).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services, ~12 endpoints.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Readiness + College + Resume NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <ol class="detail-list">
+      <li><strong>ReadinessPathwayService</strong> &mdash; CRUD for pathways + milestones. <code>POST /portfolios/pathways/:pathwayId/assign/:studentId</code> (counsellor assigns; initialises milestone_statuses JSONB from pathway milestones). <code>PATCH /portfolios/pathway-assignments/:id/milestones</code> (update individual milestone status in JSONB; recompute overall_progress; emit <code>pfl.pathway.milestone_completed</code> on COMPLETED). <code>GET /portfolios/readiness/:studentId</code> (student&rsquo;s pathway with milestone checklist). <code>GET /portfolios/readiness/dashboard</code> (counsellor: all students with progress, sortable by at-risk). MilestoneAutoCheckWorker: subscribes to cross-module events (sis.service_learning.approved, sis.transcript.generated) and auto-completes matching milestones.</li>
+      <li><strong>CollegeApplicationService</strong> &mdash; CRUD. <code>GET /portfolios/college-applications/:studentId</code>, <code>POST /portfolios/college-applications</code> (student creates), <code>PATCH /portfolios/college-applications/:id</code> (status transitions + essay upload). <code>GET /portfolios/college-applications/deadlines</code> (upcoming deadlines across all students &mdash; counsellor view).</li>
+      <li><strong>ResumeService</strong> &mdash; <code>GET /portfolios/resume/:studentId</code>, <code>PATCH /portfolios/resume</code> (student updates objective, skills, work experience, references), <code>POST /portfolios/resume/generate-pdf</code> (assembles from resume profile + portfolio data + achievements + service hours + endorsement quotes → generates PDF → stores s3_key). Auto-populate: skills from pfl_endorsements.skills UNION, service_hours from sis_service_learning_hours SUM, awards from pfl_achievements, extracurriculars from ext_activity_enrollments.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 services + 1 worker, ~14 endpoints, 1 Kafka emit. Total P2-27 endpoints: ~26.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Portfolio Advanced UI</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <ol class="detail-list">
+      <li><strong>Portfolio Organiser</strong> (extends existing portfolio view) &mdash; student: drag-create sections, drag items into sections, reorder. Section cover images. Unsectioned items area.</li>
+      <li><strong>Reflection Writer</strong> (inline on portfolio item) &mdash; prompted questions with text area. Edit toggle. Teacher sees reflections when viewing student portfolio.</li>
+      <li><strong>Endorsements</strong> (sidebar on portfolio) &mdash; teacher/counsellor: endorse button with skill tag selector + comment. Student: toggle visibility per endorsement for shared view. Endorsement cards with skill badges.</li>
+      <li><strong>Readiness Tracker</strong> <code>/portfolios/readiness</code> &mdash; student: pathway with milestone checklist (green complete, amber in-progress, gray not started). Progress bar. Counsellor: school-wide dashboard with student list sorted by progress. At-risk students highlighted (&lt;50% with approaching deadlines).</li>
+      <li><strong>College Application Tracker</strong> <code>/portfolios/college</code> &mdash; student: college cards with status pills + deadlines. Add college form. Essay upload. Counsellor: all students&rsquo; applications with deadline calendar.</li>
+      <li><strong>Resume Builder</strong> <code>/portfolios/resume</code> &mdash; student: form with auto-populated fields (skills, awards, service hours, extracurriculars from other modules). Edit any field. Add work experience + references manually. &ldquo;Generate PDF&rdquo; button. Preview + download.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Portfolio organiser, reflections, endorsements, readiness tracker, college applications, resume builder.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <ol class="detail-list">
+      <li><strong>Sections:</strong> Create 3 sections. Assign 2 items to section 1. Reorder sections. Verify sort_order updated. Verify GET returns items nested under sections.</li>
+      <li><strong>Reflections:</strong> Student writes reflection with prompt. Verify UNIQUE(portfolio_item_id, student_id). Another student cannot write on Maya&rsquo;s item. Student edits own reflection → success. Teacher cannot edit student reflection.</li>
+      <li><strong>Endorsements:</strong> Teacher endorses with 3 skills. Verify UNIQUE(portfolio_id, endorsed_by). Student attempts to endorse → 403. Student toggles visibility off. Verify endorsement hidden on shared portfolio view but visible to student.</li>
+      <li><strong>Readiness pathway:</strong> Counsellor assigns student to pathway. Verify milestone_statuses initialised from milestones. Complete 3 milestones. Verify overall_progress recomputed. Verify <code>pfl.pathway.milestone_completed</code> fires. Auto-check: emit sis.service_learning.approved → verify matching milestone auto-completes.</li>
+      <li><strong>College applications:</strong> Student creates 3 applications. Verify deadline index. Transition RESEARCHING → SUBMITTED → ACCEPTED. Counsellor views all students&rsquo; deadlines. Student cannot see other students&rsquo; applications.</li>
+      <li><strong>Resume:</strong> Student updates profile. Generate PDF. Verify skills auto-populated from endorsements. Verify service hours from P2-13. Verify awards from pfl_achievements. Verify PDF s3_key stored.</li>
+      <li><strong>Visibility:</strong> Student owns portfolio sections, reflections, college apps, resume. Teacher can endorse + view. Counsellor can assign pathways + view all. Parent sees shared portfolio (with endorsed visibility). Other students cannot access.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified: sections &rarr; reflections &rarr; endorsements &rarr; readiness pathways &rarr; college applications &rarr; resume builder.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 8 new tables + ALTER pfl_portfolio_items. Tenant table count: ~775.</li>
+      <li>Portfolio API: ~26 endpoints + 1 worker (MilestoneAutoCheckWorker).</li>
+      <li>Portfolio sections with drag-reorder + item assignment.</li>
+      <li>Student reflections with prompted self-assessment (student-owned).</li>
+      <li>Teacher/counsellor endorsements with skill tagging + student visibility control.</li>
+      <li>Post-secondary readiness pathways with configurable milestones + auto-check from other modules.</li>
+      <li>College application tracking with deadline management.</li>
+      <li>Resume builder with cross-module auto-population + PDF export.</li>
+      <li><code>pfl.pathway.milestone_completed</code> Kafka emit.</li>
+      <li>HANDOFF-P2C27.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 27 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M26 Portfolio deferred tables, 8 tables). Functions: ACH-002 Student Portfolio extended + ACH-003 Post-Secondary Readiness. Cross-cycle: Cycle 24 pfl_portfolios + pfl_portfolio_items + pfl_achievements, P2-13 sis_service_learning_hours + sis_transcripts, P2-8b ath_highlight_clips for athletic portfolio items, Cycle 18 ext_activity_enrollments for extracurriculars. No split needed.</p>
+  </div>
+</div>
+</body>
+</html>

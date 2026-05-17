@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 15 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../../design-hub/index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../../design-hub/index.html">Design Hub</a>
+  <a href="../../architecture/campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 3 &middot; Communications &amp; Community</div>
+    <h1>Cycle 15: Meetings &amp;<br>Conferences</h1>
+    <div class="sub">Conference scheduling with bookable time-slot grids, structured meetings with agendas and action items, meeting notes with parent-visibility controls, recording consent tracking, IEP meeting records linking to Cycle 10's health plans, and parent-teacher conference self-service booking. Builds on Cycle 14's messaging foundation.</div>
+    <span class="version">May 2026 &middot; 10 Steps &middot; ERD v11 &middot; M41 Meetings (13 tables &mdash; 11 core in scope, 2 AI deferred)</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 15 builds the M41 Meetings module &mdash; 11 of the 13 ERD tables. This is the first module where parents are active schedulers rather than passive recipients: parents self-service book parent-teacher conference slots through the time-slot grid. The module bridges Cycle 10's IEP plans (via <code>mtg_iep_meeting_records</code>) and Cycle 14's messaging (meeting invitations and follow-ups flow through the messaging thread system).</p>
+
+  <p class="body-text">The module spans 4 domains: (1) conference event containers + meeting types, (2) meetings with participants + bookable time slots + agenda items, (3) meeting notes with parent-visibility controls + action items with assignee tracking, and (4) recording consent + IEP meeting records. The AI-powered transcription and minutes generation tables (<code>mtg_transcription_jobs</code>, <code>mtg_ai_minutes_jobs</code>) are deferred to Cycle 15.1 because they require external service integration (AWS Transcribe / Whisper).</p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">Privacy &mdash; Meeting Notes Parent Visibility</div>
+    <p style="font-size:15px;line-height:1.8;"><code>mtg_meeting_notes</code> has a two-layer visibility gate. <code>is_parent_visible</code> is a teacher-controlled flag &mdash; when false, parents never see the notes. When true AND <code>is_approved</code> is true, parents see either the <code>parent_visible_summary</code> (a separate teacher-authored summary for parents) or the full <code>notes_text</code> if no summary is provided. Counselling or sensitive content should NEVER have <code>is_parent_visible=true</code>. The service enforces this via a warning on IEP-linked meetings.</p>
+  </div>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin creates a "Spring Parent-Teacher Conferences" event (PARENT_TEACHER, May 15&ndash;16) &rarr; Rivera sets availability by creating 15-minute time slots across both days &rarr; David Chen (parent) browses available slots and books a slot with Rivera to discuss Maya's progress &rarr; Rivera conducts the meeting, logs notes with <code>is_parent_visible=true</code> and a separate parent-facing summary &rarr; Rivera creates 2 action items (1 for himself: "Send additional reading materials", 1 for David: "Practice multiplication at home") &rarr; Rivera approves the notes &rarr; David sees the parent summary on his portal &rarr; Admin schedules an IEP review meeting for Maya, linking it to her Cycle 10 IEP plan &rarr; the IEP meeting record captures attendee roles and outcomes &rarr; Cycle 11's <code>svc_mtss_team_meetings.meeting_id</code> soft FK resolves to this meeting.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (11 tables):</strong> mtg_conference_events, mtg_meeting_types, mtg_meetings, mtg_meeting_participants, mtg_meeting_slots, mtg_agenda_items, mtg_meeting_notes, mtg_action_items, mtg_recordings, mtg_recording_consents, mtg_iep_meeting_records. Functions MTG-001 and MTG-002.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred to Cycle 15.1 (2 tables):</strong> mtg_transcription_jobs (requires AWS Transcribe or Whisper integration), mtg_ai_minutes_jobs (requires AI inference service for summary + action-item extraction). Both tables' schemas are partition-ready; the service integration is the blocker.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Also deferred:</strong> Video meeting URL auto-generation (external video platform integration &mdash; manual URL entry this cycle). Calendar integration for meeting invitations (Cycle 3 calendar surface exists; the bi-directional sync is future). Conference slot auto-generation from teacher timetable gaps (manual slot creation this cycle). Recording upload to S3 (schema ready with s3_key; actual upload flow requires the video processing extracted service).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Conference + Meeting Schema</td><td>Schema</td><td>mtg_conference_events, mtg_meeting_types, mtg_meetings, mtg_meeting_participants, mtg_meeting_slots</td></tr>
+    <tr><td><strong>2</strong></td><td>Notes + Actions + Recording + IEP Schema</td><td>Schema</td><td>mtg_agenda_items, mtg_meeting_notes, mtg_action_items, mtg_recordings, mtg_recording_consents, mtg_iep_meeting_records</td></tr>
+    <tr><td><strong>3</strong></td><td>Seed Data &mdash; Conference, Meetings, Slots, Notes, IEP Record</td><td>Seed</td><td>1 PTC event + time slots, 2 meetings (1 PTC + 1 IEP), notes with parent summary, action items, MTG-001..002 permissions</td></tr>
+    <tr><td><strong>4</strong></td><td>Conference + Meeting NestJS Module</td><td>Code</td><td>ConferenceService, MeetingService, SlotService. PTC slot booking. <code>mtg.meeting.scheduled</code> Kafka emit.</td></tr>
+    <tr><td><strong>5</strong></td><td>Notes + Actions + Recording NestJS Module</td><td>Code</td><td>MeetingNotesService, ActionItemService, RecordingService. Parent-visible notes. Consent tracking.</td></tr>
+    <tr><td><strong>6</strong></td><td>IEP Meeting + Cross-Cycle Integration</td><td>Code</td><td>IepMeetingRecordService. Links to Cycle 10 hlth_iep_plans. Resolves Cycle 11 svc_mtss_team_meetings.meeting_id soft FK.</td></tr>
+    <tr><td><strong>7</strong></td><td>Meetings UI &mdash; Calendar + Conference Booking</td><td>UI</td><td>"Meetings" app tile, meeting calendar, PTC slot grid with parent self-service booking, meeting detail</td></tr>
+    <tr><td><strong>8</strong></td><td>Meetings UI &mdash; Notes + Actions + IEP + Parent Portal</td><td>UI</td><td>Notes editor with parent-visibility toggle, action item tracker, IEP meeting view, parent conference portal</td></tr>
+    <tr><td><strong>9</strong></td><td>Recording + Consent UI</td><td>UI</td><td>Recording upload placeholder, consent collection modal, recording playback (when available)</td></tr>
+    <tr><td><strong>10</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Conference &rarr; slot booking &rarr; meeting &rarr; notes + parent visibility &rarr; action items &rarr; IEP record &rarr; consent</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Conference + Meeting Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Conference event containers, configurable meeting types, individual meetings with participant tracking, and bookable time slots for parent-teacher conferences.</p>
+
+    <div class="detail-heading">Tables (5)</div>
+    <ol class="detail-list">
+      <li><strong>mtg_conference_events</strong> &mdash; <code>school_id UUID</code>, <code>title TEXT NOT NULL</code>, <code>conference_type TEXT NOT NULL</code> 5-value CHECK (PARENT_TEACHER, STAFF, BOARD, IEP, TRAINING), <code>start_date DATE NOT NULL</code>, <code>end_date DATE NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'SCHEDULED'</code> 4-value CHECK (SCHEDULED, ACTIVE, COMPLETED, CANCELLED). INDEX(school_id, start_date DESC). The conference is the top-level container; individual meetings and slots hang under it.</li>
+      <li><strong>mtg_meeting_types</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>default_duration_minutes INT</code>, <code>is_video BOOLEAN DEFAULT false</code>. UNIQUE(school_id, name). Seeded types: "Parent-Teacher Conference", "Staff Meeting", "IEP Review", "Department Meeting".</li>
+      <li><strong>mtg_meetings</strong> &mdash; <code>school_id UUID</code>, <code>meeting_type_id UUID FK</code>, <code>title TEXT NOT NULL</code>, <code>scheduled_at TIMESTAMPTZ NOT NULL</code>, <code>duration_minutes INT</code>, <code>meeting_url TEXT</code> nullable (manual entry for video links this cycle), <code>status TEXT NOT NULL DEFAULT 'SCHEDULED'</code> 4-value CHECK (SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED), <code>organiser_id UUID FK(platform_users) NOT NULL</code>. INDEX(school_id, scheduled_at DESC). The meeting may be standalone or linked to a conference event via the slot system.</li>
+      <li><strong>mtg_meeting_participants</strong> &mdash; <code>meeting_id UUID FK NOT NULL</code>, <code>participant_id UUID NOT NULL</code> (soft to platform_users), <code>role TEXT NOT NULL DEFAULT 'ATTENDEE'</code> 4-value CHECK (HOST, PRESENTER, ATTENDEE, OBSERVER), <code>attended BOOLEAN DEFAULT false</code>, <code>join_at TIMESTAMPTZ</code>, <code>leave_at TIMESTAMPTZ</code>. UNIQUE(meeting_id, participant_id). INDEX(participant_id, meeting_id) for "my meetings" view.</li>
+      <li><strong>mtg_meeting_slots</strong> &mdash; <strong>PTC BOOKING KEYSTONE.</strong> <code>meeting_id UUID FK NOT NULL</code> (the parent meeting under the conference), <code>start_time TIMESTAMPTZ NOT NULL</code>, <code>end_time TIMESTAMPTZ NOT NULL</code>, <code>is_booked BOOLEAN DEFAULT false</code>, <code>booked_by UUID FK</code> nullable (soft to platform_users &mdash; the parent who booked). INDEX(meeting_id, start_time). Partial INDEX(meeting_id) WHERE is_booked=false for the available-slots picker. The Step 4 service uses <code>SELECT FOR UPDATE</code> on the slot row to prevent double-booking.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 5 new tables. Migration: <code>051_mtg_conferences_meetings.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Notes + Actions + Recording + IEP Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Meeting agendas, notes with the two-layer parent-visibility gate, action items with assignee tracking, recording metadata with consent collection, and IEP meeting records linking to the Cycle 10 health module.</p>
+
+    <div class="detail-heading">Tables (6)</div>
+    <ol class="detail-list">
+      <li><strong>mtg_agenda_items</strong> &mdash; <code>meeting_id UUID FK NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>presenter_id UUID FK</code> nullable, <code>duration_minutes INT</code>, <code>sort_order INT NOT NULL</code>, <code>notes TEXT</code>. INDEX(meeting_id, sort_order).</li>
+      <li><strong>mtg_meeting_notes</strong> &mdash; <strong>PARENT-VISIBILITY KEYSTONE.</strong> <code>meeting_id UUID FK UNIQUE NOT NULL</code> (one notes record per meeting), <code>notes_text TEXT</code>, <code>is_approved BOOLEAN DEFAULT false</code>, <code>approved_by UUID FK</code> nullable, <code>is_parent_visible BOOLEAN DEFAULT false</code>, <code>parent_visible_summary TEXT</code> nullable. Multi-column <code>approved_chk</code>: <code>is_approved=true</code> requires <code>approved_by NOT NULL</code>; <code>is_approved=false</code> requires <code>approved_by IS NULL</code>. Parent sees notes only when BOTH <code>is_parent_visible=true</code> AND <code>is_approved=true</code>; they see <code>parent_visible_summary</code> when provided, otherwise full <code>notes_text</code>.</li>
+      <li><strong>mtg_action_items</strong> &mdash; <code>meeting_id UUID FK NOT NULL</code>, <code>assignee_id UUID FK NOT NULL</code> (soft to platform_users &mdash; covers both staff and parent assignees), <code>description TEXT NOT NULL</code>, <code>due_date DATE</code>, <code>status TEXT NOT NULL DEFAULT 'OPEN'</code> 4-value CHECK (OPEN, IN_PROGRESS, DONE, CANCELLED). INDEX(assignee_id, status) for "my action items" dashboard.</li>
+      <li><strong>mtg_recordings</strong> &mdash; <code>meeting_id UUID FK UNIQUE NOT NULL</code>, <code>s3_key TEXT</code> nullable (populated when recording is uploaded), <code>duration_seconds INT</code>, <code>file_size_bytes BIGINT</code>, <code>status TEXT NOT NULL DEFAULT 'PROCESSING'</code> 3-value CHECK (PROCESSING, AVAILABLE, FAILED), <code>consent_confirmed BOOLEAN DEFAULT false</code> (true only when all required participants have consented). Signed S3 URLs with 15&ndash;60 min expiry at read time.</li>
+      <li><strong>mtg_recording_consents</strong> &mdash; <code>recording_id UUID FK NOT NULL</code>, <code>participant_id UUID NOT NULL</code>. UNIQUE(recording_id, participant_id). <code>consent_given BOOLEAN NOT NULL</code>, <code>consented_at TIMESTAMPTZ</code>. All participants must consent before <code>mtg_recordings.consent_confirmed</code> flips true and the recording becomes accessible.</li>
+      <li><strong>mtg_iep_meeting_records</strong> &mdash; <strong>CROSS-CYCLE INTEGRATION.</strong> <code>meeting_id UUID FK NOT NULL</code>, <code>student_id UUID</code> (soft to sis_students), <code>iep_plan_id UUID</code> (soft to hlth_iep_plans &mdash; Cycle 10), <code>attendee_roles JSONB</code> (structured: <code>[{personId, role, name}]</code>), <code>outcomes_summary TEXT</code>, <code>next_review_date DATE</code>. Resolves Cycle 11's <code>svc_mtss_team_meetings.meeting_id</code> soft FK.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 6 new tables. Migration: <code>052_mtg_notes_recording_iep.sql</code>. Total Cycle 15 tables: 11.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Seed Data &mdash; Conference, Meetings, Slots, Notes, IEP Record</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>4 meeting types:</strong> "Parent-Teacher Conference" (15min, is_video=false), "Staff Meeting" (60min), "IEP Review" (45min, is_video=true), "Department Meeting" (30min).</li>
+      <li><strong>1 conference event:</strong> "Spring Parent-Teacher Conferences 2026" (PARENT_TEACHER, May 20&ndash;21, SCHEDULED).</li>
+      <li><strong>2 meetings:</strong> (1) PTC meeting (Rivera as organiser, 15min, COMPLETED, linked to PTC conference). (2) IEP review meeting (Hayes as organiser, 45min, COMPLETED).</li>
+      <li><strong>6 PTC time slots:</strong> 3 slots per day across May 20&ndash;21 (15 min each, 3:00/3:15/3:30 PM). Slot 1 (May 20 3:00) is booked by David Chen. The rest are available.</li>
+      <li><strong>4 meeting participants:</strong> PTC: Rivera (HOST) + David Chen (ATTENDEE, attended=true). IEP: Hayes (HOST) + Mitchell (PRESENTER, attended=true).</li>
+      <li><strong>2 agenda items:</strong> IEP meeting: "Review current goals progress" (sort=0) + "Discuss accommodation adjustments" (sort=1).</li>
+      <li><strong>2 meeting notes:</strong> PTC note: is_parent_visible=true, is_approved=true, parent_visible_summary="Maya is making strong progress in math...", full notes_text includes teacher observations. IEP note: is_parent_visible=false (sensitive content).</li>
+      <li><strong>3 action items:</strong> PTC: Rivera "Send reading materials" (OPEN, due next week) + David "Practice multiplication at home" (OPEN). IEP: Hayes "Update accommodation plan" (DONE).</li>
+      <li><strong>1 IEP meeting record:</strong> links to Maya's Cycle 10 IEP plan, attendee_roles JSONB with Hayes (counsellor) + Mitchell (admin), outcomes_summary, next_review_date.</li>
+      <li><strong>Permissions:</strong> MTG-001:read to Teacher, Parent, Student, Staff (view meetings + my schedule). MTG-001:write to Teacher, Staff (create meetings, manage agenda). MTG-002:read to Teacher, Parent (view conference schedule + own bookings). MTG-002:write to Teacher (set availability, create slots). MTG-002:admin to Admin (configure conference events). Admin gets all via everyFunction.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Rich meetings demo data with a booked PTC slot, parent-visible notes, and an IEP meeting record. MTG-001..002 permissions.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Conference + Meeting NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>ConferenceService</strong> &mdash; <code>GET /meetings/conferences</code> (active + upcoming for the school), <code>GET /meetings/conferences/:id</code> (with inlined slot availability stats), <code>POST /meetings/conferences</code> (admin), <code>PATCH /meetings/conferences/:id</code> (status transitions).</li>
+      <li><strong>MeetingService</strong> &mdash; <code>GET /meetings</code> (my meetings: participant or organiser; filters date range, type, status), <code>GET /meetings/:id</code> (with participants + agenda + notes summary + action items), <code>POST /meetings</code> (teacher/staff creates), <code>PATCH /meetings/:id</code> (reschedule, status transitions with FOR UPDATE). <code>POST /meetings/:id/participants</code> (add participant). Emits <code>mtg.meeting.scheduled</code> on creation.</li>
+      <li><strong>SlotService</strong> &mdash; <code>GET /meetings/:id/slots</code> (available slots for a meeting/conference &mdash; the parent booking grid), <code>POST /meetings/:id/slots</code> (teacher creates time slots in bulk &mdash; accept an array of start/end pairs), <code>PATCH /meetings/slots/:id/book</code> (<strong>PARENT BOOKING KEYSTONE:</strong> locks slot with <code>SELECT FOR UPDATE</code>, validates <code>is_booked=false</code>, stamps <code>booked_by=actor.accountId</code>, flips <code>is_booked=true</code>; auto-creates a meeting participant row for the booking parent), <code>PATCH /meetings/slots/:id/cancel</code> (parent cancels own booking or teacher cancels any).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; MeetingsModule with 3 services, ~14 endpoints, 1 Kafka emit (<code>mtg.meeting.scheduled</code>).</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Notes + Actions + Recording NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>MeetingNotesService</strong> &mdash; <code>GET /meetings/:id/notes</code> (<strong>PARENT-VISIBILITY GATE:</strong> staff sees full notes_text; parent sees parent_visible_summary when is_parent_visible=true AND is_approved=true; student sees nothing), <code>POST /meetings/:id/notes</code> (teacher/staff creates), <code>PATCH /meetings/notes/:id</code> (update text, toggle is_parent_visible, set parent_visible_summary), <code>PATCH /meetings/notes/:id/approve</code> (stamps is_approved=true + approved_by; irreversible).</li>
+      <li><strong>AgendaService</strong> &mdash; <code>GET /meetings/:id/agenda</code>, <code>POST /meetings/:id/agenda</code>, <code>PATCH /meetings/agenda/:id</code>, <code>DELETE /meetings/agenda/:id</code>.</li>
+      <li><strong>ActionItemService</strong> &mdash; <code>GET /meetings/action-items</code> (my action items: assigned to me, filtered by status), <code>GET /meetings/:id/action-items</code> (per-meeting list), <code>POST /meetings/:id/action-items</code>, <code>PATCH /meetings/action-items/:id</code> (update status, due date). Parents can see and update action items assigned to them.</li>
+      <li><strong>RecordingService</strong> &mdash; <code>GET /meetings/:id/recording</code> (with signed S3 URL; refuses access when consent_confirmed=false), <code>POST /meetings/:id/recording</code> (placeholder: creates the row; actual upload requires video processing service), <code>POST /meetings/recordings/:id/consent</code> (participant gives or withholds consent; when all consents are in, consent_confirmed auto-flips).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 services, ~14 endpoints. Parent-visibility gate is the keystone.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">IEP Meeting + Cross-Cycle Integration</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>IepMeetingRecordService</strong> &mdash; <code>GET /meetings/:id/iep-record</code> (linked to a specific meeting; gated on HLT-001:read since IEP data is health-sensitive), <code>POST /meetings/:id/iep-record</code> (counsellor/admin creates; links student_id + iep_plan_id from Cycle 10's <code>hlth_iep_plans</code>), <code>PATCH /meetings/iep-records/:id</code> (update outcomes, next review date). <code>GET /meetings/iep-records</code> (admin: all IEP meeting records; counsellor: own caseload students). This service resolves the Cycle 11 <code>svc_mtss_team_meetings.meeting_id</code> soft FK &mdash; MTSS team meetings can now reference real <code>mtg_meetings</code> rows.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 1 service, ~4 endpoints. Total Cycle 15 endpoints: ~32. Cross-cycle integration keystone.</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Meetings UI &mdash; Calendar + Conference Booking</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Meetings Dashboard</strong> <code>/meetings</code> &mdash; "Meetings" app tile gated on MTG-001:read. Staff view: upcoming meetings list + conference management. Parent view: upcoming conferences with "Book a slot" CTA + my booked appointments + my action items.</li>
+      <li><strong>Meeting Detail</strong> <code>/meetings/:id</code> &mdash; meeting info card (type, date, status, organiser, video link). Participants list with role + attendance pills. Agenda section. Notes section (parent-visibility gate applied). Action items with status toggle. Recording player (when available + consent confirmed).</li>
+      <li><strong>Conference Detail + Slot Grid</strong> <code>/meetings/conferences/:id</code> &mdash; conference header with date range + status. <strong>PARENT BOOKING GRID KEYSTONE:</strong> time-slot matrix (rows = time slots, columns = teachers) with available/booked/my-booking pills. Click-to-book on available slots with confirmation modal. Parent sees own bookings highlighted. Teacher sees their own column with "Add slots" bulk-create form.</li>
+      <li><strong>My Meetings Calendar</strong> <code>/meetings/calendar</code> &mdash; weekly/monthly view of all meetings where actor is a participant or organiser. Click through to meeting detail.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; "Meetings" app tile + dashboard, meeting detail, conference booking grid, calendar view.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Meetings UI &mdash; Notes + Actions + IEP + Parent Portal</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Notes Editor</strong> (inline on meeting detail) &mdash; rich text editor for notes_text. Parent-visibility toggle with amber warning: "When enabled, parents will see these notes after approval." Separate parent-summary textarea that appears when is_parent_visible=true. Approve button (irreversible, with confirmation). IEP-linked meetings show a rose warning: "This is an IEP meeting. Consider carefully whether notes should be parent-visible."</li>
+      <li><strong>Action Items Dashboard</strong> <code>/meetings/action-items</code> &mdash; "My action items" across all meetings, sorted by due date. Filter chips: Open / In Progress / Done / All. Per-row: description, meeting link, due date with overdue tinting, status toggle. Parents see action items assigned to them (e.g., "Practice multiplication at home").</li>
+      <li><strong>IEP Meeting View</strong> (inline on meeting detail for IEP-type meetings) &mdash; student card, linked IEP plan summary (pulls from Cycle 10's hlth_iep_plans), attendee roles grid, outcomes summary, next review date. Visible only to staff with HLT-001:read.</li>
+      <li><strong>Parent Conference Portal</strong> <code>/children/:id/meetings</code> &mdash; parent sees: upcoming conferences with available slots, booked appointments, meeting notes (parent-visible only), action items assigned to them, past conference history.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Notes editor with parent-visibility, action items dashboard, IEP meeting view, parent conference portal.</div>
+  </div>
+
+  <!-- ── STEP 9 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">09</span>
+      <span class="step-title">Recording + Consent UI</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Recording Panel</strong> (inline on meeting detail) &mdash; when a recording exists: status pill (PROCESSING amber / AVAILABLE emerald / FAILED rose). Consent status bar showing N of M participants consented. When consent_confirmed=true: playback player with signed S3 URL. When consent_confirmed=false: "Recording available once all participants consent" message.</li>
+      <li><strong>Consent Collection Modal</strong> &mdash; opens for each participant when they first view a meeting with a PROCESSING or AVAILABLE recording. "This meeting was recorded. Do you consent to the recording being stored and accessible to meeting participants?" with Accept/Decline buttons. Decline sets consent_given=false; the recording remains inaccessible until all participants have consented.</li>
+      <li><strong>Recording Upload</strong> (staff-only) &mdash; placeholder upload form on the meeting detail page. Creates the mtg_recordings row with status=PROCESSING. Actual S3 upload integration deferred to when the video processing extracted service ships.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Recording panel with consent tracking, consent collection modal, upload placeholder.</div>
+  </div>
+
+  <!-- ── STEP 10 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">10</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Conference creation + slot grid:</strong> Admin creates PTC conference event. Rivera creates 6 time slots (3 per day). Verify available-slots query returns 6.</li>
+      <li><strong>Parent booking keystone:</strong> David Chen books slot #1 (SELECT FOR UPDATE prevents double-book). Verify is_booked=true + booked_by=David. Verify participant row auto-created. Second parent attempts same slot &rarr; 400 "Slot is already booked."</li>
+      <li><strong>Meeting lifecycle:</strong> Rivera conducts the PTC meeting. PATCH status SCHEDULED &rarr; IN_PROGRESS &rarr; COMPLETED. Verify participant attendance tracked.</li>
+      <li><strong>Notes + parent-visibility keystone:</strong> Rivera writes notes with is_parent_visible=true + parent_visible_summary. Approves. David sees the summary (not full notes_text). Student sees nothing. Staff sees full notes. Rivera toggles is_parent_visible=false &rarr; David no longer sees notes.</li>
+      <li><strong>Action items:</strong> Rivera creates 2 action items (1 self-assigned, 1 to David). David sees "Practice multiplication at home" in his action items dashboard. David marks it DONE.</li>
+      <li><strong>IEP meeting record:</strong> Admin creates IEP review meeting. Creates IEP meeting record linking to Maya's Cycle 10 IEP plan. Verify attendee_roles JSONB populated. Verify the Cycle 11 svc_mtss_team_meetings.meeting_id soft FK can now reference this meeting.</li>
+      <li><strong>Recording consent:</strong> Staff creates recording placeholder. Consent modal shows for each participant. Rivera consents (consent_given=true). Until all participants consent, recording is inaccessible. After all consent, consent_confirmed=true and playback is available.</li>
+      <li><strong>Booking cancellation:</strong> David cancels his slot. Verify is_booked=false + booked_by=null. Slot reappears in available grid.</li>
+      <li><strong>Visibility:</strong> Parent sees own bookings, parent-visible approved notes, and own action items. Cannot see other parents' bookings. Cannot create meetings or conferences. Student sees meeting schedule but not notes or action items.</li>
+      <li><strong>Kafka emit:</strong> Verify <code>mtg.meeting.scheduled</code> fires on meeting creation with ADR-057 envelope.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; Verified meetings lifecycle: conference &rarr; slot booking &rarr; meeting &rarr; notes with parent visibility &rarr; action items &rarr; IEP record &rarr; recording consent.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 15 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 11 new tables (5 conference/meeting + 6 notes/recording/IEP). Tenant table count: ~229.</li>
+      <li>Meetings API: ~32 endpoints with parent self-service slot booking + parent-visibility notes gate.</li>
+      <li>PTC slot booking with double-book prevention via SELECT FOR UPDATE.</li>
+      <li>Meeting notes with two-layer parent-visibility (is_parent_visible + is_approved + optional parent summary).</li>
+      <li>Action items with cross-persona assignees (staff + parent).</li>
+      <li>Recording consent tracking: all participants must consent before recording is accessible.</li>
+      <li>IEP meeting records linking to Cycle 10 health plans + resolving Cycle 11 MTSS soft FK.</li>
+      <li><code>mtg.meeting.scheduled</code> Kafka emit.</li>
+      <li>HANDOFF-CYCLE15.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 15 delivers the meeting infrastructure that the rest of Wave 3 builds on. Cycle 14's messaging handles the real-time communication; Cycle 15's meetings handle the structured, scheduled interactions. The parent self-service booking grid and the parent-visible notes gate are the two surfaces that most directly affect the parent experience. Cycle 16 (Enrolment &amp; Admissions) is the next cycle in Wave 3.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 15 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M41 Meetings, 13 tables &mdash; 11 core in scope), Function Library (MTG-001 Meetings, MTG-002 Parent-Teacher Conferences). Cross-cycle: Cycle 10 hlth_iep_plans + Cycle 11 svc_mtss_team_meetings.meeting_id.</p>
+  </div>
+</div>
+
+</body>
+</html>

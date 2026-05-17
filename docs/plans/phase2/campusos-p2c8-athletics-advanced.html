@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-8: Athletics Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.split-card{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:16px 0}
+.split-card h3{font-size:16px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.split-card p{font-size:14px;line-height:1.8;margin:0}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave B &mdash; Pilot Enhancement</div>
+    <h1>P2-8: Athletics Advanced</h1>
+    <div class="sub">Equipment inventory with student checkout tracking and safety compliance certification, athletic conferences with membership and cross-conference scheduling, game streaming with highlight clip extraction for student portfolios, the officials marketplace with platform-level portable profiles and bidirectional ratings (ADR-063), advanced per-sport statistics with configurable categories and stat leaders, and student-athlete recruiting profiles. Pre-split into 2 sub-cycles.</div>
+    <span class="version">May 2026 &middot; 2 Sub-Cycles &middot; ERD v11 &middot; M66 Athletics .1 (18 tables) &middot; ATH-001..004 &middot; Phase 2 Cycle 8</span>
+  </div>
+
+  <h2 class="section-heading">Sub-Cycle Structure</h2>
+  <p class="body-text">18 tables split into 2 independently shippable sub-cycles. P2-8a covers the physical operations (equipment + conferences + team media). P2-8b covers the digital layer (streaming + officials marketplace + advanced stats + recruiting). Peer review happens after both are complete.</p>
+
+  <div class="split-card">
+    <h3>P2-8a &mdash; Equipment + Conferences + Media (9 tables)</h3>
+    <p>Equipment inventory with student checkouts + safety compliance + damage tracking, athletic conferences with memberships + cross-conference scheduling, team photos + media asset library. No external service dependencies.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-8b &mdash; Streaming + Officials + Stats + Recruiting (9 tables)</h3>
+    <p>Game streaming with access control + highlight clip extraction for portfolios (ADR-068), officials marketplace with platform-level profiles + bidirectional ratings (ADR-063), configurable advanced statistics + stat leaders, student-athlete recruiting profiles. Streaming requires Video Processing extracted service (stub if not deployed).</p>
+  </div>
+
+  <h2 class="section-heading">P2-8a: Equipment + Conferences + Media</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema (9 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>ath_equipment</strong> &mdash; <code>school_id UUID</code>, <code>programme_id UUID FK(ath_programmes)</code>, <code>item_type TEXT NOT NULL</code> 6-value CHECK (UNIFORM, PROTECTIVE_GEAR, TRAINING_EQUIPMENT, GAME_EQUIPMENT, MEDICAL_EQUIPMENT, OTHER), <code>item_name TEXT NOT NULL</code>, <code>quantity INT DEFAULT 0</code>, <code>condition TEXT NOT NULL</code> 5-value CHECK (EXCELLENT, GOOD, FAIR, POOR, RETIRED), <code>purchase_date DATE</code>, <code>unit_cost NUMERIC(8,2)</code>. INDEX(school_id, programme_id).</li>
+      <li><strong>ath_equipment_checkouts</strong> &mdash; <code>equipment_id UUID FK NOT NULL</code>, <code>assigned_to_person_id UUID FK(iam_person) NOT NULL</code>, <code>item_identifier TEXT</code> (jersey number, barcode, serial), <code>checked_out_at DATE NOT NULL</code>, <code>expected_return_date DATE</code>, <code>returned_at DATE</code>, <code>condition_at_return TEXT</code> 3-value CHECK (GOOD, DAMAGED, LOST) nullable, <code>damage_notes TEXT</code>, <code>replacement_charge NUMERIC(8,2)</code>. INDEX(assigned_to_person_id, returned_at) WHERE returned_at IS NULL.</li>
+      <li><strong>ath_safety_equipment</strong> &mdash; <code>roster_member_id UUID FK(ath_roster_members) NOT NULL</code>, <code>equipment_type TEXT NOT NULL</code> 6-value CHECK (HELMET, PADS, MOUTHGUARD, SHIN_GUARDS, GOGGLES, OTHER), <code>issued BOOLEAN DEFAULT false</code>, <code>meets_safety_standard BOOLEAN DEFAULT true</code>, <code>certification_date DATE</code>, <code>certification_expiry DATE</code>, <code>recall_status BOOLEAN DEFAULT false</code>. UNIQUE(roster_member_id, equipment_type). Safety compliance must be verified before game participation.</li>
+      <li><strong>ath_conferences</strong> &mdash; <code>name TEXT NOT NULL</code>, <code>sport TEXT NOT NULL</code>, <code>region TEXT</code>, <code>governing_body TEXT</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(name, sport). Platform-level (no school_id) &mdash; conferences span schools.</li>
+      <li><strong>ath_conference_memberships</strong> &mdash; <code>conference_id UUID FK NOT NULL</code>, <code>school_id UUID NOT NULL</code>, <code>programme_id UUID FK(ath_programmes) NOT NULL</code>, <code>joined_date DATE NOT NULL</code>, <code>level TEXT</code> (division within conference), <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(conference_id, school_id, programme_id).</li>
+      <li><strong>ath_conference_schedules</strong> &mdash; <code>conference_id UUID FK NOT NULL</code>, <code>season_id UUID FK(ath_seasons)</code>, <code>home_school_id UUID NOT NULL</code>, <code>away_school_id UUID NOT NULL</code>, <code>scheduled_date DATE NOT NULL</code>, <code>scheduled_time TIME</code>, <code>linked_game_id UUID FK(ath_games)</code> nullable (populated when the game is created). INDEX(conference_id, scheduled_date).</li>
+      <li><strong>ath_team_photos</strong> &mdash; <code>roster_id UUID FK(ath_rosters) NOT NULL</code>, <code>photo_type TEXT NOT NULL</code> 3-value CHECK (TEAM_PHOTO, ACTION_SHOT, INDIVIDUAL), <code>s3_key TEXT NOT NULL</code>, <code>caption TEXT</code>, <code>uploaded_by UUID FK</code>, <code>uploaded_at TIMESTAMPTZ</code>. INDEX(roster_id).</li>
+      <li><strong>ath_media_assets</strong> &mdash; <code>school_id UUID</code>, <code>programme_id UUID FK(ath_programmes)</code>, <code>asset_type TEXT NOT NULL</code> 4-value CHECK (PHOTO, VIDEO, DOCUMENT, LOGO), <code>s3_key TEXT NOT NULL</code>, <code>title TEXT</code>, <code>season_id UUID FK</code>, <code>uploaded_by UUID FK</code>, <code>uploaded_at TIMESTAMPTZ</code>. INDEX(school_id, programme_id, asset_type).</li>
+      <li><strong>ath_equipment_maintenance</strong> &mdash; <code>equipment_id UUID FK NOT NULL</code>, <code>maintenance_type TEXT NOT NULL</code> 4-value CHECK (CLEANING, REPAIR, INSPECTION, RECONDITIONING), <code>performed_at DATE NOT NULL</code>, <code>performed_by TEXT</code>, <code>cost NUMERIC(8,2)</code>, <code>notes TEXT</code>, <code>next_maintenance_date DATE</code>. INDEX(equipment_id, performed_at DESC).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 9 tables. Migration: <code>115_ath_equipment_conferences.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Seed + Services + UI + Tests</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>10 equipment items across 2 programmes. 5 checkouts (3 active, 1 returned GOOD, 1 returned DAMAGED with replacement charge). 4 safety equipment rows (1 certification expired). 1 conference ("Kansas 4A") with 3 memberships + 4 scheduled conference games. 3 team photos. 5 media assets. 2 maintenance records.</li>
+    </ol>
+    <div class="detail-heading">Services (~20 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>EquipmentService</strong> &mdash; CRUD for equipment inventory. <code>POST /athletics/equipment/:id/checkout</code> (assign to student), <code>POST /athletics/equipment-checkouts/:id/return</code> (record return + condition; if DAMAGED/LOST → optional replacement_charge linked to pay_invoices via Kafka emit). <code>GET /athletics/equipment/overdue</code> (past expected_return_date). <code>POST /athletics/equipment/:id/maintenance</code>.</li>
+      <li><strong>SafetyEquipmentService</strong> &mdash; <code>GET /athletics/rosters/:id/safety</code> (compliance checklist per roster member), <code>POST /athletics/safety-equipment</code>, <code>PATCH /athletics/safety-equipment/:id</code>. <code>GET /athletics/safety-equipment/expired</code> (certifications past expiry).</li>
+      <li><strong>ConferenceService</strong> &mdash; <code>GET /athletics/conferences</code>, <code>POST /athletics/conferences</code>, <code>POST /athletics/conferences/:id/memberships</code>, <code>GET /athletics/conferences/:id/schedule</code>, <code>POST /athletics/conferences/:id/schedule</code> (generate conference schedule).</li>
+      <li><strong>TeamMediaService</strong> &mdash; CRUD for team photos + media assets. <code>GET /athletics/rosters/:id/photos</code>, <code>GET /athletics/programmes/:id/media</code>.</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Equipment Manager</strong> <code>/athletics/equipment</code> &mdash; inventory table with condition pills. Checkout form (student selector + item identifier). Return form (condition + damage notes). Overdue checkouts highlighted. Maintenance log.</li>
+      <li><strong>Safety Compliance</strong> <code>/athletics/safety</code> &mdash; per-roster checklist: each member × each required equipment type. Green=issued+certified, amber=expiring, rose=expired/missing.</li>
+      <li><strong>Conference Manager</strong> <code>/athletics/conferences</code> &mdash; conference list. Per-conference: member schools, season schedule grid. Schedule generation.</li>
+      <li><strong>Media Gallery</strong> <code>/athletics/media</code> &mdash; team photos + media assets by programme + season. Upload + tag.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-8a: 9 tables, ~20 endpoints. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-8b: Streaming + Officials + Stats + Recruiting</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Schema (9 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>ath_game_streams</strong> &mdash; <code>game_id UUID FK(ath_games) NOT NULL UNIQUE</code>, <code>stream_url TEXT</code>, <code>stream_status TEXT NOT NULL DEFAULT 'SCHEDULED'</code> 4-value CHECK (SCHEDULED, LIVE, ENDED, FAILED), <code>access_level TEXT NOT NULL DEFAULT 'SCHOOL_ONLY'</code> 4-value CHECK (PUBLIC, SCHOOL_ONLY, BOTH_SCHOOLS, COACHES_ONLY), <code>recording_s3_key TEXT</code>, <code>recording_duration_seconds INT</code>, <code>configured_by UUID FK NOT NULL</code>. ADR-068: athletic events are public performances &mdash; photo privacy flags do not apply.</li>
+      <li><strong>ath_highlight_clips</strong> &mdash; <code>stream_id UUID FK(ath_game_streams) NOT NULL</code>, <code>student_id UUID FK NOT NULL</code>, <code>start_time_seconds INT NOT NULL</code>, <code>end_time_seconds INT NOT NULL</code>, <code>title TEXT</code>, <code>s3_key TEXT NOT NULL</code>, <code>added_to_portfolio BOOLEAN DEFAULT false</code>, <code>portfolio_item_id UUID</code> (soft to pfl_portfolio_items), <code>consent_status TEXT DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, CONSENTED, DECLINED). INDEX(student_id). Links to Cycle 24 portfolios.</li>
+      <li><strong>ath_game_recordings</strong> &mdash; <code>game_id UUID FK(ath_games) NOT NULL</code>, <code>recording_type TEXT NOT NULL</code> 3-value CHECK (FULL_GAME, HIGHLIGHT_REEL, COACHES_FILM), <code>s3_key TEXT NOT NULL</code>, <code>duration_seconds INT</code>, <code>uploaded_by UUID FK</code>, <code>uploaded_at TIMESTAMPTZ</code>. INDEX(game_id).</li>
+      <li><strong>platform_official_profiles</strong> &mdash; <strong>PLATFORM SCHEMA</strong> (per ADR-063). <code>person_id UUID FK(iam_person) NOT NULL UNIQUE</code>, <code>sports TEXT[] NOT NULL</code>, <code>certification_level TEXT</code>, <code>certification_body TEXT</code>, <code>certification_expiry DATE</code>, <code>years_experience INT</code>, <code>max_travel_miles INT</code>, <code>base_fee NUMERIC(8,2)</code>, <code>is_available BOOLEAN DEFAULT true</code>. Portable across schools via platform entity cache (ADR-020).</li>
+      <li><strong>platform_official_availability</strong> &mdash; <strong>PLATFORM SCHEMA.</strong> <code>official_profile_id UUID FK NOT NULL</code>, <code>available_date DATE NOT NULL</code>, <code>start_time TIME</code>, <code>end_time TIME</code>, <code>is_available BOOLEAN DEFAULT true</code>. UNIQUE(official_profile_id, available_date, start_time). Officials set their availability; schools match against it.</li>
+      <li><strong>ath_official_assignments</strong> &mdash; <code>game_id UUID FK(ath_games) NOT NULL</code>, <code>official_profile_id UUID</code> (soft to platform_official_profiles), <code>role TEXT NOT NULL</code> 7-value CHECK (HEAD_REFEREE, ASSISTANT_REFEREE, UMPIRE, LINE_JUDGE, SCORER, TIMER, OTHER), <code>fee NUMERIC(8,2) NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'POSTED'</code> 6-value CHECK (POSTED, ACCEPTED, CONFIRMED, COMPLETED, CANCELLED, NO_SHOW), <code>payment_status TEXT DEFAULT 'PENDING'</code> 3-value CHECK (PENDING, PROCESSED, PAID). Emits <code>ath.official.assignment.completed</code>.</li>
+      <li><strong>ath_official_ratings</strong> &mdash; <code>assignment_id UUID FK NOT NULL</code>, <code>rater_type TEXT NOT NULL</code> 2-value CHECK (SCHOOL_RATES_OFFICIAL, OFFICIAL_RATES_SCHOOL), <code>professionalism INT CHECK(1-5)</code>, <code>knowledge INT CHECK(1-5)</code>, <code>communication INT CHECK(1-5)</code>, <code>punctuality INT CHECK(1-5)</code>, <code>overall INT CHECK(1-5)</code>, <code>comments TEXT</code>, <code>rated_at TIMESTAMPTZ</code>. UNIQUE(assignment_id, rater_type). Bidirectional: school rates official AND official rates school.</li>
+      <li><strong>ath_recruiting_profiles</strong> &mdash; <code>student_id UUID FK NOT NULL UNIQUE</code>, <code>sport TEXT NOT NULL</code>, <code>graduation_year INT NOT NULL</code>, <code>position TEXT</code>, <code>height_inches INT</code>, <code>weight_lbs INT</code>, <code>gpa NUMERIC(4,3)</code> (snapshot from rpt_student_academic_summary), <code>highlight_reel_s3_key TEXT</code>, <code>is_published BOOLEAN DEFAULT false</code>, <code>coach_recommendation TEXT</code>. Student-owned &mdash; student controls publication.</li>
+      <li><strong>ath_recruiting_interests</strong> &mdash; <code>recruiting_profile_id UUID FK NOT NULL</code>, <code>college_name TEXT NOT NULL</code>, <code>contact_name TEXT</code>, <code>contact_email TEXT</code>, <code>interest_level TEXT NOT NULL</code> 4-value CHECK (EXPLORING, INTERESTED, APPLIED, COMMITTED), <code>notes TEXT</code>. INDEX(recruiting_profile_id).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 9 tables (7 tenant + 2 platform). Migration: <code>116_ath_streaming_officials.sql</code> (tenant) + <code>117_platform_officials.sql</code> (platform).</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed + Services + UI + Tests</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>2 game streams (1 ENDED with recording, 1 SCHEDULED). 3 highlight clips (1 added to portfolio, 1 PENDING consent). 2 game recordings. 3 official profiles (platform) with availability. 4 official assignments (POSTED, ACCEPTED, COMPLETED, NO_SHOW). 2 official ratings (bidirectional). 2 recruiting profiles (1 published). 3 recruiting interests.</li>
+    </ol>
+    <div class="detail-heading">Services (~22 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>GameStreamService</strong> &mdash; <code>POST /athletics/games/:id/stream</code> (configure stream with access level), <code>PATCH /athletics/streams/:id</code> (status: SCHEDULED → LIVE → ENDED), <code>GET /athletics/streams/live</code> (currently live streams). <code>POST /athletics/streams/:id/clips</code> (extract highlight clip with timestamps), <code>POST /athletics/highlight-clips/:id/add-to-portfolio</code> (creates pfl_portfolio_items entry via Kafka).</li>
+      <li><strong>OfficialService</strong> &mdash; <code>GET /athletics/officials</code> (search available officials by sport + date + location), <code>POST /athletics/officials/profile</code> (official creates/updates profile), <code>POST /athletics/officials/availability</code> (set availability). <code>POST /athletics/games/:id/officials</code> (assign official to game), <code>PATCH /athletics/official-assignments/:id</code> (accept/confirm/complete/cancel). <code>POST /athletics/official-assignments/:id/rate</code> (bidirectional rating). <code>GET /athletics/officials/:id/ratings</code> (average ratings).</li>
+      <li><strong>RecruitingService</strong> &mdash; <code>GET /athletics/recruiting/:studentId</code>, <code>POST /athletics/recruiting</code> (student creates profile), <code>PATCH /athletics/recruiting/:id</code>, <code>POST /athletics/recruiting/:id/interests</code>. Student-owned: only the student (or coach with permission) can edit.</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Streaming Manager</strong> <code>/athletics/streaming</code> &mdash; configure stream per game. Live indicator. Recording playback. Highlight clip extractor (drag timeline to select clip range).</li>
+      <li><strong>Officials Marketplace</strong> <code>/athletics/officials</code> &mdash; AD: search + assign officials. Official: profile + availability calendar + assignment queue. Bidirectional rating after game. Fee tracking.</li>
+      <li><strong>Recruiting Profile</strong> <code>/athletics/recruiting</code> &mdash; student: build profile with stats + highlight reel + college interests. Coach: recommendation letter. Publish toggle.</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-8b: 9 tables, ~22 endpoints, 1 Kafka emit. Create all peer review docs after this sub-cycle.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist (Full P2-8)</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 16 new tenant tables + 2 platform tables. Tenant table count: ~538.</li>
+      <li>Athletics API: ~42 new endpoints across equipment, conferences, streaming, officials, recruiting.</li>
+      <li>Equipment checkout with damage tracking + replacement charge billing.</li>
+      <li>Safety equipment compliance per roster member with certification expiry alerting.</li>
+      <li>Athletic conferences with membership + cross-conference scheduling.</li>
+      <li>Game streaming with access control + highlight clip extraction → portfolio linking.</li>
+      <li>Officials marketplace: platform-portable profiles + bidirectional ratings (ADR-063).</li>
+      <li>Student-athlete recruiting profiles (student-owned).</li>
+      <li><code>ath.official.assignment.completed</code> Kafka emit.</li>
+      <li>HANDOFF-P2C8.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 8 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M66 Athletics deferred tables). ADR-063 Officials Marketplace, ADR-068 Athletic Event Streaming, ADR-069 CampusOS-to-CampusOS Athletic Integration. Cross-cycle: Cycle 13 ath_programmes/seasons/rosters/games, Cycle 24 pfl_portfolio_items for highlight clips. Pre-split into 2 sub-cycles (P2-8a/b).</p>
+  </div>
+</div>
+</body>
+</html>

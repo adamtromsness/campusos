@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 18 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../../design-hub/index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../../design-hub/index.html">Design Hub</a>
+  <a href="../../architecture/campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 3 &middot; Communications &amp; Community</div>
+    <h1>Cycle 18: Groups &amp;<br>Communities</h1>
+    <div class="sub">Cross-role community groups with scope-aware auto-creation, membership with OWNER/ADMIN/MEMBER role hierarchy, two-party ownership transfer handshake, group-scoped announcements with read tracking, group events with RSVP, and per-member notification preferences. The universal social fabric layer that connects every other module. Closes Wave 3.</div>
+    <span class="version">May 2026 &middot; 8 Steps &middot; ERD v11 &middot; M103 Groups &amp; Communities (7 tables &mdash; all in scope) &middot; Closes Wave 3</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 18 builds the M103 Groups &amp; Communities module &mdash; all 7 ERD tables. This is a compact, clean greenfield with a new table prefix (<code>grp_</code>). Unlike every prior module which serves a specific operational domain, Groups is a <strong>horizontal fabric layer</strong> &mdash; it provides the shared social structure that other modules reference. Cycle 17's <code>ext_activities.group_id</code> soft FK, Cycle 13's future athletics team communities, and Cycle 14's messaging thread types all connect through <code>grp_groups</code> as the universal community container.</p>
+
+  <p class="body-text">The module spans 3 domains: (1) groups with scope-aware binding (CLASS / YEAR_GROUP / SCHOOL / CUSTOM / ACTIVITY scopes) + membership with a 3-tier role hierarchy + two-party ownership transfer, (2) group-scoped announcements with read receipts + pinning, and (3) group events with RSVP and public/private visibility. The <code>auto_dissolve_at</code> column on groups enables temporary communities (e.g., a field trip group that auto-archives after the trip date).</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Admin creates a "Grade 5 Parents" group (scope=YEAR_GROUP, membership approval required) &rarr; David Chen requests to join &rarr; admin approves &rarr; Rivera creates a "Chess Club Community" group (scope=ACTIVITY, linked to Cycle 17's Chess Club via group_id) &rarr; Maya and Ethan auto-join as members when their club membership is active &rarr; Rivera (OWNER) posts a pinned announcement "Tournament Registration Open" &rarr; Maya reads the announcement (read receipt tracked) &rarr; Rivera creates a group event "Chess Tournament" with RSVP required &rarr; David Chen (parent) sees the announcement in "Grade 5 Parents" but NOT in Chess Club (scope-gated) &rarr; Rivera initiates ownership transfer to Mitchell &rarr; Mitchell accepts &rarr; Rivera becomes ADMIN, Mitchell becomes OWNER &rarr; admin creates a temporary "Spring Concert Volunteers" group with auto_dissolve_at set to concert date + 7 days.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (all 7 tables):</strong> grp_groups, grp_members, grp_member_notification_prefs, grp_ownership_transfers, grp_announcements, grp_announcement_reads, grp_events.</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> Auto-dissolve cron worker (schema column ships; the worker that flips groups to DISSOLVED at auto_dissolve_at is Phase 3 ops). Scope-aware auto-membership sync (CLASS groups auto-sync from sis_enrollments via Kafka consumer &mdash; manual membership this cycle). Group discussion threads (would extend Cycle 14's messaging with a grp_group_id on msg_threads &mdash; future). Group file sharing / resource library. Group analytics (member engagement metrics).</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Groups + Members + Ownership Schema</td><td>Schema</td><td>grp_groups, grp_members, grp_member_notification_prefs, grp_ownership_transfers</td></tr>
+    <tr><td><strong>2</strong></td><td>Announcements + Events Schema</td><td>Schema</td><td>grp_announcements, grp_announcement_reads, grp_events</td></tr>
+    <tr><td><strong>3</strong></td><td>Seed Data + GRP Permissions</td><td>Seed</td><td>3 groups, 6 members, 2 announcements, 2 events, 1 ownership transfer, GRP-001 permissions</td></tr>
+    <tr><td><strong>4</strong></td><td>Groups + Membership NestJS Module</td><td>Code</td><td>GroupService, MembershipService, OwnershipTransferService. Scope-aware creation. Approval workflow. Transfer handshake.</td></tr>
+    <tr><td><strong>5</strong></td><td>Announcements + Events NestJS Module</td><td>Code</td><td>GroupAnnouncementService, GroupEventService. Read tracking. RSVP management. <code>grp.announcement.posted</code> + <code>grp.event.created</code> Kafka emits.</td></tr>
+    <tr><td><strong>6</strong></td><td>Groups UI &mdash; Browse + Manage + Membership</td><td>UI</td><td>"Groups" app tile, group browser, group detail, membership management, ownership transfer, notification prefs</td></tr>
+    <tr><td><strong>7</strong></td><td>Groups UI &mdash; Announcements + Events</td><td>UI</td><td>Group announcement feed with read tracking, event calendar with RSVP, pinned announcements</td></tr>
+    <tr><td><strong>8</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Group creation &rarr; membership &rarr; announcement + read &rarr; event + RSVP &rarr; ownership transfer &rarr; scope gating</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <!-- ── STEP 1 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Groups + Members + Ownership Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>The group container with 5 scope types, membership with a 3-tier role hierarchy and 6-state lifecycle, per-member notification preferences, and the two-party ownership transfer handshake.</p>
+
+    <div class="detail-heading">Tables (4)</div>
+    <ol class="detail-list">
+      <li><strong>grp_groups</strong> &mdash; <code>school_id UUID</code>, <code>name TEXT NOT NULL</code>, <code>description TEXT</code>, <code>scope_type TEXT NOT NULL</code> 5-value CHECK (CLASS, YEAR_GROUP, SCHOOL, CUSTOM, ACTIVITY), <code>scope_id UUID</code> nullable (soft to sis_classes / sis_academic_years / ext_activities per scope_type; NULL for SCHOOL + CUSTOM), <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, ARCHIVED, DISSOLVED), <code>join_policy TEXT NOT NULL DEFAULT 'OPEN'</code> 3-value CHECK (OPEN, APPROVAL_REQUIRED, INVITE_ONLY), <code>auto_dissolve_at TIMESTAMPTZ</code> nullable (for temporary groups), <code>created_by UUID NOT NULL</code> (soft to platform_users), <code>avatar_url TEXT</code> nullable. INDEX(school_id, status). INDEX(scope_type, scope_id) for scope-aware lookups. Partial INDEX WHERE auto_dissolve_at IS NOT NULL AND status='ACTIVE' for the dissolve sweep.</li>
+      <li><strong>grp_members</strong> &mdash; <code>group_id UUID FK NOT NULL</code>, <code>person_id UUID NOT NULL</code> (soft to platform_users &mdash; covers all personas: students, teachers, parents, staff), <code>member_role TEXT NOT NULL DEFAULT 'MEMBER'</code> 3-value CHECK (OWNER, ADMIN, MEMBER), <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 6-value CHECK (ACTIVE, INVITED, PENDING_APPROVAL, SUSPENDED, LEFT, REMOVED), <code>joined_at TIMESTAMPTZ</code>, <code>invited_by UUID</code> nullable, <code>left_at TIMESTAMPTZ</code> nullable, <code>suspension_reason TEXT</code> nullable. <strong>Partial UNIQUE(group_id, person_id) WHERE status != 'LEFT'</strong> &mdash; allows re-join after leaving. INDEX(person_id, status) WHERE status='ACTIVE' for "my groups" view. INDEX(group_id, member_role) WHERE member_role IN ('OWNER','ADMIN') for the admin roster.</li>
+      <li><strong>grp_member_notification_prefs</strong> &mdash; Per-member per-group notification settings. <code>membership_id UUID FK UNIQUE NOT NULL</code>, <code>notify_announcements BOOLEAN DEFAULT true</code>, <code>notify_events BOOLEAN DEFAULT true</code>, <code>notify_membership_changes BOOLEAN DEFAULT false</code>, <code>notify_results BOOLEAN DEFAULT true</code>, <code>preferred_channel TEXT NOT NULL DEFAULT 'IN_APP'</code> 5-value CHECK (IN_APP, EMAIL, PUSH, ALL, NONE), <code>quiet_hours_override BOOLEAN DEFAULT false</code>.</li>
+      <li><strong>grp_ownership_transfers</strong> &mdash; <strong>TWO-PARTY HANDSHAKE.</strong> <code>group_id UUID FK NOT NULL</code>, <code>from_member_id UUID FK(grp_members) NOT NULL</code> (current owner), <code>to_member_id UUID FK(grp_members) NOT NULL</code> (incoming owner &mdash; must be ACTIVE member), <code>transfer_reason TEXT</code>, <code>status TEXT NOT NULL DEFAULT 'PENDING'</code> 5-value CHECK (PENDING, ACCEPTED, DECLINED, EXPIRED, CANCELLED), <code>initiated_at TIMESTAMPTZ NOT NULL</code>, <code>expires_at TIMESTAMPTZ NOT NULL</code> (default: +7 days), <code>responded_at TIMESTAMPTZ</code>. <strong>Partial UNIQUE(group_id) WHERE status='PENDING'</strong> &mdash; at most one pending transfer per group. On ACCEPTED: from_member becomes ADMIN, to_member becomes OWNER (inside one tx).</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 4 new tables. Migration: <code>059_grp_groups_members.sql</code>.</div>
+  </div>
+
+  <!-- ── STEP 2 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Announcements + Events Schema</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Group-scoped announcements with pinning and read receipt tracking, and group events with RSVP and public/private visibility.</p>
+
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>grp_announcements</strong> &mdash; <code>group_id UUID FK NOT NULL</code>, <code>author_id UUID NOT NULL</code> (soft to iam_person; must be OWNER or ADMIN &mdash; app-layer validated), <code>title TEXT NOT NULL</code>, <code>body TEXT NOT NULL</code>, <code>pinned BOOLEAN DEFAULT false</code>, <code>attachments JSONB</code> nullable, <code>publish_at TIMESTAMPTZ NOT NULL</code>, <code>expires_at TIMESTAMPTZ</code> nullable. INDEX(group_id, publish_at DESC). Partial INDEX(group_id, pinned) WHERE pinned=true. On INSERT: fan out via Cycle 3 NotificationWorker per grp_member_notification_prefs.notify_announcements.</li>
+      <li><strong>grp_announcement_reads</strong> &mdash; Append-only read receipts. <code>announcement_id UUID FK NOT NULL</code>, <code>reader_id UUID NOT NULL</code> (soft to iam_person). UNIQUE(announcement_id, reader_id). <code>read_at TIMESTAMPTZ NOT NULL</code>.</li>
+      <li><strong>grp_events</strong> &mdash; <code>group_id UUID FK NOT NULL</code>, <code>created_by UUID NOT NULL</code> (soft to iam_person), <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>location TEXT</code>, <code>starts_at TIMESTAMPTZ NOT NULL</code>, <code>ends_at TIMESTAMPTZ</code>, <code>event_type TEXT NOT NULL</code> 7-value CHECK (PRACTICE, MATCH, MEETING, SOCIAL, PERFORMANCE, COMPETITION, OTHER), <code>requires_rsvp BOOLEAN DEFAULT false</code>, <code>rsvp_deadline TIMESTAMPTZ</code> nullable, <code>max_attendees INT</code> nullable, <code>is_public BOOLEAN DEFAULT false</code> (when true: visible to non-members). INDEX(group_id, starts_at DESC). On INSERT: fan out per notify_events.</li>
+    </ol>
+
+    <div class="produces">Produces &rarr; 3 new tables. Migration: <code>060_grp_announcements_events.sql</code>. Total Cycle 18 tables: 7.</div>
+  </div>
+
+  <!-- ── STEP 3 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Seed Data + GRP Permissions</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>3 groups:</strong> "Grade 5 Parents" (YEAR_GROUP, APPROVAL_REQUIRED, Mitchell owner). "Chess Club Community" (ACTIVITY, OPEN, Rivera owner, scope_id linked to Cycle 17 Chess Club). "Spring Concert Volunteers" (CUSTOM, OPEN, auto_dissolve_at = today+60d).</li>
+      <li><strong>6 members:</strong> Grade 5 Parents: Mitchell OWNER + David Chen MEMBER (approved). Chess Club: Rivera OWNER + Maya MEMBER + Ethan MEMBER. Concert Volunteers: Mitchell OWNER.</li>
+      <li><strong>3 notification prefs:</strong> David in Grade 5 Parents (all defaults). Maya in Chess Club (notify_events=true, preferred_channel=IN_APP). Rivera in Chess Club (notify_announcements=true, channel=EMAIL).</li>
+      <li><strong>1 ownership transfer:</strong> Rivera initiates transfer of Chess Club to Mitchell, status=PENDING, expires in 7 days.</li>
+      <li><strong>2 announcements + 1 read:</strong> Chess Club: "Tournament Registration Open" (pinned, published yesterday). Grade 5 Parents: "Spring Concert Details" (published last week). David read the concert announcement.</li>
+      <li><strong>2 events:</strong> Chess Club: "Inter-School Chess Tournament" (COMPETITION, requires_rsvp=true, max_attendees=16, next month). Grade 5 Parents: "Spring Concert" (PERFORMANCE, is_public=true, next month).</li>
+      <li><strong>Permissions:</strong> GRP-001:read to Teacher, Student, Parent, Staff (browse + view groups). GRP-001:write to Teacher, Student, Parent, Staff (join, create, post announcements per role). GRP-001:admin to Admin (manage all groups, override ownership). Admin gets all via everyFunction.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Rich groups demo data with pending ownership transfer + cross-scope membership. GRP-001 permissions.</div>
+  </div>
+
+  <!-- ── STEP 4 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Groups + Membership NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>GroupService</strong> &mdash; <code>GET /groups</code> (browse: my groups + public groups; filters scope_type, status), <code>GET /groups/:id</code> (with member count + recent announcements + upcoming events inlined), <code>POST /groups</code> (any authenticated user creates; creator becomes OWNER; admin can set scope bindings), <code>PATCH /groups/:id</code> (owner/admin updates name, description, join_policy, avatar), <code>PATCH /groups/:id/archive</code> (owner/admin; ACTIVE &rarr; ARCHIVED).</li>
+      <li><strong>MembershipService</strong> &mdash; <code>POST /groups/:id/join</code> (self-service: OPEN groups &rarr; ACTIVE immediately; APPROVAL_REQUIRED &rarr; PENDING_APPROVAL; INVITE_ONLY &rarr; 403), <code>POST /groups/:id/invite</code> (owner/admin invites; creates INVITED member), <code>PATCH /group-members/:id/approve</code> (owner/admin approves PENDING_APPROVAL &rarr; ACTIVE), <code>PATCH /group-members/:id/remove</code> (owner/admin removes), <code>PATCH /group-members/:id/leave</code> (self-service; owner cannot leave &mdash; must transfer first), <code>PATCH /group-members/:id/role</code> (owner promotes/demotes ADMIN/MEMBER), <code>PATCH /group-members/:id/notification-prefs</code> (member updates own prefs). <code>GET /groups/my</code> (my active memberships across all groups).</li>
+      <li><strong>OwnershipTransferService</strong> &mdash; <code>POST /groups/:id/transfer</code> (<strong>TWO-PARTY HANDSHAKE:</strong> owner initiates; validates target is ACTIVE member; partial UNIQUE prevents concurrent transfers), <code>PATCH /group-transfers/:id/accept</code> (target accepts; inside one tx: from_member role &rarr; ADMIN, to_member role &rarr; OWNER), <code>PATCH /group-transfers/:id/decline</code>, <code>PATCH /group-transfers/:id/cancel</code> (initiator cancels).</li>
+    </ol>
+    <div class="produces">Produces &rarr; GroupsModule with 3 services, ~16 endpoints.</div>
+  </div>
+
+  <!-- ── STEP 5 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Announcements + Events NestJS Module</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>GroupAnnouncementService</strong> &mdash; <code>GET /groups/:id/announcements</code> (members only; pinned first, then by publish_at DESC; expired filtered out), <code>POST /groups/:id/announcements</code> (owner/admin posts; emits <code>grp.announcement.posted</code>; fan-out per notification prefs), <code>PATCH /group-announcements/:id</code> (author edits; toggle pinned), <code>DELETE /group-announcements/:id</code> (owner/admin). <code>POST /group-announcements/:id/read</code> (member marks read; UNIQUE prevents duplicates). <code>GET /groups/:id/announcements/:id/reads</code> (owner/admin sees read receipts with count + reader names).</li>
+      <li><strong>GroupEventService</strong> &mdash; <code>GET /groups/:id/events</code> (members see all; non-members see only is_public=true), <code>POST /groups/:id/events</code> (owner/admin creates; emits <code>grp.event.created</code>), <code>PATCH /group-events/:id</code>, <code>DELETE /group-events/:id</code>. <code>POST /group-events/:id/rsvp</code> (member RSVPs; validates max_attendees + rsvp_deadline). <code>GET /group-events/:id/attendees</code> (RSVP list).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 services, ~12 endpoints, 2 Kafka emits (<code>grp.announcement.posted</code> + <code>grp.event.created</code>). Total Cycle 18 endpoints: ~28.</div>
+  </div>
+
+  <!-- ── STEP 6 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Groups UI &mdash; Browse + Manage + Membership</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Groups Dashboard</strong> <code>/groups</code> &mdash; "Groups" app tile gated on GRP-001:read. "My groups" section with scope pills + role pills. Browse section with public groups + Join/Request buttons per join_policy. Create group button.</li>
+      <li><strong>Group Detail</strong> <code>/groups/:id</code> &mdash; group header (name, scope pill, status, avatar, member count). Owner/admin actions: Edit, Archive, Invite, Transfer Ownership. Members tab with role pills + Approve/Remove buttons for pending members. Announcements tab (Step 7). Events tab (Step 7). Notification preferences panel (per-member toggles).</li>
+      <li><strong>Ownership Transfer Modal</strong> &mdash; select target member from ACTIVE roster. Confirmation with expiry date (7 days). Accept/Decline/Cancel buttons on the target's side.</li>
+      <li><strong>My Groups</strong> <code>/groups/my</code> &mdash; all active memberships with role + scope + recent activity summary. Quick links to announcements + events per group.</li>
+    </ol>
+    <div class="produces">Produces &rarr; "Groups" app tile + dashboard, group detail with membership management, ownership transfer, my groups.</div>
+  </div>
+
+  <!-- ── STEP 7 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">07</span>
+      <span class="step-title">Groups UI &mdash; Announcements + Events</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Group Announcements</strong> (inline on group detail) &mdash; pinned announcements at top with pin icon. Chronological feed below. Per-announcement: author + timestamp + title + body + attachments. Read receipt indicator ("5 of 12 members read"). Post announcement form for owner/admin.</li>
+      <li><strong>Group Events</strong> (inline on group detail) &mdash; upcoming events sorted by starts_at. Per-event: title, date/time, location, type pill, RSVP status + attendee count. RSVP button with "Going / Not Going" toggle. Max-attendees cap indicator. Create event form for owner/admin.</li>
+      <li><strong>Group Feed</strong> <code>/groups/feed</code> &mdash; cross-group announcement + event feed from all my groups. Sorted by publish_at / starts_at DESC. Group name pill per row. Quick link to source group.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Group announcements with read tracking, group events with RSVP, cross-group feed.</div>
+  </div>
+
+  <!-- ── STEP 8 ── -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">08</span>
+      <span class="step-title">Vertical Slice Integration Test</span>
+    </div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Group creation + scope binding:</strong> Admin creates "Grade 5 Parents" YEAR_GROUP APPROVAL_REQUIRED. Rivera creates "Debate Team" ACTIVITY OPEN with scope_id linked to an ext_activities row.</li>
+      <li><strong>Membership lifecycle:</strong> David requests to join "Grade 5 Parents" &rarr; PENDING_APPROVAL. Admin approves &rarr; ACTIVE. Maya joins "Debate Team" (OPEN &rarr; instant ACTIVE). Maya attempts INVITE_ONLY group &rarr; 403. Verify partial UNIQUE allows re-join after leaving.</li>
+      <li><strong>Ownership transfer handshake:</strong> Rivera initiates transfer of Debate Team to Mitchell. Verify partial UNIQUE(group_id) WHERE PENDING prevents second transfer. Mitchell accepts. Verify Rivera &rarr; ADMIN, Mitchell &rarr; OWNER in one tx. Rivera attempts to leave without transferring Chess Club &rarr; 400.</li>
+      <li><strong>Announcement + read tracking:</strong> Mitchell posts pinned announcement in "Grade 5 Parents". David reads it (read receipt created). Verify read count = 1 of 2 members. Non-member cannot read announcements (scope gate).</li>
+      <li><strong>Event + RSVP:</strong> Rivera creates "Debate Showcase" COMPETITION with requires_rsvp=true, max_attendees=20. Maya RSVPs. Verify attendee count = 1. RSVP after deadline &rarr; 400. RSVP past max_attendees &rarr; 400.</li>
+      <li><strong>Notification prefs:</strong> Maya updates Chess Club prefs to notify_events=false. Verify the preference persists and is respected in fan-out (mock verification).</li>
+      <li><strong>Visibility:</strong> Non-member sees is_public=true events but not announcements. Member sees both. Parent sees child's group memberships. Student sees own groups only.</li>
+      <li><strong>Cross-module resolution:</strong> Cycle 17's ext_activities.group_id resolves to grp_groups.id. The group detail page surfaces the linked activity. Verify the soft FK chain works end-to-end.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified groups lifecycle: creation &rarr; membership &rarr; ownership transfer &rarr; announcements + reads &rarr; events + RSVP &rarr; scope gating. Wave 3 complete.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 18 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 7 new tables (4 groups/members/ownership + 3 announcements/events). Tenant table count: ~268.</li>
+      <li>Groups API: ~28 endpoints with scope-aware groups, approval-based join, two-party ownership transfer.</li>
+      <li>Membership role hierarchy: OWNER &rarr; ADMIN &rarr; MEMBER with promotion/demotion.</li>
+      <li>Ownership transfer: two-party handshake with partial UNIQUE preventing concurrent transfers + 7-day expiry.</li>
+      <li>Group announcements with pinning + read receipt tracking.</li>
+      <li>Group events with RSVP + max-attendees + deadline enforcement.</li>
+      <li><code>grp.announcement.posted</code> + <code>grp.event.created</code> Kafka emits for notification fan-out.</li>
+      <li>HANDOFF-CYCLE18.md and CLAUDE.md updated. CI green.</li>
+      <li><strong>Wave 3 complete.</strong></li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 18 closes Wave 3 (Communications &amp; Community). The platform now handles the complete communication and community lifecycle: messaging, announcements, emergency alerts, meetings with conference booking, admissions, clubs with elections and service hours, and community groups. Wave 4 (Campus Operations) begins with Transportation.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 18 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M103 Groups &amp; Communities, 7 tables &mdash; all in scope). Cross-cycle: Cycle 17 ext_activities.group_id soft FK resolution. Closes Wave 3.</p>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — P2-19: Communications Advanced</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.split-card{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:16px 0}
+.split-card h3{font-size:16px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.split-card p{font-size:14px;line-height:1.8;margin:0}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a href="../../design-hub/index.html" class="brand">CampusOS</a><span class="sep">|</span><a href="../../design-hub/index.html">Design Hub</a><a href="../../architecture/campusos-erd-v11.html">ERD v11</a></div>
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Phase 2 &middot; Wave D &mdash; Module Completion</div>
+    <h1>P2-19: Communications<br>Advanced</h1>
+    <div class="sub">On-demand message translation via AI with user language preferences, reusable message templates with variable interpolation, broadcast analytics with segment-level delivery and open tracking, three-tier content moderation (platform + district + building) with keyword detection, AI-assisted sensitivity scoring, appeal workflow, and push notification campaigns with scheduled delivery and per-campaign engagement analytics. Pre-split into 2 sub-cycles.</div>
+    <span class="version">May 2026 &middot; 2 Sub-Cycles &middot; ERD v11 &middot; M40 Communications .1 (13 tables) &middot; COM-001..004 &middot; Phase 2 Cycle 19</span>
+  </div>
+
+  <h2 class="section-heading">Sub-Cycle Structure</h2>
+
+  <div class="split-card">
+    <h3>P2-19a &mdash; Translation + Templates + Broadcast Analytics (6 tables)</h3>
+    <p>On-demand message translation via AI Inference service with user language preferences and auto-translate toggle, reusable message templates with named variable slots and per-template permission scoping, broadcast segment definitions for targeted delivery, and broadcast-level analytics with delivery/open/click tracking per segment.</p>
+  </div>
+  <div class="split-card">
+    <h3>P2-19b &mdash; Moderation + Push Campaigns + Appeals (7 tables)</h3>
+    <p>Three-tier moderation policies (platform non-negotiable + district + building) with keyword matching and AI sensitivity scoring, moderation action log with review workflow, user appeal process, push notification campaigns with audience targeting and scheduled delivery, per-campaign engagement analytics, and AI moderation result caching.</p>
+  </div>
+
+  <h2 class="section-heading">P2-19a: Translation + Templates + Broadcast Analytics</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Schema (6 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>msg_user_language_preferences</strong> &mdash; <code>user_id UUID FK(platform_users) NOT NULL UNIQUE</code>, <code>preferred_language TEXT NOT NULL DEFAULT 'en'</code>, <code>auto_translate_incoming BOOLEAN DEFAULT false</code>, <code>auto_translate_outgoing BOOLEAN DEFAULT false</code>. When auto_translate_incoming=true: all incoming messages auto-translated to preferred_language via AI.</li>
+      <li><strong>msg_translations</strong> &mdash; <code>message_id UUID FK(msg_messages) NOT NULL</code>, <code>target_language TEXT NOT NULL</code>, <code>translated_text TEXT NOT NULL</code>, <code>model_version TEXT</code>, <code>confidence NUMERIC(3,2)</code>, <code>translated_at TIMESTAMPTZ NOT NULL</code>, <code>requested_by UUID FK</code>. UNIQUE(message_id, target_language). Cached — same message translated to same language returns cached result. AI Inference service required (stub if not deployed).</li>
+      <li><strong>msg_templates</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>category TEXT NOT NULL</code> 6-value CHECK (ANNOUNCEMENT, REMINDER, EMERGENCY, WELCOME, FOLLOW_UP, CUSTOM), <code>subject_template TEXT</code>, <code>body_template TEXT NOT NULL</code>, <code>variables JSONB NOT NULL DEFAULT '[]'</code> (array of {name, description, required, default_value} — e.g., [{name:"student_name", required:true}, {name:"event_date", required:true, default_value:"TBD"}]), <code>allowed_roles TEXT[]</code> (which roles can use this template), <code>is_active BOOLEAN DEFAULT true</code>, <code>created_by UUID FK NOT NULL</code>. UNIQUE(school_id, name).</li>
+      <li><strong>msg_broadcast_segments</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>name TEXT NOT NULL</code>, <code>segment_type TEXT NOT NULL</code> 6-value CHECK (ALL_PARENTS, ALL_STAFF, GRADE_LEVEL, CLASS, TRANSPORT_ROUTE, CUSTOM), <code>filter_criteria JSONB NOT NULL</code> (e.g., {grade_level: "5"} or {route_ids: [...]} or {custom_user_ids: [...]}), <code>estimated_recipients INT</code>, <code>is_active BOOLEAN DEFAULT true</code>. UNIQUE(school_id, name). Segments resolve to a set of platform_users at send time.</li>
+      <li><strong>msg_broadcast_analytics</strong> &mdash; <code>broadcast_id UUID FK(msg_broadcasts) NOT NULL</code>, <code>segment_id UUID FK(msg_broadcast_segments)</code>, <code>total_recipients INT NOT NULL</code>, <code>delivered INT DEFAULT 0</code>, <code>opened INT DEFAULT 0</code>, <code>clicked INT DEFAULT 0</code>, <code>bounced INT DEFAULT 0</code>, <code>unsubscribed INT DEFAULT 0</code>, <code>delivery_rate NUMERIC(5,4)</code>, <code>open_rate NUMERIC(5,4)</code>, <code>last_updated_at TIMESTAMPTZ</code>. UNIQUE(broadcast_id, segment_id). Updated by BroadcastAnalyticsWorker consuming delivery webhooks.</li>
+      <li><strong>msg_template_usage_log</strong> &mdash; <code>template_id UUID FK NOT NULL</code>, <code>used_by UUID FK NOT NULL</code>, <code>used_at TIMESTAMPTZ NOT NULL</code>, <code>broadcast_id UUID FK</code>, <code>thread_id UUID FK</code>. INDEX(template_id, used_at DESC). Analytics: which templates are used most, by whom.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 6 tables. Migration: <code>138_msg_translation_templates.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Seed + Services + UI + Tests (P2-19a)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>3 language preferences (1 Spanish auto-translate, 1 Mandarin manual, 1 English default). 4 translations (2 English→Spanish, 2 English→Mandarin). 3 templates ("Snow Day Announcement" with {school_name, closure_date, reopen_date}, "Field Trip Reminder" with {student_name, trip_destination, trip_date}, "Welcome New Family" with {family_name, orientation_date}). 3 broadcast segments (ALL_PARENTS, GRADE_LEVEL "5", TRANSPORT_ROUTE). 2 broadcast analytics rows with delivery stats. 4 template usage log entries.</li>
+    </ol>
+    <div class="detail-heading">Services (~18 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>TranslationService</strong> &mdash; <code>POST /communications/translate</code> (translate message to target language via AI; caches result), <code>GET /communications/translations/:messageId</code> (all cached translations for a message). <code>GET/PATCH /communications/language-preferences</code> (user sets preferred language + auto-translate toggle). TranslationWorker: when auto_translate_incoming=true, consumes msg.message.posted → auto-translates to recipient's preferred_language → stores in msg_translations.</li>
+      <li><strong>TemplateService</strong> &mdash; CRUD for templates. <code>GET /communications/templates</code> (filtered by user's role via allowed_roles), <code>POST /communications/templates/:id/render</code> (accepts variable values → returns interpolated subject + body), <code>POST /communications/templates/:id/use</code> (logs usage). <code>GET /communications/templates/:id/analytics</code> (usage count + last used).</li>
+      <li><strong>BroadcastSegmentService</strong> &mdash; CRUD for segments. <code>POST /communications/segments/:id/resolve</code> (computes recipient list from filter_criteria). <code>GET /communications/segments/:id/preview</code> (estimated recipients).</li>
+      <li><strong>BroadcastAnalyticsService</strong> &mdash; <code>GET /communications/broadcasts/:id/analytics</code> (per-segment delivery/open/click rates). BroadcastAnalyticsWorker: consumes delivery webhook events → upserts msg_broadcast_analytics.</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Translation Settings</strong> (user preferences) &mdash; language selector + auto-translate toggles. Translated message shown inline with "View Original" toggle.</li>
+      <li><strong>Template Library</strong> <code>/communications/templates</code> &mdash; admin: create/edit templates with variable editor. Staff: browse + use templates when composing messages/broadcasts.</li>
+      <li><strong>Broadcast Composer</strong> (extends existing broadcast UI) &mdash; segment selector with recipient preview. Template quick-fill. Post-send analytics dashboard with delivery funnel (sent → delivered → opened → clicked).</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-19a: 6 tables, ~18 endpoints, 2 workers. Independently shippable.</div>
+  </div>
+
+  <h2 class="section-heading">P2-19b: Moderation + Push Campaigns + Appeals</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Schema (7 tables)</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <ol class="detail-list">
+      <li><strong>msg_moderation_rules</strong> &mdash; <code>school_id UUID</code> (null = platform-level), <code>scope TEXT NOT NULL</code> 3-value CHECK (PLATFORM, DISTRICT, BUILDING), <code>scope_id UUID</code>, <code>keywords TEXT[] NOT NULL</code>, <code>keyword_action TEXT NOT NULL</code> 3-value CHECK (BLOCK, FLAG_FOR_REVIEW, ESCALATE_TO_COUNSELLOR), <code>ai_sensitivity_threshold NUMERIC(3,2)</code> (0.0–1.0; messages scoring above this are flagged), <code>escalation_rules JSONB</code>, <code>is_active BOOLEAN DEFAULT true</code>. Three-tier: most restrictive action wins across all matching policies.</li>
+      <li><strong>msg_moderation_actions</strong> &mdash; <code>message_id UUID FK(msg_messages) NOT NULL</code>, <code>rule_id UUID FK(msg_moderation_rules) NOT NULL</code>, <code>action_taken TEXT NOT NULL</code> 4-value CHECK (BLOCKED, FLAGGED_FOR_REVIEW, ESCALATED_TO_COUNSELLOR, AUTO_APPROVED), <code>matched_keywords TEXT[]</code>, <code>ai_sensitivity_score NUMERIC(3,2)</code>, <code>review_status TEXT DEFAULT 'PENDING'</code> 4-value CHECK (PENDING, RELEASED, CONFIRMED_BLOCK, ESCALATED), <code>reviewed_by UUID FK</code>, <code>reviewed_at TIMESTAMPTZ</code>. INDEX(message_id). RANGE partition by created_at MONTHLY.</li>
+      <li><strong>msg_moderation_appeals</strong> &mdash; <code>action_id UUID FK(msg_moderation_actions) NOT NULL</code>, <code>appealed_by UUID FK NOT NULL</code>, <code>appeal_reason TEXT NOT NULL</code>, <code>status TEXT NOT NULL DEFAULT 'SUBMITTED'</code> 3-value CHECK (SUBMITTED, UPHELD, OVERTURNED), <code>reviewed_by UUID FK</code>, <code>reviewed_at TIMESTAMPTZ</code>, <code>reviewer_notes TEXT</code>. UNIQUE(action_id). On OVERTURNED: message released, moderation action review_status=RELEASED.</li>
+      <li><strong>msg_ai_moderation_results</strong> &mdash; <code>message_id UUID FK(msg_messages) NOT NULL UNIQUE</code>, <code>sensitivity_score NUMERIC(3,2) NOT NULL</code>, <code>categories_detected JSONB</code> (e.g., {profanity: 0.9, bullying: 0.3, self_harm: 0.1}), <code>model_version TEXT</code>, <code>computed_at TIMESTAMPTZ NOT NULL</code>. Cached AI analysis — computed once per message. AI Inference service required.</li>
+      <li><strong>msg_push_campaigns</strong> &mdash; <code>school_id UUID NOT NULL</code>, <code>title TEXT NOT NULL</code>, <code>body TEXT NOT NULL</code>, <code>deep_link_url TEXT</code>, <code>image_s3_key TEXT</code>, <code>audience_segment_id UUID FK(msg_broadcast_segments)</code>, <code>scheduled_at TIMESTAMPTZ</code> (null = send immediately), <code>sent_at TIMESTAMPTZ</code>, <code>status TEXT NOT NULL DEFAULT 'DRAFT'</code> 4-value CHECK (DRAFT, SCHEDULED, SENT, CANCELLED), <code>created_by UUID FK NOT NULL</code>. INDEX(school_id, status, scheduled_at). PushCampaignWorker: polls SCHEDULED WHERE scheduled_at &le; now() → sends via push notification service.</li>
+      <li><strong>msg_push_analytics</strong> &mdash; <code>campaign_id UUID FK(msg_push_campaigns) NOT NULL UNIQUE</code>, <code>total_targeted INT NOT NULL</code>, <code>total_delivered INT DEFAULT 0</code>, <code>total_opened INT DEFAULT 0</code>, <code>total_clicked INT DEFAULT 0</code>, <code>delivery_rate NUMERIC(5,4)</code>, <code>open_rate NUMERIC(5,4)</code>, <code>click_rate NUMERIC(5,4)</code>, <code>last_updated_at TIMESTAMPTZ</code>. Updated by PushAnalyticsWorker consuming push delivery callbacks.</li>
+      <li><strong>msg_push_device_tokens</strong> &mdash; <code>user_id UUID FK(platform_users) NOT NULL</code>, <code>device_token TEXT NOT NULL</code>, <code>platform TEXT NOT NULL</code> 3-value CHECK (IOS, ANDROID, WEB), <code>is_active BOOLEAN DEFAULT true</code>, <code>registered_at TIMESTAMPTZ NOT NULL</code>, <code>last_used_at TIMESTAMPTZ</code>. UNIQUE(user_id, device_token). Device token management for push delivery.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 7 tables. Migration: <code>139_msg_moderation_push.sql</code>. Total P2-19 tables: 13.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Seed + Services + UI + Tests (P2-19b)</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span><span class="step-tag tag-code">Code</span><span class="step-tag tag-ui">UI</span><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Seed</div>
+    <ol class="detail-list">
+      <li>3 moderation rules (1 PLATFORM non-negotiable with profanity keywords, 1 DISTRICT bullying keywords, 1 BUILDING custom). 5 moderation actions (2 BLOCKED, 1 FLAGGED_FOR_REVIEW with RELEASED outcome, 1 ESCALATED, 1 AUTO_APPROVED). 1 appeal (OVERTURNED). 3 AI moderation results. 2 push campaigns (1 SENT, 1 SCHEDULED). 2 push analytics rows. 5 device tokens (3 IOS, 2 ANDROID).</li>
+    </ol>
+    <div class="detail-heading">Services (~16 endpoints)</div>
+    <ol class="detail-list">
+      <li><strong>ModerationService</strong> &mdash; <code>POST /communications/moderation/rules</code> (admin creates), <code>GET /communications/moderation/rules</code>. ModerationWorker: on every msg.message.posted → checks all active rules (three-tier, most restrictive wins) → keyword match + AI sensitivity score → creates msg_moderation_actions. <code>GET /communications/moderation/queue</code> (admin: flagged messages pending review), <code>PATCH /communications/moderation-actions/:id</code> (release/confirm block/escalate).</li>
+      <li><strong>AppealService</strong> &mdash; <code>POST /communications/moderation-actions/:id/appeal</code> (user appeals blocked message), <code>GET /communications/moderation/appeals</code> (admin: appeal queue), <code>PATCH /communications/moderation-appeals/:id</code> (uphold/overturn; on overturn: release message).</li>
+      <li><strong>AIModerationService</strong> &mdash; <code>POST /communications/ai-moderation/analyze</code> (compute sensitivity score via AI Inference; cache in msg_ai_moderation_results). Called by ModerationWorker when ai_sensitivity_threshold is configured on a rule.</li>
+      <li><strong>PushCampaignService</strong> &mdash; <code>POST /communications/push-campaigns</code>, <code>GET /communications/push-campaigns</code>, <code>PATCH /communications/push-campaigns/:id</code> (schedule/cancel). PushCampaignWorker: sends at scheduled_at via push notification service. <code>GET /communications/push-campaigns/:id/analytics</code>. <code>POST /communications/push-devices</code> (register token), <code>DELETE /communications/push-devices/:id</code> (deregister).</li>
+    </ol>
+    <div class="detail-heading">UI</div>
+    <ol class="detail-list">
+      <li><strong>Moderation Dashboard</strong> <code>/communications/moderation</code> &mdash; admin: flagged message queue with keyword match + AI score. Release/block/escalate buttons. Rule configuration (keyword lists + AI threshold slider). Three-tier scope selector.</li>
+      <li><strong>Appeals Queue</strong> <code>/communications/moderation/appeals</code> &mdash; admin: appeals list with original message, moderation reason, appeal text. Uphold/overturn.</li>
+      <li><strong>Push Campaign Manager</strong> <code>/communications/push</code> &mdash; admin: compose push (title, body, image, deep link), select audience segment, schedule or send now. Post-send analytics (delivered/opened/clicked funnel).</li>
+    </ol>
+    <div class="produces">Produces &rarr; P2-19b: 7 tables, ~16 endpoints, 3 workers. Create all peer review docs. Total P2-19: 13 tables, ~34 endpoints.</div>
+  </div>
+
+  <h2 class="section-heading">Completion Criteria</h2>
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist (Full P2-19)</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 13 new tables. Tenant table count: ~700.</li>
+      <li>Communications API: ~34 new endpoints across translation, templates, broadcast analytics, moderation, push campaigns.</li>
+      <li>Message translation via AI with caching + user language preferences.</li>
+      <li>Reusable templates with variable interpolation + role-based access.</li>
+      <li>Broadcast analytics with per-segment delivery/open/click tracking.</li>
+      <li>Three-tier moderation: platform + district + building, most restrictive wins.</li>
+      <li>AI sensitivity scoring with configurable threshold.</li>
+      <li>Appeal workflow: user appeals → admin reviews → uphold/overturn.</li>
+      <li>Push notification campaigns with scheduled delivery + engagement analytics.</li>
+      <li>Device token management for push delivery.</li>
+      <li>HANDOFF-P2C19.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <div class="doc-footer">
+    <p>CampusOS Phase 2 Cycle 19 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M40 Communications deferred tables, 13 tables). Functions: COM-001..004. Cross-cycle: Cycle 14 msg_messages + msg_broadcasts + msg_communication_groups, AI Inference service for translation + moderation scoring. Pre-split into 2 sub-cycles.</p>
+  </div>
+</div>
+</body>
+</html>

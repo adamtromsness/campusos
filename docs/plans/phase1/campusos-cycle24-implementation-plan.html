@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Cycle 24 Implementation Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#ffffff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb;--red:#dc3545;--red-bg:#fdeaea}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}
+.container{max-width:900px;margin:0 auto;padding:40px 40px 120px}
+.hero{padding:60px 0 40px;border-bottom:2px solid var(--accent);margin-bottom:48px}.hero-brand{font-family:'DM Serif Display',serif;font-size:14px;color:var(--accent-mid);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}.hero h1{font-family:'DM Serif Display',serif;font-size:40px;color:var(--accent);line-height:1.15;margin-bottom:12px;font-weight:400}.hero .sub{font-size:18px;color:var(--text-light);font-style:italic;max-width:700px;margin-bottom:16px}.hero .version{font-size:13px;color:var(--accent-mid);font-weight:600;background:var(--accent-light);display:inline-block;padding:4px 14px;border-radius:6px}
+h2.section-heading{font-family:'DM Serif Display',serif;font-size:26px;color:var(--accent);font-weight:400;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}h2.section-heading:first-of-type{border-top:none;margin-top:0}
+p.body-text{font-size:15px;line-height:1.8;margin-bottom:16px;color:var(--text)}
+.callout{border-radius:10px;padding:20px 24px;margin:20px 0 24px;border-left:5px solid}.callout-title{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.callout-thesis{background:var(--accent-light);border-color:var(--accent-mid)}.callout-thesis .callout-title{color:var(--accent)}
+.callout-ai{background:#f0f7f0;border-color:var(--green)}.callout-ai .callout-title{color:#2d7a2d}
+.callout-note{background:var(--amber-bg);border-color:var(--amber)}.callout-note .callout-title{color:#9a7b1a}
+.callout-warn{background:var(--red-bg);border-color:var(--red)}.callout-warn .callout-title{color:var(--red)}
+.step{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin:20px 0;position:relative}.step-header{display:flex;align-items:baseline;gap:14px;margin-bottom:12px}.step-num{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent-mid);line-height:1;opacity:.4}.step-title{font-size:19px;font-weight:700;color:var(--accent)}.step-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}.step-tag{font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600}
+.tag-schema{background:var(--green-bg);color:#2d7a2d;border:1px solid #b7deb7}.tag-code{background:var(--blue-bg);color:var(--blue);border:1px solid #b5d4f4}.tag-ui{background:var(--purple-bg);color:var(--purple);border:1px solid #d4b8e8}.tag-seed{background:var(--amber-bg);color:#9a7b1a;border:1px solid #e5d5a0}.tag-test{background:var(--red-bg);color:var(--red);border:1px solid #f5c6cb}
+.step p{font-size:14px;line-height:1.8;color:var(--text);margin-bottom:10px}.step .detail-heading{font-size:14px;font-weight:700;color:var(--accent);margin:16px 0 6px}.step .detail-list{font-size:14px;line-height:2;color:var(--text);padding-left:20px;margin-bottom:10px}.step .produces{font-size:13px;color:var(--accent-mid);font-weight:600;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+.spec-table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:13px}.spec-table th{background:#d5e8f0;padding:10px 14px;border:1px solid #ccc;text-align:left;font-weight:600;color:var(--accent)}.spec-table td{padding:10px 14px;border:1px solid var(--border);vertical-align:top}.spec-table code{font-size:12px;background:#f0f0f0;padding:1px 5px;border-radius:3px}
+.doc-footer{margin-top:56px;padding-top:20px;border-top:2px solid var(--accent);font-size:13px;color:var(--text-light);line-height:1.8}
+@media(max-width:768px){.hero h1{font-size:30px}.container{padding:20px 20px 60px}.step{padding:20px}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../../design-hub/index.html" class="brand">CampusOS</a>
+  <span class="sep">|</span>
+  <a href="../../design-hub/index.html">Design Hub</a>
+  <a href="../../architecture/campusos-erd-v11.html">ERD v11</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-brand">CampusOS &middot; Wave 5 &middot; Academic Advanced</div>
+    <h1>Cycle 24: Student Portfolio</h1>
+    <div class="sub">Student-owned digital portfolios with multi-source item collection (classroom submissions, grades, achievements, reflections, external files, certificates), 4-tier visibility controls (PRIVATE / TEACHER / PARENT / PUBLIC), time-limited share links with view tracking, cross-module achievements from every prior cycle, and achievement sharing to external platforms. The fourth student-input surface &mdash; students curate their own academic narrative.</div>
+    <span class="version">May 2026 &middot; 8 Steps &middot; ERD v11 &middot; M26 Portfolio (5 tables &mdash; all in scope) &middot; ACH-001 + ACH-002</span>
+  </div>
+
+  <h2 class="section-heading">Plan Overview</h2>
+
+  <p class="body-text">Cycle 24 builds the M26 Portfolio module &mdash; all 5 ERD tables. This is the most compact module in the entire build (5 tables) but architecturally significant because it is the <strong>first student-owned surface</strong>: students create, curate, and control their portfolio. Every prior student-input surface (wellbeing check-ins, reading logs, club registration, service hours) wrote into staff-administered systems. The portfolio belongs to the student &mdash; they control what goes in, what's featured, and who can see it.</p>
+
+  <p class="body-text">The module is a cross-system aggregation layer. <code>pfl_portfolio_items.source_ref_id</code> is a DISPLAY-ONLY polymorphic reference that can point to <code>cls_submissions</code> (Cycle 2), <code>cls_grades</code> (Cycle 2), or <code>pfl_achievements</code>. Achievements themselves aggregate from every prior module: reading programme completions (Cycle 12's <code>lib_programme_completions.achievement_id</code>), community service milestones (Cycle 17), athletics records (Cycle 13), and teacher-awarded commendations. The portfolio is the student's unified view of their entire CampusOS journey.</p>
+
+  <div class="callout callout-thesis">
+    <div class="callout-title">Vertical Slice Deliverable</div>
+    <p style="font-size:15px;line-height:1.8;">Maya creates her portfolio "Maya's Academic Journey" (visibility=TEACHER) &rarr; adds her top-graded narrative writing submission from Cycle 2 (item_type=SUBMISSION, source_ref_id=cls_submissions.id) &rarr; adds her Grade 5 ELA final grade (item_type=GRADE) &rarr; writes a personal reflection on her growth in writing (item_type=REFLECTION) &rarr; marks the submission as featured &rarr; teacher Rivera awards Maya an ACADEMIC achievement "Outstanding Writer" with a badge image &rarr; the Cycle 12 reading programme completion auto-creates a COMMUNITY achievement via the <code>lib_programme_completions.achievement_id</code> soft FK &rarr; Maya adds both achievements to her portfolio &rarr; Maya upgrades portfolio visibility to PARENT so David Chen can see it &rarr; Maya generates a share link (32-byte token, expires in 30 days) and emails it to a family member &rarr; the family member views the portfolio via the share link (viewed_at tracked) &rarr; Maya shares her "Outstanding Writer" achievement to an external platform (EMAIL) &rarr; on student transfer, visibility auto-resets to PRIVATE.</p>
+  </div>
+
+  <div class="callout callout-note">
+    <div class="callout-title">What's In / What's Deferred</div>
+    <p style="font-size:15px;line-height:1.8;"><strong>In scope (all 5 tables):</strong> pfl_portfolios, pfl_portfolio_items, pfl_portfolio_shares, pfl_achievements, pfl_achievement_shares. Functions ACH-001 (Achievements) + ACH-002 (Student Portfolio).</p>
+    <p style="font-size:15px;line-height:1.8;"><strong>Deferred:</strong> ACH-003 Post-Secondary Readiness (pathways, milestones, resume builder, certifications &mdash; requires M85 Accreditation). Automated achievement creation from Kafka events (manual + Cycle 12 lib soft FK this cycle; full consumer wiring is Phase 2). Portfolio PDF export. Portfolio templates. AI-generated portfolio summaries. Community Exchange listing creation from portfolio items.</p>
+  </div>
+
+  <table class="spec-table">
+    <tr><th style="width:8%">Step</th><th style="width:38%">Deliverable</th><th style="width:13%">Type</th><th>Key Outputs</th></tr>
+    <tr><td><strong>1</strong></td><td>Portfolio + Items + Shares Schema</td><td>Schema</td><td>pfl_portfolios, pfl_portfolio_items, pfl_portfolio_shares</td></tr>
+    <tr><td><strong>2</strong></td><td>Achievements + Achievement Shares Schema</td><td>Schema</td><td>pfl_achievements, pfl_achievement_shares</td></tr>
+    <tr><td><strong>3</strong></td><td>Seed Data &mdash; Portfolios, Items, Achievements, Shares</td><td>Seed</td><td>1 portfolio + 5 items, 3 achievements (teacher-awarded + reading programme + service), 1 share link, ACH-001..002 permissions</td></tr>
+    <tr><td><strong>4</strong></td><td>Portfolio NestJS Module</td><td>Code</td><td>PortfolioService, PortfolioItemService, ShareService. Student-owned CRUD. Visibility enforcement. Share link generation + validation.</td></tr>
+    <tr><td><strong>5</strong></td><td>Achievements NestJS Module</td><td>Code</td><td>AchievementService, AchievementShareService. Teacher awards. Cross-module source resolution. <code>pfl.achievement.awarded</code> Kafka emit.</td></tr>
+    <tr><td><strong>6</strong></td><td>Portfolio UI &mdash; Student Portfolio Builder + Public View</td><td>UI</td><td>"Portfolio" app tile, portfolio builder, item sourcing from classroom + achievements, featured items, visibility controls, share link generator, public portfolio view</td></tr>
+    <tr><td><strong>7</strong></td><td>Portfolio UI &mdash; Achievements + Teacher Award + Parent View</td><td>UI</td><td>Achievement gallery, teacher award form, achievement sharing, parent portfolio view, cross-module achievement feed</td></tr>
+    <tr><td><strong>8</strong></td><td>Vertical Slice Integration Test</td><td>Test</td><td>Portfolio creation &rarr; item sourcing &rarr; featured &rarr; visibility &rarr; share link &rarr; achievement award &rarr; cross-module resolution &rarr; transfer privacy reset</td></tr>
+  </table>
+
+  <h2 class="section-heading">Step-by-Step Build Plan</h2>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">01</span><span class="step-title">Portfolio + Items + Shares Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Student portfolios with 4-tier visibility, polymorphic portfolio items sourcing from classroom submissions, grades, achievements, reflections, and external files, and time-limited share links with view tracking.</p>
+    <div class="detail-heading">Tables (3)</div>
+    <ol class="detail-list">
+      <li><strong>pfl_portfolios</strong> &mdash; <code>student_id UUID NOT NULL</code> (soft to platform_entity_cache), <code>school_id UUID</code>, <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>visibility TEXT NOT NULL DEFAULT 'PRIVATE'</code> 4-value CHECK (PRIVATE, TEACHER, PARENT, PUBLIC), <code>share_link_enabled BOOLEAN DEFAULT false</code>. INDEX(student_id, school_id). On student transfer or graduation: visibility auto-resets to PRIVATE.</li>
+      <li><strong>pfl_portfolio_items</strong> &mdash; <code>portfolio_id UUID FK NOT NULL</code>, <code>item_type TEXT NOT NULL</code> 6-value CHECK (SUBMISSION, GRADE, ACHIEVEMENT, REFLECTION, EXTERNAL_FILE, CERTIFICATE), <code>source_ref_id UUID</code> nullable (DISPLAY-ONLY polymorphic: cls_submissions, cls_grades, or pfl_achievements &mdash; no DB FK), <code>title TEXT NOT NULL</code>, <code>description TEXT</code>, <code>s3_key TEXT</code> nullable (for EXTERNAL_FILE + CERTIFICATE types), <code>is_featured BOOLEAN DEFAULT false</code>, <code>added_at TIMESTAMPTZ NOT NULL</code>. INDEX(portfolio_id, is_featured, added_at DESC).</li>
+      <li><strong>pfl_portfolio_shares</strong> &mdash; <code>portfolio_id UUID FK NOT NULL</code>, <code>share_token TEXT NOT NULL UNIQUE</code> (32-byte random hex), <code>expires_at TIMESTAMPTZ</code> nullable (null = no expiry), <code>recipient_email TEXT</code>, <code>viewed_at TIMESTAMPTZ</code> nullable, <code>status TEXT NOT NULL DEFAULT 'ACTIVE'</code> 3-value CHECK (ACTIVE, EXPIRED, REVOKED). Partial INDEX(expires_at) WHERE expires_at IS NOT NULL for the cleanup job. Expired tokens return 410 Gone.</li>
+    </ol>
+    <div class="produces">Produces &rarr; 3 new tables. Migration: <code>075_pfl_portfolios.sql</code>.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">02</span><span class="step-title">Achievements + Achievement Shares Schema</span></div>
+    <div class="step-meta"><span class="step-tag tag-schema">Schema</span></div>
+    <p>Cross-module achievements aggregating from every prior cycle, and achievement sharing to external platforms.</p>
+    <div class="detail-heading">Tables (2)</div>
+    <ol class="detail-list">
+      <li><strong>pfl_achievements</strong> &mdash; <code>student_id UUID NOT NULL</code> (soft to platform_entity_cache), <code>school_id UUID</code>, <code>title TEXT NOT NULL</code>, <code>achievement_type TEXT NOT NULL</code> 6-value CHECK (ACADEMIC, SPORTING, MUSICAL, LEADERSHIP, COMMUNITY, CUSTOM), <code>source_module TEXT</code> nullable (DISPLAY-ONLY: "library", "athletics", "clubs", "classroom", etc.), <code>source_ref_id UUID</code> nullable (DISPLAY-ONLY: lib_programme_completions.id, ath_all_time_records.id, ext_service_progress.id, etc. &mdash; intentionally portable, no DB FK), <code>awarded_at DATE NOT NULL</code>, <code>awarded_by UUID FK</code> nullable (teacher/staff who awarded; null for system-generated), <code>description TEXT</code>, <code>badge_image_url TEXT</code>. INDEX(student_id, school_id). Achievements are intentionally portable and independent of source module.</li>
+      <li><strong>pfl_achievement_shares</strong> &mdash; <code>achievement_id UUID FK NOT NULL</code>, <code>shared_by UUID FK NOT NULL</code> (soft to platform_users &mdash; the student), <code>platform TEXT NOT NULL</code> 3-value CHECK (EMAIL, SOCIAL, PORTFOLIO), <code>shared_at TIMESTAMPTZ NOT NULL</code>. INDEX(achievement_id, shared_at DESC).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 new tables. Migration: <code>076_pfl_achievements.sql</code>. Total Cycle 24 tables: 5.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">03</span><span class="step-title">Seed Data</span></div>
+    <div class="step-meta"><span class="step-tag tag-seed">Seed</span></div>
+    <div class="detail-heading">What Gets Seeded</div>
+    <ol class="detail-list">
+      <li><strong>1 portfolio + 5 items:</strong> Maya's "My Academic Journey" (visibility=TEACHER). Items: narrative writing submission from Cycle 2 (SUBMISSION, featured=true), ELA final grade (GRADE), personal reflection (REFLECTION), Summer Reading Certificate from Cycle 12 (CERTIFICATE), external science fair photo (EXTERNAL_FILE).</li>
+      <li><strong>3 achievements:</strong> "Outstanding Writer" ACADEMIC (awarded by Rivera), "Summer Reading Champion" COMMUNITY (source_module=library, source_ref_id=lib_programme_completions.id &mdash; resolves the Cycle 12 soft FK), "Community Service Star" COMMUNITY (source_module=clubs, source_ref_id=ext_service_progress.id).</li>
+      <li><strong>1 share link:</strong> Maya generated a share token for her portfolio (ACTIVE, expires in 30 days, recipient_email="uncle@example.com").</li>
+      <li><strong>1 achievement share:</strong> Maya shared "Outstanding Writer" via EMAIL.</li>
+      <li><strong>Permissions:</strong> ACH-001:read to Student (view own achievements), ACH-001:write to Teacher, Staff (award achievements). ACH-002:read to Student (view own + TEACHER/PARENT-visible others per scope), Teacher, Parent (view student portfolios per visibility). ACH-002:write to Student (own portfolio CRUD), Teacher (annotate). Admin gets all via everyFunction.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Portfolio + items + achievements seeded with cross-module source references. ACH-001..002 permissions.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">04</span><span class="step-title">Portfolio NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>PortfolioService</strong> &mdash; <code>GET /portfolio/my</code> (<strong>STUDENT-OWNED:</strong> returns the calling student's portfolio with items + achievements inlined), <code>GET /portfolio/students/:studentId</code> (teacher/parent: visibility-gated; PRIVATE returns 404 for non-owner; TEACHER visible to teachers; PARENT visible to parents + teachers; PUBLIC visible to all), <code>POST /portfolio</code> (student creates; one portfolio per student per school enforced), <code>PATCH /portfolio/:id</code> (student updates title, description, visibility; owner-only).</li>
+      <li><strong>PortfolioItemService</strong> &mdash; <code>GET /portfolio/:id/items</code> (with source resolution: SUBMISSION items resolve title from cls_submissions; GRADE items resolve from cls_grades; ACHIEVEMENT items resolve from pfl_achievements), <code>POST /portfolio/:id/items</code> (student adds; validates source_ref_id resolves in tenant when source-typed), <code>PATCH /portfolio-items/:id</code> (student edits title, description, is_featured; owner-only), <code>DELETE /portfolio-items/:id</code> (student removes; owner-only). <code>GET /portfolio/:id/items/sources</code> (student: list available items to add from classroom + achievements).</li>
+      <li><strong>ShareService</strong> &mdash; <code>POST /portfolio/:id/shares</code> (student generates share link; 32-byte random token; optional expires_at + recipient_email), <code>GET /portfolio/share/:token</code> (public unauthenticated endpoint; validates token active + not expired; stamps viewed_at on first view; returns portfolio + featured items; expired returns 410 Gone), <code>DELETE /portfolio-shares/:id</code> (student revokes; status &rarr; REVOKED).</li>
+    </ol>
+    <div class="produces">Produces &rarr; PortfolioModule with 3 services, ~12 endpoints.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">05</span><span class="step-title">Achievements NestJS Module</span></div>
+    <div class="step-meta"><span class="step-tag tag-code">Code</span></div>
+    <div class="detail-heading">Services &amp; Endpoints</div>
+    <ol class="detail-list">
+      <li><strong>AchievementService</strong> &mdash; <code>GET /portfolio/achievements</code> (student: own; teacher: scope-visible students), <code>GET /portfolio/achievements/:id</code> (with source module + source ref resolution), <code>POST /portfolio/achievements</code> (teacher awards to student; emits <code>pfl.achievement.awarded</code>), <code>PATCH /portfolio/achievements/:id</code> (teacher edits own award; student cannot edit teacher-awarded). <code>GET /portfolio/students/:studentId/achievements</code> (all achievements for a student, grouped by type).</li>
+      <li><strong>AchievementShareService</strong> &mdash; <code>POST /portfolio/achievements/:id/share</code> (student shares own achievement to EMAIL/SOCIAL/PORTFOLIO), <code>GET /portfolio/achievements/:id/shares</code> (student: share history).</li>
+    </ol>
+    <div class="produces">Produces &rarr; 2 services, ~8 endpoints, 1 Kafka emit (<code>pfl.achievement.awarded</code>). Total Cycle 24 endpoints: ~20.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">06</span><span class="step-title">Portfolio UI &mdash; Student Portfolio Builder + Public View</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Portfolio Dashboard</strong> <code>/portfolio</code> &mdash; "Portfolio" app tile gated on ACH-002:read. Student view: my portfolio with item count + achievement count + visibility pill + "Edit Portfolio" button. Teacher view: student portfolios for my classes (visibility-gated). Parent view: child's portfolio (when PARENT or PUBLIC visibility).</li>
+      <li><strong>Portfolio Builder</strong> <code>/portfolio/edit</code> &mdash; <strong>STUDENT-OWNED.</strong> Title + description editor. Visibility selector (PRIVATE/TEACHER/PARENT/PUBLIC) with explanations. Item list with drag-reorder + feature toggle (star icon). "Add Item" panel sourcing from: my classroom submissions (SUBMISSION), my grades (GRADE), my achievements (ACHIEVEMENT), write a reflection (REFLECTION), upload a file (EXTERNAL_FILE). Share link generator with expiry date picker + email input.</li>
+      <li><strong>Public Portfolio View</strong> <code>/portfolio/share/:token</code> &mdash; unauthenticated page. Portfolio title + student name + school. Featured items prominently displayed. Full item list below. Achievements gallery. "Powered by CampusOS" footer. 410 Gone page for expired/revoked tokens.</li>
+    </ol>
+    <div class="produces">Produces &rarr; "Portfolio" app tile, student portfolio builder, public share view.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">07</span><span class="step-title">Portfolio UI &mdash; Achievements + Teacher Award + Parent View</span></div>
+    <div class="step-meta"><span class="step-tag tag-ui">UI</span></div>
+    <div class="detail-heading">Pages</div>
+    <ol class="detail-list">
+      <li><strong>Achievement Gallery</strong> <code>/portfolio/achievements</code> &mdash; student: all achievements grouped by type (ACADEMIC/SPORTING/MUSICAL/LEADERSHIP/COMMUNITY/CUSTOM) with badge images + dates + source module pills. Share button per achievement.</li>
+      <li><strong>Teacher Award Form</strong> (inline on student profile or portfolio view) &mdash; teacher selects student, achievement type, title, description, optional badge image upload. Awards immediately visible in student's achievement gallery.</li>
+      <li><strong>Parent Portfolio View</strong> <code>/children/:id/portfolio</code> &mdash; parent sees child's portfolio (when visibility &ge; PARENT): featured items, full item list, achievement gallery. Read-only.</li>
+      <li><strong>Cross-Module Achievement Feed</strong> (inline on portfolio dashboard) &mdash; recent achievements from all sources: "Maya earned Summer Reading Champion from the Library module" + "Maya completed 20 community service hours". Source module pill links to the originating module.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Achievement gallery, teacher award form, parent portfolio view, cross-module achievement feed.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-header"><span class="step-num">08</span><span class="step-title">Vertical Slice Integration Test</span></div>
+    <div class="step-meta"><span class="step-tag tag-test">Test</span></div>
+    <div class="detail-heading">Test Script</div>
+    <ol class="detail-list">
+      <li><strong>Portfolio creation (student-owned):</strong> Maya creates portfolio (PRIVATE). Verify one-per-student UNIQUE. Ethan cannot access Maya's PRIVATE portfolio (404).</li>
+      <li><strong>Item sourcing from Cycle 2:</strong> Maya adds a cls_submission item (SUBMISSION type). Verify source_ref_id resolves to the Cycle 2 submission title. Maya adds a cls_grades item (GRADE type).</li>
+      <li><strong>Reflection + external file:</strong> Maya writes a REFLECTION item. Maya uploads an EXTERNAL_FILE (science fair photo). Verify s3_key populated.</li>
+      <li><strong>Featured items:</strong> Maya marks the submission as featured. Verify is_featured=true. Portfolio detail shows featured items prominently.</li>
+      <li><strong>Visibility controls:</strong> Maya sets visibility=TEACHER. Rivera (teacher) sees the portfolio. David (parent) gets 404. Maya upgrades to PARENT. David now sees it. Maya sets PUBLIC. Ethan (another student) can see it.</li>
+      <li><strong>Share link:</strong> Maya generates a share link (expires in 30 days). GET /portfolio/share/:token returns the portfolio. Verify viewed_at stamped on first view. Maya revokes. GET returns 410. Expired link also returns 410.</li>
+      <li><strong>Teacher achievement award:</strong> Rivera awards Maya "Outstanding Writer" ACADEMIC. Verify <code>pfl.achievement.awarded</code> fires. Maya sees it in her achievement gallery. Maya adds it to her portfolio (ACHIEVEMENT type).</li>
+      <li><strong>Cross-module achievement (Cycle 12):</strong> Verify the seeded lib_programme_completions.achievement_id resolves to the pfl_achievements row. The achievement shows source_module=library in the gallery.</li>
+      <li><strong>Achievement sharing:</strong> Maya shares "Outstanding Writer" via EMAIL. Verify pfl_achievement_shares row created.</li>
+      <li><strong>Visibility + ownership:</strong> Teacher cannot edit Maya's portfolio items. Student cannot award achievements. Parent sees portfolio read-only. Verify transfer privacy reset: simulate transfer &rarr; visibility resets to PRIVATE.</li>
+    </ol>
+    <div class="produces">Produces &rarr; Verified portfolio lifecycle: create &rarr; item sourcing &rarr; featured &rarr; visibility &rarr; share link &rarr; achievement &rarr; cross-module &rarr; sharing &rarr; transfer reset.</div>
+  </div>
+
+  <h2 class="section-heading">Cycle 24 Completion Criteria</h2>
+
+  <div class="callout callout-ai">
+    <div class="callout-title">Exit Checklist</div>
+    <ol style="font-size:15px;line-height:2.2;padding-left:20px;">
+      <li>Tenant schema: 5 new tables (3 portfolio + 2 achievements). Tenant table count: ~346.</li>
+      <li>Portfolio API: ~20 endpoints with student-owned CRUD + 4-tier visibility + share links.</li>
+      <li>Student-owned portfolio: students control content, featured items, and visibility.</li>
+      <li>Polymorphic item sourcing from cls_submissions, cls_grades, pfl_achievements, reflections, external files.</li>
+      <li>Share links with 32-byte tokens, optional expiry, view tracking, and revocation.</li>
+      <li>Cross-module achievements resolving from Library (Cycle 12), Clubs (Cycle 17), Athletics (Cycle 13).</li>
+      <li>Teacher achievement awards with badge images.</li>
+      <li><code>pfl.achievement.awarded</code> Kafka emit.</li>
+      <li>HANDOFF-CYCLE24.md and CLAUDE.md updated. CI green.</li>
+    </ol>
+  </div>
+
+  <p class="body-text">Cycle 24 delivers the student's unified view of their CampusOS journey. The portfolio is the first truly student-owned surface &mdash; students control what goes in and who sees it. The cross-module achievement aggregation resolves soft FKs that have been waiting since Cycle 12 (lib_programme_completions.achievement_id). Cycle 25 (Publications) closes Wave 5.</p>
+
+  <div class="doc-footer">
+    <p>CampusOS Cycle 24 Implementation Plan &mdash; May 2026. Derived from: ERD v11 (M26 Portfolio, 5 tables), Function Library (ACH-001 Achievements, ACH-002 Student Portfolio). Cross-cycle: Cycle 2 cls_submissions/cls_grades, Cycle 12 lib_programme_completions.achievement_id, Cycle 13 ath_all_time_records, Cycle 17 ext_service_progress.</p>
+  </div>
+</div>
+
+</body>
+</html>
