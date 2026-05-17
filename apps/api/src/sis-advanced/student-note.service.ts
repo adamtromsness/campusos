@@ -82,13 +82,29 @@ export class StudentNoteService {
     ]);
   }
 
-  private async assertStudentExists(studentId: string): Promise<void> {
-    const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
-      client.$queryRawUnsafe<Array<{ ok: number }>>(
-        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid LIMIT 1',
+  /**
+   * P2-H5 DEFECT 1a fix: school-scope the student existence check so a
+   * crafted cross-school studentId cannot pass and then be used to read
+   * parent-visible notes or attach notes to a foreign student. Optional
+   * `client` parameter lets `create` re-run the same check inside the
+   * tenant transaction that performs the INSERT.
+   */
+  private async assertStudentExists(
+    studentId: string,
+    client?: { $queryRawUnsafe: <T>(sql: string, ...args: unknown[]) => Promise<T> },
+  ): Promise<void> {
+    const tenant = getCurrentTenant();
+    const exec = async (c: {
+      $queryRawUnsafe: <T>(sql: string, ...args: unknown[]) => Promise<T>;
+    }) =>
+      c.$queryRawUnsafe<Array<{ ok: number }>>(
+        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         studentId,
-      ),
-    );
+        tenant.schoolId,
+      );
+    const rows = client
+      ? await exec(client)
+      : await this.tenantPrisma.executeInTenantContext(async (c) => exec(c));
     if (rows.length === 0) throw new NotFoundException('Student ' + studentId + ' not found');
   }
 
@@ -129,8 +145,13 @@ export class StudentNoteService {
 
   async listForStudent(studentId: string, actor: ResolvedActor): Promise<StudentNoteDto[]> {
     await this.assertStudentExists(studentId);
-    const visibility = this.buildVisibilityFragment(actor, 2);
-    const params: unknown[] = [studentId, ...visibility.params];
+    // P2-H5 DEFECT 1a fix: every read binds n.school_id = currentTenant.schoolId
+    // so a crafted cross-school studentId returns an empty list rather than
+    // surfacing foreign-school rows the visibility fragment might otherwise let
+    // through (e.g. parent-visible notes from another school).
+    const tenant = getCurrentTenant();
+    const visibility = this.buildVisibilityFragment(actor, 3);
+    const params: unknown[] = [studentId, tenant.schoolId, ...visibility.params];
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<NoteRow[]>(
         'SELECT n.id::text, n.student_id::text, n.author_id::text, ' +
@@ -139,7 +160,7 @@ export class StudentNoteService {
           'n.created_at::text ' +
           'FROM sis_student_notes n ' +
           'LEFT JOIN platform.iam_person ip ON ip.id = n.author_id ' +
-          'WHERE n.student_id = $1::uuid' +
+          'WHERE n.student_id = $1::uuid AND n.school_id = $2::uuid' +
           visibility.fragment +
           ' ORDER BY n.created_at DESC',
         ...params,
@@ -164,15 +185,19 @@ export class StudentNoteService {
         'A note cannot be both CONFIDENTIAL and visible to the parent — the confidential_chk schema invariant prevents this.',
       );
     }
-    await this.assertStudentExists(studentId);
 
     const tenant = getCurrentTenant();
     const id = generateId();
     const isConfidential = dto.isConfidential === true || dto.noteType === 'CONFIDENTIAL';
     const isParentVisible = !isConfidential && dto.isVisibleToParent === true;
 
-    await this.tenantPrisma.executeInTenantContext(async (client) =>
-      client.$executeRawUnsafe(
+    // P2-H5 DEFECT 1a fix: validate the target student inside the SAME tenant
+    // transaction as the INSERT. A pre-tx existence check could pass against a
+    // crafted cross-school studentId between check and write, or the student
+    // could be re-keyed before commit.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      await this.assertStudentExists(studentId, tx);
+      await tx.$executeRawUnsafe(
         'INSERT INTO sis_student_notes (id, school_id, student_id, author_id, note_type, ' +
           'note_text, is_parent_visible, is_confidential) VALUES ' +
           '($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, $8)',
@@ -184,8 +209,8 @@ export class StudentNoteService {
         dto.noteText,
         isParentVisible,
         isConfidential,
-      ),
-    );
+      );
+    });
 
     // P2-H1 Step 1: post-insert reload joins through school_id so the DTO
     // cannot surface a foreign-school row even on a stale loader path. The

@@ -106,7 +106,10 @@ function makeFake(opts: FakeOpts = {}) {
         return opts.rowsForStudents ?? [];
       }
       // Family account by student
-      if (s.includes('from pay_family_account_students fas') && s.includes('join pay_family_accounts')) {
+      if (
+        s.includes('from pay_family_account_students fas') &&
+        s.includes('join pay_family_accounts')
+      ) {
         const studentId = String(args[0]);
         return opts.rowsForFamilyAccountByStudent?.get(studentId) ?? [];
       }
@@ -291,7 +294,12 @@ describe('AutoInvoiceService.createRule', () => {
     await inTenant(async () => {
       await expect(
         svc.createRule(
-          { name: 'X', triggerType: 'DATE_OF_MONTH', triggerDayOfMonth: 1, feeScheduleId: 'fs-1' } as never,
+          {
+            name: 'X',
+            triggerType: 'DATE_OF_MONTH',
+            triggerDayOfMonth: 1,
+            feeScheduleId: 'fs-1',
+          } as never,
           guardianActor,
         ),
       ).rejects.toThrow(ForbiddenException);
@@ -505,9 +513,9 @@ describe('AutoInvoiceService.triggerRule', () => {
     const { tenantPrisma } = makeFake();
     const svc = new AutoInvoiceService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(
-        svc.triggerRule('rule-1', {} as never, guardianActor),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.triggerRule('rule-1', {} as never, guardianActor)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -535,7 +543,8 @@ describe('AutoInvoiceService.triggerRule', () => {
       await svc.triggerRule('rule-1', { academicYearId: 'ay-2026' } as never, adminActor);
     });
     const insertRun = capture.find(
-      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_invoice_generation_runs'),
+      (c) =>
+        c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_invoice_generation_runs'),
     );
     expect(insertRun).toBeTruthy();
     expect(insertRun!.args).toContain('AUTO_RULE_TRIGGERED');
@@ -549,9 +558,9 @@ describe('AutoInvoiceService.generateFromFeeSchedule', () => {
     const { tenantPrisma } = makeFake();
     const svc = new AutoInvoiceService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(
-        svc.generateFromFeeSchedule('fs-1', null, guardianActor),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.generateFromFeeSchedule('fs-1', null, guardianActor)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -566,7 +575,8 @@ describe('AutoInvoiceService.generateFromFeeSchedule', () => {
       await svc.generateFromFeeSchedule('fs-1', null, adminActor);
     });
     const insertRun = capture.find(
-      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_invoice_generation_runs'),
+      (c) =>
+        c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_invoice_generation_runs'),
     );
     expect(insertRun).toBeTruthy();
     expect(insertRun!.args).toContain('FEE_SCHEDULE_BULK');
@@ -597,7 +607,9 @@ describe('AutoInvoiceService.listRuns / getRunById', () => {
   });
 
   it('listRuns without filters returns all', async () => {
-    const { tenantPrisma } = makeFake({ rowsForRunList: [sampleRun, { ...sampleRun, id: 'run-2' }] });
+    const { tenantPrisma } = makeFake({
+      rowsForRunList: [sampleRun, { ...sampleRun, id: 'run-2' }],
+    });
     const svc = new AutoInvoiceService(tenantPrisma as never);
     let rows: Array<{ id: string }> = [];
     await inTenant(async () => {
@@ -669,7 +681,9 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
         c.sql.toLowerCase().includes("update pay_invoice_generation_runs set status = 'failed'"),
     );
     expect(failedUpdate).toBeTruthy();
-    expect(failedUpdate!.args.find((a) => typeof a === 'string' && /fee schedule.*not found/i.test(a))).toBeTruthy();
+    expect(
+      failedUpdate!.args.find((a) => typeof a === 'string' && /fee schedule.*not found/i.test(a)),
+    ).toBeTruthy();
   });
 
   it('applies_to_student_ids array branch (filters by ANY)', async () => {
@@ -758,9 +772,7 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
     const { tenantPrisma, capture } = makeFake({
       rowsForFeeSchedule: [sampleFeeSchedule],
       rowsForStudents: [{ id: 'stu-maya', grade_level: '9' }],
-      rowsForFamilyAccountByStudent: new Map([
-        ['stu-maya', [{ family_account_id: 'fa-1' }]],
-      ]),
+      rowsForFamilyAccountByStudent: new Map([['stu-maya', [{ family_account_id: 'fa-1' }]]]),
       rowsForExistingByFamily: new Map([['fa-1', 1]]),
       rowsForRunByIdSeq: [[sampleRun]],
     });
@@ -786,9 +798,7 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
       rowsForRuleById: [sampleRule],
       rowsForFeeSchedule: [sampleFeeSchedule],
       rowsForStudents: [{ id: 'stu-maya', grade_level: '9' }],
-      rowsForFamilyAccountByStudent: new Map([
-        ['stu-maya', [{ family_account_id: 'fa-1' }]],
-      ]),
+      rowsForFamilyAccountByStudent: new Map([['stu-maya', [{ family_account_id: 'fa-1' }]]]),
       rowsForExistingByFamily: new Map([['fa-1', 0]]),
       rowsForSiblingCount: new Map([['fa-1', 1]]),
       rowsForDiscountRules: [],
@@ -831,9 +841,7 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
     const { tenantPrisma, capture } = makeFake({
       rowsForFeeSchedule: [sampleFeeSchedule],
       rowsForStudents: [{ id: 'stu-maya', grade_level: '9' }],
-      rowsForFamilyAccountByStudent: new Map([
-        ['stu-maya', [{ family_account_id: 'fa-1' }]],
-      ]),
+      rowsForFamilyAccountByStudent: new Map([['stu-maya', [{ family_account_id: 'fa-1' }]]]),
       rowsForExistingByFamily: new Map([['fa-1', 0]]),
       rowsForSiblingCount: new Map([['fa-1', 2]]), // 2 siblings → discount applies
       rowsForDiscountRules: [siblingRule],
@@ -868,9 +876,7 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
     const { tenantPrisma, capture } = makeFake({
       rowsForFeeSchedule: [sampleFeeSchedule],
       rowsForStudents: [{ id: 'stu-maya', grade_level: '9' }],
-      rowsForFamilyAccountByStudent: new Map([
-        ['stu-maya', [{ family_account_id: 'fa-1' }]],
-      ]),
+      rowsForFamilyAccountByStudent: new Map([['stu-maya', [{ family_account_id: 'fa-1' }]]]),
       rowsForExistingByFamily: new Map([['fa-1', 0]]),
       rowsForSiblingCount: new Map([['fa-1', 1]]), // 1 student only → no discount
       rowsForDiscountRules: [siblingRule],
@@ -899,9 +905,7 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
     const { tenantPrisma, capture } = makeFake({
       rowsForFeeSchedule: [sampleFeeSchedule],
       rowsForStudents: [{ id: 'stu-maya', grade_level: '9' }],
-      rowsForFamilyAccountByStudent: new Map([
-        ['stu-maya', [{ family_account_id: 'fa-1' }]],
-      ]),
+      rowsForFamilyAccountByStudent: new Map([['stu-maya', [{ family_account_id: 'fa-1' }]]]),
       rowsForExistingByFamily: new Map([['fa-1', 0]]),
       rowsForSiblingCount: new Map([['fa-1', 2]]),
       rowsForDiscountRules: [siblingRule],
@@ -931,9 +935,7 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
     const { tenantPrisma, capture } = makeFake({
       rowsForFeeSchedule: [sampleFeeSchedule],
       rowsForStudents: [{ id: 'stu-maya', grade_level: '9' }],
-      rowsForFamilyAccountByStudent: new Map([
-        ['stu-maya', [{ family_account_id: 'fa-1' }]],
-      ]),
+      rowsForFamilyAccountByStudent: new Map([['stu-maya', [{ family_account_id: 'fa-1' }]]]),
       rowsForExistingByFamily: new Map([['fa-1', 0]]),
       rowsForSiblingCount: new Map([['fa-1', 1]]),
       rowsForDiscountRules: [epRule],
@@ -963,9 +965,7 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
     const { tenantPrisma, capture } = makeFake({
       rowsForFeeSchedule: [sampleFeeSchedule],
       rowsForStudents: [{ id: 'stu-maya', grade_level: '9' }],
-      rowsForFamilyAccountByStudent: new Map([
-        ['stu-maya', [{ family_account_id: 'fa-1' }]],
-      ]),
+      rowsForFamilyAccountByStudent: new Map([['stu-maya', [{ family_account_id: 'fa-1' }]]]),
       rowsForExistingByFamily: new Map([['fa-1', 0]]),
       rowsForSiblingCount: new Map([['fa-1', 1]]),
       rowsForDiscountRules: [epRule],
@@ -995,9 +995,7 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
     const { tenantPrisma, capture } = makeFake({
       rowsForFeeSchedule: [sampleFeeSchedule],
       rowsForStudents: [{ id: 'stu-maya', grade_level: '9' }],
-      rowsForFamilyAccountByStudent: new Map([
-        ['stu-maya', [{ family_account_id: 'fa-1' }]],
-      ]),
+      rowsForFamilyAccountByStudent: new Map([['stu-maya', [{ family_account_id: 'fa-1' }]]]),
       rowsForExistingByFamily: new Map([['fa-1', 0]]),
       rowsForSiblingCount: new Map([['fa-1', 1]]),
       rowsForDiscountRules: [epRule],
@@ -1026,9 +1024,7 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
     const { tenantPrisma, capture } = makeFake({
       rowsForFeeSchedule: [sampleFeeSchedule],
       rowsForStudents: [{ id: 'stu-maya', grade_level: '9' }],
-      rowsForFamilyAccountByStudent: new Map([
-        ['stu-maya', [{ family_account_id: 'fa-1' }]],
-      ]),
+      rowsForFamilyAccountByStudent: new Map([['stu-maya', [{ family_account_id: 'fa-1' }]]]),
       rowsForExistingByFamily: new Map([['fa-1', 0]]),
       rowsForSiblingCount: new Map([['fa-1', 1]]),
       rowsForDiscountRules: [epRule],
@@ -1057,9 +1053,7 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
     const { tenantPrisma, capture } = makeFake({
       rowsForFeeSchedule: [sampleFeeSchedule],
       rowsForStudents: [{ id: 'stu-maya', grade_level: '9' }],
-      rowsForFamilyAccountByStudent: new Map([
-        ['stu-maya', [{ family_account_id: 'fa-1' }]],
-      ]),
+      rowsForFamilyAccountByStudent: new Map([['stu-maya', [{ family_account_id: 'fa-1' }]]]),
       rowsForExistingByFamily: new Map([['fa-1', 0]]),
       rowsForSiblingCount: new Map([['fa-1', 1]]),
       rowsForDiscountRules: [matchRule],
@@ -1108,9 +1102,7 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
     const opts = {
       rowsForFeeSchedule: [sampleFeeSchedule],
       rowsForStudents: [{ id: 'stu-maya', grade_level: '9' }],
-      rowsForFamilyAccountByStudent: new Map([
-        ['stu-maya', [{ family_account_id: 'fa-1' }]],
-      ]),
+      rowsForFamilyAccountByStudent: new Map([['stu-maya', [{ family_account_id: 'fa-1' }]]]),
       rowsForExistingByFamily: new Map([['fa-1', 0]]),
       rowsForSiblingCount: new Map([['fa-1', 1]]),
       rowsForDiscountRules: [],
@@ -1121,12 +1113,16 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
         const s = sql.toLowerCase();
         if (s.includes('from pay_fee_schedules where school_id')) return opts.rowsForFeeSchedule;
         if (s.includes('from sis_students s')) return opts.rowsForStudents;
-        if (s.includes('from pay_family_account_students fas') && s.includes('join pay_family_accounts')) {
+        if (
+          s.includes('from pay_family_account_students fas') &&
+          s.includes('join pay_family_accounts')
+        ) {
           return opts.rowsForFamilyAccountByStudent.get(String(args[0])) ?? [];
         }
         if (s.includes('from pay_discount_rules')) return opts.rowsForDiscountRules;
         if (s.includes('from pay_invoices i join pay_invoice_line_items')) return [{ c: 0 }];
-        if (s.includes('count(*)::int as c from pay_family_account_students fas')) return [{ c: 1 }];
+        if (s.includes('count(*)::int as c from pay_family_account_students fas'))
+          return [{ c: 1 }];
         if (s.includes('from pay_invoice_generation_runs r') && s.includes('and r.id =')) {
           return opts.rowsForRunByIdSeq[0] ?? [];
         }
@@ -1148,8 +1144,8 @@ describe('AutoInvoiceService.runGeneration (via generateFromFeeSchedule)', () =>
     await inTenant(async () => {
       await svc.generateFromFeeSchedule('fs-1', null, adminActor);
     });
-    const completedUpdate = capture.find(
-      (c) => c.sql.toLowerCase().includes("update pay_invoice_generation_runs set status = 'completed'"),
+    const completedUpdate = capture.find((c) =>
+      c.sql.toLowerCase().includes("update pay_invoice_generation_runs set status = 'completed'"),
     );
     expect(completedUpdate).toBeTruthy();
     // $5 = invoices_failed

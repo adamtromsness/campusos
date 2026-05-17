@@ -86,7 +86,10 @@ function makeFake(opts: FakeOpts = {}) {
     $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
       capture.push({ sql, args, fn: 'e' });
       const s = sql.toLowerCase();
-      if (s.startsWith('insert into pay_invoice_line_items') || s.startsWith('update pay_invoices set total_amount')) {
+      if (
+        s.startsWith('insert into pay_invoice_line_items') ||
+        s.startsWith('update pay_invoices set total_amount')
+      ) {
         if (opts.insertLineItemFail) {
           const matchInvoice = opts.insertLineItemFail.onInvoiceId;
           // args[1] is invoice id for insert, args[0] for update
@@ -166,7 +169,13 @@ describe('LateFeeService.getPolicy', () => {
   it('returns DTO when policy exists', async () => {
     const { tenantPrisma } = makeFake({ rowsForPolicy: [samplePolicy] });
     const svc = new LateFeeService(tenantPrisma as never);
-    let result: { isActive: boolean; gracePeriodDays: number; feeAmount: number | null; feePercentage: number | null; maxLateFeeAmount: number | null } | null = null;
+    let result: {
+      isActive: boolean;
+      gracePeriodDays: number;
+      feeAmount: number | null;
+      feePercentage: number | null;
+      maxLateFeeAmount: number | null;
+    } | null = null;
     await inTenant(async () => {
       result = await svc.getPolicy(adminActor);
     });
@@ -193,9 +202,9 @@ describe('LateFeeService.upsertPolicy', () => {
     const { tenantPrisma } = makeFake();
     const svc = new LateFeeService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(
-        svc.upsertPolicy({ feeType: 'FIXED' } as never, adminActor),
-      ).rejects.toThrow(/feeAmount is required for FIXED feeType/);
+      await expect(svc.upsertPolicy({ feeType: 'FIXED' } as never, adminActor)).rejects.toThrow(
+        /feeAmount is required for FIXED feeType/,
+      );
     });
   });
 
@@ -239,9 +248,13 @@ describe('LateFeeService.upsertPolicy', () => {
                 if (readN === 1) return [];
                 return [samplePolicy];
               }
-              return (raw as { $queryRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown> }).$queryRawUnsafe(sql, ...args);
+              return (
+                raw as { $queryRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown> }
+              ).$queryRawUnsafe(sql, ...args);
             },
-            $executeRawUnsafe: (raw as { $executeRawUnsafe: (sql: string, ...args: unknown[]) => Promise<number> }).$executeRawUnsafe,
+            $executeRawUnsafe: (
+              raw as { $executeRawUnsafe: (sql: string, ...args: unknown[]) => Promise<number> }
+            ).$executeRawUnsafe,
           };
           return fn(wrapped);
         });
@@ -253,7 +266,9 @@ describe('LateFeeService.upsertPolicy', () => {
     await inTenant(async () => {
       await svc.upsertPolicy({ feeType: 'FIXED', feeAmount: 25 } as never, adminActor);
     });
-    const insert = cap2.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_late_payment_policies'));
+    const insert = cap2.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_late_payment_policies'),
+    );
     expect(insert).toBeTruthy();
     // Default isActive=false + gracePeriodDays=7
     expect(insert!.args).toContain(false);
@@ -275,9 +290,13 @@ describe('LateFeeService.upsertPolicy', () => {
                 readN++;
                 return [samplePolicy];
               }
-              return (raw as { $queryRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown> }).$queryRawUnsafe(sql, ...args);
+              return (
+                raw as { $queryRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown> }
+              ).$queryRawUnsafe(sql, ...args);
             },
-            $executeRawUnsafe: (raw as { $executeRawUnsafe: (sql: string, ...args: unknown[]) => Promise<number> }).$executeRawUnsafe,
+            $executeRawUnsafe: (
+              raw as { $executeRawUnsafe: (sql: string, ...args: unknown[]) => Promise<number> }
+            ).$executeRawUnsafe,
           };
           return fn(wrapped);
         });
@@ -292,7 +311,9 @@ describe('LateFeeService.upsertPolicy', () => {
         adminActor,
       );
     });
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_late_payment_policies'));
+    const update = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_late_payment_policies'),
+    );
     expect(update).toBeTruthy();
     // COALESCE($2, is_active) means we pass null when isActive omitted
     expect(update!.args[1]).toBeNull(); // isActive omitted
@@ -320,7 +341,12 @@ describe('LateFeeService.runScan', () => {
     await inTenant(async () => {
       r = await svc.runScan(adminActor);
     });
-    expect(r).toEqual({ invoicesEvaluated: 0, lateFeesApplied: 0, invoicesSkipped: 0, totalLateFeeAmount: 0 });
+    expect(r).toEqual({
+      invoicesEvaluated: 0,
+      lateFeesApplied: 0,
+      invoicesSkipped: 0,
+      totalLateFeeAmount: 0,
+    });
   });
 
   it('returns zero scan result when policy inactive', async () => {
@@ -332,7 +358,12 @@ describe('LateFeeService.runScan', () => {
     await inTenant(async () => {
       r = await svc.runScan(adminActor);
     });
-    expect(r).toEqual({ invoicesEvaluated: 0, lateFeesApplied: 0, invoicesSkipped: 0, totalLateFeeAmount: 0 });
+    expect(r).toEqual({
+      invoicesEvaluated: 0,
+      lateFeesApplied: 0,
+      invoicesSkipped: 0,
+      totalLateFeeAmount: 0,
+    });
   });
 
   it('returns zero when no overdue invoices match', async () => {
@@ -345,15 +376,18 @@ describe('LateFeeService.runScan', () => {
     await inTenant(async () => {
       r = await svc.runScan(adminActor);
     });
-    expect(r).toEqual({ invoicesEvaluated: 0, lateFeesApplied: 0, invoicesSkipped: 0, totalLateFeeAmount: 0 });
+    expect(r).toEqual({
+      invoicesEvaluated: 0,
+      lateFeesApplied: 0,
+      invoicesSkipped: 0,
+      totalLateFeeAmount: 0,
+    });
   });
 
   it('FIXED happy path applies fee + flips OVERDUE', async () => {
     const { tenantPrisma, capture } = makeFake({
       rowsForPolicy: [samplePolicy],
-      rowsForOverdue: [
-        { id: 'inv-1', total_amount: '400.00', due_date: '2026-03-01' },
-      ],
+      rowsForOverdue: [{ id: 'inv-1', total_amount: '400.00', due_date: '2026-03-01' }],
       rowsForExistsByInvoice: new Map([['inv-1', 0]]),
       rowsForSortByInvoice: new Map([['inv-1', 0]]),
     });
@@ -368,12 +402,16 @@ describe('LateFeeService.runScan', () => {
       invoicesSkipped: 0,
       totalLateFeeAmount: 25,
     });
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('insert into pay_invoice_line_items'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('insert into pay_invoice_line_items'),
+    );
     expect(insert).toBeTruthy();
     // INSERT positional: (id, invoice_id, description, fee_amount, sort_order)
     expect(insert!.args[2]).toContain('Late fee — auto-applied ($25.00 fixed)');
     expect(insert!.args[3]).toBe('25.00');
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith("update pay_invoices set total_amount"));
+    const update = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_invoices set total_amount'),
+    );
     expect(update).toBeTruthy();
   });
 
@@ -389,9 +427,7 @@ describe('LateFeeService.runScan', () => {
     const past = new Date(Date.now() - 65 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const { tenantPrisma, capture } = makeFake({
       rowsForPolicy: [pctPolicy],
-      rowsForOverdue: [
-        { id: 'inv-2', total_amount: '1000.00', due_date: past },
-      ],
+      rowsForOverdue: [{ id: 'inv-2', total_amount: '1000.00', due_date: past }],
       rowsForExistsByInvoice: new Map([['inv-2', 0]]),
       rowsForSortByInvoice: new Map([['inv-2', 0]]),
     });
@@ -403,7 +439,9 @@ describe('LateFeeService.runScan', () => {
     // 1000 * 0.015 * ceil(65/30) = 1000 * 0.015 * 3 = 45
     expect(r?.lateFeesApplied).toBe(1);
     expect(r?.totalLateFeeAmount).toBe(45);
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('insert into pay_invoice_line_items'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('insert into pay_invoice_line_items'),
+    );
     expect(insert!.args[2]).toContain('monthly %');
     expect(insert!.args[3]).toBe('45.00');
   });
@@ -419,9 +457,7 @@ describe('LateFeeService.runScan', () => {
     const past = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const { tenantPrisma } = makeFake({
       rowsForPolicy: [cappedPolicy],
-      rowsForOverdue: [
-        { id: 'inv-3', total_amount: '1000.00', due_date: past },
-      ],
+      rowsForOverdue: [{ id: 'inv-3', total_amount: '1000.00', due_date: past }],
       rowsForExistsByInvoice: new Map([['inv-3', 0]]),
       rowsForSortByInvoice: new Map([['inv-3', 0]]),
     });
@@ -444,9 +480,7 @@ describe('LateFeeService.runScan', () => {
     const past = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const { tenantPrisma } = makeFake({
       rowsForPolicy: [zeroPctPolicy],
-      rowsForOverdue: [
-        { id: 'inv-z', total_amount: '500.00', due_date: past },
-      ],
+      rowsForOverdue: [{ id: 'inv-z', total_amount: '500.00', due_date: past }],
     });
     const svc = new LateFeeService(tenantPrisma as never);
     let r;
@@ -469,9 +503,7 @@ describe('LateFeeService.runScan', () => {
     };
     const { tenantPrisma } = makeFake({
       rowsForPolicy: [badPolicy],
-      rowsForOverdue: [
-        { id: 'inv-4', total_amount: '400.00', due_date: '2026-03-01' },
-      ],
+      rowsForOverdue: [{ id: 'inv-4', total_amount: '400.00', due_date: '2026-03-01' }],
     });
     const svc = new LateFeeService(tenantPrisma as never);
     let r;
@@ -485,9 +517,7 @@ describe('LateFeeService.runScan', () => {
   it('skips invoice that gets a concurrent late-fee row (in-tx existsRows recheck)', async () => {
     const { tenantPrisma, capture } = makeFake({
       rowsForPolicy: [samplePolicy],
-      rowsForOverdue: [
-        { id: 'inv-5', total_amount: '400.00', due_date: '2026-03-01' },
-      ],
+      rowsForOverdue: [{ id: 'inv-5', total_amount: '400.00', due_date: '2026-03-01' }],
       rowsForExistsByInvoice: new Map([['inv-5', 1]]), // concurrent late-fee already exists
     });
     const svc = new LateFeeService(tenantPrisma as never);
@@ -499,9 +529,13 @@ describe('LateFeeService.runScan', () => {
     // is not bumped. (The `applied` counter still increments because
     // the tx succeeded — that's by service design, the counter tracks
     // "invoices processed", not "rows inserted".)
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('insert into pay_invoice_line_items'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('insert into pay_invoice_line_items'),
+    );
     expect(insert).toBeUndefined();
-    const totalUpdate = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('update pay_invoices set total_amount'));
+    const totalUpdate = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('update pay_invoices set total_amount'),
+    );
     expect(totalUpdate).toBeUndefined();
   });
 
@@ -512,8 +546,14 @@ describe('LateFeeService.runScan', () => {
         { id: 'inv-fail', total_amount: '400.00', due_date: '2026-03-01' },
         { id: 'inv-ok', total_amount: '300.00', due_date: '2026-03-01' },
       ],
-      rowsForExistsByInvoice: new Map([['inv-fail', 0], ['inv-ok', 0]]),
-      rowsForSortByInvoice: new Map([['inv-fail', 0], ['inv-ok', 0]]),
+      rowsForExistsByInvoice: new Map([
+        ['inv-fail', 0],
+        ['inv-ok', 0],
+      ]),
+      rowsForSortByInvoice: new Map([
+        ['inv-fail', 0],
+        ['inv-ok', 0],
+      ]),
       insertLineItemFail: { onInvoiceId: 'inv-fail', message: 'simulated DB failure' },
     });
     const svc = new LateFeeService(tenantPrisma as never);
@@ -542,8 +582,14 @@ describe('LateFeeService.runScan', () => {
         { id: 'inv-r1', total_amount: '100.00', due_date: past }, // ~3.33
         { id: 'inv-r2', total_amount: '200.00', due_date: past }, // ~6.66
       ],
-      rowsForExistsByInvoice: new Map([['inv-r1', 0], ['inv-r2', 0]]),
-      rowsForSortByInvoice: new Map([['inv-r1', 0], ['inv-r2', 0]]),
+      rowsForExistsByInvoice: new Map([
+        ['inv-r1', 0],
+        ['inv-r2', 0],
+      ]),
+      rowsForSortByInvoice: new Map([
+        ['inv-r1', 0],
+        ['inv-r2', 0],
+      ]),
     });
     const svc = new LateFeeService(tenantPrisma as never);
     let r;

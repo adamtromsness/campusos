@@ -491,8 +491,7 @@ describe('PayrollService.processPeriod — gap fill', () => {
 
   it('refuses APPROVED period with BadRequest mentioning the current status', async () => {
     const fake = makeFake((c) => {
-      if (c.sql.toLowerCase().includes('for update'))
-        return [{ id: 'pp-1', status: 'APPROVED' }];
+      if (c.sql.toLowerCase().includes('for update')) return [{ id: 'pp-1', status: 'APPROVED' }];
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
@@ -534,8 +533,7 @@ describe('PayrollService.processPeriod — gap fill', () => {
     // No INSERT into hr_payroll_records fired since scale was null
     expect(
       fake.capture.find(
-        (c) =>
-          c.fn === 'q' && c.sql.toLowerCase().includes('insert into hr_payroll_records'),
+        (c) => c.fn === 'q' && c.sql.toLowerCase().includes('insert into hr_payroll_records'),
       ),
     ).toBeUndefined();
   });
@@ -558,7 +556,9 @@ describe('PayrollService.processPeriod — gap fill', () => {
       svc.processPeriod('pp-1', { employeeIds: ['emp-A', 'emp-B'] }, ADMIN_ACTOR),
     );
     const empQuery = fake.capture.find(
-      (c) => c.sql.toLowerCase().includes('from hr_employees') && c.sql.toLowerCase().includes('order by e.id'),
+      (c) =>
+        c.sql.toLowerCase().includes('from hr_employees') &&
+        c.sql.toLowerCase().includes('order by e.id'),
     );
     expect(empQuery).toBeTruthy();
     expect(empQuery!.sql.toLowerCase()).toContain('any($2::uuid[])');
@@ -582,9 +582,7 @@ describe('PayrollService.processPeriod — gap fill', () => {
     await runWithTenantContext({ tenant: SCHOOL }, async () =>
       svc.processPeriod('pp-1', {}, ADMIN_ACTOR),
     );
-    const empQuery = fake.capture.find((c) =>
-      c.sql.toLowerCase().includes('from hr_employees'),
-    );
+    const empQuery = fake.capture.find((c) => c.sql.toLowerCase().includes('from hr_employees'));
     expect(empQuery!.sql.toLowerCase()).toContain("employment_status = 'active'");
   });
 
@@ -606,8 +604,7 @@ describe('PayrollService.processPeriod — gap fill', () => {
       svc.processPeriod('pp-1', {}, ADMIN_ACTOR),
     );
     const updateCall = fake.capture.find(
-      (c) =>
-        c.fn === 'e' && c.sql.toLowerCase().includes('update hr_pay_periods set status = $1'),
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('update hr_pay_periods set status = $1'),
     );
     expect(updateCall).toBeTruthy();
     expect(updateCall!.args).toEqual([
@@ -641,8 +638,7 @@ describe('PayrollService.processPeriod — gap fill', () => {
         ];
       if (sql.includes('from hr_employee_positions ep'))
         return [{ employee_id: 'emp-A', salary_scale_id: 'sc-1', annual_salary: '52000' }];
-      if (sql.includes('insert into hr_payroll_records'))
-        return [{ id: 'rec-new' }]; // inserted
+      if (sql.includes('insert into hr_payroll_records')) return [{ id: 'rec-new' }]; // inserted
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
@@ -751,9 +747,7 @@ describe('PayrollService.approvePeriod', () => {
       outbox as never,
     );
     await expect(
-      runWithTenantContext({ tenant: SCHOOL }, async () =>
-        svc.approvePeriod('pp-1', ADMIN_ACTOR),
-      ),
+      runWithTenantContext({ tenant: SCHOOL }, async () => svc.approvePeriod('pp-1', ADMIN_ACTOR)),
     ).rejects.toThrow(/Only PROCESSING periods can be approved/);
   });
 
@@ -801,9 +795,7 @@ describe('PayrollService.markPaid — gap fill', () => {
       outbox as never,
     );
     await expect(
-      runWithTenantContext({ tenant: SCHOOL }, async () =>
-        svc.markPaid('pp-1', STAFF_EMPLOYEE),
-      ),
+      runWithTenantContext({ tenant: SCHOOL }, async () => svc.markPaid('pp-1', STAFF_EMPLOYEE)),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(fake.capture.find((c) => c.fn === 'e')).toBeUndefined();
   });
@@ -818,9 +810,7 @@ describe('PayrollService.markPaid — gap fill', () => {
       outbox as never,
     );
     await expect(
-      runWithTenantContext({ tenant: SCHOOL }, async () =>
-        svc.markPaid('pp-missing', ADMIN_ACTOR),
-      ),
+      runWithTenantContext({ tenant: SCHOOL }, async () => svc.markPaid('pp-missing', ADMIN_ACTOR)),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -837,9 +827,7 @@ describe('PayrollService.markPaid — gap fill', () => {
       outbox as never,
     );
     await expect(
-      runWithTenantContext({ tenant: SCHOOL }, async () =>
-        svc.markPaid('pp-1', ADMIN_ACTOR),
-      ),
+      runWithTenantContext({ tenant: SCHOOL }, async () => svc.markPaid('pp-1', ADMIN_ACTOR)),
     ).rejects.toThrow(/Only PROCESSING periods can be marked PAID/);
   });
 
@@ -849,8 +837,7 @@ describe('PayrollService.markPaid — gap fill', () => {
       if (sql.includes('for update')) return [{ id: 'pp-1', status: 'PROCESSING' }];
       if (sql.includes('count(*)::int as n')) return [{ n: 0 }];
       if (sql.includes('from hr_payroll_records r')) return []; // 0 records
-      if (sql.includes('from hr_pay_periods'))
-        return [periodRow({ id: 'pp-1', status: 'PAID' })];
+      if (sql.includes('from hr_pay_periods')) return [periodRow({ id: 'pp-1', status: 'PAID' })];
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
@@ -880,10 +867,7 @@ describe('PayrollService.markPaid — gap fill', () => {
   });
 
   it('happy path with multiple records emits one outbox row per record with deterministic eventId', async () => {
-    const recIds = [
-      '019e0cf8-bbb8-7556-8c81-aaaaaaaaaaa1',
-      '019e0cf8-bbb8-7556-8c81-aaaaaaaaaaa2',
-    ];
+    const recIds = ['019e0cf8-bbb8-7556-8c81-aaaaaaaaaaa1', '019e0cf8-bbb8-7556-8c81-aaaaaaaaaaa2'];
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
       if (sql.includes('for update')) return [{ id: 'pp-1', status: 'PROCESSING' }];
@@ -901,8 +885,7 @@ describe('PayrollService.markPaid — gap fill', () => {
             is_pretax: false,
           },
         ];
-      if (sql.includes('from hr_pay_periods'))
-        return [periodRow({ id: 'pp-1', status: 'PAID' })];
+      if (sql.includes('from hr_pay_periods')) return [periodRow({ id: 'pp-1', status: 'PAID' })];
       return [];
     });
     const permissions = { hasAnyPermissionInTenant: async () => true };
@@ -912,20 +895,18 @@ describe('PayrollService.markPaid — gap fill', () => {
       permissions as never,
       outbox as never,
     );
-    await runWithTenantContext({ tenant: SCHOOL }, async () =>
-      svc.markPaid('pp-1', ADMIN_ACTOR),
-    );
+    await runWithTenantContext({ tenant: SCHOOL }, async () => svc.markPaid('pp-1', ADMIN_ACTOR));
     expect(enqueued).toHaveLength(2);
     expect(enqueued[0]!.topic).toBe('hr.payroll.processed');
     expect(enqueued[0]!.sourceModule).toBe('hr-payroll');
     expect(enqueued[0]!.eventId).toBe(deterministicPayrollEventId(recIds[0]!));
     expect(enqueued[1]!.eventId).toBe(deterministicPayrollEventId(recIds[1]!));
     // First record carries the FEDERAL_TAX deduction row
-    expect((enqueued[0]!.payload.deductions as any[])).toEqual([
+    expect(enqueued[0]!.payload.deductions as any[]).toEqual([
       { type: 'FEDERAL_TAX', amount: 400, isPretax: false },
     ]);
     // Second record has no deductions (we only seeded one matching row)
-    expect((enqueued[1]!.payload.deductions as any[])).toEqual([]);
+    expect(enqueued[1]!.payload.deductions as any[]).toEqual([]);
   });
 });
 
@@ -1110,9 +1091,7 @@ describe('PayrollService.listRecords', () => {
     expect(result).toEqual([]);
     // No follow-up deductions query
     expect(
-      fake.capture.find(
-        (c) => c.sql.toLowerCase().includes('from hr_payroll_deductions'),
-      ),
+      fake.capture.find((c) => c.sql.toLowerCase().includes('from hr_payroll_deductions')),
     ).toBeUndefined();
   });
 });
@@ -1132,11 +1111,13 @@ describe('PayrollService.getRecord', () => {
       outbox as never,
     );
     await expect(
-      runWithTenantContext({ tenant: SCHOOL }, async () => svc.getRecord('rec-missing', ADMIN_ACTOR)),
+      runWithTenantContext({ tenant: SCHOOL }, async () =>
+        svc.getRecord('rec-missing', ADMIN_ACTOR),
+      ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('non-admin reading another employee\'s record gets 404 don\'t-leak-existence', async () => {
+  it("non-admin reading another employee's record gets 404 don't-leak-existence", async () => {
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
       if (sql.includes('from hr_payroll_records r'))
@@ -1531,8 +1512,7 @@ describe('PayrollService.materialiseRecord — tax + deduction calc paths', () =
     // No deduction inserts since the record claim was lost
     expect(
       fake.capture.find(
-        (c) =>
-          c.fn === 'e' && c.sql.toLowerCase().includes('insert into hr_payroll_deductions'),
+        (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into hr_payroll_deductions'),
       ),
     ).toBeUndefined();
   });
@@ -1560,8 +1540,7 @@ describe('DTO mappers — status enum guards', () => {
   it('listRecords throws ConflictException on unexpected record status', async () => {
     const fake = makeFake((c) => {
       const sql = c.sql.toLowerCase();
-      if (sql.includes('from hr_payroll_records r'))
-        return [recordRow({ status: 'BOGUS_STATUS' })];
+      if (sql.includes('from hr_payroll_records r')) return [recordRow({ status: 'BOGUS_STATUS' })];
       if (sql.includes('from hr_payroll_deductions')) return [];
       return [];
     });

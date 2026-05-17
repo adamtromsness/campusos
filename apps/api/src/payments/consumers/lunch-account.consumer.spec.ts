@@ -26,9 +26,17 @@ interface ConsumedMessage {
 }
 
 function makeConsumerHarness() {
-  let subscribed: { topics: string[]; groupId: string; handler: (m: ConsumedMessage) => Promise<void> } | null = null;
+  let subscribed: {
+    topics: string[];
+    groupId: string;
+    handler: (m: ConsumedMessage) => Promise<void>;
+  } | null = null;
   const consumer = {
-    subscribe: async (args: { topics: string[]; groupId: string; handler: (m: ConsumedMessage) => Promise<void> }) => {
+    subscribe: async (args: {
+      topics: string[];
+      groupId: string;
+      handler: (m: ConsumedMessage) => Promise<void>;
+    }) => {
       subscribed = args;
     },
   };
@@ -181,7 +189,9 @@ describe('LunchAccountConsumer.handle (via onModuleInit subscription)', () => {
     await c.onModuleInit();
     const msg: ConsumedMessage = {
       topic: 'dev.fds.meal.served',
-      payload: { payload: { studentId: 'stu', schoolId: 'sch-1', mealDate: '2026-04-28', amount: 3 } },
+      payload: {
+        payload: { studentId: 'stu', schoolId: 'sch-1', mealDate: '2026-04-28', amount: 3 },
+      },
       headers: { 'tenant-subdomain': 'demo' }, // no event-id header either
     };
     await getSubscription()!.handler(msg);

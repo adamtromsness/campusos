@@ -133,8 +133,16 @@ export class InspectionService {
   }
 
   async getById(id: string): Promise<InspectionResponseDto> {
+    // P2-H5 DEFECT 1e fix: bind the school predicate so a foreign-school
+    // inspection id resolves to NotFoundException at the loader instead of
+    // returning the row.
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(INSP_SELECT + 'WHERE i.id = $1::uuid LIMIT 1', id);
+      return client.$queryRawUnsafe(
+        INSP_SELECT + 'WHERE i.id = $1::uuid AND i.school_id = $2::uuid LIMIT 1',
+        id,
+        tenant.schoolId,
+      );
     })) as InspRow[];
     if (rows.length === 0) throw new NotFoundException('Inspection not found');
     return inspRowToDto(rows[0]!);
@@ -152,8 +160,30 @@ export class InspectionService {
     }
     const tenant = getCurrentTenant();
     const id = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    // P2-H5 DEFECT 1e fix: validate inspection_type_id and building_id belong
+    // to the current school inside the same tenant tx as the INSERT. Pre-fix
+    // a crafted cross-school type or building id could be paired with the
+    // attacker's school_id on the row.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const typeRows = (await tx.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM fac_inspection_types WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        input.inspectionTypeId,
+        tenant.schoolId,
+      )) as Array<{ ok: number }>;
+      if (typeRows.length === 0) {
+        throw new BadRequestException(
+          'inspectionTypeId does not match an inspection type in this school',
+        );
+      }
+      const buildingRows = (await tx.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM fac_buildings WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        input.buildingId,
+        tenant.schoolId,
+      )) as Array<{ ok: number }>;
+      if (buildingRows.length === 0) {
+        throw new BadRequestException('buildingId does not match a building in this school');
+      }
+      await tx.$executeRawUnsafe(
         'INSERT INTO fac_inspections (id, school_id, inspection_type_id, building_id, scheduled_date, conducted_date, inspector_name, inspector_agency, outcome, certificate_s3_key, next_due_date, notes, created_by) ' +
           'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::date, $6::date, $7, $8, $9, $10, $11::date, $12, $13::uuid)',
         id,
@@ -199,10 +229,17 @@ export class ViolationService {
   ) {}
 
   async listForInspection(inspectionId: string): Promise<ViolationResponseDto[]> {
+    // P2-H5 DEFECT 1e fix: JOIN through fac_inspections.school_id so a
+    // foreign-school inspectionId returns an empty list rather than surfacing
+    // foreign-school violations.
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        VIOL_SELECT + 'WHERE v.inspection_id = $1::uuid ORDER BY v.due_date',
+        VIOL_SELECT +
+          'JOIN fac_inspections i ON i.id = v.inspection_id ' +
+          'WHERE v.inspection_id = $1::uuid AND i.school_id = $2::uuid ORDER BY v.due_date',
         inspectionId,
+        tenant.schoolId,
       );
     })) as ViolRow[];
     return rows.map(violRowToDto);
@@ -235,9 +272,22 @@ export class ViolationService {
     actor: ResolvedActor,
   ): Promise<ViolationResponseDto> {
     await assertCanManage(actor, this.permCheck);
+    // P2-H5 DEFECT 1e fix: validate the parent inspection belongs to the
+    // calling school BEFORE the INSERT. The check runs inside the same tenant
+    // tx as the INSERT so a crafted cross-school inspectionId cannot pass
+    // and then have a violation attached.
+    const tenant = getCurrentTenant();
     const id = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const inspRows = (await tx.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM fac_inspections WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        inspectionId,
+        tenant.schoolId,
+      )) as Array<{ ok: number }>;
+      if (inspRows.length === 0) {
+        throw new NotFoundException('Inspection not found');
+      }
+      await tx.$executeRawUnsafe(
         'INSERT INTO fac_inspection_violations (id, inspection_id, description, severity, due_date) ' +
           'VALUES ($1::uuid, $2::uuid, $3, $4, $5::date)',
         id,
@@ -445,10 +495,21 @@ export class ZoneService {
     // calling tenant before insert. Schema soft FK is permissive by
     // design (cross-cycle audit trail) so the service is the gate.
     await assertEmployeeInCurrentTenant(this.tenantPrisma, input.employeeId);
+    // P2-H5 DEFECT 1e fix: validate the parent zone belongs to the calling
+    // school. The check runs inside the same tx as the INSERT.
+    const tenant = getCurrentTenant();
     const id = generateId();
     try {
-      await this.tenantPrisma.executeInTenantContext(async (client) => {
-        await client.$executeRawUnsafe(
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        const zoneRows = (await tx.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM fac_zones WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+          zoneId,
+          tenant.schoolId,
+        )) as Array<{ ok: number }>;
+        if (zoneRows.length === 0) {
+          throw new NotFoundException('Zone not found');
+        }
+        await tx.$executeRawUnsafe(
           'INSERT INTO fac_zone_assignments (id, zone_id, employee_id, effective_from, effective_to, shift, notes, created_by) ' +
             'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::date, $5::date, $6, $7, $8::uuid)',
           id,
@@ -493,21 +554,35 @@ export class ZoneService {
       throw new BadRequestException('Nothing to update');
     }
     sets.push('updated_at = now()');
+    // P2-H5 DEFECT 1e fix: UPDATE joins through fac_zones.school_id so a
+    // foreign-school assignment id silently no-ops. We additionally check the
+    // affected-row count to raise NotFoundException explicitly.
+    const tenant = getCurrentTenant();
     params.push(id);
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        'UPDATE fac_zone_assignments SET ' +
+    params.push(tenant.schoolId);
+    const affected = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$executeRawUnsafe(
+        'UPDATE fac_zone_assignments AS za SET ' +
           sets.join(', ') +
-          ' WHERE id = $' +
+          ' FROM fac_zones z ' +
+          ' WHERE za.id = $' +
+          (params.length - 1) +
+          '::uuid AND z.id = za.zone_id AND z.school_id = $' +
           params.length +
           '::uuid',
         ...params,
       );
-    });
+    })) as unknown as number;
+    if (affected === 0) {
+      throw new NotFoundException('Assignment not found');
+    }
     const zoneRow = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        'SELECT zone_id::text AS zone_id FROM fac_zone_assignments WHERE id = $1::uuid',
+        'SELECT za.zone_id::text AS zone_id FROM fac_zone_assignments za ' +
+          'JOIN fac_zones z ON z.id = za.zone_id ' +
+          'WHERE za.id = $1::uuid AND z.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
     })) as Array<{ zone_id: string }>;
     if (zoneRow.length === 0) throw new NotFoundException('Assignment not found');
@@ -586,6 +661,10 @@ export class SupplyService {
     actor: ResolvedActor,
   ): Promise<SupplyResponseDto> {
     await assertCanManage(actor, this.permCheck);
+    // P2-H5 DEFECT 1e fix: lock + UPDATE join through fac_buildings.school_id
+    // so a foreign-school supply id resolves to NotFoundException at the
+    // loader instead of letting a cross-school operator drive an adjustment.
+    const tenant = getCurrentTenant();
     let crossedBelow = false;
     let buildingId = '';
     let itemName = '';
@@ -593,8 +672,12 @@ export class SupplyService {
     let newQty = 0;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const before = (await tx.$queryRawUnsafe(
-        'SELECT id, building_id::text AS building_id, item_name, current_quantity, reorder_threshold FROM fac_supply_inventory WHERE id = $1::uuid FOR UPDATE',
+        'SELECT si.id, si.building_id::text AS building_id, si.item_name, si.current_quantity, si.reorder_threshold ' +
+          'FROM fac_supply_inventory si ' +
+          'JOIN fac_buildings b ON b.id = si.building_id ' +
+          'WHERE si.id = $1::uuid AND b.school_id = $2::uuid FOR UPDATE OF si',
         id,
+        tenant.schoolId,
       )) as Array<{
         id: string;
         building_id: string;
@@ -621,10 +704,13 @@ export class SupplyService {
         sets.push('last_restocked_at = now()');
       }
       params.push(id);
+      params.push(tenant.schoolId);
       await tx.$executeRawUnsafe(
-        'UPDATE fac_supply_inventory SET ' +
+        'UPDATE fac_supply_inventory AS si SET ' +
           sets.join(', ') +
-          ' WHERE id = $' +
+          ' FROM fac_buildings b WHERE si.id = $' +
+          (params.length - 1) +
+          '::uuid AND b.id = si.building_id AND b.school_id = $' +
           params.length +
           '::uuid',
         ...params,

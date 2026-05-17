@@ -27,7 +27,13 @@ const actor: ResolvedActor = {
 };
 
 const req = {
-  user: { sub: 'acc-admin', personId: 'pers-admin', email: 'a@b', displayName: 'A', sessionId: 's' },
+  user: {
+    sub: 'acc-admin',
+    personId: 'pers-admin',
+    email: 'a@b',
+    displayName: 'A',
+    sessionId: 's',
+  },
 } as never;
 
 function makeStubs() {

@@ -352,6 +352,34 @@ export class CustomFieldService {
     const tenant = getCurrentTenant();
 
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // P2-H5 DEFECT 1f fix: validate the target entity belongs to the
+      // calling school BEFORE any UPSERT. Pre-fix only the definition was
+      // school-scoped, so a current-school definition could attach values to
+      // a foreign-school entityId (the sis_custom_field_values table has no
+      // school_id column — the only guard is the entity's parent table).
+      const entityTable: Record<string, string> = {
+        STUDENT: 'sis_students',
+        STAFF: 'hr_employees',
+        GUARDIAN: 'sis_guardians',
+        CLASS: 'sis_classes',
+      };
+      const targetTable = entityTable[dto.entityType];
+      if (!targetTable) {
+        throw new BadRequestException('Unsupported entityType ' + dto.entityType);
+      }
+      const entityRows = (await tx.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM ' +
+          targetTable +
+          ' WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        dto.entityId,
+        tenant.schoolId,
+      )) as Array<{ ok: number }>;
+      if (entityRows.length === 0) {
+        throw new BadRequestException(
+          'entityId does not match a ' + dto.entityType + ' in this school',
+        );
+      }
+
       for (const v of dto.values) {
         const defRows = await tx.$queryRawUnsafe<DefinitionRow[]>(
           'SELECT id::text, school_id::text, entity_type, field_name, field_label, field_type, ' +

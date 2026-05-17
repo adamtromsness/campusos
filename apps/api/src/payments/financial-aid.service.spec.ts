@@ -91,7 +91,11 @@ function makeFake(opts: FakeOpts = {}) {
         return opts.rowsForExistingProgram ?? [];
       }
       // createApplication programme existence check (WHERE id, school_id)
-      if (s.includes('from pay_financial_aid_programs') && s.includes('where id =') && s.includes('school_id =')) {
+      if (
+        s.includes('from pay_financial_aid_programs') &&
+        s.includes('where id =') &&
+        s.includes('school_id =')
+      ) {
         return opts.rowsForCreateProgramLookup ?? [];
       }
       // Locked program in reviewApplication
@@ -111,7 +115,11 @@ function makeFake(opts: FakeOpts = {}) {
         return opts.rowsForListPrograms ?? [];
       }
       // Application by id with school + id predicates (and NOT FOR UPDATE)
-      if (s.includes('from pay_financial_aid_applications a') && s.includes('a.id = $2') && !s.includes('for update')) {
+      if (
+        s.includes('from pay_financial_aid_applications a') &&
+        s.includes('a.id = $2') &&
+        !s.includes('for update')
+      ) {
         if (opts.rowsForApplicationByIdSeq) {
           const r = opts.rowsForApplicationByIdSeq[appByIdIdx] ?? [];
           appByIdIdx++;
@@ -128,14 +136,22 @@ function makeFake(opts: FakeOpts = {}) {
       if (s.includes('select 1 from sis_guardians g where g.id =') && s.includes('union all')) {
         return opts.rowsForLinkageCheck ?? [];
       }
-      if (s.includes('from sis_students') && s.includes('where id =') && s.includes('school_id =')) {
+      if (
+        s.includes('from sis_students') &&
+        s.includes('where id =') &&
+        s.includes('school_id =')
+      ) {
         return opts.rowsForCreateStudentLookup ?? [];
       }
       if (s.includes('from sis_academic_years where id =') && s.includes('school_id =')) {
         return opts.rowsForCreateYearLookup ?? [];
       }
       // createApplication parent path: FROM sis_guardians g JOIN sis_student_guardians sg
-      if (s.includes('from sis_guardians g') && s.includes('join sis_student_guardians sg') && s.includes('school_id =')) {
+      if (
+        s.includes('from sis_guardians g') &&
+        s.includes('join sis_student_guardians sg') &&
+        s.includes('school_id =')
+      ) {
         return opts.rowsForCreateGuardianLookup ?? [];
       }
       // createApplication admin path: FROM sis_student_guardians sg ... school_id but no g.person_id
@@ -332,7 +348,9 @@ describe('FinancialAidService.listPrograms / getProgramById', () => {
     const unlimited = { ...sampleProgram, total_fund_amount: null, fund_remaining: null };
     const { tenantPrisma } = makeFake({ rowsForProgramById: [unlimited] });
     const svc = new FinancialAidService(tenantPrisma as never);
-    let dto: { id: string; totalFundAmount: number | null; fundRemaining: number | null } | undefined;
+    let dto:
+      | { id: string; totalFundAmount: number | null; fundRemaining: number | null }
+      | undefined;
     await inTenant(async () => {
       dto = await svc.getProgramById('prog-1');
     });
@@ -375,7 +393,9 @@ describe('FinancialAidService.createProgram', () => {
         adminActor,
       );
     });
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_financial_aid_programs'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_financial_aid_programs'),
+    );
     expect(insert).toBeTruthy();
     expect(insert!.args).toContain('Need-Based Aid');
     expect(insert!.args).toContain('PERCENTAGE');
@@ -398,7 +418,9 @@ describe('FinancialAidService.createProgram', () => {
         adminActor,
       );
     });
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_financial_aid_programs'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_financial_aid_programs'),
+    );
     expect(insert!.args).toContain(null); // totalFundAmount
   });
 
@@ -458,7 +480,9 @@ describe('FinancialAidService.updateProgram', () => {
     await inTenant(async () => {
       await svc.updateProgram('prog-1', {}, adminActor);
     });
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_programs'));
+    const update = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_programs'),
+    );
     expect(update).toBeUndefined();
   });
 
@@ -471,7 +495,9 @@ describe('FinancialAidService.updateProgram', () => {
     await inTenant(async () => {
       await svc.updateProgram('prog-1', { totalFundAmount: 70000 } as never, adminActor);
     });
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_programs'));
+    const update = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_programs'),
+    );
     expect(update).toBeTruthy();
     // delta = 70000 - 50000 = 20000 → newRemaining = 47750 + 20000 = 67750
     expect(update!.args).toContain('70000.00');
@@ -512,7 +538,9 @@ describe('FinancialAidService.updateProgram', () => {
         adminActor,
       );
     });
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_programs'));
+    const update = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_programs'),
+    );
     expect(update).toBeTruthy();
     expect(update!.sql).toContain('name = $1');
     expect(update!.sql).toContain('description = $2');
@@ -595,18 +623,22 @@ describe('FinancialAidService.getApplicationById', () => {
     const { tenantPrisma } = makeFake({ rowsForApplicationById: [] });
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(svc.getApplicationById('missing', adminActor)).rejects.toThrow(NotFoundException);
+      await expect(svc.getApplicationById('missing', adminActor)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
-  it('guardian unlinked gets 404 don\'t-leak-existence', async () => {
+  it("guardian unlinked gets 404 don't-leak-existence", async () => {
     const { tenantPrisma } = makeFake({
       rowsForApplicationById: [sampleApplication],
       rowsForLinkageCheck: [],
     });
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(svc.getApplicationById('app-1', guardianActor)).rejects.toThrow(NotFoundException);
+      await expect(svc.getApplicationById('app-1', guardianActor)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -626,14 +658,19 @@ describe('FinancialAidService.getApplicationById', () => {
     const { tenantPrisma } = makeFake({ rowsForApplicationById: [sampleApplication] });
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(svc.getApplicationById('app-1', studentActor)).rejects.toThrow(NotFoundException);
+      await expect(svc.getApplicationById('app-1', studentActor)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   it('supportingDocuments JSON string parsed', async () => {
     const { tenantPrisma } = makeFake({
       rowsForApplicationById: [
-        { ...sampleApplication, supporting_documents: JSON.stringify([{ s3Key: 's3://y', label: 'Tax' }]) },
+        {
+          ...sampleApplication,
+          supporting_documents: JSON.stringify([{ s3Key: 's3://y', label: 'Tax' }]),
+        },
       ],
     });
     const svc = new FinancialAidService(tenantPrisma as never);
@@ -830,7 +867,10 @@ describe('FinancialAidService.createApplication', () => {
         guardianActor,
       );
     });
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_financial_aid_applications'));
+    const insert = capture.find(
+      (c) =>
+        c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_financial_aid_applications'),
+    );
     expect(insert).toBeTruthy();
     expect(insert!.sql.toLowerCase()).toContain('null)'); // submittedAt = NULL
     expect(insert!.args).toContain('DRAFT');
@@ -857,7 +897,10 @@ describe('FinancialAidService.createApplication', () => {
         guardianActor,
       );
     });
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_financial_aid_applications'));
+    const insert = capture.find(
+      (c) =>
+        c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_financial_aid_applications'),
+    );
     expect(insert!.sql.toLowerCase()).toContain('now()');
     expect(insert!.args).toContain('SUBMITTED');
   });
@@ -883,7 +926,10 @@ describe('FinancialAidService.createApplication', () => {
         guardianActor,
       );
     });
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_financial_aid_applications'));
+    const insert = capture.find(
+      (c) =>
+        c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_financial_aid_applications'),
+    );
     expect(insert!.args).toContain(JSON.stringify([{ s3Key: 's3://x', label: 'W-2' }]));
   });
 });
@@ -911,7 +957,10 @@ describe('FinancialAidService.updateApplication', () => {
     await inTenant(async () => {
       await svc.updateApplication('app-1', {}, guardianActor);
     });
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_applications'));
+    const update = capture.find(
+      (c) =>
+        c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_applications'),
+    );
     expect(update).toBeUndefined();
   });
 
@@ -935,7 +984,10 @@ describe('FinancialAidService.updateApplication', () => {
         guardianActor,
       );
     });
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_applications'));
+    const update = capture.find(
+      (c) =>
+        c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_applications'),
+    );
     expect(update).toBeTruthy();
     expect(update!.sql).toContain('household_income_band = $1');
     expect(update!.sql).toContain('supporting_documents = $2::jsonb');
@@ -950,7 +1002,10 @@ describe('FinancialAidService.updateApplication', () => {
     await inTenant(async () => {
       await svc.updateApplication('app-1', { applicationStatement: 'X' } as never, adminActor);
     });
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_applications'));
+    const update = capture.find(
+      (c) =>
+        c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_financial_aid_applications'),
+    );
     expect(update).toBeTruthy();
   });
 });
@@ -1007,9 +1062,9 @@ describe('FinancialAidService.withdrawApplication', () => {
     });
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(
-        svc.withdrawApplication('app-1', {} as never, guardianActor),
-      ).rejects.toThrow(/terminal status REJECTED/);
+      await expect(svc.withdrawApplication('app-1', {} as never, guardianActor)).rejects.toThrow(
+        /terminal status REJECTED/,
+      );
     });
   });
 
@@ -1020,9 +1075,9 @@ describe('FinancialAidService.withdrawApplication', () => {
     });
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(
-        svc.withdrawApplication('app-1', {} as never, guardianActor),
-      ).rejects.toThrow(/terminal status WITHDRAWN/);
+      await expect(svc.withdrawApplication('app-1', {} as never, guardianActor)).rejects.toThrow(
+        /terminal status WITHDRAWN/,
+      );
     });
   });
 
@@ -1157,7 +1212,11 @@ describe('FinancialAidService.reviewApplication', () => {
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
       await expect(
-        svc.reviewApplication('app-1', { action: 'APPROVE', awardAmount: 1000 } as never, adminActor),
+        svc.reviewApplication(
+          'app-1',
+          { action: 'APPROVE', awardAmount: 1000 } as never,
+          adminActor,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -1165,12 +1224,18 @@ describe('FinancialAidService.reviewApplication', () => {
   it('APPROVE rejects when awardAmount > fund_remaining', async () => {
     const { tenantPrisma } = makeFake({
       rowsForLockedApp: [lockedApp],
-      rowsForLockedProgram: [{ id: 'prog-1', fund_remaining: '500.00', total_fund_amount: '50000.00' }],
+      rowsForLockedProgram: [
+        { id: 'prog-1', fund_remaining: '500.00', total_fund_amount: '50000.00' },
+      ],
     });
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
       await expect(
-        svc.reviewApplication('app-1', { action: 'APPROVE', awardAmount: 1000 } as never, adminActor),
+        svc.reviewApplication(
+          'app-1',
+          { action: 'APPROVE', awardAmount: 1000 } as never,
+          adminActor,
+        ),
       ).rejects.toThrow(/exceeds programme fund_remaining/);
     });
   });
@@ -1202,7 +1267,7 @@ describe('FinancialAidService.reviewApplication', () => {
     const programUpdate = capture.find(
       (c) =>
         c.fn === 'e' &&
-        c.sql.toLowerCase().includes("update pay_financial_aid_programs set fund_remaining"),
+        c.sql.toLowerCase().includes('update pay_financial_aid_programs set fund_remaining'),
     );
     expect(programUpdate).toBeTruthy();
     expect(programUpdate!.args).toContain('48500.00'); // 50000 - 1500
@@ -1216,9 +1281,7 @@ describe('FinancialAidService.reviewApplication', () => {
   it('APPROVE on unlimited-fund programme skips decrement', async () => {
     const { tenantPrisma, capture } = makeFake({
       rowsForLockedApp: [lockedApp],
-      rowsForLockedProgram: [
-        { id: 'prog-1', fund_remaining: null, total_fund_amount: null },
-      ],
+      rowsForLockedProgram: [{ id: 'prog-1', fund_remaining: null, total_fund_amount: null }],
       rowsForApplicationById: [{ ...sampleApplication, status: 'APPROVED' }],
     });
     const svc = new FinancialAidService(tenantPrisma as never);
@@ -1232,7 +1295,7 @@ describe('FinancialAidService.reviewApplication', () => {
     const programUpdate = capture.find(
       (c) =>
         c.fn === 'e' &&
-        c.sql.toLowerCase().includes("update pay_financial_aid_programs set fund_remaining"),
+        c.sql.toLowerCase().includes('update pay_financial_aid_programs set fund_remaining'),
     );
     expect(programUpdate).toBeUndefined();
   });
@@ -1248,7 +1311,11 @@ describe('FinancialAidService.reviewApplication', () => {
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
       await expect(
-        svc.reviewApplication('app-1', { action: 'APPROVE', awardAmount: 1500 } as never, adminActor),
+        svc.reviewApplication(
+          'app-1',
+          { action: 'APPROVE', awardAmount: 1500 } as never,
+          adminActor,
+        ),
       ).rejects.toThrow(/already has an award/);
     });
   });
@@ -1288,7 +1355,11 @@ describe('FinancialAidService.reviewApplication', () => {
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
       await expect(
-        svc.reviewApplication('app-1', { action: 'APPROVE', awardAmount: 1500 } as never, adminActor),
+        svc.reviewApplication(
+          'app-1',
+          { action: 'APPROVE', awardAmount: 1500 } as never,
+          adminActor,
+        ),
       ).rejects.toThrow(/connection refused/);
     });
   });
@@ -1310,9 +1381,9 @@ describe('FinancialAidService.listAwardsForStudent', () => {
     const { tenantPrisma } = makeFake();
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(
-        svc.listAwardsForStudent('stu-maya', studentActor),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.listAwardsForStudent('stu-maya', studentActor)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -1320,9 +1391,9 @@ describe('FinancialAidService.listAwardsForStudent', () => {
     const { tenantPrisma } = makeFake();
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(
-        svc.listAwardsForStudent('stu-maya', guardianNoPersonId),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.listAwardsForStudent('stu-maya', guardianNoPersonId)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -1344,9 +1415,9 @@ describe('FinancialAidService.listAwardsForStudent', () => {
     });
     const svc = new FinancialAidService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(
-        svc.listAwardsForStudent('stu-foreign', guardianActor),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.listAwardsForStudent('stu-foreign', guardianActor)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 });

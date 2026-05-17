@@ -1,10 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { runWithTenantContext, TenantInfo } from '../tenant/tenant.context';
-import {
-  LunchAccountService,
-  deterministicLowBalanceEventId,
-} from './lunch-account.service';
+import { LunchAccountService, deterministicLowBalanceEventId } from './lunch-account.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 
 /**
@@ -79,8 +76,11 @@ function makeFake(opts: FakeOpts = {}) {
       capture.push({ sql, args, fn: 'q' });
       const s = sql.toLowerCase();
       // student-self lookup
-      if (s.includes('from sis_students') && s.includes('platform.platform_students') &&
-          s.includes('where ps.person_id =')) {
+      if (
+        s.includes('from sis_students') &&
+        s.includes('platform.platform_students') &&
+        s.includes('where ps.person_id =')
+      ) {
         return opts.rowsForStudentSelf ?? [];
       }
       // guardian linkage probe
@@ -96,24 +96,28 @@ function makeFake(opts: FakeOpts = {}) {
         return opts.rowsForStampReturn ?? [{ alerted_at: '2026-04-28T10:30:00Z' }];
       }
       // locked account inside chargeMealFromConsumer — match first (more specific)
-      if (s.includes('select id, balance::text, low_balance_threshold::text, last_low_balance_alert_at') &&
-          s.includes('for update')) {
+      if (
+        s.includes(
+          'select id, balance::text, low_balance_threshold::text, last_low_balance_alert_at',
+        ) &&
+        s.includes('for update')
+      ) {
         return opts.rowsForChargeAccount ?? [];
       }
       // locked source-account lookup inside transfer
-      if (s.includes('from pay_lunch_accounts') &&
-          s.includes('select id, balance::text') &&
-          s.includes('for update')) {
+      if (
+        s.includes('from pay_lunch_accounts') &&
+        s.includes('select id, balance::text') &&
+        s.includes('for update')
+      ) {
         return opts.rowsForFromTransfer ?? [];
       }
       // locked dest-account lookup inside transfer
-      if (s.includes('select id from pay_lunch_accounts') &&
-          s.includes('for update')) {
+      if (s.includes('select id from pay_lunch_accounts') && s.includes('for update')) {
         return opts.rowsForToTransfer ?? [];
       }
       // FOR UPDATE on pay_lunch_accounts for deposit
-      if (s.includes('select id from pay_lunch_accounts where id =') &&
-          s.includes('for update')) {
+      if (s.includes('select id from pay_lunch_accounts where id =') && s.includes('for update')) {
         return opts.rowsForLockedAccount ?? [{ id: 'la-1' }];
       }
       // transfer reload SELECT
@@ -129,18 +133,18 @@ function makeFake(opts: FakeOpts = {}) {
         return opts.rowsForTransactions ?? [];
       }
       // low balance list
-      if (s.includes('from pay_lunch_accounts a') &&
-          s.includes('balance <= a.low_balance_threshold')) {
+      if (
+        s.includes('from pay_lunch_accounts a') &&
+        s.includes('balance <= a.low_balance_threshold')
+      ) {
         return opts.rowsForLowBalance ?? [];
       }
       // getById
-      if (s.includes('from pay_lunch_accounts a') &&
-          s.includes('where a.id =')) {
+      if (s.includes('from pay_lunch_accounts a') && s.includes('where a.id =')) {
         return opts.rowsForGetById ?? [];
       }
       // getForStudent
-      if (s.includes('from pay_lunch_accounts a') &&
-          s.includes('where a.student_id =')) {
+      if (s.includes('from pay_lunch_accounts a') && s.includes('where a.student_id =')) {
         return opts.rowsForGetByStudent ?? [];
       }
       return [];
@@ -154,7 +158,10 @@ function makeFake(opts: FakeOpts = {}) {
       if (opts.insertChargeFail && s.includes("'meal_charge'")) {
         throw new Error(opts.insertChargeFail.message ?? 'insert charge fail');
       }
-      if (opts.insertTransferFail && s.includes('insert into pay_lunch_account_balance_transfers')) {
+      if (
+        opts.insertTransferFail &&
+        s.includes('insert into pay_lunch_account_balance_transfers')
+      ) {
         throw new Error(opts.insertTransferFail.message ?? 'insert transfer fail');
       }
       if (s.startsWith('update pay_lunch_accounts set ')) {
@@ -300,11 +307,13 @@ describe('LunchAccountService.getForStudent', () => {
     });
   });
 
-  it('parent unlinked → 404 don\'t-leak-existence', async () => {
+  it("parent unlinked → 404 don't-leak-existence", async () => {
     const { tenantPrisma, outbox } = makeFake({ rowsForGuardianLink: [] });
     const svc = new LunchAccountService(tenantPrisma as never, outbox as never);
     await inTenant(async () => {
-      await expect(svc.getForStudent('stu-not-mine', guardianActor)).rejects.toThrow(NotFoundException);
+      await expect(svc.getForStudent('stu-not-mine', guardianActor)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -348,7 +357,9 @@ describe('LunchAccountService.getForStudent', () => {
     await inTenant(async () => {
       await svc.getForStudent('stu-maya', adminActor);
     });
-    const txQuery = capture.find((c) => c.sql.toLowerCase().includes('from pay_lunch_transactions where lunch_account_id'));
+    const txQuery = capture.find((c) =>
+      c.sql.toLowerCase().includes('from pay_lunch_transactions where lunch_account_id'),
+    );
     expect(txQuery?.args[1]).toBe(25);
   });
 
@@ -361,7 +372,9 @@ describe('LunchAccountService.getForStudent', () => {
     await inTenant(async () => {
       await svc.getForStudent('stu-maya', adminActor, { transactionsLimit: 500 });
     });
-    const txQuery = capture.find((c) => c.sql.toLowerCase().includes('from pay_lunch_transactions where lunch_account_id'));
+    const txQuery = capture.find((c) =>
+      c.sql.toLowerCase().includes('from pay_lunch_transactions where lunch_account_id'),
+    );
     expect(txQuery?.args[1]).toBe(100);
   });
 });
@@ -442,9 +455,9 @@ describe('LunchAccountService.deposit', () => {
     const { tenantPrisma, outbox } = makeFake({ rowsForGetById: [sampleAccount] });
     const svc = new LunchAccountService(tenantPrisma as never, outbox as never);
     await inTenant(async () => {
-      await expect(
-        svc.deposit('la-1', { amount: 0 } as never, adminActor),
-      ).rejects.toThrow(/amount must be > 0/);
+      await expect(svc.deposit('la-1', { amount: 0 } as never, adminActor)).rejects.toThrow(
+        /amount must be > 0/,
+      );
     });
   });
 
@@ -452,9 +465,9 @@ describe('LunchAccountService.deposit', () => {
     const { tenantPrisma, outbox } = makeFake({ rowsForGetById: [sampleAccount] });
     const svc = new LunchAccountService(tenantPrisma as never, outbox as never);
     await inTenant(async () => {
-      await expect(
-        svc.deposit('la-1', { amount: -5 } as never, adminActor),
-      ).rejects.toThrow(/amount must be > 0/);
+      await expect(svc.deposit('la-1', { amount: -5 } as never, adminActor)).rejects.toThrow(
+        /amount must be > 0/,
+      );
     });
   });
 
@@ -486,8 +499,14 @@ describe('LunchAccountService.deposit', () => {
     expect(dto?.transactionType).toBe('DEPOSIT');
     expect(dto?.amount).toBe(25);
     // Verify INSERT then UPDATE order
-    const insertIdx = capture.findIndex((c) => c.fn === 'e' && c.sql.toLowerCase().includes("'deposit'"));
-    const updateIdx = capture.findIndex((c) => c.fn === 'e' && c.sql.toLowerCase().includes('update pay_lunch_accounts set balance = balance + '));
+    const insertIdx = capture.findIndex(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes("'deposit'"),
+    );
+    const updateIdx = capture.findIndex(
+      (c) =>
+        c.fn === 'e' &&
+        c.sql.toLowerCase().includes('update pay_lunch_accounts set balance = balance + '),
+    );
     expect(insertIdx).toBeGreaterThan(-1);
     expect(updateIdx).toBeGreaterThan(insertIdx);
   });
@@ -538,7 +557,9 @@ describe('LunchAccountService.update', () => {
     await inTenant(async () => {
       await svc.update('la-1', {}, adminActor);
     });
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_lunch_accounts set '));
+    const update = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_lunch_accounts set '),
+    );
     expect(update).toBeUndefined();
   });
 
@@ -556,7 +577,9 @@ describe('LunchAccountService.update', () => {
         adminActor,
       );
     });
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_lunch_accounts set '));
+    const update = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_lunch_accounts set '),
+    );
     expect(update).toBeTruthy();
     expect(update!.sql).toContain('low_balance_threshold = $1::numeric');
     expect(update!.sql).toContain('auto_replenish_enabled = $2');
@@ -956,7 +979,9 @@ describe('LunchAccountService.chargeMealFromConsumer', () => {
     expect(result?.account?.id).toBe('la-1');
     expect(outboxCalls.length).toBe(0);
     // Verify the MEAL_CHARGE insert + balance update both ran
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes("'meal_charge'"));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes("'meal_charge'"),
+    );
     expect(insert).toBeTruthy();
   });
 
@@ -1045,7 +1070,11 @@ describe('LunchAccountService.chargeMealFromConsumer', () => {
     expect(outboxCalls[0]!.sourceModule).toBe('payments');
     const expectedId = deterministicLowBalanceEventId('la-1', '2026-04-28T10:30:00Z');
     expect(outboxCalls[0]!.eventId).toBe(expectedId);
-    const payload = outboxCalls[0]!.payload as { studentName: string; balance: number; threshold: number };
+    const payload = outboxCalls[0]!.payload as {
+      studentName: string;
+      balance: number;
+      threshold: number;
+    };
     expect(payload.studentName).toBe('Maya Chen');
     expect(payload.balance).toBe(8.5);
     expect(payload.threshold).toBe(10);

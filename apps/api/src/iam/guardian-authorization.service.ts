@@ -1,31 +1,39 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 
 /**
- * P2-H1 Step 3 — Centralised guardian custody-aware authorisation.
+ * P2-H1 Step 3 + P2-H5 DEFECT 4 — centralised, custody-aware guardian
+ * authorisation.
  *
- * Replaces per-module guardian checks across the platform with a single
- * capability-specific API. Each method answers a single question of the form
- * "can this guardian person see / authorise / receive X for this student?",
- * resolved against the sis_student_guardians + sis_guardians + sis_family_relationships
- * graph.
+ * Replaces per-module guardian checks with a single capability-specific API.
+ * Each method answers a single question of the form "can this guardian
+ * person see / authorise / receive X for this student?".
  *
- * Resolution model (highest signal first):
+ * Resolution graph (P2-H5 hardening):
  *   1. The (guardian_person → sis_guardians.person_id → sis_student_guardians)
  *      chain MUST resolve to a row that links the guardian to the student in
  *      the calling tenant. No link → false (not on the access list at all).
- *   2. sis_student_guardians.portal_access_scope narrows what the link
- *      authorises (FULL / ACADEMIC_ONLY / COMMUNICATIONS_ONLY).
- *   3. sis_student_guardians.has_custody + receives_reports + is_emergency_contact
- *      shape the per-capability decisions. Court-order overrides (e.g. one
- *      parent has sole custody) are expressed via sis_family_relationships.
- *      custody_arrangement.
+ *   2. sis_family_relationships.custody_arrangement (JOINT / SOLE_A / SOLE_B
+ *      / OTHER) is the legal custody record. A guardian whose relationship
+ *      shows the OTHER parent has sole custody is denied — sis_student_guardians
+ *      can be stale, court orders are authoritative.
+ *   3. sis_family_relationships.court_order_restrictions JSONB carries
+ *      per-capability blocks. {"academic_records": false} explicitly denies
+ *      the academic-records capability for the matching guardian.
+ *   4. sis_student_guardians.portal_access_scope narrows what the link
+ *      authorises (FULL / ACADEMIC_ONLY / COMMUNICATIONS_ONLY). Null/missing
+ *      scope fails closed (deny) under P2-H5; only an explicit allow-state
+ *      grants access.
+ *   5. sis_student_guardians.has_custody + receives_reports +
+ *      is_emergency_contact shape the per-capability decisions on top of the
+ *      custody/court-order/scope chain.
  *
- * Every access decision is logged via the access-log channel so downstream
- * compliance reports can audit guardian PII access (cf. Cycle 10 HIPAA log
- * pattern). The log is best-effort and structured as a Logger call today;
- * Phase 2 wires a dedicated `platform_audit_log` row per ADR-052.
+ * Every access decision is persisted to platform_audit_log with
+ * data_subject_id = studentId per ADR-052. The audit row goes via the
+ * AuditLog model so it shares the partitioning + retention with the rest of
+ * the FERPA/GDPR access audit corpus.
  */
 @Injectable()
 export class GuardianAuthorizationService {
@@ -33,35 +41,35 @@ export class GuardianAuthorizationService {
 
   constructor(private readonly tenantPrisma: TenantPrismaService) {}
 
-  /**
-   * Internal helper: resolve the (guardian, student) link row for the current
-   * tenant. Returns null if no link exists in this school. The school_id
-   * filter on sis_students keeps cross-school guardian ids from satisfying
-   * the relationship gate.
-   */
+  // ─── Internal resolution ─────────────────────────────────────
+
   private async loadLink(
     guardianPersonId: string,
     studentId: string,
   ): Promise<{
+    guardian_id: string;
     has_custody: boolean;
     is_emergency_contact: boolean;
     receives_reports: boolean;
     portal_access: boolean;
-    portal_access_scope: string;
+    portal_access_scope: string | null;
+    family_id: string | null;
   } | null> {
     const tenant = getCurrentTenant();
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<
         Array<{
+          guardian_id: string;
           has_custody: boolean;
           is_emergency_contact: boolean;
           receives_reports: boolean;
           portal_access: boolean;
-          portal_access_scope: string;
+          portal_access_scope: string | null;
+          family_id: string | null;
         }>
       >(
-        'SELECT sg.has_custody, sg.is_emergency_contact, sg.receives_reports, ' +
-          'sg.portal_access, sg.portal_access_scope ' +
+        'SELECT g.id::text AS guardian_id, sg.has_custody, sg.is_emergency_contact, sg.receives_reports, ' +
+          'sg.portal_access, sg.portal_access_scope, g.family_id::text AS family_id ' +
           'FROM sis_student_guardians sg ' +
           'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
           'JOIN sis_students s ON s.id = sg.student_id ' +
@@ -76,102 +84,289 @@ export class GuardianAuthorizationService {
   }
 
   /**
-   * P2-H1 Step 3 — capability gate. Returns true when the guardian can see
-   * the student's academic record (grades, transcripts, gradebook, progress
-   * reports). Driven by sis_student_guardians.portal_access AND a non-restrictive
-   * portal_access_scope (FULL or ACADEMIC_ONLY).
+   * P2-H5 DEFECT 4: load every family-relationship row that names this
+   * guardian (on either side, since guardian_a / guardian_b ordering is
+   * arbitrary at write time) and return the custody decision + any
+   * court-order restrictions that apply. Missing rows return a permissive
+   * record (no court-order restrictions, no custody arrangement) so a
+   * family that has not yet recorded a relationship is not denied access
+   * via a paper-trail gap.
+   */
+  private async loadCustodyContext(
+    guardianId: string,
+    familyId: string | null,
+  ): Promise<{
+    custodyAllows: boolean;
+    courtOrderRestrictions: Record<string, unknown>;
+  }> {
+    if (!familyId) {
+      // No family record means no custody arrangement — fail closed on the
+      // custody invariant per the P2-H5 reviewer note "Null/missing custody
+      // data must fail closed". A guardian without a family record cannot
+      // legally authorise on behalf of the household.
+      return { custodyAllows: false, courtOrderRestrictions: {} };
+    }
+    const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
+      client.$queryRawUnsafe<
+        Array<{
+          guardian_a_id: string;
+          guardian_b_id: string;
+          custody_arrangement: string | null;
+          court_order_restrictions: Record<string, unknown> | null;
+        }>
+      >(
+        'SELECT guardian_a_id::text, guardian_b_id::text, custody_arrangement, ' +
+          'court_order_restrictions ' +
+          'FROM sis_family_relationships ' +
+          'WHERE family_id = $1::uuid AND (guardian_a_id = $2::uuid OR guardian_b_id = $2::uuid)',
+        familyId,
+        guardianId,
+      ),
+    );
+    if (rows.length === 0) {
+      // No relationship recorded means there is no court order blocking the
+      // guardian. custody_arrangement absence is treated as "no exclusion".
+      return { custodyAllows: true, courtOrderRestrictions: {} };
+    }
+    const mergedRestrictions: Record<string, unknown> = {};
+    let custodyAllows = true;
+    for (const row of rows) {
+      const isA = row.guardian_a_id === guardianId;
+      // SOLE_A names guardian_a as the sole custodial parent; the OTHER
+      // guardian (guardian_b) is denied. SOLE_B is the mirror. JOINT and
+      // OTHER do not block either side.
+      if (row.custody_arrangement === 'SOLE_A' && !isA) custodyAllows = false;
+      if (row.custody_arrangement === 'SOLE_B' && isA) custodyAllows = false;
+      if (row.court_order_restrictions) {
+        Object.assign(mergedRestrictions, row.court_order_restrictions);
+      }
+    }
+    return { custodyAllows, courtOrderRestrictions: mergedRestrictions };
+  }
+
+  private courtOrderAllows(restrictions: Record<string, unknown>, capabilityKey: string): boolean {
+    // Only an explicit false denies. Missing keys mean no restriction.
+    return restrictions[capabilityKey] !== false;
+  }
+
+  /**
+   * P2-H5 DEFECT 4: persist each guardian access decision to
+   * platform_audit_log with data_subject_id = studentId per ADR-052.
+   * Logged at WARN when access is granted to capture the trail; failures
+   * are logged at INFO. Best-effort — a failure to insert the audit row
+   * is logged but does not block the access decision because the caller
+   * has already enforced the gate at the service layer.
+   */
+  async logAccessDecision(
+    capability: string,
+    guardianPersonId: string,
+    studentId: string,
+    granted: boolean,
+  ): Promise<void> {
+    this.logger.log(
+      `guardian-access capability=${capability} guardian=${guardianPersonId} student=${studentId} granted=${granted}`,
+    );
+    try {
+      const tenant = getCurrentTenant();
+      const platform = this.tenantPrisma.getPlatformClient();
+      await platform.auditLog.create({
+        data: {
+          id: generateId(),
+          actorId: guardianPersonId,
+          actorType: 'HUMAN',
+          action: 'guardian_access_decision',
+          actionCategory: 'READ',
+          entityType: 'sis_students',
+          entityId: studentId,
+          dataSubjectId: studentId,
+          tenantId: tenant.schoolId,
+          metadata: { capability, granted },
+        },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `guardian-access audit-log write failed capability=${capability} guardian=${guardianPersonId} student=${studentId}: ${
+          (err as Error).message
+        }`,
+      );
+    }
+  }
+
+  // ─── Capability gates ────────────────────────────────────────
+
+  /**
+   * Academic record (grades, transcripts, gradebook). Requires
+   * portal_access, FULL or ACADEMIC_ONLY scope, custody not excluded,
+   * and no court-order block on `academic_records`.
    */
   async canViewAcademicRecord(guardianPersonId: string, studentId: string): Promise<boolean> {
-    const link = await this.loadLink(guardianPersonId, studentId);
-    if (!link) return false;
-    if (!link.portal_access) return false;
-    return link.portal_access_scope === 'FULL' || link.portal_access_scope === 'ACADEMIC_ONLY';
+    const granted = await this.evaluate(guardianPersonId, studentId, (link, custody) => {
+      if (!link.portal_access) return false;
+      if (link.portal_access_scope == null) return false;
+      if (link.portal_access_scope !== 'FULL' && link.portal_access_scope !== 'ACADEMIC_ONLY') {
+        return false;
+      }
+      if (!custody.custodyAllows) return false;
+      return this.courtOrderAllows(custody.courtOrderRestrictions, 'academic_records');
+    });
+    await this.logAccessDecision('academic_record', guardianPersonId, studentId, granted);
+    return granted;
   }
 
   /**
-   * P2-H1 Step 3 — capability gate. Health records are FERPA-sensitive PHI;
-   * portal_access AND receives_reports AND FULL scope required. Emergency
-   * contacts who do not have_custody can still see allergy/medication info
-   * because they may need to respond to a school-day medical event.
+   * Health record (FERPA-sensitive PHI). Requires portal_access, FULL
+   * scope, custody not excluded, no court-order block on
+   * `health_records`, and the receives_reports / emergency-contact /
+   * custody flag chain.
    */
   async canViewHealthRecord(guardianPersonId: string, studentId: string): Promise<boolean> {
-    const link = await this.loadLink(guardianPersonId, studentId);
-    if (!link) return false;
-    if (!link.portal_access) return false;
-    if (link.portal_access_scope !== 'FULL') return false;
-    return link.receives_reports || link.is_emergency_contact || link.has_custody;
+    const granted = await this.evaluate(guardianPersonId, studentId, (link, custody) => {
+      if (!link.portal_access) return false;
+      if (link.portal_access_scope !== 'FULL') return false;
+      if (!custody.custodyAllows) return false;
+      if (!this.courtOrderAllows(custody.courtOrderRestrictions, 'health_records')) return false;
+      return link.receives_reports || link.is_emergency_contact || link.has_custody;
+    });
+    await this.logAccessDecision('health_record', guardianPersonId, studentId, granted);
+    return granted;
   }
 
   /**
-   * P2-H1 Step 3 — capability gate. Payment authorisation (charge a family
-   * account, submit a payment plan, accept a student's parent-active order)
-   * requires has_custody=true. Non-custodial guardians cannot bind the family
-   * to financial obligations.
-   *
-   * familyAccountId is reserved for future per-account guardian binding;
-   * today the check is at the student level since pay_family_accounts have
-   * one account_holder_id per family.
+   * Payment authorisation. Requires has_custody, custody arrangement not
+   * excluding this guardian, no court-order block on
+   * `financial_authority`, and — when a familyAccountId is supplied — the
+   * account must be bound to the (guardian, student) relationship: the
+   * account holder is this guardian AND the account links to this student.
    */
   async canAuthorizePayment(
     guardianPersonId: string,
     studentId: string,
-    _familyAccountId?: string,
+    familyAccountId?: string,
+  ): Promise<boolean> {
+    const granted = await this.evaluate(guardianPersonId, studentId, (link, custody) => {
+      if (!link.has_custody) return false;
+      if (!custody.custodyAllows) return false;
+      return this.courtOrderAllows(custody.courtOrderRestrictions, 'financial_authority');
+    });
+    if (!granted) {
+      await this.logAccessDecision('payment_authorise', guardianPersonId, studentId, false);
+      return false;
+    }
+    if (familyAccountId) {
+      const tenant = getCurrentTenant();
+      const rows = await this.tenantPrisma.executeInTenantContext(async (client) =>
+        client.$queryRawUnsafe<Array<{ ok: number }>>(
+          'SELECT 1 AS ok FROM pay_family_accounts fa ' +
+            'JOIN pay_family_account_students fas ON fas.family_account_id = fa.id ' +
+            'WHERE fa.id = $1::uuid AND fa.school_id = $2::uuid ' +
+            'AND fa.account_holder_id = $3::uuid AND fas.student_id = $4::uuid LIMIT 1',
+          familyAccountId,
+          tenant.schoolId,
+          guardianPersonId,
+          studentId,
+        ),
+      );
+      const accountAllows = rows.length > 0;
+      await this.logAccessDecision('payment_authorise', guardianPersonId, studentId, accountAllows);
+      return accountAllows;
+    }
+    await this.logAccessDecision('payment_authorise', guardianPersonId, studentId, true);
+    return true;
+  }
+
+  /**
+   * Transport info (bus pass, ETA, geofence alerts). Requires
+   * portal_access, custody not excluded, and no court-order block on
+   * `transport_contact`. Non-custodial parents on the receives_reports
+   * list still get alerts because the bus running late is a safety event.
+   */
+  async canReceiveTransportInfo(guardianPersonId: string, studentId: string): Promise<boolean> {
+    const granted = await this.evaluate(guardianPersonId, studentId, (link, custody) => {
+      if (!link.portal_access) return false;
+      if (!custody.custodyAllows) return false;
+      if (!this.courtOrderAllows(custody.courtOrderRestrictions, 'transport_contact')) {
+        return false;
+      }
+      return link.receives_reports || link.has_custody || link.is_emergency_contact;
+    });
+    await this.logAccessDecision('transport_info', guardianPersonId, studentId, granted);
+    return granted;
+  }
+
+  /**
+   * Communications (announcements, messages, IN_APP notifications).
+   * Requires portal_access, FULL or COMMUNICATIONS_ONLY scope, custody
+   * not excluded, and no court-order block on `communications`.
+   */
+  async canViewCommunications(guardianPersonId: string, studentId: string): Promise<boolean> {
+    const granted = await this.evaluate(guardianPersonId, studentId, (link, custody) => {
+      if (!link.portal_access) return false;
+      if (link.portal_access_scope == null) return false;
+      if (
+        link.portal_access_scope !== 'FULL' &&
+        link.portal_access_scope !== 'COMMUNICATIONS_ONLY'
+      ) {
+        return false;
+      }
+      if (!custody.custodyAllows) return false;
+      return this.courtOrderAllows(custody.courtOrderRestrictions, 'communications');
+    });
+    await this.logAccessDecision('communications', guardianPersonId, studentId, granted);
+    return granted;
+  }
+
+  /**
+   * Conference attendance. Requires portal_access, a non-ACADEMIC_ONLY
+   * scope (the meeting is an academic-adjacent communication event),
+   * custody not excluded, and no court-order block on
+   * `conference_attendance`.
+   */
+  async canAttendConference(guardianPersonId: string, studentId: string): Promise<boolean> {
+    const granted = await this.evaluate(guardianPersonId, studentId, (link, custody) => {
+      if (!link.portal_access) return false;
+      if (link.portal_access_scope == null) return false;
+      if (link.portal_access_scope === 'ACADEMIC_ONLY') return false;
+      if (!custody.custodyAllows) return false;
+      return this.courtOrderAllows(custody.courtOrderRestrictions, 'conference_attendance');
+    });
+    await this.logAccessDecision('conference', guardianPersonId, studentId, granted);
+    return granted;
+  }
+
+  /**
+   * Internal shared resolver: loads the link + custody context and runs
+   * the per-capability predicate. Null link returns false (not on the
+   * access list). The predicate is run only when both link and custody
+   * data are present.
+   */
+  private async evaluate(
+    guardianPersonId: string,
+    studentId: string,
+    predicate: (
+      link: {
+        guardian_id: string;
+        has_custody: boolean;
+        is_emergency_contact: boolean;
+        receives_reports: boolean;
+        portal_access: boolean;
+        portal_access_scope: string | null;
+        family_id: string | null;
+      },
+      custody: { custodyAllows: boolean; courtOrderRestrictions: Record<string, unknown> },
+    ) => boolean,
   ): Promise<boolean> {
     const link = await this.loadLink(guardianPersonId, studentId);
     if (!link) return false;
-    return link.has_custody;
+    const custody = await this.loadCustodyContext(link.guardian_id, link.family_id);
+    return predicate(link, custody);
   }
 
   /**
-   * P2-H1 Step 3 — capability gate. Transport info (bus pass, route, ETA,
-   * geofence alerts) is sent to guardians on the receives_reports list. Any
-   * linked guardian (including non-custodial) gets it because the parent
-   * needs to know if their bus is late even if they aren't the custodial
-   * parent. portal_access still required so suspended/inactive guardian
-   * records do not receive PII.
-   */
-  async canReceiveTransportInfo(guardianPersonId: string, studentId: string): Promise<boolean> {
-    const link = await this.loadLink(guardianPersonId, studentId);
-    if (!link) return false;
-    if (!link.portal_access) return false;
-    return link.receives_reports || link.has_custody || link.is_emergency_contact;
-  }
-
-  /**
-   * P2-H1 Step 3 — capability gate. Communications (announcements, messages,
-   * IN_APP notifications) reach guardians with portal_access AND either FULL
-   * or COMMUNICATIONS_ONLY scope. Receives_reports is the inbox preference
-   * for transactional updates (attendance, behaviour); communications are
-   * a broader channel.
-   */
-  async canViewCommunications(guardianPersonId: string, studentId: string): Promise<boolean> {
-    const link = await this.loadLink(guardianPersonId, studentId);
-    if (!link) return false;
-    if (!link.portal_access) return false;
-    return (
-      link.portal_access_scope === 'FULL' || link.portal_access_scope === 'COMMUNICATIONS_ONLY'
-    );
-  }
-
-  /**
-   * P2-H1 Step 3 — capability gate. Conference booking (parent-teacher
-   * meeting slot reservation) requires portal_access + a non-blocked scope.
-   * Custody not strictly required — even a non-custodial parent receiving
-   * reports may want to attend a teacher meeting. Restricted by FULL or
-   * COMMUNICATIONS_ONLY scope since the meeting is an academic-adjacent
-   * communication event.
-   */
-  async canAttendConference(guardianPersonId: string, studentId: string): Promise<boolean> {
-    const link = await this.loadLink(guardianPersonId, studentId);
-    if (!link) return false;
-    if (!link.portal_access) return false;
-    return link.portal_access_scope !== 'ACADEMIC_ONLY';
-  }
-
-  /**
-   * P2-H1 Step 3 — convenience helper for callsites that need the underlying
-   * link snapshot (e.g. ParentTrackingService that issues a per-(student,
-   * guardian) token). Returns null when there is no link.
+   * Convenience helper for callsites that need the raw link snapshot
+   * (e.g. ParentTrackingService issuing per-(student, guardian) tokens).
+   * Returns null when the (guardian, student) link is absent in the
+   * current tenant. Does NOT consult custody data — callers that need
+   * authorisation should use the capability methods above.
    */
   async resolveLink(
     guardianPersonId: string,
@@ -181,7 +376,7 @@ export class GuardianAuthorizationService {
     isEmergencyContact: boolean;
     receivesReports: boolean;
     portalAccess: boolean;
-    portalAccessScope: string;
+    portalAccessScope: string | null;
   } | null> {
     const link = await this.loadLink(guardianPersonId, studentId);
     if (!link) return null;
@@ -192,21 +387,5 @@ export class GuardianAuthorizationService {
       portalAccess: link.portal_access,
       portalAccessScope: link.portal_access_scope,
     };
-  }
-
-  /**
-   * P2-H1 Step 3 — audit-log every guardian access decision for
-   * custody-sensitive records. Best-effort: a logger call today; Phase 2
-   * wires a dedicated platform_audit_log row per ADR-052.
-   */
-  logAccessDecision(
-    capability: string,
-    guardianPersonId: string,
-    studentId: string,
-    granted: boolean,
-  ): void {
-    this.logger.log(
-      `guardian-access capability=${capability} guardian=${guardianPersonId} student=${studentId} granted=${granted}`,
-    );
   }
 }

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '../tenant/tenant.module';
 import { IamModule } from '../iam/iam.module';
 import { KafkaModule } from '../kafka/kafka.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { ChartOfAccountsService, FundService, PeriodService } from './chart.service';
 import { PostingService } from './posting.service';
 import {
@@ -17,6 +18,7 @@ import { FinanceValidationService } from './validation';
 import { GLConsumer } from './gl.consumer';
 import { JournalBatchPostedConsumer } from './journal-batch-posted.consumer';
 import { GlReconciliationWorker } from './gl-reconciliation.worker';
+import { GlReconciliationAlertConsumer } from './gl-reconciliation-alert.consumer';
 import { FinanceController } from './finance.controller';
 
 /**
@@ -42,7 +44,7 @@ import { FinanceController } from './finance.controller';
  *      to one.
  */
 @Module({
-  imports: [TenantModule, IamModule, KafkaModule],
+  imports: [TenantModule, IamModule, KafkaModule, NotificationsModule],
   providers: [
     FinanceValidationService,
     FundService,
@@ -59,6 +61,7 @@ import { FinanceController } from './finance.controller';
     GLConsumer,
     JournalBatchPostedConsumer,
     GlReconciliationWorker,
+    GlReconciliationAlertConsumer,
   ],
   controllers: [FinanceController],
   exports: [

@@ -30,7 +30,13 @@ const actor: ResolvedActor = {
 };
 
 const req = {
-  user: { sub: 'acc-admin', personId: 'pers-admin', email: 'a@b', displayName: 'A', sessionId: 's' },
+  user: {
+    sub: 'acc-admin',
+    personId: 'pers-admin',
+    email: 'a@b',
+    displayName: 'A',
+    sessionId: 's',
+  },
 } as never;
 
 function actorsStub() {
@@ -119,7 +125,11 @@ describe('FamilyAccountController', () => {
       listStudents: vi.fn().mockResolvedValue([]),
     };
     const ledger = {};
-    const c = new FamilyAccountController(accounts as never, ledger as never, actorsStub() as never);
+    const c = new FamilyAccountController(
+      accounts as never,
+      ledger as never,
+      actorsStub() as never,
+    );
     await c.list(req);
     expect(accounts.list).toHaveBeenCalledWith(actor);
     await c.getById('fa-1', req);
@@ -130,8 +140,14 @@ describe('FamilyAccountController', () => {
 
   it('getBalance: row-scope getById first, then ledger.getBalance', async () => {
     const accounts = { getById: vi.fn().mockResolvedValue({ id: 'fa-1' }) };
-    const ledger = { getBalance: vi.fn().mockResolvedValue({ balance: 0, cached: false, familyAccountId: 'fa-1' }) };
-    const c = new FamilyAccountController(accounts as never, ledger as never, actorsStub() as never);
+    const ledger = {
+      getBalance: vi.fn().mockResolvedValue({ balance: 0, cached: false, familyAccountId: 'fa-1' }),
+    };
+    const c = new FamilyAccountController(
+      accounts as never,
+      ledger as never,
+      actorsStub() as never,
+    );
     await c.getBalance('fa-1', req);
     expect(accounts.getById).toHaveBeenCalledWith('fa-1', actor);
     expect(ledger.getBalance).toHaveBeenCalledWith('fa-1');
@@ -140,7 +156,11 @@ describe('FamilyAccountController', () => {
   it('listLedger: row-scope getById first, then ledger.listEntries with query', async () => {
     const accounts = { getById: vi.fn().mockResolvedValue({ id: 'fa-1' }) };
     const ledger = { listEntries: vi.fn().mockResolvedValue([]) };
-    const c = new FamilyAccountController(accounts as never, ledger as never, actorsStub() as never);
+    const c = new FamilyAccountController(
+      accounts as never,
+      ledger as never,
+      actorsStub() as never,
+    );
     await c.listLedger('fa-1', { limit: 10 } as never, req);
     expect(accounts.getById).toHaveBeenCalledWith('fa-1', actor);
     expect(ledger.listEntries).toHaveBeenCalledWith('fa-1', { limit: 10 });
@@ -261,7 +281,9 @@ describe('LunchAccountController', () => {
     await c.getForStudent('stu-1', '50', req);
     expect(lunch.getForStudent).toHaveBeenCalledWith('stu-1', actor, { transactionsLimit: 50 });
     await c.getForStudent('stu-1', undefined, req);
-    expect(lunch.getForStudent).toHaveBeenLastCalledWith('stu-1', actor, { transactionsLimit: undefined });
+    expect(lunch.getForStudent).toHaveBeenLastCalledWith('stu-1', actor, {
+      transactionsLimit: undefined,
+    });
   });
 
   it('deposit forwards id + body', async () => {
@@ -300,18 +322,32 @@ describe('PaymentPlanController', () => {
 
 describe('BillingConfigController', () => {
   it('reads on fin-001:read; writes/triggers on fin-001:admin', () => {
-    expect(permFor(BillingConfigController.prototype, 'listDiscountRules')).toEqual(['fin-001:read']);
+    expect(permFor(BillingConfigController.prototype, 'listDiscountRules')).toEqual([
+      'fin-001:read',
+    ]);
     expect(permFor(BillingConfigController.prototype, 'getDiscountRule')).toEqual(['fin-001:read']);
-    expect(permFor(BillingConfigController.prototype, 'createDiscountRule')).toEqual(['fin-001:admin']);
-    expect(permFor(BillingConfigController.prototype, 'updateDiscountRule')).toEqual(['fin-001:admin']);
+    expect(permFor(BillingConfigController.prototype, 'createDiscountRule')).toEqual([
+      'fin-001:admin',
+    ]);
+    expect(permFor(BillingConfigController.prototype, 'updateDiscountRule')).toEqual([
+      'fin-001:admin',
+    ]);
     expect(permFor(BillingConfigController.prototype, 'listAutoRules')).toEqual(['fin-001:read']);
     expect(permFor(BillingConfigController.prototype, 'getAutoRule')).toEqual(['fin-001:read']);
     expect(permFor(BillingConfigController.prototype, 'createAutoRule')).toEqual(['fin-001:admin']);
     expect(permFor(BillingConfigController.prototype, 'updateAutoRule')).toEqual(['fin-001:admin']);
-    expect(permFor(BillingConfigController.prototype, 'triggerAutoRule')).toEqual(['fin-001:admin']);
-    expect(permFor(BillingConfigController.prototype, 'generateFromFeeSchedule')).toEqual(['fin-001:admin']);
-    expect(permFor(BillingConfigController.prototype, 'listGenerationRuns')).toEqual(['fin-001:read']);
-    expect(permFor(BillingConfigController.prototype, 'getGenerationRun')).toEqual(['fin-001:read']);
+    expect(permFor(BillingConfigController.prototype, 'triggerAutoRule')).toEqual([
+      'fin-001:admin',
+    ]);
+    expect(permFor(BillingConfigController.prototype, 'generateFromFeeSchedule')).toEqual([
+      'fin-001:admin',
+    ]);
+    expect(permFor(BillingConfigController.prototype, 'listGenerationRuns')).toEqual([
+      'fin-001:read',
+    ]);
+    expect(permFor(BillingConfigController.prototype, 'getGenerationRun')).toEqual([
+      'fin-001:read',
+    ]);
   });
 
   it('discount rules pass through', async () => {
@@ -322,7 +358,11 @@ describe('BillingConfigController', () => {
       update: vi.fn().mockResolvedValue({}),
     };
     const autoInvoice = {};
-    const c = new BillingConfigController(discounts as never, autoInvoice as never, actorsStub() as never);
+    const c = new BillingConfigController(
+      discounts as never,
+      autoInvoice as never,
+      actorsStub() as never,
+    );
     await c.listDiscountRules({} as never, req);
     expect(discounts.list).toHaveBeenCalledWith({}, actor);
     await c.getDiscountRule('d-1', req);
@@ -345,7 +385,11 @@ describe('BillingConfigController', () => {
       listRuns: vi.fn().mockResolvedValue([]),
       getRunById: vi.fn().mockResolvedValue({}),
     };
-    const c = new BillingConfigController(discounts as never, autoInvoice as never, actorsStub() as never);
+    const c = new BillingConfigController(
+      discounts as never,
+      autoInvoice as never,
+      actorsStub() as never,
+    );
 
     await c.listAutoRules('true', req);
     expect(autoInvoice.listRules).toHaveBeenCalledWith(true, actor);
@@ -364,11 +408,7 @@ describe('BillingConfigController', () => {
     expect(autoInvoice.updateRule).toHaveBeenCalledWith('r-1', { name: 'R2' }, actor);
 
     await c.triggerAutoRule('r-1', { academicYearId: 'ay-1' } as never, req);
-    expect(autoInvoice.triggerRule).toHaveBeenCalledWith(
-      'r-1',
-      { academicYearId: 'ay-1' },
-      actor,
-    );
+    expect(autoInvoice.triggerRule).toHaveBeenCalledWith('r-1', { academicYearId: 'ay-1' }, actor);
 
     await c.generateFromFeeSchedule('fs-1', { academicYearId: 'ay-1' } as never, req);
     expect(autoInvoice.generateFromFeeSchedule).toHaveBeenCalledWith('fs-1', 'ay-1', actor);
@@ -392,13 +432,27 @@ describe('FinancialAidController', () => {
     expect(permFor(FinancialAidController.prototype, 'createProgram')).toEqual(['fin-002:admin']);
     expect(permFor(FinancialAidController.prototype, 'updateProgram')).toEqual(['fin-002:admin']);
     expect(permFor(FinancialAidController.prototype, 'listApplications')).toEqual(['fin-002:read']);
-    expect(permFor(FinancialAidController.prototype, 'getApplicationById')).toEqual(['fin-002:read']);
-    expect(permFor(FinancialAidController.prototype, 'createApplication')).toEqual(['fin-002:write']);
-    expect(permFor(FinancialAidController.prototype, 'updateApplication')).toEqual(['fin-002:write']);
-    expect(permFor(FinancialAidController.prototype, 'submitApplication')).toEqual(['fin-002:write']);
-    expect(permFor(FinancialAidController.prototype, 'withdrawApplication')).toEqual(['fin-002:write']);
-    expect(permFor(FinancialAidController.prototype, 'reviewApplication')).toEqual(['fin-002:admin']);
-    expect(permFor(FinancialAidController.prototype, 'listAwardsForStudent')).toEqual(['fin-002:read']);
+    expect(permFor(FinancialAidController.prototype, 'getApplicationById')).toEqual([
+      'fin-002:read',
+    ]);
+    expect(permFor(FinancialAidController.prototype, 'createApplication')).toEqual([
+      'fin-002:write',
+    ]);
+    expect(permFor(FinancialAidController.prototype, 'updateApplication')).toEqual([
+      'fin-002:write',
+    ]);
+    expect(permFor(FinancialAidController.prototype, 'submitApplication')).toEqual([
+      'fin-002:write',
+    ]);
+    expect(permFor(FinancialAidController.prototype, 'withdrawApplication')).toEqual([
+      'fin-002:write',
+    ]);
+    expect(permFor(FinancialAidController.prototype, 'reviewApplication')).toEqual([
+      'fin-002:admin',
+    ]);
+    expect(permFor(FinancialAidController.prototype, 'listAwardsForStudent')).toEqual([
+      'fin-002:read',
+    ]);
   });
 
   it('programmes pass through with includeInactive parsing', async () => {

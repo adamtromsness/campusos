@@ -212,10 +212,18 @@ describe('FamilyAccountService.list', () => {
 
   it('filters students per-account inside accountRowToDto (cross-account link drops)', async () => {
     const { tenantPrisma, ledger } = makeFake({
-      rowsForAccountList: [sampleAccount, { ...sampleAccount, id: 'fa-2', account_number: 'FA-1002' }],
+      rowsForAccountList: [
+        sampleAccount,
+        { ...sampleAccount, id: 'fa-2', account_number: 'FA-1002' },
+      ],
       rowsForStudents: [
         sampleStudentLink,
-        { ...sampleStudentLink, family_account_id: 'fa-2', student_id: 'stu-ethan', first_name: 'Ethan' },
+        {
+          ...sampleStudentLink,
+          family_account_id: 'fa-2',
+          student_id: 'stu-ethan',
+          first_name: 'Ethan',
+        },
       ],
       balance: 0,
     });
@@ -271,7 +279,7 @@ describe('FamilyAccountService.getById', () => {
     expect(dto?.id).toBe('fa-1');
   });
 
-  it('guardian gets 404 on other family\'s account', async () => {
+  it("guardian gets 404 on other family's account", async () => {
     const { tenantPrisma, ledger } = makeFake({
       rowsForGetById: [{ ...sampleAccount, account_holder_id: 'pers-other' }],
     });
@@ -281,7 +289,7 @@ describe('FamilyAccountService.getById', () => {
     });
   });
 
-  it('teacher gets 404 (don\'t-leak-existence)', async () => {
+  it("teacher gets 404 (don't-leak-existence)", async () => {
     const { tenantPrisma, ledger } = makeFake({
       rowsForGetById: [sampleAccount],
     });
@@ -343,7 +351,9 @@ describe('FamilyAccountService.assertCanWriteAccount', () => {
     const { tenantPrisma, ledger } = makeFake({ rowsForOwnerCheck: [] });
     const svc = new FamilyAccountService(tenantPrisma as never, ledger as never);
     await inTenant(async () => {
-      await expect(svc.assertCanWriteAccount('fa-missing', guardianActor)).rejects.toThrow(NotFoundException);
+      await expect(svc.assertCanWriteAccount('fa-missing', guardianActor)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -353,7 +363,9 @@ describe('FamilyAccountService.assertCanWriteAccount', () => {
     });
     const svc = new FamilyAccountService(tenantPrisma as never, ledger as never);
     await inTenant(async () => {
-      await expect(svc.assertCanWriteAccount('fa-other', guardianActor)).rejects.toThrow(ForbiddenException);
+      await expect(svc.assertCanWriteAccount('fa-other', guardianActor)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 

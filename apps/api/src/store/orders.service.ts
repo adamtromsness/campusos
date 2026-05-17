@@ -964,14 +964,22 @@ export class OrderService {
     paymentStatus: PaymentStatus,
   ): Promise<void> {
     const tenant = getCurrentTenant();
-    await tx.$executeRawUnsafe(
+    // P2-H5 DEFECT 1c fix: $executeRawUnsafe returns the affected row count.
+    // When 0, the order id is foreign-school (or no longer PENDING_APPROVAL),
+    // so the helper raises NotFoundException to abort the surrounding tx
+    // rather than silently committing the approval flip without the order
+    // transition.
+    const affected = (await tx.$executeRawUnsafe(
       `UPDATE str_orders AS o SET status = 'PROCESSING', payment_status = $1, updated_at = now() ` +
         `FROM str_stores s ` +
         `WHERE o.id = $2::uuid AND s.id = o.store_id AND s.school_id = $3::uuid AND o.status = 'PENDING_APPROVAL'`,
       paymentStatus,
       orderId,
       tenant.schoolId,
-    );
+    )) as unknown as number;
+    if (affected === 0) {
+      throw new NotFoundException('Order not found in this school or already advanced');
+    }
   }
 
   /**
@@ -982,15 +990,33 @@ export class OrderService {
    * P2-H1 Step 1: UPDATE joins through str_stores.school_id as defence-in-depth.
    */
   async cancelFromApprovalDeclineInTx(tx: PrismaClient, orderId: string): Promise<void> {
-    await this.releaseAllReservations(tx, orderId);
+    // P2-H5 DEFECT 1c fix: verify the order belongs to the current school
+    // BEFORE releasing reservations — otherwise a foreign-school approval id
+    // could trigger reservation releases on someone else's inventory even
+    // though the order UPDATE downstream would no-op. We pre-check with a
+    // school-scoped SELECT, then run the existing reservation release + the
+    // status flip whose affected-row count we now verify.
     const tenant = getCurrentTenant();
-    await tx.$executeRawUnsafe(
+    const ownerCheck = (await tx.$queryRawUnsafe(
+      `SELECT 1 AS ok FROM str_orders o JOIN str_stores s ON s.id = o.store_id ` +
+        `WHERE o.id = $1::uuid AND s.school_id = $2::uuid LIMIT 1`,
+      orderId,
+      tenant.schoolId,
+    )) as Array<{ ok: number }>;
+    if (ownerCheck.length === 0) {
+      throw new NotFoundException('Order not found in this school');
+    }
+    await this.releaseAllReservations(tx, orderId);
+    const affected = (await tx.$executeRawUnsafe(
       `UPDATE str_orders AS o SET status = 'CANCELLED', updated_at = now() ` +
         `FROM str_stores s ` +
         `WHERE o.id = $1::uuid AND s.id = o.store_id AND s.school_id = $2::uuid AND o.status = 'PENDING_APPROVAL'`,
       orderId,
       tenant.schoolId,
-    );
+    )) as unknown as number;
+    if (affected === 0) {
+      throw new NotFoundException('Order not found in this school or already cancelled');
+    }
   }
 
   private async releaseAllReservations(tx: PrismaClient, orderId: string): Promise<void> {
@@ -1080,11 +1106,25 @@ export class ApprovalService {
     // REVIEW-CYCLE28 BLOCKING 3: approval row update + parent order
     // transition happen atomically inside ONE tenant tx with both rows
     // locked FOR UPDATE. str.order.completed emit fires AFTER tx commits.
+    //
+    // P2-H5 DEFECT 1c fix: every read/lock/update binds the school via JOIN
+    // through str_order_approvals → str_orders → str_stores so a foreign-
+    // school approval id collapses to NotFoundException at the loader. The
+    // helper methods (advanceFromApprovalInTx / cancelFromApprovalDeclineInTx)
+    // already JOIN through str_stores.school_id, but the affected-row count is
+    // now checked so a no-op UPDATE raises NotFoundException instead of
+    // silently committing the approval flip without the order transition.
+    const tenant = getCurrentTenant();
     let orderId: string | null = null;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const aRows = (await tx.$queryRawUnsafe(
-        `SELECT a.order_id::text AS order_id, a.parent_person_id::text AS parent_person_id, a.status FROM str_order_approvals a WHERE a.id = $1::uuid FOR UPDATE`,
+        `SELECT a.order_id::text AS order_id, a.parent_person_id::text AS parent_person_id, a.status ` +
+          `FROM str_order_approvals a ` +
+          `JOIN str_orders o ON o.id = a.order_id ` +
+          `JOIN str_stores s ON s.id = o.store_id ` +
+          `WHERE a.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF a`,
         approvalId,
+        tenant.schoolId,
       )) as Array<{ order_id: string; parent_person_id: string; status: string }>;
       if (aRows.length === 0) throw new NotFoundException('Approval not found');
       const a = aRows[0]!;
@@ -1094,10 +1134,15 @@ export class ApprovalService {
       if (a.status !== 'PENDING') {
         throw new BadRequestException(`Approval is already ${a.status}`);
       }
-      // Lock the parent order row in the same tx
+      // Lock the parent order row in the same tx — JOIN through str_stores so
+      // a foreign-school order id can never satisfy the lock.
       const oRows = (await tx.$queryRawUnsafe(
-        `SELECT status FROM str_orders WHERE id = $1::uuid FOR UPDATE`,
+        `SELECT o.status ` +
+          `FROM str_orders o ` +
+          `JOIN str_stores s ON s.id = o.store_id ` +
+          `WHERE o.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF o`,
         a.order_id,
+        tenant.schoolId,
       )) as Array<{ status: string }>;
       if (oRows.length === 0) throw new NotFoundException('Parent order not found');
       if (oRows[0]!.status !== 'PENDING_APPROVAL') {
@@ -1105,10 +1150,13 @@ export class ApprovalService {
           `Parent order is in status ${oRows[0]!.status}; expected PENDING_APPROVAL`,
         );
       }
-      // Atomic: flip approval + flip order in the same tx
+      // Atomic: flip approval + flip order in the same tx.
       await tx.$executeRawUnsafe(
-        `UPDATE str_order_approvals SET status = 'APPROVED', responded_at = now(), updated_at = now() WHERE id = $1::uuid`,
+        `UPDATE str_order_approvals AS a SET status = 'APPROVED', responded_at = now(), updated_at = now() ` +
+          `FROM str_orders o JOIN str_stores s ON s.id = o.store_id ` +
+          `WHERE a.id = $1::uuid AND o.id = a.order_id AND s.school_id = $2::uuid`,
         approvalId,
+        tenant.schoolId,
       );
       await this.orders.advanceFromApprovalInTx(tx as PrismaClient, a.order_id, 'CHARGED');
       orderId = a.order_id;
@@ -1130,10 +1178,20 @@ export class ApprovalService {
     }
     // REVIEW-CYCLE28 BLOCKING 3: approval decline + order CANCELLED +
     // reservation release atomic in ONE tenant tx.
+    //
+    // P2-H5 DEFECT 1c fix: as above — lock + update join through str_stores
+    // so a foreign-school approval id cannot drive a decline + reservation
+    // release on someone else's order.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const aRows = (await tx.$queryRawUnsafe(
-        `SELECT a.order_id::text AS order_id, a.parent_person_id::text AS parent_person_id, a.status FROM str_order_approvals a WHERE a.id = $1::uuid FOR UPDATE`,
+        `SELECT a.order_id::text AS order_id, a.parent_person_id::text AS parent_person_id, a.status ` +
+          `FROM str_order_approvals a ` +
+          `JOIN str_orders o ON o.id = a.order_id ` +
+          `JOIN str_stores s ON s.id = o.store_id ` +
+          `WHERE a.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF a`,
         approvalId,
+        tenant.schoolId,
       )) as Array<{ order_id: string; parent_person_id: string; status: string }>;
       if (aRows.length === 0) throw new NotFoundException('Approval not found');
       const a = aRows[0]!;
@@ -1143,10 +1201,14 @@ export class ApprovalService {
       if (a.status !== 'PENDING') {
         throw new BadRequestException(`Approval is already ${a.status}`);
       }
-      // Lock the parent order row in the same tx
+      // Lock the parent order row in the same tx with school predicate.
       const oRows = (await tx.$queryRawUnsafe(
-        `SELECT status FROM str_orders WHERE id = $1::uuid FOR UPDATE`,
+        `SELECT o.status ` +
+          `FROM str_orders o ` +
+          `JOIN str_stores s ON s.id = o.store_id ` +
+          `WHERE o.id = $1::uuid AND s.school_id = $2::uuid FOR UPDATE OF o`,
         a.order_id,
+        tenant.schoolId,
       )) as Array<{ status: string }>;
       if (oRows.length === 0) throw new NotFoundException('Parent order not found');
       if (oRows[0]!.status !== 'PENDING_APPROVAL') {
@@ -1156,20 +1218,33 @@ export class ApprovalService {
       }
       // Atomic: flip approval + cancel order + release reservation
       await tx.$executeRawUnsafe(
-        `UPDATE str_order_approvals SET status = 'DECLINED', responded_at = now(), decline_reason = $1, updated_at = now() WHERE id = $2::uuid`,
+        `UPDATE str_order_approvals AS a SET status = 'DECLINED', responded_at = now(), decline_reason = $1, updated_at = now() ` +
+          `FROM str_orders o JOIN str_stores s ON s.id = o.store_id ` +
+          `WHERE a.id = $2::uuid AND o.id = a.order_id AND s.school_id = $3::uuid`,
         input.reason,
         approvalId,
+        tenant.schoolId,
       );
       await this.orders.cancelFromApprovalDeclineInTx(tx as PrismaClient, a.order_id);
     });
     return this.getApproval(approvalId);
   }
 
+  // P2-H5 DEFECT 1c fix: reads bind str_stores.school_id so a foreign-school
+  // approval id collapses to NotFoundException instead of returning the row.
   private async getApproval(id: string): Promise<OrderApprovalDto> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT a.id::text AS id, a.order_id::text AS order_id, a.parent_person_id::text AS parent_person_id, (SELECT first_name || ' ' || last_name FROM platform.iam_person WHERE id = a.parent_person_id) AS parent_name, a.status, a.requested_at::text AS requested_at, a.responded_at::text AS responded_at, a.decline_reason FROM str_order_approvals a WHERE a.id = $1::uuid LIMIT 1`,
+        `SELECT a.id::text AS id, a.order_id::text AS order_id, a.parent_person_id::text AS parent_person_id, ` +
+          `(SELECT first_name || ' ' || last_name FROM platform.iam_person WHERE id = a.parent_person_id) AS parent_name, ` +
+          `a.status, a.requested_at::text AS requested_at, a.responded_at::text AS responded_at, a.decline_reason ` +
+          `FROM str_order_approvals a ` +
+          `JOIN str_orders o ON o.id = a.order_id ` +
+          `JOIN str_stores s ON s.id = o.store_id ` +
+          `WHERE a.id = $1::uuid AND s.school_id = $2::uuid LIMIT 1`,
         id,
+        tenant.schoolId,
       );
     })) as ApprovalRow[];
     if (rows.length === 0) throw new NotFoundException('Approval not found');

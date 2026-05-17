@@ -330,10 +330,25 @@ export class ContributorService {
     // BLOCKING 4 (REVIEW-CYCLE25) — validate the soft platform_users.id ref
     // points at a current-tenant user before insert.
     await assertAccountInCurrentTenant(this.tenantPrisma, input.contributorId, 'contributorId');
+    // P2-H5 DEFECT 1d fix: authorize the parent section through
+    // pub_sections → pub_publications.school_id BEFORE the INSERT. The whole
+    // chain runs in one tenant tx so a crafted cross-school sectionId cannot
+    // pass and then have a contributor row attached.
+    const tenant = getCurrentTenant();
     const id = generateId();
     try {
-      await this.tenantPrisma.executeInTenantContext(async (client) => {
-        await client.$executeRawUnsafe(
+      await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        const sectionRows = (await tx.$queryRawUnsafe(
+          'SELECT 1 AS ok FROM pub_sections s ' +
+            'JOIN pub_publications p ON p.id = s.publication_id ' +
+            'WHERE s.id = $1::uuid AND p.school_id = $2::uuid LIMIT 1',
+          sectionId,
+          tenant.schoolId,
+        )) as Array<{ ok: number }>;
+        if (sectionRows.length === 0) {
+          throw new NotFoundException('Section not found');
+        }
+        await tx.$executeRawUnsafe(
           'INSERT INTO pub_section_contributors (id, section_id, contributor_id, contribution_note) VALUES ($1::uuid, $2::uuid, $3::uuid, $4)',
           id,
           sectionId,
@@ -372,12 +387,23 @@ export class ContributorService {
   }
 
   async remove(_actor: ResolvedActor, contributorRowId: string): Promise<void> {
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
-        'DELETE FROM pub_section_contributors WHERE id = $1::uuid',
+    // P2-H5 DEFECT 1d fix: DELETE joins through pub_sections → pub_publications
+    // so a foreign-school contributor row id silently no-ops (and we surface
+    // 404 via affected-row count to keep the contract explicit).
+    const tenant = getCurrentTenant();
+    const affected = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      return client.$executeRawUnsafe(
+        'DELETE FROM pub_section_contributors AS c ' +
+          'USING pub_sections s, pub_publications p ' +
+          'WHERE c.id = $1::uuid AND s.id = c.section_id AND p.id = s.publication_id ' +
+          'AND p.school_id = $2::uuid',
         contributorRowId,
+        tenant.schoolId,
       );
-    });
+    })) as unknown as number;
+    if (affected === 0) {
+      throw new NotFoundException('Contributor not found');
+    }
   }
 }
 
@@ -448,9 +474,25 @@ export class CommentService {
     sectionId: string,
     input: CreateCommentDto,
   ): Promise<SectionCommentDto> {
+    // P2-H5 DEFECT 1d fix: authorize the parent section through
+    // pub_sections → pub_publications.school_id BEFORE INSERT. listForSection
+    // already gates via canEditPublication, but the comment can be inserted
+    // (and surface in a different tenant context) before list is called, so
+    // the gate must run inside the same tx as the INSERT.
+    const tenant = getCurrentTenant();
     const id = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const sectionRows = (await tx.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM pub_sections s ' +
+          'JOIN pub_publications p ON p.id = s.publication_id ' +
+          'WHERE s.id = $1::uuid AND p.school_id = $2::uuid LIMIT 1',
+        sectionId,
+        tenant.schoolId,
+      )) as Array<{ ok: number }>;
+      if (sectionRows.length === 0) {
+        throw new NotFoundException('Section not found');
+      }
+      await tx.$executeRawUnsafe(
         'INSERT INTO pub_section_comments (id, section_id, author_id, body, parent_comment_id) VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid)',
         id,
         sectionId,
@@ -464,19 +506,31 @@ export class CommentService {
   }
 
   async resolve(actor: ResolvedActor, commentId: string): Promise<SectionCommentDto> {
+    // P2-H5 DEFECT 1d fix: lock + UPDATE join through pub_sections →
+    // pub_publications.school_id so a foreign-school comment id collapses to
+    // 404. The pre-fix code locked by comment id alone and updated by id
+    // alone.
+    const tenant = getCurrentTenant();
     return this.tenantPrisma.executeInTenantTransaction(async (client) => {
       const rows = (await client.$queryRawUnsafe(
-        'SELECT section_id::text AS section_id, is_resolved FROM pub_section_comments WHERE id = $1::uuid FOR UPDATE',
+        'SELECT c.section_id::text AS section_id, c.is_resolved FROM pub_section_comments c ' +
+          'JOIN pub_sections s ON s.id = c.section_id ' +
+          'JOIN pub_publications p ON p.id = s.publication_id ' +
+          'WHERE c.id = $1::uuid AND p.school_id = $2::uuid FOR UPDATE OF c',
         commentId,
+        tenant.schoolId,
       )) as Array<{ section_id: string; is_resolved: boolean }>;
       if (rows.length === 0) throw new NotFoundException('Comment not found');
       if (rows[0]!.is_resolved) {
         throw new BadRequestException('Comment is already resolved.');
       }
       await client.$executeRawUnsafe(
-        'UPDATE pub_section_comments SET is_resolved = true, resolved_by = $1::uuid, resolved_at = now(), updated_at = now() WHERE id = $2::uuid',
+        'UPDATE pub_section_comments AS c SET is_resolved = true, resolved_by = $1::uuid, resolved_at = now(), updated_at = now() ' +
+          'FROM pub_sections s JOIN pub_publications p ON p.id = s.publication_id ' +
+          'WHERE c.id = $2::uuid AND s.id = c.section_id AND p.school_id = $3::uuid',
         actor.accountId,
         commentId,
+        tenant.schoolId,
       );
       const list = await this.listForSection(rows[0]!.section_id, actor);
       return list.find((c) => c.id === commentId)!;

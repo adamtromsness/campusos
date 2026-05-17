@@ -43,7 +43,8 @@ interface FakeOpts {
 
 function makeFake(opts: FakeOpts = {}) {
   const capture: CapturedCall[] = [];
-  const redisCalls: { kind: 'get' | 'set' | 'invalidate'; accountId: string; value?: string }[] = [];
+  const redisCalls: { kind: 'get' | 'set' | 'invalidate'; accountId: string; value?: string }[] =
+    [];
   const client = {
     $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
       capture.push({ sql, args, fn: 'q' });
@@ -117,7 +118,9 @@ describe('LedgerService.recordEntry — internal-only writer', () => {
     });
     expect(id).toBeDefined();
     expect(id!.length).toBeGreaterThan(0);
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_ledger_entries'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_ledger_entries'),
+    );
     expect(insert).toBeTruthy();
     expect(insert!.args[0]).toBe(id);
     expect(insert!.args[1]).toBe('fa-1');
@@ -312,12 +315,7 @@ describe('LedgerService.listEntries', () => {
     expect(sql).toContain('and created_at < $2::timestamptz');
     expect(sql).toContain('and reference_id = $3::uuid');
     expect(sql).toContain('limit $4::int');
-    expect(capture[0]!.args).toEqual([
-      'fa-1',
-      '2026-04-28T00:00:00Z',
-      'inv-1',
-      50,
-    ]);
+    expect(capture[0]!.args).toEqual(['fa-1', '2026-04-28T00:00:00Z', 'inv-1', 50]);
   });
 
   it('rowToDto coerces NUMERIC string + preserves nullable fields', async () => {

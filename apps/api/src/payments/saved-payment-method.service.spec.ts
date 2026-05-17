@@ -133,7 +133,9 @@ describe('SavedPaymentMethodService.listForFamily', () => {
     expect(rows[0]!.cardLastFour).toBe('4242');
     expect(rows[0]!.isDefault).toBe(true);
     // Verify school-scoped predicate + removed_at IS NULL + ORDER BY
-    const listQuery = capture.find((c) => c.sql.toLowerCase().includes('from pay_saved_payment_methods'));
+    const listQuery = capture.find((c) =>
+      c.sql.toLowerCase().includes('from pay_saved_payment_methods'),
+    );
     expect(listQuery).toBeTruthy();
     const sql = listQuery!.sql.toLowerCase();
     expect(sql).toContain('school_id = $1::uuid');
@@ -184,7 +186,9 @@ describe('SavedPaymentMethodService.create', () => {
       );
     });
     expect(dto?.id).toBe('pm-1');
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_saved_payment_methods'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_saved_payment_methods'),
+    );
     expect(insert).toBeTruthy();
     expect(insert!.args).toContain('fa-1');
     expect(insert!.args).toContain('pm_test_1234567890');
@@ -220,7 +224,9 @@ describe('SavedPaymentMethodService.create', () => {
     expect(clearUpdate!.sql.toLowerCase()).toContain('school_id = $1::uuid');
     expect(clearUpdate!.args[0]).toBe(SCHOOL.schoolId);
     expect(clearUpdate!.args[1]).toBe('fa-1');
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_saved_payment_methods'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_saved_payment_methods'),
+    );
     expect(insert).toBeTruthy();
     // isDefault=true was passed
     expect(insert!.args).toContain(true);
@@ -335,7 +341,9 @@ describe('SavedPaymentMethodService.create', () => {
         adminActor,
       );
     });
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_saved_payment_methods'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_saved_payment_methods'),
+    );
     expect(insert!.args).toContain('BANK_TRANSFER');
     expect(insert!.args).toContain('6789');
   });
@@ -395,7 +403,9 @@ describe('SavedPaymentMethodService.remove (soft-delete)', () => {
     });
     expect(result).toEqual({ id: 'pm-1', removed: true });
     const update = capture.find(
-      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_saved_payment_methods set removed_at = now()'),
+      (c) =>
+        c.fn === 'e' &&
+        c.sql.toLowerCase().startsWith('update pay_saved_payment_methods set removed_at = now()'),
     );
     expect(update).toBeTruthy();
     expect(update!.sql.toLowerCase()).toContain('school_id = $1::uuid');

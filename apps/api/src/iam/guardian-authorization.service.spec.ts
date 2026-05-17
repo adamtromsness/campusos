@@ -31,6 +31,8 @@ const TENANT: TenantInfo = {
 };
 
 interface LinkRow {
+  guardian_id: string;
+  family_id: string | null;
   has_custody: boolean;
   is_emergency_contact: boolean;
   receives_reports: boolean;
@@ -38,21 +40,52 @@ interface LinkRow {
   portal_access_scope: string;
 }
 
-function makeTenantPrisma(rowsToReturn: LinkRow[] | null) {
+interface CustodyRow {
+  guardian_a_id: string;
+  guardian_b_id: string;
+  custody_arrangement: string | null;
+  court_order_restrictions: Record<string, unknown> | null;
+}
+
+/**
+ * P2-H5 DEFECT 4 — fake tenant prisma that returns different rows by query
+ * shape. Link query (FROM sis_student_guardians) → linkRows. Custody query
+ * (FROM sis_family_relationships) → custodyRows. Account binding (FROM
+ * pay_family_accounts) → accountRows. getPlatformClient returns an auditLog
+ * stub that records each access decision.
+ */
+function makeTenantPrisma(
+  linkRows: LinkRow[],
+  custodyRows: CustodyRow[] = [],
+  accountRows: Array<{ ok: number }> = [],
+) {
   const captures: Array<{ sql: string; args: unknown[] }> = [];
+  const auditCaptures: Array<{ data: Record<string, unknown> }> = [];
   const tenantPrisma = {
     executeInTenantContext: async <T>(fn: (client: unknown) => Promise<T>) =>
       fn({
         $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
           captures.push({ sql, args });
-          return rowsToReturn ?? [];
+          if (sql.includes('FROM sis_student_guardians')) return linkRows;
+          if (sql.includes('FROM sis_family_relationships')) return custodyRows;
+          if (sql.includes('FROM pay_family_accounts')) return accountRows;
+          return [];
         },
       }),
+    getPlatformClient: () => ({
+      auditLog: {
+        create: async (args: { data: Record<string, unknown> }) => {
+          auditCaptures.push(args);
+        },
+      },
+    }),
   };
-  return { tenantPrisma, captures };
+  return { tenantPrisma, captures, auditCaptures };
 }
 
 const FULL_CUSTODIAL_LINK: LinkRow = {
+  guardian_id: 'guardian-1-id',
+  family_id: 'family-1-id',
   has_custody: true,
   is_emergency_contact: true,
   receives_reports: true,
@@ -69,15 +102,19 @@ describe('GuardianAuthorizationService.loadLink (via canViewAcademicRecord)', ()
     const { tenantPrisma, captures } = makeTenantPrisma([FULL_CUSTODIAL_LINK]);
     const svc = new GuardianAuthorizationService(tenantPrisma as never);
     await inTenant(() => svc.canViewAcademicRecord('guardian-person-1', 'student-1'));
-    expect(captures).toHaveLength(1);
-    expect(captures[0].sql).toContain('FROM sis_student_guardians sg');
-    expect(captures[0].sql).toContain('JOIN sis_guardians g');
-    expect(captures[0].sql).toContain('JOIN sis_students s');
-    expect(captures[0].sql).toContain('g.person_id = $1::uuid');
-    expect(captures[0].sql).toContain('sg.student_id = $2::uuid');
-    expect(captures[0].sql).toContain('s.school_id = $3::uuid');
-    expect(captures[0].sql).toContain('g.school_id = $3::uuid');
-    expect(captures[0].args).toEqual(['guardian-person-1', 'student-1', TENANT.schoolId]);
+    // P2-H5 DEFECT 4 — service now runs 2 queries on the link path: link
+    // resolution + family-relationship custody context. The first capture is
+    // the link query (the one this test asserts on).
+    expect(captures.length).toBeGreaterThanOrEqual(1);
+    const linkCapture = captures[0]!;
+    expect(linkCapture.sql).toContain('FROM sis_student_guardians sg');
+    expect(linkCapture.sql).toContain('JOIN sis_guardians g');
+    expect(linkCapture.sql).toContain('JOIN sis_students s');
+    expect(linkCapture.sql).toContain('g.person_id = $1::uuid');
+    expect(linkCapture.sql).toContain('sg.student_id = $2::uuid');
+    expect(linkCapture.sql).toContain('s.school_id = $3::uuid');
+    expect(linkCapture.sql).toContain('g.school_id = $3::uuid');
+    expect(linkCapture.args).toEqual(['guardian-person-1', 'student-1', TENANT.schoolId]);
   });
 
   it('returns false when there is no link row (cross-school or unlinked guardian)', async () => {
@@ -128,6 +165,8 @@ describe('canViewHealthRecord — FERPA-sensitive PHI gate', () => {
   it('grants for non-custodial emergency contact with FULL scope (school-day medical events)', async () => {
     const { tenantPrisma } = makeTenantPrisma([
       {
+        guardian_id: 'guardian-x',
+        family_id: 'family-x',
         has_custody: false,
         is_emergency_contact: true,
         receives_reports: false,
@@ -142,6 +181,8 @@ describe('canViewHealthRecord — FERPA-sensitive PHI gate', () => {
   it('grants for receives_reports guardian with FULL scope', async () => {
     const { tenantPrisma } = makeTenantPrisma([
       {
+        guardian_id: 'guardian-x',
+        family_id: 'family-x',
         has_custody: false,
         is_emergency_contact: false,
         receives_reports: true,
@@ -166,6 +207,8 @@ describe('canViewHealthRecord — FERPA-sensitive PHI gate', () => {
   it('refuses when FULL scope but none of (custody | emergency | receives_reports) is true', async () => {
     const { tenantPrisma } = makeTenantPrisma([
       {
+        guardian_id: 'guardian-x',
+        family_id: 'family-x',
         has_custody: false,
         is_emergency_contact: false,
         receives_reports: false,
@@ -200,6 +243,8 @@ describe('canAuthorizePayment — custodial-only gate', () => {
   it('refuses non-custodial guardian even with portal access + emergency + receives_reports', async () => {
     const { tenantPrisma } = makeTenantPrisma([
       {
+        guardian_id: 'guardian-x',
+        family_id: 'family-x',
         has_custody: false,
         is_emergency_contact: true,
         receives_reports: true,
@@ -211,10 +256,19 @@ describe('canAuthorizePayment — custodial-only gate', () => {
     expect(await inTenant(() => svc.canAuthorizePayment('g', 's'))).toBe(false);
   });
 
-  it('accepts the optional familyAccountId argument (reserved for future binding)', async () => {
-    const { tenantPrisma } = makeTenantPrisma([FULL_CUSTODIAL_LINK]);
+  it('accepts the optional familyAccountId argument when it binds to (guardian, student)', async () => {
+    // P2-H5 DEFECT 4 — familyAccountId is now validated. accountRows
+    // = [{ ok: 1 }] simulates the pay_family_accounts row resolving in
+    // the binding query.
+    const { tenantPrisma } = makeTenantPrisma([FULL_CUSTODIAL_LINK], [], [{ ok: 1 }]);
     const svc = new GuardianAuthorizationService(tenantPrisma as never);
     expect(await inTenant(() => svc.canAuthorizePayment('g', 's', 'family-1'))).toBe(true);
+  });
+
+  it('rejects a familyAccountId that does NOT bind to (guardian, student) — P2-H5 DEFECT 4', async () => {
+    const { tenantPrisma } = makeTenantPrisma([FULL_CUSTODIAL_LINK], [], []);
+    const svc = new GuardianAuthorizationService(tenantPrisma as never);
+    expect(await inTenant(() => svc.canAuthorizePayment('g', 's', 'unrelated-family'))).toBe(false);
   });
 
   it('refuses when no link exists', async () => {
@@ -228,6 +282,8 @@ describe('canReceiveTransportInfo — bus pass + ETA + geofence gate', () => {
   it('grants when receives_reports OR has_custody OR is_emergency_contact', async () => {
     for (const flag of ['receives_reports', 'has_custody', 'is_emergency_contact'] as const) {
       const link: LinkRow = {
+        guardian_id: 'guardian-x',
+        family_id: 'family-x',
         has_custody: false,
         is_emergency_contact: false,
         receives_reports: false,
@@ -244,6 +300,8 @@ describe('canReceiveTransportInfo — bus pass + ETA + geofence gate', () => {
   it('refuses when none of the three relevant flags is true', async () => {
     const { tenantPrisma } = makeTenantPrisma([
       {
+        guardian_id: 'guardian-x',
+        family_id: 'family-x',
         has_custody: false,
         is_emergency_contact: false,
         receives_reports: false,
@@ -338,10 +396,28 @@ describe('resolveLink — capability-snapshot helper', () => {
 });
 
 describe('logAccessDecision', () => {
-  it('does not throw (best-effort audit log)', () => {
-    const { tenantPrisma } = makeTenantPrisma([]);
+  it('persists each decision to platform_audit_log with data_subject_id = studentId (ADR-052)', async () => {
+    const { tenantPrisma, auditCaptures } = makeTenantPrisma([]);
     const svc = new GuardianAuthorizationService(tenantPrisma as never);
-    expect(() => svc.logAccessDecision('canViewHealthRecord', 'g-1', 's-1', true)).not.toThrow();
-    expect(() => svc.logAccessDecision('canAuthorizePayment', 'g-1', 's-1', false)).not.toThrow();
+    await inTenant(() => svc.logAccessDecision('canViewHealthRecord', 'g-1', 's-1', true));
+    expect(auditCaptures).toHaveLength(1);
+    const data = auditCaptures[0]!.data as Record<string, unknown>;
+    expect(data.action).toBe('guardian_access_decision');
+    expect(data.actorId).toBe('g-1');
+    expect(data.dataSubjectId).toBe('s-1');
+    expect(data.entityType).toBe('sis_students');
+    expect(data.entityId).toBe('s-1');
+    expect(data.tenantId).toBe(TENANT.schoolId);
+    expect((data.metadata as Record<string, unknown>).capability).toBe('canViewHealthRecord');
+    expect((data.metadata as Record<string, unknown>).granted).toBe(true);
+  });
+
+  it('captures both granted and denied decisions', async () => {
+    const { tenantPrisma, auditCaptures } = makeTenantPrisma([]);
+    const svc = new GuardianAuthorizationService(tenantPrisma as never);
+    await inTenant(() => svc.logAccessDecision('canAuthorizePayment', 'g-1', 's-1', false));
+    expect(auditCaptures).toHaveLength(1);
+    const data = auditCaptures[0]!.data as Record<string, unknown>;
+    expect((data.metadata as Record<string, unknown>).granted).toBe(false);
   });
 });

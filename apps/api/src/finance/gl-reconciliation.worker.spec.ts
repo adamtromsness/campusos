@@ -3,24 +3,18 @@ import { GlReconciliationWorker } from './gl-reconciliation.worker';
 import type { TenantInfo } from '../tenant/tenant.context';
 
 /**
- * P2-H4 test coverage uplift — gl-reconciliation.worker.ts (352 LOC,
- * critical-path Tier 1 Financial ≥95%).
+ * P2-H5 DEFECT 5 + DEFECT 6 — GlReconciliationWorker behavioural tests.
  *
- * P2-H3 Step 3 keystone for Phase 2 IMP-07 (GL reconciliation controls).
- * Five daily check types verify that every financial source row has at
- * least one fin_gl_entries row pointing back at it:
+ * The worker runs 7 reconciliation checks per tenant: the 5 source→GL
+ * checks from P2-H3 (INVOICE_AR / PAYMENT_CASH / REFUND_REVERSAL /
+ * CREDIT_NOTE / PAYMENT_REVERSAL) plus 2 new checks added in P2-H5
+ * (DUPLICATE_POSTING / ORPHAN_GL_ENTRY). Each check writes one
+ * rpt_gl_reconciliation row and emits fin.gl_reconciliation.discrepancy
+ * via the durable outbox whenever discrepancies OR a FAILED status fires.
  *
- *   INVOICE_AR       pay_invoices  (non-DRAFT, non-CANCELLED)
- *   PAYMENT_CASH     pay_payments  (COMPLETED, REFUNDED)
- *   REFUND_REVERSAL  pay_refunds   (COMPLETED)
- *   CREDIT_NOTE     pay_credit_notes
- *   PAYMENT_REVERSAL pay_payment_reversals
- *
- * Discrepancies emit `fin.gl_reconciliation.discrepancy` via the durable
- * outbox so PagerDuty can wake SRE inside the 15-minute financial-event
- * SLA. FAILED rows coerce matched=total_source + discrepancy=0 so the
- * schema's counts_chk passes while the discrepancies JSONB preserves
- * the operator-facing truth.
+ * The fakes below mock the tenant prisma + outbox and route each SQL
+ * shape to the appropriate canned response. The tests assert on the
+ * INSERT row + outbox emit, not on the SQL string itself.
  */
 
 const TENANT: TenantInfo = {
@@ -39,78 +33,86 @@ interface SqlCapture {
   fn: 'q' | 'e';
 }
 
-function makeFakes(opts: {
-  // Per-check-type: discrepancy rows + source count
-  invoiceArDiscrepancies?: Array<{ id: string }>;
-  paymentCashDiscrepancies?: Array<{ id: string }>;
-  refundReversalDiscrepancies?: Array<{ id: string }>;
-  creditNoteDiscrepancies?: Array<{ id: string }>;
-  paymentReversalDiscrepancies?: Array<{ id: string }>;
-  sourceCounts?: Record<string, number>;
-  // platform.schools result
+interface FakeOpts {
+  // P2-H5 source→GL: source rows + their amounts, plus the GL aggregate
+  // per reference_id (sum of debit+credit + line count).
+  sources?: {
+    invoiceAr?: Array<{ id: string; amount: number }>;
+    paymentCash?: Array<{ id: string; amount: number }>;
+    refundReversal?: Array<{ id: string; amount: number }>;
+    creditNote?: Array<{ id: string; amount: number }>;
+    paymentReversal?: Array<{ id: string; amount: number }>;
+  };
+  glAggregates?: Record<
+    string,
+    Array<{ reference_id: string; gl_total: number; line_count: number }>
+  >;
+  duplicates?: Array<{ source_event_id: string; batch_count: number; batch_ids: string[] }>;
+  orphans?: Record<string, Array<{ id: string; reference_id: string }>>;
+  orphanCounts?: Record<string, number>;
+  distinctPostedEvents?: number;
+  missingTables?: Set<string>;
   schools?: Array<{
     id: string;
     subdomain: string;
     schema_name: string;
     organisation_id: string | null;
   }>;
-  // Per-call SQL override (e.g. simulate missing source table by throwing)
-  shouldThrowOnQuery?: (sql: string) => boolean;
-}) {
+  shouldThrowOnQuery?: (sql: string, args: unknown[]) => boolean;
+}
+
+function makeFakes(opts: FakeOpts = {}) {
   const captures: SqlCapture[] = [];
+  const sources = opts.sources ?? {};
+  const glAggregates = opts.glAggregates ?? {};
+  const orphans = opts.orphans ?? {};
+  const orphanCounts = opts.orphanCounts ?? {};
+  const missing = opts.missingTables ?? new Set<string>();
+  const distinct = opts.distinctPostedEvents ?? 0;
+
+  const exists = (table: string) => !missing.has(table);
+
   const client = {
     $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
       captures.push({ sql, args, fn: 'q' });
-      if (opts.shouldThrowOnQuery?.(sql)) throw new Error('relation does not exist');
-      // Per-check discrepancy queries — fake mirrors the SELECT's
-      // `'<table>'::text AS source_table` literal so the worker's mapper
-      // populates sourceTable correctly.
-      if (sql.includes('FROM pay_invoices') && sql.includes('NOT EXISTS')) {
-        return (opts.invoiceArDiscrepancies ?? []).map((r) => ({
-          ...r,
-          source_table: 'pay_invoices',
-        }));
+      if (opts.shouldThrowOnQuery?.(sql, args)) {
+        throw new Error('relation does not exist');
       }
-      if (sql.includes('FROM pay_payments') && sql.includes('NOT EXISTS')) {
-        return (opts.paymentCashDiscrepancies ?? []).map((r) => ({
-          ...r,
-          source_table: 'pay_payments',
-        }));
+      // Table-existence probe
+      if (sql.includes('information_schema.tables')) {
+        const tableArg = args[0] as string;
+        return exists(tableArg) ? [{ ok: 1 }] : [];
       }
-      if (sql.includes('FROM pay_refunds') && sql.includes('NOT EXISTS')) {
-        return (opts.refundReversalDiscrepancies ?? []).map((r) => ({
-          ...r,
-          source_table: 'pay_refunds',
-        }));
+      // Orphan probe — matched FIRST because its SQL also contains
+      // `FROM pay_invoices src` etc., which would otherwise substring-
+      // match the source-row scans below.
+      if (sql.includes('NOT EXISTS') && sql.includes('FROM fin_gl_entries g')) {
+        const refType = args[0] as string;
+        return orphans[refType] ?? [];
       }
-      if (sql.includes('FROM pay_credit_notes') && sql.includes('NOT EXISTS')) {
-        return (opts.creditNoteDiscrepancies ?? []).map((r) => ({
-          ...r,
-          source_table: 'pay_credit_notes',
-        }));
+      if (sql.includes('COUNT(*)::int AS n FROM fin_gl_entries WHERE reference_type')) {
+        const refType = args[0] as string;
+        return [{ n: orphanCounts[refType] ?? 0 }];
       }
-      if (sql.includes('FROM pay_payment_reversals') && sql.includes('NOT EXISTS')) {
-        return (opts.paymentReversalDiscrepancies ?? []).map((r) => ({
-          ...r,
-          source_table: 'pay_payment_reversals',
-        }));
+      // GL aggregate
+      if (sql.includes('FROM fin_gl_entries g') && sql.includes('SUM(g.debit + g.credit)')) {
+        const refType = args[0] as string;
+        return glAggregates[refType] ?? [];
       }
-      // COUNT queries
-      if (sql.includes('COUNT(*)::int') && sql.includes('FROM pay_invoices')) {
-        return [{ n: opts.sourceCounts?.INVOICE_AR ?? 0 }];
+      // Duplicate postings
+      if (sql.includes('FROM fin_journal_batches') && sql.includes('HAVING COUNT(*) > 1')) {
+        return opts.duplicates ?? [];
       }
-      if (sql.includes('COUNT(*)::int') && sql.includes('FROM pay_payments')) {
-        return [{ n: opts.sourceCounts?.PAYMENT_CASH ?? 0 }];
+      // Distinct posted-event count
+      if (sql.includes('COUNT(DISTINCT source_event_id)')) {
+        return [{ n: distinct }];
       }
-      if (sql.includes('COUNT(*)::int') && sql.includes('FROM pay_refunds')) {
-        return [{ n: opts.sourceCounts?.REFUND_REVERSAL ?? 0 }];
-      }
-      if (sql.includes('COUNT(*)::int') && sql.includes('FROM pay_credit_notes')) {
-        return [{ n: opts.sourceCounts?.CREDIT_NOTE ?? 0 }];
-      }
-      if (sql.includes('COUNT(*)::int') && sql.includes('FROM pay_payment_reversals')) {
-        return [{ n: opts.sourceCounts?.PAYMENT_REVERSAL ?? 0 }];
-      }
+      // Source-row scans
+      if (sql.includes('FROM pay_invoices s')) return sources.invoiceAr ?? [];
+      if (sql.includes('FROM pay_payments s')) return sources.paymentCash ?? [];
+      if (sql.includes('FROM pay_refunds s')) return sources.refundReversal ?? [];
+      if (sql.includes('FROM pay_credit_notes s')) return sources.creditNote ?? [];
+      if (sql.includes('FROM pay_payment_reversals s')) return sources.paymentReversal ?? [];
       return [];
     },
     $executeRawUnsafe: async (sql: string, ...args: unknown[]) => {
@@ -161,156 +163,250 @@ function findInsert(captures: SqlCapture[]): SqlCapture[] {
   );
 }
 
-describe('GlReconciliationWorker.runForTenant — CLEAN path', () => {
-  it('writes 5 CLEAN rpt_gl_reconciliation rows when every source matches', async () => {
+describe('GlReconciliationWorker.runForTenant', () => {
+  it('writes 7 rpt_gl_reconciliation rows per tenant (5 source→GL + DUPLICATE_POSTING + ORPHAN_GL_ENTRY)', async () => {
+    const fakes = makeFakes({});
+    const { outbox } = makeOutbox();
+    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
+    const count = await worker.runForTenant(TENANT);
+    expect(count).toBe(7);
+    const inserts = findInsert(fakes.captures);
+    expect(inserts).toHaveLength(7);
+    expect(inserts.map((i) => i.args[2]).sort()).toEqual([
+      'CREDIT_NOTE',
+      'DUPLICATE_POSTING',
+      'INVOICE_AR',
+      'ORPHAN_GL_ENTRY',
+      'PAYMENT_CASH',
+      'PAYMENT_REVERSAL',
+      'REFUND_REVERSAL',
+    ]);
+  });
+
+  it('marks CLEAN when every source row matches a GL entry of expected amount', async () => {
+    // One invoice at $100, GL entry totals $200 (debit + credit balanced).
     const fakes = makeFakes({
-      sourceCounts: {
-        INVOICE_AR: 10,
-        PAYMENT_CASH: 8,
-        REFUND_REVERSAL: 2,
-        CREDIT_NOTE: 1,
-        PAYMENT_REVERSAL: 0,
+      sources: { invoiceAr: [{ id: 'inv-1', amount: 100 }] },
+      glAggregates: {
+        pay_invoices: [{ reference_id: 'inv-1', gl_total: 200, line_count: 2 }],
       },
     });
     const { outbox, enqueued } = makeOutbox();
     const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
-    const count = await worker.runForTenant(TENANT);
-    expect(count).toBe(5);
-    const inserts = findInsert(fakes.captures);
-    expect(inserts).toHaveLength(5);
-    // Every INSERT carries status='CLEAN' and matched = total_source
-    for (const ins of inserts) {
-      expect(ins.args[7]).toBe('CLEAN');
-      expect(ins.args[3]).toBe(ins.args[4]); // total_source === matched
-      expect(ins.args[5]).toBe(0); // discrepancy_count = 0
-    }
-    // No outbox emit when everything is CLEAN
-    expect(enqueued).toHaveLength(0);
+    await worker.runForTenant(TENANT);
+    const invoice = findInsert(fakes.captures).find((c) => c.args[2] === 'INVOICE_AR')!;
+    expect(invoice.args[7]).toBe('CLEAN');
+    expect(invoice.args[3]).toBe(1); // total_source
+    expect(invoice.args[4]).toBe(1); // matched
+    expect(invoice.args[5]).toBe(0); // discrepancy_count
+    // No outbox emit on CLEAN
+    expect(enqueued.find((e) => e.payload.checkType === 'INVOICE_AR')).toBeUndefined();
   });
 });
 
-describe('GlReconciliationWorker.runForTenant — DISCREPANCIES_FOUND path', () => {
-  it('writes a DISCREPANCIES_FOUND row + emits fin.gl_reconciliation.discrepancy when invoices are missing GL', async () => {
+describe('source→GL — MISSING_GL_ENTRY discrepancies', () => {
+  it('flags every source row with no matching GL entry', async () => {
     const fakes = makeFakes({
-      invoiceArDiscrepancies: [{ id: 'inv-1' }, { id: 'inv-2' }],
-      sourceCounts: { INVOICE_AR: 10 },
+      sources: {
+        invoiceAr: [
+          { id: 'inv-1', amount: 100 },
+          { id: 'inv-2', amount: 200 },
+        ],
+      },
+      glAggregates: {
+        // Only inv-1 has a GL entry; inv-2 is missing.
+        pay_invoices: [{ reference_id: 'inv-1', gl_total: 200, line_count: 2 }],
+      },
     });
     const { outbox, enqueued } = makeOutbox();
     const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
     await worker.runForTenant(TENANT);
-    const inserts = findInsert(fakes.captures);
-    const invoiceArInsert = inserts.find((c) => c.args[2] === 'INVOICE_AR');
-    expect(invoiceArInsert).toBeDefined();
-    expect(invoiceArInsert!.args[3]).toBe(10); // total_source
-    expect(invoiceArInsert!.args[4]).toBe(8); // matched = 10 - 2
-    expect(invoiceArInsert!.args[5]).toBe(2); // discrepancy_count
-    expect(invoiceArInsert!.args[7]).toBe('DISCREPANCIES_FOUND');
-    // The JSONB discrepancies payload carries one entry per discrepancy
-    const discrepanciesJson = JSON.parse(invoiceArInsert!.args[6] as string);
-    expect(discrepanciesJson).toHaveLength(2);
-    expect(discrepanciesJson[0]).toEqual({
-      sourceId: 'inv-1',
+    const invoice = findInsert(fakes.captures).find((c) => c.args[2] === 'INVOICE_AR')!;
+    expect(invoice.args[7]).toBe('DISCREPANCIES_FOUND');
+    expect(invoice.args[3]).toBe(2); // total_source
+    expect(invoice.args[4]).toBe(1); // matched
+    expect(invoice.args[5]).toBe(1); // discrepancy_count
+    const discrepancies = JSON.parse(invoice.args[6] as string);
+    expect(discrepancies).toHaveLength(1);
+    expect(discrepancies[0]).toMatchObject({
+      sourceId: 'inv-2',
       sourceTable: 'pay_invoices',
       issue: 'MISSING_GL_ENTRY',
     });
-    // Outbox emit fired with full alert payload
+    // Outbox emit fires
     const emit = enqueued.find((e) => e.payload.checkType === 'INVOICE_AR');
     expect(emit).toBeDefined();
     expect(emit!.topic).toBe('fin.gl_reconciliation.discrepancy');
-    expect(emit!.sourceModule).toBe('finance');
-    expect(emit!.payload.schoolId).toBe(TENANT.schoolId);
-    expect(emit!.payload.discrepancyCount).toBe(2);
     expect(emit!.payload.severity).toBe('URGENT');
-    expect(emit!.payload.reconciliationRunId).toBe(emit!.key);
+    expect(emit!.payload.status).toBe('DISCREPANCIES_FOUND');
+  });
+});
+
+describe('source→GL — AMOUNT_MISMATCH discrepancies (P2-H5 DEFECT 5)', () => {
+  it('flags source rows whose GL total ≠ source amount × 2 (balanced batch) or × 1 (single-line)', async () => {
+    const fakes = makeFakes({
+      sources: { paymentCash: [{ id: 'pay-1', amount: 50 }] },
+      glAggregates: {
+        // pay-1 has a GL entry totalling $80 — neither 1× ($50) nor 2× ($100). Mismatch.
+        pay_payments: [{ reference_id: 'pay-1', gl_total: 80, line_count: 2 }],
+      },
+    });
+    const { outbox, enqueued } = makeOutbox();
+    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
+    await worker.runForTenant(TENANT);
+    const payment = findInsert(fakes.captures).find((c) => c.args[2] === 'PAYMENT_CASH')!;
+    expect(payment.args[7]).toBe('DISCREPANCIES_FOUND');
+    const discrepancies = JSON.parse(payment.args[6] as string);
+    expect(discrepancies).toHaveLength(1);
+    expect(discrepancies[0]).toMatchObject({
+      sourceId: 'pay-1',
+      sourceTable: 'pay_payments',
+      issue: 'AMOUNT_MISMATCH',
+      expected: 100,
+      actual: 80,
+    });
+    expect(enqueued.find((e) => e.payload.checkType === 'PAYMENT_CASH')).toBeDefined();
   });
 
-  it('caps the discrepancies JSONB to 100 entries (operator-facing payload limit)', async () => {
-    const bigDiscrepancyList = Array.from({ length: 250 }, (_, i) => ({ id: `inv-${i}` }));
+  it('accepts single-line postings (1× source amount) without flagging AMOUNT_MISMATCH', async () => {
     const fakes = makeFakes({
-      paymentCashDiscrepancies: bigDiscrepancyList,
-      sourceCounts: { PAYMENT_CASH: 300 },
+      sources: { refundReversal: [{ id: 'r-1', amount: 25 }] },
+      glAggregates: {
+        pay_refunds: [{ reference_id: 'r-1', gl_total: 25, line_count: 1 }],
+      },
     });
     const { outbox } = makeOutbox();
     const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
     await worker.runForTenant(TENANT);
-    const inserts = findInsert(fakes.captures);
-    const paymentInsert = inserts.find((c) => c.args[2] === 'PAYMENT_CASH');
-    const discrepancies = JSON.parse(paymentInsert!.args[6] as string);
-    expect(discrepancies).toHaveLength(100);
-    // But discrepancy_count column still reports the real total
-    expect(paymentInsert!.args[5]).toBe(250);
-  });
-
-  it('emits a separate fin.gl_reconciliation.discrepancy per affected check_type', async () => {
-    const fakes = makeFakes({
-      invoiceArDiscrepancies: [{ id: 'inv-1' }],
-      refundReversalDiscrepancies: [{ id: 'r-1' }, { id: 'r-2' }],
-      sourceCounts: {
-        INVOICE_AR: 5,
-        PAYMENT_CASH: 0,
-        REFUND_REVERSAL: 3,
-        CREDIT_NOTE: 0,
-        PAYMENT_REVERSAL: 0,
-      },
-    });
-    const { outbox, enqueued } = makeOutbox();
-    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
-    await worker.runForTenant(TENANT);
-    expect(enqueued).toHaveLength(2);
-    expect(enqueued.map((e) => e.payload.checkType).sort()).toEqual([
-      'INVOICE_AR',
-      'REFUND_REVERSAL',
-    ]);
+    const refund = findInsert(fakes.captures).find((c) => c.args[2] === 'REFUND_REVERSAL')!;
+    expect(refund.args[7]).toBe('CLEAN');
   });
 });
 
-describe('GlReconciliationWorker — FAILED path (source table missing or query error)', () => {
-  it('writes a FAILED row with counts coerced to satisfy counts_chk', async () => {
+describe('DUPLICATE_POSTING check (P2-H5 DEFECT 5)', () => {
+  it('emits a DISCREPANCIES_FOUND row + alert when the same source_event_id appears in multiple POSTED batches', async () => {
     const fakes = makeFakes({
-      // Simulate missing pay_credit_notes table — query throws
-      shouldThrowOnQuery: (sql) =>
-        sql.includes('FROM pay_credit_notes') && sql.includes('NOT EXISTS'),
+      duplicates: [
+        {
+          source_event_id: 'evt-1',
+          batch_count: 2,
+          batch_ids: ['batch-a', 'batch-b'],
+        },
+      ],
+      distinctPostedEvents: 5,
     });
     const { outbox, enqueued } = makeOutbox();
     const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
     await worker.runForTenant(TENANT);
-    const inserts = findInsert(fakes.captures);
-    const creditNoteInsert = inserts.find((c) => c.args[2] === 'CREDIT_NOTE');
-    expect(creditNoteInsert).toBeDefined();
-    expect(creditNoteInsert!.args[7]).toBe('FAILED');
-    // counts_chk requires matched = total_source AND discrepancy = 0 in this state
-    expect(creditNoteInsert!.args[3]).toBe(0); // total_source
-    expect(creditNoteInsert!.args[4]).toBe(0); // matched
-    expect(creditNoteInsert!.args[5]).toBe(0); // discrepancy_count
-    expect(creditNoteInsert!.args[6]).toBe('[]'); // empty discrepancies payload
-    // FAILED rows do NOT emit the outbox discrepancy event
-    expect(enqueued.find((e) => e.payload.checkType === 'CREDIT_NOTE')).toBeUndefined();
+    const dup = findInsert(fakes.captures).find((c) => c.args[2] === 'DUPLICATE_POSTING')!;
+    expect(dup.args[7]).toBe('DISCREPANCIES_FOUND');
+    expect(dup.args[3]).toBe(5);
+    expect(dup.args[5]).toBe(1);
+    const discrepancies = JSON.parse(dup.args[6] as string);
+    expect(discrepancies[0]).toMatchObject({
+      sourceId: 'evt-1',
+      issue: 'DUPLICATE_POSTING',
+      batchCount: 2,
+      batchIds: ['batch-a', 'batch-b'],
+    });
+    expect(enqueued.find((e) => e.payload.checkType === 'DUPLICATE_POSTING')).toBeDefined();
+  });
+
+  it('reports CLEAN when no source_event_id appears more than once', async () => {
+    const fakes = makeFakes({ duplicates: [], distinctPostedEvents: 10 });
+    const { outbox } = makeOutbox();
+    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
+    await worker.runForTenant(TENANT);
+    const dup = findInsert(fakes.captures).find((c) => c.args[2] === 'DUPLICATE_POSTING')!;
+    expect(dup.args[7]).toBe('CLEAN');
+  });
+});
+
+describe('ORPHAN_GL_ENTRY check (P2-H5 DEFECT 5)', () => {
+  it('flags GL entries whose reference_id no longer resolves in the named source table', async () => {
+    const fakes = makeFakes({
+      orphans: {
+        pay_invoices: [{ id: 'gl-1', reference_id: 'inv-missing' }],
+      },
+      orphanCounts: { pay_invoices: 50 },
+    });
+    const { outbox, enqueued } = makeOutbox();
+    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
+    await worker.runForTenant(TENANT);
+    const orphan = findInsert(fakes.captures).find((c) => c.args[2] === 'ORPHAN_GL_ENTRY')!;
+    expect(orphan.args[7]).toBe('DISCREPANCIES_FOUND');
+    expect(orphan.args[5]).toBe(1);
+    const discrepancies = JSON.parse(orphan.args[6] as string);
+    expect(discrepancies[0]).toMatchObject({
+      sourceId: 'gl-1',
+      issue: 'ORPHAN_GL_ENTRY',
+      referenceType: 'pay_invoices',
+      referenceId: 'inv-missing',
+    });
+    expect(enqueued.find((e) => e.payload.checkType === 'ORPHAN_GL_ENTRY')).toBeDefined();
+  });
+});
+
+describe('FAILED status emits an alert (P2-H5 DEFECT 5)', () => {
+  it('emits fin.gl_reconciliation.discrepancy when the check query throws', async () => {
+    const fakes = makeFakes({
+      shouldThrowOnQuery: (sql) => sql.includes('FROM pay_credit_notes s'),
+    });
+    const { outbox, enqueued } = makeOutbox();
+    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
+    await worker.runForTenant(TENANT);
+    const failed = findInsert(fakes.captures).find((c) => c.args[2] === 'CREDIT_NOTE')!;
+    expect(failed.args[7]).toBe('FAILED');
+    // counts_chk-safe coercion
+    expect(failed.args[3]).toBe(0);
+    expect(failed.args[4]).toBe(0);
+    expect(failed.args[5]).toBe(0);
+    // Alert MUST fire even on FAILED so SRE pages on a broken check
+    const emit = enqueued.find(
+      (e) => e.payload.checkType === 'CREDIT_NOTE' && e.payload.status === 'FAILED',
+    );
+    expect(emit).toBeDefined();
+    expect(emit!.payload.severity).toBe('URGENT');
+    expect((emit!.payload.discrepancies as Array<{ issue: string }>)[0].issue).toBe(
+      'CHECK_QUERY_FAILED',
+    );
+  });
+
+  it('emits SOURCE_TABLE_MISSING when the source table does not exist in this tenant', async () => {
+    const fakes = makeFakes({
+      missingTables: new Set(['pay_credit_notes']),
+    });
+    const { outbox, enqueued } = makeOutbox();
+    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
+    await worker.runForTenant(TENANT);
+    const failed = findInsert(fakes.captures).find((c) => c.args[2] === 'CREDIT_NOTE')!;
+    expect(failed.args[7]).toBe('FAILED');
+    const emit = enqueued.find(
+      (e) => e.payload.checkType === 'CREDIT_NOTE' && e.payload.status === 'FAILED',
+    );
+    expect(emit).toBeDefined();
+    expect((emit!.payload.discrepancies as Array<{ issue: string }>)[0].issue).toBe(
+      'SOURCE_TABLE_MISSING',
+    );
   });
 });
 
 describe('GlReconciliationWorker.runOnce — multi-tenant iteration', () => {
-  it('iterates active schools and accumulates the rpt row count', async () => {
+  it('iterates active schools and accumulates the rpt row count (7 per school)', async () => {
     const fakes = makeFakes({
       schools: [
         { id: 'school-1', subdomain: 's1', schema_name: 'tenant_s1', organisation_id: 'org-1' },
         { id: 'school-2', subdomain: 's2', schema_name: 'tenant_s2', organisation_id: null },
       ],
-      sourceCounts: {
-        INVOICE_AR: 1,
-        PAYMENT_CASH: 1,
-        REFUND_REVERSAL: 1,
-        CREDIT_NOTE: 1,
-        PAYMENT_REVERSAL: 1,
-      },
     });
     const { outbox } = makeOutbox();
     const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
     const count = await worker.runOnce();
-    // 5 check types × 2 schools = 10 rpt rows
-    expect(count).toBe(10);
+    // 7 checks × 2 schools
+    expect(count).toBe(14);
   });
 
-  it('returns 0 when there are no active schools (gracefully)', async () => {
+  it('returns 0 when there are no active schools', async () => {
     const fakes = makeFakes({ schools: [] });
     const { outbox } = makeOutbox();
     const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
@@ -330,106 +426,5 @@ describe('GlReconciliationWorker.runOnce — multi-tenant iteration', () => {
     const { outbox } = makeOutbox();
     const worker = new GlReconciliationWorker(tenantPrisma as never, outbox as never);
     expect(await worker.runOnce()).toBe(0);
-  });
-});
-
-describe('GlReconciliationWorker — SQL shape per check_type', () => {
-  it('INVOICE_AR query: excludes DRAFT and CANCELLED, NOT EXISTS on pay_invoices reference', async () => {
-    const fakes = makeFakes({ sourceCounts: { INVOICE_AR: 0 } });
-    const { outbox } = makeOutbox();
-    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
-    await worker.runForTenant(TENANT);
-    const invoiceQuery = fakes.captures.find(
-      (c) => c.sql.includes('FROM pay_invoices i') && c.sql.includes('NOT EXISTS'),
-    );
-    expect(invoiceQuery).toBeDefined();
-    expect(invoiceQuery!.sql).toContain("i.status NOT IN ('DRAFT', 'CANCELLED')");
-    expect(invoiceQuery!.sql).toContain("g.reference_type = 'pay_invoices'");
-  });
-
-  it('PAYMENT_CASH query: filters COMPLETED + REFUNDED', async () => {
-    const fakes = makeFakes({ sourceCounts: { PAYMENT_CASH: 0 } });
-    const { outbox } = makeOutbox();
-    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
-    await worker.runForTenant(TENANT);
-    const q = fakes.captures.find(
-      (c) => c.sql.includes('FROM pay_payments p') && c.sql.includes('NOT EXISTS'),
-    );
-    expect(q!.sql).toContain("p.status IN ('COMPLETED', 'REFUNDED')");
-    expect(q!.sql).toContain("g.reference_type = 'pay_payments'");
-  });
-
-  it('REFUND_REVERSAL query: filters COMPLETED only', async () => {
-    const fakes = makeFakes({ sourceCounts: { REFUND_REVERSAL: 0 } });
-    const { outbox } = makeOutbox();
-    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
-    await worker.runForTenant(TENANT);
-    const q = fakes.captures.find(
-      (c) => c.sql.includes('FROM pay_refunds r') && c.sql.includes('NOT EXISTS'),
-    );
-    expect(q!.sql).toContain("r.status = 'COMPLETED'");
-    expect(q!.sql).toContain("g.reference_type = 'pay_refunds'");
-  });
-
-  it('CREDIT_NOTE query: every row checked (no status filter — credit notes are immutable)', async () => {
-    const fakes = makeFakes({ sourceCounts: { CREDIT_NOTE: 0 } });
-    const { outbox } = makeOutbox();
-    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
-    await worker.runForTenant(TENANT);
-    const q = fakes.captures.find(
-      (c) => c.sql.includes('FROM pay_credit_notes c') && c.sql.includes('NOT EXISTS'),
-    );
-    expect(q!.sql).toContain("g.reference_type = 'pay_credit_notes'");
-    expect(q!.sql).not.toContain('c.status');
-  });
-
-  it('PAYMENT_REVERSAL query: every row checked (also immutable)', async () => {
-    const fakes = makeFakes({ sourceCounts: { PAYMENT_REVERSAL: 0 } });
-    const { outbox } = makeOutbox();
-    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
-    await worker.runForTenant(TENANT);
-    const q = fakes.captures.find(
-      (c) => c.sql.includes('FROM pay_payment_reversals pr') && c.sql.includes('NOT EXISTS'),
-    );
-    expect(q!.sql).toContain("g.reference_type = 'pay_payment_reversals'");
-    expect(q!.sql).not.toContain('pr.status');
-  });
-
-  it('loadActiveSchools query: filters platform.schools by is_active=true', async () => {
-    const platformCaptures: SqlCapture[] = [];
-    const tenantPrisma = {
-      executeInTenantContext: async () => [],
-      executeInTenantTransaction: async () => [],
-      getPlatformClient: () => ({
-        $queryRawUnsafe: async (sql: string, ...args: unknown[]) => {
-          platformCaptures.push({ sql, args, fn: 'q' });
-          return [];
-        },
-      }),
-    };
-    const { outbox } = makeOutbox();
-    const worker = new GlReconciliationWorker(tenantPrisma as never, outbox as never);
-    await worker.runOnce();
-    expect(platformCaptures).toHaveLength(1);
-    expect(platformCaptures[0].sql).toContain('FROM platform.schools');
-    expect(platformCaptures[0].sql).toContain('is_active = true');
-  });
-});
-
-describe('GlReconciliationWorker.recordRun — INSERT shape', () => {
-  it('INSERT into rpt_gl_reconciliation includes all 8 documented columns', async () => {
-    const fakes = makeFakes({ sourceCounts: { INVOICE_AR: 3 } });
-    const { outbox } = makeOutbox();
-    const worker = new GlReconciliationWorker(fakes.tenantPrisma as never, outbox as never);
-    await worker.runForTenant(TENANT);
-    const insert = findInsert(fakes.captures)[0];
-    expect(insert.sql).toContain('INSERT INTO rpt_gl_reconciliation');
-    expect(insert.sql).toContain(
-      'id, school_id, check_type, total_source_rows, total_matched_rows',
-    );
-    expect(insert.sql).toContain('discrepancy_count, discrepancies, status');
-    expect(insert.sql).toContain('::jsonb');
-    // School id is the second argument
-    expect(insert.args[1]).toBe(TENANT.schoolId);
   });
 });

@@ -72,10 +72,18 @@ function makeFakeTenant(opts: FakeTenantOpts = {}) {
 }
 
 function makeConsumerHarness() {
-  let subscribed: { topics: string[]; groupId: string; handler: (m: ConsumedMessage) => Promise<void> } | null = null;
+  let subscribed: {
+    topics: string[];
+    groupId: string;
+    handler: (m: ConsumedMessage) => Promise<void>;
+  } | null = null;
   return {
     consumer: {
-      subscribe: async (args: { topics: string[]; groupId: string; handler: (m: ConsumedMessage) => Promise<void> }) => {
+      subscribe: async (args: {
+        topics: string[];
+        groupId: string;
+        handler: (m: ConsumedMessage) => Promise<void>;
+      }) => {
         subscribed = args;
       },
     },
@@ -94,7 +102,9 @@ function makeIdempotency(opts: { alreadyClaimed?: boolean } = {}) {
   };
 }
 
-function makeMessage(overrides: Partial<{ payload: Record<string, unknown>; topic: string }> = {}): ConsumedMessage {
+function makeMessage(
+  overrides: Partial<{ payload: Record<string, unknown>; topic: string }> = {},
+): ConsumedMessage {
   return {
     topic: 'dev.enr.student.enrolled',
     payload: {
@@ -207,10 +217,15 @@ describe('PaymentAccountWorker.handle (via onModuleInit subscription)', () => {
     const lockCall = calls.find((c) => c.sql.toLowerCase().includes('pg_advisory_xact_lock'));
     expect(lockCall).toBeTruthy();
     expect(lockCall!.args[0]).toBe('sch-1');
-    const familyInsert = calls.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'));
+    const familyInsert = calls.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'),
+    );
     expect(familyInsert).toBeTruthy();
     expect(familyInsert!.args).toContain('FA-1001'); // 1000 + 1
-    const linkInsert = calls.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_account_students'));
+    const linkInsert = calls.find(
+      (c) =>
+        c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_account_students'),
+    );
     expect(linkInsert).toBeTruthy();
     expect(linkInsert!.args[2]).toBe('stu-maya');
     // Idempotency claim after success
@@ -230,9 +245,14 @@ describe('PaymentAccountWorker.handle (via onModuleInit subscription)', () => {
     await getSubscription()!.handler(makeMessage());
     const lockCall = calls.find((c) => c.sql.toLowerCase().includes('pg_advisory_xact_lock'));
     expect(lockCall).toBeUndefined();
-    const familyInsert = calls.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'));
+    const familyInsert = calls.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'),
+    );
     expect(familyInsert).toBeUndefined();
-    const linkInsert = calls.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_account_students'));
+    const linkInsert = calls.find(
+      (c) =>
+        c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_account_students'),
+    );
     expect(linkInsert).toBeTruthy();
     expect(linkInsert!.args[1]).toBe('fa-1');
   });
@@ -248,9 +268,14 @@ describe('PaymentAccountWorker.handle (via onModuleInit subscription)', () => {
     const w = new PaymentAccountWorker(consumer as never, idem as never, tenantPrisma as never);
     await w.onModuleInit();
     await getSubscription()!.handler(makeMessage());
-    const familyInsert = calls.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'));
+    const familyInsert = calls.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'),
+    );
     expect(familyInsert).toBeTruthy();
-    const linkInsert = calls.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_account_students'));
+    const linkInsert = calls.find(
+      (c) =>
+        c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_account_students'),
+    );
     expect(linkInsert).toBeUndefined();
   });
 
@@ -317,7 +342,9 @@ describe('PaymentAccountWorker.handle (via onModuleInit subscription)', () => {
     const w = new PaymentAccountWorker(consumer as never, idem as never, tenantPrisma as never);
     await w.onModuleInit();
     await getSubscription()!.handler(makeMessage());
-    const familyInsert = calls.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'));
+    const familyInsert = calls.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'),
+    );
     expect(familyInsert!.args).toContain('FA-1001');
   });
 
@@ -332,7 +359,9 @@ describe('PaymentAccountWorker.handle (via onModuleInit subscription)', () => {
     const w = new PaymentAccountWorker(consumer as never, idem as never, tenantPrisma as never);
     await w.onModuleInit();
     await getSubscription()!.handler(makeMessage());
-    const familyInsert = calls.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'));
+    const familyInsert = calls.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'),
+    );
     expect(familyInsert!.args).toContain('FA-1043');
   });
 
@@ -347,7 +376,9 @@ describe('PaymentAccountWorker.handle (via onModuleInit subscription)', () => {
     const w = new PaymentAccountWorker(consumer as never, idem as never, tenantPrisma as never);
     await w.onModuleInit();
     await getSubscription()!.handler(makeMessage());
-    const familyInsert = calls.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'));
+    const familyInsert = calls.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_family_accounts'),
+    );
     expect(familyInsert!.args).toContain('FA-1001');
   });
 });

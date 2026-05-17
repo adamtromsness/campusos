@@ -397,9 +397,9 @@ describe('DiscountRuleService.update', () => {
     const { tenantPrisma } = makeFake();
     const svc = new DiscountRuleService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(
-        svc.update('rule-1', { name: 'New' } as never, guardianActor),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.update('rule-1', { name: 'New' } as never, guardianActor)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -456,9 +456,9 @@ describe('DiscountRuleService.update', () => {
     });
     const svc = new DiscountRuleService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(
-        svc.update('rule-missing', { name: 'X' } as never, adminActor),
-      ).rejects.toThrow(NotFoundException);
+      await expect(svc.update('rule-missing', { name: 'X' } as never, adminActor)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

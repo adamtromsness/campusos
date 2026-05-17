@@ -218,7 +218,9 @@ describe('PaymentAllocationService.allocate', () => {
       );
     });
     // Should have called INSERT despite the tiny rounding residue
-    const insert = capture.find((c) => c.sql.toLowerCase().includes('insert into pay_payment_allocations'));
+    const insert = capture.find((c) =>
+      c.sql.toLowerCase().includes('insert into pay_payment_allocations'),
+    );
     expect(insert).toBeTruthy();
   });
 
@@ -362,14 +364,19 @@ describe('PaymentAllocationService.allocate', () => {
 
     // Sequence: lock + DELETE + 2× (lookup + INSERT) + final list SELECT
     const lockIdx = capture.findIndex(
-      (c) => c.sql.toLowerCase().includes('for update') && c.sql.toLowerCase().includes('from pay_payments'),
+      (c) =>
+        c.sql.toLowerCase().includes('for update') &&
+        c.sql.toLowerCase().includes('from pay_payments'),
     );
     const deleteIdx = capture.findIndex(
       (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('delete from pay_payment_allocations'),
     );
     const insertIdxs = capture
       .map((c, i) => ({ i, c }))
-      .filter(({ c }) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_payment_allocations'))
+      .filter(
+        ({ c }) =>
+          c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_payment_allocations'),
+      )
       .map((p) => p.i);
     expect(lockIdx).toBeGreaterThan(-1);
     expect(deleteIdx).toBeGreaterThan(lockIdx);

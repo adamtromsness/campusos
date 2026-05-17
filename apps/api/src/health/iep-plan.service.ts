@@ -297,6 +297,8 @@ export class IepPlanService {
     sets.push('updated_at = now()');
     params.push(id);
 
+    // P2-H5 DEFECT 3 fix: plan UPDATE + accommodation-snapshot emit run in
+    // ONE tx so a crash between the two cannot leave the read model stale.
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lockRows = (await tx.$queryRawUnsafe(
         'SELECT id::text AS id FROM hlth_iep_plans WHERE id = $1::uuid FOR UPDATE',
@@ -316,12 +318,12 @@ export class IepPlanService {
         }
         throw err;
       }
+      // If status changed (e.g. ACTIVE → EXPIRED) the accommodation set
+      // visible to the read model has effectively changed — re-emit so the
+      // consumer can drop the rows. We always emit on UPDATE for safety;
+      // the consumer is idempotent.
+      await this.emitAccommodationSnapshotInTx(tx, id);
     });
-    // If status changed (e.g. ACTIVE → EXPIRED) the accommodation set
-    // visible to the read model has effectively changed — re-emit so
-    // the consumer can drop the rows. We always emit on UPDATE for
-    // safety; the consumer is idempotent.
-    await this.emitAccommodationSnapshotByPlanId(id);
     return this.loadOrFailById(id);
   }
 
@@ -537,8 +539,11 @@ export class IepPlanService {
     await this.loadOrFailById(planId);
     this.assertAccommodationShape(input.appliesTo, input.specificAssignmentTypes ?? null);
     const id = generateId();
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+    // P2-H5 DEFECT 3 fix: INSERT + snapshot emit atomic in one tx so a crash
+    // between domain commit and outbox commit cannot leave the read model
+    // out of sync with the new accommodation.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      await tx.$executeRawUnsafe(
         'INSERT INTO hlth_iep_accommodations ' +
           '(id, iep_plan_id, accommodation_type, description, applies_to, specific_assignment_types, effective_from, effective_to) ' +
           'VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::text[], $7::date, $8::date)',
@@ -551,8 +556,8 @@ export class IepPlanService {
         input.effectiveFrom ?? null,
         input.effectiveTo ?? null,
       );
+      await this.emitAccommodationSnapshotInTx(tx, planId);
     });
-    await this.emitAccommodationSnapshotByPlanId(planId);
     return this.loadAccommodationOrFail(id);
   }
 
@@ -599,39 +604,37 @@ export class IepPlanService {
     sets.push('updated_at = now()');
     params.push(id);
 
-    const planId = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      const rows = (await client.$queryRawUnsafe(
+    // P2-H5 DEFECT 3 fix: plan_id lookup + UPDATE + snapshot emit atomic in
+    // one tx so the read model cannot drift on a partial commit.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const rows = (await tx.$queryRawUnsafe(
         'SELECT iep_plan_id::text AS plan_id FROM hlth_iep_accommodations WHERE id = $1::uuid LIMIT 1',
         id,
       )) as Array<{ plan_id: string }>;
       if (rows.length === 0) throw new NotFoundException('Accommodation ' + id);
-      return rows[0]!.plan_id;
-    });
-
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe(
+      const planId = rows[0]!.plan_id;
+      await tx.$executeRawUnsafe(
         'UPDATE hlth_iep_accommodations SET ' + sets.join(', ') + ' WHERE id = $' + idx + '::uuid',
         ...params,
       );
+      await this.emitAccommodationSnapshotInTx(tx, planId);
     });
-    await this.emitAccommodationSnapshotByPlanId(planId);
     return this.loadAccommodationOrFail(id);
   }
 
   async removeAccommodation(id: string, actor: ResolvedActor): Promise<void> {
     await this.assertNurseScope(actor);
-    const planId = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      const rows = (await client.$queryRawUnsafe(
+    // P2-H5 DEFECT 3 fix: DELETE + snapshot emit atomic in one tx.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const rows = (await tx.$queryRawUnsafe(
         'SELECT iep_plan_id::text AS plan_id FROM hlth_iep_accommodations WHERE id = $1::uuid LIMIT 1',
         id,
       )) as Array<{ plan_id: string }>;
       if (rows.length === 0) throw new NotFoundException('Accommodation ' + id);
-      return rows[0]!.plan_id;
+      const planId = rows[0]!.plan_id;
+      await tx.$executeRawUnsafe('DELETE FROM hlth_iep_accommodations WHERE id = $1::uuid', id);
+      await this.emitAccommodationSnapshotInTx(tx, planId);
     });
-    await this.tenantPrisma.executeInTenantContext(async (client) => {
-      await client.$executeRawUnsafe('DELETE FROM hlth_iep_accommodations WHERE id = $1::uuid', id);
-    });
-    await this.emitAccommodationSnapshotByPlanId(planId);
   }
 
   // ─── Internal helpers ────────────────────────────────────────
@@ -891,81 +894,83 @@ export class IepPlanService {
    * IepAccommodationConsumer consumes and reconciles
    * sis_student_active_accommodations.
    *
+   * P2-H5 DEFECT 3 fix: takes the active tenant transaction so the
+   * snapshot read AND the outbox INSERT happen in the SAME transaction as
+   * the domain mutation (plan status flip or accommodation INSERT/UPDATE/
+   * DELETE). Pre-fix the emit ran in a separate post-commit transaction; a
+   * crash between the domain commit and the outbox commit lost the event,
+   * leaving sis_student_active_accommodations stale.
+   *
    * Called after every accommodation INSERT / UPDATE / DELETE and on
    * IEP plan UPDATE (status changes — e.g. ACTIVE → EXPIRED — change
    * which accommodations the read model should expose).
    */
-  private async emitAccommodationSnapshotByPlanId(planId: string): Promise<void> {
-    const snapshot = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      const planRows = (await client.$queryRawUnsafe(
-        'SELECT student_id::text AS student_id, plan_type, status, school_id::text AS school_id ' +
-          'FROM hlth_iep_plans WHERE id = $1::uuid LIMIT 1',
-        planId,
-      )) as Array<{
-        student_id: string;
-        plan_type: string;
-        status: string;
-        school_id: string;
-      }>;
-      if (planRows.length === 0) return null;
-      const plan = planRows[0]!;
+  private async emitAccommodationSnapshotInTx(
+    tx: {
+      $queryRawUnsafe: <T>(sql: string, ...args: unknown[]) => Promise<T>;
+      $executeRawUnsafe: (sql: string, ...args: unknown[]) => Promise<unknown>;
+    },
+    planId: string,
+  ): Promise<void> {
+    const planRows = (await tx.$queryRawUnsafe(
+      'SELECT student_id::text AS student_id, plan_type, status, school_id::text AS school_id ' +
+        'FROM hlth_iep_plans WHERE id = $1::uuid LIMIT 1',
+      planId,
+    )) as Array<{
+      student_id: string;
+      plan_type: string;
+      status: string;
+      school_id: string;
+    }>;
+    if (planRows.length === 0) return;
+    const plan = planRows[0]!;
 
-      // EXPIRED plans contribute no accommodations to the read model.
-      const accommodations =
-        plan.status === 'EXPIRED'
-          ? []
-          : ((await client.$queryRawUnsafe(
-              'SELECT id::text AS id, accommodation_type, description, applies_to, ' +
-                'specific_assignment_types, ' +
-                "TO_CHAR(effective_from, 'YYYY-MM-DD') AS effective_from, " +
-                "TO_CHAR(effective_to, 'YYYY-MM-DD') AS effective_to " +
-                'FROM hlth_iep_accommodations WHERE iep_plan_id = $1::uuid',
-              planId,
-            )) as Array<{
-              id: string;
-              accommodation_type: string;
-              description: string | null;
-              applies_to: string;
-              specific_assignment_types: string[] | null;
-              effective_from: string | null;
-              effective_to: string | null;
-            }>);
+    // EXPIRED plans contribute no accommodations to the read model.
+    const accommodations =
+      plan.status === 'EXPIRED'
+        ? []
+        : ((await tx.$queryRawUnsafe(
+            'SELECT id::text AS id, accommodation_type, description, applies_to, ' +
+              'specific_assignment_types, ' +
+              "TO_CHAR(effective_from, 'YYYY-MM-DD') AS effective_from, " +
+              "TO_CHAR(effective_to, 'YYYY-MM-DD') AS effective_to " +
+              'FROM hlth_iep_accommodations WHERE iep_plan_id = $1::uuid',
+            planId,
+          )) as Array<{
+            id: string;
+            accommodation_type: string;
+            description: string | null;
+            applies_to: string;
+            specific_assignment_types: string[] | null;
+            effective_from: string | null;
+            effective_to: string | null;
+          }>);
 
-      return { plan, accommodations };
-    });
-
-    if (!snapshot) return;
     const tenant = getCurrentTenant();
-    // P2-H3 Step 2 — iep.accommodation.updated migrated from best-effort
-    // emit to durable outbox. The IepAccommodationConsumer (Cycle 10
-    // ADR-030 read-model worker) reconciles sis_student_active_accommodations
-    // from this signal; teachers depend on the read model for classroom
-    // accommodations awareness. Outbox lives in a small tenant tx so the
-    // platform_outbox row is durable even if the broker is unreachable.
-    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
-      await this.outbox.enqueueInTx(tx, {
-        topic: 'iep.accommodation.updated',
-        key: snapshot.plan.student_id,
-        sourceModule: 'health',
-        payload: {
-          planId,
-          schoolId: snapshot.plan.school_id,
-          studentId: snapshot.plan.student_id,
-          planType: snapshot.plan.plan_type,
-          planStatus: snapshot.plan.status,
-          accommodations: snapshot.accommodations.map((a) => ({
-            sourceIepAccommodationId: a.id,
-            accommodationType: a.accommodation_type,
-            description: a.description,
-            appliesTo: a.applies_to,
-            specificAssignmentTypes: a.specific_assignment_types,
-            effectiveFrom: a.effective_from,
-            effectiveTo: a.effective_to,
-          })),
-        },
-        tenantId: tenant.schoolId,
-        tenantSubdomain: tenant.subdomain,
-      });
+    // OutboxService.enqueueInTx writes the platform_outbox row using the
+    // supplied tx so it commits with the domain mutation atomically.
+    await this.outbox.enqueueInTx(tx as never, {
+      topic: 'iep.accommodation.updated',
+      key: plan.student_id,
+      sourceModule: 'health',
+      payload: {
+        planId,
+        schoolId: plan.school_id,
+        studentId: plan.student_id,
+        planType: plan.plan_type,
+        planStatus: plan.status,
+        accommodations: accommodations.map((a) => ({
+          sourceIepAccommodationId: a.id,
+          accommodationType: a.accommodation_type,
+          description: a.description,
+          appliesTo: a.applies_to,
+          specificAssignmentTypes: a.specific_assignment_types,
+          effectiveFrom: a.effective_from,
+          effectiveTo: a.effective_to,
+        })),
+      },
+      tenantId: tenant.schoolId,
+      tenantSubdomain: tenant.subdomain,
     });
   }
 }

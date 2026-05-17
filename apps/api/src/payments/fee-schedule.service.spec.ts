@@ -156,9 +156,9 @@ describe('FeeScheduleService.createCategory', () => {
     const { tenantPrisma } = makeFake();
     const svc = new FeeScheduleService(tenantPrisma as never);
     await inTenant(async () => {
-      await expect(
-        svc.createCategory({ name: 'X' } as never, guardianActor),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(svc.createCategory({ name: 'X' } as never, guardianActor)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -175,7 +175,9 @@ describe('FeeScheduleService.createCategory', () => {
       );
     });
     expect(dto?.name).toBe('Technology Fee');
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_fee_categories'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_fee_categories'),
+    );
     expect(insert).toBeTruthy();
     expect(insert!.args).toContain('Technology Fee');
     expect(insert!.args).toContain('Annual tech');
@@ -189,7 +191,9 @@ describe('FeeScheduleService.createCategory', () => {
     await inTenant(async () => {
       await svc.createCategory({ name: 'Lunch Fee' } as never, adminActor);
     });
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_fee_categories'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_fee_categories'),
+    );
     expect(insert!.args).toContain('Lunch Fee');
     expect(insert!.args).toContain(null);
   });
@@ -335,7 +339,9 @@ describe('FeeScheduleService.createSchedule', () => {
         adminActor,
       );
     });
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_fee_schedules'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_fee_schedules'),
+    );
     expect(insert).toBeTruthy();
     expect(insert!.args).toContain('ay-2026');
     expect(insert!.args).toContain('cat-1');
@@ -365,7 +371,9 @@ describe('FeeScheduleService.createSchedule', () => {
         adminActor,
       );
     });
-    const insert = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_fee_schedules'));
+    const insert = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().includes('insert into pay_fee_schedules'),
+    );
     expect(insert).toBeTruthy();
     // 2 explicit null args (description + gradeLevel) + isRecurring=false + recurrence=ANNUAL
     expect(insert!.args.filter((a) => a === null).length).toBeGreaterThanOrEqual(2);
@@ -391,7 +399,9 @@ describe('FeeScheduleService.updateSchedule', () => {
     await inTenant(async () => {
       await svc.updateSchedule('sch-1', {}, adminActor);
     });
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_fee_schedules'));
+    const update = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_fee_schedules'),
+    );
     expect(update).toBeUndefined();
   });
 
@@ -413,7 +423,9 @@ describe('FeeScheduleService.updateSchedule', () => {
         adminActor,
       );
     });
-    const update = capture.find((c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_fee_schedules'));
+    const update = capture.find(
+      (c) => c.fn === 'e' && c.sql.toLowerCase().startsWith('update pay_fee_schedules'),
+    );
     expect(update).toBeTruthy();
     expect(update!.sql).toContain('name = $1');
     expect(update!.sql).toContain('description = $2');

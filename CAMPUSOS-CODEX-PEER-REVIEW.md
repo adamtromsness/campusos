@@ -6,14 +6,14 @@ Scope: correctness review of the 4-cycle hardening sprint plan in `docs/campusos
 
 ## Summary
 
-| Area | Result |
-| --- | --- |
-| School-scope fixes | DEFECT |
-| Immutable triggers | DEFECT |
-| Outbox migration | DEFECT |
+| Area                           | Result |
+| ------------------------------ | ------ |
+| School-scope fixes             | DEFECT |
+| Immutable triggers             | DEFECT |
+| Outbox migration               | DEFECT |
 | Guardian authorization service | DEFECT |
-| GL reconciliation | DEFECT |
-| Test quality | DEFECT |
+| GL reconciliation              | DEFECT |
+| Test quality                   | DEFECT |
 
 ## 1. School-Scope Fixes - DEFECT
 

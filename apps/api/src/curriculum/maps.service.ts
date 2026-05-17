@@ -657,18 +657,21 @@ export class UnitService {
 
   async create(mapId: string, input: CreateUnitDto, actor: ResolvedActor): Promise<UnitDto> {
     await assertCurriculumWriter(actor, this.permCheck);
-    // Validate map exists in tenant
-    const mapRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
-        'SELECT 1 AS ok FROM cur_curriculum_maps WHERE id = $1::uuid LIMIT 1',
-        mapId,
-      );
-    })) as Array<{ ok: number }>;
-    if (mapRows.length === 0) {
-      throw new BadRequestException('curriculum_map_id does not match a map in this school');
-    }
+    // P2-H5 DEFECT 1b fix: validate the parent map belongs to the current
+    // school BEFORE inserting the unit. The check runs inside the same tenant
+    // transaction as the INSERT so a crafted cross-school mapId cannot pass
+    // and then have a unit inserted under it.
+    const tenant = getCurrentTenant();
     const id = generateId();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const mapRows = (await tx.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM cur_curriculum_maps WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        mapId,
+        tenant.schoolId,
+      )) as Array<{ ok: number }>;
+      if (mapRows.length === 0) {
+        throw new BadRequestException('curriculum_map_id does not match a map in this school');
+      }
       // Compute next sequence_order under the lock to avoid races
       const seqRows = (await tx.$queryRawUnsafe(
         'SELECT COALESCE(MAX(sequence_order), 0) + 1 AS next FROM cur_units WHERE curriculum_map_id = $1::uuid',
@@ -764,24 +767,42 @@ export class UnitService {
   async reorder(mapId: string, input: ReorderUnitsDto, actor: ResolvedActor): Promise<UnitDto[]> {
     await assertCurriculumWriter(actor, this.permCheck);
     if (input.order.length === 0) return this.listForMap(mapId, actor);
+    // P2-H5 DEFECT 1b fix: every UPDATE binds the parent map's school_id so a
+    // cross-school mapId cannot drive reorder writes against the foreign-school
+    // units. The map ownership check runs inside the same tx as the renumber.
+    const tenant = getCurrentTenant();
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const mapRows = (await tx.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM cur_curriculum_maps WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
+        mapId,
+        tenant.schoolId,
+      )) as Array<{ ok: number }>;
+      if (mapRows.length === 0) {
+        throw new BadRequestException('curriculum_map_id does not match a map in this school');
+      }
       // Phase 1: bump all referenced units to a high temp offset
       for (const o of input.order) {
         await tx.$executeRawUnsafe(
-          'UPDATE cur_units SET sequence_order = sequence_order + 100000 ' +
-            'WHERE id = $1::uuid AND curriculum_map_id = $2::uuid',
+          'UPDATE cur_units AS u SET sequence_order = u.sequence_order + 100000 ' +
+            'FROM cur_curriculum_maps m ' +
+            'WHERE u.id = $1::uuid AND u.curriculum_map_id = $2::uuid ' +
+            'AND m.id = u.curriculum_map_id AND m.school_id = $3::uuid',
           o.unitId,
           mapId,
+          tenant.schoolId,
         );
       }
       // Phase 2: assign final positions
       for (const o of input.order) {
         await tx.$executeRawUnsafe(
-          'UPDATE cur_units SET sequence_order = $1, updated_at = now() ' +
-            'WHERE id = $2::uuid AND curriculum_map_id = $3::uuid',
+          'UPDATE cur_units AS u SET sequence_order = $1, updated_at = now() ' +
+            'FROM cur_curriculum_maps m ' +
+            'WHERE u.id = $2::uuid AND u.curriculum_map_id = $3::uuid ' +
+            'AND m.id = u.curriculum_map_id AND m.school_id = $4::uuid',
           o.sequenceOrder,
           o.unitId,
           mapId,
+          tenant.schoolId,
         );
       }
     });
@@ -804,10 +825,24 @@ export class UnitService {
         'standardId does not resolve in either the platform or school catalogue',
       );
     }
+    // P2-H5 DEFECT 1b fix: validate the unit belongs to a map in the current
+    // school. Otherwise a crafted cross-school unitId combined with a valid
+    // current-school (or platform) standard would land a foreign alignment.
+    const tenant = getCurrentTenant();
     const id = generateId();
-    try {
-      await this.tenantPrisma.executeInTenantContext(async (client) => {
-        await client.$executeRawUnsafe(
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const unitRows = (await tx.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM cur_units u ' +
+          'JOIN cur_curriculum_maps m ON m.id = u.curriculum_map_id ' +
+          'WHERE u.id = $1::uuid AND m.school_id = $2::uuid LIMIT 1',
+        unitId,
+        tenant.schoolId,
+      )) as Array<{ ok: number }>;
+      if (unitRows.length === 0) {
+        throw new BadRequestException('unitId does not match a unit in this school');
+      }
+      try {
+        await tx.$executeRawUnsafe(
           'INSERT INTO cur_unit_standards (id, unit_id, standard_id, notes) ' +
             'VALUES ($1::uuid, $2::uuid, $3::uuid, $4)',
           id,
@@ -815,13 +850,13 @@ export class UnitService {
           input.standardId,
           input.notes ?? null,
         );
-      });
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        throw new ConflictException('This standard is already aligned to this unit');
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          throw new ConflictException('This standard is already aligned to this unit');
+        }
+        throw err;
       }
-      throw err;
-    }
+    });
     return {
       id,
       unitId,
@@ -856,43 +891,59 @@ export class UnitService {
   ): Promise<UnitLessonDto> {
     await assertCurriculumWriter(actor, this.permCheck);
     const tenant = getCurrentTenant();
-    // CROSS-CYCLE READ-BACK KEYSTONE — validate the cls_lesson_id
-    // exists in the calling tenant (cls_lessons.school_id check)
-    const lessonRows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe(
+    // P2-H5 DEFECT 1b fix: validate BOTH the unit AND the lesson belong to
+    // the calling school. The pre-fix code only checked the lesson — a crafted
+    // cross-school unitId combined with a valid current-school lesson could
+    // land a foreign-school link row.
+    const id = generateId();
+    let lessonTitle = '';
+    let lessonDate: string | null = null;
+    let lessonStatus = '';
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      const unitRows = (await tx.$queryRawUnsafe(
+        'SELECT 1 AS ok FROM cur_units u ' +
+          'JOIN cur_curriculum_maps m ON m.id = u.curriculum_map_id ' +
+          'WHERE u.id = $1::uuid AND m.school_id = $2::uuid LIMIT 1',
+        unitId,
+        tenant.schoolId,
+      )) as Array<{ ok: number }>;
+      if (unitRows.length === 0) {
+        throw new BadRequestException('unitId does not match a unit in this school');
+      }
+      const lessonRows = (await tx.$queryRawUnsafe(
         'SELECT id::text AS id, title, date::text AS date, status FROM cls_lessons ' +
           'WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         input.clsLessonId,
         tenant.schoolId,
-      );
-    })) as Array<{ id: string; title: string; date: string | null; status: string }>;
-    if (lessonRows.length === 0) {
-      throw new BadRequestException('clsLessonId does not match a lesson in this school');
-    }
-    const lesson = lessonRows[0]!;
-    const id = generateId();
-    try {
-      await this.tenantPrisma.executeInTenantContext(async (client) => {
-        await client.$executeRawUnsafe(
+      )) as Array<{ id: string; title: string; date: string | null; status: string }>;
+      if (lessonRows.length === 0) {
+        throw new BadRequestException('clsLessonId does not match a lesson in this school');
+      }
+      const lesson = lessonRows[0]!;
+      lessonTitle = lesson.title;
+      lessonDate = lesson.date;
+      lessonStatus = lesson.status;
+      try {
+        await tx.$executeRawUnsafe(
           'INSERT INTO cur_unit_lessons (id, unit_id, cls_lesson_id) VALUES ($1::uuid, $2::uuid, $3::uuid)',
           id,
           unitId,
           input.clsLessonId,
         );
-      });
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        throw new ConflictException('This lesson is already linked to this unit');
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          throw new ConflictException('This lesson is already linked to this unit');
+        }
+        throw err;
       }
-      throw err;
-    }
+    });
     return {
       id,
       unitId,
       clsLessonId: input.clsLessonId,
-      lessonTitle: lesson.title,
-      lessonDate: lesson.date,
-      lessonStatus: lesson.status,
+      lessonTitle,
+      lessonDate,
+      lessonStatus,
     };
   }
 
