@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Test Strategy v3</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#fff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--red:#dc3545;--red-bg:#fdeaea;--blue:#3d7ab5;--blue-bg:#e8f0f8;--purple:#8b4fc6;--purple-bg:#f4ecfb}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7}
+.topbar{background:#1a5276;padding:10px 40px;display:flex;align-items:center;gap:24px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.container{max-width:950px;margin:0 auto;padding:40px 40px 120px}
+h1{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent);margin-bottom:8px}
+h2{font-family:'DM Serif Display',serif;font-size:22px;color:var(--accent);margin:36px 0 10px;padding-top:16px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;margin-top:12px}
+h3{font-size:14px;font-weight:700;color:var(--accent);margin:12px 0 4px}
+p,li{font-size:13px;line-height:1.8}
+.sub{font-size:15px;color:var(--text-light);margin-bottom:20px}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px}
+th{background:#d5e8f0;padding:5px 8px;border:1px solid #ccc;text-align:left;font-weight:600}
+td{padding:4px 8px;border:1px solid #ddd;vertical-align:top}
+.summary-box{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:18px 22px;margin:16px 0}
+.warn-box{background:var(--red-bg);border:2px solid var(--red);border-radius:10px;padding:14px 18px;margin:14px 0;font-size:12px}
+.callout{border-radius:8px;padding:12px 16px;margin:10px 0;border-left:4px solid;font-size:12px}
+.callout-red{background:var(--red-bg);border-color:var(--red)}
+.callout-green{background:var(--green-bg);border-color:var(--green)}
+.callout-purple{background:var(--purple-bg);border-color:var(--purple)}
+.callout-amber{background:var(--amber-bg);border-color:var(--amber)}
+.tier{border-radius:10px;padding:16px 20px;margin:12px 0;border-left:5px solid}
+.t1{background:var(--red-bg);border-color:var(--red)}
+.t2{background:var(--amber-bg);border-color:var(--amber)}
+.t3{background:var(--blue-bg);border-color:var(--blue)}
+.t4{background:var(--green-bg);border-color:var(--green)}
+.tier h3{margin-top:0;font-size:15px}
+code{background:#f0f0f0;padding:1px 4px;border-radius:3px;font-size:11px}
+ol,ul{padding-left:18px;margin:6px 0}
+.prompt-box{background:#f8f9fa;border:1px solid #ddd;border-radius:8px;padding:14px 18px;margin:10px 0}
+.prompt-box pre{white-space:pre-wrap;font-family:monospace;font-size:11px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="topbar"><span class="brand">CampusOS</span><span class="sep">|</span><a href="design-hub/index.html">Design Hub</a><span class="sep">|</span><span style="color:#ffd700;font-size:13px;font-weight:600">TEST STRATEGY v3</span></div>
+<div class="container">
+<h1>Test Strategy v3</h1>
+<p class="sub">Module-by-module DB-backed integration tests. Replaces old mock-based specs. Ordered by criticality. 37 modules across 8 waves. Uses the Tier 0 harness at <code>apps/api/test/integration/</code>.</p>
+
+<div class="warn-box">
+<strong>Replace, don't supplement.</strong> Old Wave 3 mock-based specs (21 files under <code>apps/api/src/</code>) are deleted and replaced with DB-backed integration tests as each module is reached. The mock specs validated SQL strings and arg binding — the new tests validate actual DB state, real trigger behavior, real cross-school isolation, and real outbox atomicity. Coverage numbers may temporarily drop for a module during the transition, then exceed the old numbers.
+</div>
+
+<div class="summary-box">
+<h3 style="margin-top:0">Approach</h3>
+<p><strong>One Claude Code prompt per module.</strong> Each prompt is self-contained: it names the module, lists the test scenarios, specifies the coverage target, and tells Claude Code where to put the files. Run them sequentially — each commits independently.</p>
+<p><strong>Test location:</strong> <code>apps/api/test/integration/m{XX}-{name}/</code> mirroring the source module.</p>
+<p><strong>Test naming:</strong> By business capability, not service class. <code>invoice-lifecycle.spec.ts</code> not <code>invoice.service.spec.ts</code>.</p>
+<p><strong>Quality bar (from Codex):</strong> Every test seeds real data in <code>tenant_test</code>, calls real service methods, asserts real DB state via raw SQL. Cross-school tests seed School A + B and attempt actual cross-school access. IMMUTABLE tests attempt real UPDATE/DELETE and verify trigger fires. Outbox tests verify the outbox row exists in the same transaction as the domain write.</p>
+</div>
+
+<h2>Coverage Exclusions</h2>
+<p>These are excluded from vitest coverage measurement (industry standard):</p>
+<ul>
+<li><code>**/*.dto.ts</code> — class-validator decorator classes, no executable logic</li>
+<li><code>**/*.module.ts</code> — NestJS DI wiring, no executable logic</li>
+<li><code>**/index.ts</code> — barrel re-exports</li>
+</ul>
+
+<h2>Harness Reference</h2>
+<p>The Tier 0 integration test harness is built and operational at <code>apps/api/test/integration/</code>. Design doc at <code>docs/operations/procurement-integration-test-harness.md</code>. Key patterns:</p>
+<ul>
+<li><strong>Schema:</strong> <code>tenant_test</code> — provisioned once per suite</li>
+<li><strong>Isolation:</strong> Truncate module tables before each test. Serial execution.</li>
+<li><strong>Services:</strong> <code>new ServiceClass(realDeps)</code> — direct instantiation, no NestJS test module</li>
+<li><strong>Kafka:</strong> <code>RecordingKafkaProducer</code> — captures emit() calls for assertion. No real broker.</li>
+<li><strong>Fixtures:</strong> Shared platform/school/employees/finance fixtures in <code>test/integration/fixtures/</code>. Per-module fixtures created as needed.</li>
+<li><strong>Commands:</strong> <code>pnpm --filter @campusos/api test:integration</code></li>
+</ul>
+
+<h2>Wave Ordering (8 Waves, 37 Modules)</h2>
+
+<table>
+<tr><th>Wave</th><th>Modules</th><th>Target</th><th>Rationale</th><th>Est.</th></tr>
+<tr><td style="color:var(--red);font-weight:700">1</td><td>m83-finance, m84-payments, m86-procurement</td><td>&ge;95%</td><td>Money. Every untested path is a potential audit failure.</td><td>5-7 days</td></tr>
+<tr><td style="color:var(--red);font-weight:700">2</td><td>m00-platform (auth, iam, guardian, tenant, governance)</td><td>&ge;95%</td><td>Security. Permission resolution, custody access, student-owned guards, erasure.</td><td>3-4 days</td></tr>
+<tr><td style="color:var(--amber);font-weight:700">3</td><td>m87-safety, m23-health, m27-student-services</td><td>&ge;90%</td><td>Safety-critical. IEP, health records, counselling CONFIDENTIAL, CRISIS escalation, emergency procedures.</td><td>3-4 days</td></tr>
+<tr><td style="color:var(--amber);font-weight:700">4</td><td>m20-sis, m21-classroom, m22-scheduling, m81-enrolment, m25-curriculum</td><td>&ge;80%</td><td>Core academic. Highest daily usage. School-scope leaks were found here.</td><td>5-7 days</td></tr>
+<tr><td style="color:var(--blue);font-weight:700">5</td><td>m40-communications, m41-meetings, m42-publications</td><td>&ge;80%</td><td>Communications. Messaging moderation is safety surface. Outbox verification needed.</td><td>2-3 days</td></tr>
+<tr><td style="color:var(--blue);font-weight:700">6</td><td>m67-store, m65-facilities, m61-transport, m63-food-service, m62-it</td><td>&ge;80%</td><td>Operations. Gift card atomics, inspection school-scope, IMMUTABLE inventory.</td><td>4-5 days</td></tr>
+<tr><td style="color:var(--green);font-weight:700">7</td><td>m64-clubs, m66-athletics, m103-groups, m100-engagement, m101-events, m102-alumni, m85-accreditation</td><td>&ge;80%</td><td>Community. Election anonymity, engagement scoring, event ticketing atomics.</td><td>4-5 days</td></tr>
+<tr><td style="color:var(--green);font-weight:700">8</td><td>m09-behaviour, m24-library, m26-portfolio, m60-tickets, m02-workflows, m03-tasks, m80-hr, m82-substitutes, m90-visitors, m110-analytics, shared/</td><td>&ge;80%</td><td>Remaining + shared infrastructure. Long tail.</td><td>4-5 days</td></tr>
+</table>
+
+<!-- ═══════ WAVE 1 ═══════ -->
+<h2>Wave 1 — Financial (Target: &ge;95%)</h2>
+<div class="tier t1">
+<h3>m83-finance &middot; m84-payments &middot; m86-procurement</h3>
+<p>Replace existing 21 mock-based specs with DB-backed integration tests. Old mock specs at <code>apps/api/src/modules/m83-finance/*.spec.ts</code>, <code>m84-payments/*.spec.ts</code> are deleted.</p>
+</div>
+
+<h3>m83-finance</h3>
+<table>
+<tr><th>Test File</th><th>Key Scenarios</th></tr>
+<tr><td><code>gl-posting.spec.ts</code></td><td>Post journal batch → verify GL entries exist with correct amounts, accounts, debit/credit direction. Verify zero-sum balance invariant. Verify IMMUTABLE: UPDATE gl_entry → trigger failure (SQLSTATE 23001). Verify school-scope: post as School A, query as School B → 0 results.</td></tr>
+<tr><td><code>budget-management.spec.ts</code></td><td>Budget creation. Budget transfer atomic lock ordering (id-ascending). Verify encumbered_amount increases on PO ISSUE, decreases on CANCEL. Verify transfer: from decreased + to increased in same tx.</td></tr>
+<tr><td><code>gl-reconciliation.spec.ts</code></td><td>Seed invoice + payment without GL entries → worker detects MISSING. Seed with wrong amount → AMOUNT_MISMATCH. Seed duplicate source_event_id → DUPLICATE. Seed orphan GL → ORPHAN. Verify alert event emitted. Verify sign/account comparison.</td></tr>
+<tr><td><code>chart-of-accounts.spec.ts</code></td><td>CRUD + hierarchy. School-scope isolation.</td></tr>
+</table>
+
+<h3>m84-payments</h3>
+<table>
+<tr><th>Test File</th><th>Key Scenarios</th></tr>
+<tr><td><code>invoice-lifecycle.spec.ts</code></td><td>Draft → issued → paid → closed. Verify pay.invoice.created outbox row in same tx as invoice INSERT. Verify GL AR posting event. Partial payment allocation across multiple invoices.</td></tr>
+<tr><td><code>payment-processing.spec.ts</code></td><td>Payment received → verify pay.payment.received outbox row. Verify GL cash entry event. School-scope: pay as School A, query as School B → NotFoundException.</td></tr>
+<tr><td><code>refunds-reversals.spec.ts</code></td><td>Refund issuance → verify IMMUTABLE pay_credit_notes (INSERT ok, UPDATE → trigger). Verify IMMUTABLE pay_payment_reversals. Verify outbox emit for GL reversing entry.</td></tr>
+<tr><td><code>payment-plans.spec.ts</code></td><td>Create plan + installments. Default detection. Installment payment application.</td></tr>
+<tr><td><code>lunch-accounts.spec.ts</code></td><td>Lunch account debit. Low balance alerting. Balance transfer IMMUTABLE (pay_lunch_account_balance_transfers). Sibling transfer.</td></tr>
+<tr><td><code>financial-aid.spec.ts</code></td><td>Fund pool allocation. Award application to invoice. Pool exhaustion.</td></tr>
+<tr><td><code>late-fees.spec.ts</code></td><td>Late fee computation. Grace period. Waiver.</td></tr>
+</table>
+
+<h3>m86-procurement</h3>
+<table>
+<tr><th>Test File</th><th>Key Scenarios</th></tr>
+<tr><td><code>requisition-lifecycle.spec.ts</code></td><td>Create → submit → approve → convert to PO. Budget validation. School-scope isolation.</td></tr>
+<tr><td><code>purchase-order-lifecycle.spec.ts</code></td><td>Draft → issued → received → closed. Budget commitment keystone: after ISSUE, verify prc_budget_commitments row + fin_budget_lines.encumbered_amount increased. After CANCEL, released.</td></tr>
+<tr><td><code>goods-receipt.spec.ts</code></td><td>Receipt creation. Vendor performance auto-scoring (on-time + quality UPSERT in same tx). Three-way match verification.</td></tr>
+<tr><td><code>distribution.spec.ts</code></td><td>Distribution creation → verify prc.distribution.completed event with correct destination_module payload. Cross-school isolation.</td></tr>
+<tr><td><code>vendor-catalogue.spec.ts</code></td><td>Catalogue CRUD. Tiered pricing. Contract lifecycle + renewal alerting.</td></tr>
+</table>
+
+<div class="prompt-box"><pre>
+You are replacing old mock-based tests with DB-backed integration tests
+for CampusOS financial modules using the harness at apps/api/test/integration/.
+
+STEP 1: Delete old mock specs:
+  rm apps/api/src/modules/m83-finance/**/*.spec.ts
+  rm apps/api/src/modules/m84-payments/**/*.spec.ts
+  rm apps/api/src/modules/m86-procurement/**/*.spec.ts
+  (Keep any spec files in shared/__tests__/ — those are cross-cutting)
+
+STEP 2: Create integration test fixtures:
+  test/integration/fixtures/finance.ts — GL accounts, budgets, budget lines, suppliers
+  test/integration/fixtures/payments.ts — family accounts, invoices, payment methods
+  test/integration/fixtures/procurement.ts — extend existing from Tier 0
+
+STEP 3: Create integration test files per the test plan at
+docs/campusos-test-strategy-v3.html, Wave 1 section. Files go in:
+  test/integration/m83-finance/
+  test/integration/m84-payments/
+  test/integration/m86-procurement/
+
+CRITICAL QUALITY REQUIREMENTS:
+- Every test seeds real data in tenant_test schema
+- Every test calls real service methods (new ServiceClass(realDeps))
+- Every assertion queries actual DB state via raw SQL
+- Cross-school tests: seed School A + B records, attempt cross-school
+  access as School A → expect NotFoundException
+- IMMUTABLE tests: attempt UPDATE/DELETE on fin_gl_entries,
+  pay_credit_notes, pay_payment_reversals, pay_lunch_account_balance_transfers,
+  fds_inventory_transactions → expect SQLSTATE 23001 trigger failure
+- Outbox tests: verify outbox row exists in same tx as domain write.
+  Test: begin tx, create invoice, query platform_outbox within tx →
+  row exists with topic pay.invoice.created. Rollback → row gone.
+- GL reconciliation: seed missing/mismatched/duplicate/orphan scenarios,
+  run worker, verify rpt_gl_reconciliation rows + alert event emitted
+
+Target: m83-finance ≥95%, m84-payments ≥95%, m86-procurement ≥80%.
+
+STEP 4: Run coverage:
+  pnpm --filter @campusos/api test:integration -- --coverage
+  Report per-module line coverage.
+
+Commit: "test(wave-1): replace mock specs with DB-backed integration tests for finance/payments/procurement"
+</pre></div>
+
+<!-- ═══════ WAVE 2 ═══════ -->
+<h2>Wave 2 — Auth &amp; Security (Target: &ge;95%)</h2>
+<div class="tier t1">
+<h3>m00-platform (auth, iam, guardian, tenant, configuration, governance)</h3>
+<p>Platform is the largest module. Test by subdomain. Replace any existing mock specs.</p>
+</div>
+
+<table>
+<tr><th>Test File</th><th>Key Scenarios</th></tr>
+<tr><td><code>permission-resolution.spec.ts</code></td><td>Direct permission check. Inherited platform→school scope chain. Cross-school staff sees only host permissions. Cache invalidation on role change. everyFunction for Platform Admin.</td></tr>
+<tr><td><code>guardian-authorization.spec.ts</code></td><td>SOLE_A denies guardian_b for all 6 capabilities. SOLE_B denies guardian_a. JOINT allows both. NULL custody → deny (fail closed). Missing relationship → deny. Court-order restrictions block specific capabilities. canAuthorizePayment validates familyAccountId binding. Every decision logged to platform_audit_log.</td></tr>
+<tr><td><code>student-owned.spec.ts</code></td><td>Student writes own record → ok. Other student → reject. Teacher without delegation → reject. Coach with iam_delegations → ok. Applied to pfl_reflections, ath_recruiting_profiles, pfl_college_applications, sis_student_profiles, cls_ai_tutoring_sessions, pfl_resume_profiles.</td></tr>
+<tr><td><code>tenant-isolation.spec.ts</code></td><td>executeInTenantContext sets search_path correctly. executeInTenantTransaction rolls back on failure. is_frozen=true blocks writes. Concurrent requests use SET LOCAL (not session SET).</td></tr>
+<tr><td><code>governance-erasure.spec.ts</code></td><td>Erasure request → IMMUTABLE records pseudonymised (exist but PII replaced). dpo_pseudonymisation_log IMMUTABLE (INSERT ok, UPDATE → trigger). Breach 72-hour window computation. SAR query via data_subject_id. School-scope on privacy notice reads.</td></tr>
+<tr><td><code>configuration.spec.ts</code></td><td>School config CRUD. Feature flag evaluation. School-size preset visibility.</td></tr>
+</table>
+
+<div class="prompt-box"><pre>
+You are replacing tests for m00-platform with DB-backed integration tests.
+
+STEP 1: Delete old mock specs under apps/api/src/modules/m00-platform/**/*.spec.ts
+
+STEP 2: Create test/integration/m00-platform/ with files per Wave 2 plan.
+
+CRITICAL: Guardian authorization tests MUST include:
+- Fixtures with sis_family_relationships rows for SOLE_A, SOLE_B, JOINT,
+  NULL custody_arrangement, and court_order_restrictions JSONB
+- Verify each of 6 capability methods denies non-custodial guardian
+- Verify NULL custody → false (fail closed, not open)
+- Verify canAuthorizePayment rejects mismatched familyAccountId
+- Verify every decision written to platform_audit_log
+
+Target: m00-platform ≥95%.
+Commit: "test(wave-2): replace mock specs with DB-backed integration tests for m00-platform"
+</pre></div>
+
+<!-- ═══════ WAVE 3 ═══════ -->
+<h2>Wave 3 — Safety-Critical (Target: &ge;90%)</h2>
+<div class="tier t2">
+<h3>m87-safety &middot; m23-health &middot; m27-student-services</h3>
+<p>IEP plans, health records, counselling, CRISIS escalation, emergency procedures. Sensitive data with strict access controls.</p>
+</div>
+
+<table>
+<tr><th>Module</th><th>Test Files</th><th>Key Scenarios</th></tr>
+<tr><td>m87-safety</td><td>incident-lifecycle.spec.ts, emergency-procedures.spec.ts, drills.spec.ts, reunification.spec.ts</td><td>Incident creation + timeline IMMUTABLE (inc_incident_timeline). Emergency declaration. Drill scheduling + compliance. Reunification accountability. School-scope on all.</td></tr>
+<tr><td>m23-health</td><td>health-records.spec.ts, iep-plans.spec.ts, immunisation.spec.ts</td><td>Health record CRUD + access logging (hlth_health_access_log IMMUTABLE). IEP plan lifecycle + accommodation outbox (verify iep.accommodation.updated in same tx). hlth.allergy_alert.changed outbox verification. School-scope. Confidential records visibility.</td></tr>
+<tr><td>m27-student-services</td><td>referral-lifecycle.spec.ts, counselling-sessions.spec.ts, wellbeing.spec.ts, mtss.spec.ts</td><td>Referral PENDING→RESOLVED. svc_referral_activity IMMUTABLE (INSERT ok, UPDATE → trigger). CRISIS auto-escalation within configured window. Session notes lock-after-approval. Mandatory reports IMMUTABLE after FILED. Wellbeing score-drop alerting. Caseload capacity. Agency referral consent. School-scope on all.</td></tr>
+</table>
+
+<div class="prompt-box"><pre>
+You are replacing tests for safety-critical modules with DB-backed integration tests.
+
+Delete old mock specs in m87-safety, m23-health, m27-student-services.
+Create test/integration/m87-safety/, test/integration/m23-health/,
+test/integration/m27-student-services/.
+
+CRITICAL:
+- iep.accommodation.updated: verify outbox row in same tx as plan mutation
+- hlth.allergy_alert.changed: verify outbox row in same tx
+- svc_referral_activity: INSERT → ok. UPDATE → SQLSTATE 23001. DELETE → 23001.
+- inc_incident_timeline: same IMMUTABLE verification
+- hlth_health_access_log: same IMMUTABLE verification
+- CRISIS referral: seed with configured escalation window, verify auto-escalation
+- Session notes: PATCH after is_locked=true → reject
+
+Target: all three ≥90%.
+Commit: "test(wave-3): replace mock specs with DB-backed integration tests for safety-critical modules"
+</pre></div>
+
+<!-- ═══════ WAVE 4 ═══════ -->
+<h2>Wave 4 — Core Academic (Target: &ge;80%)</h2>
+<div class="tier t2">
+<h3>m20-sis &middot; m21-classroom &middot; m22-scheduling &middot; m81-enrolment &middot; m25-curriculum</h3>
+<p>Highest daily usage. School-scope leaks were found in SIS and curriculum during hardening.</p>
+</div>
+
+<table>
+<tr><th>Module</th><th>Test Files</th><th>Key Scenarios</th></tr>
+<tr><td>m20-sis</td><td>student-crud.spec.ts, family-relationships.spec.ts, custom-fields.spec.ts, student-notes.spec.ts, graduation.spec.ts, transcripts.spec.ts, attendance.spec.ts</td><td>Student CRUD + school-scope. Family relationships with custody. Custom field upsertValues validates target entity school (Codex defect area). Student notes: assertStudentExists validates school_id, listForStudent binds school_id, create validates studentId in same tx (Codex defect area). Graduation audit. GPA computation. Attendance partitioning.</td></tr>
+<tr><td>m21-classroom</td><td>assignment-lifecycle.spec.ts, grading.spec.ts, ai-tutoring.spec.ts, hall-passes.spec.ts</td><td>Assignment CRUD. Grade posting + standards gradebook. AI tutoring opt-out enforcement. Hall pass limits + overdue. Peer review anonymisation.</td></tr>
+<tr><td>m22-scheduling</td><td>timetable.spec.ts, bell-schedules.spec.ts, cover-arrangements.spec.ts, exam-scheduling.spec.ts</td><td>Timetable management. Bell schedule EXCLUSION constraints. Cover arrangements. Cross-school staff double-booking prevention. Exam accommodation enforcement.</td></tr>
+<tr><td>m81-enrolment</td><td>application-lifecycle.spec.ts, capacity.spec.ts, tours.spec.ts, withdrawals.spec.ts</td><td>Application lifecycle. Capacity check advisory lock. Tour slot overbooking rejection. Withdrawal + exit tasks. Re-enrollment.</td></tr>
+<tr><td>m25-curriculum</td><td>maps-crud.spec.ts, standards-alignment.spec.ts, lessons.spec.ts</td><td>Map CRUD + school-scope (Codex defect: unit creation must check parent map school). alignStandard validates BOTH standard AND unit school. attachLesson validates BOTH lesson AND unit school. Unit reorder checks parent map school_id.</td></tr>
+</table>
+
+<div class="prompt-box"><pre>
+You are replacing tests for core academic modules with DB-backed integration tests.
+
+Delete old mock specs in m20-sis, m21-classroom, m22-scheduling, m81-enrolment, m25-curriculum.
+Create test/integration/ directories for each.
+
+CRITICAL (from Codex hardening findings):
+- m20-sis/custom-fields: upsertValues with cross-school entityId → error
+- m20-sis/student-notes: assertStudentExists includes school_id,
+  listForStudent binds school_id, create validates studentId in tx
+- m25-curriculum/maps: unit creation with cross-school map id → error,
+  alignStandard validates BOTH schools, attachLesson validates BOTH schools
+
+Target: all five ≥80%.
+Commit: "test(wave-4): replace mock specs with DB-backed integration tests for core academic"
+</pre></div>
+
+<!-- ═══════ WAVE 5 ═══════ -->
+<h2>Wave 5 — Communications (Target: &ge;80%)</h2>
+<div class="tier t3">
+<h3>m40-communications &middot; m41-meetings &middot; m42-publications</h3>
+</div>
+
+<table>
+<tr><th>Module</th><th>Test Files</th><th>Key Scenarios</th></tr>
+<tr><td>m40-communications</td><td>messaging.spec.ts, announcements.spec.ts, notifications.spec.ts, moderation.spec.ts, broadcasts.spec.ts</td><td>Message creation + msg.message.posted outbox in same tx. Three-tier moderation. Broadcast delivery analytics. Push token management. School-scope on all.</td></tr>
+<tr><td>m41-meetings</td><td>meeting-lifecycle.spec.ts, notes-approval.spec.ts, recordings.spec.ts</td><td>Meeting CRUD. Notes approval guard: PATCH after is_approved=true → reject. Recording consent. mtg.meeting.scheduled outbox verification.</td></tr>
+<tr><td>m42-publications</td><td>publication-lifecycle.spec.ts, sections.spec.ts, versions.spec.ts</td><td>Publication lifecycle. pub_publication_versions IMMUTABLE. Contributor/comment school-scope (Codex defect: authorize through pub_publications.school_id). Scheduled publish worker.</td></tr>
+</table>
+
+<div class="prompt-box"><pre>
+Delete old mock specs. Create test/integration/m40-communications/, m41-meetings/, m42-publications/.
+
+CRITICAL:
+- messaging: verify msg.message.posted outbox row in same tx as INSERT
+- meetings: PATCH notes where is_approved=true → rejection
+- publications: pub_publication_versions IMMUTABLE verification
+- publications/sections: contributor create/remove + comment create/resolve
+  must authorize through pub_sections → pub_publications.school_id
+
+Target: all three ≥80%.
+Commit: "test(wave-5): replace mock specs with DB-backed integration tests for communications"
+</pre></div>
+
+<!-- ═══════ WAVE 6 ═══════ -->
+<h2>Wave 6 — Operations (Target: &ge;80%)</h2>
+<div class="tier t3">
+<h3>m67-store &middot; m65-facilities &middot; m61-transport &middot; m63-food-service &middot; m62-it</h3>
+</div>
+
+<table>
+<tr><th>Module</th><th>Test Files</th><th>Key Scenarios</th></tr>
+<tr><td>m67-store</td><td>order-lifecycle.spec.ts, gift-cards.spec.ts, promotions.spec.ts, loyalty.spec.ts</td><td>Order lifecycle + school-scope (Codex: approval service joins through str_stores.school_id). Gift card atomic redemption (balance - amount, depleted flip). Promotion max_uses atomic. Loyalty tier computation. External customer same-school validation.</td></tr>
+<tr><td>m65-facilities</td><td>inspections.spec.ts, work-orders.spec.ts, zones.spec.ts, supplies.spec.ts</td><td>Inspection lifecycle. Violation school-scope (Codex: getById, listForInspection, create, zone assignment, supply adjustment ALL scoped). Supply create validates buildingId school (P2-H6 fix). Work order lifecycle.</td></tr>
+<tr><td>m61-transport</td><td>routes.spec.ts, fleet.spec.ts, geofence.spec.ts</td><td>Route management. Fleet maintenance safety-critical blocking. Vehicle positions (high-volume, verify partition). Geofence events. Driver hours compliance.</td></tr>
+<tr><td>m63-food-service</td><td>pos-transactions.spec.ts, inventory.spec.ts, allergens.spec.ts, menus.spec.ts</td><td>POS meal service. fds_inventory_transactions IMMUTABLE. fds.meal.served event (OBSERVABLE class — verify emit happens). Allergen cross-check from health sync. Pre-order validation.</td></tr>
+<tr><td>m62-it</td><td>device-lifecycle.spec.ts, provisioning.spec.ts</td><td>Device CRUD + provisioning/deprovisioning events. Incident tracking. School-scope.</td></tr>
+</table>
+
+<div class="prompt-box"><pre>
+Delete old mock specs. Create test/integration/ for each module.
+
+CRITICAL:
+- m67-store: gift card atomic — redeem $60 from $100, verify $40 balance.
+  Redeem $50 → insufficient. Promotion max_uses=2, apply 3x → third rejected.
+  Approval school-scope: approve School B approval as School A → NotFoundException.
+- m65-facilities: supply create with cross-school buildingId → error
+- m63-food-service: fds_inventory_transactions IMMUTABLE verification
+
+Target: all five ≥80%.
+Commit: "test(wave-6): replace mock specs with DB-backed integration tests for operations"
+</pre></div>
+
+<!-- ═══════ WAVE 7 ═══════ -->
+<h2>Wave 7 — Community (Target: &ge;80%)</h2>
+<div class="tier t4">
+<h3>m64-clubs &middot; m66-athletics &middot; m103-groups &middot; m100-engagement &middot; m101-events &middot; m102-alumni &middot; m85-accreditation</h3>
+</div>
+
+<table>
+<tr><th>Module</th><th>Test Files</th><th>Key Scenarios</th></tr>
+<tr><td>m64-clubs</td><td>clubs.spec.ts, elections.spec.ts, field-trips.spec.ts</td><td>Club CRUD. Election structural anonymity (no voter_id on ext_votes — verify column doesn't exist). Double-vote prevention (ext_election_voter_check). min_votes_for_results threshold. Poll vote_count atomic increment. Budget tracking.</td></tr>
+<tr><td>m66-athletics</td><td>seasons.spec.ts, eligibility.spec.ts, recruiting.spec.ts, officials.spec.ts</td><td>Season + roster. Eligibility verification. Recruiting profiles @StudentOwned. Equipment checkout. Officials marketplace assignment.</td></tr>
+<tr><td>m103-groups</td><td>groups.spec.ts, resources.spec.ts, events.spec.ts, polls.spec.ts</td><td>Group CRUD + school-scope. GRP-002/GRP-003 permissions functional (was Round 1 dead endpoint). Resource library versioning. RSVP max_attendees. Poll anonymous voting.</td></tr>
+<tr><td>m100-engagement</td><td>scoring.spec.ts, conferences.spec.ts, surveys.spec.ts</td><td>Engagement score computation. Component view restricted to ENG-001:admin (aggregate visible to teachers). Conference booking atomic slot. Survey lifecycle.</td></tr>
+<tr><td>m101-events</td><td>event-lifecycle.spec.ts, ticketing.spec.ts</td><td>Event CRUD. Ticket sales atomic (UPDATE WHERE qty_sold+$n≤qty). Gate scanning (UPDATE WHERE status='VALID'). Revenue GL event.</td></tr>
+<tr><td>m102-alumni</td><td>alumni.spec.ts</td><td>Alumni profile CRUD. Giving campaigns. Event invitations. School-scope.</td></tr>
+<tr><td>m85-accreditation</td><td>accreditation.spec.ts</td><td>Framework adoption. Self-study lifecycle. Evidence collection. Improvement action plans.</td></tr>
+</table>
+
+<div class="prompt-box"><pre>
+Delete old mock specs. Create test/integration/ for each module.
+
+CRITICAL:
+- m64-clubs/elections: verify ext_votes has NO voter_id column.
+  Insert vote → verify ext_election_voter_check row created.
+  Attempt second vote → reject. Results with < min_votes → suppressed.
+- m101-events: ticket sales atomic — concurrent UPDATE WHERE qty_sold+n≤qty
+- m100-engagement: component view as ENG-001:read → components null.
+  Component view as ENG-001:admin → components populated.
+
+Target: all seven ≥80%.
+Commit: "test(wave-7): replace mock specs with DB-backed integration tests for community"
+</pre></div>
+
+<!-- ═══════ WAVE 8 ═══════ -->
+<h2>Wave 8 — Remaining + Shared (Target: &ge;80%)</h2>
+<div class="tier t4">
+<h3>m09-behaviour &middot; m24-library &middot; m26-portfolio &middot; m60-tickets &middot; m02-workflows &middot; m03-tasks &middot; m80-hr &middot; m82-substitutes &middot; m90-visitors &middot; m110-analytics &middot; shared/</h3>
+</div>
+
+<table>
+<tr><th>Module</th><th>Key Scenarios</th></tr>
+<tr><td>m09-behaviour</td><td>Incident lifecycle. Restorative justice. Positive behaviour points + redemption. BIP feedback.</td></tr>
+<tr><td>m24-library</td><td>Checkout lifecycle. Class set bulk. Overdue detection. ILL tracking. Catalogue import.</td></tr>
+<tr><td>m26-portfolio</td><td>Portfolio CRUD. Readiness pathways + milestone JSONB. College apps. Resume. @StudentOwned enforcement on reflections.</td></tr>
+<tr><td>m60-tickets</td><td>Ticket lifecycle. tkt_ticket_activity IMMUTABLE. Priority escalation. SLA tracking.</td></tr>
+<tr><td>m02-workflows</td><td>Approval chain lifecycle. Escalation on timeout. Multi-step approval.</td></tr>
+<tr><td>m03-tasks</td><td>Task auto-creation from events. Acknowledgement tracking.</td></tr>
+<tr><td>m80-hr</td><td>Employee lifecycle. Leave management. Payroll integration. Training certification expiry. Appraisal lifecycle. Onboarding checklists.</td></tr>
+<tr><td>m82-substitutes</td><td>Sub marketplace. Assignment confirmed → scheduling cover arrangement event.</td></tr>
+<tr><td>m90-visitors</td><td>Visitor check-in/out. Badge printing. Watchlist screening. School-scope.</td></tr>
+<tr><td>m110-analytics</td><td>Read model materialisation. Engagement/operations workers. Dashboard queries.</td></tr>
+<tr><td>shared/</td><td>OutboxPublisherWorker drain. Idempotency dedup. DLQ replay. Tenant context isolation. is_frozen gate. Reference health scanner. Worker jitter.</td></tr>
+</table>
+
+<div class="prompt-box"><pre>
+Delete old mock specs. Create test/integration/ for each remaining module + shared.
+
+CRITICAL:
+- m60-tickets: tkt_ticket_activity IMMUTABLE verification
+- m26-portfolio: @StudentOwned on pfl_reflections
+- shared/kafka: OutboxPublisherWorker drains outbox rows.
+  Idempotency: same event_id twice → second is no-op.
+- shared/tenant: is_frozen=true → write attempt → rejection
+
+Target: all ≥80%.
+Commit: "test(wave-8): replace mock specs with DB-backed integration tests for remaining + shared"
+
+After ALL waves, run combined:
+pnpm --filter @campusos/api test:all -- --coverage
+Report global line coverage. Target: ≥80%.
+</pre></div>
+
+<h2>Progress Tracking</h2>
+<table>
+<tr><th>Wave</th><th>Modules</th><th>Old Specs Deleted</th><th>New Integration Tests</th><th>Coverage Before</th><th>Coverage After</th><th>Status</th></tr>
+<tr><td>1</td><td>m83-finance, m84-payments, m86-procurement</td><td>&mdash;</td><td>&mdash;</td><td>97/98/0%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>2</td><td>m00-platform</td><td>&mdash;</td><td>&mdash;</td><td>95/94%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>3</td><td>m87-safety, m23-health, m27-student-services</td><td>&mdash;</td><td>&mdash;</td><td>0%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>4</td><td>m20-sis, m21-classroom, m22-scheduling, m81-enrolment, m25-curriculum</td><td>&mdash;</td><td>&mdash;</td><td>0%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>5</td><td>m40-communications, m41-meetings, m42-publications</td><td>&mdash;</td><td>&mdash;</td><td>0%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>6</td><td>m67-store, m65-facilities, m61-transport, m63-food-service, m62-it</td><td>&mdash;</td><td>&mdash;</td><td>0%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>7</td><td>m64-clubs, m66-athletics, m103-groups, m100-engagement, m101-events, m102-alumni, m85-accreditation</td><td>&mdash;</td><td>&mdash;</td><td>0%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr><td>8</td><td>m09-behaviour, m24-library, m26-portfolio, m60-tickets, m02-workflows, m03-tasks, m80-hr, m82-substitutes, m90-visitors, m110-analytics, shared/</td><td>&mdash;</td><td>&mdash;</td><td>0%</td><td>&mdash;</td><td>Pending</td></tr>
+<tr style="font-weight:700;background:var(--accent-light)"><td></td><td>GLOBAL</td><td>&mdash;</td><td>&mdash;</td><td>22.55%</td><td>&mdash;</td><td>Target: &ge;80%</td></tr>
+</table>
+
+<div class="summary-box">
+<h3 style="margin-top:0">Execution Notes</h3>
+<p><strong>One wave at a time.</strong> Each wave is a standalone Claude Code prompt. Run sequentially to avoid git conflicts. Each wave commits independently.</p>
+<p><strong>Delete then create.</strong> Old mock specs are deleted before new integration tests are written. This prevents confusion about which tests are authoritative.</p>
+<p><strong>Coverage may temporarily drop.</strong> When old mock specs are deleted and new integration tests are being written, per-module coverage will drop. It recovers (and exceeds) once the wave completes.</p>
+<p><strong>Seed data builds cumulatively.</strong> Each wave adds fixtures to <code>test/integration/fixtures/</code>. Later waves reuse earlier fixtures. Finance fixtures from Wave 1 are used by procurement in the same wave and by payments consumers in later waves.</p>
+<p><strong>Gate:</strong> Phase 3 feature builds begin after global combined coverage &ge;80%, all financial/auth modules &ge;95%, all safety-critical &ge;90%.</p>
+</div>
+
+</div>
+</body>
+</html>
