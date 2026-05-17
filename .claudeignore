@@ -10,3 +10,18 @@ pnpm-lock.yaml
 # Synthesised into docs/reviews/campusos-phase2-completion-report.html —
 # reading the originals wastes context.
 docs/reviews/cycle-reviews/
+
+# Completed cycle handoff files (65 files). Historical, not active.
+# All findings synthesised into completion report + hardening cycles.
+docs/reviews/handoffs/
+
+# Completed Phase 1 plans + CAT scripts (64 files). Phase 1 is done.
+docs/plans/phase1/
+
+# Completed Phase 2 plans (30+ files). Phase 2 is done.
+# Architecture docs in docs/architecture/ remain accessible.
+docs/plans/phase2/
+
+# Terraform / deployment configs — not needed during dev work
+infrastructure/
+infra/
