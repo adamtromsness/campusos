@@ -58,11 +58,11 @@ function collectServiceFiles(): string[] {
 describe('P2-H4 Step 2 — School-scope regression suite', () => {
   describe('Service files referenced by the P2-H1 Step 1 audit must carry school_id predicates', () => {
     const auditedFiles = [
-      'modules/m20-sis/sis-advanced/family-relationship.service.ts',
-      'modules/m20-sis/sis-advanced/student-note.service.ts',
-      'modules/m20-sis/sis-advanced/custom-field.service.ts',
+      'modules/m20-sis/family/family-relationship.service.ts',
+      'modules/m20-sis/notes/student-note.service.ts',
+      'modules/m20-sis/custom-fields/custom-field.service.ts',
       'modules/m22-scheduling/cross-school-staff.service.ts',
-      'modules/m67-store/store/orders.service.ts',
+      'modules/m67-store/orders/orders.service.ts',
       'modules/m25-curriculum/maps.service.ts',
       'modules/m65-facilities/inspections.service.ts',
       'modules/m00-platform/governance/erasure.service.ts',
@@ -117,9 +117,9 @@ describe('P2-H4 Step 2 — School-scope regression suite', () => {
     // Sample 5 services that are known to be tenant-scoped writers
     // from prior cycles and confirm they use the tenant helpers.
     const samples = [
-      'modules/m21-classroom/classroom/assignment.service.ts',
-      'modules/m21-classroom/classroom/grade.service.ts',
-      'modules/m20-sis/sis/student.service.ts',
+      'modules/m21-classroom/assignments/assignment.service.ts',
+      'modules/m21-classroom/grading/grade.service.ts',
+      'modules/m20-sis/students/student.service.ts',
       'modules/m20-sis/attendance/attendance.service.ts',
       'modules/m41-meetings/meetings/meeting-notes.service.ts',
     ];
@@ -142,8 +142,8 @@ describe('P2-H4 Step 2 — School-scope regression suite', () => {
      * across raw string concatenation.
      */
     const samples = [
-      'modules/m20-sis/sis-advanced/student-note.service.ts',
-      'modules/m20-sis/sis-advanced/custom-field.service.ts',
+      'modules/m20-sis/notes/student-note.service.ts',
+      'modules/m20-sis/custom-fields/custom-field.service.ts',
       'modules/m25-curriculum/maps.service.ts',
       'modules/m65-facilities/inspections.service.ts',
       'modules/m00-platform/governance/erasure.service.ts',

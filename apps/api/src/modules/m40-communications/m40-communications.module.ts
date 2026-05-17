@@ -3,7 +3,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { EmergencyAlertsModule } from './emergency-alerts/emergency-alerts.module';
-import { CommunicationsAdvancedModule } from './communications-advanced/communications-advanced.module';
+import { CommunicationsAdvancedModule } from './messaging/communications-advanced.module';
 
 /**
  * M40 Communications — canonical aggregator for notifications,

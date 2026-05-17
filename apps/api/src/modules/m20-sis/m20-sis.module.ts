@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { SisModule } from './sis/sis.module';
+import { SisModule } from './students/sis.module';
 import { AttendanceModule } from './attendance/attendance.module';
-import { SisAdvancedModule } from './sis-advanced/sis-advanced.module';
-import { SisGraduationModule } from './sis-graduation/sis-graduation.module';
-import { SisTranscriptsModule } from './sis-transcripts/sis-transcripts.module';
+import { SisAdvancedModule } from './students/sis-advanced.module';
+import { SisGraduationModule } from './graduation/sis-graduation.module';
+import { SisTranscriptsModule } from './transcripts/sis-transcripts.module';
 
 /**
  * M20 SIS — canonical aggregator for the Student Information System

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { GroupsModule } from './groups/groups.module';
-import { GroupsAdvancedModule } from './groups-advanced/groups-advanced.module';
+import { GroupsAdvancedModule } from './groups/groups-advanced.module';
 
 /**
  * M103 Groups & Communities — canonical aggregator for groups core

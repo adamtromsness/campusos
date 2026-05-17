@@ -2,10 +2,10 @@ import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { runWithTenantContext } from '@shared/tenant/tenant.context';
-import { PromotionService } from '../promotion.service';
-import { LoyaltyService } from '../loyalty.service';
-import { WishlistService } from '../wishlist.service';
-import { PriceScheduleService } from '../price-schedule.service';
+import { PromotionService } from '../promotions/promotion.service';
+import { LoyaltyService } from '../loyalty/loyalty.service';
+import { WishlistService } from '../wishlists/wishlist.service';
+import { PriceScheduleService } from '../inventory/price-schedule.service';
 import { JournalBatchService } from '@modules/m83-finance/journal-batch.service';
 
 /**
@@ -557,7 +557,7 @@ describe('R-B5 — REVIEW-P2C29 BLOCKING 5: post() no longer writes fin_gl_entri
 
 describe('access-advanced.ts affiliation helper export', () => {
   it('assertCustomerAffiliatedWithSchool is exported from m67-store/access-advanced', async () => {
-    const access = await import('../access-advanced');
+    const access = await import('../orders/access-advanced');
     expect(typeof access.assertCustomerAffiliatedWithSchool).toBe('function');
   });
 });

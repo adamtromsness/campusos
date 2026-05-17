@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { runWithTenantContext, TenantInfo } from '@shared/tenant/tenant.context';
 import { TimelineService } from './timeline.service';
-import { AccountabilityService } from './accountability.service';
-import { ReunificationService } from './reunification.service';
-import { DrillService } from './drill.service';
+import { AccountabilityService } from '../reunification/accountability.service';
+import { ReunificationService } from '../reunification/reunification.service';
+import { DrillService } from '../drills/drill.service';
 import { IncidentService } from './incident.service';
 
 /**
@@ -454,7 +454,7 @@ describe('IncidentService — atomic declaration + lifecycle locks', () => {
 //
 // The stub returns 0/[] for queries unless the test handler overrides.
 
-import { DeclarationOutboxWorker, deterministicStepEventId } from './declaration-outbox.worker';
+import { DeclarationOutboxWorker, deterministicStepEventId } from '../emergency/declaration-outbox.worker';
 
 interface FakeOutboxRow {
   id: string;

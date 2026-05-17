@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { HrModule } from './hr/hr.module';
+import { HrModule } from './employees/hr.module';
 import { PayrollModule } from './payroll/payroll.module';
 import { RecruitmentModule } from './recruitment/recruitment.module';
 import { TrainingModule } from './training/training.module';

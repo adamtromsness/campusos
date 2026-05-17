@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DisciplineModule } from './discipline/discipline.module';
-import { BehaviorPlansModule } from './behavior-plans/behavior-plans.module';
-import { BehaviourAdvancedModule } from './behaviour-advanced/behaviour-advanced.module';
+import { BehaviorPlansModule } from './intervention-plans/behavior-plans.module';
+import { BehaviourAdvancedModule } from './positive/behaviour-advanced.module';
 
 /**
  * M09 Behaviour — canonical aggregator for discipline, behaviour

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { HealthModule } from './health/health.module';
-import { HealthRecordsModule } from './health/health-records.module';
-import { HealthAdvancedModule } from './health-advanced/health-advanced.module';
+import { HealthModule } from './records/health.module';
+import { HealthRecordsModule } from './records/health-records.module';
+import { HealthAdvancedModule } from './records/health-advanced.module';
 
 /**
  * M23 Health — canonical aggregator for health core (visits, IEP),

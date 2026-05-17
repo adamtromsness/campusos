@@ -75,7 +75,7 @@ const ATOMIC_OPS: AtomicCheck[] = [
   },
   {
     name: 'Gift card redemption (atomic balance UPDATE)',
-    file: 'modules/m67-store/gift-card.service.ts',
+    file: 'modules/m67-store/gift-cards/gift-card.service.ts',
     patterns: [
       {
         name: 'atomic UPDATE str_gift_cards with balance gate in WHERE',
@@ -95,7 +95,7 @@ const ATOMIC_OPS: AtomicCheck[] = [
   },
   {
     name: 'Promotion max_uses keystone (atomic UPDATE WHERE current < max)',
-    file: 'modules/m67-store/promotion.service.ts',
+    file: 'modules/m67-store/promotions/promotion.service.ts',
     patterns: [
       {
         name: 'atomic UPDATE str_promotions with current_uses < max_uses',

@@ -6,13 +6,13 @@ import { NotificationsModule } from '@modules/m40-communications/notifications/n
 import { ThreadService } from './thread.service';
 import { MessageService } from './message.service';
 import { UnreadCountService } from './unread-count.service';
-import { ContentModerationService } from './content-moderation.service';
+import { ContentModerationService } from '../moderation/content-moderation.service';
 import { ThreadController } from './thread.controller';
 import { MessageController } from './message.controller';
 import { NotificationBadgeController } from './notification-badge.controller';
 import { ThreadStatsConsumer } from './consumers/thread-stats.consumer';
-import { ModerationService } from './moderation.service';
-import { ModerationController } from './moderation.controller';
+import { ModerationService } from '../moderation/messaging-moderation.service';
+import { ModerationController } from '../moderation/messaging-moderation.controller';
 
 /**
  * MessagingModule — M40 Communications messaging core (Cycle 3 Step 6).

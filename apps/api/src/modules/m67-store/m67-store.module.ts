@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { StoreModule } from './store/store.module';
-import { StoreAdvancedModule } from './store-advanced.module';
+import { StoreModule } from './orders/store.module';
+import { StoreAdvancedModule } from './orders/store-advanced.module';
 
 /**
  * M67 School Store — canonical aggregator for store core (orders,

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CounsellingModule } from './counselling/counselling.module';
 import { WellbeingModule } from './wellbeing/wellbeing.module';
-import { StudentServicesAdvancedModule } from './student-services-advanced/student-services-advanced.module';
+import { StudentServicesAdvancedModule } from './referrals/student-services-advanced.module';
 
 /**
  * M27 Student Services — canonical aggregator for counselling,

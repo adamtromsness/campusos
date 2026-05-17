@@ -9,7 +9,7 @@ import { SlotService } from './slot.service';
 import { MeetingNotesService } from './meeting-notes.service';
 import { AgendaService } from './agenda.service';
 import { ActionItemService } from './action-item.service';
-import { RecordingService } from './recording.service';
+import { RecordingService } from '../recordings/recording.service';
 import { IepMeetingRecordService } from './iep-meeting-record.service';
 import { ConferenceController } from './conference.controller';
 import { MeetingController, ParticipantSlotController } from './meeting.controller';

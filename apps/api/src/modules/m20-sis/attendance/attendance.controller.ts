@@ -13,7 +13,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '@shared/auth/require-permission.decorator';
 import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
-import { StudentService } from '@modules/m20-sis/sis/student.service';
+import { StudentService } from '@modules/m20-sis/students/student.service';
 import { AttendanceService } from './attendance.service';
 import { AbsenceRequestService } from './absence-request.service';
 import {

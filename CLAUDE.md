@@ -80,38 +80,38 @@ apps/api/src/modules/                        → 38 canonical domain modules
   ├── m60-tickets/                           → Service tickets / helpdesk (M60)
   ├── m02-workflows/                         → Approval workflows (M2)
   ├── m03-tasks/                             → Task management + auto-task rule engine (M3)
-  ├── m09-behaviour/                         → Discipline + behaviour intervention plans + behaviour-advanced
-  ├── m20-sis/                               → SIS core + sis-advanced + sis-graduation + sis-transcripts + attendance
-  ├── m21-classroom/                         → Classroom core + classroom-advanced (assignments, grading, AI tutoring, hall passes, lesson video, peer review)
+  ├── m09-behaviour/                         → discipline/ + intervention-plans/ + positive/
+  ├── m20-sis/                               → students/ + guardians/ + family/ + attendance/ + custom-fields/ + notes/ + graduation/ + transcripts/ + lockers/ + transfers/
+  ├── m21-classroom/                         → classes/ + lessons/ + assignments/ + grading/ + ai-tutoring/ + hall-passes/ + peer-review/ + progress-notes/ + report-cards/
   ├── m22-scheduling/                        → Bell schedules + timetable (btree_gist EXCLUSIONs) + rooms + bookings + calendar + coverage
-  ├── m23-health/                            → Health + health-advanced (records, IEP, immunisation, dietary)
+  ├── m23-health/                            → records/ + iep/ + immunisation/ + dietary/ + screenings/
   ├── m24-library/                           → Catalogue + circulation + holds + fines + reading programmes + reviews
   ├── m25-curriculum/                        → Curriculum maps + standards + delivery gap worker
   ├── m26-portfolio/                         → Portfolio + readiness pathways + college apps + resume
-  ├── m27-student-services/                  → Counselling + wellbeing + MTSS + student-services-advanced
-  ├── m40-communications/                    → Messaging + announcements + notifications + emergency-alerts + communications-advanced
-  ├── m41-meetings/                          → Meetings + clubs-meetings-advanced
+  ├── m27-student-services/                  → counselling/ + wellbeing/ + referrals/ + mtss/ + caseload/
+  ├── m40-communications/                    → messaging/ + announcements/ + notifications/ + broadcasts/ + moderation/ + push/ + emergency-alerts/
+  ├── m41-meetings/                          → meetings/ + recordings/ + templates/
   ├── m42-publications/                      → Publications (M42)
   ├── m61-transport/                         → Transportation (M61)
   ├── m62-it/                                → IT infrastructure (M62)
   ├── m63-food-service/                      → Food service (M63)
-  ├── m64-clubs/                             → Clubs & student life (M64)
+  ├── m64-clubs/                             → clubs/ + elections/ + field-trips/ + activities/
   ├── m65-facilities/                        → Facilities (M65)
   ├── m66-athletics/                         → Athletics (M66)
-  ├── m67-store/                             → School store core (orders, products, external customers, shipping, revenue) + store-advanced (promotions, loyalty, gift cards, wishlists, price schedules, inventory adjustments, categories)
-  ├── m80-hr/                                → HR + payroll + recruitment + training + appraisals
-  ├── m81-enrolment/                         → Enrolment + enrolment-advanced (tours, applications, offers, waitlist)
+  ├── m67-store/                             → orders/ + products/ + promotions/ + loyalty/ + gift-cards/ + wishlists/ + inventory/ + categories/
+  ├── m80-hr/                                → employees/ + leave/ + payroll/ + recruitment/ + training/ + certifications/ + appraisals/
+  ├── m81-enrolment/                         → applications/ + offers/ + waitlist/ + tours/ + withdrawals/ + capacity/
   ├── m82-substitutes/                       → Substitute marketplace (M82)
   ├── m83-finance/                           → Finance & accounting (M83) — core + finance-advanced (departmental budgets, atomic budget transfers, manual journal entry batches)
   ├── m84-payments/                          → Payments & billing (M84)
   ├── m85-accreditation/                     → Accreditation (M85)
   ├── m86-procurement/                       → Procurement (M86) — core + procurement-advanced (vendor catalogues, contracts with amendments + expiry alerting, spending analytics)
-  ├── m87-safety/                            → Safety & emergency / incidents
+  ├── m87-safety/                            → incidents/ + emergency/ + drills/ + reunification/
   ├── m90-visitors/                          → Visitor management (M90)
   ├── m100-engagement/                       → Parent engagement (M100)
   ├── m101-events/                           → Events & ticketing (M101)
   ├── m102-alumni/                           → Alumni (M102)
-  ├── m103-groups/                           → Groups & communities + groups-advanced
+  ├── m103-groups/                           → groups/ + events/ + polls/ + resources/
   └── m110-analytics/                        → Analytics & reporting (M110)
 apps/api/src/shared/                         → Cross-cutting infrastructure
   ├── auth/                                  → Guards (Auth, Permission, StudentOwned) + decorators (Public, RequirePermission, StudentOwned, PlatformScoped) + their *.spec files

@@ -14,16 +14,16 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequirePermission } from '@shared/auth/require-permission.decorator';
 import { ActorContextService } from '@modules/m00-platform/iam/actor-context.service';
-import { ActivityService } from './activity.service';
+import { ActivityService } from '../activities/activity.service';
 import { MembershipService } from './membership.service';
-import { ScheduleService } from './schedule.service';
-import { FieldTripService } from './field-trip.service';
-import { ConsentService } from './consent.service';
-import { ChaperoneService } from './chaperone.service';
-import { ElectionService } from './election.service';
-import { VoteService } from './vote.service';
-import { ServiceProgrammeService } from './service-programme.service';
-import { ServiceHourService } from './service-hour.service';
+import { ScheduleService } from '../activities/schedule.service';
+import { FieldTripService } from '../field-trips/field-trip.service';
+import { ConsentService } from '../field-trips/consent.service';
+import { ChaperoneService } from '../field-trips/chaperone.service';
+import { ElectionService } from '../elections/election.service';
+import { VoteService } from '../elections/vote.service';
+import { ServiceProgrammeService } from '../activities/service-programme.service';
+import { ServiceHourService } from '../activities/service-hour.service';
 import {
   ActivityMemberDto,
   ActivityResponseDto,

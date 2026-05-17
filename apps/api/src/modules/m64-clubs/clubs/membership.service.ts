@@ -7,7 +7,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
-import { ActivityService } from './activity.service';
+import { ActivityService } from '../activities/activity.service';
 import {
   ActivityMemberDto,
   AddMemberDto,

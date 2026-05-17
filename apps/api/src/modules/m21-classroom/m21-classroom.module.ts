@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ClassroomModule } from './classroom/classroom.module';
-import { ClassroomAdvancedModule } from './classroom-advanced/classroom-advanced.module';
+import { ClassroomModule } from './classes/classroom.module';
+import { ClassroomAdvancedModule } from './classes/classroom-advanced.module';
 
 /**
  * M21 Classroom — canonical aggregator for classroom core (classes,

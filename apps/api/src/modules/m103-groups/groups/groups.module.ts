@@ -6,7 +6,7 @@ import { GroupService } from './group.service';
 import { MembershipService } from './membership.service';
 import { OwnershipTransferService } from './ownership-transfer.service';
 import { GroupAnnouncementService } from './group-announcement.service';
-import { GroupEventService } from './group-event.service';
+import { GroupEventService } from '../events/group-event.service';
 import { GroupsController } from './groups.controller';
 
 /**

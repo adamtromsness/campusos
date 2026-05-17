@@ -17,7 +17,7 @@ import { ActorContextService } from '@modules/m00-platform/iam/actor-context.ser
 import { CalendarService } from './calendar.service';
 import { CalendarRsvpService } from './calendar-rsvp.service';
 import { DayOverrideService } from './day-override.service';
-import { StudentService } from '@modules/m20-sis/sis/student.service';
+import { StudentService } from '@modules/m20-sis/students/student.service';
 import {
   CalendarDayResolutionDto,
   CalendarEventResponseDto,

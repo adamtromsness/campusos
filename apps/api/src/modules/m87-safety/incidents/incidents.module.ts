@@ -2,15 +2,15 @@ import { Module } from '@nestjs/common';
 import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
 import { IamModule } from '@modules/m00-platform/iam/iam.module';
 import { KafkaModule } from '@shared/kafka/kafka.module';
-import { AccountabilityService } from './accountability.service';
-import { DeclarationOutboxWorker } from './declaration-outbox.worker';
-import { DrillService } from './drill.service';
+import { AccountabilityService } from '../reunification/accountability.service';
+import { DeclarationOutboxWorker } from '../emergency/declaration-outbox.worker';
+import { DrillService } from '../drills/drill.service';
 import { IncidentService } from './incident.service';
 import { IncidentTypeService } from './incident-type.service';
 import { IncidentsController } from './incidents.controller';
 import { NonDisciplineIncidentService } from './non-discipline.service';
-import { ProcedureService } from './procedure.service';
-import { ReunificationService } from './reunification.service';
+import { ProcedureService } from '../emergency/procedure.service';
+import { ReunificationService } from '../reunification/reunification.service';
 import { TimelineService } from './timeline.service';
 
 /**
