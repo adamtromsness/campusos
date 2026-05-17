@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampusOS — Codebase Restructure Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+:root{--accent:#1a3a5c;--accent-light:#e8f0f8;--accent-mid:#3d7ab5;--text:#2c2c2c;--text-light:#6b7280;--bg:#fafbfc;--white:#fff;--border:#e2e6ea;--green:#28a745;--green-bg:#eef7ee;--amber:#e5a919;--amber-bg:#fef9ec;--red:#dc3545;--red-bg:#fdeaea;--blue:#3d7ab5;--blue-bg:#e8f0f8}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);line-height:1.7}
+.topbar{background:#0d4f4f;padding:10px 40px;display:flex;align-items:center;gap:24px}.topbar .brand{font-weight:600;color:white;font-size:15px}.topbar .sep{color:rgba(255,255,255,0.3)}.topbar a{color:rgba(255,255,255,0.85);text-decoration:none;font-size:13px}
+.container{max-width:950px;margin:0 auto;padding:40px 40px 120px}
+h1{font-family:'DM Serif Display',serif;font-size:36px;color:var(--accent);margin-bottom:8px}
+h2{font-family:'DM Serif Display',serif;font-size:24px;color:var(--accent);margin:40px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;margin-top:16px}
+h3{font-size:15px;font-weight:700;color:var(--accent);margin:16px 0 6px}
+p,li{font-size:14px;line-height:1.8}
+.sub{font-size:16px;color:var(--text-light);margin-bottom:24px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px}
+th{background:#d5e8f0;padding:6px 8px;border:1px solid #ccc;text-align:left;font-weight:600}
+td{padding:5px 8px;border:1px solid #ddd;vertical-align:top}
+.summary-box{background:var(--accent-light);border:2px solid var(--accent-mid);border-radius:10px;padding:20px 24px;margin:20px 0}
+.warn-box{background:var(--red-bg);border:2px solid var(--red);border-radius:10px;padding:16px 20px;margin:16px 0;font-size:13px}
+code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:11px}
+ol,ul{padding-left:20px;margin:8px 0}
+.prompt-box{background:#f8f9fa;border:1px solid #ddd;border-radius:8px;padding:16px 20px;margin:12px 0;font-size:13px;line-height:1.8}
+.prompt-box pre{white-space:pre-wrap;font-family:monospace;font-size:11px}
+.tree{font-family:monospace;font-size:12px;line-height:1.9;background:#f8f9fa;padding:16px 20px;border-radius:8px;margin:12px 0;border:1px solid #ddd}
+</style>
+</head>
+<body>
+<div class="topbar"><span class="brand">CampusOS</span><span class="sep">|</span><a href="index.html">Design Hub</a><span class="sep">|</span><span style="color:#a0e6e6;font-size:13px;font-weight:600">RESTRUCTURE PLAN</span></div>
+<div class="container">
+<h1>Codebase Restructure Plan</h1>
+<p class="sub">Consolidate 80+ flat cycle-by-cycle folders into 38 canonical ERD modules. Clean up documentation. Prepare for module-by-module test strategy. One Claude Code cycle, executed in 4 phases.</p>
+
+<div class="warn-box">
+<strong>Risk mitigation:</strong> This restructure touches every import path in 695+ files. Execute on a clean <code>main</code> with no parallel branches. Run <code>pnpm build</code> + <code>pnpm test</code> after each phase. If any phase breaks the build, fix before proceeding. Git commit after each phase so rollback is granular.
+</div>
+
+<div class="summary-box">
+<h3 style="margin-top:0">What Changes</h3>
+<ol>
+<li><strong>Source code</strong> &mdash; <code>apps/api/src/</code> folders consolidated from ~80 flat directories into 38 canonical module directories under <code>apps/api/src/modules/</code>, plus a <code>shared/</code> directory for cross-cutting infrastructure.</li>
+<li><strong>Documentation</strong> &mdash; <code>docs/</code> reorganised from flat dump into structured subdirectories: architecture, plans, reviews, policies, operations.</li>
+<li><strong>Tests</strong> &mdash; existing mock specs move with their services. Integration test harness directory stays at <code>apps/api/test/integration/</code>. Future integration tests mirror the module structure.</li>
+</ol>
+<h3>What Does NOT Change</h3>
+<ol>
+<li><strong>Database</strong> &mdash; no schema changes, no migrations, no table renames.</li>
+<li><strong>Prisma</strong> &mdash; <code>packages/database/</code> stays exactly as-is.</li>
+<li><strong>Web app</strong> &mdash; <code>apps/web/</code> stays as-is (frontend restructure is a separate project).</li>
+<li><strong>Packages</strong> &mdash; <code>packages/</code> stay as-is.</li>
+<li><strong>Module functionality</strong> &mdash; no logic changes. Pure file moves + import rewrites.</li>
+</ol>
+</div>
+
+<h2>Phase 1: Source Code Module Consolidation</h2>
+
+<h3>Target Structure</h3>
+<div class="tree">
+apps/api/src/
+├── modules/
+│   ├── m00-platform/          # Platform Core (platform_, iam_)
+│   │   ├── auth/              # login, JWT, MFA, tenant resolution
+│   │   ├── iam/               # permissions, roles, guardian auth, @StudentOwned
+│   │   ├── tenant/            # tenant context, prisma service, middleware
+│   │   ├── configuration/     # school config, feature flags
+│   │   ├── region/            # districts, regions
+│   │   ├── crm/               # platform CRM, marketplace
+│   │   ├── ops/               # internal ops, tenant access grants
+│   │   └── governance/        # DPO, erasure, breach, FERPA, privacy
+│   │
+│   ├── m01-tickets/           # M60 Service Tickets / Helpdesk (tkt_)
+│   ├── m02-workflows/         # M2 Approval Workflows (wsk_)
+│   ├── m03-tasks/             # M3 Task Management (tsk_)
+│   │
+│   ├── m09-behaviour/         # M9 Behaviour (beh_, disc_)
+│   │   ├── discipline/
+│   │   └── positive/
+│   │
+│   ├── m20-sis/               # M20 Student Information System (sis_)
+│   │   ├── students/
+│   │   ├── family/
+│   │   ├── custom-fields/
+│   │   ├── student-notes/
+│   │   ├── graduation/
+│   │   ├── transfer/
+│   │   └── lockers/
+│   │
+│   ├── m21-classroom/         # M21 Classroom (cls_)
+│   │   ├── assignments/
+│   │   ├── grading/
+│   │   ├── ai-tutoring/
+│   │   ├── hall-passes/
+│   │   ├── peer-review/
+│   │   └── lessons/
+│   │
+│   ├── m22-scheduling/        # M22 Scheduling (sch_)
+│   ├── m23-health/            # M23 Health & Wellness (hlth_)
+│   │   ├── records/
+│   │   ├── iep/
+│   │   └── immunisation/
+│   │
+│   ├── m24-library/           # M24 Library (lib_)
+│   ├── m25-curriculum/        # M25 Curriculum (cur_)
+│   ├── m26-portfolio/         # M26 Portfolio & College Readiness (pfl_)
+│   ├── m27-student-services/  # M27 Student Services (svc_)
+│   │   ├── counselling/
+│   │   ├── referrals/
+│   │   ├── wellbeing/
+│   │   └── mtss/
+│   │
+│   ├── m40-communications/    # M40 Communications (msg_, ann_, not_)
+│   │   ├── messaging/
+│   │   ├── announcements/
+│   │   ├── notifications/
+│   │   ├── broadcasts/
+│   │   └── moderation/
+│   │
+│   ├── m41-meetings/          # M41 Meetings (mtg_)
+│   ├── m42-publications/      # M42 Publications (pub_)
+│   │
+│   ├── m61-transport/         # M61 Transportation (trn_)
+│   ├── m62-it/                # M62 IT Infrastructure (tech_)
+│   ├── m63-food-service/      # M63 Food Service (fds_)
+│   ├── m64-clubs/             # M64 Clubs & Student Life (ext_)
+│   │   ├── clubs/
+│   │   ├── elections/
+│   │   └── field-trips/
+│   │
+│   ├── m65-facilities/        # M65 Facilities (fac_)
+│   ├── m66-athletics/         # M66 Athletics (ath_)
+│   ├── m67-store/             # M67 School Store (str_)
+│   │
+│   ├── m80-hr/                # M80 HR (hr_)
+│   │   ├── employees/
+│   │   ├── leave/
+│   │   ├── payroll/
+│   │   ├── recruitment/
+│   │   ├── training/
+│   │   └── appraisals/
+│   │
+│   ├── m81-enrolment/         # M81 Enrolment (enr_)
+│   ├── m82-substitutes/       # M82 Substitute Marketplace (sub_)
+│   ├── m83-finance/           # M83 Finance (fin_)
+│   ├── m84-payments/          # M84 Payments & Billing (pay_)
+│   ├── m85-accreditation/     # M85 Accreditation (acc_)
+│   ├── m86-procurement/       # M86 Procurement (prc_)
+│   ├── m87-safety/            # M87 Safety & Emergency (inc_, safe_)
+│   │
+│   ├── m100-engagement/       # M100 Parent Engagement (eng_)
+│   ├── m101-events/           # M101 Events & Ticketing (evt_)
+│   ├── m102-alumni/           # M102 Alumni (alm_)
+│   ├── m103-groups/           # M103 Groups & Communities (grp_)
+│   │
+│   ├── m110-analytics/        # M110 Analytics & Reporting (rpt_)
+│   │   ├── engagement/
+│   │   ├── operations/
+│   │   └── read-models/
+│   │
+│   └── m90-visitors/          # M90 Visitor Management (vis_)
+│
+├── shared/                    # Cross-cutting infrastructure
+│   ├── auth/                  # guards, decorators (@StudentOwned, @RequirePermission)
+│   ├── kafka/                 # outbox, producer, consumer base, event envelope
+│   ├── tenant/                # tenant context, middleware, prisma wrappers
+│   ├── observability/         # reference health, worker jitter, metrics
+│   ├── dlq/                   # dead letter queue handling
+│   └── common/                # generateId, pagination, date helpers
+│
+├── app.module.ts              # Root module (stays)
+└── main.ts                    # Entry point (stays)
+</div>
+
+<h3>Current → Target Mapping</h3>
+<p>Each row maps an existing <code>apps/api/src/</code> folder to its new canonical location. Folders marked with * are cycle-specific names that merge into the canonical module.</p>
+
+<table>
+<tr><th>Current Folder</th><th>Target Module</th><th>Notes</th></tr>
+<tr><td><code>auth/</code></td><td><code>modules/m00-platform/auth/</code></td><td>Login, JWT, tenant resolution</td></tr>
+<tr><td><code>iam/</code></td><td><code>modules/m00-platform/iam/</code></td><td>Permissions, roles, guardian auth, student-owned</td></tr>
+<tr><td><code>tenant/</code></td><td><code>shared/tenant/</code></td><td>Cross-cutting tenant context used by all modules</td></tr>
+<tr><td><code>platform/</code></td><td><code>modules/m00-platform/</code></td><td>CRM, ops, marketplace, tenant access grants</td></tr>
+<tr><td><code>configuration/</code></td><td><code>modules/m00-platform/configuration/</code></td><td>School config, feature flags</td></tr>
+<tr><td><code>region/</code></td><td><code>modules/m00-platform/region/</code></td><td>Districts, regions</td></tr>
+<tr><td><code>governance/</code></td><td><code>modules/m00-platform/governance/</code></td><td>DPO, erasure, breach, FERPA</td></tr>
+<tr><td><code>profile/</code></td><td><code>modules/m00-platform/</code></td><td>User profile management</td></tr>
+<tr><td><code>households/</code></td><td><code>modules/m00-platform/</code></td><td>Household management</td></tr>
+<tr><td><code>tickets/</code></td><td><code>modules/m01-tickets/</code></td><td>Service tickets / helpdesk</td></tr>
+<tr><td><code>workflows/</code></td><td><code>modules/m02-workflows/</code></td><td>Approval workflows</td></tr>
+<tr><td><code>sis/</code> + <code>sis-advanced/</code> *</td><td><code>modules/m20-sis/</code></td><td>Merge base + advanced into one module</td></tr>
+<tr><td><code>classroom/</code></td><td><code>modules/m21-classroom/</code></td><td></td></tr>
+<tr><td><code>scheduling/</code></td><td><code>modules/m22-scheduling/</code></td><td></td></tr>
+<tr><td><code>health/</code></td><td><code>modules/m23-health/</code></td><td></td></tr>
+<tr><td><code>library/</code></td><td><code>modules/m24-library/</code></td><td></td></tr>
+<tr><td><code>curriculum/</code></td><td><code>modules/m25-curriculum/</code></td><td></td></tr>
+<tr><td><code>portfolio/</code></td><td><code>modules/m26-portfolio/</code></td><td></td></tr>
+<tr><td><code>wellbeing/</code> + <code>counselling/</code></td><td><code>modules/m27-student-services/</code></td><td>Merge wellbeing + counselling into Student Services</td></tr>
+<tr><td><code>messaging/</code> + <code>communications-advanced/</code> * + <code>announcements/</code> + <code>notifications/</code></td><td><code>modules/m40-communications/</code></td><td>Merge all comms surfaces into one module</td></tr>
+<tr><td><code>meetings/</code></td><td><code>modules/m41-meetings/</code></td><td></td></tr>
+<tr><td><code>publications/</code></td><td><code>modules/m42-publications/</code></td><td></td></tr>
+<tr><td><code>transport/</code></td><td><code>modules/m61-transport/</code></td><td></td></tr>
+<tr><td><code>it/</code></td><td><code>modules/m62-it/</code></td><td></td></tr>
+<tr><td><code>food-service/</code></td><td><code>modules/m63-food-service/</code></td><td></td></tr>
+<tr><td><code>clubs/</code></td><td><code>modules/m64-clubs/</code></td><td>Includes elections, field trips</td></tr>
+<tr><td><code>facilities/</code></td><td><code>modules/m65-facilities/</code></td><td></td></tr>
+<tr><td><code>athletics/</code></td><td><code>modules/m66-athletics/</code></td><td></td></tr>
+<tr><td><code>store/</code></td><td><code>modules/m67-store/</code></td><td></td></tr>
+<tr><td><code>hr/</code> + <code>payroll/</code></td><td><code>modules/m80-hr/</code></td><td>Merge HR + payroll into one module</td></tr>
+<tr><td><code>enrollment/</code></td><td><code>modules/m81-enrolment/</code></td><td></td></tr>
+<tr><td><code>substitute/</code></td><td><code>modules/m82-substitutes/</code></td><td></td></tr>
+<tr><td><code>finance/</code></td><td><code>modules/m83-finance/</code></td><td></td></tr>
+<tr><td><code>payments/</code></td><td><code>modules/m84-payments/</code></td><td></td></tr>
+<tr><td><code>accreditation/</code></td><td><code>modules/m85-accreditation/</code></td><td></td></tr>
+<tr><td><code>procurement/</code></td><td><code>modules/m86-procurement/</code></td><td></td></tr>
+<tr><td><code>incidents/</code></td><td><code>modules/m87-safety/</code></td><td></td></tr>
+<tr><td><code>engagement/</code></td><td><code>modules/m100-engagement/</code></td><td></td></tr>
+<tr><td><code>events/</code></td><td><code>modules/m101-events/</code></td><td></td></tr>
+<tr><td><code>alumni/</code></td><td><code>modules/m102-alumni/</code></td><td></td></tr>
+<tr><td><code>groups-advanced/</code> *</td><td><code>modules/m103-groups/</code></td><td>Rename from cycle name</td></tr>
+<tr><td><code>analytics/</code></td><td><code>modules/m110-analytics/</code></td><td></td></tr>
+<tr><td><code>visitors/</code></td><td><code>modules/m90-visitors/</code></td><td></td></tr>
+<tr><td><code>discipline/</code></td><td><code>modules/m09-behaviour/discipline/</code></td><td></td></tr>
+<tr><td><code>kafka/</code></td><td><code>shared/kafka/</code></td><td>Cross-cutting infrastructure</td></tr>
+<tr><td><code>dlq/</code></td><td><code>shared/dlq/</code></td><td>Cross-cutting infrastructure</td></tr>
+<tr><td><code>observability/</code></td><td><code>shared/observability/</code></td><td>Reference health, worker jitter, metrics</td></tr>
+<tr><td><code>__tests__/</code></td><td><code>shared/__tests__/</code></td><td>Cross-cutting regression suites</td></tr>
+</table>
+
+<h2>Phase 2: Documentation Restructure</h2>
+
+<div class="tree">
+docs/
+├── architecture/              # Frozen design docs
+│   ├── erd-v11.html
+│   ├── architecture-review-v10.html
+│   ├── function-library-v11.html
+│   ├── business-strategy.html
+│   └── adrs/                  # Individual ADR files (if extracted)
+│
+├── plans/                     # Build cycle plans
+│   ├── phase1/                # Cycles 0-34 plans
+│   ├── phase2/                # P2-1 through P2-29 plans
+│   └── hardening/             # P2-H1 through P2-H6 plans
+│
+├── reviews/                   # Audit and review documents
+│   ├── phase2-completion-report.html
+│   ├── plan-level-audit.html
+│   ├── review-context-package.html
+│   ├── CAMPUSOS-CODEX-PEER-REVIEW.md
+│   ├── CAMPUSOS-CODEX-ROUND2-REVIEW.md
+│   ├── CAMPUSOS-POST-H5-VERIFICATION.md
+│   └── HANDOFF-P2H*.md
+│
+├── policies/                  # Governance and compliance
+│   ├── ai-data-policy.md
+│   ├── retention-pseudonymisation-matrix.md
+│   └── CLAUDE.md              # (or stays at repo root)
+│
+├── operations/                # Runbooks and operational guides
+│   ├── kafka-operations-runbook.md
+│   ├── migration-orchestration.md
+│   ├── kafka-topic-registry.md
+│   └── procurement-integration-test-harness.md
+│
+├── test-coverage-plan.html    # Test strategy
+├── phase3-roadmap.html        # Phase 3 planning
+├── hardening-cycles.html      # Hardening sprint plan
+│
+└── design-hub/                # Index + design hub assets
+    └── index.html
+</div>
+
+<h2>Phase 3: Import Path Rewrite</h2>
+<p>After moving files, every <code>import</code> statement that references the old path must be updated. This is the most mechanical and highest-risk phase.</p>
+<ol>
+<li>Use TypeScript path aliases in <code>tsconfig.json</code> to simplify future imports:</li>
+</ol>
+<div class="prompt-box"><pre>
+// tsconfig.json paths
+{
+  "compilerOptions": {
+    "paths": {
+      "@modules/*": ["apps/api/src/modules/*"],
+      "@shared/*": ["apps/api/src/shared/*"]
+    }
+  }
+}
+</pre></div>
+<ol start="2">
+<li>Update all relative imports to use the new paths. Claude Code can do this mechanically with a find-and-replace script.</li>
+<li>Update <code>app.module.ts</code> to import all module classes from their new locations.</li>
+<li>Update <code>vitest.config.ts</code> and <code>vitest.integration.config.ts</code> to resolve the path aliases.</li>
+<li>Run <code>pnpm build</code> + <code>pnpm test</code> to verify.</li>
+</ol>
+
+<h2>Phase 4: Verification</h2>
+<ol>
+<li><code>pnpm build</code> &mdash; TypeScript compiles with 0 errors.</li>
+<li><code>pnpm test</code> &mdash; all 2,816+ tests pass.</li>
+<li><code>pnpm test:integration</code> &mdash; integration harness still works.</li>
+<li><code>pnpm dev</code> &mdash; API starts, health check responds.</li>
+<li>Spot-check 5 API endpoints via curl.</li>
+<li>Verify no orphaned files in old <code>apps/api/src/</code> directories.</li>
+</ol>
+
+<h2>Claude Code Prompt</h2>
+<div class="prompt-box"><pre>
+Read docs/campusos-restructure-plan.html for the full plan.
+
+You are executing a codebase restructure. NO LOGIC CHANGES. Pure file
+moves + import rewrites. 4 phases, commit after each.
+
+PHASE 1 — Source code module consolidation:
+
+1. Create the modules/ directory structure under apps/api/src/ per the
+   target tree in the plan document. Create all 38 module directories.
+
+2. Create the shared/ directory with subdirectories: auth, kafka, tenant,
+   observability, dlq, common, __tests__.
+
+3. Move files from current flat directories into their canonical module
+   directories per the Current → Target Mapping table. Key merges:
+   - sis/ + sis-advanced/ → modules/m20-sis/
+   - messaging/ + communications-advanced/ + announcements/ + notifications/ → modules/m40-communications/
+   - wellbeing/ + counselling/ → modules/m27-student-services/
+   - hr/ + payroll/ → modules/m80-hr/
+   - groups-advanced/ → modules/m103-groups/
+   - incidents/ → modules/m87-safety/
+   - kafka/ → shared/kafka/
+   - dlq/ → shared/dlq/
+   - observability/ → shared/observability/
+   - auth decorators/guards → shared/auth/ (keep auth service in m00-platform/auth/)
+   - tenant/ middleware/context → shared/tenant/ (keep tenant module in m00-platform/)
+
+4. Each module directory should contain its services, controllers,
+   consumers, workers, DTOs, and spec files together.
+
+After moving, run: pnpm build
+Fix any import errors. Commit: "refactor: Phase 1 — consolidate 80+ folders into 38 canonical modules"
+
+PHASE 2 — Documentation restructure:
+
+1. Create docs/ subdirectories: architecture/, plans/phase1/, plans/phase2/,
+   plans/hardening/, reviews/, policies/, operations/, design-hub/.
+
+2. Move files per the docs target tree in the plan.
+
+3. Update any internal doc links (hrefs in HTML files).
+
+Commit: "docs: Phase 2 — restructure documentation into architecture/plans/reviews/policies/operations"
+
+PHASE 3 — Import path aliases:
+
+1. Add path aliases to tsconfig.json:
+   @modules/* → apps/api/src/modules/*
+   @shared/* → apps/api/src/shared/*
+
+2. Update all import statements across the codebase to use the aliases
+   where appropriate. At minimum, cross-module imports should use aliases.
+   Within-module imports can stay relative.
+
+3. Update vitest configs to resolve the aliases.
+
+4. Update app.module.ts with all new module import paths.
+
+Run: pnpm build && pnpm test
+Fix any failures. Commit: "refactor: Phase 3 — add path aliases, update all imports"
+
+PHASE 4 — Verification:
+
+1. pnpm build → 0 errors
+2. pnpm test → all tests pass
+3. pnpm dev → API starts, GET /health responds 200
+4. Remove any empty old directories
+5. Verify no orphaned files
+
+Commit: "refactor: Phase 4 — verification clean, remove empty directories"
+</pre></div>
+
+<div class="summary-box">
+<h3 style="margin-top:0">After the Restructure</h3>
+<p>Once complete, the next step is to regenerate the test coverage plan (v3) based on the new module structure. Each test tier maps 1:1 to module directories. Integration tests go in <code>test/integration/{module-name}/</code> mirroring the source structure. The restructure makes the test strategy obvious — one directory per module, one test file per service, all using the DB-backed harness.</p>
+</div>
+
+</div>
+</body>
+</html>
