@@ -6,7 +6,7 @@ import {
   processWithIdempotency,
   unwrapEnvelope,
   UnwrappedEvent,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 import { ReadinessPathwayService } from './readiness.service';
 
 /**

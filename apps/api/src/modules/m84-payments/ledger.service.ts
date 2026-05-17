@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { RedisService } from '@modules/m40-communications/notifications/redis.service';
+import { RedisService } from '@shared/cache/redis.service';
 import { EntryType, LedgerBalanceDto, LedgerEntryDto, ListLedgerQueryDto } from './dto/ledger.dto';
 
 interface LedgerRow {

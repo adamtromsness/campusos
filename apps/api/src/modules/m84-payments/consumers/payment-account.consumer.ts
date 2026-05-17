@@ -9,7 +9,7 @@ import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 
 /**
  * PaymentAccountWorker (Cycle 6 Step 7).

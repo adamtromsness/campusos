@@ -10,7 +10,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { getCurrentTenant } from '@shared/tenant/tenant.context';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import { assertStoreCustomer, isUniqueViolation } from './access';
+import { assertStoreCustomer, isUniqueViolation } from './access-advanced';
 import type { AddWishlistDto, UpdateWishlistDto, WishlistEntryDto } from './dto/commerce-store.dto';
 
 interface WishlistRow {

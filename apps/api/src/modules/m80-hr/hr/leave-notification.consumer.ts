@@ -10,7 +10,7 @@ import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 
 /**
  * Build a deterministic UUID for a `hr.leave.coverage_needed` republish

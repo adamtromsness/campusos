@@ -7,7 +7,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import {
   processWithIdempotency,
   unwrapEnvelope,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 import { NotificationQueueService } from '@modules/m40-communications/notifications/notification-queue.service';
 
 const CONSUMER_GROUP = 'gl-reconciliation-alert-consumer';

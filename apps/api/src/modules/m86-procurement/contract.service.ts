@@ -10,8 +10,8 @@ import { getCurrentTenant } from '@shared/tenant/tenant.context';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
-import { assertProcurementAdmin, assertProcurementReader, isUniqueViolation } from './access';
-import { deterministicContractAmendedEventId } from './event-ids';
+import { assertProcurementAdmin, assertProcurementReader, isUniqueViolation } from './access-advanced';
+import { deterministicContractAmendedEventId } from './event-ids-advanced';
 import type {
   ContractAmendmentDto,
   ContractDetailDto,
@@ -20,7 +20,7 @@ import type {
   CreateContractAmendmentDto,
   CreateContractDto,
   UpdateContractDto,
-} from './dto/commerce.dto';
+} from './dto/commerce-advanced.dto';
 
 interface ContractRow {
   id: string;

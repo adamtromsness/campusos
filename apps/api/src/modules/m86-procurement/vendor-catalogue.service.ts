@@ -9,7 +9,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { getCurrentTenant } from '@shared/tenant/tenant.context';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import { assertProcurementAdmin, assertProcurementReader, isUniqueViolation } from './access';
+import { assertProcurementAdmin, assertProcurementReader, isUniqueViolation } from './access-advanced';
 import type {
   CatalogueItemDto,
   CreateCatalogueItemDto,
@@ -18,7 +18,7 @@ import type {
   UpdateVendorCatalogueDto,
   VendorCatalogueDetailDto,
   VendorCatalogueDto,
-} from './dto/commerce.dto';
+} from './dto/commerce-advanced.dto';
 
 interface CatalogueRow {
   id: string;

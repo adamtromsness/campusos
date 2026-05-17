@@ -7,7 +7,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import {
   processWithIdempotency,
   unwrapEnvelope,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 
 /**
  * VisitorMusterConsumer — REVIEW-P2C2 ROUND 1 BLOCKING fix.

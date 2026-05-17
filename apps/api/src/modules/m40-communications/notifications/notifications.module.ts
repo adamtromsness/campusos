@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
 import { KafkaModule } from '@shared/kafka/kafka.module';
-import { RedisService } from './redis.service';
+import { RedisModule } from '@shared/cache/redis.module';
 import { NotificationQueueService } from './notification-queue.service';
 import { NotificationDeliveryWorker } from './notification-delivery.worker';
 import { NotificationInboxService } from './notification-inbox.service';
@@ -41,9 +41,8 @@ import { BehaviourNotificationConsumer } from './consumers/behaviour-notificatio
  * channels so the queue rows still drain.
  */
 @Module({
-  imports: [TenantModule, KafkaModule],
+  imports: [TenantModule, KafkaModule, RedisModule],
   providers: [
-    RedisService,
     NotificationQueueService,
     NotificationDeliveryWorker,
     NotificationInboxService,
@@ -57,7 +56,7 @@ import { BehaviourNotificationConsumer } from './consumers/behaviour-notificatio
   ],
   controllers: [NotificationInboxController],
   exports: [
-    RedisService,
+    RedisModule,
     NotificationQueueService,
     NotificationDeliveryWorker,
     NotificationInboxService,

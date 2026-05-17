@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { RedisService } from '@modules/m40-communications/notifications/redis.service';
+import { RedisService } from '@shared/cache/redis.service';
 
 /**
  * UnreadCountService — Cycle 3 Step 6.

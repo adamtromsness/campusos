@@ -9,7 +9,7 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { getCurrentTenant } from '@shared/tenant/tenant.context';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import { assertStoreAdmin, assertStoreReader, isUniqueViolation } from './access';
+import { assertStoreAdmin, assertStoreReader, isUniqueViolation } from './access-advanced';
 import type {
   CategoryNodeDto,
   CreateCategoryDto,

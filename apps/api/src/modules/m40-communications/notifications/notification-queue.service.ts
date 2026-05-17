@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { getCurrentTenant } from '@shared/tenant/tenant.context';
-import { RedisService } from './redis.service';
+import { RedisService } from '@shared/cache/redis.service';
 
 /**
  * Caller-supplied input for `enqueue()`.

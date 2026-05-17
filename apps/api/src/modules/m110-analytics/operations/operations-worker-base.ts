@@ -5,7 +5,7 @@ import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 
 /**
  * Shared scaffolding for the P2-15 read-model workers.

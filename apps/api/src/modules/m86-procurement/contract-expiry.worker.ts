@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { getPlatformClient } from '@campusos/database';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
-import { deterministicContractExpiringEventId } from './event-ids';
+import { deterministicContractExpiringEventId } from './event-ids-advanced';
 
 /**
  * P2-29a — ContractExpiryWorker.

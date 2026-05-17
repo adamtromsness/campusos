@@ -7,7 +7,7 @@ import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 import { generateId } from '@campusos/database';
 import { RatingService } from './rating.service';
 

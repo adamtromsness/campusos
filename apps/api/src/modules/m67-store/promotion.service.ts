@@ -15,8 +15,8 @@ import {
   assertStoreCustomer,
   assertStoreReader,
   isUniqueViolation,
-} from './access';
-import { deterministicPromotionRedeemedEventId } from './event-ids';
+} from './access-advanced';
+import { deterministicPromotionRedeemedEventId } from './event-ids-advanced';
 import type {
   ApplyPromoCodeDto,
   CreatePromotionDto,

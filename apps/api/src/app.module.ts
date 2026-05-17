@@ -22,7 +22,7 @@ import { ProfileModule } from '@modules/m00-platform/profile/profile.module';
 import { HouseholdsModule } from '@modules/m00-platform/households/households.module';
 import { TasksModule } from '@modules/m03-tasks/tasks.module';
 import { WorkflowsModule } from '@modules/m02-workflows/workflows.module';
-import { TicketsModule } from '@modules/m01-tickets/tickets.module';
+import { TicketsModule } from '@modules/m60-tickets/tickets.module';
 import { DisciplineModule } from '@modules/m09-behaviour/discipline/discipline.module';
 import { BehaviorPlansModule } from '@modules/m09-behaviour/behavior-plans/behavior-plans.module';
 import { BehaviourAdvancedModule } from '@modules/m09-behaviour/behaviour-advanced/behaviour-advanced.module';
@@ -74,7 +74,9 @@ import { CommunityModule } from '@modules/m00-platform/community/community.modul
 import { AlumniModule } from '@modules/m102-alumni/alumni.module';
 import { AccreditationModule } from '@modules/m85-accreditation/accreditation.module';
 import { EngagementModule } from '@modules/m100-engagement/engagement.module';
-import { CommerceModule } from '@modules/m67-store/commerce/commerce.module';
+import { ProcurementAdvancedModule } from '@modules/m86-procurement/procurement-advanced.module';
+import { FinanceAdvancedModule } from '@modules/m83-finance/finance-advanced.module';
+import { StoreAdvancedModule } from '@modules/m67-store/store-advanced.module';
 import { KafkaModule } from '@shared/kafka/kafka.module';
 import { TenantGuard } from '@modules/m00-platform/tenant/tenant.guard';
 import { AuthGuard } from '@shared/auth/auth.guard';
@@ -337,16 +339,14 @@ var devOnlyControllers: Type<unknown>[] =
     // endpoints + 2 Kafka emits (eng.conference.booking_open,
     // eng.survey.opened).
     EngagementModule,
-    // Phase 2 Cycle 29 sub-cycle a (P2-29a) — Commerce Bundle:
-    // Procurement Advanced (vendor catalogues, contracts, spending
-    // analytics) + Finance Extensions (departmental budgets, budget
-    // transfers with atomic from-decrement + to-increment, manual
-    // journal entry batches with balance validation on post).
-    // 6 services + 2 workers (ContractExpiryWorker,
-    // ProcurementAnalyticsWorker) + ~22 endpoints + 4 durable Kafka
-    // emits (prc.contract.expiring, prc.contract.amended,
-    // fin.budget_transfer.approved, fin.journal_batch.posted).
-    CommerceModule,
+    // P2-29 commerce split — procurement advanced (vendor catalogues,
+    // contracts, spending analytics) lives in m86, finance advanced
+    // (departmental budgets, transfers, journal batches) in m83, and
+    // store advanced (promotions, loyalty, gift cards, wishlists, price
+    // schedules, inventory adjustments, categories) in m67.
+    ProcurementAdvancedModule,
+    FinanceAdvancedModule,
+    StoreAdvancedModule,
   ],
   controllers: devOnlyControllers,
   providers: [

@@ -10,14 +10,14 @@ import { getCurrentTenant } from '@shared/tenant/tenant.context';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
-import { assertFinanceAdmin, assertFinanceReader, isUniqueViolation } from './access';
-import { deterministicBudgetTransferApprovedEventId } from './event-ids';
+import { assertFinanceAdmin, assertFinanceReader, isUniqueViolation } from './access-advanced';
+import { deterministicBudgetTransferApprovedEventId } from './event-ids-advanced';
 import type {
   BudgetTransferDto,
   BudgetTransferStatus,
   CreateBudgetTransferDto,
   RejectBudgetTransferDto,
-} from './dto/commerce.dto';
+} from './dto/commerce-advanced.dto';
 
 interface TransferRow {
   id: string;

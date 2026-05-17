@@ -10,7 +10,7 @@ import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 
 /**
  * AudienceFanOutWorker — Cycle 3 Step 7.

@@ -9,13 +9,13 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { getCurrentTenant } from '@shared/tenant/tenant.context';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import { assertFinanceAdmin, assertFinanceReader, isUniqueViolation } from './access';
+import { assertFinanceAdmin, assertFinanceReader, isUniqueViolation } from './access-advanced';
 import type {
   BudgetCategory,
   CreateDepartmentalBudgetDto,
   DepartmentalBudgetDto,
   UpdateDepartmentalBudgetDto,
-} from './dto/commerce.dto';
+} from './dto/commerce-advanced.dto';
 
 interface BudgetRow {
   id: string;

@@ -7,7 +7,7 @@ import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import { PostingService } from './posting.service';
 import type { BatchType, CreateGLEntryLineDto } from './dto/finance.dto';

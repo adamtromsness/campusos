@@ -15,7 +15,7 @@ import {
   assertStoreAdmin,
   assertStoreCustomer,
   isUniqueViolation,
-} from './access';
+} from './access-advanced';
 import type {
   AdjustLoyaltyPointsDto,
   EarnLoyaltyPointsDto,

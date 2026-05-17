@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { RedisService } from '@modules/m40-communications/notifications/redis.service';
+import { RedisService } from '@shared/cache/redis.service';
 import { getCurrentTenant } from '@shared/tenant/tenant.context';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import {

@@ -6,12 +6,12 @@ import { IdempotencyService } from '@shared/kafka/idempotency.service';
 import { KafkaProducerService } from '@shared/kafka/kafka-producer.service';
 import { prefixedTopic, unprefixTopic } from '@shared/kafka/event-envelope';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
-import { RedisService } from '@modules/m40-communications/notifications/redis.service';
+import { RedisService } from '@shared/cache/redis.service';
 import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 import { buildPlaceholderValues, renderTemplate } from './template-render';
 
 /**

@@ -16,8 +16,8 @@ import {
   assertStoreCustomer,
   assertStoreReader,
   isUniqueViolation,
-} from './access';
-import { deterministicGiftCardDepletedEventId } from './event-ids';
+} from './access-advanced';
+import { deterministicGiftCardDepletedEventId } from './event-ids-advanced';
 import type {
   CancelGiftCardDto,
   GiftCardDetailDto,

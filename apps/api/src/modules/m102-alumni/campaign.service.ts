@@ -11,7 +11,7 @@ import { getCurrentTenant } from '@shared/tenant/tenant.context';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
 import { OutboxService } from '@shared/kafka/outbox.service';
-import { RedisService } from '@modules/m40-communications/notifications/redis.service';
+import { RedisService } from '@shared/cache/redis.service';
 import {
   AddRecipientsByTagDto,
   CampaignDto,

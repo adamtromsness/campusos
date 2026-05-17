@@ -4,12 +4,12 @@ import { IdempotencyService } from '@shared/kafka/idempotency.service';
 import { prefixedTopic } from '@shared/kafka/event-envelope';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { NotificationQueueService } from '../notification-queue.service';
-import { RedisService } from '../redis.service';
+import { RedisService } from '@shared/cache/redis.service';
 import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from './notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 
 /**
  * MessageNotificationConsumer — listens for `msg.message.posted`, the

@@ -8,7 +8,7 @@ import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from './notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 
 /**
  * GradeNotificationConsumer — listens for `cls.grade.published` (Cycle 2)

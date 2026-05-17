@@ -11,7 +11,7 @@ import {
   dispatchOperationsEvent,
   monthAnchor,
 } from '../operations/operations-worker-base';
-import type { UnwrappedEvent } from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+import type { UnwrappedEvent } from '@shared/kafka/envelope-consumer';
 
 /* =========================================================================
    P2-15b Engagement + Performance Read-Model Workers (M110 Analytics .1).

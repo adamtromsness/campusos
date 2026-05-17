@@ -6,7 +6,7 @@ import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 import { LessonRecordingService } from './lesson-recording.service';
 import { AIGatewayService } from './ai-gateway.service';
 import { AIUsageService } from './ai-usage.service';

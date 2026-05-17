@@ -4,8 +4,8 @@ import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
 import { getCurrentTenant } from '@shared/tenant/tenant.context';
 import type { ResolvedActor } from '@modules/m00-platform/iam/actor-context.service';
 import { PermissionCheckService } from '@modules/m00-platform/iam/permission-check.service';
-import { assertProcurementReader } from './access';
-import type { SpendingAnalyticsFilterDto, SpendingAnalyticsRowDto } from './dto/commerce.dto';
+import { assertProcurementReader } from './access-advanced';
+import type { SpendingAnalyticsFilterDto, SpendingAnalyticsRowDto } from './dto/commerce-advanced.dto';
 
 interface AnalyticsRow {
   id: string;

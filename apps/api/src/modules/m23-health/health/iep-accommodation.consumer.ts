@@ -8,7 +8,7 @@ import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from '@modules/m40-communications/notifications/consumers/notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 
 /**
  * IepAccommodationConsumer — Cycle 10 Step 7. THE ADR-030 KEYSTONE.

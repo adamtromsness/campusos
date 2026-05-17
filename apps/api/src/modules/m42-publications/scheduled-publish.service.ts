@@ -24,7 +24,7 @@ import type {
   ScheduledPublicationDto,
 } from './dto/publications.dto';
 import { OutboxService } from '@shared/kafka/outbox.service';
-import { RedisService } from '@modules/m40-communications/notifications/redis.service';
+import { RedisService } from '@shared/cache/redis.service';
 
 interface ScheduledRow {
   id: string;

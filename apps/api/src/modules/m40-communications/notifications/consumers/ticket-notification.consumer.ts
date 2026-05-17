@@ -8,7 +8,7 @@ import {
   UnwrappedEvent,
   processWithIdempotency,
   unwrapEnvelope,
-} from './notification-consumer-base';
+} from '@shared/kafka/envelope-consumer';
 
 /**
  * TicketNotificationConsumer — Cycle 8 Step 6.

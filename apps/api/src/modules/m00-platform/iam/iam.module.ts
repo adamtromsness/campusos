@@ -8,7 +8,7 @@ import { ScopeService } from './scope.service';
 import { ActorContextService } from './actor-context.service';
 import { GuardianAuthorizationService } from './guardian-authorization.service';
 import { TenantModule } from '@modules/m00-platform/tenant/tenant.module';
-import { NotificationsModule } from '@modules/m40-communications/notifications/notifications.module';
+import { RedisModule } from '@shared/cache/redis.module';
 import { ObservabilityModule } from '@shared/observability/observability.module';
 
 /**
@@ -25,11 +25,11 @@ import { ObservabilityModule } from '@shared/observability/observability.module'
  * - ScopeService — scope hierarchy management
  */
 @Module({
-  // Cycle 31 Step 6 — NotificationsModule provides RedisService for the
-  // IAM access cache; ObservabilityModule provides MetricsService for
-  // hit/miss instrumentation. Both are @Optional() in PermissionCheckService
-  // so this works in test contexts without Redis / Prometheus too.
-  imports: [TenantModule, NotificationsModule, ObservabilityModule],
+  // RedisModule provides RedisService for the IAM access cache;
+  // ObservabilityModule provides MetricsService for hit/miss instrumentation.
+  // Both are @Optional() in PermissionCheckService so this works in test
+  // contexts without Redis / Prometheus too.
+  imports: [TenantModule, RedisModule, ObservabilityModule],
   providers: [
     {
       provide: PrismaClient,

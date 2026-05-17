@@ -6,7 +6,7 @@ import { PromotionService } from '../promotion.service';
 import { LoyaltyService } from '../loyalty.service';
 import { WishlistService } from '../wishlist.service';
 import { PriceScheduleService } from '../price-schedule.service';
-import { JournalBatchService } from '../journal-batch.service';
+import { JournalBatchService } from '@modules/m83-finance/journal-batch.service';
 
 /**
  * REVIEW-P2C29 ROUND 1 — regression tests pinning the 5 BLOCKING +
@@ -555,9 +555,9 @@ describe('R-B5 — REVIEW-P2C29 BLOCKING 5: post() no longer writes fin_gl_entri
 // Sanity — affiliation helper is exported and signature matches
 // ─────────────────────────────────────────────────────────────
 
-describe('access.ts affiliation helper export', () => {
-  it('assertCustomerAffiliatedWithSchool is exported from commerce/access', async () => {
-    const access = await import('../access');
+describe('access-advanced.ts affiliation helper export', () => {
+  it('assertCustomerAffiliatedWithSchool is exported from m67-store/access-advanced', async () => {
+    const access = await import('../access-advanced');
     expect(typeof access.assertCustomerAffiliatedWithSchool).toBe('function');
   });
 });

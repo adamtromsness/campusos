@@ -77,7 +77,7 @@ apps/api/src/app.module.ts                   → Root module wiring all 38 domai
 apps/api/src/guard-test.controller.ts        → Guard chain integration test surface
 apps/api/src/modules/                        → 38 canonical domain modules
   ├── m00-platform/                          → Core platform: auth (service/controller/module) + iam + tenant (module/guard) + configuration + region + governance + profile + households + community + crm + ops + platform-admin + platform
-  ├── m01-tickets/                           → Service tickets / helpdesk (M60)
+  ├── m60-tickets/                           → Service tickets / helpdesk (M60)
   ├── m02-workflows/                         → Approval workflows (M2)
   ├── m03-tasks/                             → Task management + auto-task rule engine (M3)
   ├── m09-behaviour/                         → Discipline + behaviour intervention plans + behaviour-advanced
@@ -98,14 +98,14 @@ apps/api/src/modules/                        → 38 canonical domain modules
   ├── m64-clubs/                             → Clubs & student life (M64)
   ├── m65-facilities/                        → Facilities (M65)
   ├── m66-athletics/                         → Athletics (M66)
-  ├── m67-store/                             → School store + commerce
+  ├── m67-store/                             → School store core (orders, products, external customers, shipping, revenue) + store-advanced (promotions, loyalty, gift cards, wishlists, price schedules, inventory adjustments, categories)
   ├── m80-hr/                                → HR + payroll + recruitment + training + appraisals
   ├── m81-enrolment/                         → Enrolment + enrolment-advanced (tours, applications, offers, waitlist)
   ├── m82-substitutes/                       → Substitute marketplace (M82)
-  ├── m83-finance/                           → Finance & accounting (M83)
+  ├── m83-finance/                           → Finance & accounting (M83) — core + finance-advanced (departmental budgets, atomic budget transfers, manual journal entry batches)
   ├── m84-payments/                          → Payments & billing (M84)
   ├── m85-accreditation/                     → Accreditation (M85)
-  ├── m86-procurement/                       → Procurement (M86)
+  ├── m86-procurement/                       → Procurement (M86) — core + procurement-advanced (vendor catalogues, contracts with amendments + expiry alerting, spending analytics)
   ├── m87-safety/                            → Safety & emergency / incidents
   ├── m90-visitors/                          → Visitor management (M90)
   ├── m100-engagement/                       → Parent engagement (M100)
@@ -116,7 +116,8 @@ apps/api/src/modules/                        → 38 canonical domain modules
 apps/api/src/shared/                         → Cross-cutting infrastructure
   ├── auth/                                  → Guards (Auth, Permission, StudentOwned) + decorators (Public, RequirePermission, StudentOwned, PlatformScoped) + their *.spec files
   ├── tenant/                                → Tenant context (AsyncLocalStorage), middleware, Prisma wrappers (`executeInTenantContext`, `executeInTenantTransaction`), index re-exports
-  ├── kafka/                                 → KafkaProducerService (ADR-057 envelope) + KafkaConsumerService + IdempotencyService + OutboxService + event-envelope helpers + `prefixedTopic`
+  ├── kafka/                                 → KafkaProducerService (ADR-057 envelope) + KafkaConsumerService + IdempotencyService + OutboxService + `envelope-consumer` (unwrapEnvelope + processWithIdempotency — ADR-057 helpers used by every Kafka consumer) + `prefixedTopic`
+  ├── cache/                                 → RedisModule + RedisService (best-effort ioredis wrapper used by IAM cache, notification pipeline, ledger balance, AI quota, unread counts, ledger / publication / loyalty caches)
   ├── dlq/                                   → Dead letter queue admin (DlqController, DlqService, replay/discard atomic claim flow)
   ├── observability/                         → OpenTelemetry bootstrap, structured logger, Prometheus metrics, circuit breaker, reference-health scanner, worker jitter, trace context, request-log middleware
   ├── common/                                → Shared utilities (reserved)
