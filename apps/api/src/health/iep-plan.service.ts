@@ -7,7 +7,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { HealthAccessLogService } from './health-access-log.service';
 import { HealthRecordService } from './health-record.service';
@@ -188,7 +188,7 @@ export class IepPlanService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly accessLog: HealthAccessLogService,
     private readonly records: HealthRecordService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   // ─── Plan reads ──────────────────────────────────────────────
@@ -936,28 +936,36 @@ export class IepPlanService {
 
     if (!snapshot) return;
     const tenant = getCurrentTenant();
-    void this.kafka.emit({
-      topic: 'iep.accommodation.updated',
-      key: snapshot.plan.student_id,
-      sourceModule: 'health',
-      payload: {
-        planId,
-        schoolId: snapshot.plan.school_id,
-        studentId: snapshot.plan.student_id,
-        planType: snapshot.plan.plan_type,
-        planStatus: snapshot.plan.status,
-        accommodations: snapshot.accommodations.map((a) => ({
-          sourceIepAccommodationId: a.id,
-          accommodationType: a.accommodation_type,
-          description: a.description,
-          appliesTo: a.applies_to,
-          specificAssignmentTypes: a.specific_assignment_types,
-          effectiveFrom: a.effective_from,
-          effectiveTo: a.effective_to,
-        })),
-      },
-      tenantId: tenant.schoolId,
-      tenantSubdomain: tenant.subdomain,
+    // P2-H3 Step 2 — iep.accommodation.updated migrated from best-effort
+    // emit to durable outbox. The IepAccommodationConsumer (Cycle 10
+    // ADR-030 read-model worker) reconciles sis_student_active_accommodations
+    // from this signal; teachers depend on the read model for classroom
+    // accommodations awareness. Outbox lives in a small tenant tx so the
+    // platform_outbox row is durable even if the broker is unreachable.
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'iep.accommodation.updated',
+        key: snapshot.plan.student_id,
+        sourceModule: 'health',
+        payload: {
+          planId,
+          schoolId: snapshot.plan.school_id,
+          studentId: snapshot.plan.student_id,
+          planType: snapshot.plan.plan_type,
+          planStatus: snapshot.plan.status,
+          accommodations: snapshot.accommodations.map((a) => ({
+            sourceIepAccommodationId: a.id,
+            accommodationType: a.accommodation_type,
+            description: a.description,
+            appliesTo: a.applies_to,
+            specificAssignmentTypes: a.specific_assignment_types,
+            effectiveFrom: a.effective_from,
+            effectiveTo: a.effective_to,
+          })),
+        },
+        tenantId: tenant.schoolId,
+        tenantSubdomain: tenant.subdomain,
+      });
     });
   }
 }

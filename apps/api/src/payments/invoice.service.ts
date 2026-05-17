@@ -7,7 +7,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { LedgerService } from './ledger.service';
 import {
@@ -120,7 +120,7 @@ var SELECT_INVOICE_BASE =
 export class InvoiceService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly ledger: LedgerService,
   ) {}
 
@@ -247,7 +247,7 @@ export class InvoiceService {
     if (!actor.isSchoolAdmin) {
       throw new ForbiddenException('Only admins can send invoices');
     }
-    var snapshot = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       var rows = (await tx.$queryRawUnsafe(
         'SELECT id, family_account_id, total_amount::text, status FROM pay_invoices WHERE id = $1::uuid FOR UPDATE',
         id,
@@ -278,23 +278,27 @@ export class InvoiceService {
         description: 'CHARGE: invoice sent',
         createdBy: actor.accountId,
       });
-      return inv;
+      // P2-H3 Step 2 — pay.invoice.created migrated from best-effort
+      // emit to durable outbox. The OutboxPublisherWorker drains the
+      // platform_outbox table after the tx commits; a broker outage
+      // no longer silently drops the GL-pipeline trigger event.
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'pay.invoice.created',
+        key: id,
+        sourceModule: 'payments',
+        payload: {
+          invoiceId: id,
+          familyAccountId: inv.family_account_id,
+          totalAmount: Number(inv.total_amount),
+        },
+      });
     });
 
+    // P2-H3 Step 2 — the post-commit best-effort emit was removed because
+    // the in-tx outbox.enqueueInTx above is now the canonical signal.
+    // A duplicate emit here would have generated a second event_id that
+    // the GLConsumer idempotency layer would have processed twice.
     var dto = await this.getById(id, actor);
-    void this.kafka.emit({
-      topic: 'pay.invoice.created',
-      key: id,
-      sourceModule: 'payments',
-      payload: {
-        invoiceId: id,
-        familyAccountId: snapshot.family_account_id,
-        totalAmount: Number(snapshot.total_amount),
-        title: dto.title,
-        dueDate: dto.dueDate,
-        sentAt: dto.sentAt,
-      },
-    });
     return dto;
   }
 
@@ -361,6 +365,27 @@ export class InvoiceService {
             description:
               'ADJUSTMENT: invoice cancelled — reversing outstanding $' + outstanding.toFixed(2),
             createdBy: actor.accountId,
+          });
+          // P2-H3 Step 1 — outbox-durable emit for bad-debt write-off.
+          // Fires only when cancellation leaves a non-zero outstanding
+          // balance (= bad debt vs admin error pre-payment). The
+          // existing GLConsumer is wired to react via the compensating
+          // ADJUSTMENT entry above; this event surfaces the write-off
+          // for downstream finance / aged-debtor analytics consumers
+          // and the rpt_gl_reconciliation worker (P2-H3 Step 3).
+          await this.outbox.enqueueInTx(tx, {
+            topic: 'pay.debt.written_off',
+            key: id,
+            sourceModule: 'payments',
+            payload: {
+              invoiceId: id,
+              familyAccountId: inv.family_account_id,
+              totalAmount: totalAmount,
+              completedPayments: completed,
+              outstandingWritten: outstanding,
+              writtenOffBy: actor.accountId,
+              writtenOffAt: new Date().toISOString(),
+            },
           });
         }
       }

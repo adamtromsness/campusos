@@ -78,8 +78,10 @@ export class CheckpointService {
  * UPSERT on UNIQUE keys.
  *
  * Cycle 29 ships nightly batch materialisation only. Real Kafka consumer
- * wiring (subscribe to att.attendance.confirmed + cls.grade.posted) is
- * Phase 2 per ADR-049.
+ * wiring (subscribe to att.attendance.confirmed + cls.grade.published) is
+ * Phase 2 per ADR-049. (P2-H3 Step 4 — stale comment said cls.grade.posted;
+ * the canonical producer-side topic name is cls.grade.published, emitted
+ * by GradeService.publish + batchPublish.)
  */
 @Injectable()
 export class SISReadModelWorker {

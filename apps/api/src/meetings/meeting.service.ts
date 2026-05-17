@@ -8,7 +8,7 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import {
   AddParticipantDto,
   CreateMeetingDto,
@@ -124,7 +124,7 @@ function participantRowToDto(r: ParticipantRow): MeetingParticipantResponseDto {
 export class MeetingService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   /**
@@ -308,11 +308,13 @@ export class MeetingService {
           );
         }
       }
-    });
 
-    // Emit AFTER tx commit
-    try {
-      await this.kafka.emit({
+      // P2-H3 Step 2 — mtg.meeting.scheduled migrated from best-effort
+      // post-commit emit to durable outbox in-tx. Meeting creation drives
+      // downstream IEP/MTSS workflow rows + notifications; a broker
+      // outage between INSERT and emit would silently leave downstream
+      // workers without their trigger event.
+      await this.outbox.enqueueInTx(tx, {
         topic: 'mtg.meeting.scheduled',
         key: id,
         sourceModule: 'meetings',
@@ -328,9 +330,7 @@ export class MeetingService {
           sourceRefId: id,
         },
       });
-    } catch {
-      // best-effort emit
-    }
+    });
 
     return this.getById(id, actor);
   }

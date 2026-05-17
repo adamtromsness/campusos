@@ -16,6 +16,7 @@ import {
 import { FinanceValidationService } from './validation';
 import { GLConsumer } from './gl.consumer';
 import { JournalBatchPostedConsumer } from './journal-batch-posted.consumer';
+import { GlReconciliationWorker } from './gl-reconciliation.worker';
 import { FinanceController } from './finance.controller';
 
 /**
@@ -57,6 +58,7 @@ import { FinanceController } from './finance.controller';
     GrantService,
     GLConsumer,
     JournalBatchPostedConsumer,
+    GlReconciliationWorker,
   ],
   controllers: [FinanceController],
   exports: [
@@ -66,6 +68,7 @@ import { FinanceController } from './finance.controller';
     PostingService,
     BudgetService,
     FinanceValidationService,
+    GlReconciliationWorker,
   ],
 })
 export class FinanceModule {}

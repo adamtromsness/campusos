@@ -8,6 +8,7 @@ import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { CapacitySummaryService } from './capacity-summary.service';
 import { OnboardingService } from './onboarding.service';
@@ -81,6 +82,7 @@ export class OfferService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly capacity: CapacitySummaryService,
     private readonly onboarding: OnboardingService,
   ) {}
@@ -390,6 +392,31 @@ export class OfferService {
         // NO_CHECKLIST and EXISTS / CREATED are all acceptable;
         // unexpected SQL errors propagate naturally and roll back
         // the entire offer-accept tx.
+        // P2-H3 Step 2 — enr.student.enrolled migrated from best-effort
+        // post-commit emit to durable outbox in-tx. PaymentAccountWorker
+        // depends on this event to create the family account; a broker
+        // outage at the moment of acceptance previously left the family
+        // unable to be billed. The OutboxPublisherWorker drains
+        // platform_outbox after the tx commits.
+        await this.outbox.enqueueInTx(tx, {
+          topic: 'enr.student.enrolled',
+          key: offer.application_id,
+          sourceModule: 'enrollment',
+          payload: {
+            applicationId: offer.application_id,
+            offerId: id,
+            schoolId: getCurrentTenant().schoolId,
+            enrollmentPeriodId: offer.enrollment_period_id,
+            studentFirstName: offer.student_first_name,
+            studentLastName: offer.student_last_name,
+            studentDateOfBirth: offer.student_date_of_birth,
+            gradeLevel: offer.applying_for_grade,
+            admissionType: offer.admission_type,
+            guardianPersonId: offer.guardian_person_id,
+            guardianEmail: offer.guardian_email,
+            enrolledAt: nowIso,
+          },
+        });
       } else if (body.familyResponse === 'DECLINED') {
         await tx.$executeRawUnsafe(
           "UPDATE enr_offers SET family_response = 'DECLINED', family_responded_at = $1::timestamptz, status = 'DECLINED', updated_at = now() WHERE id = $2::uuid",
@@ -411,27 +438,10 @@ export class OfferService {
     });
 
     var dto = await this.getById(id, actor);
-    if (body.familyResponse === 'ACCEPTED') {
-      void this.kafka.emit({
-        topic: 'enr.student.enrolled',
-        key: transitionResult.application_id,
-        sourceModule: 'enrollment',
-        payload: {
-          applicationId: transitionResult.application_id,
-          offerId: id,
-          schoolId: dto.schoolId,
-          enrollmentPeriodId: transitionResult.enrollment_period_id,
-          studentFirstName: transitionResult.student_first_name,
-          studentLastName: transitionResult.student_last_name,
-          studentDateOfBirth: transitionResult.student_date_of_birth,
-          gradeLevel: transitionResult.applying_for_grade,
-          admissionType: transitionResult.admission_type,
-          guardianPersonId: transitionResult.guardian_person_id,
-          guardianEmail: transitionResult.guardian_email,
-          enrolledAt: dto.familyRespondedAt,
-        },
-      });
-    }
+    // P2-H3 Step 2 — the post-commit best-effort enr.student.enrolled
+    // emit was removed; the in-tx outbox.enqueueInTx above is now the
+    // canonical signal. PaymentAccountWorker dedupes via the outbox
+    // event_id so a single durable emit reaches the consumer.
     void this.kafka.emit({
       topic: 'enr.offer.responded',
       key: id,

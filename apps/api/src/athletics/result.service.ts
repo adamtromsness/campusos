@@ -130,6 +130,17 @@ export class ResultService {
           payload: kafkaPayload,
           sourceModule: 'athletics',
         });
+        // P2-H3 Step 1 — companion emit for the engagement analytics
+        // pipeline (analytics/engagement/engagement-workers.service.ts
+        // subscribes to ath.game.completed). Fires at the same lifecycle
+        // moment as ath.game.result.entered; consumers downstream of
+        // either topic see the COMPLETED transition.
+        await this.kafka.emit({
+          topic: 'ath.game.completed',
+          key: gameId,
+          payload: kafkaPayload,
+          sourceModule: 'athletics',
+        });
       } catch {
         // Best-effort emit per existing convention
       }

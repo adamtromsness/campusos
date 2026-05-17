@@ -436,8 +436,16 @@ export class TransactionService {
       );
     });
 
+    // P2-H3 Step 1 + Step 4 — topic renamed from fds.transaction.completed
+    // to fds.meal.served to match the downstream consumer convention
+    // (LunchAccountConsumer at apps/api/src/payments/consumers/
+    // lunch-account.consumer.ts subscribes to fds.meal.served; the
+    // operations analytics worker reads the same topic). Best-effort
+    // emit — the LunchAccountConsumer dedupes via source_event_id +
+    // partial UNIQUE on pay_lunch_transactions so transient drops are
+    // recoverable on re-emit.
     await this.kafka.emit({
-      topic: 'fds.transaction.completed',
+      topic: 'fds.meal.served',
       key: id,
       sourceModule: 'food-service',
       payload: {

@@ -7,7 +7,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { LedgerService } from './ledger.service';
 import {
@@ -71,7 +71,7 @@ var SELECT_PAYMENT_BASE =
 export class PaymentService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly ledger: LedgerService,
   ) {}
 
@@ -253,6 +253,27 @@ export class PaymentService {
         invoiceId,
       );
 
+      // P2-H3 Step 2 — pay.payment.received migrated from best-effort
+      // post-commit emit to durable outbox in-tx. Same financial-safety
+      // rationale as pay.invoice.created above. The GLConsumer drains
+      // outbox rows after the payment tx commits.
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'pay.payment.received',
+        key: paymentId,
+        sourceModule: 'payments',
+        payload: {
+          paymentId: paymentId,
+          invoiceId: invoiceId,
+          familyAccountId: inv.family_account_id,
+          amount: body.amount,
+          paymentMethod: paymentMethod,
+          invoiceStatus: newStatus,
+          totalAmount: totalAmount,
+          amountPaid: newPaid,
+          paidAt: new Date().toISOString(),
+        },
+      });
+
       return {
         paymentId: paymentId,
         familyAccountId: inv.family_account_id,
@@ -263,22 +284,6 @@ export class PaymentService {
     });
 
     var dto = await this.getById(snapshot.paymentId, actor);
-    void this.kafka.emit({
-      topic: 'pay.payment.received',
-      key: snapshot.paymentId,
-      sourceModule: 'payments',
-      payload: {
-        paymentId: snapshot.paymentId,
-        invoiceId: invoiceId,
-        familyAccountId: snapshot.familyAccountId,
-        amount: dto.amount,
-        paymentMethod: dto.paymentMethod,
-        invoiceStatus: snapshot.invoiceStatus,
-        totalAmount: snapshot.totalAmount,
-        amountPaid: snapshot.newPaid,
-        paidAt: dto.paidAt,
-      },
-    });
     return dto;
   }
 

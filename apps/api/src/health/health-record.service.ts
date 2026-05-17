@@ -10,6 +10,7 @@ import { getCurrentTenant } from '../tenant/tenant.context';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { PermissionCheckService } from '../iam/permission-check.service';
 import { GuardianAuthorizationService } from '../iam/guardian-authorization.service';
+import { KafkaProducerService } from '../kafka/kafka-producer.service';
 import { HealthAccessLogService } from './health-access-log.service';
 import {
   AllergyEntryDto,
@@ -122,7 +123,33 @@ export class HealthRecordService {
     private readonly accessLog: HealthAccessLogService,
     private readonly permCheck: PermissionCheckService,
     private readonly guardianAuthz: GuardianAuthorizationService,
+    private readonly kafka: KafkaProducerService,
   ) {}
+
+  /**
+   * P2-H3 Step 1 — best-effort emit. Notifies the food-service module's
+   * AllergyAlertConsumer (Cycle 20 ADR-030 read model) that allergens
+   * for a student have changed. The downstream consumer reconciles
+   * `fds_student_allergen_alerts`; canonical truth remains the JSONB
+   * column on hlth_student_health_records.allergies so an emit drop
+   * is recoverable via a manual sync sweep.
+   */
+  private emitAllergyAlertChanged(studentId: string, allergies: AllergyEntryDto[]): void {
+    void this.kafka.emit({
+      topic: 'hlth.allergy_alert.changed',
+      key: studentId,
+      sourceModule: 'health',
+      payload: {
+        studentId,
+        allergies: allergies.map((a) => ({
+          allergen: a.allergen,
+          severity: a.severity,
+          reaction: a.reaction ?? null,
+        })),
+        changedAt: new Date().toISOString(),
+      },
+    });
+  }
 
   // ─── Permission helpers ──────────────────────────────────────
 
@@ -309,6 +336,9 @@ export class HealthRecordService {
       }
       throw err;
     }
+    if (input.allergies && input.allergies.length > 0) {
+      this.emitAllergyAlertChanged(studentId, input.allergies);
+    }
     return this.getFullRecord(studentId, actor);
   }
 
@@ -368,6 +398,9 @@ export class HealthRecordService {
     });
     if (result === 0) {
       throw new NotFoundException('No health record exists for student ' + studentId);
+    }
+    if (input.allergies !== undefined) {
+      this.emitAllergyAlertChanged(studentId, input.allergies ?? []);
     }
     return this.getFullRecord(studentId, actor);
   }

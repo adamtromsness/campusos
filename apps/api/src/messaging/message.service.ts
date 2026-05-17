@@ -8,7 +8,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { ContentModerationService } from './content-moderation.service';
 import { ThreadService } from './thread.service';
@@ -85,7 +85,7 @@ export class MessageService {
     private readonly threads: ThreadService,
     private readonly moderation: ContentModerationService,
     private readonly unread: UnreadCountService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
   ) {}
 
   /**
@@ -203,6 +203,26 @@ export class MessageService {
         threadId,
         actor.accountId,
       );
+      // P2-H3 Step 2 — msg.message.posted migrated from best-effort
+      // post-commit emit to durable outbox in-tx. Communications safety:
+      // an unmoderated message must not be possible to drop. The
+      // MessageNotificationConsumer fans out IN_APP notifications +
+      // bumps the inbox HASH from this event.
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'msg.message.posted',
+        key: threadId,
+        sourceModule: 'communications',
+        occurredAt: createdAt.toISOString(),
+        payload: {
+          messageId: messageId,
+          threadId: threadId,
+          senderId: actor.accountId,
+          body: body.body,
+          postedAt: createdAt.toISOString(),
+          threadSubject: thread.subject,
+          threadType: thread.thread_type_name,
+        },
+      });
     });
 
     if (verdict.action !== 'CLEAN') {
@@ -222,25 +242,8 @@ export class MessageService {
       await this.unread.increment(otherParticipants[i]!, threadId);
     }
 
-    // Emit msg.message.posted so the Step 5 MessageNotificationConsumer
-    // fans out IN_APP notifications + bumps the inbox HASH (idempotent
-    // with the in-process bump above — both write to the same key).
-    void this.kafka.emit({
-      topic: 'msg.message.posted',
-      key: threadId,
-      sourceModule: 'communications',
-      occurredAt: createdAt.toISOString(),
-      payload: {
-        messageId: messageId,
-        threadId: threadId,
-        senderId: actor.accountId,
-        body: body.body,
-        postedAt: createdAt.toISOString(),
-        threadSubject: thread.subject,
-        threadType: thread.thread_type_name,
-      },
-    });
-
+    // P2-H3 Step 2 — the post-commit best-effort emit was removed; the
+    // in-tx outbox.enqueueInTx above is now the canonical signal.
     return this.fetchById(messageId, createdAt);
   }
 

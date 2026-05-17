@@ -7,7 +7,7 @@ import {
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '../tenant/tenant-prisma.service';
 import { getCurrentTenant } from '../tenant/tenant.context';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { OutboxService } from '../kafka/outbox.service';
 import type { ResolvedActor } from '../iam/actor-context.service';
 import { LedgerService } from './ledger.service';
 import {
@@ -63,7 +63,7 @@ var SELECT_REFUND_BASE =
 export class RefundService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
-    private readonly kafka: KafkaProducerService,
+    private readonly outbox: OutboxService,
     private readonly ledger: LedgerService,
   ) {}
 
@@ -127,7 +127,7 @@ export class RefundService {
     }
     var schoolId = getCurrentTenant().schoolId;
     var refundId = generateId();
-    var snapshot = await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // REVIEW-CYCLE6 fix 7: lock the parent invoice BEFORE the payment
       // row so we acquire locks in the same order as PaymentService.pay
       // (invoice → payment-write). Without this consistent ordering, a
@@ -264,30 +264,34 @@ export class RefundService {
         }
       }
 
-      return {
-        familyAccountId: pay.family_account_id,
-        paymentAmount: paymentAmount,
-        refundedAfter: newRefunded,
-      };
+      // P2-H3 Step 2 — pay.refund.issued migrated to durable outbox
+      // in-tx. The GLConsumer reverse-posts the refund leg via the
+      // ADJUSTMENT ledger entry; durability is essential because a
+      // broker outage during refund issuance would silently leave the
+      // GL out of sync with the family account balance.
+      await this.outbox.enqueueInTx(tx, {
+        topic: 'pay.refund.issued',
+        key: refundId,
+        sourceModule: 'payments',
+        payload: {
+          refundId: refundId,
+          paymentId: paymentId,
+          familyAccountId: pay.family_account_id,
+          amount: body.amount,
+          refundCategory: body.refundCategory,
+          reason: body.reason,
+          status: 'COMPLETED',
+          authorisedBy: actor.accountId,
+          completedAt: new Date().toISOString(),
+        },
+      });
+
+      // P2-H3 Step 2 — snapshot return value removed; the post-commit
+      // emit that consumed it was replaced by the in-tx outbox call
+      // above. Method now returns void from the tx callback.
     });
 
     var dto = await this.getById(refundId);
-    void this.kafka.emit({
-      topic: 'pay.refund.issued',
-      key: refundId,
-      sourceModule: 'payments',
-      payload: {
-        refundId: refundId,
-        paymentId: paymentId,
-        familyAccountId: snapshot.familyAccountId,
-        amount: dto.amount,
-        refundCategory: dto.refundCategory,
-        reason: dto.reason,
-        status: dto.status,
-        authorisedBy: actor.accountId,
-        completedAt: dto.completedAt,
-      },
-    });
     return dto;
   }
 
