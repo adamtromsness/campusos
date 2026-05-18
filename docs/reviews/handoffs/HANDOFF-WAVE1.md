@@ -41,6 +41,8 @@ is green; then the mock is deleted. Tests live under
 | 14a  | Delete `m84-payments/payment-plan.service.spec.ts` (mock spec, 444 LOC — fully replaced) | ✅ |
 | 15   | `m84-payments/financial-aid.spec.ts` (FinancialAidService programmes CRUD + reviewApplication APPROVE/REJECT/UNDER_REVIEW incl. pool exhaustion + two-award accumulation + Finding 9) | ✅ |
 | 15a  | Keep `m84-payments/financial-aid.service.spec.ts` for now (also covers createApplication FK chain not yet replaced) | ⚠️ deferred |
+| 16   | `m84-payments/late-fees.spec.ts` (LateFeeService getPolicy/upsertPolicy/runScan: FIXED + PERCENTAGE_MONTHLY computation, grace, cap, idempotency, status guards, school scope + Finding 10) | ✅ |
+| 16a  | Delete `m84-payments/late-fee.service.spec.ts` (mock spec, 602 LOC — fully replaced) | ✅ |
 | 9    | `m83-finance/gl-reconciliation.spec.ts` (worker + alert events)            | ⏳ pending  |
 | 10   | `m83-finance/journal-batch.spec.ts`                                         | ⏳ pending  |
 | 11   | `m84-payments/*` (per the strategy doc Wave 1 list)                        | ⏳ pending  |
@@ -139,6 +141,21 @@ to add the school predicate to every source SELECT. Captured in the
 runOnce test by NOT seeding any pay_* rows — once Finding 5 is fixed,
 the test can seed differently and assert true cross-school isolation.
 
+### Finding 10 — LateFeeService.upsertPolicy INSERT path parameter-count mismatch
+
+`apps/api/src/modules/m84-payments/late-fee.service.ts::upsertPolicy`
+INSERT branch passes 9 parameters but the SQL has 10 placeholders
+(`$10::uuid` for `created_by`). Every first-time policy upsert raises
+"Your raw query had an incorrect number of parameters. Expected: 10,
+actual: 9." The UPDATE-existing path uses different SQL and works.
+
+Fix: append `actor.accountId` as the 10th `$executeRawUnsafe`
+argument in the INSERT call.
+
+Tests in `late-fees.spec.ts` skip the first-call upsertPolicy test
+with the FINDING note and use a `seedPolicySql` raw-SQL helper for
+every runScan setup.
+
 ### Finding 9 — FinancialAidService.createProgram missing `::numeric` cast on total_fund_amount
 
 `apps/api/src/modules/m84-payments/financial-aid.service.ts::createProgram`
@@ -220,6 +237,7 @@ apps/api/test/integration/m84-payments/refunds-reversals.spec.ts  — NEW (40 te
 apps/api/test/integration/m84-payments/lunch-accounts.spec.ts     — NEW (39 tests + 2 skips, IMMUTABLE pay_lunch_account_balance_transfers + Finding 8)
 apps/api/test/integration/m84-payments/payment-plans.spec.ts      — NEW (15 tests, atomic plan+installments + residue handling)
 apps/api/test/integration/m84-payments/financial-aid.spec.ts      — NEW (25 tests + 2 skips, programmes CRUD + reviewApplication pool exhaustion + Finding 9)
+apps/api/test/integration/m84-payments/late-fees.spec.ts          — NEW (29 tests + 1 skip, runScan FIXED + PERCENTAGE_MONTHLY + Finding 10)
 apps/api/test/integration/helpers/reset.ts                       — +resetPaymentsTables, +resetFinanceAdvancedTables wires payments
 apps/api/src/modules/m83-finance/chart.service.spec.ts     — DELETED (mock spec replaced)
 apps/api/src/modules/m83-finance/posting.service.spec.ts   — DELETED (mock spec replaced)
@@ -230,15 +248,16 @@ apps/api/src/modules/m84-payments/credit-note.service.spec.ts — DELETED (504 L
 apps/api/src/modules/m84-payments/reversal.service.spec.ts — DELETED (736 LOC)
 apps/api/src/modules/m84-payments/lunch-account.service.spec.ts — DELETED (1192 LOC)
 apps/api/src/modules/m84-payments/payment-plan.service.spec.ts  — DELETED (444 LOC)
+apps/api/src/modules/m84-payments/late-fee.service.spec.ts      — DELETED (602 LOC)
 packages/database/prisma/tenant/migrations/180_p2h5_sis_family_court_order_restrictions.sql — FIXED splitter bug
 ```
 
 ## Test counts
 
-| Suite              | Before | After (step 15) |
+| Suite              | Before | After (step 16) |
 | ------------------ | ------ | --------------- |
-| Unit tests         | 2858   | 2621 (2567 passed + 54 skipped) |
-| Integration tests  | 145    | 523  (514 passed + 9 documented skips) |
+| Unit tests         | 2858   | 2601 (2547 passed + 54 skipped) |
+| Integration tests  | 145    | 553  (543 passed + 10 documented skips) |
 
 ## Conventions established
 
