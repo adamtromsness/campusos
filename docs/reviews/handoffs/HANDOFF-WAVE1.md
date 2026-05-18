@@ -26,6 +26,9 @@ is green; then the mock is deleted. Tests live under
 | 7a   | Delete `m83-finance/posting.service.spec.ts` (mock spec, 1084 LOC)         | ✅          |
 | 8    | `m83-finance/budget-management.spec.ts` (BudgetService + DepartmentalBudgetService + BudgetTransferService incl. atomic transfer + outbox-in-tx) | ✅ |
 | 8a   | Keep `m83-finance/budgets.service.spec.ts` for now (also covers AP/Reconciliation/Grants; delete in pieces as those surfaces get integration coverage) | ⚠️ deferred |
+| 9    | `m83-finance/gl-reconciliation.spec.ts` (GlReconciliationWorker — 7 check types incl. MISSING/AMOUNT/SIGN/ACCOUNT/SCHOOL mismatches + DUPLICATE_POSTING + ORPHAN_GL_ENTRY + outbox alert) | ✅ |
+| 9a   | Delete `m83-finance/gl-reconciliation.worker.spec.ts` (mock spec, 658 LOC) | ✅          |
+| 9b   | Fix migration 180 (splitter bug — semicolons in COMMENT block) so migrations 180 + 181 apply during fresh provisioning | ✅ |
 | 9    | `m83-finance/gl-reconciliation.spec.ts` (worker + alert events)            | ⏳ pending  |
 | 10   | `m83-finance/journal-batch.spec.ts`                                         | ⏳ pending  |
 | 11   | `m84-payments/*` (per the strategy doc Wave 1 list)                        | ⏳ pending  |
@@ -76,22 +79,53 @@ with a SELECT before each INSERT.
 Test impact: one test in `chart-of-accounts.spec.ts` is marked `.skip` with
 a `FINDING` comment so the bug stays visible and trackable.
 
-### Finding 3 — Migration splitter chokes on migration 180
+### Finding 3 — Migration splitter chokes on migration 180 (FIXED)
 
 `packages/database/prisma/tenant/migrations/180_p2h5_sis_family_court_order_restrictions.sql`
-violates the `CLAUDE.md` rule "Never put a `;` inside a string literal or
-block comment" — its `COMMENT ON COLUMN` text contains four semicolons
-(`tokens; values`, `denies; missing`). The provisioning splitter breaks the
-single statement into multiple fragments and errors with "unterminated /*
-comment". As a result `pnpm --filter @campusos/database exec tsx
-src/provision-tenant.ts --subdomain=test` fails at migration 180, and any
-migrations numbered 180+ that haven't already been applied are blocked.
+violated the `CLAUDE.md` rule "Never put a `;` inside a string literal or
+block comment" — both the leading `/* ... */` block comment AND the
+`COMMENT ON COLUMN` text contained semicolons. The provisioning splitter
+is line-based; it split mid-comment and errored with "unterminated /*
+comment". `pnpm --filter @campusos/database exec tsx
+src/provision-tenant.ts --subdomain=test` failed at migration 180,
+blocking 181 and any later migration from applying to a fresh schema.
 
-Today `tenant_test` is past 180 (181 is applied) only because the schema
-predates the rule violation. Fresh provisioning would fail. Fix is to
-replace the four `;` in the COMMENT string with `,` or `—`.
+Fixed in this wave: replaced every `;` in the comment text with `,` or
+`—` and re-provisioned `tenant_test` + `tenant_demo`. Both now sit at
+the latest migration (181) and the `rpt_gl_recon_check_type_chk`
+constraint accepts the DUPLICATE_POSTING / ORPHAN_GL_ENTRY check types
+the worker writes.
 
-Out of scope for Wave 1, but a 1-line fix once someone wants to re-provision.
+### Finding 4 — GlReconciliationWorker column-name mismatch
+
+`apps/api/src/modules/m83-finance/gl-reconciliation.worker.ts::SOURCE_CHECK_META`
+uses `amountExpr: 's.amount'` for the CREDIT_NOTE and PAYMENT_REVERSAL
+check types, but the underlying tables use `credit_amount` and
+`reversed_amount` respectively. The SELECT errors at parse time
+("column s.amount does not exist") even on an empty source table.
+The worker's outer try/catch converts this into a FAILED rpt run + a
+CHECK_QUERY_FAILED outbox alert — useful signal, but it masks the
+worker's own bug. Net effect: CREDIT_NOTE and PAYMENT_REVERSAL checks
+are PERMANENTLY FAILED for every tenant.
+
+Fix: use `s.credit_amount` and `s.reversed_amount` in the meta. Tests
+in `gl-reconciliation.spec.ts` document this with one passing test
+("CREDIT_NOTE check FAILS when a credit note exists") and one
+`.skip`'d test ("CLEAN when empty — blocked on Finding 4 fix").
+
+### Finding 5 — GlReconciliationWorker source SELECT not school-filtered
+
+`GlReconciliationWorker.checkSourceVsGl` runs
+`SELECT … FROM pay_invoices s WHERE s.status NOT IN (...)`. There is
+NO `WHERE s.school_id = $1` clause — the worker relies on schema-per-
+school isolation. In production each school has its own tenant schema
+so this is harmless. In the integration harness, however, School A and
+School B share the same `tenant_test` schema (different `school_id` rows
+but one schema), so a run scoped to School B still sees School A's
+pay_invoices and flags them as MISSING_GL_ENTRY. Belt-and-braces fix is
+to add the school predicate to every source SELECT. Captured in the
+runOnce test by NOT seeding any pay_* rows — once Finding 5 is fixed,
+the test can seed differently and assert true cross-school isolation.
 
 ## Files touched
 
@@ -103,16 +137,20 @@ apps/api/test/integration/helpers/reset.ts                 — +resetFinanceTabl
 apps/api/test/integration/m83-finance/chart-of-accounts.spec.ts  — NEW (68 tests, 1 documented skip)
 apps/api/test/integration/m83-finance/gl-posting.spec.ts         — NEW (48 tests, IMMUTABLE trigger contract)
 apps/api/test/integration/m83-finance/budget-management.spec.ts  — NEW (61 tests, atomic transfer + outbox-in-tx contract)
+apps/api/test/integration/m83-finance/gl-reconciliation.spec.ts  — NEW (18 tests + 1 skip, 7 check types + Findings 4 & 5)
+apps/api/test/integration/helpers/reset.ts                       — +resetPaymentsTables, +resetFinanceAdvancedTables wires payments
 apps/api/src/modules/m83-finance/chart.service.spec.ts     — DELETED (mock spec replaced)
 apps/api/src/modules/m83-finance/posting.service.spec.ts   — DELETED (mock spec replaced)
+apps/api/src/modules/m83-finance/gl-reconciliation.worker.spec.ts — DELETED (mock spec replaced)
+packages/database/prisma/tenant/migrations/180_p2h5_sis_family_court_order_restrictions.sql — FIXED splitter bug
 ```
 
 ## Test counts
 
-| Suite              | Before | After (step 8) |
+| Suite              | Before | After (step 9) |
 | ------------------ | ------ | -------------- |
-| Unit tests         | 2858   | 2800 (2746 passed + 54 skipped) |
-| Integration tests  | 145    | 322  (321 passed + 1 documented skip) |
+| Unit tests         | 2858   | 2784 (2730 passed + 54 skipped) |
+| Integration tests  | 145    | 341  (339 passed + 2 documented skips) |
 
 ## Conventions established
 

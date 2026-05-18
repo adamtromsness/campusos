@@ -191,16 +191,66 @@ export async function resetFinanceTables(tenantPrisma: TenantPrismaService): Pro
 }
 
 /**
+ * Reset every m84-payments-owned table. pay_credit_notes, pay_payment_reversals,
+ * pay_lunch_account_balance_transfers carry IMMUTABLE prevent_mutation triggers
+ * (migration 177) — TRUNCATE bypasses BEFORE ROW triggers, so this is the
+ * only safe per-test reset. Order respects FK cascades (children first).
+ */
+export async function resetPaymentsTables(tenantPrisma: TenantPrismaService): Promise<void> {
+  await tenantPrisma.executeInTenantContext(async (client) => {
+    // Children first: reversals → refunds → credit notes → ledger → payments
+    // → invoice line items → invoices → late fees → discount rules →
+    // financial aid → fee schedules → payment plans → lunch accounts →
+    // saved payment methods → family account students → family accounts.
+    await client.$executeRawUnsafe(
+      `TRUNCATE
+         pay_payment_reversals,
+         pay_credit_notes,
+         pay_refunds,
+         pay_payment_allocations,
+         pay_ledger_entries,
+         pay_payments,
+         pay_invoice_line_items,
+         pay_invoices,
+         pay_invoice_generation_runs,
+         pay_auto_invoice_rules,
+         pay_late_payment_policies,
+         pay_discount_rules,
+         pay_financial_aid_awards,
+         pay_financial_aid_applications,
+         pay_financial_aid_programs,
+         pay_fee_schedules,
+         pay_fee_categories,
+         pay_payment_plan_installments,
+         pay_payment_plans,
+         pay_lunch_account_balance_transfers,
+         pay_lunch_transactions,
+         pay_lunch_accounts,
+         pay_saved_payment_methods,
+         pay_stripe_accounts,
+         pay_family_account_students,
+         pay_family_accounts
+       RESTART IDENTITY CASCADE`,
+    );
+  });
+}
+
+/**
  * Extended reset for tests that touch the GL reconciliation + bank-
  * reconciliation + grants + board-reports + supplier-contact surfaces
  * in addition to the core finance tables. Call this from gl-reconciliation,
  * ap-voucher, reconciliation, grants, and board-reports specs instead of
  * the bare resetFinanceTables.
+ *
+ * Also wipes the m84-payments tables because the GL reconciliation worker
+ * scans pay_invoices / pay_payments / pay_refunds / pay_credit_notes /
+ * pay_payment_reversals as source surfaces for its checks.
  */
 export async function resetFinanceAdvancedTables(
   tenantPrisma: TenantPrismaService,
 ): Promise<void> {
   await resetFinanceTables(tenantPrisma);
+  await resetPaymentsTables(tenantPrisma);
   await tenantPrisma.executeInTenantContext(async (client) => {
     await client.$executeRawUnsafe(
       `TRUNCATE fin_reconciliation_runs, fin_grants, fin_board_report_snapshots, fin_supplier_contacts RESTART IDENTITY CASCADE`,
