@@ -12,6 +12,15 @@ import { TEST_ADMIN_PERSON_ID, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
 // School B routing — same schema, different school_id. See tenant-context.ts.
 const TEST_ROUTING_B_ID = '019e0cf8-aaaa-7777-8888-00000000000c';
 
+// Wave 2 — iam_scope rows for SCHOOL-tier scope resolution.
+// PermissionCheckService.resolveScopeChain looks up iam_scope rows by
+// entity_id + scope_type. The PLATFORM scope is seeded once by the
+// platform seed; the SCHOOL scopes for the test schools need fixture
+// seeding so any Wave 2 test that drives PermissionCheckService finds
+// a [SCHOOL, PLATFORM] chain.
+export const TEST_SCHOOL_SCOPE_ID = '019e0cf8-aaaa-7777-8888-00000000000d';
+export const TEST_SCHOOL_B_SCOPE_ID = '019e0cf8-aaaa-7777-8888-00000000000e';
+
 /**
  * Platform-side fixtures. Inserted once per suite run by globalSetup
  * with ON CONFLICT DO NOTHING so re-runs are no-ops.
@@ -88,6 +97,26 @@ export async function ensurePlatformFixtures(prisma: PrismaClient): Promise<void
     TEST_ADMIN_ACCOUNT_ID,
     TEST_ADMIN_PERSON_ID,
   );
+
+  // Wave 2 — SCHOOL iam_scope rows for both test schools. Looked up by
+  // entity_id by PermissionCheckService.resolveScopeChain. PLATFORM
+  // iam_scope row is provided by the platform seed (one global row).
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO platform.iam_scope (id, scope_type_id, entity_id, entity_table, label, is_active)
+     SELECT $1::uuid, st.id, $2::uuid, 'platform.schools', 'Integration Test School A', true
+       FROM platform.iam_scope_type st WHERE st.code = 'SCHOOL'
+     ON CONFLICT (scope_type_id, entity_id) DO NOTHING`,
+    TEST_SCHOOL_SCOPE_ID,
+    TEST_SCHOOL_ID,
+  );
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO platform.iam_scope (id, scope_type_id, entity_id, entity_table, label, is_active)
+     SELECT $1::uuid, st.id, $2::uuid, 'platform.schools', 'Integration Test School B', true
+       FROM platform.iam_scope_type st WHERE st.code = 'SCHOOL'
+     ON CONFLICT (scope_type_id, entity_id) DO NOTHING`,
+    TEST_SCHOOL_B_SCOPE_ID,
+    TEST_SCHOOL_B_ID,
+  );
 }
 
 /**
@@ -117,6 +146,14 @@ export async function assertPlatformFixtures(prisma: PrismaClient): Promise<void
     {
       label: 'platform_tenant_routing (School B)',
       sql: `SELECT 1 FROM platform.platform_tenant_routing WHERE tenant_id = '${TEST_SCHOOL_B_ID}'::uuid AND schema_name = '${TEST_SCHEMA}'`,
+    },
+    {
+      label: 'iam_scope (School A SCHOOL-tier)',
+      sql: `SELECT 1 FROM platform.iam_scope s JOIN platform.iam_scope_type st ON st.id = s.scope_type_id WHERE s.entity_id = '${TEST_SCHOOL_ID}'::uuid AND st.code = 'SCHOOL'`,
+    },
+    {
+      label: 'iam_scope (School B SCHOOL-tier)',
+      sql: `SELECT 1 FROM platform.iam_scope s JOIN platform.iam_scope_type st ON st.id = s.scope_type_id WHERE s.entity_id = '${TEST_SCHOOL_B_ID}'::uuid AND st.code = 'SCHOOL'`,
     },
     {
       label: 'iam_person (admin)',
