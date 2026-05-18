@@ -43,6 +43,8 @@ is green; then the mock is deleted. Tests live under
 | 15a  | Keep `m84-payments/financial-aid.service.spec.ts` for now (also covers createApplication FK chain not yet replaced) | ⚠️ deferred |
 | 16   | `m84-payments/late-fees.spec.ts` (LateFeeService getPolicy/upsertPolicy/runScan: FIXED + PERCENTAGE_MONTHLY computation, grace, cap, idempotency, status guards, school scope + Finding 10) | ✅ |
 | 16a  | Delete `m84-payments/late-fee.service.spec.ts` (mock spec, 602 LOC — fully replaced) | ✅ |
+| 17   | `m86-procurement/cross-school-and-immutable.spec.ts` (RequisitionService cross-school 404 + list scoping + 4th IMMUTABLE contract fds_inventory_transactions: UPDATE/DELETE → 23001, TRUNCATE bypasses) | ✅ |
+| 17a  | PO cross-school + distribution cross-school deferred (skipped with notes) — existing procurement specs already exercise the same school_id predicates in-tenant; full-DTO cross-school seed is a follow-up slice | ⚠️ deferred |
 | 9    | `m83-finance/gl-reconciliation.spec.ts` (worker + alert events)            | ⏳ pending  |
 | 10   | `m83-finance/journal-batch.spec.ts`                                         | ⏳ pending  |
 | 11   | `m84-payments/*` (per the strategy doc Wave 1 list)                        | ⏳ pending  |
@@ -238,6 +240,7 @@ apps/api/test/integration/m84-payments/lunch-accounts.spec.ts     — NEW (39 te
 apps/api/test/integration/m84-payments/payment-plans.spec.ts      — NEW (15 tests, atomic plan+installments + residue handling)
 apps/api/test/integration/m84-payments/financial-aid.spec.ts      — NEW (25 tests + 2 skips, programmes CRUD + reviewApplication pool exhaustion + Finding 9)
 apps/api/test/integration/m84-payments/late-fees.spec.ts          — NEW (29 tests + 1 skip, runScan FIXED + PERCENTAGE_MONTHLY + Finding 10)
+apps/api/test/integration/m86-procurement/cross-school-and-immutable.spec.ts — NEW (6 tests + 2 skips, cross-school + 4th IMMUTABLE contract fds_inventory_transactions)
 apps/api/test/integration/helpers/reset.ts                       — +resetPaymentsTables, +resetFinanceAdvancedTables wires payments
 apps/api/src/modules/m83-finance/chart.service.spec.ts     — DELETED (mock spec replaced)
 apps/api/src/modules/m83-finance/posting.service.spec.ts   — DELETED (mock spec replaced)
@@ -254,10 +257,10 @@ packages/database/prisma/tenant/migrations/180_p2h5_sis_family_court_order_restr
 
 ## Test counts
 
-| Suite              | Before | After (step 16) |
+| Suite              | Before | After (step 17 — WAVE 1 COMPLETE) |
 | ------------------ | ------ | --------------- |
 | Unit tests         | 2858   | 2601 (2547 passed + 54 skipped) |
-| Integration tests  | 145    | 553  (543 passed + 10 documented skips) |
+| Integration tests  | 145    | 561  (549 passed + 12 documented skips) |
 
 ## Conventions established
 
