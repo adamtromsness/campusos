@@ -21,6 +21,8 @@ green; deleted incrementally.
 | 2a   | Delete `m00-platform/iam/permission-check.service.spec.ts` (mock spec, 361 LOC — fully replaced) | ✅ |
 | 3    | `m00-platform/guardian-authorization.spec.ts` (6 capabilities × custody × portal scope × court orders + audit log; 38 tests) | ✅ |
 | 3a   | Delete `m00-platform/iam/guardian-authorization.{service,custody}.spec.ts` (2 mock specs, 898 LOC — fully replaced) | ✅ |
+| 4    | `m00-platform/tenant-isolation.spec.ts` (TenantPrismaService SET LOCAL + tx rollback + concurrent isolation + explicit-schema + no-context error, 17 tests) | ✅ |
+| 4a   | No mock spec to delete — TenantPrismaService had no dedicated unit spec | n/a |
 | 3    | `m00-platform/guardian-authorization.spec.ts` (6 capabilities + custody + court orders + audit log) | ⏳ pending |
 | 4    | `m00-platform/student-owned.spec.ts` (decorator + guard across 6 student-owned tables) | ⏳ pending |
 | 5    | `m00-platform/tenant-isolation.spec.ts` (executeInTenantContext SET LOCAL + is_frozen + concurrent isolation) | ⏳ pending |
