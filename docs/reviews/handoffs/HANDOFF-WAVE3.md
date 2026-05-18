@@ -14,7 +14,7 @@ headline DB-level deliverable; per-module deep specs build on top.
 | 4    | `m23-health/iep-plans.spec.ts` (incl. iep.accommodation.updated outbox-in-tx; 29 tests covering plan + accommodation lifecycle + snapshot emit on add/update/remove + EXPIRED plan empty-array contract + shape validation + auth gates) | ✅ |
 | 5    | `m27-student-services/referral-lifecycle.spec.ts` (full lifecycle SUBMITTED→TRIAGED→ACCEPTED→IN_PROGRESS→COMPLETED + CrisisEscalationService.escalate KEYSTONE outbox-in-tx + auth/scope gates + 28 tests) | ✅ |
 | 6    | `m27-student-services/counselling-sessions.spec.ts` (SessionService row-locked transitions + counsellor-owned row scope + UNIQUE participant + SessionNoteService FERPA gate via `student_counseling_record:read` + IRREVERSIBLE lock with multi-column locked_chk + no unlock surface; 42 tests) | ✅ |
-| 7    | `m27-student-services/wellbeing.spec.ts`                                    | ⏳ pending |
+| 7    | `m27-student-services/wellbeing.spec.ts` (CheckinService.submit KEYSTONE — response + alert + `svc.wellbeing.alert.created` outbox in same tenant tx; alert evaluation precedence SHI > FEELS_UNSAFE > WANTS_TO_TALK; per-question-type shape validation; row scope strip for student; teacher hard-403; AlertService acknowledged_chk lockstep; 32 tests) | ✅ |
 | 8    | `m27-student-services/mtss.spec.ts`                                         | ⏳ pending |
 
 ## Cumulative IMMUTABLE contracts (now 8)
