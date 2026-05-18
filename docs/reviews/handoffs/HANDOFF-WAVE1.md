@@ -33,6 +33,8 @@ is green; then the mock is deleted. Tests live under
 | 10a  | Keep `m84-payments/invoice.service.spec.ts` for now (also covers generateFromSchedule, not yet replaced) | ⚠️ deferred |
 | 11   | `m84-payments/payment-processing.spec.ts` (PaymentService.pay/list/getById + outbox-in-tx for pay.payment.received + Stripe stub + auth contract) | ✅ |
 | 11a  | Delete `m84-payments/payment.service.spec.ts` (mock spec, 649 LOC — fully replaced) | ✅ |
+| 12   | `m84-payments/refunds-reversals.spec.ts` (RefundService + CreditNoteService + ReversalService incl. IMMUTABLE pay_credit_notes + IMMUTABLE pay_payment_reversals + outbox for refund / credit-note / reversal events) | ✅ |
+| 12a  | Delete `m84-payments/{refund,credit-note,reversal}.service.spec.ts` (3 mock specs, 1968 LOC — fully replaced) | ✅ |
 | 9    | `m83-finance/gl-reconciliation.spec.ts` (worker + alert events)            | ⏳ pending  |
 | 10   | `m83-finance/journal-batch.spec.ts`                                         | ⏳ pending  |
 | 11   | `m84-payments/*` (per the strategy doc Wave 1 list)                        | ⏳ pending  |
@@ -131,6 +133,23 @@ to add the school predicate to every source SELECT. Captured in the
 runOnce test by NOT seeding any pay_* rows — once Finding 5 is fixed,
 the test can seed differently and assert true cross-school isolation.
 
+### Finding 7 — ReversalService.reverse violates pay_payments_paid_chk
+
+`apps/api/src/modules/m84-payments/reversal.service.ts::reverse` runs
+`UPDATE pay_payments SET status='FAILED', updated_at=now() …` to mark
+the reversed payment FAILED. But `pay_payments_paid_chk` requires
+`(status IN ('PENDING','FAILED') AND paid_at IS NULL) OR (status IN
+('COMPLETED','REFUNDED') AND paid_at IS NOT NULL)`. The original
+COMPLETED payment has `paid_at = now()`, so flipping to FAILED without
+nulling `paid_at` raises 23514. ReversalService.reverse cannot succeed
+against a real DB.
+
+Fix: one-line — `SET status='FAILED', paid_at=NULL, updated_at=now()`.
+
+Tests in `refunds-reversals.spec.ts` skip 3 ReversalService.reverse
+happy-paths with the FINDING note. The IMMUTABLE pay_payment_reversals
+contract is still verified by seeding rows directly via raw SQL.
+
 ### Finding 6 — InvoiceService.list does not filter by tenant.schoolId
 
 `InvoiceService.list` uses `SELECT_INVOICE_BASE` (`FROM pay_invoices i
@@ -156,20 +175,24 @@ apps/api/test/integration/m83-finance/budget-management.spec.ts  — NEW (61 tes
 apps/api/test/integration/m83-finance/gl-reconciliation.spec.ts  — NEW (18 tests + 1 skip, 7 check types + Findings 4 & 5)
 apps/api/test/integration/m84-payments/invoice-lifecycle.spec.ts — NEW (29 tests, outbox-in-tx for pay.invoice.created + Finding 6)
 apps/api/test/integration/m84-payments/payment-processing.spec.ts — NEW (27 tests, outbox-in-tx for pay.payment.received + Stripe stub + auth)
+apps/api/test/integration/m84-payments/refunds-reversals.spec.ts  — NEW (40 tests + 3 skips, IMMUTABLE pay_credit_notes + IMMUTABLE pay_payment_reversals + outbox + Finding 7)
 apps/api/test/integration/helpers/reset.ts                       — +resetPaymentsTables, +resetFinanceAdvancedTables wires payments
 apps/api/src/modules/m83-finance/chart.service.spec.ts     — DELETED (mock spec replaced)
 apps/api/src/modules/m83-finance/posting.service.spec.ts   — DELETED (mock spec replaced)
 apps/api/src/modules/m83-finance/gl-reconciliation.worker.spec.ts — DELETED (mock spec replaced)
 apps/api/src/modules/m84-payments/payment.service.spec.ts  — DELETED (mock spec, 649 LOC — fully replaced)
+apps/api/src/modules/m84-payments/refund.service.spec.ts   — DELETED (728 LOC)
+apps/api/src/modules/m84-payments/credit-note.service.spec.ts — DELETED (504 LOC)
+apps/api/src/modules/m84-payments/reversal.service.spec.ts — DELETED (736 LOC)
 packages/database/prisma/tenant/migrations/180_p2h5_sis_family_court_order_restrictions.sql — FIXED splitter bug
 ```
 
 ## Test counts
 
-| Suite              | Before | After (step 11) |
+| Suite              | Before | After (step 12) |
 | ------------------ | ------ | --------------- |
-| Unit tests         | 2858   | 2757 (2703 passed + 54 skipped) |
-| Integration tests  | 145    | 397  (395 passed + 2 documented skips) |
+| Unit tests         | 2858   | 2686 (2632 passed + 54 skipped) |
+| Integration tests  | 145    | 440  (435 passed + 5 documented skips) |
 
 ## Conventions established
 
