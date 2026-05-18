@@ -27,6 +27,17 @@ green; deleted incrementally.
 | 5a   | No mock spec for ErasureService to delete (service was added without a dedicated unit spec) | n/a |
 | 6    | `m00-platform/student-owned.spec.ts` (assertStudentOwnsRecord — admin override + STUDENT bridge resolution + coach delegation stub, 14 tests) | ✅ |
 | 6a   | Delete `shared/auth/student-owned.guard.spec.ts` (mock spec, 218 LOC — fully replaced) | ✅ |
+| 7    | `m00-platform/configuration.spec.ts` (ConfigurationService.getSetupStatus 7-item ladder + SetupWizardService progress/UPSERT/bounds/resilient-loader, 16 tests) | ✅ |
+| 7a   | No mock spec for ConfigurationService — service had no dedicated unit spec | n/a |
+| 7b   | Deferred: FacilityTreeService, AcademicTreeService, PositionTreeService, ConnectionsSummaryService, BulkImportService — each large enough to deserve its own follow-up spec | ⚠️ deferred |
+
+## Wave 2 — COMPLETE (all 6 strategy specs landed)
+
+m00-platform IAM + governance + tenant-isolation + configuration surface
+is now DB-backed. 138 integration tests added in Wave 2 (19 + 38 + 17 +
+34 + 14 + 16). Zero new service-layer bugs surfaced — the services
+were genuinely solid (one test bug corrected — `IN_PROGRESS` vs
+`REVIEWING` for erasure status).
 | 3    | `m00-platform/guardian-authorization.spec.ts` (6 capabilities + custody + court orders + audit log) | ⏳ pending |
 | 4    | `m00-platform/student-owned.spec.ts` (decorator + guard across 6 student-owned tables) | ⏳ pending |
 | 5    | `m00-platform/tenant-isolation.spec.ts` (executeInTenantContext SET LOCAL + is_frozen + concurrent isolation) | ⏳ pending |
