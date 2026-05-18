@@ -11,7 +11,7 @@ headline DB-level deliverable; per-module deep specs build on top.
 | 1    | `wave3-immutable-contracts/wave3-immutable-contracts.spec.ts` — 3 new DB-level IMMUTABLE triggers (inc_incident_timeline, hlth_health_access_log, svc_referral_activity) — 16 tests | ✅ |
 | 2    | `m87-safety/incident-lifecycle.spec.ts`                                     | ⏳ pending |
 | 3    | `m23-health/health-records.spec.ts` (incl. hlth.allergy_alert.changed outbox) | ⏳ pending |
-| 4    | `m23-health/iep-plans.spec.ts` (incl. iep.accommodation.updated outbox)     | ⏳ pending |
+| 4    | `m23-health/iep-plans.spec.ts` (incl. iep.accommodation.updated outbox-in-tx; 29 tests covering plan + accommodation lifecycle + snapshot emit on add/update/remove + EXPIRED plan empty-array contract + shape validation + auth gates) | ✅ |
 | 5    | `m27-student-services/referral-lifecycle.spec.ts` (incl. CRISIS auto-escalation) | ⏳ pending |
 | 6    | `m27-student-services/counselling-sessions.spec.ts` (lock-after-approval)   | ⏳ pending |
 | 7    | `m27-student-services/wellbeing.spec.ts`                                    | ⏳ pending |
