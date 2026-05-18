@@ -34,6 +34,15 @@ export default defineConfig({
         singleFork: true, // D2 — tests share tenant_test, must serialise
       },
     },
+    // D2 belt-and-braces: with the v8 coverage provider, vitest 2.x can
+    // run spec files concurrently inside the single fork even though
+    // poolOptions.forks.singleFork=true serialises at the worker level.
+    // The concurrency exposes timing-dependent ordering bugs (one spec's
+    // beforeEach TRUNCATE crossing another spec's INSERT) that don't
+    // appear under the non-coverage `test:integration` path. Force strict
+    // file-by-file serial execution so coverage runs are reproducible.
+    fileParallelism: false,
+    maxConcurrency: 1,
     testTimeout: 30_000, // DB round trips are slower than unit tests
     hookTimeout: 60_000, // First-run setup may shell out to provision-tenant
     coverage: {
