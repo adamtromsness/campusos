@@ -12,7 +12,7 @@ headline DB-level deliverable; per-module deep specs build on top.
 | 2    | `m87-safety/incident-lifecycle.spec.ts`                                     | ⏳ pending |
 | 3    | `m23-health/health-records.spec.ts` (incl. hlth.allergy_alert.changed outbox) | ⏳ pending |
 | 4    | `m23-health/iep-plans.spec.ts` (incl. iep.accommodation.updated outbox-in-tx; 29 tests covering plan + accommodation lifecycle + snapshot emit on add/update/remove + EXPIRED plan empty-array contract + shape validation + auth gates) | ✅ |
-| 5    | `m27-student-services/referral-lifecycle.spec.ts` (incl. CRISIS auto-escalation) | ⏳ pending |
+| 5    | `m27-student-services/referral-lifecycle.spec.ts` (full lifecycle SUBMITTED→TRIAGED→ACCEPTED→IN_PROGRESS→COMPLETED + CrisisEscalationService.escalate KEYSTONE outbox-in-tx + auth/scope gates + 28 tests) | ✅ |
 | 6    | `m27-student-services/counselling-sessions.spec.ts` (lock-after-approval)   | ⏳ pending |
 | 7    | `m27-student-services/wellbeing.spec.ts`                                    | ⏳ pending |
 | 8    | `m27-student-services/mtss.spec.ts`                                         | ⏳ pending |
