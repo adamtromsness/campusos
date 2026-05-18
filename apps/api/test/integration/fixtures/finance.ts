@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import { TEST_SCHOOL_ID, TEST_SCHEMA } from '../helpers/tenant-context';
+import { TEST_SCHOOL_ID, TEST_SCHOOL_B_ID, TEST_SCHEMA } from '../helpers/tenant-context';
 
 /**
  * Finance fixtures for the procurement integration suite (Loop 3 expansion).
@@ -24,6 +24,22 @@ export const TEST_BUDGET_LINE_ID = '019e0cf8-aaaa-7777-8888-000000000150';
 export const TEST_SUPPLIER_A_ID = '019e0cf8-aaaa-7777-8888-000000000160';
 export const TEST_SUPPLIER_B_ID = '019e0cf8-aaaa-7777-8888-000000000161';
 export const TEST_INACTIVE_SUPPLIER_ID = '019e0cf8-aaaa-7777-8888-000000000162';
+
+// Revenue + Liability accounts — round out the chart so trial balance,
+// journal posting (debit vs credit), and AR posting tests have realistic
+// account_type coverage. ASSET (Cash, AR), EXPENSE (Supplies) come from
+// the original fixture above.
+export const TEST_COA_REVENUE_ID = '019e0cf8-aaaa-7777-8888-000000000123';
+export const TEST_COA_AP_ID = '019e0cf8-aaaa-7777-8888-000000000124';
+
+// School B mirror — minimal set so cross-school assertions can query a
+// fund / account / budget / supplier owned by the other school.
+export const TEST_FUND_B_ID = '019e0cf8-aaaa-7777-8888-00000000b110';
+export const TEST_COA_SUPPLIES_B_ID = '019e0cf8-aaaa-7777-8888-00000000b122';
+export const TEST_PERIOD_B_ID = '019e0cf8-aaaa-7777-8888-00000000b130';
+export const TEST_BUDGET_B_ID = '019e0cf8-aaaa-7777-8888-00000000b140';
+export const TEST_BUDGET_LINE_B_ID = '019e0cf8-aaaa-7777-8888-00000000b150';
+export const TEST_SUPPLIER_B_SCHOOL_ID = '019e0cf8-aaaa-7777-8888-00000000b160';
 
 const TEST_FISCAL_YEAR = '2026';
 const TEST_BUDGET_AMOUNT = 10000;
@@ -51,14 +67,40 @@ export async function ensureFinanceFixtures(prisma: PrismaClient): Promise<void>
   );
 
   // ─── 3. fin_chart_of_accounts ───
+  // Marking Cash, AR, AP as is_system so the chart-of-accounts integration
+  // suite can exercise the system-account write-protection contract.
   const accounts = [
-    { id: TEST_COA_CASH_ID, code: '1000', name: 'Cash', type: 'ASSET', normal: 'DEBIT' },
+    {
+      id: TEST_COA_CASH_ID,
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      normal: 'DEBIT',
+      isSystem: true,
+    },
     {
       id: TEST_COA_AR_ID,
       code: '1100',
       name: 'Accounts Receivable',
       type: 'ASSET',
       normal: 'DEBIT',
+      isSystem: true,
+    },
+    {
+      id: TEST_COA_AP_ID,
+      code: '2000',
+      name: 'Accounts Payable',
+      type: 'LIABILITY',
+      normal: 'CREDIT',
+      isSystem: true,
+    },
+    {
+      id: TEST_COA_REVENUE_ID,
+      code: '4000',
+      name: 'Tuition Revenue',
+      type: 'REVENUE',
+      normal: 'CREDIT',
+      isSystem: false,
     },
     {
       id: TEST_COA_SUPPLIES_ID,
@@ -66,14 +108,18 @@ export async function ensureFinanceFixtures(prisma: PrismaClient): Promise<void>
       name: 'Office Supplies',
       type: 'EXPENSE',
       normal: 'DEBIT',
+      isSystem: false,
     },
   ];
   for (const a of accounts) {
+    // ON CONFLICT DO UPDATE on is_system so re-runs against an
+    // already-provisioned tenant_test schema pick up the system flag
+    // added with the Revenue/AP accounts. Other fields are stable.
     await prisma.$executeRawUnsafe(
       `INSERT INTO ${TEST_SCHEMA}.fin_chart_of_accounts
-         (id, school_id, account_code, account_name, account_type, normal_balance, fund_id, is_active)
-       VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid, true)
-       ON CONFLICT (id) DO NOTHING`,
+         (id, school_id, account_code, account_name, account_type, normal_balance, fund_id, is_system, is_active)
+       VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid, $8, true)
+       ON CONFLICT (id) DO UPDATE SET is_system = EXCLUDED.is_system`,
       a.id,
       TEST_SCHOOL_ID,
       a.code,
@@ -81,6 +127,7 @@ export async function ensureFinanceFixtures(prisma: PrismaClient): Promise<void>
       a.type,
       a.normal,
       TEST_FUND_ID,
+      a.isSystem,
     );
   }
 
@@ -149,6 +196,65 @@ export async function ensureFinanceFixtures(prisma: PrismaClient): Promise<void>
       s.active,
     );
   }
+
+  // ─── 8. School B mirror ───
+  // Minimal finance footprint owned by the second school (same tenant
+  // schema, different school_id). Cross-school tests use these IDs to
+  // assert that a School A actor cannot see / mutate them.
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO ${TEST_SCHEMA}.fin_funds (id, school_id, fund_code, fund_name, fund_type, is_active)
+     VALUES ($1::uuid, $2::uuid, 'GENERAL', 'General Fund (School B)', 'GENERAL', true)
+     ON CONFLICT (id) DO NOTHING`,
+    TEST_FUND_B_ID,
+    TEST_SCHOOL_B_ID,
+  );
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO ${TEST_SCHEMA}.fin_chart_of_accounts
+       (id, school_id, account_code, account_name, account_type, normal_balance, fund_id, is_system, is_active)
+     VALUES ($1::uuid, $2::uuid, '5000', 'Office Supplies (School B)', 'EXPENSE', 'DEBIT', $3::uuid, false, true)
+     ON CONFLICT (id) DO NOTHING`,
+    TEST_COA_SUPPLIES_B_ID,
+    TEST_SCHOOL_B_ID,
+    TEST_FUND_B_ID,
+  );
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO ${TEST_SCHEMA}.fin_accounting_periods
+       (id, school_id, fiscal_year, period_number, period_name, start_date, end_date, status)
+     VALUES ($1::uuid, $2::uuid, $3, 1, 'Test FY ${TEST_FISCAL_YEAR} (School B)', '2025-08-01', '2026-07-31', 'OPEN')
+     ON CONFLICT (id) DO NOTHING`,
+    TEST_PERIOD_B_ID,
+    TEST_SCHOOL_B_ID,
+    TEST_FISCAL_YEAR,
+  );
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO ${TEST_SCHEMA}.fin_budgets
+       (id, school_id, fiscal_year, fund_id, name, total_revenue, total_expense, status)
+     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, 'Test Operating Budget (School B)', 0, $5, 'APPROVED')
+     ON CONFLICT (id) DO NOTHING`,
+    TEST_BUDGET_B_ID,
+    TEST_SCHOOL_B_ID,
+    TEST_FISCAL_YEAR,
+    TEST_FUND_B_ID,
+    TEST_BUDGET_AMOUNT,
+  );
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO ${TEST_SCHEMA}.fin_budget_lines
+       (id, budget_id, account_id, budgeted_amount, actual_amount, encumbered_amount)
+     VALUES ($1::uuid, $2::uuid, $3::uuid, $4, 0, 0)
+     ON CONFLICT (id) DO NOTHING`,
+    TEST_BUDGET_LINE_B_ID,
+    TEST_BUDGET_B_ID,
+    TEST_COA_SUPPLIES_B_ID,
+    TEST_BUDGET_AMOUNT,
+  );
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO ${TEST_SCHEMA}.fin_suppliers
+       (id, school_id, supplier_code, supplier_name, supplier_type, payment_terms, is_active)
+     VALUES ($1::uuid, $2::uuid, 'SUP-A', 'Vendor Alpha (School B)', 'VENDOR', 'NET_30', true)
+     ON CONFLICT (id) DO NOTHING`,
+    TEST_SUPPLIER_B_SCHOOL_ID,
+    TEST_SCHOOL_B_ID,
+  );
 }
 
 export async function assertFinanceFixtures(prisma: PrismaClient): Promise<void> {
@@ -184,6 +290,26 @@ export async function assertFinanceFixtures(prisma: PrismaClient): Promise<void>
     {
       label: 'fin_suppliers (inactive)',
       sql: `SELECT 1 FROM ${TEST_SCHEMA}.fin_suppliers WHERE id = '${TEST_INACTIVE_SUPPLIER_ID}'::uuid AND is_active = false`,
+    },
+    {
+      label: 'fin_chart_of_accounts (system Cash)',
+      sql: `SELECT 1 FROM ${TEST_SCHEMA}.fin_chart_of_accounts WHERE id = '${TEST_COA_CASH_ID}'::uuid AND is_system = true`,
+    },
+    {
+      label: 'fin_chart_of_accounts (Revenue)',
+      sql: `SELECT 1 FROM ${TEST_SCHEMA}.fin_chart_of_accounts WHERE id = '${TEST_COA_REVENUE_ID}'::uuid AND account_type = 'REVENUE'`,
+    },
+    {
+      label: 'fin_chart_of_accounts (AP)',
+      sql: `SELECT 1 FROM ${TEST_SCHEMA}.fin_chart_of_accounts WHERE id = '${TEST_COA_AP_ID}'::uuid AND account_type = 'LIABILITY'`,
+    },
+    {
+      label: 'fin_budget (School B)',
+      sql: `SELECT 1 FROM ${TEST_SCHEMA}.fin_budgets WHERE id = '${TEST_BUDGET_B_ID}'::uuid AND school_id = '${TEST_SCHOOL_B_ID}'::uuid`,
+    },
+    {
+      label: 'fin_chart_of_accounts (School B Supplies)',
+      sql: `SELECT 1 FROM ${TEST_SCHEMA}.fin_chart_of_accounts WHERE id = '${TEST_COA_SUPPLIES_B_ID}'::uuid AND school_id = '${TEST_SCHOOL_B_ID}'::uuid`,
     },
   ];
   for (const check of checks) {

@@ -16,6 +16,14 @@ export const TEST_ROUTING_ID = '019e0cf8-aaaa-7777-8888-000000000003';
 export const TEST_SUBDOMAIN = 'test';
 export const TEST_SCHEMA = 'tenant_test';
 
+// School B — Wave 1 cross-school isolation tests. Same org, same tenant
+// schema (tenant_test), different school_id. The services scope every
+// SQL predicate by tenant.schoolId, so swapping the school_id in the
+// tenant context is enough to exercise the cross-school contract
+// without provisioning a second schema. Records seeded with this
+// school_id are invisible to a School A actor and vice versa.
+export const TEST_SCHOOL_B_ID = '019e0cf8-aaaa-7777-8888-00000000000b';
+
 export const TEST_TENANT: TenantInfo = {
   schoolId: TEST_SCHOOL_ID,
   schemaName: TEST_SCHEMA,
@@ -24,6 +32,11 @@ export const TEST_TENANT: TenantInfo = {
   isFrozen: false,
   planTier: 'MEDIUM',
   homeRegion: 'us-east-1',
+};
+
+export const TEST_TENANT_B: TenantInfo = {
+  ...TEST_TENANT,
+  schoolId: TEST_SCHOOL_B_ID,
 };
 
 /**
@@ -42,6 +55,25 @@ export async function withTestTenant<T>(
 ): Promise<T> {
   const ctx: RequestContext = {
     tenant: TEST_TENANT,
+    userId: options?.userId,
+    personId: options?.personId,
+    sessionId: options?.sessionId,
+  };
+  return runWithTenantContextAsync(ctx, fn);
+}
+
+/**
+ * Wave 1 cross-school helper — runs the callback with the tenant context
+ * pinned to School B (same schema, different school_id). Pair with
+ * withTestTenant to assert that a School A actor cannot see or mutate
+ * records owned by School B.
+ */
+export async function withTestTenantB<T>(
+  fn: () => Promise<T>,
+  options?: { userId?: string; personId?: string; sessionId?: string },
+): Promise<T> {
+  const ctx: RequestContext = {
+    tenant: TEST_TENANT_B,
     userId: options?.userId,
     personId: options?.personId,
     sessionId: options?.sessionId,

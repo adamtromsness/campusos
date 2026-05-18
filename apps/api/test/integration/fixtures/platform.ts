@@ -2,11 +2,15 @@ import type { PrismaClient } from '@prisma/client';
 import {
   TEST_ORG_ID,
   TEST_SCHOOL_ID,
+  TEST_SCHOOL_B_ID,
   TEST_ROUTING_ID,
   TEST_SUBDOMAIN,
   TEST_SCHEMA,
 } from '../helpers/tenant-context';
 import { TEST_ADMIN_PERSON_ID, TEST_ADMIN_ACCOUNT_ID } from '../helpers/actor';
+
+// School B routing — same schema, different school_id. See tenant-context.ts.
+const TEST_ROUTING_B_ID = '019e0cf8-aaaa-7777-8888-00000000000c';
 
 /**
  * Platform-side fixtures. Inserted once per suite run by globalSetup
@@ -47,6 +51,28 @@ export async function ensurePlatformFixtures(prisma: PrismaClient): Promise<void
     TEST_SCHEMA,
   );
 
+  // School B — second school in the same org / same tenant schema. Used by
+  // Wave 1 cross-school isolation tests. Services scope every SQL predicate
+  // by tenant.schoolId, so seeding rows with this school_id and switching
+  // the tenant context exercises the cross-school contract.
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO platform.schools (id, organisation_id, name, subdomain, country_code, timezone, plan_tier, schema_name, is_active)
+     VALUES ($1::uuid, $2::uuid, 'Integration Test School B', $3, 'US', 'America/Chicago', 'MEDIUM', $4, true)
+     ON CONFLICT (id) DO NOTHING`,
+    TEST_SCHOOL_B_ID,
+    TEST_ORG_ID,
+    TEST_SUBDOMAIN + '-b',
+    TEST_SCHEMA,
+  );
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO platform.platform_tenant_routing (id, tenant_id, cluster_id, schema_name, home_region, is_active, is_frozen, is_migrating, max_connections_pool)
+     VALUES ($1::uuid, $2::uuid, 'primary', $3, 'us-east-1', true, false, false, 10)
+     ON CONFLICT (tenant_id) DO NOTHING`,
+    TEST_ROUTING_B_ID,
+    TEST_SCHOOL_B_ID,
+    TEST_SCHEMA,
+  );
+
   // Admin actor identity (iam_person + platform_users)
   await prisma.$executeRawUnsafe(
     `INSERT INTO platform.iam_person (id, first_name, last_name, person_type, is_active)
@@ -83,6 +109,14 @@ export async function assertPlatformFixtures(prisma: PrismaClient): Promise<void
     {
       label: 'platform_tenant_routing',
       sql: `SELECT 1 FROM platform.platform_tenant_routing WHERE tenant_id = '${TEST_SCHOOL_ID}'::uuid AND schema_name = '${TEST_SCHEMA}'`,
+    },
+    {
+      label: 'schools (School B)',
+      sql: `SELECT 1 FROM platform.schools WHERE id = '${TEST_SCHOOL_B_ID}'::uuid`,
+    },
+    {
+      label: 'platform_tenant_routing (School B)',
+      sql: `SELECT 1 FROM platform.platform_tenant_routing WHERE tenant_id = '${TEST_SCHOOL_B_ID}'::uuid AND schema_name = '${TEST_SCHEMA}'`,
     },
     {
       label: 'iam_person (admin)',
