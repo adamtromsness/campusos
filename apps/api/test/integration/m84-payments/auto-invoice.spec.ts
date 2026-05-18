@@ -37,41 +37,25 @@ describe('integration:m84-payments/auto-invoice', () => {
     service = new AutoInvoiceService(tenantPrisma);
     // Exercise the OnModuleInit log path (no side effect to verify).
     service.onModuleInit();
-    // Relax the sis_students enrollment_status CHECK so the audience
-    // query in AutoInvoiceService.runGeneration (which looks for
-    // 'ACTIVE') has rows to operate on. Restored in afterAll.
-    await rawClient.$executeRawUnsafe(
-      `ALTER TABLE ${TEST_SCHEMA}.sis_students DROP CONSTRAINT IF EXISTS sis_students_enrollment_status_chk`,
-    );
   });
 
   afterAll(async () => {
-    // Restore the original CHECK so the tenant schema stays consistent
-    // for subsequent test runs. Wipe any leftover 'ACTIVE' rows first
-    // so the ADD CONSTRAINT doesn't trip on legacy test data.
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE enrollment_status NOT IN ('ENROLLED','TRANSFERRED','GRADUATED','WITHDRAWN')`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `ALTER TABLE ${TEST_SCHEMA}.sis_students DROP CONSTRAINT IF EXISTS sis_students_enrollment_status_chk`,
-    );
-    await rawClient.$executeRawUnsafe(
-      `ALTER TABLE ${TEST_SCHEMA}.sis_students
-         ADD CONSTRAINT sis_students_enrollment_status_chk
-         CHECK (enrollment_status IN ('ENROLLED','TRANSFERRED','GRADUATED','WITHDRAWN'))`,
-    );
     await tenantPrisma.onModuleDestroy();
     await rawClient.$disconnect();
   });
 
   beforeEach(async () => {
     await withTestTenant(async () => resetFinanceAdvancedTables(tenantPrisma));
-    // Sweep leftover 'ACTIVE' student rows from prior tests so the
-    // audience SELECT in runGeneration doesn't see stale data. The
-    // schema CHECK is dropped for the duration of this suite, so the
-    // delete is the only enforcement.
+    // Sweep leftover AI-* students from prior tests so the audience
+    // SELECT in runGeneration doesn't see stale rows.
     await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE enrollment_status = 'ACTIVE'`,
+      `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE student_number LIKE 'AI-%'`,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM platform.platform_students WHERE first_name = 'AI-Stu'`,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM platform.iam_person WHERE first_name = 'AI-Stu'`,
     );
   });
 
@@ -92,15 +76,6 @@ describe('integration:m84-payments/auto-invoice', () => {
     return id;
   }
 
-  /**
-   * Seed a student. NOTE: the schema CHECK allows only
-   * ENROLLED/TRANSFERRED/GRADUATED/WITHDRAWN — but AutoInvoiceService
-   * queries `enrollment_status = 'ACTIVE'` (and the sibling-count path
-   * does the same). This is a pre-existing service bug — the audience
-   * SELECT will return 0 rows against any real student. To exercise
-   * the generation engine end-to-end we temporarily relax the CHECK in
-   * beforeAll (see resetCheckConstraints) so we can insert 'ACTIVE'.
-   */
   async function seedStudent(opts?: {
     schoolId?: string;
     grade?: string;
@@ -403,7 +378,7 @@ describe('integration:m84-payments/auto-invoice', () => {
       const fa = await seedFamily();
       const ids: string[] = [];
       for (let i = 0; i < count; i++) {
-        const s = await seedStudent({ grade, status: 'ACTIVE' });
+        const s = await seedStudent({ grade, status: 'ENROLLED' });
         await linkStudentToFamily(fa, s);
         ids.push(s);
       }
@@ -447,32 +422,36 @@ describe('integration:m84-payments/auto-invoice', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    // SKIPPED: generation happy-path tests are blocked by a pre-existing
-    // bug in AutoInvoiceService.runGeneration — the
-    // pay_invoice_line_items INSERT passes fee_schedule_id without a
-    // ::uuid cast, so every family-level INSERT fails with PG 42804 and
-    // the per-family error handler bumps invoicesFailed instead of
-    // invoicesCreated. The skip path (no family for the student) still
-    // works and is covered by the "no billing account" test below.
-    it.skip('generateFromFeeSchedule with grade-level audience — DEFERRED (fee_schedule_id cast bug)', async () => {
+    it('generateFromFeeSchedule with grade-level audience creates one invoice per family', async () => {
       const cat = await seedFeeCategory();
       const fs = await seedFeeSchedule({
         categoryId: cat,
         amount: 150,
         gradeLevel: '8',
       });
-      await seedFamilyWithStudents('8', 1);
+      const { familyId } = await seedFamilyWithStudents('8', 1);
       const run = await withTestTenant(async () =>
-        service.generateFromFeeSchedule(fs, null, adminActor()),
+        service.generateFromFeeSchedule(fs, TEST_ACADEMIC_YEAR_ID, adminActor()),
       );
+      expect(run.status).toBe('COMPLETED');
       expect(run.invoicesCreated).toBe(1);
+
+      const invoices = (await rawClient.$queryRawUnsafe(
+        `SELECT total_amount::text AS total_amount FROM ${TEST_SCHEMA}.pay_invoices
+           WHERE family_account_id = $1::uuid`,
+        familyId,
+      )) as Array<{ total_amount: string }>;
+      expect(invoices).toHaveLength(1);
+      expect(Number(invoices[0]!.total_amount)).toBe(150);
     });
 
-    it.skip('generateFromFeeSchedule with applies_to_student_ids targets exact set — DEFERRED (same bug)', async () => {
+    it('generateFromFeeSchedule with applies_to_student_ids targets exact set', async () => {
       const cat = await seedFeeCategory();
       const family = await seedFamily();
-      const s1 = await seedStudent({ status: 'ACTIVE', grade: '6' });
+      const s1 = await seedStudent({ status: 'ENROLLED', grade: '6' });
+      const s2 = await seedStudent({ status: 'ENROLLED', grade: '6' });
       await linkStudentToFamily(family, s1);
+      await linkStudentToFamily(family, s2);
       const fs = await seedFeeSchedule({
         categoryId: cat,
         amount: 200,
@@ -482,14 +461,13 @@ describe('integration:m84-payments/auto-invoice', () => {
         service.generateFromFeeSchedule(fs, null, adminActor()),
       );
       expect(run.invoicesCreated).toBe(1);
+      expect(run.totalFamiliesTargeted).toBe(1);
     });
 
-    it('skipped: family has no billing account → invoicesSkipped++ (bug-free path)', async () => {
+    it('skipped: family has no billing account → invoicesSkipped++', async () => {
       const cat = await seedFeeCategory();
       const fs = await seedFeeSchedule({ categoryId: cat, gradeLevel: '4' });
-      // Student in grade 4 with no family link → skipped without
-      // hitting the bugged INSERT.
-      await seedStudent({ grade: '4', status: 'ACTIVE' });
+      await seedStudent({ grade: '4', status: 'ENROLLED' });
       const run = await withTestTenant(async () =>
         service.generateFromFeeSchedule(fs, null, adminActor()),
       );
@@ -497,7 +475,7 @@ describe('integration:m84-payments/auto-invoice', () => {
       expect(run.invoicesSkipped).toBeGreaterThanOrEqual(1);
     });
 
-    it.skip('skipped: family already has invoice — DEFERRED (depends on first invoice creation working)', async () => {
+    it('skipped: family already has invoice for this fee schedule', async () => {
       const cat = await seedFeeCategory();
       const fs = await seedFeeSchedule({
         categoryId: cat,
@@ -509,15 +487,14 @@ describe('integration:m84-payments/auto-invoice', () => {
         service.generateFromFeeSchedule(fs, null, adminActor()),
       );
       expect(r1.invoicesCreated).toBe(1);
+      const r2 = await withTestTenant(async () =>
+        service.generateFromFeeSchedule(fs, null, adminActor()),
+      );
+      expect(r2.invoicesCreated).toBe(0);
+      expect(r2.invoicesSkipped).toBeGreaterThanOrEqual(1);
     });
 
-    // SKIPPED: triggerRule goes through runGeneration which has a
-    // pre-existing bug — auto_rule_id and academic_year_id are
-    // inserted without ::uuid cast, so any string value (including
-    // every real rule id) raises PG 42804 at INSERT time. The path
-    // only works when both are null, which only the
-    // generateFromFeeSchedule(fs, null, …) entry point provides.
-    it.skip('triggerRule happy path: COMPLETED run + last_run_at stamped — DEFERRED (uuid cast bug)', async () => {
+    it('triggerRule happy path: COMPLETED run + last_run_at stamped', async () => {
       const cat = await seedFeeCategory();
       const fs = await seedFeeSchedule({
         categoryId: cat,
@@ -537,7 +514,11 @@ describe('integration:m84-payments/auto-invoice', () => {
         ),
       );
       const run = await withTestTenant(async () =>
-        service.triggerRule(rule.id, {}, adminActor()),
+        service.triggerRule(
+          rule.id,
+          { academicYearId: TEST_ACADEMIC_YEAR_ID },
+          adminActor(),
+        ),
       );
       expect(run.status).toBe('COMPLETED');
       expect(run.invoicesCreated).toBe(1);
@@ -572,15 +553,51 @@ describe('integration:m84-payments/auto-invoice', () => {
       expect(run.errorSummary).toContain('fee schedule');
     });
 
-    // SKIPPED: discount-application tests depend on the bugged
-    // generation INSERT path. See the deferred tests above.
-    it.skip('SIBLING discount applies — DEFERRED (fee_schedule_id cast bug)', async () => {
-      // …unchanged body retained as documentation of the intended
-      // behaviour; runs in production only after the cast bug is fixed.
+    // DEFERRED: SIBLING + EARLY_PAYMENT discount paths emit negative
+    // `total` line items, but the schema declares
+    // `pay_invoice_line_items_total_chk CHECK (total >= 0)`. The
+    // service tries to INSERT a negative discount row and the CHECK
+    // rejects it, so the per-family handler bumps invoicesFailed
+    // instead of invoicesCreated. This is a separate design conflict
+    // from the three cast bugs already fixed in this commit; fixing
+    // it requires either relaxing the schema CHECK (allow negative
+    // totals on discount lines) or refactoring the service to store
+    // discounts as positive amounts with a discount-marker column.
+    it.skip('SIBLING discount applies — DEFERRED (line_items total_chk forbids negative totals)', async () => {
+      // Body retained as documentation of the intended behaviour.
     });
+    it.skip('EARLY_PAYMENT discount applies — DEFERRED (line_items total_chk forbids negative totals)', async () => {});
 
-    it.skip('EARLY_PAYMENT discount applies — DEFERRED (fee_schedule_id cast bug)', async () => {});
-    it.skip('Discount with mismatched fee_category_id is skipped — DEFERRED (fee_schedule_id cast bug)', async () => {});
+    it('Discount with mismatched fee_category_id is skipped', async () => {
+      const cat = await seedFeeCategory();
+      const otherCat = await seedFeeCategory();
+      const fs = await seedFeeSchedule({
+        categoryId: cat,
+        amount: 200,
+        gradeLevel: '3',
+      });
+      const { familyId } = await seedFamilyWithStudents('3', 1);
+      await rawClient.$executeRawUnsafe(
+        `INSERT INTO ${TEST_SCHEMA}.pay_discount_rules
+           (id, school_id, name, discount_type, calculation_method, value, applies_to_fee_category_id, is_active)
+         VALUES ($1::uuid, $2::uuid, $3, 'EARLY_PAYMENT', 'FIXED_AMOUNT', 50, $4::uuid, true)`,
+        generateId(),
+        TEST_SCHOOL_ID,
+        'AI-Cat-Filter-' + generateId().slice(-6),
+        otherCat,
+      );
+      const run = await withTestTenant(async () =>
+        service.generateFromFeeSchedule(fs, null, adminActor()),
+      );
+      expect(run.invoicesCreated).toBe(1);
+      const inv = (await rawClient.$queryRawUnsafe(
+        `SELECT total_amount::text AS total_amount FROM ${TEST_SCHEMA}.pay_invoices
+           WHERE family_account_id = $1::uuid`,
+        familyId,
+      )) as Array<{ total_amount: string }>;
+      // No discount applied → invoice = 200.
+      expect(Number(inv[0]!.total_amount)).toBe(200);
+    });
   });
 
   // ─── Runs query ──────────────────────────────────────────────

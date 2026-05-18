@@ -424,7 +424,7 @@ export class AutoInvoiceService implements OnModuleInit {
       await client.$executeRawUnsafe(
         'INSERT INTO pay_invoice_generation_runs ' +
           '(id, school_id, run_type, fee_schedule_id, auto_rule_id, academic_year_id, initiated_by, status, started_at) ' +
-          "VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7::uuid, 'RUNNING', now())",
+          "VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5::uuid, $6::uuid, $7::uuid, 'RUNNING', now())",
         runId,
         schoolId,
         args.runType,
@@ -478,10 +478,14 @@ export class AutoInvoiceService implements OnModuleInit {
       const scheduleAmount = Number(schedule.amount);
       const dueDate = schedule.due_date;
 
-      // Resolve eligible students.
+      // Resolve eligible students. The sis_students CHECK constraint
+      // allows ENROLLED / TRANSFERRED / GRADUATED / WITHDRAWN — ENROLLED
+      // is the on-roll status used by every other module that walks
+      // sis_students. (Previously this filter said 'ACTIVE' which never
+      // matched any row, so the audience SELECT silently returned zero.)
       let studentSql =
         'SELECT s.id, s.grade_level FROM sis_students s ' +
-        "WHERE s.enrollment_status = 'ACTIVE' AND s.school_id = $1::uuid ";
+        "WHERE s.enrollment_status = 'ENROLLED' AND s.school_id = $1::uuid ";
       const studentParams: unknown[] = [schoolId];
       let pIdx = 2;
       if (schedule.applies_to_student_ids && schedule.applies_to_student_ids.length > 0) {
@@ -583,12 +587,13 @@ export class AutoInvoiceService implements OnModuleInit {
             continue;
           }
 
-          // Compute sibling order — count active enrolled students for the family.
+          // Compute sibling order — count active enrolled students for
+          // the family. Same ENROLLED-vs-ACTIVE fix as the audience SELECT.
           const siblingCountRows = (await this.tenantPrisma.executeInTenantContext(async (client) =>
             client.$queryRawUnsafe<Array<{ c: number }>>(
               'SELECT COUNT(*)::int AS c FROM pay_family_account_students fas ' +
                 'JOIN sis_students s ON s.id = fas.student_id ' +
-                "WHERE fas.family_account_id = $1::uuid AND s.enrollment_status = 'ACTIVE'",
+                "WHERE fas.family_account_id = $1::uuid AND s.enrollment_status = 'ENROLLED'",
               familyAccountId,
             ),
           )) as Array<{ c: number }>;
@@ -684,7 +689,7 @@ export class AutoInvoiceService implements OnModuleInit {
               const item = lineItems[li]!;
               await tx.$executeRawUnsafe(
                 'INSERT INTO pay_invoice_line_items (id, invoice_id, fee_schedule_id, description, quantity, unit_price, total, sort_order) ' +
-                  'VALUES ($1::uuid, $2::uuid, $3, $4, $5::numeric, $6::numeric, $7::numeric, $8::int)',
+                  'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::numeric, $6::numeric, $7::numeric, $8::int)',
                 generateId(),
                 invoiceId,
                 item.feeScheduleId,
