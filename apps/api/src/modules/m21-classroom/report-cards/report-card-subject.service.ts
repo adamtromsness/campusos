@@ -120,7 +120,7 @@ export class ReportCardSubjectService {
         'INSERT INTO cls_report_card_subjects ' +
           '(id, report_card_id, subject_label, course_id, final_grade, grade_value, ' +
           'teacher_comments, effort_grade, sort_order) ' +
-          'VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::numeric, $7, $8, $9::int)',
+          'VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6::numeric, $7, $8, $9::int)',
         id,
         reportCardId,
         input.subjectLabel,
