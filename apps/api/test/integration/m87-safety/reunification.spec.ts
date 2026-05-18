@@ -105,11 +105,10 @@ describe('integration:m87-safety/reunification', () => {
       TEST_SCHOOL_ID,
       TEST_SCHOOL_B_ID,
     );
+    // inc_incident_timeline is IMMUTABLE — TRUNCATE bypasses the
+    // prevent_mutation trigger, which is the only safe per-test reset.
     await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.inc_incident_timeline WHERE incident_id IN
-         (SELECT id FROM ${TEST_SCHEMA}.inc_incidents WHERE school_id IN ($1::uuid, $2::uuid))`,
-      TEST_SCHOOL_ID,
-      TEST_SCHOOL_B_ID,
+      `TRUNCATE ${TEST_SCHEMA}.inc_incident_timeline`,
     );
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.inc_declaration_outbox WHERE school_id IN ($1::uuid, $2::uuid)`,
@@ -253,7 +252,7 @@ describe('integration:m87-safety/reunification', () => {
     return { visitorId, signInId };
   }
 
-  describe.skip('create — happy paths (blocked by sis_students.first_name SELECT bug)', () => {
+  describe('create — happy paths', () => {
     it('happy path: releases student, flips accountability to ACCOUNTED_FOR, appends timeline', async () => {
       const incidentId = await seedIncident();
       const studentId = await seedStudent();

@@ -46,7 +46,11 @@ interface CorrectionRow {
 const SELECT_REUN_BASE =
   'SELECT r.id::text AS id, r.incident_id::text AS incident_id, ' +
   '       r.student_id::text AS student_id, ' +
-  '       s.first_name AS student_first, s.last_name AS student_last, ' +
+  // sis_students does not carry first_name / last_name — resolve them
+  // through the platform_students → iam_person chain like every other
+  // module that walks sis_students (see m23 ScreeningService, m20
+  // StudentService, m27 caseload, etc).
+  '       sip.first_name AS student_first, sip.last_name AS student_last, ' +
   '       r.released_to_id::text AS released_to_id, ' +
   '       v.first_name AS released_to_first, v.last_name AS released_to_last, ' +
   '       r.released_by::text AS released_by, ' +
@@ -54,6 +58,8 @@ const SELECT_REUN_BASE =
   '       r.released_at::text AS released_at, r.notes ' +
   'FROM inc_reunification_records r ' +
   'LEFT JOIN sis_students s ON s.id = r.student_id ' +
+  'LEFT JOIN platform.platform_students sps ON sps.id = s.platform_student_id ' +
+  'LEFT JOIN platform.iam_person sip ON sip.id = sps.person_id ' +
   'LEFT JOIN vis_visitors v ON v.id = r.released_to_id ' +
   'LEFT JOIN platform.platform_users pu ON pu.id = r.released_by ' +
   'LEFT JOIN platform.iam_person ip ON ip.id = pu.person_id ';

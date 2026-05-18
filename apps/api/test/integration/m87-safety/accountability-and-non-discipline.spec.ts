@@ -624,5 +624,104 @@ describe('integration:m87-safety/accountability-and-non-discipline', () => {
         ).rejects.toBeInstanceOf(NotFoundException);
       });
     });
+
+    describe('patch', () => {
+      it('admin patches status OPEN → UNDER_REVIEW stamps reviewed_by + reviewed_at', async () => {
+        const r = await withTestTenant(async () =>
+          nonDiscipline.create(baseInput(), adminActor()),
+        );
+        const u = await withTestTenant(async () =>
+          nonDiscipline.patch(r.id, { status: 'UNDER_REVIEW' }, adminActor()),
+        );
+        expect(u.status).toBe('UNDER_REVIEW');
+        expect(u.reviewedBy).toBeTruthy();
+      });
+
+      it('admin patches status OPEN → CLOSED stamps closed_at + reviewed_at', async () => {
+        const r = await withTestTenant(async () =>
+          nonDiscipline.create(baseInput(), adminActor()),
+        );
+        const u = await withTestTenant(async () =>
+          nonDiscipline.patch(
+            r.id,
+            { status: 'CLOSED', resolution: 'No further action' },
+            adminActor(),
+          ),
+        );
+        expect(u.status).toBe('CLOSED');
+        expect(u.closedAt).toBeTruthy();
+      });
+
+      it('cannot reopen a CLOSED incident → BadRequest', async () => {
+        const r = await withTestTenant(async () =>
+          nonDiscipline.create(baseInput(), adminActor()),
+        );
+        await withTestTenant(async () =>
+          nonDiscipline.patch(r.id, { status: 'CLOSED' }, adminActor()),
+        );
+        await expect(
+          withTestTenant(async () =>
+            nonDiscipline.patch(r.id, { status: 'OPEN' }, adminActor()),
+          ),
+        ).rejects.toBeInstanceOf(BadRequestException);
+      });
+
+      it('patch followUpTicketId + resolution without status change', async () => {
+        const r = await withTestTenant(async () =>
+          nonDiscipline.create(baseInput(), adminActor()),
+        );
+        const ticketId = generateId();
+        const u = await withTestTenant(async () =>
+          nonDiscipline.patch(
+            r.id,
+            { followUpTicketId: ticketId, resolution: 'Linked to maintenance ticket' },
+            adminActor(),
+          ),
+        );
+        expect(u.followUpTicketId).toBe(ticketId);
+        expect(u.resolution).toBe('Linked to maintenance ticket');
+      });
+
+      it('empty patch returns the existing row', async () => {
+        const r = await withTestTenant(async () =>
+          nonDiscipline.create(baseInput(), adminActor()),
+        );
+        const u = await withTestTenant(async () =>
+          nonDiscipline.patch(r.id, {}, adminActor()),
+        );
+        expect(u.id).toBe(r.id);
+        expect(u.status).toBe('OPEN');
+      });
+
+      it('non-reviewer (teacher) → Forbidden even on own report', async () => {
+        const r = await withTestTenant(async () =>
+          nonDiscipline.create(baseInput(), adminActor()),
+        );
+        await expect(
+          withTestTenant(async () =>
+            nonDiscipline.patch(r.id, { status: 'CLOSED' }, teacherActor()),
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('missing report → NotFound', async () => {
+        await expect(
+          withTestTenant(async () =>
+            nonDiscipline.patch(generateId(), { status: 'CLOSED' }, adminActor()),
+          ),
+        ).rejects.toBeInstanceOf(NotFoundException);
+      });
+
+      it('cross-school patch → NotFound', async () => {
+        const r = await withTestTenant(async () =>
+          nonDiscipline.create(baseInput(), adminActor()),
+        );
+        await expect(
+          withTestTenantB(async () =>
+            nonDiscipline.patch(r.id, { status: 'CLOSED' }, adminActor()),
+          ),
+        ).rejects.toBeInstanceOf(NotFoundException);
+      });
+    });
   });
 });
