@@ -10,13 +10,13 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 
 **Codebase restructure complete.** `apps/api/src/` reorganised from 80+ cycle-by-cycle folders into 38 canonical modules under `apps/api/src/modules/m{XX}-{name}/` + cross-cutting infrastructure under `apps/api/src/shared/`. Documentation reorganised into `docs/{architecture,plans,reviews,policies,operations,design-hub}/`. Path aliases `@modules/*` and `@shared/*` are live in `tsconfig.json` and both vitest configs.
 
-**Test coverage in progress — Wave 1 (financial) underway.** Tier 0 (integration test harness at `apps/api/test/integration/`) is built and operational. Tiers 1–7 (per-module unit + integration coverage targets per `docs/architecture/campusos-test-coverage-plan.html`) are the active engineering work, executing through the wave-by-wave plan in `docs/campusos-test-strategy-v3.html`. 2791 unit tests pass across 122 spec files (54 pre-existing skips, 0 failures), plus 212 DB-backed integration tests passing (1 documented `it.skip` flagging a real service bug — see `docs/reviews/handoffs/HANDOFF-WAVE1.md`). **Wave 1** (m83-finance, m84-payments, m86-procurement): m83-finance chart-of-accounts landed; gl-posting / budget-management / gl-reconciliation / journal-batch / m84-payments / m86-procurement cross-school + IMMUTABLE additions still pending.
+**Test coverage in progress — Wave 1 (financial) underway.** Tier 0 (integration test harness at `apps/api/test/integration/`) is built and operational. Tiers 1–7 (per-module unit + integration coverage targets per `docs/architecture/campusos-test-coverage-plan.html`) are the active engineering work, executing through the wave-by-wave plan in `docs/campusos-test-strategy-v3.html`. 2746 unit tests pass across 121 spec files (54 pre-existing skips, 0 failures), plus 260 DB-backed integration tests passing (1 documented `it.skip` flagging a real service bug — see `docs/reviews/handoffs/HANDOFF-WAVE1.md`). **Wave 1** (m83-finance, m84-payments, m86-procurement): m83-finance chart-of-accounts + gl-posting (incl. IMMUTABLE trigger contract on fin_gl_entries) landed; budget-management / gl-reconciliation / journal-batch / m84-payments / m86-procurement cross-school + IMMUTABLE additions still pending.
 
 **Build state:**
 
 - `pnpm --filter @campusos/api build` — 0 errors (`nest build`)
-- `pnpm --filter @campusos/api test` — 2791 / 2791 passing (+ 54 skipped)
-- `pnpm --filter @campusos/api test:integration` — 212 / 212 passing (+ 1 documented skip)
+- `pnpm --filter @campusos/api test` — 2746 / 2746 passing (+ 54 skipped)
+- `pnpm --filter @campusos/api test:integration` — 260 / 260 passing (+ 1 documented skip)
 - `tsc --noEmit` (production source) — 0 errors
 - Tenant logical base tables — ~840 across 38 modules
 - Permission catalogue — 495 codes (165 functions × 3 tiers)
