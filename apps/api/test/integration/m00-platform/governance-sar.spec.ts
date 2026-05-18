@@ -101,11 +101,13 @@ describe('integration:m00-platform/governance-sar', () => {
       TEST_PARENT_PERSON_ID,
     );
 
-    // platform_students projection — defaults data_subject_is_self=false (age <18)
+    // platform_students projection — defaults data_subject_is_self=false (age <18).
+    // ON CONFLICT (person_id) DO UPDATE so we coexist with any platform_students
+    // row a prior or concurrent test may have left for TEST_STUDENT_PERSON_ID.
     await rawClient.$executeRawUnsafe(
       `INSERT INTO platform.platform_students (id, person_id, first_name, last_name, is_active, data_subject_is_self)
        VALUES ($1::uuid, $2::uuid, 'Test', 'Student', true, false)
-       ON CONFLICT (id) DO NOTHING`,
+       ON CONFLICT (person_id) DO UPDATE SET data_subject_is_self = false, is_active = true`,
       STUDENT_PLATFORM_STUDENT_ID,
       TEST_STUDENT_PERSON_ID,
     );
@@ -139,6 +141,24 @@ describe('integration:m00-platform/governance-sar', () => {
   });
 
   afterAll(async () => {
+    // Clean up so we don't poison the wellbeing/mtss/etc. specs that
+    // also seed platform_students for TEST_STUDENT_PERSON_ID.
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_student_guardians WHERE id = $1::uuid`,
+      SSG_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE id = $1::uuid`,
+      SIS_STUDENT_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_guardians WHERE id = $1::uuid`,
+      SIS_GUARDIAN_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM platform.platform_students WHERE person_id = $1::uuid`,
+      TEST_STUDENT_PERSON_ID,
+    );
     await tenantPrisma.onModuleDestroy();
     await rawClient.$disconnect();
   });
