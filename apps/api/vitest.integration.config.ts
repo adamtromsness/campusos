@@ -48,13 +48,21 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
-      // Match the unit suite's exclude so module coverage compares cleanly
-      // (DTOs are class-validator decorators, *.module.ts is NestJS DI wiring;
-      // neither carries executable business logic worth measuring).
+      // All-files coverage measurement (the new standard): includes
+      // every file under src/modules and src/shared — services,
+      // controllers, workers, consumers, guards, middleware — and
+      // excludes only the trivially-non-executable surfaces:
+      //   *.dto.ts          — class-validator decorators
+      //   *.module.ts       — NestJS DI wiring
+      //   **/dto/**         — DTO directories
+      //   index.ts          — barrel re-exports
+      //   *.spec.ts         — test files themselves
+      //   main.ts / test/** — bootstrapping and tests
       exclude: [
         '**/*.module.ts',
         '**/dto/**',
         '**/*.dto.ts',
+        '**/index.ts',
         '**/*.spec.ts',
         '**/main.ts',
         'test/**',
