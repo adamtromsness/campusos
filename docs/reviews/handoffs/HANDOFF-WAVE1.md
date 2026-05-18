@@ -37,6 +37,8 @@ is green; then the mock is deleted. Tests live under
 | 12a  | Delete `m84-payments/{refund,credit-note,reversal}.service.spec.ts` (3 mock specs, 1968 LOC — fully replaced) | ✅ |
 | 13   | `m84-payments/lunch-accounts.spec.ts` (LunchAccountService.transfer + deposit/update/listLowBalance/getById/getForStudent incl. IMMUTABLE pay_lunch_account_balance_transfers + Finding 8) | ✅ |
 | 13a  | Delete `m84-payments/lunch-account.service.spec.ts` (mock spec, 1192 LOC — fully replaced) | ✅ |
+| 14   | `m84-payments/payment-plans.spec.ts` (PaymentPlanService.create + getById, atomic plan+installments, residue handling, MONTHLY/QUARTERLY date math, UNIQUE(invoice_id), PAID/CANCELLED rejection) | ✅ |
+| 14a  | Delete `m84-payments/payment-plan.service.spec.ts` (mock spec, 444 LOC — fully replaced) | ✅ |
 | 9    | `m83-finance/gl-reconciliation.spec.ts` (worker + alert events)            | ⏳ pending  |
 | 10   | `m83-finance/journal-batch.spec.ts`                                         | ⏳ pending  |
 | 11   | `m84-payments/*` (per the strategy doc Wave 1 list)                        | ⏳ pending  |
@@ -197,6 +199,7 @@ apps/api/test/integration/m84-payments/invoice-lifecycle.spec.ts — NEW (29 tes
 apps/api/test/integration/m84-payments/payment-processing.spec.ts — NEW (27 tests, outbox-in-tx for pay.payment.received + Stripe stub + auth)
 apps/api/test/integration/m84-payments/refunds-reversals.spec.ts  — NEW (40 tests + 3 skips, IMMUTABLE pay_credit_notes + IMMUTABLE pay_payment_reversals + outbox + Finding 7)
 apps/api/test/integration/m84-payments/lunch-accounts.spec.ts     — NEW (39 tests + 2 skips, IMMUTABLE pay_lunch_account_balance_transfers + Finding 8)
+apps/api/test/integration/m84-payments/payment-plans.spec.ts      — NEW (15 tests, atomic plan+installments + residue handling)
 apps/api/test/integration/helpers/reset.ts                       — +resetPaymentsTables, +resetFinanceAdvancedTables wires payments
 apps/api/src/modules/m83-finance/chart.service.spec.ts     — DELETED (mock spec replaced)
 apps/api/src/modules/m83-finance/posting.service.spec.ts   — DELETED (mock spec replaced)
@@ -206,15 +209,16 @@ apps/api/src/modules/m84-payments/refund.service.spec.ts   — DELETED (728 LOC)
 apps/api/src/modules/m84-payments/credit-note.service.spec.ts — DELETED (504 LOC)
 apps/api/src/modules/m84-payments/reversal.service.spec.ts — DELETED (736 LOC)
 apps/api/src/modules/m84-payments/lunch-account.service.spec.ts — DELETED (1192 LOC)
+apps/api/src/modules/m84-payments/payment-plan.service.spec.ts  — DELETED (444 LOC)
 packages/database/prisma/tenant/migrations/180_p2h5_sis_family_court_order_restrictions.sql — FIXED splitter bug
 ```
 
 ## Test counts
 
-| Suite              | Before | After (step 13) |
+| Suite              | Before | After (step 14) |
 | ------------------ | ------ | --------------- |
-| Unit tests         | 2858   | 2635 (2581 passed + 54 skipped) |
-| Integration tests  | 145    | 481  (474 passed + 7 documented skips) |
+| Unit tests         | 2858   | 2621 (2567 passed + 54 skipped) |
+| Integration tests  | 145    | 496  (489 passed + 7 documented skips) |
 
 ## Conventions established
 

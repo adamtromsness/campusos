@@ -10,13 +10,13 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 
 **Codebase restructure complete.** `apps/api/src/` reorganised from 80+ cycle-by-cycle folders into 38 canonical modules under `apps/api/src/modules/m{XX}-{name}/` + cross-cutting infrastructure under `apps/api/src/shared/`. Documentation reorganised into `docs/{architecture,plans,reviews,policies,operations,design-hub}/`. Path aliases `@modules/*` and `@shared/*` are live in `tsconfig.json` and both vitest configs.
 
-**Test coverage in progress — Wave 1 (financial) underway.** Tier 0 (integration test harness at `apps/api/test/integration/`) is built and operational. Tiers 1–7 (per-module unit + integration coverage targets per `docs/architecture/campusos-test-coverage-plan.html`) are the active engineering work, executing through the wave-by-wave plan in `docs/campusos-test-strategy-v3.html`. 2581 unit tests pass across 116 spec files (54 pre-existing skips, 0 failures), plus 474 DB-backed integration tests passing (7 documented `it.skip` flagging real service bugs — see `docs/reviews/handoffs/HANDOFF-WAVE1.md`). **Wave 1** (m83-finance, m84-payments, m86-procurement): m83-finance complete; m84-payments invoice-lifecycle + payment-processing + refunds-reversals + lunch-accounts (THREE IMMUTABLE contracts now verified: pay_credit_notes, pay_payment_reversals, pay_lunch_account_balance_transfers) landed; payment-plans / financial-aid / late-fees / m86-procurement cross-school + IMMUTABLE additions still pending.
+**Test coverage in progress — Wave 1 (financial) underway.** Tier 0 (integration test harness at `apps/api/test/integration/`) is built and operational. Tiers 1–7 (per-module unit + integration coverage targets per `docs/architecture/campusos-test-coverage-plan.html`) are the active engineering work, executing through the wave-by-wave plan in `docs/campusos-test-strategy-v3.html`. 2567 unit tests pass across 115 spec files (54 pre-existing skips, 0 failures), plus 489 DB-backed integration tests passing (7 documented `it.skip` flagging real service bugs — see `docs/reviews/handoffs/HANDOFF-WAVE1.md`). **Wave 1** (m83-finance, m84-payments, m86-procurement): m83-finance complete; m84-payments invoice-lifecycle + payment-processing + refunds-reversals + lunch-accounts (3 IMMUTABLE contracts verified at DB level) + payment-plans (atomic plan+installments) landed; financial-aid / late-fees / m86-procurement cross-school + IMMUTABLE additions still pending.
 
 **Build state:**
 
 - `pnpm --filter @campusos/api build` — 0 errors (`nest build`)
-- `pnpm --filter @campusos/api test` — 2581 / 2581 passing (+ 54 skipped)
-- `pnpm --filter @campusos/api test:integration` — 474 / 474 passing (+ 7 documented skips)
+- `pnpm --filter @campusos/api test` — 2567 / 2567 passing (+ 54 skipped)
+- `pnpm --filter @campusos/api test:integration` — 489 / 489 passing (+ 7 documented skips)
 - `tsc --noEmit` (production source) — 0 errors
 - Tenant logical base tables — ~840 across 38 modules
 - Permission catalogue — 495 codes (165 functions × 3 tiers)
