@@ -30,15 +30,19 @@ export async function assertPersonInTenant(
   const tenant = getCurrentTenant();
   const rows = await tenantPrisma.executeInTenantContext(async (client) =>
     client.$queryRawUnsafe<Array<{ source: string }>>(
-      `SELECT 'student' AS source FROM sis_students s ` +
+      // Postgres requires parentheses around each UNION arm when the
+      // arm carries its own LIMIT; without them PG raises 42601 at the
+      // `UNION ALL` token. The previous unparenthesised form meant this
+      // helper failed at runtime on every callsite.
+      `(SELECT 'student' AS source FROM sis_students s ` +
         `JOIN platform.platform_students ps ON ps.id = s.platform_student_id ` +
-        `WHERE ps.person_id = $1::uuid AND s.school_id = $2::uuid LIMIT 1 ` +
+        `WHERE ps.person_id = $1::uuid AND s.school_id = $2::uuid LIMIT 1) ` +
         `UNION ALL ` +
-        `SELECT 'guardian' AS source FROM sis_guardians ` +
-        `WHERE person_id = $1::uuid AND school_id = $2::uuid LIMIT 1 ` +
+        `(SELECT 'guardian' AS source FROM sis_guardians ` +
+        `WHERE person_id = $1::uuid AND school_id = $2::uuid LIMIT 1) ` +
         `UNION ALL ` +
-        `SELECT 'employee' AS source FROM hr_employees ` +
-        `WHERE person_id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
+        `(SELECT 'employee' AS source FROM hr_employees ` +
+        `WHERE person_id = $1::uuid AND school_id = $2::uuid LIMIT 1)`,
       personId,
       tenant.schoolId,
     ),
