@@ -31,6 +31,8 @@ is green; then the mock is deleted. Tests live under
 | 9b   | Fix migration 180 (splitter bug — semicolons in COMMENT block) so migrations 180 + 181 apply during fresh provisioning | ✅ |
 | 10   | `m84-payments/invoice-lifecycle.spec.ts` (InvoiceService.create/send/cancel + outbox-in-tx for pay.invoice.created + pay.debt.written_off) | ✅ |
 | 10a  | Keep `m84-payments/invoice.service.spec.ts` for now (also covers generateFromSchedule, not yet replaced) | ⚠️ deferred |
+| 11   | `m84-payments/payment-processing.spec.ts` (PaymentService.pay/list/getById + outbox-in-tx for pay.payment.received + Stripe stub + auth contract) | ✅ |
+| 11a  | Delete `m84-payments/payment.service.spec.ts` (mock spec, 649 LOC — fully replaced) | ✅ |
 | 9    | `m83-finance/gl-reconciliation.spec.ts` (worker + alert events)            | ⏳ pending  |
 | 10   | `m83-finance/journal-batch.spec.ts`                                         | ⏳ pending  |
 | 11   | `m84-payments/*` (per the strategy doc Wave 1 list)                        | ⏳ pending  |
@@ -153,19 +155,21 @@ apps/api/test/integration/m83-finance/gl-posting.spec.ts         — NEW (48 tes
 apps/api/test/integration/m83-finance/budget-management.spec.ts  — NEW (61 tests, atomic transfer + outbox-in-tx contract)
 apps/api/test/integration/m83-finance/gl-reconciliation.spec.ts  — NEW (18 tests + 1 skip, 7 check types + Findings 4 & 5)
 apps/api/test/integration/m84-payments/invoice-lifecycle.spec.ts — NEW (29 tests, outbox-in-tx for pay.invoice.created + Finding 6)
+apps/api/test/integration/m84-payments/payment-processing.spec.ts — NEW (27 tests, outbox-in-tx for pay.payment.received + Stripe stub + auth)
 apps/api/test/integration/helpers/reset.ts                       — +resetPaymentsTables, +resetFinanceAdvancedTables wires payments
 apps/api/src/modules/m83-finance/chart.service.spec.ts     — DELETED (mock spec replaced)
 apps/api/src/modules/m83-finance/posting.service.spec.ts   — DELETED (mock spec replaced)
 apps/api/src/modules/m83-finance/gl-reconciliation.worker.spec.ts — DELETED (mock spec replaced)
+apps/api/src/modules/m84-payments/payment.service.spec.ts  — DELETED (mock spec, 649 LOC — fully replaced)
 packages/database/prisma/tenant/migrations/180_p2h5_sis_family_court_order_restrictions.sql — FIXED splitter bug
 ```
 
 ## Test counts
 
-| Suite              | Before | After (step 10) |
+| Suite              | Before | After (step 11) |
 | ------------------ | ------ | --------------- |
-| Unit tests         | 2858   | 2784 (2730 passed + 54 skipped) |
-| Integration tests  | 145    | 370  (368 passed + 2 documented skips) |
+| Unit tests         | 2858   | 2757 (2703 passed + 54 skipped) |
+| Integration tests  | 145    | 397  (395 passed + 2 documented skips) |
 
 ## Conventions established
 
