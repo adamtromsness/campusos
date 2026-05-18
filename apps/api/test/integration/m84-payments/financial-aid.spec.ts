@@ -209,7 +209,7 @@ describe('integration:m84-payments/financial-aid', () => {
     // capped programme creation raises 42804. Uncapped (totalFundAmount
     // undefined → null) works fine. Fix: `$7` → `$7::numeric` in the
     // VALUES clause (twice). Below tests skipped pending the fix.
-    it.skip('happy path: admin creates programme, fund_remaining = total_fund_amount [Finding 9]', async () => {
+    it('happy path: admin creates programme, fund_remaining = total_fund_amount [Finding 9 FIXED]', async () => {
       const result = await withTestTenant(async () =>
         service.createProgram(
           {
@@ -347,7 +347,7 @@ describe('integration:m84-payments/financial-aid', () => {
   // updateProgram
   // ────────────────────────────────────────────────────────────────────
   describe('updateProgram', () => {
-    it.skip('raising totalFundAmount raises fund_remaining by the delta (lockstep) [Finding 9 — needs capped create]', async () => {
+    it('raising totalFundAmount raises fund_remaining by the delta (lockstep) [Finding 9 FIXED]', async () => {
       const created = await withTestTenant(async () =>
         service.createProgram(
           {

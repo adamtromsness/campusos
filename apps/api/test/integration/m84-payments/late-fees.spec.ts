@@ -206,7 +206,7 @@ describe('integration:m84-payments/late-fees', () => {
     // an incorrect number of parameters". The UPDATE-existing path
     // works (different SQL). Fix: append `actor.accountId` as the 10th
     // parameter in the INSERT call. Below test is skipped until then.
-    it.skip('upsertPolicy inserts on first call; updates on second; getPolicy reflects both [Finding 10]', async () => {
+    it('upsertPolicy inserts on first call; updates on second; getPolicy reflects both [Finding 10 FIXED]', async () => {
       const first = await withTestTenant(async () =>
         lateFees.upsertPolicy(
           {

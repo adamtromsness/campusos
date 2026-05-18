@@ -681,7 +681,7 @@ describe('integration:m84-payments/refunds-reversals', () => {
     // (one-line: `SET status='FAILED', paid_at=NULL, updated_at=now()`).
     // The IMMUTABLE pay_payment_reversals contract is still verified
     // via raw-SQL-seeded reversal rows below.
-    it.skip('happy path: pay_payment_reversals row + CHARGE ledger + payment FAILED + invoice OVERDUE-recompute (here: SENT) [Finding 7]', async () => {
+    it('happy path: pay_payment_reversals row + CHARGE ledger + payment FAILED + invoice OVERDUE-recompute (here: SENT) [Finding 7 FIXED]', async () => {
       const { paymentId, familyAccountId, invoiceId, total } = await seedPaidInvoice({
         total: 100,
       });
@@ -733,7 +733,7 @@ describe('integration:m84-payments/refunds-reversals', () => {
       expect(envelope.payload.reversedAmount).toBe(100);
     });
 
-    it.skip('UNIQUE(payment_id): second reversal on same payment → BadRequest [Finding 7]', async () => {
+    it('UNIQUE(payment_id): second reversal on same payment → BadRequest [Finding 7 FIXED]', async () => {
       const { paymentId } = await seedPaidInvoice({ total: 100 });
       await withTestTenant(async () =>
         reversals.reverse(
@@ -853,7 +853,7 @@ describe('integration:m84-payments/refunds-reversals', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it.skip('list as admin scopes to current school + filters by familyAccountId / invoiceId [Finding 7]', async () => {
+    it('list as admin scopes to current school + filters by familyAccountId / invoiceId [Finding 7 FIXED]', async () => {
       const { paymentId, familyAccountId, invoiceId } = await seedPaidInvoice({ total: 50 });
       const rev = await withTestTenant(async () =>
         reversals.reverse(

@@ -4,7 +4,10 @@ import { PrismaClient } from '@prisma/client';
 import { generateId } from '@campusos/database';
 
 import { RequisitionService } from '@modules/m86-procurement/requisitions.service';
-import { PurchaseOrderService } from '@modules/m86-procurement/purchase-orders.service';
+import {
+  PurchaseOrderService,
+  GoodsReceiptService,
+} from '@modules/m86-procurement/purchase-orders.service';
 import { DistributionService } from '@modules/m86-procurement/distribution.service';
 import { FinanceValidationService } from '@modules/m83-finance/validation';
 import { TenantPrismaService } from '@shared/tenant/tenant-prisma.service';
@@ -53,6 +56,7 @@ describe('integration:m86-procurement/cross-school-and-immutable', () => {
   let kafka: RecordingKafkaProducer;
   let requisitionService: RequisitionService;
   let poService: PurchaseOrderService;
+  let receiptService: GoodsReceiptService;
   let distributionService: DistributionService;
   let rawClient: PrismaClient;
 
@@ -70,6 +74,7 @@ describe('integration:m86-procurement/cross-school-and-immutable', () => {
       kafka as unknown as KafkaProducerService,
       finance,
     );
+    receiptService = new GoodsReceiptService(tenantPrisma);
     distributionService = new DistributionService(
       tenantPrisma,
       kafka as unknown as KafkaProducerService,
@@ -134,16 +139,26 @@ describe('integration:m86-procurement/cross-school-and-immutable', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    // PurchaseOrderService.create requires deliveryAddress + more
-    // fields than the lean cross-school test path benefits from
-    // setting up. The existing procurement/purchase-orders.spec.ts
-    // (44 tests) already exercises PO creation in-tenant. School-scope
-    // is enforced via the school_id predicate on every getById/list
-    // query, identical to RequisitionService — and the requisition
-    // cross-school test above proves the pattern. Deferred to a
-    // follow-up slice that wires the full PO DTO surface.
-    it.skip('purchase order seeded in School B → NotFoundException for School A admin (needs full PO DTO seed)', () => {
-      expect(true).toBe(true);
+    it('purchase order seeded in School B → NotFoundException for School A admin', async () => {
+      // Seed PO under School B with the school-B-scoped supplier.
+      const poB = await withTestTenantB(async () =>
+        poService.create(adminActor(), {
+          vendorId: TEST_SUPPLIER_B_SCHOOL_ID,
+          deliveryAddress: '500 School B Way',
+          lines: [
+            {
+              itemDescription: 'School B widget',
+              quantityOrdered: 2,
+              unitCost: 25,
+              destinationModule: 'tech',
+            },
+          ],
+        }),
+      );
+      // School A admin cannot read it
+      await expect(
+        withTestTenant(async () => poService.getById(poB.id)),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('procurement list endpoints scoped: School A list does NOT include School B rows', async () => {
@@ -188,15 +203,80 @@ describe('integration:m86-procurement/cross-school-and-immutable', () => {
       expect(listA.find((r) => r.id === reqB.id)).toBeUndefined();
     });
 
-    // Distribution school scope flows through the join chain
-    // (distribution → goods_receipt → purchase_order → school_id);
-    // prc_distributions itself has no school_id column. The existing
-    // procurement/distribution-and-returns.spec.ts already exercises
-    // DistributionService extensively in-tenant. Skipping a direct
-    // cross-school distribution test until a follow-up slice seeds the
-    // full receipt+PO chain in School B.
-    it.skip('distribution: School A admin cannot resolve School B distribution by id (needs receipt+PO chain seed)', () => {
-      expect(true).toBe(true);
+    it('distribution: School A admin cannot resolve School B distribution via the JOIN chain (full PO + receipt + distribution chain)', async () => {
+      // Full chain in School B: PO → ISSUE → receive → distribute
+      const chainResult = await withTestTenantB(async () => {
+        const po = await poService.create(adminActor(), {
+          vendorId: TEST_SUPPLIER_B_SCHOOL_ID,
+          deliveryAddress: '500 School B Way',
+          lines: [
+            {
+              itemDescription: 'School B widget',
+              quantityOrdered: 3,
+              unitCost: 25,
+              destinationModule: 'tech',
+            },
+          ],
+        });
+        await poService.transition(adminActor(), po.id, { action: 'ISSUE' });
+        const issued = await poService.getById(po.id);
+        const poLineId = issued.lines[0]!.id;
+        const receipt = await receiptService.create(adminActor(), po.id, {
+          inspectionOutcome: 'ACCEPTED',
+          lines: [
+            {
+              poLineId,
+              quantityReceived: 3,
+              quantityAccepted: 3,
+              quantityRejected: 0,
+              condition: 'GOOD',
+            },
+          ],
+        });
+        const receiptLineId = receipt.lines[0]!.id;
+        const dist = await distributionService.create(adminActor(), receipt.id, {
+          destinationModule: 'tech',
+          lines: [
+            {
+              receiptLineId,
+              quantityDistributed: 3,
+              itemDescription: 'School B widget',
+              unitCost: 25,
+            },
+          ],
+        });
+        return { distId: dist.id, receiptId: receipt.id };
+      });
+      // 1. Confirm the distribution row exists in School B's view
+      const fromB = await withTestTenantB(async () =>
+        distributionService.listForReceipt(chainResult.receiptId),
+      );
+      expect(fromB.find((d) => d.id === chainResult.distId)).toBeDefined();
+      // 2. School A admin cannot read the distribution that lives
+      //    under School B's PO. listForReceipt JOINs through
+      //    prc_goods_receipts → prc_purchase_orders.school_id, so a
+      //    cross-school probe with the B-receipt id under A returns []
+      //    even though prc_distributions itself has no school_id col.
+      const fromA = await withTestTenant(async () =>
+        distributionService.listForReceipt(chainResult.receiptId),
+      );
+      expect(fromA).toEqual([]);
+      // 3. School A cannot even DISTRIBUTE against a foreign-tenant
+      //    receipt — create() also walks the JOIN.
+      await expect(
+        withTestTenant(async () =>
+          distributionService.create(adminActor(), chainResult.receiptId, {
+            destinationModule: 'tech',
+            lines: [
+              {
+                receiptLineId: '00000000-0000-0000-0000-000000000000',
+                quantityDistributed: 1,
+                itemDescription: 'cross-school attempt',
+              },
+            ],
+          }),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

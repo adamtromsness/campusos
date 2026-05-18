@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { generateId } from '@campusos/database';
 import { TenantPrismaService } from '@shared/tenant';
-import { TenantInfo, runWithTenantContextAsync } from '@shared/tenant';
+import { TenantInfo, runWithTenantContextAsync, getCurrentTenant } from '@shared/tenant';
 import { OutboxService } from '@shared/kafka';
 
 /**
@@ -180,9 +180,18 @@ export class GlReconciliationWorker {
     const exists = await this.tableExists(meta.sourceTable);
     if (!exists) return null;
 
+    const tenant = getCurrentTenant();
     const filter = meta.sourceFilter;
-    const filterClause = filter ? ` WHERE ${filter}` : '';
     const sourceSchoolCol = meta.sourceSchoolColumn ?? 's.school_id';
+    // Wave 1 Finding 5: explicit school_id predicate on the source
+    // SELECT. Schema-per-school isolation handles this in production
+    // but the test harness shares one tenant_test schema across School
+    // A and School B (different school_id rows), so without the
+    // predicate a recon scoped to School B would flag School A's
+    // pay_* rows as MISSING_GL_ENTRY. Belt-and-braces.
+    const whereParts: string[] = [`${sourceSchoolCol} = $1::uuid`];
+    if (filter) whereParts.push(filter);
+    const whereClause = ` WHERE ${whereParts.join(' AND ')}`;
     const sourceRows = (await this.tenantPrisma.executeInTenantContext(async (client) =>
       client.$queryRawUnsafe<
         Array<{
@@ -199,7 +208,8 @@ export class GlReconciliationWorker {
           // the CURRENCY_MISMATCH branch is a deterministic no-op until
           // the multi-currency schema migration lands.
           `NULL::text AS currency ` +
-          `FROM ${meta.sourceTable} s${filterClause}`,
+          `FROM ${meta.sourceTable} s${whereClause}`,
+        tenant.schoolId,
       ),
     )) as Array<{
       id: string;
@@ -703,7 +713,10 @@ const SOURCE_CHECK_META: Record<SourceCheckType, SourceCheckMeta> = {
   CREDIT_NOTE: {
     sourceTable: 'pay_credit_notes',
     referenceType: 'pay_credit_notes',
-    amountExpr: 's.amount',
+    // Wave 1 Finding 4: column on pay_credit_notes is credit_amount,
+    // not amount. The worker's outer try/catch was swallowing the
+    // parse-time error as CHECK_QUERY_FAILED, masking the bug.
+    amountExpr: 's.credit_amount',
     sourceFilter: null,
     // Credit note: DR Tuition Revenue (4000), CR AR (1100) — reverses
     // the original invoice's revenue recognition.
@@ -713,7 +726,9 @@ const SOURCE_CHECK_META: Record<SourceCheckType, SourceCheckMeta> = {
   PAYMENT_REVERSAL: {
     sourceTable: 'pay_payment_reversals',
     referenceType: 'pay_payment_reversals',
-    amountExpr: 's.amount',
+    // Wave 1 Finding 4: column on pay_payment_reversals is
+    // reversed_amount, not amount.
+    amountExpr: 's.reversed_amount',
     sourceFilter: null,
     // Payment reversal: DR AR (1100), CR Cash (1000) — mirrors the
     // refund leg, restoring AR while cash flows out.

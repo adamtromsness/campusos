@@ -632,22 +632,14 @@ describe('integration:m84-payments/invoice-lifecycle', () => {
         ),
       );
 
-      // FINDING — Wave 1: InvoiceService.list does NOT filter by tenant.schoolId.
-      // The SELECT_INVOICE_BASE query is "FROM pay_invoices i JOIN
-      // pay_family_accounts fa ..." with no `WHERE i.school_id = ...`
-      // predicate. The list relies on schema-per-school isolation;
-      // because School A and School B share `tenant_test` in this
-      // harness, list as School A admin returns BOTH invoices. This is
-      // a real defence-in-depth gap (parallel to Finding 5).
-      // For now the test documents the leak — once fixed, change to
-      // `expect(adminList.find((i) => i.familyAccountId === faB)).toBeUndefined()`.
+      // Wave 1 Finding 6 FIXED: InvoiceService.list now filters by
+      // tenant.schoolId, so a School A admin only sees School A's
+      // invoices even though both schools share tenant_test.
       const adminList = await withTestTenant(async () => invoices.list({}, adminActor()));
-      // Current (buggy) behavior: BOTH invoices visible.
-      const hasB = adminList.find((i) => i.familyAccountId === faB);
       const hasA = adminList.find((i) => i.familyAccountId === faA);
+      const hasB = adminList.find((i) => i.familyAccountId === faB);
       expect(hasA).toBeDefined();
-      // Document the leak — if/when this assertion flips, the fix has landed.
-      expect(hasB).toBeDefined();
+      expect(hasB).toBeUndefined();
     });
   });
 });

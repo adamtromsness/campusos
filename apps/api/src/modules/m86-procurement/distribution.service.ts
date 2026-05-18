@@ -62,10 +62,18 @@ export class DistributionService {
   }
 
   async listForReceipt(receiptId: string): Promise<DistributionDto[]> {
+    const tenant = getCurrentTenant();
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
+      // prc_distributions has no school_id column; soft-FK isolation
+      // flows through prc_goods_receipts → prc_purchase_orders.school_id.
+      // Explicit JOIN here keeps the school predicate observable so the
+      // shared tenant_test schema cannot cross-leak between Schools A/B,
+      // and so any future single-schema operator deployment cannot
+      // accidentally serve foreign rows.
       return client.$queryRawUnsafe(
-        `SELECT d.id::text AS id, d.receipt_id::text AS receipt_id, d.distributed_by::text AS distributed_by, (SELECT ip.first_name || ' ' || ip.last_name FROM hr_employees e JOIN platform.iam_person ip ON ip.id = e.person_id WHERE e.id = d.distributed_by LIMIT 1) AS distributed_by_name, d.distributed_at::text AS distributed_at, d.destination_module, d.destination_department, d.notes FROM prc_distributions d WHERE d.receipt_id = $1::uuid ORDER BY d.distributed_at DESC`,
+        `SELECT d.id::text AS id, d.receipt_id::text AS receipt_id, d.distributed_by::text AS distributed_by, (SELECT ip.first_name || ' ' || ip.last_name FROM hr_employees e JOIN platform.iam_person ip ON ip.id = e.person_id WHERE e.id = d.distributed_by LIMIT 1) AS distributed_by_name, d.distributed_at::text AS distributed_at, d.destination_module, d.destination_department, d.notes FROM prc_distributions d JOIN prc_goods_receipts gr ON gr.id = d.receipt_id JOIN prc_purchase_orders po ON po.id = gr.purchase_order_id WHERE d.receipt_id = $1::uuid AND po.school_id = $2::uuid ORDER BY d.distributed_at DESC`,
         receiptId,
+        tenant.schoolId,
       );
     })) as Array<{
       id: string;
@@ -121,9 +129,13 @@ export class DistributionService {
     const distributionId = generateId();
     let poId: string | null = null;
     await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+      // Receipt → PO school check inside the tx so a cross-school
+      // distribute against a foreign-tenant receipt is rejected before
+      // any insert. Mirrors the listForReceipt JOIN.
       const receiptRows = (await tx.$queryRawUnsafe(
-        `SELECT gr.purchase_order_id::text AS purchase_order_id, (SELECT po_number FROM prc_purchase_orders WHERE id = gr.purchase_order_id) AS po_number FROM prc_goods_receipts gr WHERE gr.id = $1::uuid LIMIT 1`,
+        `SELECT gr.purchase_order_id::text AS purchase_order_id, po.po_number FROM prc_goods_receipts gr JOIN prc_purchase_orders po ON po.id = gr.purchase_order_id WHERE gr.id = $1::uuid AND po.school_id = $2::uuid LIMIT 1`,
         receiptId,
+        tenant.schoolId,
       )) as Array<{ purchase_order_id: string; po_number: string }>;
       if (receiptRows.length === 0) throw new NotFoundException('Goods receipt not found');
       poId = receiptRows[0]!.purchase_order_id;

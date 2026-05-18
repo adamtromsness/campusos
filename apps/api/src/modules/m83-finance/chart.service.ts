@@ -537,6 +537,12 @@ export class PeriodService {
         periodEnd.setUTCDate(periodEnd.getUTCDate() - 1);
         const monthName = periodStart.toLocaleString('en', { month: 'long', year: 'numeric' });
         const id = generateId();
+        // SAVEPOINT-per-iteration so a 23505 (UNIQUE collision on
+        // re-run against a partially-populated fiscal year) only rolls
+        // back this one INSERT — without the savepoint the outer tx
+        // is aborted on the first conflict and every subsequent
+        // statement raises 25P02. Wave 1 Finding 2.
+        await tx.$executeRawUnsafe('SAVEPOINT period_insert');
         try {
           await tx.$executeRawUnsafe(
             `INSERT INTO fin_accounting_periods (id, school_id, fiscal_year, period_number, period_name, start_date, end_date) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::date, $7::date)`,
@@ -548,10 +554,12 @@ export class PeriodService {
             periodStart.toISOString().slice(0, 10),
             periodEnd.toISOString().slice(0, 10),
           );
+          await tx.$executeRawUnsafe('RELEASE SAVEPOINT period_insert');
           created.push(id);
         } catch (err) {
+          await tx.$executeRawUnsafe('ROLLBACK TO SAVEPOINT period_insert');
+          await tx.$executeRawUnsafe('RELEASE SAVEPOINT period_insert');
           if (isUniqueViolation(err)) {
-            // Skip silently — caller may be re-running
             continue;
           }
           throw err;
@@ -630,7 +638,17 @@ export class PeriodService {
           tenant.schoolId,
         );
       }
-      return this.getById(id);
+      // Inline the SELECT inside the tx so the response sees the
+      // just-committed UPDATE — getById would open a new tx that
+      // under READ COMMITTED can't see the outer tx's pending
+      // writes. Wave 1 Finding 1.
+      const updated = (await tx.$queryRawUnsafe(
+        `SELECT id::text AS id, school_id::text AS school_id, fiscal_year, period_number, period_name, start_date::text AS start_date, end_date::text AS end_date, status, closed_at::text AS closed_at, closed_by::text AS closed_by, locked_at::text AS locked_at, locked_by::text AS locked_by, created_at::text AS created_at, updated_at::text AS updated_at FROM fin_accounting_periods WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
+        id,
+        tenant.schoolId,
+      )) as PeriodRow[];
+      if (updated.length === 0) throw new NotFoundException('Period not found');
+      return this.rowToDto(updated[0]!);
     });
   }
 }

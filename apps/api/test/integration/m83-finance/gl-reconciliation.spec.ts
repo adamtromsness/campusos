@@ -246,7 +246,7 @@ describe('integration:m83-finance/gl-reconciliation', () => {
   // Baseline — empty DB
   // ────────────────────────────────────────────────────────────────────
   describe('baseline (empty DB)', () => {
-    it('runForTenant writes one row per check type (7 total) — CLEAN for 5, FAILED for credit/reversal (Finding 4)', async () => {
+    it('runForTenant writes one row per check type (7 total) — CLEAN across the board with empty source [Finding 4 FIXED]', async () => {
       const written = await worker.runForTenant(tenantInfoA());
       expect(written).toBe(7);
 
@@ -263,27 +263,17 @@ describe('integration:m83-finance/gl-reconciliation', () => {
         'REFUND_REVERSAL',
       ]);
 
-      // 5 checks return CLEAN with empty source
-      for (const t of ['INVOICE_AR', 'PAYMENT_CASH', 'REFUND_REVERSAL', 'DUPLICATE_POSTING', 'ORPHAN_GL_ENTRY']) {
-        const r = rows.find((row) => row.check_type === t)!;
+      // Post-Finding-4 fix: every check type parses cleanly. With
+      // empty source tables (and the new school_id filter from
+      // Finding 5), every check returns CLEAN with zero discrepancies.
+      for (const r of rows) {
         expect(r.status).toBe('CLEAN');
         expect(Number(r.discrepancy_count)).toBe(0);
       }
 
-      // CREDIT_NOTE + PAYMENT_REVERSAL FAIL because SOURCE_CHECK_META
-      // references s.amount but the underlying columns are credit_amount
-      // and reversed_amount (Wave 1 Finding 4). The SELECT errors at
-      // parse time regardless of whether the source table has rows.
-      for (const t of ['CREDIT_NOTE', 'PAYMENT_REVERSAL']) {
-        const r = rows.find((row) => row.check_type === t)!;
-        expect(r.status).toBe('FAILED');
-      }
-
-      // Only the FAILED runs emit alerts (5 CLEAN are silent)
+      // CLEAN runs emit no alerts.
       const alerts = await readAlertOutbox();
-      expect(alerts).toHaveLength(2);
-      const checkTypes = alerts.map((a) => JSON.parse(a.envelope).payload.checkType).sort();
-      expect(checkTypes).toEqual(['CREDIT_NOTE', 'PAYMENT_REVERSAL']);
+      expect(alerts).toHaveLength(0);
     });
   });
 
@@ -699,7 +689,7 @@ describe('integration:m83-finance/gl-reconciliation', () => {
     // records as FAILED + emits a CHECK_QUERY_FAILED alert. Useful
     // signal — but it masks the worker's own bug. Fix is to use
     // `s.credit_amount` and `s.reversed_amount` in the meta.
-    it('CREDIT_NOTE check FAILS when a credit note exists (column-name bug — Finding 4)', async () => {
+    it('CREDIT_NOTE check surfaces MISSING_GL_ENTRY when a credit note has no GL row [Finding 4 FIXED]', async () => {
       const fa = await seedFamilyAccount();
       const invId = await seedInvoice({ familyAccountId: fa, total: 100 });
       await rawClient.$executeRawUnsafe(
@@ -717,35 +707,28 @@ describe('integration:m83-finance/gl-reconciliation', () => {
 
       const rows = await readReconRows();
       const cnRow = rows.find((r) => r.check_type === 'CREDIT_NOTE')!;
-      expect(cnRow.status).toBe('FAILED');
-      // The rpt row's discrepancies column is stored as [] on FAILED —
-      // the detail goes into the outbox alert payload (see recordRun
-      // worker code).
-      expect(JSON.parse(cnRow.discrepancies)).toEqual([]);
+      // Post-fix: the query parses successfully with `s.credit_amount`.
+      // The credit-note seed has no offsetting fin_gl_entries row, so
+      // the result is DISCREPANCIES_FOUND with one MISSING_GL_ENTRY
+      // discrepancy (not FAILED via CHECK_QUERY_FAILED).
+      expect(cnRow.status).toBe('DISCREPANCIES_FOUND');
+      const discreps = JSON.parse(cnRow.discrepancies) as Array<{ issue: string }>;
+      expect(discreps[0]!.issue).toBe('MISSING_GL_ENTRY');
 
-      // FAILED runs emit an alert with the CHECK_QUERY_FAILED detail
       const alerts = await readAlertOutbox();
       const cnAlert = alerts.find(
         (a) => JSON.parse(a.envelope).payload.checkType === 'CREDIT_NOTE',
       );
       expect(cnAlert).toBeDefined();
       const env = JSON.parse(cnAlert!.envelope);
-      expect(env.payload.status).toBe('FAILED');
-      expect(env.payload.severity).toBe('URGENT');
-      const alertDiscreps = env.payload.discrepancies as Array<{
-        sourceId: string | null;
-        issue: string;
-        error?: string;
-      }>;
-      expect(alertDiscreps[0]!.issue).toBe('CHECK_QUERY_FAILED');
-      expect(alertDiscreps[0]!.error).toContain('amount');
+      expect(env.payload.status).toBe('DISCREPANCIES_FOUND');
     });
 
     // The "CLEAN when empty" case can't be tested today — PostgreSQL
     // parses the SELECT list before scanning, so `s.amount` errors at
     // parse time regardless of whether pay_credit_notes has rows.
     // Once Finding 4 is fixed, this becomes a regression test.
-    it.skip('CREDIT_NOTE check is CLEAN when source table is empty (blocked on Finding 4 fix)', async () => {
+    it('CREDIT_NOTE check is CLEAN when source table is empty [Finding 4 FIXED]', async () => {
       await worker.runForTenant(tenantInfoA());
       const rows = await readReconRows();
       const cnRow = rows.find((r) => r.check_type === 'CREDIT_NOTE')!;
@@ -757,18 +740,7 @@ describe('integration:m83-finance/gl-reconciliation', () => {
   // Multi-tenant — runOnce iterates every active school
   // ────────────────────────────────────────────────────────────────────
   describe('runOnce (cross-tenant iteration)', () => {
-    // FINDING — Wave 1: GlReconciliationWorker.checkSourceVsGl does
-    // NOT filter pay_* source rows by tenant.schoolId. The check relies
-    // on schema-per-school isolation (one tenant schema per school). In
-    // our integration harness, School A and School B share the same
-    // tenant_test schema, so a run for School B still sees School A's
-    // pay_invoices. In production this is harmless because each school
-    // has its own schema; but the worker code IS missing the
-    // belt-and-braces `WHERE s.school_id = tenant.schoolId` filter.
-    // Capturing the iteration without seeding any pay_* to keep the
-    // assertion deterministic; cross-school filter coverage is deferred
-    // until that branch lands or the test harness moves to schema-per-school.
-    it('iterates active schools and writes recon rows per school', async () => {
+    it('iterates active schools and writes recon rows per school [Findings 4 + 5 FIXED]', async () => {
       const written = await worker.runOnce();
       // 7 rows per school. Fixture has at least tenant_test (School A
       // and School B share the schema but each loads as a separate
@@ -780,14 +752,11 @@ describe('integration:m83-finance/gl-reconciliation', () => {
 
       const bRows = await readReconRows(TEST_SCHOOL_B_ID);
       expect(bRows).toHaveLength(7);
-      // School B has no pay_* seed, but CREDIT_NOTE + PAYMENT_REVERSAL
-      // still fail at parse time (Finding 4). The other 5 are CLEAN.
-      const cleanTypes = ['INVOICE_AR', 'PAYMENT_CASH', 'REFUND_REVERSAL', 'DUPLICATE_POSTING', 'ORPHAN_GL_ENTRY'];
-      for (const t of cleanTypes) {
-        expect(bRows.find((r) => r.check_type === t)!.status).toBe('CLEAN');
-      }
-      for (const t of ['CREDIT_NOTE', 'PAYMENT_REVERSAL']) {
-        expect(bRows.find((r) => r.check_type === t)!.status).toBe('FAILED');
+      // Post-fix: every check parses cleanly (Finding 4) AND each run
+      // filters its source SELECT by tenant.schoolId (Finding 5), so a
+      // School B run with no pay_* seed sees CLEAN across all 7 types.
+      for (const r of bRows) {
+        expect(r.status).toBe('CLEAN');
       }
     });
   });

@@ -126,9 +126,13 @@ export class InvoiceService {
 
   async list(query: ListInvoicesQueryDto, actor: ResolvedActor): Promise<InvoiceResponseDto[]> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      var sql = SELECT_INVOICE_BASE + 'WHERE 1=1 ';
-      var params: any[] = [];
-      var idx = 1;
+      // Wave 1 Finding 6: explicit school_id predicate. Schema-per-
+      // school isolation handles this in production but is belt-and-
+      // braces here so admin cross-tenant probes cannot leak rows.
+      var schoolId = getCurrentTenant().schoolId;
+      var sql = SELECT_INVOICE_BASE + 'WHERE i.school_id = $1::uuid ';
+      var params: any[] = [schoolId];
+      var idx = 2;
       if (!actor.isSchoolAdmin) {
         if (actor.personType !== 'GUARDIAN') return [] as InvoiceRow[];
         sql += 'AND fa.account_holder_id = $' + idx + '::uuid ';
@@ -155,9 +159,11 @@ export class InvoiceService {
 
   async getById(id: string, actor: ResolvedActor): Promise<InvoiceResponseDto> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      var schoolId = getCurrentTenant().schoolId;
       return client.$queryRawUnsafe<InvoiceRow[]>(
-        SELECT_INVOICE_BASE + 'WHERE i.id = $1::uuid',
+        SELECT_INVOICE_BASE + 'WHERE i.id = $1::uuid AND i.school_id = $2::uuid',
         id,
+        schoolId,
       );
     });
     if (rows.length === 0) throw new NotFoundException('Invoice ' + id + ' not found');

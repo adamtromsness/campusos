@@ -723,7 +723,7 @@ describe('integration:m83-finance/chart-of-accounts', () => {
     //
     // Skipping rather than xfailing so this is a visible test gap, not
     // a green test that hides the bug. Documented in commit message.
-    it.skip('createSeries is idempotent — re-running skips existing periods (Wave-1 finding: service bug)', async () => {
+    it('createSeries is idempotent — re-running skips existing periods [Finding 2 FIXED]', async () => {
       const first = await withTestTenant(async () =>
         periods.createSeries(adminActor(), {
           fiscalYear: '2028',

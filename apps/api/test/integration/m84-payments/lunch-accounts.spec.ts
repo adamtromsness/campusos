@@ -170,7 +170,7 @@ describe('integration:m84-payments/lunch-accounts', () => {
     // process those two transfer types in production with the current
     // SQL. Fix: change `$4` → `$4::uuid`. The IMMUTABLE trigger contract
     // is still verified below by seeding rows directly via raw SQL.
-    it.skip('SIBLING_TRANSFER happy path: from balance decremented, to balance incremented, transfer row inserted [Finding 8]', async () => {
+    it('SIBLING_TRANSFER happy path: from balance decremented, to balance incremented, transfer row inserted [Finding 8 FIXED]', async () => {
       const from = await seedStudentWithLunchAccount({ balance: 50 });
       const to = await seedStudentWithLunchAccount({ balance: 5 });
 
@@ -196,7 +196,7 @@ describe('integration:m84-payments/lunch-accounts', () => {
       expect(await readBalance(to.accountId)).toBe(35); // 5 + 30
     });
 
-    it.skip('NEXT_YEAR_ROLLOVER happy path [Finding 8]', async () => {
+    it('NEXT_YEAR_ROLLOVER happy path [Finding 8 FIXED]', async () => {
       const from = await seedStudentWithLunchAccount({ balance: 100 });
       const to = await seedStudentWithLunchAccount({ balance: 0 });
 

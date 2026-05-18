@@ -238,8 +238,14 @@ export class ReversalService {
         throw err;
       }
       // Flip payment to FAILED.
+      // Wave 1 Finding 7: pay_payments_paid_chk requires
+      //   (status IN ('PENDING','FAILED') AND paid_at IS NULL)
+      //   OR (status IN ('COMPLETED','REFUNDED') AND paid_at IS NOT NULL)
+      // The reversed payment was originally COMPLETED with paid_at
+      // populated; flipping to FAILED without nulling paid_at raises
+      // 23514. Null paid_at so the multi-column lockstep is satisfied.
       await tx.$executeRawUnsafe(
-        "UPDATE pay_payments SET status = 'FAILED', updated_at = now() WHERE id = $1::uuid",
+        "UPDATE pay_payments SET status = 'FAILED', paid_at = NULL, updated_at = now() WHERE id = $1::uuid",
         paymentId,
       );
       // Recompute invoice status from the refund-aware paid formula.

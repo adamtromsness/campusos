@@ -77,9 +77,12 @@ export class PaymentService {
 
   async list(query: ListPaymentsQueryDto, actor: ResolvedActor): Promise<PaymentResponseDto[]> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      var sql = SELECT_PAYMENT_BASE + 'WHERE 1=1 ';
-      var params: any[] = [];
-      var idx = 1;
+      // Wave 1 Finding 6 (extended): explicit school_id predicate;
+      // mirror of InvoiceService.list defence-in-depth fix.
+      var schoolId = getCurrentTenant().schoolId;
+      var sql = SELECT_PAYMENT_BASE + 'WHERE p.school_id = $1::uuid ';
+      var params: any[] = [schoolId];
+      var idx = 2;
       if (!actor.isSchoolAdmin) {
         if (actor.personType !== 'GUARDIAN') return [] as PaymentRow[];
         sql += 'AND fa.account_holder_id = $' + idx + '::uuid ';
@@ -109,9 +112,11 @@ export class PaymentService {
 
   async getById(id: string, actor: ResolvedActor): Promise<PaymentResponseDto> {
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      var schoolId = getCurrentTenant().schoolId;
       return client.$queryRawUnsafe<PaymentRow[]>(
-        SELECT_PAYMENT_BASE + 'WHERE p.id = $1::uuid',
+        SELECT_PAYMENT_BASE + 'WHERE p.id = $1::uuid AND p.school_id = $2::uuid',
         id,
+        schoolId,
       );
     });
     if (rows.length === 0) throw new NotFoundException('Payment ' + id + ' not found');

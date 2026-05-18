@@ -262,7 +262,11 @@ describe('InvoiceService.list — row scope', () => {
     const listSql = capture.find(
       (c) => c.fn === 'q' && c.sql.toLowerCase().includes('from pay_invoices i'),
     )!;
-    expect(listSql.sql.toLowerCase()).toContain('account_holder_id = $1::uuid');
+    // Wave 1 Finding 6 fix shifted the parameter indices — the
+    // school_id filter is now $1, so guardian filter is $2. Check the
+    // SQL contains both predicates with the right relative shape.
+    expect(listSql.sql.toLowerCase()).toContain('i.school_id = $1::uuid');
+    expect(listSql.sql.toLowerCase()).toContain('account_holder_id = $2::uuid');
     expect(listSql.args).toContain('pers-david');
   });
 
@@ -288,9 +292,11 @@ describe('InvoiceService.list — row scope', () => {
       await svc.list({ familyAccountId: 'fa-1', status: 'SENT' } as never, adminActor);
     });
     const listSql = capture[0]!;
-    expect(listSql.sql.toLowerCase()).toContain('i.family_account_id = $1::uuid');
-    expect(listSql.sql.toLowerCase()).toContain('i.status = $2');
-    expect(listSql.args).toEqual(['fa-1', 'SENT']);
+    // Wave 1 Finding 6 fix: $1 is now school_id, $2 = family_account_id, $3 = status.
+    expect(listSql.sql.toLowerCase()).toContain('i.school_id = $1::uuid');
+    expect(listSql.sql.toLowerCase()).toContain('i.family_account_id = $2::uuid');
+    expect(listSql.sql.toLowerCase()).toContain('i.status = $3');
+    expect(listSql.args).toEqual([SCHOOL.schoolId, 'fa-1', 'SENT']);
   });
 
   it('list with empty result short-circuits — no line item query', async () => {

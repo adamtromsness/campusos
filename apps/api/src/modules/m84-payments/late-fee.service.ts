@@ -125,6 +125,11 @@ export class LateFeeService {
           body.feePercentage === undefined ? null : body.feePercentage.toFixed(4),
           body.maxLateFeeAmount === undefined ? null : body.maxLateFeeAmount.toFixed(2),
           body.appliesToFeeCategoryId ?? null,
+          // Wave 1 Finding 10: SQL has 10 placeholders ($10::uuid for
+          // created_by) but the call previously passed only 9 args.
+          // Pass actor.accountId as the 10th arg so first-time policy
+          // upsert no longer raises "Expected 10, actual 9".
+          actor.accountId,
         );
       });
     }

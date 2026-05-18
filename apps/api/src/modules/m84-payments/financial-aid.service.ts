@@ -263,7 +263,12 @@ export class FinancialAidService {
         await client.$executeRawUnsafe(
           'INSERT INTO pay_financial_aid_programs ' +
             '(id, school_id, name, description, reduction_type, reduction_value, total_fund_amount, fund_remaining, academic_year_id, is_active, created_by) ' +
-            'VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::numeric, $7, $7, $8, $9, $10::uuid)',
+            // Wave 1 Finding 9: explicit ::numeric cast on $7. Prisma
+            // sends nullable string parameters as TEXT and Postgres
+            // won't auto-coerce TEXT → NUMERIC for column assignment
+            // (42804). The reused $7 placeholder needs the cast in
+            // both positions.
+            'VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::numeric, $7::numeric, $7::numeric, $8, $9, $10::uuid)',
           programId,
           schoolId,
           body.name,

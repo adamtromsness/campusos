@@ -29,7 +29,7 @@ green; deleted incrementally.
 | 6a   | Delete `shared/auth/student-owned.guard.spec.ts` (mock spec, 218 LOC — fully replaced) | ✅ |
 | 7    | `m00-platform/configuration.spec.ts` (ConfigurationService.getSetupStatus 7-item ladder + SetupWizardService progress/UPSERT/bounds/resilient-loader, 16 tests) | ✅ |
 | 7a   | No mock spec for ConfigurationService — service had no dedicated unit spec | n/a |
-| 7b   | Deferred: FacilityTreeService, AcademicTreeService, PositionTreeService, ConnectionsSummaryService, BulkImportService — each large enough to deserve its own follow-up spec | ⚠️ deferred |
+| 7b   | Deferred → RETIRED: `m00-platform/configuration-trees.spec.ts` covers FacilityTreeService, AcademicTreeService, PositionTreeService, ConnectionsSummaryService, BulkImportService (18 tests) | ✅ |
 
 ## Wave 2 — COMPLETE (all 6 strategy specs landed)
 

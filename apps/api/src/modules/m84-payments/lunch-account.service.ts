@@ -373,7 +373,12 @@ export class LunchAccountService {
         await tx.$executeRawUnsafe(
           'INSERT INTO pay_lunch_account_balance_transfers ' +
             '(id, school_id, from_account_id, to_account_id, transfer_type, amount, reason, refund_id, processed_by) ' +
-            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::numeric, $7, $8, $9::uuid)',
+            // Wave 1 Finding 8: ::uuid + ::uuid casts on $4 (to_account_id)
+            // and $8 (refund_id). Prisma sends nullable string parameters
+            // as TEXT and Postgres won't auto-coerce TEXT → UUID for
+            // column assignment. Without the cast SIBLING_TRANSFER /
+            // NEXT_YEAR_ROLLOVER raised SQLSTATE 42804.
+            'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::numeric, $7, $8::uuid, $9::uuid)',
           transferId,
           schoolId,
           body.fromAccountId,

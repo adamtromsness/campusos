@@ -51,11 +51,14 @@ is green; then the mock is deleted. Tests live under
 | 12   | `m86-procurement/*` (cross-school + IMMUTABLE additions)                   | ⏳ pending  |
 | 13   | Run `pnpm --filter @campusos/api test:integration -- --coverage`           | ⏳ pending  |
 
-## Findings (real service bugs surfaced by integration tests)
+## Findings (real service bugs surfaced by integration tests) — ALL FIXED
 
 These were masked by the old mock specs because the mocks didn't exercise
-real Postgres tx semantics. None of them is a Wave 1 deliverable; each
-should be fixed in a follow-up commit.
+real Postgres tx semantics. All 10 original findings PLUS one additional
+finding surfaced during the Wave 2 deferred follow-up (Finding 11 —
+DistributionService missing JOIN-chain school filter) have been fixed in
+`docs/reviews/handoffs/WAVE1-3-REVIEW.md`. Every previously skipped
+integration test is now un-skipped and asserts the FIXED behaviour.
 
 ### Finding 1 — `PeriodService.patchStatus` returns a stale DTO
 

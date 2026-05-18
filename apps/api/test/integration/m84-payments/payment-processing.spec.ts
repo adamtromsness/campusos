@@ -505,7 +505,7 @@ describe('integration:m84-payments/payment-processing', () => {
   // Cross-school isolation
   // ────────────────────────────────────────────────────────────────────
   describe('cross-school isolation', () => {
-    it('list as School A admin: same school_id-filter gap as Finding 6 — School B payments visible', async () => {
+    it('list as School A admin: School B payments NOT visible [Finding 6 extended FIXED]', async () => {
       // School A
       const faA = await seedFamilyAccount({ schoolId: TEST_SCHOOL_ID });
       const sentA = await seedSentInvoice({ familyAccountId: faA, total: 25 });
@@ -526,14 +526,12 @@ describe('integration:m84-payments/payment-processing', () => {
       await withTestTenantB(async () => invoices.send(sentB.id, adminActor()));
       await withTestTenantB(async () => payments.pay(sentB.id, { amount: 30 }, adminActor()));
 
-      // FINDING — Wave 1 (extends Finding 6): PaymentService.list uses
-      // SELECT_PAYMENT_BASE with no `WHERE p.school_id = $`. Mirror of
-      // the InvoiceService.list leak. School A admin sees BOTH payments
-      // when the schools share a tenant schema.
+      // Wave 1 Finding 6 (extended) FIXED: PaymentService.list now
+      // filters by tenant.schoolId — School A admin sees only School A
+      // payments even though both schools share tenant_test.
       const adminList = await withTestTenant(async () => payments.list({}, adminActor()));
       expect(adminList.find((p) => p.familyAccountId === faA)).toBeDefined();
-      // Document the leak — flip when the fix lands.
-      expect(adminList.find((p) => p.familyAccountId === faB)).toBeDefined();
+      expect(adminList.find((p) => p.familyAccountId === faB)).toBeUndefined();
     });
   });
 });
