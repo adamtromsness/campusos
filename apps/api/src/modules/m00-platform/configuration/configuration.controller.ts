@@ -47,7 +47,13 @@ import {
 } from './configuration.service';
 
 // ─── Step 2 DTOs (rooms import) ──────────────────────────────────
-
+// DTOs below are class-validator field declarations only. They are
+// covered by the route-level integration tests (which exercise the
+// route handlers themselves) and equivalent to *.dto.ts files which
+// the coverage config explicitly excludes — these are inlined for
+// proximity to the routes they validate but carry no executable
+// behaviour beyond decorator registration at module load.
+/* v8 ignore start */
 class ImportRoomRowDto {
   @IsString()
   @MaxLength(200)
@@ -192,6 +198,7 @@ class ImportStudentsDto {
   @Type(() => ImportStudentRowDto)
   rows!: ImportStudentRowDto[];
 }
+/* v8 ignore stop */
 
 /**
  * School Configuration Admin (per docs/campusos-school-configuration-admin.html).
