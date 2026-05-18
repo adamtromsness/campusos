@@ -112,6 +112,12 @@ describe('integration:m81-enrolment/withdrawals', () => {
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_withdrawal_task_templates`,
     );
+    // Re-enrolment + offer-acceptance flows seed pay_family_accounts +
+    // pay_family_account_students. Clean them up so the m84-payments
+    // suite doesn't collide on the UNIQUE (school_id, account_holder_id).
+    await rawClient.$executeRawUnsafe(
+      `TRUNCATE ${TEST_SCHEMA}.pay_family_account_students, ${TEST_SCHEMA}.pay_family_accounts CASCADE`,
+    );
 
     // Wipe officer permission cache (so we can re-grant per test).
     await rawClient.$executeRawUnsafe(
@@ -166,9 +172,12 @@ describe('integration:m81-enrolment/withdrawals', () => {
   }
 
   /**
-   * Re-bind parent_actor's iam_person to a guardian row tied to the
-   * provided student. Cleanup is handled by the spec beforeEach via
-   * the tracker arrays.
+   * Idempotently bind parent_actor's iam_person to a guardian row tied
+   * to the provided student. The guardian row is NOT registered with the
+   * spec's per-test cleanup tracker — it represents a stable test
+   * fixture shared with other suites (m84-payments may reference it via
+   * pay_financial_aid_applications.guardian_id). The sis_student_guardians
+   * link IS cleaned up via the studentId path in cleanupSeededIds.
    */
   async function bindParentActorToStudent(studentId: string): Promise<string> {
     const guardianId = generateId();
@@ -182,14 +191,13 @@ describe('integration:m81-enrolment/withdrawals', () => {
       TEST_PARENT_PERSON_ID,
       TEST_SCHOOL_ID,
     );
-    // Resolve canonical id (could be a pre-existing row).
     const rows = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
       `SELECT id::text FROM ${TEST_SCHEMA}.sis_guardians WHERE person_id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
       TEST_PARENT_PERSON_ID,
       TEST_SCHOOL_ID,
     );
     const finalId = rows[0]!.id;
-    guardianIds.push(finalId);
+    // Intentionally NOT pushed into guardianIds — see docstring above.
     await linkStudentGuardian(rawClient, studentId, finalId);
     return finalId;
   }

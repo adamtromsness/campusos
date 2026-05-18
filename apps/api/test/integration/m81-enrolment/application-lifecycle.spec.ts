@@ -130,6 +130,13 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
     await rawClient.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.enr_enrollment_periods`,
     );
+    // OfferService.accept / WithdrawalService re-enrol flows create
+    // pay_family_accounts + pay_family_account_students rows. They are
+    // not cleaned by the enr_* wipe above and would collide with the
+    // m84-payments suite's seed (UNIQUE on school_id + account_holder_id).
+    await rawClient.$executeRawUnsafe(
+      `TRUNCATE ${TEST_SCHEMA}.pay_family_account_students, ${TEST_SCHEMA}.pay_family_accounts CASCADE`,
+    );
 
     // Seed open enrolment period for School A.
     periodAId = generateId();
@@ -669,10 +676,14 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       );
       expect(appRows[0]!.status).toBe('ENROLLED');
 
-      // Durable outbox row for enr.student.enrolled exists.
-      const outboxRows = await rawClient.$queryRawUnsafe<Array<{ topic: string }>>(
-        `SELECT topic FROM platform.platform_outbox
-          WHERE topic = 'enr.student.enrolled' AND message_key = $1::text`,
+      // Durable outbox row for enr.student.enrolled exists. The
+      // OfferService uses `key: offer.application_id` so message_key = appId.
+      // Compare both as plain text to dodge any cross-type cast funkiness.
+      const outboxRows = await rawClient.$queryRawUnsafe<
+        Array<{ topic: string; message_key: string | null }>
+      >(
+        `SELECT topic, message_key FROM platform.platform_outbox
+          WHERE topic = 'enr.student.enrolled' AND message_key = $1`,
         appId,
       );
       expect(outboxRows.length).toBeGreaterThanOrEqual(1);
