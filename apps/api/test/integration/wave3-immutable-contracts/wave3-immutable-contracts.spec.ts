@@ -44,13 +44,20 @@ describe('integration:wave3-immutable-contracts', () => {
   const seededStudentIds: string[] = [];
   const seededPlatformStudentIds: string[] = [];
   const seededPersonIds: string[] = [];
+  const seededErasureRequestIds: string[] = [];
 
   beforeEach(async () => {
-    // TRUNCATE the three IMMUTABLE child tables (bypasses BEFORE ROW
+    // TRUNCATE the four IMMUTABLE child tables (bypasses BEFORE ROW
     // triggers). Order doesn't matter — independent tables.
     await rawClient.$executeRawUnsafe(
-      `TRUNCATE ${TEST_SCHEMA}.inc_incident_timeline, ${TEST_SCHEMA}.hlth_health_access_log, ${TEST_SCHEMA}.svc_referral_activity`,
+      `TRUNCATE ${TEST_SCHEMA}.inc_incident_timeline, ${TEST_SCHEMA}.hlth_health_access_log, ${TEST_SCHEMA}.svc_referral_activity, ${TEST_SCHEMA}.dpo_pseudonymisation_log`,
     );
+    if (seededErasureRequestIds.length > 0) {
+      await rawClient.$executeRawUnsafe(
+        `DELETE FROM ${TEST_SCHEMA}.dpo_erasure_requests WHERE id = ANY($1::uuid[])`,
+        seededErasureRequestIds.splice(0),
+      );
+    }
     // Delete parent rows from prior tests
     if (seededReferralIds.length > 0) {
       await rawClient.$executeRawUnsafe(
@@ -433,6 +440,109 @@ describe('integration:wave3-immutable-contracts', () => {
         referralId,
       )) as Array<{ n: number }>;
       expect(rows[0]!.n).toBe(6);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────
+  // dpo_pseudonymisation_log — Codex review FIX 4. The table is the
+  // 6th IMMUTABLE contract on the cumulative list; it's already
+  // covered in `m00-platform/governance-erasure.spec.ts` but Codex
+  // flagged its absence here as a contract-completeness gap (every
+  // IMMUTABLE table should be visible in the immutable-contracts
+  // suite for at-a-glance review). This block duplicates the Wave 2
+  // assertion deliberately and locks the trigger-level contract.
+  // ────────────────────────────────────────────────────────────────────
+  describe('IMMUTABLE dpo_pseudonymisation_log', () => {
+    async function seedPseudonymisationLogEntry(): Promise<string> {
+      // The pseudonymisation log row references dpo_erasure_requests.id
+      // via FK (ON DELETE NO ACTION), so we seed a minimal erasure
+      // request first.
+      const erasureRequestId = generateId();
+      seededErasureRequestIds.push(erasureRequestId);
+      const dataSubjectId = generateId();
+      // Status RECEIVED keeps us out of the dpo_erasure_completed_chk
+      // multi-column lockstep — we only need a valid parent FK for
+      // dpo_pseudonymisation_log to seed against.
+      await rawClient.$executeRawUnsafe(
+        `INSERT INTO ${TEST_SCHEMA}.dpo_erasure_requests
+           (id, school_id, data_subject_id, requested_by, status)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'RECEIVED')`,
+        erasureRequestId,
+        TEST_SCHOOL_ID,
+        dataSubjectId,
+        TEST_ADMIN_ACCOUNT_ID,
+      );
+      const id = generateId();
+      await rawClient.$executeRawUnsafe(
+        `INSERT INTO ${TEST_SCHEMA}.dpo_pseudonymisation_log
+           (id, school_id, erasure_request_id, data_subject_id, target_table,
+            target_field, rows_pseudonymised, pseudonymisation_token,
+            pseudonymised_by, notes)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'sis_students',
+                 'first_name', 1, $5, $6::uuid, 'W3 IMMUTABLE seed')`,
+        id,
+        TEST_SCHOOL_ID,
+        erasureRequestId,
+        dataSubjectId,
+        'PSEUDO-TOKEN-' + id.slice(-8),
+        TEST_ADMIN_ACCOUNT_ID,
+      );
+      return id;
+    }
+
+    it('UPDATE target_field → SQLSTATE 23001', async () => {
+      const id = await seedPseudonymisationLogEntry();
+      await assertRaises23001(() =>
+        rawClient.$executeRawUnsafe(
+          `UPDATE ${TEST_SCHEMA}.dpo_pseudonymisation_log SET target_field = 'last_name' WHERE id = $1::uuid`,
+          id,
+        ),
+      );
+    });
+
+    it('UPDATE rows_pseudonymised → SQLSTATE 23001 (cannot revise the audit count)', async () => {
+      const id = await seedPseudonymisationLogEntry();
+      await assertRaises23001(() =>
+        rawClient.$executeRawUnsafe(
+          `UPDATE ${TEST_SCHEMA}.dpo_pseudonymisation_log SET rows_pseudonymised = 999 WHERE id = $1::uuid`,
+          id,
+        ),
+      );
+    });
+
+    it('UPDATE pseudonymisation_token → SQLSTATE 23001 (cannot rewrite the linkage token)', async () => {
+      const id = await seedPseudonymisationLogEntry();
+      await assertRaises23001(() =>
+        rawClient.$executeRawUnsafe(
+          `UPDATE ${TEST_SCHEMA}.dpo_pseudonymisation_log SET pseudonymisation_token = 'TAMPERED' WHERE id = $1::uuid`,
+          id,
+        ),
+      );
+    });
+
+    it('DELETE → SQLSTATE 23001 (GDPR audit trail cannot be deleted)', async () => {
+      const id = await seedPseudonymisationLogEntry();
+      await assertRaises23001(() =>
+        rawClient.$executeRawUnsafe(
+          `DELETE FROM ${TEST_SCHEMA}.dpo_pseudonymisation_log WHERE id = $1::uuid`,
+          id,
+        ),
+      );
+    });
+
+    it('TRUNCATE succeeds — table-level operation bypasses BEFORE ROW triggers', async () => {
+      const id = await seedPseudonymisationLogEntry();
+      await rawClient.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(`TRUNCATE ${TEST_SCHEMA}.dpo_pseudonymisation_log`);
+        const empty = (await tx.$queryRawUnsafe(
+          `SELECT count(*)::int AS n FROM ${TEST_SCHEMA}.dpo_pseudonymisation_log WHERE id = $1::uuid`,
+          id,
+        )) as Array<{ n: number }>;
+        expect(empty[0]!.n).toBe(0);
+        throw new Error('rollback');
+      }).catch((e) => {
+        if ((e as Error).message !== 'rollback') throw e;
+      });
     });
   });
 });

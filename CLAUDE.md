@@ -15,8 +15,8 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 **Build state:**
 
 - `pnpm --filter @campusos/api build` — 0 errors (`nest build`)
-- `pnpm --filter @campusos/api test` — 2456 / 2456 passing (+ 54 skipped)
-- `pnpm --filter @campusos/api test:integration` — 987 / 987 passing (0 skips — every Wave 1-3 finding fixed and every previously skipped test now asserts the FIXED behaviour)
+- `pnpm --filter @campusos/api test` — 1499 / 1499 passing (+ 54 skipped pre-existing). Mock-based unit specs across the 7 Wave 1-3 modules (m83, m84, m86, m00, m23, m87, m27) were deleted per Codex FIX 1 — the surface they covered now lives in DB-backed integration tests.
+- `pnpm --filter @campusos/api test:integration` — 1013 / 1013 passing (0 skips). Includes the Codex review additions: cross-school isolation across m23 + m27 read paths, mandatory-report FILED immutability, dpo_pseudonymisation_log in the wave3-immutable suite, GL recon DUPLICATE_POSTING describe block isolation.
 - `tsc --noEmit` (production source) — 0 errors
 - Tenant logical base tables — ~840 across 38 modules
 - Permission catalogue — 495 codes (165 functions × 3 tiers)

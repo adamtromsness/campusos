@@ -534,68 +534,84 @@ describe('integration:m83-finance/gl-reconciliation', () => {
 
   // ────────────────────────────────────────────────────────────────────
   // DUPLICATE_POSTING check
+  //
+  // Codex review FIX 5: this describe block is the ONLY place in the
+  // integration suite that needs the partial UNIQUE index
+  // `fin_batches_source_event_uq` dropped — otherwise it's impossible
+  // to seed two POSTED batches sharing a source_event_id and exercise
+  // the DUPLICATE_POSTING discrepancy path. Previously the drop
+  // happened mid-test (try/finally); a crash between drop and CREATE
+  // INDEX left the suite-wide schema without the constraint, which
+  // could mask real duplicate-posting bugs in subsequent tests of
+  // any spec sharing tenant_test.
+  //
+  // The Option-A pattern here isolates the drop to this describe
+  // block via beforeAll/afterAll. Vitest guarantees afterAll runs
+  // even when a test inside the block throws, so the index is
+  // always restored before the next describe block touches
+  // fin_journal_batches.
+  //
+  // beforeEach DELETEs any duplicate rows seeded by the previous test
+  // inside this block (the parent test-file beforeEach already
+  // TRUNCATES non-IMMUTABLE tables, but we add an extra targeted
+  // delete here so the index restoration in afterAll never fights an
+  // existing 23505 violation).
   // ────────────────────────────────────────────────────────────────────
   describe('DUPLICATE_POSTING check', () => {
-    it('two POSTED batches with the same source_event_id → DUPLICATE_POSTING', async () => {
-      // Seed two POSTED batches sharing one event_id. Worker requires
-      // source_event_id non-null + status='POSTED'.
-      const eventId = generateId();
-      const batchA = generateId();
-      const batchB = generateId();
-      // Seed via raw SQL because fin_journal_batches has a partial UNIQUE
-      // INDEX on source_event_id WHERE source_event_id IS NOT NULL. To
-      // bypass it for the test we delete the unique index for the test
-      // (it doesn't apply to the integration suite anyway since each test
-      // truncates the table). Actually — the index exists and would
-      // reject the second INSERT. Drop it temporarily, seed, restore.
+    beforeAll(async () => {
       await rawClient.$executeRawUnsafe(
         `DROP INDEX IF EXISTS ${TEST_SCHEMA}.fin_batches_source_event_uq`,
       );
-      try {
-        for (const id of [batchA, batchB]) {
-          // Use the full id in batch_number — UUIDv7 ids generated close
-          // in time share the first 8 chars (the time-prefix), so
-          // id.slice(0,8) collides.
-          await rawClient.$executeRawUnsafe(
-            `INSERT INTO ${TEST_SCHEMA}.fin_journal_batches
-               (id, school_id, batch_number, description, batch_type, source_event_id, accounting_period_id, posted_by, posted_at, status)
-             VALUES ($1::uuid, $2::uuid, $3, 'dup', 'AUTO_PAYMENT', $4::uuid, $5::uuid, $6::uuid, now(), 'POSTED')`,
-            id,
-            TEST_SCHOOL_ID,
-            'DUP-' + id,
-            eventId,
-            TEST_PERIOD_ID,
-            TEST_ADMIN_EMPLOYEE_ID,
-          );
-        }
+    });
 
-        await worker.runForTenant(tenantInfoA());
+    afterAll(async () => {
+      // Wipe any duplicate seeds the block left behind so the unique
+      // index recreate doesn't error 23505.
+      await rawClient.$executeRawUnsafe(
+        `DELETE FROM ${TEST_SCHEMA}.fin_journal_batches WHERE batch_number LIKE 'DUP-%'`,
+      );
+      await rawClient.$executeRawUnsafe(
+        `CREATE UNIQUE INDEX IF NOT EXISTS fin_batches_source_event_uq ON ${TEST_SCHEMA}.fin_journal_batches (source_event_id) WHERE source_event_id IS NOT NULL`,
+      );
+    });
 
-        const rows = await readReconRows();
-        const dupRow = rows.find((r) => r.check_type === 'DUPLICATE_POSTING')!;
-        expect(dupRow.status).toBe('DISCREPANCIES_FOUND');
-        const discreps = JSON.parse(dupRow.discrepancies) as Array<{
-          sourceId: string;
-          issue: string;
-          batchCount: number;
-          batchIds: string[];
-        }>;
-        expect(discreps).toHaveLength(1);
-        expect(discreps[0]!.sourceId).toBe(eventId);
-        expect(discreps[0]!.issue).toBe('DUPLICATE_POSTING');
-        expect(discreps[0]!.batchCount).toBe(2);
-        expect(discreps[0]!.batchIds).toHaveLength(2);
-      } finally {
-        // Delete the duplicates before recreating the partial UNIQUE
-        // index, otherwise CREATE INDEX fails with 23505.
+    it('two POSTED batches with the same source_event_id → DUPLICATE_POSTING', async () => {
+      const eventId = generateId();
+      const batchA = generateId();
+      const batchB = generateId();
+      for (const id of [batchA, batchB]) {
+        // Use the full id in batch_number — UUIDv7 ids generated close
+        // in time share the first 8 chars (the time-prefix), so
+        // id.slice(0,8) collides.
         await rawClient.$executeRawUnsafe(
-          `DELETE FROM ${TEST_SCHEMA}.fin_journal_batches WHERE source_event_id = $1::uuid`,
+          `INSERT INTO ${TEST_SCHEMA}.fin_journal_batches
+             (id, school_id, batch_number, description, batch_type, source_event_id, accounting_period_id, posted_by, posted_at, status)
+           VALUES ($1::uuid, $2::uuid, $3, 'dup', 'AUTO_PAYMENT', $4::uuid, $5::uuid, $6::uuid, now(), 'POSTED')`,
+          id,
+          TEST_SCHOOL_ID,
+          'DUP-' + id,
           eventId,
-        );
-        await rawClient.$executeRawUnsafe(
-          `CREATE UNIQUE INDEX IF NOT EXISTS fin_batches_source_event_uq ON ${TEST_SCHEMA}.fin_journal_batches (source_event_id) WHERE source_event_id IS NOT NULL`,
+          TEST_PERIOD_ID,
+          TEST_ADMIN_EMPLOYEE_ID,
         );
       }
+
+      await worker.runForTenant(tenantInfoA());
+
+      const rows = await readReconRows();
+      const dupRow = rows.find((r) => r.check_type === 'DUPLICATE_POSTING')!;
+      expect(dupRow.status).toBe('DISCREPANCIES_FOUND');
+      const discreps = JSON.parse(dupRow.discrepancies) as Array<{
+        sourceId: string;
+        issue: string;
+        batchCount: number;
+        batchIds: string[];
+      }>;
+      expect(discreps).toHaveLength(1);
+      expect(discreps[0]!.sourceId).toBe(eventId);
+      expect(discreps[0]!.issue).toBe('DUPLICATE_POSTING');
+      expect(discreps[0]!.batchCount).toBe(2);
+      expect(discreps[0]!.batchIds).toHaveLength(2);
     });
 
     it('single POSTED batch with source_event_id → CLEAN', async () => {

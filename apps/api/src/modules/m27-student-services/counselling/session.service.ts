@@ -148,10 +148,14 @@ export class SessionService {
 
   async list(query: ListSessionsQueryDto, actor: ResolvedActor): Promise<SessionResponseDto[]> {
     const limit = Math.min(query.limit ?? 100, 200);
-    const visibility = this.buildVisibility(actor, 1);
-    const sql: string[] = [SELECT_SESSION_BASE, 'WHERE 1=1 '];
-    const params: unknown[] = [...visibility.params];
-    let idx = 1 + visibility.consumed;
+    // Wave 3 follow-up: explicit s.school_id predicate so list under
+    // School A doesn't return School B sessions when the harness
+    // shares one tenant schema.
+    const tenant = getCurrentTenant();
+    const visibility = this.buildVisibility(actor, 2);
+    const sql: string[] = [SELECT_SESSION_BASE, 'WHERE s.school_id = $1::uuid '];
+    const params: unknown[] = [tenant.schoolId, ...visibility.params];
+    let idx = 2 + visibility.consumed;
     if (visibility.fragment) sql.push(visibility.fragment);
     if (query.status) {
       sql.push('AND s.status = $' + idx + ' ');
@@ -469,9 +473,14 @@ export class SessionService {
    * counsellor / admin scope here first.
    */
   async loadOrFail(id: string, actor: ResolvedActor): Promise<SessionResponseDto> {
-    const visibility = this.buildVisibility(actor, 2);
-    const sql = SELECT_SESSION_BASE + 'WHERE s.id = $1::uuid ' + visibility.fragment;
-    const params: unknown[] = [id, ...visibility.params];
+    // Wave 3 follow-up: explicit s.school_id predicate. Schema-per-
+    // school makes this a no-op in production, but the shared
+    // tenant_test schema would otherwise return foreign-school
+    // sessions for admin id-probes (admin's buildVisibility is empty).
+    const tenant = getCurrentTenant();
+    const visibility = this.buildVisibility(actor, 3);
+    const sql = SELECT_SESSION_BASE + 'WHERE s.id = $1::uuid AND s.school_id = $2::uuid ' + visibility.fragment;
+    const params: unknown[] = [id, tenant.schoolId, ...visibility.params];
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<SessionRow[]>(sql, ...params);
     });

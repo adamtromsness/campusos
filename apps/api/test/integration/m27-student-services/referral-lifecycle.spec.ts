@@ -45,6 +45,19 @@ import { RecordingKafkaProducer } from '../helpers/recording-kafka';
  * from the strategy doc: CRISIS escalation flips priority + writes
  * IMMUTABLE ESCALATED audit row + emits svc.referral.escalated via
  * outbox in ONE tx (P2-28c Round 1 BLOCKING 6 fix).
+ *
+ * Codex review FIX 6 disposition: CrisisEscalationService exposes one
+ * public method — `escalate(referralId, actor)` — and is MANUAL ONLY.
+ * Auto-escalation at create-time is synchronous and lives in
+ * ReferralService.create itself (when the referral_type's category is
+ * CRISIS, the new referral lands at URGENT + ACCEPTED + writes an
+ * ESCALATED activity row inline). There is NO scheduled cron / window-
+ * based sweep in the codebase — `grep -rn "@Cron\|@Interval\|@Schedule"
+ * apps/api/src/` returns zero matches. The "configured-window auto-
+ * escalation test" Codex flagged therefore does not apply to this
+ * service and the fix is intentionally skipped per their own guidance:
+ *   "If auto-escalation is manual-only (no cron), document this in
+ *    the test file as a comment and skip this fix."
  */
 describe('integration:m27-student-services/referral-lifecycle', () => {
   let tenantPrisma: TenantPrismaService;

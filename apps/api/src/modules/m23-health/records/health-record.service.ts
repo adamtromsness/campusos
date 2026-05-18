@@ -231,9 +231,16 @@ export class HealthRecordService {
 
   private async studentExistsInTenant(studentId: string): Promise<boolean> {
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      // Wave 3 follow-up: belt-and-braces school_id filter. Schema-
+      // per-school isolation makes this a no-op in production but the
+      // test harness shares one tenant_test schema across School A
+      // and School B (different school_id rows), so the predicate
+      // closes the cross-school read leak.
+      const tenant = getCurrentTenant();
       const rows = (await client.$queryRawUnsafe(
-        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid LIMIT 1',
+        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         studentId,
+        tenant.schoolId,
       )) as Array<{ ok: number }>;
       return rows.length > 0;
     });
@@ -259,11 +266,17 @@ export class HealthRecordService {
     // audit are atomic (REVIEW-FINAL-2026-05-07 MIN-7.4 fix). Failure
     // of the audit insert rolls back the read snapshot view; success
     // commits both together.
+    const tenantForRead = getCurrentTenant();
     const { record, conditions, immunisations } =
       await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+        // Wave 3 follow-up: explicit school_id predicate even though
+        // schema-per-school makes this a no-op in production. The
+        // shared tenant_test schema would otherwise return foreign-
+        // school records.
         const recRows = (await tx.$queryRawUnsafe(
-          SELECT_RECORD_BASE + 'WHERE r.student_id = $1::uuid LIMIT 1',
+          SELECT_RECORD_BASE + 'WHERE r.student_id = $1::uuid AND r.school_id = $2::uuid LIMIT 1',
           studentId,
+          tenantForRead.schoolId,
         )) as RecordRow[];
         const rec = recRows[0] ?? null;
         if (!rec) {

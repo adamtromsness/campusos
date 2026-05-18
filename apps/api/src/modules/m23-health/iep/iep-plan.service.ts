@@ -203,12 +203,18 @@ export class IepPlanService {
   async getForStudent(studentId: string, actor: ResolvedActor): Promise<IepPlanResponseDto | null> {
     await this.assertCanReadStudent(studentId, actor);
 
+    // Wave 3 follow-up: belt-and-braces school_id filter. Schema-per-
+    // school makes this a no-op in production, but the shared
+    // tenant_test schema in the integration harness would otherwise
+    // return a foreign-school plan.
+    const planTenant = getCurrentTenant();
     const plan = await this.tenantPrisma.executeInTenantContext(async (client) => {
       const rows = (await client.$queryRawUnsafe(
         SELECT_PLAN_BASE +
-          "WHERE p.student_id = $1::uuid AND p.status <> 'EXPIRED' " +
+          "WHERE p.student_id = $1::uuid AND p.school_id = $2::uuid AND p.status <> 'EXPIRED' " +
           'ORDER BY p.created_at DESC LIMIT 1',
         studentId,
+        planTenant.schoolId,
       )) as PlanRow[];
       return rows[0] ?? null;
     });
@@ -681,9 +687,13 @@ export class IepPlanService {
 
   private async studentExistsInTenant(studentId: string): Promise<boolean> {
     return this.tenantPrisma.executeInTenantContext(async (client) => {
+      // Wave 3 follow-up: belt-and-braces school_id filter (mirror of
+      // the same fix in HealthRecordService).
+      const tenant = getCurrentTenant();
       const rows = (await client.$queryRawUnsafe(
-        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid LIMIT 1',
+        'SELECT 1 AS ok FROM sis_students WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1',
         studentId,
+        tenant.schoolId,
       )) as Array<{ ok: number }>;
       return rows.length > 0;
     });

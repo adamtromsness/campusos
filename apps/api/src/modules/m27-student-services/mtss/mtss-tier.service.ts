@@ -250,10 +250,15 @@ export class MtssTierService {
 
   async list(query: ListMtssTiersQueryDto, actor: ResolvedActor): Promise<MtssTierResponseDto[]> {
     const limit = Math.min(query.limit ?? 100, 200);
-    const visibility = this.buildTierVisibility(actor, 1);
-    const sql: string[] = [SELECT_TIER_BASE, 'WHERE 1=1 '];
-    const params: unknown[] = [...visibility.params];
-    let idx = 1 + visibility.consumed;
+    // Wave 3 follow-up: explicit t.school_id predicate so list under
+    // School A doesn't return School B tiers (the shared tenant_test
+    // schema would otherwise leak under an admin actor whose
+    // buildTierVisibility fragment is empty).
+    const tenant = getCurrentTenant();
+    const visibility = this.buildTierVisibility(actor, 2);
+    const sql: string[] = [SELECT_TIER_BASE, 'WHERE t.school_id = $1::uuid '];
+    const params: unknown[] = [tenant.schoolId, ...visibility.params];
+    let idx = 2 + visibility.consumed;
     if (visibility.fragment) sql.push(visibility.fragment);
     if (query.tier) {
       sql.push('AND t.tier = $' + idx + ' ');
@@ -289,9 +294,13 @@ export class MtssTierService {
   }
 
   async getById(id: string, actor: ResolvedActor): Promise<MtssTierResponseDto> {
-    const visibility = this.buildTierVisibility(actor, 2);
-    const sql = SELECT_TIER_BASE + 'WHERE t.id = $1::uuid ' + visibility.fragment;
-    const params: unknown[] = [id, ...visibility.params];
+    // Wave 3 follow-up: explicit t.school_id predicate so an admin
+    // probing a foreign-school tier id under the wrong tenant context
+    // gets NotFound rather than the foreign row.
+    const tenant = getCurrentTenant();
+    const visibility = this.buildTierVisibility(actor, 3);
+    const sql = SELECT_TIER_BASE + 'WHERE t.id = $1::uuid AND t.school_id = $2::uuid ' + visibility.fragment;
+    const params: unknown[] = [id, tenant.schoolId, ...visibility.params];
     const rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<TierRow[]>(sql, ...params);
     });

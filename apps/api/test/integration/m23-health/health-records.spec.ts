@@ -41,6 +41,19 @@ import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
  *   - Tenant + row scope: nurse/admin → all students; STAFF (teacher)
  *     → only students in their classes; GUARDIAN → only their own
  *     children via GuardianAuthorizationService.canViewHealthRecord
+ *
+ * Codex review FIX 7 disposition: `msg.message.posted` is owned
+ * exclusively by m40-communications (MessageService.create — see
+ * `apps/api/src/modules/m40-communications/messaging/message.service.ts:212`).
+ * No m23-health service emits this event. `grep -rn
+ * "msg\.message\.posted" apps/api/src/modules/m23-health/` returns
+ * zero matches, and the surrounding m40 emit + consumer pair
+ * (MessageNotificationConsumer, TranslationConsumer, ModerationConsumer)
+ * all belong to Wave 5 (communications). The fix Codex flagged
+ * therefore lands when Wave 5 builds m40 coverage; it is intentionally
+ * skipped here per their own guidance:
+ *   "If this event only belongs to m40-communications (Wave 5),
+ *    skip this fix and add a comment noting it's Wave 5 scope."
  */
 describe('integration:m23-health/health-records', () => {
   let tenantPrisma: TenantPrismaService;
