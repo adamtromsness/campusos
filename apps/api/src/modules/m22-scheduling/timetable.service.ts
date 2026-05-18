@@ -98,10 +98,12 @@ export class TimetableService {
    * effective_to >= onDate)). Without onDate, all slots are returned.
    */
   async list(query: ListTimetableQueryDto): Promise<TimetableSlotResponseDto[]> {
+    var schoolId = getCurrentTenant().schoolId;
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<SlotRow[]>(
         SELECT_SLOT_BASE +
-          'WHERE ($1::uuid IS NULL OR s.class_id = $1::uuid) ' +
+          'WHERE s.school_id = $5::uuid ' +
+          'AND ($1::uuid IS NULL OR s.class_id = $1::uuid) ' +
           'AND ($2::uuid IS NULL OR s.teacher_id = $2::uuid) ' +
           'AND ($3::uuid IS NULL OR s.room_id = $3::uuid) ' +
           'AND ($4::date IS NULL OR ' +
@@ -111,14 +113,20 @@ export class TimetableService {
         query.teacherId ?? null,
         query.roomId ?? null,
         query.onDate ?? null,
+        schoolId,
       );
     });
     return rows.map(rowToDto);
   }
 
   async getById(id: string): Promise<TimetableSlotResponseDto> {
+    var schoolId = getCurrentTenant().schoolId;
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<SlotRow[]>(SELECT_SLOT_BASE + 'WHERE s.id = $1::uuid', id);
+      return client.$queryRawUnsafe<SlotRow[]>(
+        SELECT_SLOT_BASE + 'WHERE s.id = $1::uuid AND s.school_id = $2::uuid',
+        id,
+        schoolId,
+      );
     });
     if (rows.length === 0) throw new NotFoundException('Timetable slot ' + id + ' not found');
     return rowToDto(rows[0]!);
@@ -290,18 +298,27 @@ export class TimetableService {
     teacherId: string | null,
     roomId: string,
   ): Promise<Error> {
-    var code = e?.code || e?.meta?.code || (e?.message && /23P01/.test(e.message) ? '23P01' : null);
+    // Resolve a Postgres SQLSTATE from either the bare error code, the
+    // Prisma-wrapped meta.code, or the message body. Prisma also exposes
+    // P2002 (unique) + P2003 (FK) at its own level; map those through.
+    var prismaCode = e?.code as string | undefined;
+    var pgCode = e?.meta?.code || (e?.message && /23\w{3}/.exec(e.message)?.[0]) || null;
     var msg = e?.message || '';
-    var isExclusion = code === '23P01' || /sch_timetable_slots_(teacher|room)_no_overlap/.test(msg);
+    var isExclusion =
+      pgCode === '23P01' || /sch_timetable_slots_(teacher|room)_no_overlap/.test(msg);
     if (!isExclusion) {
-      // FK violations etc are 23503 — surface as 400.
-      if (code === '23503' || /violates foreign key/i.test(msg)) {
+      // FK violations etc are 23503 / P2003 — surface as 400.
+      if (pgCode === '23503' || prismaCode === 'P2003' || /violates foreign key/i.test(msg)) {
         return new BadRequestException(
           'One of class_id / period_id / teacher_id / room_id does not exist in this tenant',
         );
       }
-      // UNIQUE on (class_id, period_id, effective_from)
-      if (code === '23505' || /sch_timetable_slots_class_period_from_uq/.test(msg)) {
+      // UNIQUE on (class_id, period_id, effective_from) — 23505 / P2002.
+      if (
+        pgCode === '23505' ||
+        prismaCode === 'P2002' ||
+        /sch_timetable_slots_class_period_from_uq/.test(msg)
+      ) {
         return new ConflictException(
           'A timetable slot already exists for this class + period + start date',
         );

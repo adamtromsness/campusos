@@ -54,12 +54,15 @@ export class RoomService {
   async list(query: ListRoomsQueryDto): Promise<RoomAvailabilityDto[]> {
     var includeInactive = query.includeInactive === true;
     var roomType = query.roomType ?? null;
+    var schoolId = getCurrentTenant().schoolId;
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<RoomRow[]>(
         SELECT_ROOM_BASE +
-          'WHERE ($1::boolean = true OR is_active = true) ' +
-          'AND ($2::text IS NULL OR room_type = $2::text) ' +
+          'WHERE school_id = $1::uuid ' +
+          'AND ($2::boolean = true OR is_active = true) ' +
+          'AND ($3::text IS NULL OR room_type = $3::text) ' +
           'ORDER BY building NULLS LAST, floor NULLS LAST, name',
+        schoolId,
         includeInactive,
         roomType,
       );
@@ -97,8 +100,13 @@ export class RoomService {
   }
 
   async getById(id: string): Promise<RoomResponseDto> {
+    var schoolId = getCurrentTenant().schoolId;
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      return client.$queryRawUnsafe<RoomRow[]>(SELECT_ROOM_BASE + 'WHERE id = $1::uuid', id);
+      return client.$queryRawUnsafe<RoomRow[]>(
+        SELECT_ROOM_BASE + 'WHERE id = $1::uuid AND school_id = $2::uuid',
+        id,
+        schoolId,
+      );
     });
     if (rows.length === 0) throw new NotFoundException('Room ' + id + ' not found');
     return rowToDto(rows[0]!);
