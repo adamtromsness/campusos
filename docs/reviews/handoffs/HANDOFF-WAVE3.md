@@ -13,7 +13,7 @@ headline DB-level deliverable; per-module deep specs build on top.
 | 3    | `m23-health/health-records.spec.ts` (incl. hlth.allergy_alert.changed outbox-in-tx KEYSTONE; create + update + getFullRecord with VIEW_RECORD audit-in-tx; nurse-scope + STAFF-class-link + GUARDIAN row scope; 38 tests) | ✅ |
 | 4    | `m23-health/iep-plans.spec.ts` (incl. iep.accommodation.updated outbox-in-tx; 29 tests covering plan + accommodation lifecycle + snapshot emit on add/update/remove + EXPIRED plan empty-array contract + shape validation + auth gates) | ✅ |
 | 5    | `m27-student-services/referral-lifecycle.spec.ts` (full lifecycle SUBMITTED→TRIAGED→ACCEPTED→IN_PROGRESS→COMPLETED + CrisisEscalationService.escalate KEYSTONE outbox-in-tx + auth/scope gates + 28 tests) | ✅ |
-| 6    | `m27-student-services/counselling-sessions.spec.ts` (lock-after-approval)   | ⏳ pending |
+| 6    | `m27-student-services/counselling-sessions.spec.ts` (SessionService row-locked transitions + counsellor-owned row scope + UNIQUE participant + SessionNoteService FERPA gate via `student_counseling_record:read` + IRREVERSIBLE lock with multi-column locked_chk + no unlock surface; 42 tests) | ✅ |
 | 7    | `m27-student-services/wellbeing.spec.ts`                                    | ⏳ pending |
 | 8    | `m27-student-services/mtss.spec.ts`                                         | ⏳ pending |
 
