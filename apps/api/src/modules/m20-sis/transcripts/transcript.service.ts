@@ -492,10 +492,11 @@ export class TranscriptService {
           '(SELECT gse.grade_points::text FROM sis_grade_scale_entries gse ' +
           '  WHERE gse.school_id = $2::uuid AND gse.letter_grade = g.letter_grade ' +
           '  ORDER BY gse.sort_order LIMIT 1) AS grade_points, ' +
-          'COALESCE(co.is_honors, false) AS is_honors, ' +
-          'COALESCE(co.is_ap, false) AS is_ap ' +
+          'false AS is_honors, ' +
+          'false AS is_ap ' +
           'FROM cls_grades g ' +
-          'JOIN sis_classes c ON c.id = g.class_id ' +
+          'JOIN cls_assignments a ON a.id = g.assignment_id ' +
+          'JOIN sis_classes c ON c.id = a.class_id ' +
           'JOIN sis_courses co ON co.id = c.course_id ' +
           'LEFT JOIN sis_terms tm ON tm.id = c.term_id ' +
           'LEFT JOIN sis_academic_years ay ON ay.id = c.academic_year_id ' +

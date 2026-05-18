@@ -13,6 +13,7 @@ import { spawnSync } from 'child_process';
 import { ensurePlatformFixtures, assertPlatformFixtures } from './fixtures/platform';
 import { ensureEmployeeFixtures, assertEmployeeFixtures } from './fixtures/employees';
 import { ensureFinanceFixtures, assertFinanceFixtures } from './fixtures/finance';
+import { ensureSisFixtures, assertSisFixtures } from './fixtures/sis';
 import { TEST_SCHEMA } from './helpers/tenant-context';
 
 /**
@@ -105,9 +106,11 @@ export default async function setup(): Promise<() => Promise<void>> {
     await ensurePlatformFixtures(prisma);
     await ensureEmployeeFixtures(prisma);
     await ensureFinanceFixtures(prisma);
+    await ensureSisFixtures(prisma);
     await assertPlatformFixtures(prisma);
     await assertEmployeeFixtures(prisma);
     await assertFinanceFixtures(prisma);
+    await assertSisFixtures(prisma);
   } finally {
     await prisma.$disconnect();
   }

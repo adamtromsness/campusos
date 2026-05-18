@@ -128,8 +128,9 @@ export class StudentService {
   constructor(private readonly tenantPrisma: TenantPrismaService) {}
 
   async list(filters: ListStudentsQueryDto, actor: ResolvedActor): Promise<StudentResponseDto[]> {
+    var tenant = getCurrentTenant();
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      var vis = visibilityClause(actor, 4);
+      var vis = visibilityClause(actor, 5);
       var sql =
         'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
         's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
@@ -140,12 +141,14 @@ export class StudentService {
         "WHERE ($1::uuid IS NULL OR s.id IN (SELECT student_id FROM sis_enrollments WHERE class_id = $1::uuid AND status = 'ACTIVE')) " +
         'AND ($2::text IS NULL OR s.grade_level = $2::text) ' +
         'AND ($3::text IS NULL OR s.enrollment_status = $3::text) ' +
+        'AND s.school_id = $4::uuid ' +
         vis.fragment +
         'ORDER BY ip.last_name, ip.first_name';
       var params: any[] = [
         filters.classId ?? null,
         filters.gradeLevel ?? null,
         filters.enrollmentStatus ?? null,
+        tenant.schoolId,
       ];
       if (vis.param !== null) params.push(vis.param);
       return client.$queryRawUnsafe<StudentRow[]>(sql, ...params);
@@ -160,8 +163,9 @@ export class StudentService {
    * caller has no access to.
    */
   async getById(id: string, actor: ResolvedActor): Promise<StudentResponseDto> {
+    var tenant = getCurrentTenant();
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      var vis = visibilityClause(actor, 2);
+      var vis = visibilityClause(actor, 3);
       var sql =
         'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
         's.homeroom_class_id, s.school_id, s.platform_student_id, ' +
@@ -169,9 +173,9 @@ export class StudentService {
         'FROM sis_students s ' +
         'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
         'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-        'WHERE s.id = $1::uuid ' +
+        'WHERE s.id = $1::uuid AND s.school_id = $2::uuid ' +
         vis.fragment;
-      var params: any[] = [id];
+      var params: any[] = [id, tenant.schoolId];
       if (vis.param !== null) params.push(vis.param);
       return client.$queryRawUnsafe<StudentRow[]>(sql, ...params);
     });
@@ -185,10 +189,13 @@ export class StudentService {
    * the actor cannot see the row.
    */
   async assertCanViewStudent(id: string, actor: ResolvedActor): Promise<void> {
+    var tenant = getCurrentTenant();
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      var vis = visibilityClause(actor, 2);
-      var sql = 'SELECT 1 AS ok FROM sis_students s WHERE s.id = $1::uuid ' + vis.fragment;
-      var params: any[] = [id];
+      var vis = visibilityClause(actor, 3);
+      var sql =
+        'SELECT 1 AS ok FROM sis_students s WHERE s.id = $1::uuid AND s.school_id = $2::uuid ' +
+        vis.fragment;
+      var params: any[] = [id, tenant.schoolId];
       if (vis.param !== null) params.push(vis.param);
       return client.$queryRawUnsafe<Array<{ ok: number }>>(sql, ...params);
     });
@@ -208,6 +215,7 @@ export class StudentService {
     if (actor.personType !== 'STUDENT') {
       throw new NotFoundException('No student record for this caller');
     }
+    var tenant = getCurrentTenant();
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<StudentRow[]>(
         'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
@@ -216,8 +224,9 @@ export class StudentService {
           'FROM sis_students s ' +
           'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
           'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-          'WHERE ps.person_id = $1::uuid',
+          'WHERE ps.person_id = $1::uuid AND s.school_id = $2::uuid',
         actor.personId,
+        tenant.schoolId,
       );
     });
     if (rows.length === 0) {
@@ -235,6 +244,7 @@ export class StudentService {
    * predicate — the personId-bound query is already the row scope.
    */
   async listForGuardianPerson(guardianPersonId: string): Promise<StudentResponseDto[]> {
+    var tenant = getCurrentTenant();
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe<StudentRow[]>(
         'SELECT s.id, s.student_number, s.grade_level, s.enrollment_status, ' +
@@ -245,9 +255,10 @@ export class StudentService {
           'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
           'JOIN sis_student_guardians sg ON sg.student_id = s.id ' +
           'JOIN sis_guardians g ON g.id = sg.guardian_id ' +
-          'WHERE g.person_id = $1::uuid ' +
+          'WHERE g.person_id = $1::uuid AND s.school_id = $2::uuid ' +
           'ORDER BY ip.last_name, ip.first_name',
         guardianPersonId,
+        tenant.schoolId,
       );
     });
     return rows.map(rowToDto);
@@ -380,7 +391,16 @@ export class StudentService {
     sets.push('updated_at = now()');
 
     params.push(id);
-    var sql = 'UPDATE sis_students SET ' + sets.join(', ') + ' WHERE id = $' + i + '::uuid';
+    var tenant = getCurrentTenant();
+    params.push(tenant.schoolId);
+    var sql =
+      'UPDATE sis_students SET ' +
+      sets.join(', ') +
+      ' WHERE id = $' +
+      i +
+      '::uuid AND school_id = $' +
+      (i + 1) +
+      '::uuid';
 
     var affected = await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$executeRawUnsafe(sql, ...params);

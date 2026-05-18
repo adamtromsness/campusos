@@ -20,6 +20,10 @@ import {
   TEST_BUDGET_LINE_B_ID,
   TEST_SUPPLIER_B_SCHOOL_ID,
 } from '../fixtures/finance';
+import {
+  TEST_SIS_ACADEMIC_YEAR_ID,
+  TEST_SIS_ACADEMIC_YEAR_B_ID,
+} from '../fixtures/sis';
 
 /**
  * Procurement tables in dependency order — children first, then parents.
@@ -94,7 +98,11 @@ const FIXTURE_SUPPLIER_IDS = [
   TEST_INACTIVE_SUPPLIER_ID,
   TEST_SUPPLIER_B_SCHOOL_ID,
 ];
-const FIXTURE_ACADEMIC_YEAR_IDS = [TEST_ACADEMIC_YEAR_ID];
+const FIXTURE_ACADEMIC_YEAR_IDS = [
+  TEST_ACADEMIC_YEAR_ID,
+  TEST_SIS_ACADEMIC_YEAR_ID,
+  TEST_SIS_ACADEMIC_YEAR_B_ID,
+];
 
 function uuidList(ids: string[]): string {
   // Build a Postgres ARRAY[$1::uuid, $2::uuid, ...] literal at the SQL
