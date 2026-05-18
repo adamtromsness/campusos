@@ -10,13 +10,13 @@ Cloud-native, multi-tenant School Operating System. Replaces 8–15 disconnected
 
 **Codebase restructure complete.** `apps/api/src/` reorganised from 80+ cycle-by-cycle folders into 38 canonical modules under `apps/api/src/modules/m{XX}-{name}/` + cross-cutting infrastructure under `apps/api/src/shared/`. Documentation reorganised into `docs/{architecture,plans,reviews,policies,operations,design-hub}/`. Path aliases `@modules/*` and `@shared/*` are live in `tsconfig.json` and both vitest configs.
 
-**Test coverage in progress — Wave 1 COMPLETE, Wave 2 underway.** Tier 0 (integration test harness at `apps/api/test/integration/`) is built and operational. Tiers 1–7 (per-module unit + integration coverage targets per `docs/architecture/campusos-test-coverage-plan.html`) are the active engineering work, executing through the wave-by-wave plan in `docs/campusos-test-strategy-v3.html`. 2525 unit tests pass across 113 spec files (54 pre-existing skips, 0 failures), plus 568 DB-backed integration tests passing (12 documented `it.skip` flagging real service bugs — see `docs/reviews/handoffs/HANDOFF-WAVE1.md`, `docs/reviews/handoffs/HANDOFF-WAVE2.md`). **Wave 1 done**: m83-finance ✅ + m84-payments ✅ (all 7 strategy specs, 3 of 4 strategy-doc IMMUTABLE contracts + 1 additional via gl-posting) + m86-procurement ✅ (cross-school + fds_inventory_transactions IMMUTABLE). **Wave 2** (m00-platform auth/IAM/governance, ≥95% target): permission-resolution.spec.ts (PermissionCheckService scope chain + cross-school + cache semantics, 19 tests) landed; guardian-authorization, student-owned, tenant-isolation, governance-erasure, configuration still pending.
+**Test coverage in progress — Wave 1 COMPLETE, Wave 2 underway.** Tier 0 (integration test harness at `apps/api/test/integration/`) is built and operational. Tiers 1–7 (per-module unit + integration coverage targets per `docs/architecture/campusos-test-coverage-plan.html`) are the active engineering work, executing through the wave-by-wave plan in `docs/campusos-test-strategy-v3.html`. 2468 unit tests pass across 111 spec files (54 pre-existing skips, 0 failures), plus 606 DB-backed integration tests passing (12 documented `it.skip` flagging real service bugs — see `docs/reviews/handoffs/HANDOFF-WAVE1.md`, `docs/reviews/handoffs/HANDOFF-WAVE2.md`). **Wave 1 done**. **Wave 2** (m00-platform auth/IAM/governance, ≥95% target): permission-resolution (19 tests) + guardian-authorization (38 tests covering 6 capabilities × custody × portal scope × court orders + audit log) landed; student-owned, tenant-isolation, governance-erasure, configuration still pending.
 
 **Build state:**
 
 - `pnpm --filter @campusos/api build` — 0 errors (`nest build`)
-- `pnpm --filter @campusos/api test` — 2525 / 2525 passing (+ 54 skipped)
-- `pnpm --filter @campusos/api test:integration` — 568 / 568 passing (+ 12 documented skips)
+- `pnpm --filter @campusos/api test` — 2468 / 2468 passing (+ 54 skipped)
+- `pnpm --filter @campusos/api test:integration` — 606 / 606 passing (+ 12 documented skips)
 - `tsc --noEmit` (production source) — 0 errors
 - Tenant logical base tables — ~840 across 38 modules
 - Permission catalogue — 495 codes (165 functions × 3 tiers)

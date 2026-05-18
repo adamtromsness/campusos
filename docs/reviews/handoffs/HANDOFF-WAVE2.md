@@ -19,6 +19,8 @@ green; deleted incrementally.
 | 1    | Extend `fixtures/platform.ts` with iam_scope rows for School A + School B    | ✅          |
 | 2    | `m00-platform/permission-resolution.spec.ts` (PermissionCheckService — hot path; 19 tests) | ✅ |
 | 2a   | Delete `m00-platform/iam/permission-check.service.spec.ts` (mock spec, 361 LOC — fully replaced) | ✅ |
+| 3    | `m00-platform/guardian-authorization.spec.ts` (6 capabilities × custody × portal scope × court orders + audit log; 38 tests) | ✅ |
+| 3a   | Delete `m00-platform/iam/guardian-authorization.{service,custody}.spec.ts` (2 mock specs, 898 LOC — fully replaced) | ✅ |
 | 3    | `m00-platform/guardian-authorization.spec.ts` (6 capabilities + custody + court orders + audit log) | ⏳ pending |
 | 4    | `m00-platform/student-owned.spec.ts` (decorator + guard across 6 student-owned tables) | ⏳ pending |
 | 5    | `m00-platform/tenant-isolation.spec.ts` (executeInTenantContext SET LOCAL + is_frozen + concurrent isolation) | ⏳ pending |
