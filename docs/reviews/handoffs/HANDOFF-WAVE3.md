@@ -9,7 +9,7 @@ headline DB-level deliverable; per-module deep specs build on top.
 | Step | Title                                                                       | Status     |
 | ---- | --------------------------------------------------------------------------- | ---------- |
 | 1    | `wave3-immutable-contracts/wave3-immutable-contracts.spec.ts` — 3 new DB-level IMMUTABLE triggers (inc_incident_timeline, hlth_health_access_log, svc_referral_activity) — 16 tests | ✅ |
-| 2    | `m87-safety/incident-lifecycle.spec.ts`                                     | ⏳ pending |
+| 2    | `m87-safety/incident-lifecycle.spec.ts` (declare KEYSTONE: inc_incidents + inc_declaration_outbox in same tx + Kafka emit AFTER commit; resolve/cancel state machine with SELECT FOR UPDATE; cross-school scoping; TimelineService append-only contract + 49 tests) | ✅ |
 | 3    | `m23-health/health-records.spec.ts` (incl. hlth.allergy_alert.changed outbox-in-tx KEYSTONE; create + update + getFullRecord with VIEW_RECORD audit-in-tx; nurse-scope + STAFF-class-link + GUARDIAN row scope; 38 tests) | ✅ |
 | 4    | `m23-health/iep-plans.spec.ts` (incl. iep.accommodation.updated outbox-in-tx; 29 tests covering plan + accommodation lifecycle + snapshot emit on add/update/remove + EXPIRED plan empty-array contract + shape validation + auth gates) | ✅ |
 | 5    | `m27-student-services/referral-lifecycle.spec.ts` (full lifecycle SUBMITTED→TRIAGED→ACCEPTED→IN_PROGRESS→COMPLETED + CrisisEscalationService.escalate KEYSTONE outbox-in-tx + auth/scope gates + 28 tests) | ✅ |
