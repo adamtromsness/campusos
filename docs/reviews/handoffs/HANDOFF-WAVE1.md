@@ -24,7 +24,8 @@ is green; then the mock is deleted. Tests live under
 | 6    | Delete `m83-finance/chart.service.spec.ts` (mock spec)                     | ✅          |
 | 7    | `m83-finance/gl-posting.spec.ts` (PostingService + IMMUTABLE trigger contract on fin_gl_entries) | ✅ |
 | 7a   | Delete `m83-finance/posting.service.spec.ts` (mock spec, 1084 LOC)         | ✅          |
-| 8    | `m83-finance/budget-management.spec.ts`                                     | ⏳ pending  |
+| 8    | `m83-finance/budget-management.spec.ts` (BudgetService + DepartmentalBudgetService + BudgetTransferService incl. atomic transfer + outbox-in-tx) | ✅ |
+| 8a   | Keep `m83-finance/budgets.service.spec.ts` for now (also covers AP/Reconciliation/Grants; delete in pieces as those surfaces get integration coverage) | ⚠️ deferred |
 | 9    | `m83-finance/gl-reconciliation.spec.ts` (worker + alert events)            | ⏳ pending  |
 | 10   | `m83-finance/journal-batch.spec.ts`                                         | ⏳ pending  |
 | 11   | `m84-payments/*` (per the strategy doc Wave 1 list)                        | ⏳ pending  |
@@ -101,16 +102,17 @@ apps/api/test/integration/fixtures/finance.ts              — +REVENUE/AP accou
 apps/api/test/integration/helpers/reset.ts                 — +resetFinanceTables, +resetFinanceAdvancedTables
 apps/api/test/integration/m83-finance/chart-of-accounts.spec.ts  — NEW (68 tests, 1 documented skip)
 apps/api/test/integration/m83-finance/gl-posting.spec.ts         — NEW (48 tests, IMMUTABLE trigger contract)
+apps/api/test/integration/m83-finance/budget-management.spec.ts  — NEW (61 tests, atomic transfer + outbox-in-tx contract)
 apps/api/src/modules/m83-finance/chart.service.spec.ts     — DELETED (mock spec replaced)
 apps/api/src/modules/m83-finance/posting.service.spec.ts   — DELETED (mock spec replaced)
 ```
 
 ## Test counts
 
-| Suite              | Before | After (after step 7) |
-| ------------------ | ------ | -------------------- |
+| Suite              | Before | After (step 8) |
+| ------------------ | ------ | -------------- |
 | Unit tests         | 2858   | 2800 (2746 passed + 54 skipped) |
-| Integration tests  | 145    | 261  (260 passed + 1 documented skip) |
+| Integration tests  | 145    | 322  (321 passed + 1 documented skip) |
 
 ## Conventions established
 
