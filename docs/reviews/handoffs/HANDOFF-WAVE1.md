@@ -35,6 +35,8 @@ is green; then the mock is deleted. Tests live under
 | 11a  | Delete `m84-payments/payment.service.spec.ts` (mock spec, 649 LOC — fully replaced) | ✅ |
 | 12   | `m84-payments/refunds-reversals.spec.ts` (RefundService + CreditNoteService + ReversalService incl. IMMUTABLE pay_credit_notes + IMMUTABLE pay_payment_reversals + outbox for refund / credit-note / reversal events) | ✅ |
 | 12a  | Delete `m84-payments/{refund,credit-note,reversal}.service.spec.ts` (3 mock specs, 1968 LOC — fully replaced) | ✅ |
+| 13   | `m84-payments/lunch-accounts.spec.ts` (LunchAccountService.transfer + deposit/update/listLowBalance/getById/getForStudent incl. IMMUTABLE pay_lunch_account_balance_transfers + Finding 8) | ✅ |
+| 13a  | Delete `m84-payments/lunch-account.service.spec.ts` (mock spec, 1192 LOC — fully replaced) | ✅ |
 | 9    | `m83-finance/gl-reconciliation.spec.ts` (worker + alert events)            | ⏳ pending  |
 | 10   | `m83-finance/journal-batch.spec.ts`                                         | ⏳ pending  |
 | 11   | `m84-payments/*` (per the strategy doc Wave 1 list)                        | ⏳ pending  |
@@ -133,6 +135,24 @@ to add the school predicate to every source SELECT. Captured in the
 runOnce test by NOT seeding any pay_* rows — once Finding 5 is fixed,
 the test can seed differently and assert true cross-school isolation.
 
+### Finding 8 — LunchAccountService.transfer missing `::uuid` cast on to_account_id
+
+`apps/api/src/modules/m84-payments/lunch-account.service.ts::transfer`
+binds `to_account_id` as `$4` in the INSERT INTO
+pay_lunch_account_balance_transfers without an explicit `::uuid` cast.
+Prisma sends nullable string parameters as TEXT, and Postgres won't
+auto-coerce TEXT → UUID for column assignment. Net effect:
+REFUND_TO_FAMILY (NULL `to_account_id`) works, but SIBLING_TRANSFER
+and NEXT_YEAR_ROLLOVER (real UUID) raise SQLSTATE 42804 ("column
+to_account_id is of type uuid but expression is of type text"). The
+service cannot process those two transfer types in production.
+
+Fix: one character — `$4` → `$4::uuid` in the INSERT statement.
+
+Tests in `lunch-accounts.spec.ts` skip 2 SIBLING/ROLLOVER happy-path
+tests with the FINDING note. The IMMUTABLE pay_lunch_account_balance_transfers
+contract is still verified by seeding rows directly via raw SQL.
+
 ### Finding 7 — ReversalService.reverse violates pay_payments_paid_chk
 
 `apps/api/src/modules/m84-payments/reversal.service.ts::reverse` runs
@@ -176,6 +196,7 @@ apps/api/test/integration/m83-finance/gl-reconciliation.spec.ts  — NEW (18 tes
 apps/api/test/integration/m84-payments/invoice-lifecycle.spec.ts — NEW (29 tests, outbox-in-tx for pay.invoice.created + Finding 6)
 apps/api/test/integration/m84-payments/payment-processing.spec.ts — NEW (27 tests, outbox-in-tx for pay.payment.received + Stripe stub + auth)
 apps/api/test/integration/m84-payments/refunds-reversals.spec.ts  — NEW (40 tests + 3 skips, IMMUTABLE pay_credit_notes + IMMUTABLE pay_payment_reversals + outbox + Finding 7)
+apps/api/test/integration/m84-payments/lunch-accounts.spec.ts     — NEW (39 tests + 2 skips, IMMUTABLE pay_lunch_account_balance_transfers + Finding 8)
 apps/api/test/integration/helpers/reset.ts                       — +resetPaymentsTables, +resetFinanceAdvancedTables wires payments
 apps/api/src/modules/m83-finance/chart.service.spec.ts     — DELETED (mock spec replaced)
 apps/api/src/modules/m83-finance/posting.service.spec.ts   — DELETED (mock spec replaced)
@@ -184,15 +205,16 @@ apps/api/src/modules/m84-payments/payment.service.spec.ts  — DELETED (mock spe
 apps/api/src/modules/m84-payments/refund.service.spec.ts   — DELETED (728 LOC)
 apps/api/src/modules/m84-payments/credit-note.service.spec.ts — DELETED (504 LOC)
 apps/api/src/modules/m84-payments/reversal.service.spec.ts — DELETED (736 LOC)
+apps/api/src/modules/m84-payments/lunch-account.service.spec.ts — DELETED (1192 LOC)
 packages/database/prisma/tenant/migrations/180_p2h5_sis_family_court_order_restrictions.sql — FIXED splitter bug
 ```
 
 ## Test counts
 
-| Suite              | Before | After (step 12) |
+| Suite              | Before | After (step 13) |
 | ------------------ | ------ | --------------- |
-| Unit tests         | 2858   | 2686 (2632 passed + 54 skipped) |
-| Integration tests  | 145    | 440  (435 passed + 5 documented skips) |
+| Unit tests         | 2858   | 2635 (2581 passed + 54 skipped) |
+| Integration tests  | 145    | 481  (474 passed + 7 documented skips) |
 
 ## Conventions established
 
