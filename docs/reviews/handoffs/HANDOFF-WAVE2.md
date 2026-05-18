@@ -25,6 +25,8 @@ green; deleted incrementally.
 | 4a   | No mock spec to delete — TenantPrismaService had no dedicated unit spec | n/a |
 | 5    | `m00-platform/governance-erasure.spec.ts` (ErasureService hasDpoScope + create/list/getById/update + pseudonymiseAuditLog atomic + IMMUTABLE dpo_pseudonymisation_log, 34 tests) | ✅ |
 | 5a   | No mock spec for ErasureService to delete (service was added without a dedicated unit spec) | n/a |
+| 6    | `m00-platform/student-owned.spec.ts` (assertStudentOwnsRecord — admin override + STUDENT bridge resolution + coach delegation stub, 14 tests) | ✅ |
+| 6a   | Delete `shared/auth/student-owned.guard.spec.ts` (mock spec, 218 LOC — fully replaced) | ✅ |
 | 3    | `m00-platform/guardian-authorization.spec.ts` (6 capabilities + custody + court orders + audit log) | ⏳ pending |
 | 4    | `m00-platform/student-owned.spec.ts` (decorator + guard across 6 student-owned tables) | ⏳ pending |
 | 5    | `m00-platform/tenant-isolation.spec.ts` (executeInTenantContext SET LOCAL + is_frozen + concurrent isolation) | ⏳ pending |
