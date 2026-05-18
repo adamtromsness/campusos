@@ -39,6 +39,8 @@ is green; then the mock is deleted. Tests live under
 | 13a  | Delete `m84-payments/lunch-account.service.spec.ts` (mock spec, 1192 LOC — fully replaced) | ✅ |
 | 14   | `m84-payments/payment-plans.spec.ts` (PaymentPlanService.create + getById, atomic plan+installments, residue handling, MONTHLY/QUARTERLY date math, UNIQUE(invoice_id), PAID/CANCELLED rejection) | ✅ |
 | 14a  | Delete `m84-payments/payment-plan.service.spec.ts` (mock spec, 444 LOC — fully replaced) | ✅ |
+| 15   | `m84-payments/financial-aid.spec.ts` (FinancialAidService programmes CRUD + reviewApplication APPROVE/REJECT/UNDER_REVIEW incl. pool exhaustion + two-award accumulation + Finding 9) | ✅ |
+| 15a  | Keep `m84-payments/financial-aid.service.spec.ts` for now (also covers createApplication FK chain not yet replaced) | ⚠️ deferred |
 | 9    | `m83-finance/gl-reconciliation.spec.ts` (worker + alert events)            | ⏳ pending  |
 | 10   | `m83-finance/journal-batch.spec.ts`                                         | ⏳ pending  |
 | 11   | `m84-payments/*` (per the strategy doc Wave 1 list)                        | ⏳ pending  |
@@ -137,6 +139,23 @@ to add the school predicate to every source SELECT. Captured in the
 runOnce test by NOT seeding any pay_* rows — once Finding 5 is fixed,
 the test can seed differently and assert true cross-school isolation.
 
+### Finding 9 — FinancialAidService.createProgram missing `::numeric` cast on total_fund_amount
+
+`apps/api/src/modules/m84-payments/financial-aid.service.ts::createProgram`
+binds `total_fund_amount` AND `fund_remaining` as `$7` in the INSERT
+without an explicit `::numeric` cast. When `totalFundAmount` is
+provided, Prisma sends the value as TEXT and Postgres cannot coerce
+TEXT → NUMERIC for column assignment. Net effect: every capped
+programme creation raises 42804. Uncapped programmes (`totalFundAmount`
+undefined → null) work fine because `null` doesn't need coercion.
+
+Fix: one line — `$7` → `$7::numeric` (twice — the same placeholder is
+reused for both `total_fund_amount` and `fund_remaining`).
+
+Tests in `financial-aid.spec.ts` skip 2 service-driven createProgram
+tests with the FINDING note and use a `seedProgramSql` raw-SQL helper
+for the reviewApplication flow.
+
 ### Finding 8 — LunchAccountService.transfer missing `::uuid` cast on to_account_id
 
 `apps/api/src/modules/m84-payments/lunch-account.service.ts::transfer`
@@ -200,6 +219,7 @@ apps/api/test/integration/m84-payments/payment-processing.spec.ts — NEW (27 te
 apps/api/test/integration/m84-payments/refunds-reversals.spec.ts  — NEW (40 tests + 3 skips, IMMUTABLE pay_credit_notes + IMMUTABLE pay_payment_reversals + outbox + Finding 7)
 apps/api/test/integration/m84-payments/lunch-accounts.spec.ts     — NEW (39 tests + 2 skips, IMMUTABLE pay_lunch_account_balance_transfers + Finding 8)
 apps/api/test/integration/m84-payments/payment-plans.spec.ts      — NEW (15 tests, atomic plan+installments + residue handling)
+apps/api/test/integration/m84-payments/financial-aid.spec.ts      — NEW (25 tests + 2 skips, programmes CRUD + reviewApplication pool exhaustion + Finding 9)
 apps/api/test/integration/helpers/reset.ts                       — +resetPaymentsTables, +resetFinanceAdvancedTables wires payments
 apps/api/src/modules/m83-finance/chart.service.spec.ts     — DELETED (mock spec replaced)
 apps/api/src/modules/m83-finance/posting.service.spec.ts   — DELETED (mock spec replaced)
@@ -215,10 +235,10 @@ packages/database/prisma/tenant/migrations/180_p2h5_sis_family_court_order_restr
 
 ## Test counts
 
-| Suite              | Before | After (step 14) |
+| Suite              | Before | After (step 15) |
 | ------------------ | ------ | --------------- |
 | Unit tests         | 2858   | 2621 (2567 passed + 54 skipped) |
-| Integration tests  | 145    | 496  (489 passed + 7 documented skips) |
+| Integration tests  | 145    | 523  (514 passed + 9 documented skips) |
 
 ## Conventions established
 
