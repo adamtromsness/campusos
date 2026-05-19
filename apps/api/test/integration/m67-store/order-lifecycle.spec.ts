@@ -139,6 +139,28 @@ describe('integration:m67-store/order-lifecycle', () => {
   });
 
   afterAll(async () => {
+    // Clean up cross-spec rows so downstream files (m21-classroom etc.)
+    // that own TEST_STUDENT_PERSON_ID can INSERT their own platform_students /
+    // sis_students rows without colliding on UNIQUE constraints.
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_student_guardians WHERE id IN (
+         '019e0cf8-aaaa-7777-8888-000000067104'::uuid
+       )`,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_guardians WHERE id = $1::uuid`,
+      TEST_GUARDIAN_ROW_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE platform_student_id IN (
+         SELECT id FROM platform.platform_students WHERE person_id = $1::uuid
+       )`,
+      TEST_STUDENT_PERSON_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM platform.platform_students WHERE person_id = $1::uuid`,
+      TEST_STUDENT_PERSON_ID,
+    );
     await tenantPrisma.onModuleDestroy();
     await rawClient.$disconnect();
   });

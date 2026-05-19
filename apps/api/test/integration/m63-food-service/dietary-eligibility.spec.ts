@@ -116,6 +116,28 @@ describe('integration:m63-food-service/dietary-eligibility', () => {
   });
 
   afterAll(async () => {
+    // Clean up the cross-spec rows we seeded so downstream test files
+    // (e.g. m21-classroom/class-moments) that own TEST_STUDENT_PERSON_ID
+    // can INSERT their own sis_students without colliding on the UNIQUE
+    // sis_students.platform_student_id constraint.
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_student_guardians WHERE id = $1::uuid`,
+      '019e0cf8-aaaa-7777-8888-000000063103',
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_guardians WHERE id = $1::uuid`,
+      TEST_FDS_GUARDIAN_ROW_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE platform_student_id IN (
+         SELECT id FROM platform.platform_students WHERE person_id = $1::uuid
+       )`,
+      TEST_STUDENT_PERSON_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM platform.platform_students WHERE person_id = $1::uuid`,
+      TEST_STUDENT_PERSON_ID,
+    );
     await tenantPrisma.onModuleDestroy();
     await rawClient.$disconnect();
   });
