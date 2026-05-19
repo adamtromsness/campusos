@@ -170,22 +170,42 @@ describe('integration:m21-classroom/class-moments', () => {
     it('student enrolled in class can read', async () => {
       const studentId = '019e0cf8-aaaa-7777-8888-000000000040';
       const psId = '019e0cf8-aaaa-7777-8888-00000000004a';
-      await rawClient.$executeRawUnsafe(
-        `INSERT INTO platform.platform_students (id, person_id, first_name, last_name, is_active)
-           VALUES ($1::uuid, $2::uuid, 'Read', 'Stu', true)
-         ON CONFLICT (id) DO NOTHING`,
-        psId,
+      // platform_students.person_id is UNIQUE. A prior spec (or a prior
+      // crashed run of this spec) may already hold a row keyed on
+      // TEST_STUDENT_PERSON_ID — reuse it so we don't hit 23505 on the
+      // person_id UNIQUE. Tracked here so cleanupSeededIds removes the
+      // row at the end if we created it.
+      const existingPs = (await rawClient.$queryRawUnsafe(
+        `SELECT id::text AS id FROM platform.platform_students WHERE person_id = $1::uuid LIMIT 1`,
         TEST_STUDENT_PERSON_ID,
-      );
-      platformStudentIds.push(psId);
-      await rawClient.$executeRawUnsafe(
-        `INSERT INTO ${TEST_SCHEMA}.sis_students (id, platform_student_id, school_id, student_number, grade_level)
-         VALUES ($1::uuid, $2::uuid, '019e0cf8-aaaa-7777-8888-000000000002'::uuid, 'READ-1', '5')
-         ON CONFLICT (id) DO NOTHING`,
+      )) as Array<{ id: string }>;
+      const realPsId = existingPs.length > 0 ? existingPs[0]!.id : psId;
+      if (existingPs.length === 0) {
+        await rawClient.$executeRawUnsafe(
+          `INSERT INTO platform.platform_students (id, person_id, first_name, last_name, is_active)
+             VALUES ($1::uuid, $2::uuid, 'Read', 'Stu', true)
+           ON CONFLICT (person_id) DO NOTHING`,
+          psId,
+          TEST_STUDENT_PERSON_ID,
+        );
+        platformStudentIds.push(psId);
+      }
+      // sis_students has UNIQUE on (school_id, student_number) — defensively
+      // skip if a prior crashed run left this row behind.
+      const existingStu = (await rawClient.$queryRawUnsafe(
+        `SELECT id::text AS id FROM ${TEST_SCHEMA}.sis_students WHERE id = $1::uuid LIMIT 1`,
         studentId,
-        psId,
-      );
-      studentIds.push(studentId);
+      )) as Array<{ id: string }>;
+      if (existingStu.length === 0) {
+        await rawClient.$executeRawUnsafe(
+          `INSERT INTO ${TEST_SCHEMA}.sis_students (id, platform_student_id, school_id, student_number, grade_level)
+           VALUES ($1::uuid, $2::uuid, '019e0cf8-aaaa-7777-8888-000000000002'::uuid, 'READ-1', '5')
+           ON CONFLICT (id) DO NOTHING`,
+          studentId,
+          realPsId,
+        );
+        studentIds.push(studentId);
+      }
       await enrollStudent(rawClient, studentId);
       await withTestTenant(async () =>
         service.create(

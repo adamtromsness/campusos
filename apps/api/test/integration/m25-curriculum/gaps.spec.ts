@@ -97,21 +97,41 @@ describe('integration:m25-curriculum/gaps', () => {
     );
     resourceService = new ResourceLinkService(tenantPrisma, permCheck);
 
-    PLATFORM_FW_ID = generateId();
-    PLATFORM_STD_ID = generateId();
-    await rawClient.$executeRawUnsafe(
-      `INSERT INTO platform.cur_standards_frameworks_platform (id, name, body, region, version)
-       VALUES ($1::uuid, 'CCSS-GAPS-TEST', 'CCSS', 'US', '1')
-       ON CONFLICT (id) DO NOTHING`,
+    // Reuse any leftover platform framework with this test name (CASCADEs
+    // to cur_standards_platform). Without this idempotency a previous
+    // run that crashed before afterAll left a row with this name but a
+    // different UUID, and INSERT here would hit the
+    // cur_standards_frameworks_platform_name_key UNIQUE on (name).
+    const existingFw = (await rawClient.$queryRawUnsafe(
+      `SELECT id::text AS id FROM platform.cur_standards_frameworks_platform WHERE name = 'CCSS-GAPS-TEST' LIMIT 1`,
+    )) as Array<{ id: string }>;
+    if (existingFw.length > 0) {
+      PLATFORM_FW_ID = existingFw[0]!.id;
+    } else {
+      PLATFORM_FW_ID = generateId();
+      await rawClient.$executeRawUnsafe(
+        `INSERT INTO platform.cur_standards_frameworks_platform (id, name, body, region, version)
+         VALUES ($1::uuid, 'CCSS-GAPS-TEST', 'CCSS', 'US', '1')
+         ON CONFLICT (name) DO NOTHING`,
+        PLATFORM_FW_ID,
+      );
+    }
+    const existingStd = (await rawClient.$queryRawUnsafe(
+      `SELECT id::text AS id FROM platform.cur_standards_platform WHERE framework_id = $1::uuid AND code = 'CCSS.GAPS.5.NBT.1' LIMIT 1`,
       PLATFORM_FW_ID,
-    );
-    await rawClient.$executeRawUnsafe(
-      `INSERT INTO platform.cur_standards_platform (id, framework_id, code, description, grade_band)
-       VALUES ($1::uuid, $2::uuid, 'CCSS.GAPS.5.NBT.1', 'Place value', '5')
-       ON CONFLICT (id) DO NOTHING`,
-      PLATFORM_STD_ID,
-      PLATFORM_FW_ID,
-    );
+    )) as Array<{ id: string }>;
+    if (existingStd.length > 0) {
+      PLATFORM_STD_ID = existingStd[0]!.id;
+    } else {
+      PLATFORM_STD_ID = generateId();
+      await rawClient.$executeRawUnsafe(
+        `INSERT INTO platform.cur_standards_platform (id, framework_id, code, description, grade_band)
+         VALUES ($1::uuid, $2::uuid, 'CCSS.GAPS.5.NBT.1', 'Place value', '5')
+         ON CONFLICT (id) DO NOTHING`,
+        PLATFORM_STD_ID,
+        PLATFORM_FW_ID,
+      );
+    }
   });
 
   afterAll(async () => {

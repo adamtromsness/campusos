@@ -60,7 +60,7 @@ describe('integration:m00-platform/governance-sar', () => {
   // School A linked student + parent for the GUARDIAN test path. Uses the
   // canonical TEST_STUDENT_PERSON_ID / TEST_PARENT_PERSON_ID iam_person
   // rows seeded by employees fixtures.
-  const STUDENT_PLATFORM_STUDENT_ID = '019e3a01-bbbb-7777-8888-000000000001';
+  let STUDENT_PLATFORM_STUDENT_ID = '019e3a01-bbbb-7777-8888-000000000001';
   const SIS_STUDENT_ID = '019e3a01-bbbb-7777-8888-000000000002';
   const SIS_GUARDIAN_ID = '019e3a01-bbbb-7777-8888-000000000003';
   const SSG_ID = '019e3a01-bbbb-7777-8888-000000000004';
@@ -104,12 +104,39 @@ describe('integration:m00-platform/governance-sar', () => {
     // platform_students projection — defaults data_subject_is_self=false (age <18).
     // ON CONFLICT (person_id) DO UPDATE so we coexist with any platform_students
     // row a prior or concurrent test may have left for TEST_STUDENT_PERSON_ID.
+    //
+    // The ON CONFLICT keeps the EXISTING id (PK is immutable). If a prior
+    // spec left a platform_students row with a different id, our hardcoded
+    // STUDENT_PLATFORM_STUDENT_ID will not be the actual row id and the
+    // guardian-link JOIN through sis_students → platform_students breaks.
+    // Re-bind STUDENT_PLATFORM_STUDENT_ID to whatever id won the conflict.
     await rawClient.$executeRawUnsafe(
       `INSERT INTO platform.platform_students (id, person_id, first_name, last_name, is_active, data_subject_is_self)
        VALUES ($1::uuid, $2::uuid, 'Test', 'Student', true, false)
        ON CONFLICT (person_id) DO UPDATE SET data_subject_is_self = false, is_active = true`,
       STUDENT_PLATFORM_STUDENT_ID,
       TEST_STUDENT_PERSON_ID,
+    );
+    const psRow = (await rawClient.$queryRawUnsafe(
+      `SELECT id::text AS id FROM platform.platform_students WHERE person_id = $1::uuid LIMIT 1`,
+      TEST_STUDENT_PERSON_ID,
+    )) as Array<{ id: string }>;
+    if (psRow.length === 0) {
+      throw new Error('platform_students upsert failed for TEST_STUDENT_PERSON_ID');
+    }
+    STUDENT_PLATFORM_STUDENT_ID = psRow[0]!.id;
+
+    // sis_students may already exist from a prior crashed run with a stale
+    // platform_student_id pointing at a since-deleted platform_students row.
+    // Delete by id so we re-bind to the resolved STUDENT_PLATFORM_STUDENT_ID
+    // above. Cascade-cleanup of children first.
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_student_guardians WHERE student_id = $1::uuid`,
+      SIS_STUDENT_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE id = $1::uuid`,
+      SIS_STUDENT_ID,
     );
 
     // Tenant-side projections (sis_students, sis_guardians, link). Use raw
