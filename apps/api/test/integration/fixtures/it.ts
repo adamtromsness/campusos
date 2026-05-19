@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SCHOOL_B_ID } from '../helpers/tenant-context';
+import { TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 
 /**
  * Wave 6 — m62-it fixtures.
@@ -78,12 +79,13 @@ export async function ensureItSeed(client: PrismaClient): Promise<void> {
     TEST_ASSET_CATEGORY_B_ID,
   );
 
-  // Software licence
+  // Software licence (created_by NOT NULL)
   await client.$executeRawUnsafe(
-    `INSERT INTO ${TEST_SCHEMA}.tech_software_licences (id, school_id, software_name, vendor, licence_type, total_seats, used_seats, expiry_date, annual_cost, is_active)
-     VALUES ($1::uuid, $2::uuid, 'Office 365', 'Microsoft', 'PER_SEAT', 100, 0, '2027-12-31', 12000, true)
+    `INSERT INTO ${TEST_SCHEMA}.tech_software_licences (id, school_id, software_name, vendor, licence_type, total_seats, used_seats, expiry_date, annual_cost, is_active, created_by)
+     VALUES ($1::uuid, $2::uuid, 'Office 365', 'Microsoft', 'PER_SEAT', 100, 0, '2027-12-31', 12000, true, $3::uuid)
      ON CONFLICT (id) DO NOTHING`,
     TEST_LICENCE_ID,
     TEST_SCHOOL_ID,
+    TEST_ADMIN_PERSON_ID,
   );
 }
