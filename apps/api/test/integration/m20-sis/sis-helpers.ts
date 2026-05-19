@@ -265,6 +265,15 @@ export async function cleanupSeededIds(
       `DELETE FROM ${TEST_SCHEMA}.sis_family_relationships WHERE guardian_a_id = ANY($1::uuid[]) OR guardian_b_id = ANY($1::uuid[])`,
       ids.guardianIds,
     );
+    // m84-payments specs leave pay_financial_aid_applications rows that
+    // FK-reference sis_guardians; they don't ON DELETE CASCADE, so the
+    // sis_guardians DELETE below fails with 23503 unless we wipe the
+    // payment-side rows first. Safe to do here because the parent-actor
+    // guardian id is shared across specs.
+    await client.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.pay_financial_aid_applications WHERE guardian_id = ANY($1::uuid[])`,
+      ids.guardianIds,
+    );
     await client.$executeRawUnsafe(
       `DELETE FROM ${TEST_SCHEMA}.sis_guardians WHERE id = ANY($1::uuid[])`,
       ids.guardianIds,
