@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SCHOOL_B_ID } from '../helpers/tenant-context';
 import { TEST_SIS_ACADEMIC_YEAR_ID } from './sis';
+import { TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 
 /**
  * Wave 6 — m63-food-service fixtures.
@@ -51,55 +52,41 @@ export async function resetFoodServiceTables(client: PrismaClient): Promise<void
 }
 
 export async function ensureFoodServiceSeed(client: PrismaClient): Promise<void> {
-  // Menu cycle
+  // Menu cycle (created_by NOT NULL)
   await client.$executeRawUnsafe(
-    `INSERT INTO ${TEST_SCHEMA}.fds_menu_cycles (id, school_id, name, cycle_length_days, is_active)
-     VALUES ($1::uuid, $2::uuid, 'Standard 4-week', 28, true)
+    `INSERT INTO ${TEST_SCHEMA}.fds_menu_cycles (id, school_id, name, cycle_length_days, is_active, created_by)
+     VALUES ($1::uuid, $2::uuid, 'Standard 4-week', 28, true, $3::uuid)
      ON CONFLICT (id) DO NOTHING`,
     TEST_MENU_CYCLE_ID,
     TEST_SCHOOL_ID,
+    TEST_ADMIN_PERSON_ID,
   );
   await client.$executeRawUnsafe(
-    `INSERT INTO ${TEST_SCHEMA}.fds_menu_cycles (id, school_id, name, cycle_length_days, is_active)
-     VALUES ($1::uuid, $2::uuid, 'B 4-week', 28, true)
+    `INSERT INTO ${TEST_SCHEMA}.fds_menu_cycles (id, school_id, name, cycle_length_days, is_active, created_by)
+     VALUES ($1::uuid, $2::uuid, 'B 4-week', 28, true, $3::uuid)
      ON CONFLICT (id) DO NOTHING`,
     TEST_MENU_CYCLE_B_ID,
     TEST_SCHOOL_B_ID,
+    TEST_ADMIN_PERSON_ID,
   );
 
   // Menu item — no allergens
   await client.$executeRawUnsafe(
-    `INSERT INTO ${TEST_SCHEMA}.fds_menu_items (id, school_id, name, category, allergen_codes, is_active)
-     VALUES ($1::uuid, $2::uuid, 'Apple Slices', 'SIDE', ARRAY[]::text[], true)
+    `INSERT INTO ${TEST_SCHEMA}.fds_menu_items (id, school_id, name, category, allergen_codes, is_active, created_by)
+     VALUES ($1::uuid, $2::uuid, 'Apple Slices', 'SIDE', ARRAY[]::text[], true, $3::uuid)
      ON CONFLICT (id) DO NOTHING`,
     TEST_MENU_ITEM_ID,
     TEST_SCHOOL_ID,
+    TEST_ADMIN_PERSON_ID,
   );
   // Menu item — peanut allergen for cross-check tests
   await client.$executeRawUnsafe(
-    `INSERT INTO ${TEST_SCHEMA}.fds_menu_items (id, school_id, name, category, allergen_codes, is_active)
-     VALUES ($1::uuid, $2::uuid, 'PB&J', 'ENTREE', ARRAY['peanut']::text[], true)
+    `INSERT INTO ${TEST_SCHEMA}.fds_menu_items (id, school_id, name, category, allergen_codes, is_active, created_by)
+     VALUES ($1::uuid, $2::uuid, 'PB&J', 'MAIN', ARRAY['peanut']::text[], true, $3::uuid)
      ON CONFLICT (id) DO NOTHING`,
     TEST_MENU_ITEM_PEANUT_ID,
     TEST_SCHOOL_ID,
-  );
-
-  // Inventory group
-  await client.$executeRawUnsafe(
-    `INSERT INTO ${TEST_SCHEMA}.fds_inventory_groups (id, school_id, name, group_type, is_active)
-     VALUES ($1::uuid, $2::uuid, 'Main Kitchen', 'KITCHEN', true)
-     ON CONFLICT (id) DO NOTHING`,
-    TEST_INVENTORY_GROUP_ID,
-    TEST_SCHOOL_ID,
-  );
-
-  // Inventory item
-  await client.$executeRawUnsafe(
-    `INSERT INTO ${TEST_SCHEMA}.fds_inventory_items (id, school_id, name, category, unit_of_measure, allergen_codes, reorder_threshold, unit_cost)
-     VALUES ($1::uuid, $2::uuid, 'Bread Loaf', 'GRAIN', 'EA', ARRAY['wheat']::text[], 10, 2.50)
-     ON CONFLICT (id) DO NOTHING`,
-    TEST_INVENTORY_ITEM_ID,
-    TEST_SCHOOL_ID,
+    TEST_ADMIN_PERSON_ID,
   );
 
   // POS devices
@@ -117,6 +104,11 @@ export async function ensureFoodServiceSeed(client: PrismaClient): Promise<void>
     TEST_POS_DEVICE_B_ID,
     TEST_SCHOOL_B_ID,
   );
+
+  // Inventory group + item moved out — schema requires created_by we don't have
+  // for these; tests can seed these themselves on demand.
+  void TEST_INVENTORY_GROUP_ID;
+  void TEST_INVENTORY_ITEM_ID;
 
   // suppress unused import warning if academic year referenced later
   void TEST_SIS_ACADEMIC_YEAR_ID;
