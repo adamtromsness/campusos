@@ -906,14 +906,17 @@ export class DeviceSelectionService {
       )) as Array<{ status: string; person_id: string }>;
       if (lockRows.length === 0) throw new NotFoundException('Selection not found');
       personId = lockRows[0]!.person_id;
-      if (lockRows[0]!.status === 'PROVISIONED' || lockRows[0]!.status === 'REJECTED') {
+      if (lockRows[0]!.status === 'PROVISIONED' || lockRows[0]!.status === 'CANCELLED') {
         throw new ConflictException(
           'Selection in status ' + lockRows[0]!.status + ' cannot be rejected',
         );
       }
+      // Schema CHECK rejects 'REJECTED' as a status; CANCELLED is the valid
+      // terminal-rejection state per migration 077. The approved_chk
+      // lockstep requires approved_by/at to be NULL on non-APPROVED states.
+      void actor;
       await tx.$executeRawUnsafe(
-        "UPDATE tech_device_selections SET status = 'REJECTED', approved_by = $1::uuid, approved_at = now(), updated_at = now() WHERE id = $2::uuid",
-        actor.accountId,
+        "UPDATE tech_device_selections SET status = 'CANCELLED', approved_by = NULL, approved_at = NULL, updated_at = now() WHERE id = $1::uuid",
         id,
       );
     });

@@ -246,9 +246,61 @@ describe('integration:m62-it/assets-licences', () => {
   // CredentialVaultService
   // ────────────────────────────────────────────────────────
   describe('CredentialVaultService', () => {
-    it.skip('admin creates credential — requires explicit it-005 permission', async () => {
-      // assertItAdmin checks for it-005:admin or specific role tier;
-      // skipping until the test actor is bridged to that permission.
+    it('admin creates credential at STANDARD tier; list + getByIdWithPassword + patch + accessLog + remove', async () => {
+      // Seed IT-005 admin permission for the test admin so vault gates pass.
+      await rawClient.$executeRawUnsafe(
+        `INSERT INTO platform.iam_effective_access_cache (id, account_id, scope_id, permission_codes, computed_at, assignment_version_hash)
+         VALUES (gen_random_uuid(), $1::uuid,
+           (SELECT id FROM platform.iam_scope WHERE entity_id = $2::uuid LIMIT 1),
+           ARRAY['it-005:read','it-005:write','it-005:admin']::text[],
+           now(), 'm62-vault-test')
+         ON CONFLICT (account_id, scope_id) DO UPDATE
+           SET permission_codes = ARRAY['it-005:read','it-005:write','it-005:admin']::text[]`,
+        '019e0cf8-aaaa-7777-8888-000000000011', // TEST_ADMIN_ACCOUNT_ID
+        '019e0cf8-aaaa-7777-8888-000000000002', // TEST_SCHOOL_ID
+      );
+
+      const dto = await withTestTenant(async () =>
+        vault.create(
+          {
+            serviceName: 'Test Service',
+            credentialType: 'VENDOR_PORTAL',
+            username: 'admin',
+            password: 'secret123',
+            url: 'https://example.com',
+            accessTier: 'STANDARD',
+          } as any,
+          adminActor(),
+        ),
+      );
+      expect(dto.serviceName).toBe('Test Service');
+
+      const list = await withTestTenant(async () => vault.list(adminActor()));
+      expect(list.map((c) => c.id)).toContain(dto.id);
+
+      const detail = await withTestTenant(async () =>
+        vault.getByIdWithPassword(dto.id, adminActor()),
+      );
+      expect(detail.password).toBe('secret123');
+
+      const patched = await withTestTenant(async () =>
+        vault.patch(
+          dto.id,
+          { serviceName: 'Renamed' } as any,
+          adminActor(),
+        ),
+      );
+      expect(patched.serviceName).toBe('Renamed');
+
+      const log = await withTestTenant(async () => vault.accessLog(dto.id, adminActor()));
+      expect(log.length).toBeGreaterThan(0);
+
+      await withTestTenant(async () => vault.remove(dto.id, adminActor()));
+
+      // Cleanup IAM cache
+      await rawClient.$executeRawUnsafe(
+        `DELETE FROM platform.iam_effective_access_cache WHERE assignment_version_hash = 'm62-vault-test'`,
+      );
     });
 
     it('non-admin / non-STAFF create → ForbiddenException', async () => {
