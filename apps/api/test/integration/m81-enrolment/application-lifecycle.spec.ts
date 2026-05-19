@@ -752,20 +752,12 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
-  // Cross-school isolation
-  //
-  // PRODUCTION BUG FINDING: ApplicationService.list() and .getById() do
-  // NOT scope their SQL predicates by tenant.schoolId. The service trusts
-  // the tenant_prisma search_path alone, but tenant_test holds BOTH
-  // School A and School B rows in the same physical schema (as is true
-  // for any future multi-school org sharing a schema). The result: a
-  // School A admin sees and can fetch a School B application. The tests
-  // below DOCUMENT the current behaviour and FAIL-LOUDLY when the fix
-  // lands — re-flip the `expect(...).toContain` to `not.toContain` once
-  // the service adds `AND a.school_id = $X::uuid` to both reads.
+  // Cross-school isolation — Codex FIX 2: ApplicationService.list() and
+  // .getById() now bind `a.school_id = tenant.schoolId`, so cross-school
+  // rows are invisible (404 on direct fetch, missing from list).
   // ────────────────────────────────────────────────────────────────────
-  describe('cross-school isolation (BUG: service does not scope by school_id)', () => {
-    it("School A admin's list incorrectly includes School B applications (BUG)", async () => {
+  describe('cross-school isolation', () => {
+    it("School A admin's list excludes School B applications", async () => {
       // Create app in School B.
       await withTestTenantB(async () =>
         appService.create(
@@ -789,14 +781,11 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
       );
       const names = aList.map((r) => r.studentFirstName);
       expect(names).toContain('SchoolA-Student');
-      // The list returns both schools' rows today. After the fix this
-      // should be `.not.toContain('SchoolB-Student')` — see the note
-      // above this describe block.
-      expect(names).toContain('SchoolB-Student');
+      expect(names).not.toContain('SchoolB-Student');
       expect(aList.map((r) => r.id)).toContain(aAppDto.id);
     });
 
-    it("School A admin getById of a School B application returns the row (BUG)", async () => {
+    it('School A admin getById of a School B application → NotFoundException', async () => {
       const bDto = await withTestTenantB(async () =>
         appService.create(
           buildCreatePayload({
@@ -806,11 +795,9 @@ describe('integration:m81-enrolment/application-lifecycle', () => {
           adminActor(),
         ),
       );
-      const fetched = await withTestTenant(async () =>
-        appService.getById(bDto.id, adminActor()),
-      );
-      expect(fetched.id).toBe(bDto.id);
-      expect(fetched.schoolId).toBe(TEST_SCHOOL_B_ID);
+      await expect(
+        withTestTenant(async () => appService.getById(bDto.id, adminActor())),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

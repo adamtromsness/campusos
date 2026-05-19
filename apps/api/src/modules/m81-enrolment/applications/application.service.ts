@@ -159,10 +159,15 @@ export class ApplicationService {
     query: ListApplicationsQueryDto,
     actor: ResolvedActor,
   ): Promise<ApplicationResponseDto[]> {
+    var tenant = getCurrentTenant();
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      var sql = SELECT_APPLICATION_BASE + 'WHERE 1=1 ';
-      var params: any[] = [];
-      var idx = 1;
+      // Bind a.school_id = tenant.schoolId so a multi-school org sharing
+      // one tenant schema cannot leak School B applications into a
+      // School A actor's list. Defence-in-depth alongside schema-per-
+      // school in production.
+      var sql = SELECT_APPLICATION_BASE + 'WHERE a.school_id = $' + 1 + '::uuid ';
+      var params: any[] = [tenant.schoolId];
+      var idx = 2;
       if (!actor.isSchoolAdmin) {
         // Non-admins: parent persona sees own applications only; everyone
         // else gets nothing.
@@ -201,10 +206,14 @@ export class ApplicationService {
   }
 
   async getById(id: string, actor: ResolvedActor): Promise<ApplicationResponseDto> {
+    var tenant = getCurrentTenant();
     var data = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      // School scope at the SELECT: 404 a cross-school id rather than
+      // surfacing the row + relying on the row-scope check below.
       var rows = await client.$queryRawUnsafe<ApplicationRow[]>(
-        SELECT_APPLICATION_BASE + 'WHERE a.id = $1::uuid',
+        SELECT_APPLICATION_BASE + 'WHERE a.id = $1::uuid AND a.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) return null;
       var screening = await this.loadScreeningFor(client, [id]);

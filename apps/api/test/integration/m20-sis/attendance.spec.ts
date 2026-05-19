@@ -296,19 +296,36 @@ describe('integration:m20-sis/attendance', () => {
     it('student persona: getClassAttendance only sees own row', async () => {
       // Register the calling student in the class
       await assignTeacherToClass(rawClient);
-      // Map TEST_STUDENT_PERSON_ID to a sis_students row
-      const studentRow = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
-        `INSERT INTO platform.platform_students (id, person_id, first_name, last_name, is_active)
-           VALUES (gen_random_uuid(), $1::uuid, 'Self', 'Att', true)
-         RETURNING id`,
+      // Map TEST_STUDENT_PERSON_ID to a sis_students row. platform_students
+      // has UNIQUE(person_id), so a prior spec may have left a row keyed by
+      // this stable persona id; reuse it instead of inserting a duplicate.
+      const existingPs = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id::text FROM platform.platform_students WHERE person_id = $1::uuid LIMIT 1`,
         TEST_STUDENT_PERSON_ID,
       );
-      const psId = studentRow[0]!.id;
-      platformStudentIds.push(psId);
+      let psId: string;
+      if (existingPs.length > 0) {
+        psId = existingPs[0]!.id;
+      } else {
+        const studentRow = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
+          `INSERT INTO platform.platform_students (id, person_id, first_name, last_name, is_active)
+             VALUES (gen_random_uuid(), $1::uuid, 'Self', 'Att', true)
+           RETURNING id::text`,
+          TEST_STUDENT_PERSON_ID,
+        );
+        psId = studentRow[0]!.id;
+        platformStudentIds.push(psId);
+      }
+      // Wipe any prior sis_students row for this platform_student_id so the
+      // INSERT below is idempotent across spec re-runs in the same schema.
+      await rawClient.$executeRawUnsafe(
+        `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE platform_student_id = $1::uuid`,
+        psId,
+      );
       const sisRow = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
         `INSERT INTO ${TEST_SCHEMA}.sis_students (id, platform_student_id, school_id, student_number, grade_level)
            VALUES (gen_random_uuid(), $1::uuid, $2::uuid, 'SELF-ATT', '5')
-         RETURNING id`,
+         RETURNING id::text`,
         psId,
         TEST_SCHOOL_ID,
       );

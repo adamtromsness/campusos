@@ -134,9 +134,11 @@ export class EnrollmentPeriodService {
   constructor(private readonly tenantPrisma: TenantPrismaService) {}
 
   async list(): Promise<EnrollmentPeriodResponseDto[]> {
+    var tenant = getCurrentTenant();
     var data = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var periods = await client.$queryRawUnsafe<PeriodRow[]>(
-        SELECT_PERIOD_BASE + 'ORDER BY p.opens_at DESC',
+        SELECT_PERIOD_BASE + 'WHERE p.school_id = $1::uuid ORDER BY p.opens_at DESC',
+        tenant.schoolId,
       );
       var ids = periods.map((p) => p.id);
       var streams = await this.loadStreamsFor(client, ids);
@@ -153,10 +155,12 @@ export class EnrollmentPeriodService {
   }
 
   async getById(id: string): Promise<EnrollmentPeriodResponseDto> {
+    var tenant = getCurrentTenant();
     var data = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var rows = await client.$queryRawUnsafe<PeriodRow[]>(
-        SELECT_PERIOD_BASE + 'WHERE p.id = $1::uuid',
+        SELECT_PERIOD_BASE + 'WHERE p.id = $1::uuid AND p.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) return null;
       var streams = await this.loadStreamsFor(client, [id]);

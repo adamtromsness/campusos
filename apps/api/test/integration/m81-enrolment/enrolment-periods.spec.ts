@@ -586,15 +586,13 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
-  // School B isolation note
-  //
-  // PRODUCTION BUG (same shape as ApplicationService): EnrollmentPeriodService
-  // does NOT scope list/getById by tenant.schoolId, so a School A actor sees
-  // a School B period in tenant_test. Documented + verified here; matches
-  // the precedent established in application-lifecycle.spec.ts.
+  // Cross-school isolation — Codex FIX 3: EnrollmentPeriodService.list /
+  // .getById now bind `p.school_id = tenant.schoolId`. A School A actor
+  // sees only School A periods; a School B period id collapses to 404
+  // on getById.
   // ────────────────────────────────────────────────────────────────────
-  describe('cross-school isolation (BUG: service does not scope by school_id)', () => {
-    it('A admin list returns B periods today; B admin sees both rows', async () => {
+  describe('cross-school isolation', () => {
+    it('A admin list excludes B periods; B admin sees only B periods', async () => {
       const { opensAt, closesAt } = nextWindow();
       await withTestTenant(async () =>
         periodService.create(
@@ -607,7 +605,7 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
           adminActor(),
         ),
       );
-      await withTestTenantB(async () =>
+      const bDto = await withTestTenantB(async () =>
         periodService.create(
           {
             academicYearId: TEST_SIS_ACADEMIC_YEAR_B_ID,
@@ -618,11 +616,15 @@ describe('integration:m81-enrolment/enrolment-periods', () => {
           adminActor(),
         ),
       );
-      const list = await withTestTenant(async () => periodService.list());
-      const names = list.map((p) => p.name);
-      expect(names).toContain('SchoolA Period');
-      // Today the list bleeds through; will flip to .not.toContain on fix.
-      expect(names).toContain('SchoolB Period');
+      const aList = await withTestTenant(async () => periodService.list());
+      const aNames = aList.map((p) => p.name);
+      expect(aNames).toContain('SchoolA Period');
+      expect(aNames).not.toContain('SchoolB Period');
+
+      // A admin probing the B period id → 404.
+      await expect(
+        withTestTenant(async () => periodService.getById(bDto.id)),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });
