@@ -209,28 +209,16 @@ describe('integration:m21-classroom/misc-controllers', () => {
       TEST_SCHOOL_SCOPE_ID,
     );
 
-    // Seed hr_employees row for the admin actor — several controllers
-    // (PeerReview, ReportCardSubject, ProgressNote) require employeeId
-    // even for admin callers. ProgressNote test then assigns this teacher
-    // to the test class.
-    await rawClient.$executeRawUnsafe(
-      `INSERT INTO ${TEST_SCHEMA}.hr_employees (id, school_id, person_id, account_id, employee_number, employment_status, employment_type, hire_date)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'CTRL-ADMIN', 'ACTIVE', 'FULL_TIME', '2025-01-01')
-       ON CONFLICT (id) DO NOTHING`,
-      TEST_ADMIN_EMPLOYEE_ID,
-      TEST_SCHOOL_ID,
-      TEST_ADMIN_PERSON_ID,
-      TEST_ADMIN_ACCOUNT_ID,
-    );
+    // hr_employees row for the admin actor is seeded by globalSetup's
+    // ensureEmployeeFixtures — several controllers (PeerReview,
+    // ReportCardSubject, ProgressNote) require employeeId even for admin
+    // callers. The ProgressNote test then assigns this teacher to the test
+    // class.
 
     assignmentTypeId = await ensureAssignmentType();
   });
 
   afterAll(async () => {
-    await rawClient.$executeRawUnsafe(
-      `DELETE FROM ${TEST_SCHEMA}.hr_employees WHERE id = $1::uuid`,
-      TEST_ADMIN_EMPLOYEE_ID,
-    );
     await rawClient.$executeRawUnsafe(
       `DELETE FROM platform.iam_effective_access_cache WHERE account_id = $1::uuid`,
       TEST_ADMIN_ACCOUNT_ID,

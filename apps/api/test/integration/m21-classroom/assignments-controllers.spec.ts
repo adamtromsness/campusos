@@ -21,6 +21,7 @@ import { makeRecordingKafka } from '../helpers/recording-kafka';
 import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
 import {
   TEST_ADMIN_ACCOUNT_ID,
+  TEST_ADMIN_EMPLOYEE_ID,
   TEST_ADMIN_PERSON_ID,
   TEST_STUDENT_PERSON_ID,
 } from '../helpers/actor';
@@ -129,6 +130,11 @@ describe('integration:m21-classroom/assignments-controllers', () => {
       TEST_ADMIN_ACCOUNT_ID,
       TEST_SCHOOL_SCOPE_ID,
     );
+
+    // hr_employees row for admin is seeded by globalSetup's
+    // ensureEmployeeFixtures — no per-spec seed/teardown needed. The row
+    // provides actor.employeeId for the RubricService and
+    // FormativeAssessmentService gates.
 
     assignmentTypeId = await ensureAssignmentType();
   });

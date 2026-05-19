@@ -18,7 +18,7 @@ import type { KafkaProducerService } from '@shared/kafka/kafka-producer.service'
 
 import { makeRecordingKafka } from '../helpers/recording-kafka';
 import { withTestTenant, TEST_SCHEMA, TEST_SCHOOL_ID } from '../helpers/tenant-context';
-import { TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
+import { TEST_ADMIN_ACCOUNT_ID, TEST_ADMIN_EMPLOYEE_ID, TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 import { TEST_SCHOOL_SCOPE_ID } from '../fixtures/platform';
 import { TEST_SIS_CLASS_ID } from '../fixtures/sis';
 import { seedStudent, enrollStudent, cleanupSeededIds } from '../m20-sis/sis-helpers';
@@ -130,7 +130,7 @@ describe('integration:m21-classroom/grading-controllers', () => {
         {
           accountId: TEST_ADMIN_ACCOUNT_ID,
           personId: TEST_ADMIN_PERSON_ID,
-          employeeId: null,
+          employeeId: TEST_ADMIN_EMPLOYEE_ID,
           personType: 'STAFF',
           isSchoolAdmin: true,
         } as any,
@@ -185,6 +185,11 @@ describe('integration:m21-classroom/grading-controllers', () => {
       TEST_ADMIN_ACCOUNT_ID,
       TEST_SCHOOL_SCOPE_ID,
     );
+
+    // hr_employees row for admin is seeded by globalSetup's
+    // ensureEmployeeFixtures — no per-spec seed/teardown needed. The row
+    // provides actor.employeeId for GradeService / ObservationService /
+    // StandardGradeService gates.
 
     assignmentTypeId = await ensureAssignmentType();
     curFrameworkId = await ensureCurFramework();
