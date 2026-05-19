@@ -99,8 +99,8 @@ describe('integration:m20-sis/graduation-workers', () => {
     if (existing.length > 0) return existing[0]!.id;
     const id = generateId();
     await rawClient.$executeRawUnsafe(
-      `INSERT INTO ${TEST_SCHEMA}.cls_assignment_types (id, school_id, name, weight_in_category)
-       VALUES ($1::uuid, $2::uuid, 'Final', 1.0)`,
+      `INSERT INTO ${TEST_SCHEMA}.cls_assignment_types (id, school_id, name, weight_in_category, category)
+       VALUES ($1::uuid, $2::uuid, 'Final', 1.0, 'TEST')`,
       id,
       TEST_SCHOOL_ID,
     );
