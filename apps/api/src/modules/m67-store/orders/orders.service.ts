@@ -171,11 +171,14 @@ export class OrderService {
    */
   private async assertExternalCustomerInCurrentSchool(externalCustomerId: string): Promise<void> {
     const tenant = getCurrentTenant();
+    // str_external_customers carries school_id directly per migration 094 —
+    // there is no store_id column on this table. Earlier revisions of this
+    // helper joined through a non-existent str_external_customers.store_id;
+    // that path threw at the DB layer instead of the friendly BadRequest.
     const rows = (await this.tenantPrisma.executeInTenantContext(async (client) => {
       return client.$queryRawUnsafe(
-        `SELECT 1 AS ok FROM str_external_customers ec ` +
-          `JOIN str_stores s ON s.id = ec.store_id ` +
-          `WHERE ec.id = $1::uuid AND s.school_id = $2::uuid LIMIT 1`,
+        `SELECT 1 AS ok FROM str_external_customers ` +
+          `WHERE id = $1::uuid AND school_id = $2::uuid LIMIT 1`,
         externalCustomerId,
         tenant.schoolId,
       );
