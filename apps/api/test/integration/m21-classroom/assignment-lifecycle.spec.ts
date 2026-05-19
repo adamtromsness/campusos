@@ -161,11 +161,46 @@ describe('integration:m21-classroom/assignment-lifecycle', () => {
   }
 
   /**
+   * Pre-clean any stray rows tied to the static STUDENT actor person id —
+   * needed because m21-classroom specs all share TEST_STUDENT_PERSON_ID
+   * and intra-fork concurrency can leak rows between spec files.
+   */
+  async function pruneStudentActorLeak(): Promise<void> {
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.cls_submissions
+       WHERE student_id IN (
+         SELECT s.id FROM ${TEST_SCHEMA}.sis_students s
+         JOIN platform.platform_students ps ON ps.id = s.platform_student_id
+         WHERE ps.person_id = $1::uuid)`,
+      TEST_STUDENT_PERSON_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_enrollments
+       WHERE student_id IN (
+         SELECT s.id FROM ${TEST_SCHEMA}.sis_students s
+         JOIN platform.platform_students ps ON ps.id = s.platform_student_id
+         WHERE ps.person_id = $1::uuid)`,
+      TEST_STUDENT_PERSON_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_students
+       WHERE platform_student_id IN (
+         SELECT id FROM platform.platform_students WHERE person_id = $1::uuid)`,
+      TEST_STUDENT_PERSON_ID,
+    );
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM platform.platform_students WHERE person_id = $1::uuid`,
+      TEST_STUDENT_PERSON_ID,
+    );
+  }
+
+  /**
    * Seed a sis_students row pointing at the static STUDENT actor's
    * iam_person so the SubmissionService can resolve the calling
    * student's sis_students.id from actor.personId.
    */
   async function ensureStudentActorSisRow(): Promise<string> {
+    await pruneStudentActorLeak();
     const psId = generateId();
     const sid = generateId();
     await rawClient.$executeRawUnsafe(

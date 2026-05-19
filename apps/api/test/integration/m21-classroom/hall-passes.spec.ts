@@ -590,6 +590,33 @@ describe('integration:m21-classroom/hall-passes', () => {
      * ps ... WHERE ps.person_id = $actorPersonId)`) can resolve.
      */
     async function ensureStudentActorSisRow(): Promise<string> {
+      // Pre-clean leaked rows from prior spec files — same-pid persona.
+      await rawClient.$executeRawUnsafe(
+        `DELETE FROM ${TEST_SCHEMA}.cls_hall_passes
+         WHERE student_id IN (
+           SELECT s.id FROM ${TEST_SCHEMA}.sis_students s
+           JOIN platform.platform_students ps ON ps.id = s.platform_student_id
+           WHERE ps.person_id = $1::uuid)`,
+        TEST_STUDENT_PERSON_ID,
+      );
+      await rawClient.$executeRawUnsafe(
+        `DELETE FROM ${TEST_SCHEMA}.sis_enrollments
+         WHERE student_id IN (
+           SELECT s.id FROM ${TEST_SCHEMA}.sis_students s
+           JOIN platform.platform_students ps ON ps.id = s.platform_student_id
+           WHERE ps.person_id = $1::uuid)`,
+        TEST_STUDENT_PERSON_ID,
+      );
+      await rawClient.$executeRawUnsafe(
+        `DELETE FROM ${TEST_SCHEMA}.sis_students
+         WHERE platform_student_id IN (
+           SELECT id FROM platform.platform_students WHERE person_id = $1::uuid)`,
+        TEST_STUDENT_PERSON_ID,
+      );
+      await rawClient.$executeRawUnsafe(
+        `DELETE FROM platform.platform_students WHERE person_id = $1::uuid`,
+        TEST_STUDENT_PERSON_ID,
+      );
       const psId = generateId();
       const sid = generateId();
       await rawClient.$executeRawUnsafe(
