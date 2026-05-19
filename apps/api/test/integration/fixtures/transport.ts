@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { TEST_SCHEMA, TEST_SCHOOL_ID, TEST_SCHOOL_B_ID } from '../helpers/tenant-context';
 import { TEST_SIS_ACADEMIC_YEAR_ID, TEST_SIS_ACADEMIC_YEAR_B_ID } from './sis';
+import { TEST_ADMIN_PERSON_ID } from '../helpers/actor';
 
 /**
  * Wave 6 — m61-transport fixtures.
@@ -74,23 +75,25 @@ export async function ensureTransportSeed(client: PrismaClient): Promise<void> {
 
   // School A route
   await client.$executeRawUnsafe(
-    `INSERT INTO ${TEST_SCHEMA}.trn_routes (id, school_id, name, direction, vehicle_id, academic_year_id, status)
-     VALUES ($1::uuid, $2::uuid, 'Route 1', 'AM', $3::uuid, $4::uuid, 'ACTIVE')
+    `INSERT INTO ${TEST_SCHEMA}.trn_routes (id, school_id, name, direction, vehicle_id, academic_year_id, status, created_by)
+     VALUES ($1::uuid, $2::uuid, 'Route 1', 'AM', $3::uuid, $4::uuid, 'ACTIVE', $5::uuid)
      ON CONFLICT (id) DO NOTHING`,
     TEST_ROUTE_ID,
     TEST_SCHOOL_ID,
     TEST_VEHICLE_ID,
     TEST_SIS_ACADEMIC_YEAR_ID,
+    TEST_ADMIN_PERSON_ID,
   );
   // School B route
   await client.$executeRawUnsafe(
-    `INSERT INTO ${TEST_SCHEMA}.trn_routes (id, school_id, name, direction, vehicle_id, academic_year_id, status)
-     VALUES ($1::uuid, $2::uuid, 'Route 1 B', 'AM', $3::uuid, $4::uuid, 'ACTIVE')
+    `INSERT INTO ${TEST_SCHEMA}.trn_routes (id, school_id, name, direction, vehicle_id, academic_year_id, status, created_by)
+     VALUES ($1::uuid, $2::uuid, 'Route 1 B', 'AM', $3::uuid, $4::uuid, 'ACTIVE', $5::uuid)
      ON CONFLICT (id) DO NOTHING`,
     TEST_ROUTE_B_ID,
     TEST_SCHOOL_B_ID,
     TEST_VEHICLE_B_ID,
     TEST_SIS_ACADEMIC_YEAR_B_ID,
+    TEST_ADMIN_PERSON_ID,
   );
 
   // Route stop
