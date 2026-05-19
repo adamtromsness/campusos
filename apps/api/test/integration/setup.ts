@@ -14,6 +14,9 @@ import { ensurePlatformFixtures, assertPlatformFixtures } from './fixtures/platf
 import { ensureEmployeeFixtures, assertEmployeeFixtures } from './fixtures/employees';
 import { ensureFinanceFixtures, assertFinanceFixtures } from './fixtures/finance';
 import { ensureSisFixtures, assertSisFixtures } from './fixtures/sis';
+import { ensureCommunicationsFixtures } from './fixtures/communications';
+import { ensureMeetingsFixtures } from './fixtures/meetings';
+import { ensurePublicationsFixtures } from './fixtures/publications';
 import { TEST_SCHEMA } from './helpers/tenant-context';
 
 /**
@@ -107,6 +110,9 @@ export default async function setup(): Promise<() => Promise<void>> {
     await ensureEmployeeFixtures(prisma);
     await ensureFinanceFixtures(prisma);
     await ensureSisFixtures(prisma);
+    await ensureCommunicationsFixtures(prisma);
+    await ensureMeetingsFixtures(prisma);
+    await ensurePublicationsFixtures(prisma);
     await assertPlatformFixtures(prisma);
     await assertEmployeeFixtures(prisma);
     await assertFinanceFixtures(prisma);
