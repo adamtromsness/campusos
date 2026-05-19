@@ -182,8 +182,17 @@ export class CalendarService {
     }
     var existing = await this.getById(id, actor);
     var nextAllDay = body.allDay !== undefined ? body.allDay : existing.allDay;
-    var nextStart = body.startTime !== undefined ? body.startTime : existing.startTime;
-    var nextEnd = body.endTime !== undefined ? body.endTime : existing.endTime;
+    // When flipping to all-day, the UPDATE below clears start_time / end_time
+    // in the same statement so the time-consistency CHECK passes. The
+    // assertTimeShape pre-check must mirror that behaviour — otherwise a
+    // patch that simply sets allDay=true on an existing timed event rejects
+    // even though the UPDATE would have succeeded.
+    var nextStart = body.allDay === true
+      ? null
+      : (body.startTime !== undefined ? body.startTime : existing.startTime);
+    var nextEnd = body.allDay === true
+      ? null
+      : (body.endTime !== undefined ? body.endTime : existing.endTime);
     this.assertTimeShape(nextAllDay, nextStart ?? undefined, nextEnd ?? undefined);
 
     var setClauses: string[] = [];

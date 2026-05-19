@@ -223,24 +223,40 @@ describe('integration:m20-sis/student-crud', () => {
     });
 
     it('student persona: getSelfForStudent finds own row', async () => {
-      // Map student actor.personId → a sis_students row
-      await rawClient.$executeRawUnsafe(
-        `INSERT INTO platform.platform_students (id, person_id, first_name, last_name, is_active)
-           VALUES ($1::uuid, $2::uuid, 'Self', 'Student', true)
-           ON CONFLICT (id) DO NOTHING`,
-        '019e0cf8-aaaa-7777-8888-000000000042',
+      // Map student actor.personId → a sis_students row. UNIQUE(person_id) on
+      // platform_students means a sibling spec may have already inserted a
+      // row keyed by TEST_STUDENT_PERSON_ID with a different id; reuse that
+      // existing platform_student_id instead of trying to insert ours.
+      const existing = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id::text FROM platform.platform_students WHERE person_id = $1::uuid LIMIT 1`,
         TEST_STUDENT_PERSON_ID,
       );
-      platformStudentIds.push('019e0cf8-aaaa-7777-8888-000000000042');
-      // sis_students row pointing to this platform_students
+      let psId: string;
+      if (existing.length > 0) {
+        psId = existing[0]!.id;
+      } else {
+        psId = '019e0cf8-aaaa-7777-8888-000000000042';
+        await rawClient.$executeRawUnsafe(
+          `INSERT INTO platform.platform_students (id, person_id, first_name, last_name, is_active)
+             VALUES ($1::uuid, $2::uuid, 'Self', 'Student', true)`,
+          psId,
+          TEST_STUDENT_PERSON_ID,
+        );
+        platformStudentIds.push(psId);
+      }
+      // sis_students row pointing to this platform_students. Also clean up
+      // any prior sis_students row with this platform_student_id (UNIQUE).
+      await rawClient.$executeRawUnsafe(
+        `DELETE FROM ${TEST_SCHEMA}.sis_students WHERE platform_student_id = $1::uuid`,
+        psId,
+      );
       const sid = '019e0cf8-aaaa-7777-8888-000000000043';
       await rawClient.$executeRawUnsafe(
         `INSERT INTO ${TEST_SCHEMA}.sis_students
            (id, platform_student_id, school_id, student_number, grade_level)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, 'SELF-1', '5')
-         ON CONFLICT (id) DO NOTHING`,
+         VALUES ($1::uuid, $2::uuid, $3::uuid, 'SELF-1', '5')`,
         sid,
-        '019e0cf8-aaaa-7777-8888-000000000042',
+        psId,
         TEST_SCHOOL_ID,
       );
       studentIds.push(sid);
@@ -253,7 +269,17 @@ describe('integration:m20-sis/student-crud', () => {
     });
 
     it('student persona: getSelfForStudent → 404 when no sis_students row exists', async () => {
-      // Make sure no row exists (cleanup already ran)
+      // Make sure no sis_students row exists for the student persona in
+      // this school (a sibling spec may have left one behind via the same
+      // person_id).
+      await rawClient.$executeRawUnsafe(
+        `DELETE FROM ${TEST_SCHEMA}.sis_students s USING platform.platform_students ps
+           WHERE s.platform_student_id = ps.id
+             AND ps.person_id = $1::uuid
+             AND s.school_id = $2::uuid`,
+        TEST_STUDENT_PERSON_ID,
+        TEST_SCHOOL_ID,
+      );
       await expect(
         withTestTenant(
           async () => service.getSelfForStudent(studentActor()),

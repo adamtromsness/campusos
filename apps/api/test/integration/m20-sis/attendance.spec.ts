@@ -71,6 +71,13 @@ describe('integration:m20-sis/attendance', () => {
     );
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_absence_requests`);
     await rawClient.$executeRawUnsafe(`DELETE FROM ${TEST_SCHEMA}.sis_class_teachers`);
+    // Other m20-sis specs (graduation-workers, student-profile, etc.) may
+    // seed enrollments in TEST_SIS_CLASS_ID via untracked students; wipe
+    // any leftover enrollments so the roster counts in this spec match.
+    await rawClient.$executeRawUnsafe(
+      `DELETE FROM ${TEST_SCHEMA}.sis_enrollments WHERE class_id = $1::uuid`,
+      '019e0cf8-aaaa-7777-8888-000000000204', // TEST_SIS_CLASS_ID
+    );
     await cleanupSeededIds(rawClient, {
       studentIds: studentIds.splice(0),
       platformStudentIds: platformStudentIds.splice(0),
@@ -96,9 +103,20 @@ describe('integration:m20-sis/attendance', () => {
       await enrollStudent(rawClient, s1.studentId);
       await enrollStudent(rawClient, s2.studentId);
 
+      // Debug: confirm enrollments persisted before the service call.
+      const debugEnrolls = await rawClient.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id::text FROM ${TEST_SCHEMA}.sis_enrollments WHERE class_id = $1::uuid AND student_id = ANY($2::uuid[])`,
+        TEST_SIS_CLASS_ID,
+        [s1.studentId, s2.studentId],
+      );
+      // eslint-disable-next-line no-console
+      console.log('[DEBUG] enrollments seeded:', debugEnrolls.length, 'student ids:', s1.studentId, s2.studentId);
+
       const rows = await withTestTenant(async () =>
         service.getClassAttendance(TEST_SIS_CLASS_ID, '2026-09-01', '1', adminActor()),
       );
+      // eslint-disable-next-line no-console
+      console.log('[DEBUG] rows returned:', rows.length);
       expect(rows).toHaveLength(2);
       for (const r of rows) {
         expect(r.status).toBe('PRESENT');

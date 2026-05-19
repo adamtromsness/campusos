@@ -150,7 +150,7 @@ export async function enrollStudent(
   classId: string = TEST_SIS_CLASS_ID,
 ): Promise<string> {
   const enrId = generateId();
-  await client.$executeRawUnsafe(
+  const affected = await client.$executeRawUnsafe(
     `INSERT INTO ${TEST_SCHEMA}.sis_enrollments (id, student_id, class_id, status)
      VALUES ($1::uuid, $2::uuid, $3::uuid, 'ACTIVE')
      ON CONFLICT DO NOTHING`,
@@ -158,6 +158,8 @@ export async function enrollStudent(
     studentId,
     classId,
   );
+  // eslint-disable-next-line no-console
+  if (affected === 0) console.log('[enrollStudent] no row inserted for', studentId, classId);
   return enrId;
 }
 

@@ -207,8 +207,7 @@ export class LockerService {
         ),
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (message.includes('sis_lockers_unique')) {
+      if (isLockerUniqueViolation(err)) {
         throw new BadRequestException(`Locker ${dto.lockerNumber} already exists.`);
       }
       throw err;
@@ -432,4 +431,31 @@ export class LockerService {
     );
     return this.rowToDto(rows[0]!);
   }
+}
+
+/**
+ * Recognise PostgreSQL SQLSTATE 23505 (unique_violation) on the
+ * sis_lockers_unique constraint. The Prisma raw-query layer sometimes
+ * surfaces the constraint name in the message and sometimes only the
+ * generic 23505 + `Key (school_id, locker_number)=(...)` shape. Check
+ * Prisma's P2010 + meta.code='23505' first, then fall back to a regex
+ * on either the constraint name or the `(school_id, locker_number)`
+ * key tuple — mirrors the helper pattern in child-link-request.service.ts.
+ */
+function isLockerUniqueViolation(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: string; meta?: { code?: string }; message?: string };
+  if (e.meta?.code === '23505') {
+    if (typeof e.message === 'string' && /school_id|locker_number|sis_lockers_unique/i.test(e.message)) {
+      return true;
+    }
+    // Bare 23505 with no key info — assume locker uniqueness since the only
+    // UNIQUE on sis_lockers is the (school_id, locker_number) pair.
+    return true;
+  }
+  if (typeof e.message === 'string') {
+    return /sis_lockers_unique/.test(e.message)
+      || (/23505|duplicate key value/i.test(e.message) && /school_id|locker_number/i.test(e.message));
+  }
+  return false;
 }

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { TenantPrismaService } from '@shared/tenant';
+import { TenantPrismaService, getCurrentTenant } from '@shared/tenant';
 import {
   ListClassesQueryDto,
   ClassResponseDto,
@@ -128,10 +128,12 @@ export class ClassService {
 
   async list(filters: ListClassesQueryDto): Promise<ClassResponseDto[]> {
     var today = new Date().toISOString().slice(0, 10);
+    var tenant = getCurrentTenant();
     var result = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var rows = await client.$queryRawUnsafe<ClassRow[]>(
         CLASS_SELECT_BASE +
-          'WHERE ($1::uuid IS NULL OR c.term_id = $1::uuid) ' +
+          'WHERE c.school_id = $5::uuid ' +
+          'AND ($1::uuid IS NULL OR c.term_id = $1::uuid) ' +
           'AND ($2::uuid IS NULL OR c.course_id = $2::uuid) ' +
           'AND ($3::uuid IS NULL OR c.academic_year_id = $3::uuid) ' +
           'AND ($4::text IS NULL OR co.grade_level = $4::text) ' +
@@ -140,6 +142,7 @@ export class ClassService {
         filters.courseId ?? null,
         filters.academicYearId ?? null,
         filters.gradeLevel ?? null,
+        tenant.schoolId,
       );
       var classIds = rows.map(function (r) {
         return r.id;
@@ -161,10 +164,12 @@ export class ClassService {
   }
 
   async getById(id: string): Promise<ClassResponseDto> {
+    var tenant = getCurrentTenant();
     var result = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var rows = await client.$queryRawUnsafe<ClassRow[]>(
-        CLASS_SELECT_BASE + 'WHERE c.id = $1::uuid',
+        CLASS_SELECT_BASE + 'WHERE c.id = $1::uuid AND c.school_id = $2::uuid',
         id,
+        tenant.schoolId,
       );
       if (rows.length === 0) return null;
       var teachers = await this.loadTeachersForClasses(client, [id]);
@@ -187,12 +192,15 @@ export class ClassService {
    */
   async listForTeacherEmployee(teacherEmployeeId: string): Promise<ClassResponseDto[]> {
     var today = new Date().toISOString().slice(0, 10);
+    var tenant = getCurrentTenant();
     var result = await this.tenantPrisma.executeInTenantContext(async (client) => {
       var rows = await client.$queryRawUnsafe<ClassRow[]>(
         CLASS_SELECT_BASE +
-          'WHERE c.id IN (SELECT class_id FROM sis_class_teachers WHERE teacher_employee_id = $1::uuid) ' +
+          'WHERE c.school_id = $2::uuid ' +
+          'AND c.id IN (SELECT class_id FROM sis_class_teachers WHERE teacher_employee_id = $1::uuid) ' +
           'ORDER BY c.section_code',
         teacherEmployeeId,
+        tenant.schoolId,
       );
       var classIds = rows.map(function (r) {
         return r.id;
@@ -249,11 +257,13 @@ export class ClassService {
   }
 
   async getRoster(classId: string): Promise<RosterEntryDto[]> {
+    var tenant = getCurrentTenant();
     var rows = await this.tenantPrisma.executeInTenantContext(async (client) => {
-      // 404 if class doesn't exist
+      // 404 if class doesn't exist in this school
       var existence = await client.$queryRawUnsafe<Array<{ id: string }>>(
-        'SELECT id FROM sis_classes WHERE id = $1::uuid',
+        'SELECT id FROM sis_classes WHERE id = $1::uuid AND school_id = $2::uuid',
         classId,
+        tenant.schoolId,
       );
       if (existence.length === 0) throw new NotFoundException('Class ' + classId + ' not found');
 
@@ -265,9 +275,10 @@ export class ClassService {
           'JOIN sis_students s ON s.id = e.student_id ' +
           'JOIN platform.platform_students ps ON ps.id = s.platform_student_id ' +
           'JOIN platform.iam_person ip ON ip.id = ps.person_id ' +
-          "WHERE e.class_id = $1::uuid AND e.status = 'ACTIVE' " +
+          "WHERE e.class_id = $1::uuid AND e.status = 'ACTIVE' AND s.school_id = $2::uuid " +
           'ORDER BY ip.last_name, ip.first_name',
         classId,
+        tenant.schoolId,
       );
     });
     return rows.map(function (r) {

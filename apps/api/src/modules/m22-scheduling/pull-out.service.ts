@@ -169,11 +169,21 @@ export class PullOutService {
 
     // INSERT the intervention.
     await this.tenantPrisma.executeInTenantContext(async (client) => {
+      // REVIEW-INT-COV — end_date column is DATE so the placeholder needs a ::date
+      // cast (42804 without it). interventionProvider ($6) is UUID-typed. The
+      // notes placeholder index shifts based on whether daysOfWeek is supplied:
+      // the days_of_week column is filled by $11 when supplied (and notes
+      // becomes $12) or by literal NULL when not (and notes becomes $11). The
+      // previous shape kept $12 for notes even when only 11 args were passed,
+      // which raises Postgres 42P18 "could not determine data type of parameter".
+      const notesPlaceholder = daysParam === null ? '$11' : '$12';
       await client.$executeRawUnsafe(
         'INSERT INTO sch_pull_out_interventions (id, school_id, student_id, regular_slot_id, intervention_name, intervention_provider, intervention_location, start_date, end_date, frequency, days_of_week, notes) ' +
-          'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, $8::date, $9, $10, ' +
+          'VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::uuid, $7, $8::date, $9::date, $10, ' +
           (daysParam === null ? 'NULL' : "string_to_array($11, ',')::smallint[]") +
-          ', $12)',
+          ', ' +
+          notesPlaceholder +
+          ')',
         ...(daysParam === null
           ? [
               id,
