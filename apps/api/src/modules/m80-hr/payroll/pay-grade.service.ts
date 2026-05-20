@@ -154,7 +154,7 @@ export class PayGradeService {
     if (sets.length === 0) return this.getById(id);
     sets.push('updated_at = now()');
     values.push(tenant.schoolId, id);
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       try {
         await tx.$executeRawUnsafe(
           'UPDATE hr_pay_grades SET ' +
@@ -174,8 +174,9 @@ export class PayGradeService {
         }
         throw e;
       }
-      return this.getById(id);
     });
+    // Re-read AFTER commit (see createPeriod fix).
+    return this.getById(id);
   }
 
   async listScales(payGradeId: string): Promise<SalaryScaleDto[]> {
@@ -250,7 +251,7 @@ export class PayGradeService {
     if (sets.length === 0) return this.loadScaleOrFail(scaleId);
     sets.push('updated_at = now()');
     values.push(scaleId);
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       try {
         await tx.$executeRawUnsafe(
           'UPDATE hr_salary_scales SET ' + sets.join(', ') + ' WHERE id = $' + n + '::uuid',
@@ -262,8 +263,9 @@ export class PayGradeService {
         }
         throw e;
       }
-      return this.loadScaleOrFail(scaleId);
     });
+    // Re-read AFTER commit (see createPeriod fix).
+    return this.loadScaleOrFail(scaleId);
   }
 
   /**

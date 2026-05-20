@@ -148,7 +148,7 @@ export class JobPostingService {
     }
     const tenant = getCurrentTenant();
     const id = generateId();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
         'INSERT INTO hr_job_postings ' +
           '(id, school_id, position_title, department, description, qualifications_required, ' +
@@ -167,8 +167,10 @@ export class JobPostingService {
         input.applicationDeadline ?? null,
         actor.accountId,
       );
-      return this.getById(id);
     });
+    // Re-read AFTER commit so the row is visible to a sibling tx
+    // (Prisma's $transaction can't be nested through AsyncLocalStorage).
+    return this.getById(id);
   }
 
   async patch(
@@ -205,8 +207,13 @@ export class JobPostingService {
       if (input.salaryRangeLow !== undefined) push('salary_range_low', input.salaryRangeLow);
       if (input.salaryRangeHigh !== undefined) push('salary_range_high', input.salaryRangeHigh);
       if (input.employmentType !== undefined) push('employment_type', input.employmentType);
-      if (input.applicationDeadline !== undefined)
-        push('application_deadline', input.applicationDeadline);
+      if (input.applicationDeadline !== undefined) {
+        // application_deadline is DATE — explicit ::date cast required
+        // since Prisma sends text params.
+        sets.push('application_deadline = $' + n + '::date');
+        values.push(input.applicationDeadline);
+        n += 1;
+      }
 
       let willEmitJobPosted = false;
       if (input.status !== undefined && input.status !== cur) {
@@ -232,7 +239,17 @@ export class JobPostingService {
         }
       }
 
-      if (sets.length === 0) return this.getById(id);
+      if (sets.length === 0) {
+        // No-op patch — re-read inside the tx so we don't fall through
+        // to a nested getById call (which would open a sibling tenant
+        // context that can't see uncommitted state from this tx).
+        const rereadRows = (await tx.$queryRawUnsafe(
+          SELECT_POSTING_BASE + 'WHERE p.school_id = $1::uuid AND p.id = $2::uuid LIMIT 1',
+          tenant.schoolId,
+          id,
+        )) as JobPostingRow[];
+        return this.rowToDto(rereadRows[0]!);
+      }
       sets.push('updated_at = now()');
       values.push(tenant.schoolId, id);
       await tx.$executeRawUnsafe(

@@ -130,7 +130,7 @@ export class InterviewService {
         throw new BadRequestException('postingId does not belong to this school.');
     });
     const id = generateId();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       try {
         await tx.$executeRawUnsafe(
           'INSERT INTO hr_interview_panels (id, posting_id, panel_name, notes, created_by) ' +
@@ -156,11 +156,12 @@ export class InterviewService {
           personId,
         );
       }
-      const panels = await this.listPanels(input.postingId, actor);
-      const created = panels.find((p) => p.id === id);
-      if (!created) throw new NotFoundException('Panel not found post-create');
-      return created;
     });
+    // Re-read AFTER commit (see job-posting.service.ts createPeriod fix).
+    const panels = await this.listPanels(input.postingId, actor);
+    const created = panels.find((p) => p.id === id);
+    if (!created) throw new NotFoundException('Panel not found post-create');
+    return created;
   }
 
   // ---------- Interviews -------------------------------------------------
@@ -185,7 +186,7 @@ export class InterviewService {
       }
     });
     const id = generateId();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
         'INSERT INTO hr_interviews ' +
           '(id, application_id, panel_id, scheduled_at, duration_minutes, location, meeting_url, notes) ' +
@@ -202,8 +203,9 @@ export class InterviewService {
       // Advance the application status — first interview moves it
       // out of SCREENING / SUBMITTED into INTERVIEW_SCHEDULED.
       await this.applications.advanceStatusInTx(tx, input.applicationId, 'INTERVIEW_SCHEDULED');
-      return this.getById(id, actor);
     });
+    // Re-read AFTER commit (see job-posting.service.ts create fix).
+    return this.getById(id, actor);
   }
 
   async listForApplication(applicationId: string, actor: ResolvedActor): Promise<InterviewDto[]> {
@@ -238,7 +240,7 @@ export class InterviewService {
   async patch(id: string, input: UpdateInterviewDto, actor: ResolvedActor): Promise<InterviewDto> {
     await this.assertAdmin(actor);
     const tenant = getCurrentTenant();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lock = (await tx.$queryRawUnsafe(
         'SELECT i.id, i.status, i.application_id::text AS application_id ' +
           'FROM hr_interviews i ' +
@@ -283,7 +285,7 @@ export class InterviewService {
         }
       }
 
-      if (sets.length === 0) return this.getById(id, actor);
+      if (sets.length === 0) return;
       sets.push('updated_at = now()');
       values.push(id);
       await tx.$executeRawUnsafe(
@@ -301,8 +303,9 @@ export class InterviewService {
           'INTERVIEW_COMPLETED',
         );
       }
-      return this.getById(id, actor);
     });
+    // Re-read AFTER commit (see job-posting.service.ts create fix).
+    return this.getById(id, actor);
   }
 
   // ---------- Evaluations ------------------------------------------------

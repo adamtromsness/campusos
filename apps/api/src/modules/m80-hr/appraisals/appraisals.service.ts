@@ -378,7 +378,7 @@ export class AppraisalCycleService {
     await this.assertAdmin(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // Validate framework + academic year live in the same school.
       const fw = (await tx.$queryRawUnsafe(
         'SELECT id FROM hr_appraisal_frameworks WHERE school_id = $1::uuid AND id = $2::uuid AND is_active = true LIMIT 1',
@@ -420,8 +420,10 @@ export class AppraisalCycleService {
         }
         throw e;
       }
-      return this.getById(id);
     });
+    // Re-read AFTER commit so the row is visible (Prisma $transaction
+    // can't be nested through AsyncLocalStorage).
+    return this.getById(id);
   }
 
   async patch(
@@ -431,7 +433,7 @@ export class AppraisalCycleService {
   ): Promise<AppraisalCycleDto> {
     await this.assertAdmin(actor);
     const tenant = getCurrentTenant();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lock = (await tx.$queryRawUnsafe(
         'SELECT id, status FROM hr_appraisal_cycles ' +
           'WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
@@ -465,7 +467,7 @@ export class AppraisalCycleService {
           sets.push('closed_at = NULL');
         }
       }
-      if (sets.length === 0) return this.getById(id);
+      if (sets.length === 0) return;
       sets.push('updated_at = now()');
       values.push(tenant.schoolId, id);
       await tx.$executeRawUnsafe(
@@ -473,8 +475,9 @@ export class AppraisalCycleService {
           `WHERE school_id = $${n}::uuid AND id = $${n + 1}::uuid`,
         ...values,
       );
-      return this.getById(id);
     });
+    // Re-read AFTER commit (Prisma $transaction can't be nested).
+    return this.getById(id);
   }
 
   private async assertAdmin(actor: ResolvedActor): Promise<void> {
@@ -586,7 +589,7 @@ export class AppraisalService {
     await this.assertAdmin(actor);
     const tenant = getCurrentTenant();
     const id = generateId();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       // Validate cycle + employee + appraiser belong to this school.
       const cyc = (await tx.$queryRawUnsafe(
         "SELECT id FROM hr_appraisal_cycles WHERE school_id = $1::uuid AND id = $2::uuid AND status = 'OPEN' LIMIT 1",
@@ -634,13 +637,14 @@ export class AppraisalService {
         }
         throw e;
       }
-      return this.getById(id, actor);
     });
+    // Re-read AFTER commit (see AppraisalCycleService.create fix).
+    return this.getById(id, actor);
   }
 
   async patch(id: string, input: UpdateAppraisalDto, actor: ResolvedActor): Promise<AppraisalDto> {
     const tenant = getCurrentTenant();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lock = (await tx.$queryRawUnsafe(
         'SELECT id, status, employee_id::text AS employee_id ' +
           'FROM hr_appraisals WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
@@ -692,10 +696,13 @@ export class AppraisalService {
             );
           }
           sets.push('signed_off_at = now()');
-          push('signed_off_by', actor.employeeId);
+          // Postgres won't auto-cast text → uuid; explicit cast required.
+          sets.push('signed_off_by = $' + n + '::uuid');
+          values.push(actor.employeeId);
+          n += 1;
         }
       }
-      if (sets.length === 0) return this.getById(id, actor);
+      if (sets.length === 0) return;
       sets.push('updated_at = now()');
       values.push(tenant.schoolId, id);
       await tx.$executeRawUnsafe(
@@ -703,8 +710,9 @@ export class AppraisalService {
           `WHERE school_id = $${n}::uuid AND id = $${n + 1}::uuid`,
         ...values,
       );
-      return this.getById(id, actor);
     });
+    // Re-read AFTER commit (see AppraisalCycleService.create fix).
+    return this.getById(id, actor);
   }
 
   /** Assembles the full appraisal DTO including goals + observations

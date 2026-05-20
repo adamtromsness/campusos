@@ -200,8 +200,13 @@ export class EmployeeService {
     }
 
     var schoolIdRows = await this.tenantPrisma.executeInTenantContext(async (client) => {
+      // school_config carries (config_key, config_value JSONB) — see
+      // packages/database/prisma/tenant/migrations/001_foundation.sql.
+      // The school_id is stored as a JSONB string under the 'school_id'
+      // config_key; the JSON cast (#>>>>'{}') drops the surrounding
+      // quotes so the UUID cast succeeds.
       return client.$queryRawUnsafe<Array<{ school_id: string }>>(
-        "SELECT value::uuid AS school_id FROM school_config WHERE key = 'school_id' LIMIT 1",
+        "SELECT (config_value #>> '{}')::uuid AS school_id FROM school_config WHERE config_key = 'school_id' LIMIT 1",
       );
     });
     // Fall back to the existing employee rows' school_id if school_config doesn't carry one.

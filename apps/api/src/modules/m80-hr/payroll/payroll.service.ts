@@ -186,7 +186,7 @@ export class PayrollService {
     }
     const tenant = getCurrentTenant();
     const id = generateId();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       try {
         await tx.$executeRawUnsafe(
           'INSERT INTO hr_pay_periods (id, school_id, period_label, start_date, end_date, pay_date) ' +
@@ -204,8 +204,11 @@ export class PayrollService {
         }
         throw e;
       }
-      return this.getPeriod(id);
     });
+    // Re-read AFTER the tx commits so the row is visible. Calling
+    // getPeriod inside the tx would open a sibling tenant context that
+    // doesn't see the pre-commit row.
+    return this.getPeriod(id);
   }
 
   // ---------- worker primitives ------------------------------------------
@@ -286,7 +289,7 @@ export class PayrollService {
   async approvePeriod(periodId: string, actor: ResolvedActor): Promise<PayPeriodDto> {
     await this.assertAdmin(actor);
     const tenant = getCurrentTenant();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lock = (await tx.$queryRawUnsafe(
         'SELECT id, status FROM hr_pay_periods ' +
           'WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
@@ -304,14 +307,15 @@ export class PayrollService {
         tenant.schoolId,
         periodId,
       );
-      return this.getPeriod(periodId);
     });
+    // Re-read AFTER commit (see createPeriod fix).
+    return this.getPeriod(periodId);
   }
 
   async markPaid(periodId: string, actor: ResolvedActor): Promise<PayPeriodDto> {
     await this.assertAdmin(actor);
     const tenant = getCurrentTenant();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lock = (await tx.$queryRawUnsafe(
         'SELECT id, status FROM hr_pay_periods ' +
           'WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
@@ -418,8 +422,10 @@ export class PayrollService {
           },
         });
       }
-      return this.getPeriod(periodId);
     });
+    // Re-read AFTER commit so the period+records flip is visible (see
+    // createPeriod fix for the nested-tx caveat).
+    return this.getPeriod(periodId);
   }
 
   // ---------- read paths --------------------------------------------------

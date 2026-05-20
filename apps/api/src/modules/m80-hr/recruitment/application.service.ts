@@ -247,7 +247,7 @@ export class ApplicationService {
   ): Promise<ApplicationDto> {
     await this.assertAdmin(actor);
     const tenant = getCurrentTenant();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lock = (await tx.$queryRawUnsafe(
         'SELECT a.id, a.status FROM hr_applications a ' +
           'JOIN hr_job_postings p ON p.id = a.posting_id ' +
@@ -276,15 +276,17 @@ export class ApplicationService {
         push('not_selected_reason', input.notSelectedReason);
       if (input.withdrawnReason !== undefined) push('withdrawn_reason', input.withdrawnReason);
 
-      if (sets.length === 0) return this.getById(id, actor);
+      if (sets.length === 0) return;
       sets.push('updated_at = now()');
       values.push(id);
       await tx.$executeRawUnsafe(
         'UPDATE hr_applications SET ' + sets.join(', ') + ' WHERE id = $' + n + '::uuid',
         ...values,
       );
-      return this.getById(id, actor);
     });
+    // Re-read AFTER commit (Prisma $transaction can't be nested
+    // through AsyncLocalStorage; see createPeriod fix in PayrollService).
+    return this.getById(id, actor);
   }
 
   /**

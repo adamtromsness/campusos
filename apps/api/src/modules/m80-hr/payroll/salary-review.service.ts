@@ -148,7 +148,7 @@ export class SalaryReviewService {
       }
     });
     const id = generateId();
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       await tx.$executeRawUnsafe(
         'INSERT INTO hr_salary_review_requests ' +
           '(id, school_id, employee_id, requested_by, review_type, current_salary, recommended_salary, ' +
@@ -164,8 +164,11 @@ export class SalaryReviewService {
         input.effectiveDate ?? null,
         input.justification,
       );
-      return this.getById(id, actor);
     });
+    // Re-read AFTER commit so the row is visible to a sibling tx
+    // (calling getById inside the outer tx opens a nested tenant
+    // context that can't see uncommitted rows).
+    return this.getById(id, actor);
   }
 
   async patch(
@@ -175,7 +178,7 @@ export class SalaryReviewService {
   ): Promise<SalaryReviewDto> {
     const tenant = getCurrentTenant();
     const isAdmin = await this.isAdmin(actor);
-    return this.tenantPrisma.executeInTenantTransaction(async (tx) => {
+    await this.tenantPrisma.executeInTenantTransaction(async (tx) => {
       const lock = (await tx.$queryRawUnsafe(
         'SELECT id, status, requested_by::text AS requested_by FROM hr_salary_review_requests ' +
           'WHERE school_id = $1::uuid AND id = $2::uuid FOR UPDATE',
@@ -225,11 +228,15 @@ export class SalaryReviewService {
       if (input.status !== undefined) {
         push('status', input.status);
         if (input.status === 'APPROVED' || input.status === 'REJECTED') {
-          push('decided_by', actor.personId);
+          // Postgres won't auto-cast text → uuid; without the explicit
+          // cast the UPDATE raises 42804.
+          sets.push('decided_by = $' + n + '::uuid');
+          values.push(actor.personId);
+          n += 1;
           sets.push('decided_at = now()');
         }
       }
-      if (sets.length === 0) return this.getById(id, actor);
+      if (sets.length === 0) return;
       sets.push('updated_at = now()');
       values.push(tenant.schoolId, id);
       await tx.$executeRawUnsafe(
@@ -242,8 +249,9 @@ export class SalaryReviewService {
           '::uuid',
         ...values,
       );
-      return this.getById(id, actor);
     });
+    // Re-read AFTER commit (see createPeriod fix).
+    return this.getById(id, actor);
   }
 
   /**

@@ -138,7 +138,15 @@ export class LeaveApprovalConsumer implements OnModuleInit {
       // and drop. The consumer-group claim still fires on success-path
       // exit, so a retry won't re-apply.
       var msg = e?.message || '';
-      if (/already (APPROVED|REJECTED|CANCELLED)/.test(msg) || /not in PENDING/.test(msg)) {
+      // Swallow:
+      //   - "Request is already APPROVED/REJECTED/CANCELLED" (cancelInternal)
+      //   - "Leave request <id> is in status <X>; expected PENDING"
+      //     (lockAndValidate from approve/reject side)
+      if (
+        /already (APPROVED|REJECTED|CANCELLED)/.test(msg) ||
+        /not in PENDING/.test(msg) ||
+        /expected PENDING/.test(msg)
+      ) {
         this.logger.log(
           '[' +
             CONSUMER_GROUP +
