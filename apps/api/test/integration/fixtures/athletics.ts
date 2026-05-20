@@ -72,15 +72,11 @@ const ATH_TABLES = [
 export async function resetAthleticsTables(client: PrismaClient): Promise<void> {
   const list = ATH_TABLES.map((t) => `${TEST_SCHEMA}.${t}`).join(', ');
   await client.$executeRawUnsafe(`TRUNCATE ${list} RESTART IDENTITY CASCADE`);
-  // Wipe platform-level official rows so each spec starts cleanly.
-  await client.$executeRawUnsafe(
-    `DELETE FROM platform.platform_official_availability WHERE official_profile_id = $1::uuid`,
-    TEST_ATH_OFFICIAL_PROFILE_ID,
-  );
-  await client.$executeRawUnsafe(
-    `DELETE FROM platform.platform_official_profiles WHERE id = $1::uuid`,
-    TEST_ATH_OFFICIAL_PROFILE_ID,
-  );
+  // Wipe ALL platform-level official rows so each spec starts cleanly.
+  // m101-events and other modules also create ad-hoc rows here and don't
+  // always track + clean them up — sweep the whole surface defensively.
+  await client.$executeRawUnsafe(`DELETE FROM platform.platform_official_availability`);
+  await client.$executeRawUnsafe(`DELETE FROM platform.platform_official_profiles`);
   await client.$executeRawUnsafe(
     `DELETE FROM platform.iam_person WHERE id = $1::uuid`,
     TEST_ATH_OFFICIAL_PERSON_ID,
